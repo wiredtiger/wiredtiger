@@ -47,10 +47,11 @@ from push_working_directory import PushWorkingDirectory
 
 def run_command(directory: str, command: str) -> str:
     working_directory = PushWorkingDirectory(directory)
-    completed_process = subprocess.run(command, capture_output=True, check=True, shell=True)
-    output = completed_process.stdout
-    working_directory.pop()
-    return output.decode()
+    try:
+        completed_process = subprocess.run(command, capture_output=True, check=True, shell=True)
+        return completed_process.stdout.decode()
+    finally:
+        working_directory.pop()
 
 
 def resolve_base_branch_ref(git_working_tree_dir: str, base_branch: str) -> str:
