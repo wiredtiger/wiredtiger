@@ -33,6 +33,19 @@ extern int __wt_optopt;
 extern int __wt_optreset;
 
 /*
+ * This is called when parsing a sub-option like the 'd' in -Pd, which expects an argument. We need
+ * to update the option argument to point to that argument.
+ */
+#define EXPECT_OPTIONAL_ARG_IN_SUB_PARSE(opts)                            \
+    do {                                                                  \
+        if (*__wt_optarg == '\0') {                                       \
+            /* If we change option indicator, we need to reset getopt. */ \
+            __wt_optarg = opts->argv[__wt_optind++];                      \
+            __wt_optreset = 1;                                            \
+        }                                                                 \
+    } while (0)
+
+/*
  * parse_number --
  *     Parse a number from the command line config string.
  */
@@ -40,6 +53,85 @@ static void
 parse_number(uint64_t *config_key, const char *parse_str, char **parse_end)
 {
     *config_key = (uint64_t)strtoll(parse_str, parse_end, 10);
+}
+
+/*
+ * parse_comma_separated_options --
+ *     Parse frequency and milliseconds from -Pd / -Pe.
+ */
+static void
+parse_comma_separated_options(const char *config_str, uint64_t *opts_key1, uint64_t *opts_key2,
+  const char *usage, bool insert_delays)
+{
+    char *parse_end;
+    const char *config_end;
+
+    if (*opts_key1 != 0)
+        testutil_die(
+          EINVAL, "%s x,x option specified twice: %s", insert_delays ? "-Pd" : "-Pe", usage);
+
+    /* Point the end of string either to comma or the final null character. */
+    config_end = strchr(config_str, ',');
+
+    /*
+     * This is to handle the scenario where second option after the comma is not specified or is
+     * NULL, i.e, -Px X, or -Px X
+     */
+    if (config_end == NULL || *(config_end + 1) == '\0') {
+        config_end = &config_str[strlen(config_str)];
+        /*
+         * The delay milliseconds is set to 100 by default for artificial delays and set to 0 for
+         * artificial errors.
+         */
+        *opts_key2 = insert_delays ? 100 : 0;
+    }
+
+    parse_end = (char *)config_end;
+    parse_number(opts_key1, config_str, &parse_end);
+
+    config_str = parse_end;
+    if (*config_str == ',')
+        ++config_str;
+
+    if ((strchr(config_str, ',')) != NULL)
+        testutil_die(EINVAL, "Multiple comma separated values specified, Usage : %s", usage);
+
+    config_end = &config_str[strlen(config_str)];
+    parse_end = (char *)config_end;
+
+    /* Reached end of the string and nothing to parse. */
+    if (*config_str == '\0')
+        return;
+
+    parse_number(opts_key2, config_str, &parse_end);
+}
+
+/*
+ * parse_artificial_errors --
+ *     Parse -Pe palite error injection.
+ */
+static void
+parse_artificial_errors(TEST_OPTS *opts, const char *config_str)
+{
+    static const char *usage_error =
+      "-Pe parameter is comma separated frequency and delay milliseconds, e.g. -Pe 2,300";
+
+    parse_comma_separated_options(
+      config_str, &opts->force_error, &opts->error_ms, usage_error, false);
+}
+
+/*
+ * parse_artificial_delays --
+ *     Parse -Pd palite delay injection.
+ */
+static void
+parse_artificial_delays(TEST_OPTS *opts, const char *config_str)
+{
+    static const char *usage_delay =
+      "-Pd parameter is comma separated frequency and delay milliseconds, e.g. -Pd 2,300";
+
+    parse_comma_separated_options(
+      config_str, &opts->force_delay, &opts->delay_ms, usage_delay, true);
 }
 
 /*
@@ -102,12 +194,24 @@ parse_and_set_disagg_opt(TEST_OPTS *opts)
 
 /*
  * parse_p_opt --
- *     Parse -P sub-options: -PS seeds.
+ *     Parse -P sub-options: -PS seeds, -Pd delays, and -Pe errors.
  */
 static int
 parse_p_opt(TEST_OPTS *opts)
 {
     switch (*__wt_optarg++) {
+    case 'd':
+        EXPECT_OPTIONAL_ARG_IN_SUB_PARSE(opts);
+        if (__wt_optarg == NULL || *__wt_optarg == '\0')
+            testutil_die(EINVAL, "-Pd option requires an argument");
+        parse_artificial_delays(opts, __wt_optarg);
+        break;
+    case 'e':
+        EXPECT_OPTIONAL_ARG_IN_SUB_PARSE(opts);
+        if (__wt_optarg == NULL || *__wt_optarg == '\0')
+            testutil_die(EINVAL, "-Pe option requires an argument");
+        parse_artificial_errors(opts, __wt_optarg);
+        break;
     case 'S':
         parse_random_seeds(opts, __wt_optarg);
         break;
@@ -150,10 +254,12 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
       USAGE_STR('C', " [-C]"), USAGE_STR('d', " [-d add data]"), USAGE_STR('h', " [-h home]"),
       USAGE_STR('G', " [-G Enable disaggregated storage]"), USAGE_STR('m', " [-m]"),
       USAGE_STR('n', " [-n record count]"), USAGE_STR('o', " [-o op count]"),
-      USAGE_STR('P', " [-PSD<data_seed>,E<extra_seed>]"), USAGE_STR('p', " [-p]"),
-      USAGE_STR('R', " [-R read thread count]"), USAGE_STR('T', " [-T thread count]"),
-      USAGE_STR('t', " [-t c|r table type]"), USAGE_STR('v', " [-v]"),
-      USAGE_STR('W', " [-W write thread count]"));
+      USAGE_STR('P',
+        " [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
+        " [-Pe <force_error>,<error_ms>]"),
+      USAGE_STR('p', " [-p]"), USAGE_STR('R', " [-R read thread count]"),
+      USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|r table type]"),
+      USAGE_STR('v', " [-v]"), USAGE_STR('W', " [-W write thread count]"));
 }
 
 /*
@@ -235,7 +341,7 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
     case 'o': /* Number of operations */
         opts->nops = (uint64_t)atoll(__wt_optarg);
         break;
-    case 'P': /* -PS */
+    case 'P': /* -PS / -Pd / -Pe */
         if (parse_p_opt(opts) != 0)
             return (1);
         break;

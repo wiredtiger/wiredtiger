@@ -72,6 +72,10 @@ typedef struct {
     uint64_t extra_seed;   /* Random seed for read ops */
     bool verbose;          /* Run in verbose mode */
     uint64_t nthreads;     /* Number of threads */
+    uint64_t delay_ms;     /* Average length of delay when simulated */
+    uint64_t error_ms;     /* Average length of delay when simulated */
+    uint64_t force_delay;  /* Force a simulated network delay every N operations */
+    uint64_t force_error;  /* Force a simulated network error every N operations */
 } SUBSET_TEST_OPTS;
 
 /*
@@ -97,45 +101,55 @@ typedef struct {
  *  - string options both appearing as "-b option" and "-boption"
  *  - int options also appearing both as "-T 21" and "-T21"
  *  - multiple character options starting with "-P", like "-PSD1234,E2345".
+ *  - palite delay/error knobs "-Pd 2,300" and "-Pe 2,300".
  *  - flag options like "-v".
  *  - our set of "fictional" arguments.
  *
  */
 static TEST_DRIVER driver[] = {
-  {{"parse_opts", "-b", "builddir", "-T", "21", NULL}, {"builddir", NONZERO, NONZERO, false, 21},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
+    {"builddir", NONZERO, NONZERO, false, 21, 0, 0, 0, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-bbuilddir", "-T21", NULL}, {"builddir", NONZERO, NONZERO, false, 21},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-bbuilddir", "-T21", NULL},
+    {"builddir", NONZERO, NONZERO, false, 21, 0, 0, 0, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-T21", NULL}, {NULL, NONZERO, NONZERO, false, 21}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-T21", NULL}, {NULL, NONZERO, NONZERO, false, 21, 0, 0, 0, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-v", NULL}, {NULL, NONZERO, NONZERO, true, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-v", NULL}, {NULL, NONZERO, NONZERO, true, 0, 0, 0, 0, 0}, {NULL, 0, 0, 0}},
 
   /* Setting random seeds can be done together or separately. */
-  {{"parse_opts", "-PSE2345,D1234", NULL}, {NULL, 1234, 2345, false, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-PSE2345,D1234", NULL}, {NULL, 1234, 2345, false, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PSD1234", "-PSE2345", NULL}, {NULL, 1234, 2345, false, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-PSD1234", "-PSE2345", NULL}, {NULL, 1234, 2345, false, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PSD1234", NULL}, {NULL, 1234, NONZERO, false, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-PSD1234", NULL}, {NULL, 1234, NONZERO, false, 0, 0, 0, 0, 0}, {NULL, 0, 0, 0}},
+
+  {{"parse_opts", "-Pd", "2,300", NULL}, {NULL, NONZERO, NONZERO, false, 0, 300, 0, 2, 0},
+    {NULL, 0, 0, 0}},
+
+  {{"parse_opts", "-Pe", "2,300", NULL}, {NULL, NONZERO, NONZERO, false, 0, 0, 300, 0, 2},
+    {NULL, 0, 0, 0}},
 
   /*
    * From here on, we are using some "extended" options, see previous comment. We set the argv[0] to
    * "parse_single_opt" to indicate to use the extended parsing idiom.
    */
-  {{"parse_single_opt", "-vd", "-c", "string_opt", NULL}, {NULL, NONZERO, NONZERO, true, 0},
+  {{"parse_single_opt", "-vd", "-c", "string_opt", NULL},
+    {NULL, NONZERO, NONZERO, true, 0, 0, 0, 0, 0}, {(char *)"string_opt", true, false, 0}},
+
+  {{"parse_single_opt", "-dv", "-cstring_opt", NULL}, {NULL, NONZERO, NONZERO, true, 0, 0, 0, 0, 0},
     {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-dv", "-cstring_opt", NULL}, {NULL, NONZERO, NONZERO, true, 0},
-    {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-ev", "-cstring_opt", "-f", "22", NULL},
+    {NULL, NONZERO, NONZERO, true, 0, 0, 0, 0, 0}, {(char *)"string_opt", false, true, 22}},
 
-  {{"parse_single_opt", "-ev", "-cstring_opt", "-f", "22", NULL}, {NULL, NONZERO, NONZERO, true, 0},
-    {(char *)"string_opt", false, true, 22}},
-
-  {{"parse_single_opt", "-evd", "-f22", NULL}, {NULL, NONZERO, NONZERO, true, 0},
+  {{"parse_single_opt", "-evd", "-f22", NULL}, {NULL, NONZERO, NONZERO, true, 0, 0, 0, 0, 0},
     {NULL, true, true, 22}},
 
-  {{"parse_single_opt", "-v", NULL}, {NULL, NONZERO, NONZERO, true, 0}, {NULL, false, false, 0}},
+  {{"parse_single_opt", "-v", NULL}, {NULL, NONZERO, NONZERO, true, 0, 0, 0, 0, 0},
+    {NULL, false, false, 0}},
 };
 
 /*
@@ -161,6 +175,10 @@ report(const TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
     REPORT_INT(opts, table_type);
     REPORT_INT(opts, data_seed);
     REPORT_INT(opts, extra_seed);
+    REPORT_INT(opts, delay_ms);
+    REPORT_INT(opts, error_ms);
+    REPORT_INT(opts, force_delay);
+    REPORT_INT(opts, force_error);
     REPORT_INT(opts, do_data_ops);
     REPORT_INT(opts, preserve);
     REPORT_INT(opts, verbose);
@@ -291,6 +309,10 @@ verify_expect(
     VERIFY_INT(opts, expect, table_type);
     VERIFY_RANDOM_INT(opts, expect, data_seed);
     VERIFY_RANDOM_INT(opts, expect, extra_seed);
+    VERIFY_INT(opts, expect, delay_ms);
+    VERIFY_INT(opts, expect, error_ms);
+    VERIFY_INT(opts, expect, force_delay);
+    VERIFY_INT(opts, expect, force_error);
     VERIFY_INT(opts, expect, do_data_ops);
     VERIFY_INT(opts, expect, preserve);
     VERIFY_INT(opts, expect, verbose);
@@ -374,6 +396,10 @@ main(int argc, char *argv[])
             expect.nthreads = subset->nthreads;
             expect.data_seed = subset->data_seed;
             expect.extra_seed = subset->extra_seed;
+            expect.delay_ms = subset->delay_ms;
+            expect.error_ms = subset->error_ms;
+            expect.force_delay = subset->force_delay;
+            expect.force_error = subset->force_error;
 
             fiction_expect = &driver[i].fiction_expected;
             check(nargs, cmd, &opts, &fiction_opts);
