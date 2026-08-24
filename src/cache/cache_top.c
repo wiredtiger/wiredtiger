@@ -10,9 +10,50 @@
 
 /*
  * These rankings answer "which tables are holding the cache" without walking the cache or the data
- * handle array. A tree adds itself to a ranking from the accounting path, once it grows past a
- * threshold; producing a report is just a pass over a fixed number of slots. That matters on a
- * deployment with millions of tables, where any per-handle walk is too expensive to run.
+ * handle array. That matters on a deployment with millions of open tables, where either walk is too
+ * expensive to run on a live connection.
+ *
+ * Five rankings are kept, one per metric: update bytes, dirty leaf bytes, and resident bytes are
+ * levels, read directly off a tree's own counters; recent bytes read and recent bytes evicted are
+ * flows, computed from a per-tree value that is aged backward as it is read, so a burst from an
+ * hour ago fades out instead of accumulating forever.
+ *
+ * Each ranking is a fixed array of slots, guarded by one spinlock, plus a threshold a tree's metric
+ * must reach to be worth a slot. The threshold is what makes the ranking complete rather than a
+ * sample: every metric is bounded by the cache size (that is what the decay on the flow metrics
+ * buys), so a threshold of cache size / slot count guarantees at most that many trees can ever
+ * qualify, and a tree missing from the array is provably below it. The very first threshold is
+ * seeded from the average resident tree size, since on a deployment with far more trees than slots,
+ * cache size / slot count alone is nowhere near the size of the trees actually worth naming; every
+ * later value comes from adjusting it, each time a report runs, to keep the array usefully full.
+ *
+ * A tree enters the accounting path already knowing where it stands. Each tree carries, per metric,
+ * the value it must grow past before it is worth another look at the ranking; until then, the
+ * accounting path pays nothing but its own comparison. It also carries which slot it currently
+ * occupies, if any, so refreshing an already-tracked tree is a direct update instead of a search;
+ * only admitting a genuinely new tree costs a scan of the whole array, to find the entry to
+ * displace. There is no symmetric hook on the decrement side: a tree that shrinks is not actively
+ * removed. It does not need to be, because both the slot-selection scan and report generation
+ * re-read every occupied slot's live value before acting on it, so a shrunk tree is correctly
+ * treated as small, and dropped from the array once a report actually looks, whether that look was
+ * triggered by a new tree contending for a slot or by a report being generated. Metadata and the
+ * history store never enter any of this: they are excluded for good when a tree is opened, by
+ * setting their values to one no counter can reach, rather than have the hot path discover the
+ * exclusion on every byte it accounts for.
+ *
+ * A report walks every ranking's array under its lock, copying out entries that still clear the
+ * threshold, adjusting the threshold for next time, and building lines to print once the lock is
+ * dropped. It only runs when something will be printed: on demand, through a debug_info category,
+ * or from the sweep server's periodic pass, which prints when the verbose category for this
+ * reporting is on or update bytes are over the configured target. A quiet connection with neither
+ * condition true does no work at all; nothing is lost by skipping those ticks, since the next
+ * report that does run reads everything fresh and catches up immediately.
+ *
+ * What this cannot see: a tree that was never touched after opening (no updates, no reads, no
+ * eviction) has nothing to trigger its own consideration and so never enters a ranking even if it
+ * is large, and a tracked tree with no activity at all similarly never gets re-examined. In
+ * practice this does not matter for the case this file exists for, cache pressure, since a tree
+ * under pressure is by definition being evicted from, which is what re-examines it.
  */
 
 /*
@@ -553,6 +594,12 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
     u_int metric;
     uint32_t count, i;
     bool has_total;
+
+    /*
+     * Zero, not left uninitialized: if allocation or the very first snapshot fails before count is
+     * ever set, the error path below still needs a safe value to free entries up to.
+     */
+    count = 0;
 
     cache = S2C(session)->cache;
     WT_RET(__wt_calloc_def(session, WT_CACHE_TOP_SLOTS, &entries));
