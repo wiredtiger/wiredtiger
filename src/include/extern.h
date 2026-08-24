@@ -1820,6 +1820,7 @@ extern void __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
 extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_cache_top_btree_discard(WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree);
 extern void __wt_cache_top_flow_incr(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, size_t size);
 extern void __wt_cache_top_track(

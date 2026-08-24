@@ -8,50 +8,84 @@
 
 #pragma once
 
-/* Cache consumption rankings maintained at runtime. */
+/* The rankings this file maintains, one metric per ranking. */
 typedef enum {
     WT_CACHE_TOP_UPDATES = 0, /* Update bytes held by the tree. */
     WT_CACHE_TOP_DIRTY,       /* Dirty leaf bytes held by the tree. */
     WT_CACHE_TOP_INMEM,       /* Total resident bytes held by the tree. */
     WT_CACHE_TOP_READ,        /* Recent bytes read into cache by the tree. */
-    WT_CACHE_TOP_EVICT,       /* Recent bytes evicted from the tree. */
-    WT_CACHE_TOP_METRICS      /* Number of rankings, not a ranking. */
+    WT_CACHE_TOP_EVICT        /* Recent bytes evicted from the tree. */
 } WT_CACHE_TOP_METRIC;
 
 /*
- * A tracked metric is bounded by the cache size (the read and eviction metrics are decayed to make
- * them so), which is what makes the ranking complete rather than a sample: with a threshold of the
- * cache size divided by the slot count, no more than that many trees can be above the threshold at
- * once, and a tree missing from the list is provably below it. The threshold is adjusted to keep
- * the list roughly full so a workload whose cache usage is spread thinly still produces a ranking.
+ * The number of rankings above. Kept as a plain constant rather than a trailing enumerator, so that
+ * a switch over WT_CACHE_TOP_METRIC only ever has to list values that can actually occur, instead
+ * of also handling a sentinel that -Wswitch-enum would otherwise require every such switch to name.
+ */
+#define WT_CACHE_TOP_METRICS (WT_CACHE_TOP_EVICT + 1)
+
+/*
+ * Every metric tracked here is bounded by the cache size (bytes read and bytes evicted are decayed
+ * so that this stays true for them too). That bound is what lets a fixed number of slots hold every
+ * tree worth reporting, instead of just a sample of them: set the threshold to cache size divided
+ * by the slot count, and at most that many trees can ever be above it, so a tree that is not in the
+ * ranking is provably below the threshold. The threshold is adjusted over time to keep the ranking
+ * reasonably full, so a workload where cache usage is spread thin across many tables still produces
+ * a useful ranking.
  */
 #define WT_CACHE_TOP_SLOTS 32
 
 /*
- * Growth that earns a tree another look at the rankings, as a divisor of the threshold. Trades how
- * closely the rankings follow growth against how often trees touch the shared ranking state.
+ * The value WT_BTREE.cache_top_slot holds for a metric the tree is not currently part of. Equal to
+ * the slot count, so every valid slot index (0 to WT_CACHE_TOP_SLOTS - 1) is distinguishable from
+ * it. A tree's slot fields must be set to this explicitly when the tree is opened: zero is a valid
+ * slot index, so relying on the struct's zero-initialization would wrongly claim slot 0.
+ */
+#define WT_CACHE_TOP_NOT_TRACKED WT_CACHE_TOP_SLOTS
+
+/*
+ * A tree is reconsidered for a ranking once it has grown by threshold / this value since its last
+ * check. A smaller divisor means the rankings track growth more closely, but trees touch the shared
+ * ranking state more often; a larger divisor means the opposite.
  */
 #define WT_CACHE_TOP_RECHECK_DIVISOR 8
 
-/* Half-life of the metrics that track a flow rather than a level. */
+/*
+ * On a deployment with far more trees than slots, cache size / slot count is nowhere near the size
+ * of the trees actually worth ranking, so the very first threshold instead starts at this multiple
+ * of the average resident tree size. Deliberately generous: a threshold that starts too high just
+ * gets corrected down at the next report, while one that starts too low fills the ranking with
+ * tables nobody would call large.
+ */
+#define WT_CACHE_TOP_SEED_MULTIPLIER 8
+
+/* How long it takes a flow metric's value (bytes read, bytes evicted) to decay by half. */
 #define WT_CACHE_TOP_FLOW_HALFLIFE_US (30 * WT_MILLION)
 
+/*
+ * The width, in bits, of the counters __cache_top_decay halves. Shifting a value right by this many
+ * bits or more is undefined behavior in C, so it is also the point past which decay stops trying to
+ * compute a shift and just reports zero; any real value reaches zero in far fewer halvings than
+ * this.
+ */
+#define WT_CACHE_TOP_DECAY_MAX_HALVINGS 64
+
 struct __wt_cache_top_entry {
-    WT_BTREE *btree; /* Tracked tree, NULL if the slot is unused. */
-    uint64_t value;  /* Metric value as of the last refresh. */
+    WT_BTREE *btree; /* The tree in this slot, or NULL if the slot is unused. */
+    uint64_t value;  /* That tree's value, as of the last time this slot was updated. */
 };
 
-struct __wt_cache_top_list {
-    WT_SPINLOCK lock; /* Protects everything below, including the slots' trees. */
+struct __wt_cache_top_array {
+    WT_SPINLOCK lock; /* Guards everything below, including which tree each slot points at. */
 
-    /* Read and adjusted outside the lock, so a stale read only costs a wasted visit. */
+    /* Read and updated without the lock: a caller that reads a stale value wastes one visit. */
     wt_shared uint64_t threshold;
     WT_CACHE_TOP_ENTRY slots[WT_CACHE_TOP_SLOTS];
 };
 
 struct __wt_cache_top {
-    WT_CACHE_TOP_LIST lists[WT_CACHE_TOP_METRICS];
+    WT_CACHE_TOP_ARRAY arrays[WT_CACHE_TOP_METRICS];
 
-    /* The flow half-life in the units __wt_clock returns, so decay needs no unit conversion. */
+    /* WT_CACHE_TOP_FLOW_HALFLIFE_US converted into the same units __wt_clock returns. */
     uint64_t halflife_ticks;
 };
