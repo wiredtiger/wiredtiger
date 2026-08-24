@@ -456,20 +456,22 @@ __verify_one_checkpoint(
     /* Account for the root page in the accumulated total block size. */
     WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
+        __wt_verbose_warning(session, WT_VERB_VERIFY,
+          "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
+          vs->total_block_size);
 #ifdef HAVE_DIAGNOSTIC
-    /* Validate the size of the btree. */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
         /*
-         * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues, where
-         * bytes_total increments happen before the reconciliation panic boundary, leaving us in an
-         * inconsistent state if reconciliation fails after the increment but before completion.
-         * Only fail in diagnostic builds for now; enable this branch in production builds once this
-         * is resolved.
+         * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
+         * increments happen before the boundary, so a reconciliation that fails after the increment
+         * but before completion leaves the counter inconsistent. Fail in diagnostic builds so the
+         * drift is caught during testing; production builds only warn.
          */
         WT_ERR_MSG(session, WT_ERROR,
           "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
           vs->total_block_size);
 #endif
+    }
 
     /*
      * The checkpoints are in time-order, so the last one in the list is the most recent. If this is
@@ -1745,13 +1747,13 @@ __verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, si
             __wt_verbose_error(session, WT_VERB_VERIFY,
               "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
               id_in_pali);
-            WT_TRET(EINVAL);
+            WT_TRET(WT_ERROR);
             index_in_pali++;
         } else if (index_in_pali == num_pali || id_in_pali > id_in_btree) {
             __wt_verbose_error(session, WT_VERB_VERIFY,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
-            WT_TRET(EINVAL);
+            WT_TRET(WT_ERROR);
             index_in_btree++;
         } else {
             index_in_pali++;
@@ -1874,7 +1876,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" WT_SIZET_FMT,
           (uint64_t)num_pages_found_in_pali, list.count);
-        WT_TRET(EINVAL);
+        WT_TRET(WT_ERROR);
     }
 
     /*
@@ -1883,10 +1885,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(list.ids, list.count, sizeof(uint64_t), __verify_compare_page_id);
 
-    WT_ERR_MSG_CHK(session,
-      __verify_compare_page_id_lists(
-        session, list.ids, list.count, (const uint64_t *)item->data, num_pages_found_in_pali),
-      "Page discard verification found mismatches");
+    WT_TRET(__verify_compare_page_id_lists(
+      session, list.ids, list.count, (const uint64_t *)item->data, num_pages_found_in_pali));
+    if (ret != 0)
+        WT_ERR_SUB(session, WT_ERROR, WT_VERIFY_PAGE_ID_MISMATCH,
+          "Page discard verification found mismatches");
 
 err:
     __wt_free(session, list.ids);
