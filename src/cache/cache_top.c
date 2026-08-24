@@ -33,9 +33,11 @@
  * acting on them, so a shrunk tree is dropped the next time either happens. Metadata and the
  * history store are excluded once, at open, rather than checked on every byte they account for.
  *
- * A report only runs when something will be printed - on demand, or when verbose logging or update
- * pressure calls for it - so a quiet connection does no work. Nothing is lost by skipping those
- * ticks: the next report reads everything live and catches up immediately.
+ * A report only runs when something will be printed - on demand, or when the verbose category for
+ * this reporting is on - so a quiet connection does no work. Nothing is lost by skipping those
+ * ticks: the next report reads everything live and catches up immediately. Turning the category on
+ * is a live, per-connection operation, so an operator does not need to have had it on in advance;
+ * turning it on at the moment of an incident is enough.
  *
  * Limitation: a tree that is never evicted from, and never grows past its own recheck value, is
  * never reconsidered and can go unseen even if large. That does not matter for cache-pressure
@@ -128,6 +130,14 @@ static void
 __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric,
   uint64_t **valuep, uint64_t **clockp)
 {
+    /*
+     * Set before the switch, not in a default label there: one compiler needs a default to prove
+     * every path sets the outputs, another warns that a default is redundant once every real metric
+     * is already listed. Setting this unconditionally satisfies both, since the switch below no
+     * longer needs to be the thing that proves the outputs are always set.
+     */
+    *valuep = *clockp = NULL;
+
     switch (metric) {
     case WT_CACHE_TOP_READ:
         *valuep = &btree->bytes_read_decayed;
@@ -140,15 +150,12 @@ __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP
     case WT_CACHE_TOP_UPDATES:
     case WT_CACHE_TOP_DIRTY:
     case WT_CACHE_TOP_INMEM:
-    default:
         /*
-         * The default label is for the compiler: every real metric is already listed above, but
-         * without it, a build cannot prove the outputs are always set and warns accordingly. The
-         * assert below does not always abort, either - a unit-testing build lets it return so a
-         * test can confirm it fired - so the outputs still need a defined value on this path.
+         * The assert here does not always abort - a unit-testing build lets it return so a test can
+         * confirm it fired - which is why the outputs already have a defined value above rather
+         * than depending on this path to give them one.
          */
         WT_ASSERT_ALWAYS(session, false, "cache top: %d does not track a flow", (int)metric);
-        *valuep = *clockp = NULL;
         break;
     }
 }
@@ -559,12 +566,12 @@ err:
 /*
  * __cache_top_emit --
  *     Print one line of a report: to the log if the report was explicitly requested, or tagged with
- *     the verbose category if it was generated on our own initiative. Either way, the decision to
- *     print has already been made by the caller before a report ever starts, so this always emits:
- *     it deliberately bypasses the usual check for whether the verbose category is on, because the
- *     caller may have decided to print for a reason - update bytes over the target - that has
- *     nothing to do with whether that category is on, and re-checking it here would silently drop
- *     the very output that reason was meant to guarantee.
+ *     the verbose category otherwise. Either way, the caller has already decided to print before a
+ *     report ever starts, so this always emits, deliberately bypassing the usual check for whether
+ *     the verbose category is on rather than repeating a decision the caller already made. Right
+ *     now the caller only ever reaches this once that check has already passed, but repeating it
+ *     here anyway would invite a future caller with its own, different reason to print to silently
+ *     lose its output to a check that has nothing to do with its reason.
  */
 static int
 __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
@@ -681,8 +688,11 @@ __wt_cache_top_report(WT_SESSION_IMPL *session)
 
 /*
  * __wt_cache_top_maintain --
- *     Called periodically. Does nothing unless there is a reason to actually produce a report:
- *     verbose output for this category is on, or update bytes are over the configured target. A
+ *     Called periodically. Does nothing unless the cache_top verbose category is on: like every
+ *     other verbose category, this is an operator-enabled diagnostic, not something that decides on
+ *     its own that a connection is interesting enough to report on. An operator can turn the
+ *     category on live, on a running connection, at the moment they need it, the same way they
+ *     would for any other verbose category; nothing here requires it to have been on in advance. A
  *     report always recomputes every ranking's thresholds and drops stale entries using live data,
  *     so nothing is lost by skipping a quiet tick; the first report generated after a quiet spell
  *     catches back up immediately, using whatever the connection looks like right then.
@@ -690,15 +700,7 @@ __wt_cache_top_report(WT_SESSION_IMPL *session)
 int
 __wt_cache_top_maintain(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-    uint64_t updates_target;
-
-    conn = S2C(session);
-    updates_target =
-      (uint64_t)((double)conn->cache_size * conn->evict->eviction_updates_target / 100);
-
-    if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CACHE_TOP, WT_VERBOSE_INFO) &&
-      __wt_cache_bytes_updates(conn->cache) <= updates_target)
+    if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CACHE_TOP, WT_VERBOSE_INFO))
         return (0);
 
     return (__cache_top_report(session, false));
