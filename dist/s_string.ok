@@ -538,7 +538,6 @@ TextWrapper
 ThreadList
 ThreadListWrapper
 ThreadsafeForwardingResult
-TieredConfigMixin
 Timespec
 Tput
 TryCV

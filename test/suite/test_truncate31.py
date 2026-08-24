@@ -42,7 +42,6 @@ from wtscenario import make_scenarios
 # The fast-truncate dirty-cache accounting relies on on-disk leaf pages, local
 # eviction_dirty_trigger semantics, and reopen_conn, none of which behave the
 # same under the tiered or disaggregated storage hooks.
-@wttest.skip_for_hook("tiered", "fast-truncate dirty-cache accounting is not meaningful under tiered storage")
 @wttest.skip_for_hook("disagg", "fast-truncate dirty-cache accounting is not meaningful under disaggregated storage")
 class test_truncate31(wttest.WiredTigerTestCase):
     # A small cache with a low dirty trigger so the accumulated dirty internal

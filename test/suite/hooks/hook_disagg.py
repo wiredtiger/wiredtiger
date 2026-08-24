@@ -104,9 +104,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     if 'compatibility=' in conn_config:
         skip_test("cannot run disagg hook on a test that requires compatibility in the config string")
 
-    if 'tiered_storage=' in conn_config:
-        skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
-
     page_log_extension = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(page_log_extension) == 0:
         raise RuntimeError(page_log_name + ' storage source extension not found')
@@ -389,7 +386,6 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_import",          "Can't import a disagg table"),
             ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
-            ("tiered",               "Tiered tests do not apply to disagg"),
         ]
 
         for (skip_string, skip_reason) in skip_categories:
