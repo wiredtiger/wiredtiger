@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import signal
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -87,7 +86,7 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.close()
 
         home = self.crash_in_subprocess('SUBPROCESS',
-            f'{self.test_name}.{self.test_name}.subprocess_func', signal.SIGKILL)
+            f'{self.test_name}.{self.test_name}.subprocess_func', self.debug_crash_signal)
 
         conn = wiredtiger.wiredtiger_open(home, self.conn_config())
         try:
