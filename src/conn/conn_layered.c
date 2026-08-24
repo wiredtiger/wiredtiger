@@ -128,6 +128,11 @@ __layered_create_missing_stable_table(
     const char *config, *derived_config = NULL;
 
     config = stable_create_cfg;
+
+    /*
+     * Step-up without schema epochs clears the queue that carries stable_create_cfg. Derive the
+     * configuration from ingest metadata instead.
+     */
     if (config == NULL) {
         WT_RET(__layered_stable_config_from_ingest(session, layered_cfg, &derived_config));
         config = derived_config; /* config now points to locally allocated memory. */
