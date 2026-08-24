@@ -15,6 +15,7 @@ struct __wt_repair_config {
 #define WT_REPAIR_COMMAND_NONE 0
 #define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
 #define WT_REPAIR_COMMAND_FETCH_METADATA 2
+#define WT_REPAIR_COMMAND_FIX_BTREE_SIZE 3
     int command;
 
     struct {
@@ -22,6 +23,11 @@ struct __wt_repair_config {
          */
         bool local;
     } fetch_database_size;
+
+    struct {
+        /* Target URI for the command, or NULL for all stable files. */
+        const char *uri;
+    } fix_btree_size;
 
     struct {
         /* Fetch metadata from the local cursor, not the shared page-server checkpoint. */
@@ -39,6 +45,7 @@ static int __repair_config_set_command(
 
 static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, bool);
+static int __repair_fix_btree_size(WT_SESSION_IMPL *, WT_ITEM *, const char *);
 
 /*
  * WT_ERR_REPORT --
@@ -149,6 +156,49 @@ err:
 }
 
 /*
+ * __repair_fix_btree_size --
+ *     Run verify with fix_btree_size=true on the given URI (or all stable files if NULL), then
+ *     checkpoint to persist the corrected metadata and recompute the database size.
+ */
+static int
+__repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *key;
+
+    cursor = NULL;
+
+    if (uri != NULL) {
+        WT_ERR(__wt_buf_catfmt(session, report, "fix_btree_size: verifying %s\n", uri));
+        WT_ERR(session->iface.verify(&session->iface, uri, "fix_btree_size=true"));
+    } else {
+        /* Walk the metadata and verify every stable file. */
+        WT_ERR(__wt_metadata_cursor(session, &cursor));
+        while ((ret = cursor->next(cursor)) == 0) {
+            WT_ERR(cursor->get_key(cursor, &key));
+            if (!WT_PREFIX_MATCH(key, "file:") || !WT_SUFFIX_MATCH(key, ".wt_stable"))
+                continue;
+            WT_ERR(__wt_buf_catfmt(session, report, "fix_btree_size: verifying %s\n", key));
+            WT_ERR(session->iface.verify(&session->iface, key, "fix_btree_size=true"));
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+        cursor = NULL;
+    }
+
+    /* Checkpoint to persist the corrected metadata and recompute the database size. */
+    WT_ERR(__wt_buf_catfmt(
+      session, report, "fix_btree_size: checkpointing to persist corrections\n"));
+    WT_ERR(session->iface.checkpoint(&session->iface, "debug=(database_size_fix=true)"));
+
+err:
+    if (cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __repair_config_set_command --
  *     Set the command in the repair_config based on the parsed config item.
  */
@@ -196,6 +246,12 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.key));
 
         require_disagg = !repair_config->fetch_metadata.local;
+    } else if (repair_config->command == WT_REPAIR_COMMAND_FIX_BTREE_SIZE) {
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "uri", &item), true);
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && item.len != 0)
+            WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fix_btree_size.uri));
+
+        require_disagg = true;
     }
 
     if (require_disagg && !__wt_disagg_has_picked_up_checkpoint(session))
@@ -242,6 +298,11 @@ __repair_config_decode(
     if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
         WT_ERR(__repair_config_set_command(
           session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_METADATA));
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fix_btree_size", &item), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR(__repair_config_set_command(
+          session, report, &item, repair_config, WT_REPAIR_COMMAND_FIX_BTREE_SIZE));
 
     if (repair_config->command == WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "No command found in the config");
@@ -300,6 +361,9 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
         WT_ERR(__repair_fetch_metadata(session, report, repair_config.fetch_metadata.uri,
           repair_config.fetch_metadata.key, repair_config.fetch_metadata.local));
         break;
+    case WT_REPAIR_COMMAND_FIX_BTREE_SIZE:
+        WT_ERR(__repair_fix_btree_size(session, report, repair_config.fix_btree_size.uri));
+        break;
     default:
         WT_ERR(__wt_illegal_value(session, repair_config.command));
     }
@@ -311,6 +375,7 @@ err:
 
     __wt_free(default_session, repair_config.fetch_metadata.uri);
     __wt_free(default_session, repair_config.fetch_metadata.key);
+    __wt_free(default_session, repair_config.fix_btree_size.uri);
 
     if (session != NULL)
         WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
