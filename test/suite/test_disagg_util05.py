@@ -47,7 +47,7 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
     FLAG_ARGS = {'-E': 'dummy_key', '-l': 'no-such-live-restore'}
 
     # wiredtiger_open applies the global options itself and refuses these two for a disaggregated
-    # database, so the open fails with the library's own message before wt's rejection can run.
+    # database, so the open fails with the library's own message.
     OPEN_FAILURE_MSGS = {
         '-l': 'Live restore is not compatible with disaggregated storage mode',
         '-r': 'disaggregated storage is not supported with read-only connections',
