@@ -61,7 +61,12 @@ __layered_stable_page_log_config(
     WT_DECL_ITEM(buf);
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
-    /* Read the page_log field from the layered metadata, if present. */
+    /*
+     * Read the page_log field from the layered metadata, if present.
+     *
+     * FIXME-WT-18475: page_log can be absent because table-level disaggregated settings replace
+     * connection-level settings. Remove the WT_NOTFOUND handling when this absence is resolved.
+     */
     WT_CONFIG_ITEM cval;
     WT_ERR_NOTFOUND_OK(
       __wt_config_getones(session, layered_cfg, "disaggregated.page_log", &cval), true);

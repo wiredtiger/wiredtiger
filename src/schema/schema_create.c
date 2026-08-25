@@ -1203,6 +1203,10 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
       session, tmp, "ingest=\"%s\",stable=\"%s\",log=(enabled=false)", ingest_uri, stable_uri));
     layered_cfg[3] = tmp->data;
 
+    /*
+     * FIXME-WT-18475: the table-level disaggregated category replaces the connection-level
+     * category, so storage_tier removes page_log from the layered metadata.
+     */
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
