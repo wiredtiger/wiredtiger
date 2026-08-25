@@ -63,6 +63,26 @@ class test_tiered_deprecate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
     def test_salvage(self):
         self._assert_unsupported(lambda: self.session.salvage(self._uri()))
 
+    def test_open_cursor(self):
+        self._assert_unsupported(lambda: self.session.open_cursor(self._uri()))
+
+class test_tiered_deprecate_api(wttest.WiredTigerTestCase):
+    def _assert_enotsup(self, expr, msg):
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, expr, '/' + re.escape(msg) + '/')
+        err, _sub, last_msg = self.session.get_last_error()
+        self.assertEqual(err, errno.ENOTSUP)
+        self.assertEqual(last_msg, msg)
+
+    def test_flush_tier(self):
+        self._assert_enotsup(
+            lambda: self.session.checkpoint('flush_tier=(enabled)'), 'flush_tier is not supported')
+
+    def test_add_storage_source(self):
+        path = self.findExtension('storage_sources', 'dir_store')[0]
+        msg = 'storage sources are not supported'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.load_extension(path), '/' + re.escape(msg) + '/')
+
 class test_tiered_deprecate_truncate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),

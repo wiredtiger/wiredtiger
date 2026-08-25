@@ -78,7 +78,6 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc_def(session, 4, &dhandle->cfg));
     switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
-    case WT_DHANDLE_TYPE_TIERED:
         /*
          * We are stripping out all checkpoint related information from the config string. We save
          * the rest of the metadata string, that is essentially static and unchanging and then
@@ -106,12 +105,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          */
         cfg[0] = tmp;
         cfg[1] = NULL;
-        if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
-            strip =
-              "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,flush_time=,flush_timestamp=,"
-              "last=,tiers=()";
-        else
-            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,live_restore=";
+        strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,live_restore=";
         WT_ERR(__wt_config_merge(session, cfg, strip, &base));
         __wt_free(session, tmp);
         break;
@@ -121,8 +115,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
         break;
+    case WT_DHANDLE_TYPE_TIERED:
     case WT_DHANDLE_TYPE_TIERED_TREE:
-        WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, tier_meta), &dhandle->cfg[0]));
+        WT_ERR(__wt_object_unsupported(session, dhandle_name));
         break;
     }
     dhandle->cfg[1] = metaconf;
@@ -155,6 +150,8 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
 {
     WT_DECL_RET;
 
+    WT_UNUSED(final);
+
     switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
@@ -166,11 +163,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TIERED:
-        WT_WITH_DHANDLE(
-          session, dhandle, ret = __wt_tiered_discard(session, (WT_TIERED *)dhandle, final));
-        break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
-        ret = __wt_tiered_tree_close(session, (WT_TIERED_TREE *)dhandle);
         break;
     }
 
@@ -196,8 +189,6 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_TABLE *table;
-    WT_TIERED *tiered;
-    WT_TIERED_TREE *tiered_tree;
     uint64_t bucket;
 
     /*
@@ -220,15 +211,9 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         WT_RET(__wt_calloc_one(session, &table));
         dhandle = (WT_DATA_HANDLE *)table;
         __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_TABLE);
-    } else if (WT_PREFIX_MATCH(uri, "tier:")) {
-        WT_RET(__wt_calloc_one(session, &tiered_tree));
-        dhandle = (WT_DATA_HANDLE *)tiered_tree;
-        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_TIERED_TREE);
-    } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
-        WT_RET(__wt_calloc_one(session, &tiered));
-        dhandle = (WT_DATA_HANDLE *)tiered;
-        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_TIERED);
-    } else
+    } else if (WT_PREFIX_MATCH(uri, "tier:") || WT_PREFIX_MATCH(uri, "tiered:"))
+        return (__wt_object_unsupported(session, uri));
+    else
         WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
@@ -508,11 +493,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
     case WT_DHANDLE_TYPE_TIERED:
-        WT_TRET(__wt_tiered_close(session, (WT_TIERED *)dhandle, final));
-        F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
-        break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
-        WT_TRET(__wt_tiered_tree_close(session, (WT_TIERED_TREE *)dhandle));
         break;
     }
 
@@ -664,22 +645,8 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_schema_open_table(session));
         break;
     case WT_DHANDLE_TYPE_TIERED:
-        /* Set any special flags on the btree handle. */
-        F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
-
-        /*
-         * Allocate data-source statistics memory. We don't allocate that memory when allocating the
-         * data handle because not all data handles need statistics (for example, handles used for
-         * checkpoint locking). If we are reopening the handle, then it may already have statistics
-         * memory, check to avoid the leak.
-         */
-        if (dhandle->stat_array == NULL)
-            WT_ERR(__wt_stat_dsrc_init(session, dhandle));
-
-        WT_ERR(__wt_tiered_open(session, cfg));
-        break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
-        WT_ERR(__wt_tiered_tree_open(session, cfg));
+        WT_ERR(__wt_object_unsupported(session, dhandle->name));
         break;
     }
 
