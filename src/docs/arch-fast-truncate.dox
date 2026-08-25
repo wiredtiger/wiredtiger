@@ -288,8 +288,6 @@ disaggregated storage.
 Nothing is written, so the parent still refers to the pre-instantiation image and may still
 describe it with a fast-truncate proxy cell; the flag and the \c page_del structure are kept
 so that the parent can write that cell out again.
-If such a page is subsequently evicted, the ref returns to \c WT_REF_DELETED with the
-\c page_del structure attached, restoring the pre-instantiation state.
 
 Note that "unresolved" includes "prepared".
 While we cannot write out a prepared truncation in the parent page's address cells, in

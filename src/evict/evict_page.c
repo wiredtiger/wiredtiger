@@ -788,11 +788,12 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             /*
-             * A skipped write leaves the on-disk page predating any instantiation, so restore the
-             * pre-instantiation state: WT_REF_DELETED with the retained page-delete information.
-             * WT_REF_DISK would resurrect the truncated page.
+             * An instantiated page cannot reach here: a skipped write over unwritten changes
+             * leaves the page dirty, and eviction reconciles dirty pages, clearing the flag.
+             * WT_REF_DISK with live page-delete information would resurrect the truncated page.
              */
-            WT_REF_SET_STATE(ref, instantiated ? WT_REF_DELETED : WT_REF_DISK);
+            WT_ASSERT(session, !instantiated);
+            WT_REF_SET_STATE(ref, WT_REF_DISK);
         } else {
             /* The split code works with WT_MULTI structures, build one for the disk image. */
             memset(&multi, 0, sizeof(multi));
