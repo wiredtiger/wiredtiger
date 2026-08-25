@@ -81,16 +81,21 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
 
     WT_ASSERT(session, filename != NULL);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s (table_id: %" PRIu64 ")", filename,
-      (uint64_t)S2BT(session)->id);
+    tableid = S2BT(session)->id;
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s (table_id: %" PRIu64 ")", filename, tableid);
 
     conn = S2C(session);
     hash = __wt_hash_city64(filename, strlen(filename));
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
-        /* TODO: Should check to make sure this is the right type of block */
-        if (strcmp(filename, block->name) == 0) {
+        /*
+         * FIXME-WT-18453: the list holds both block types and nothing here tells them apart, so a
+         * plain block reads its own fields as a table ID.
+         *
+         * Matching the name alone would serve a recreated table its predecessor's pages.
+         */
+        if (strcmp(filename, block->name) == 0 && ((WT_BLOCK_DISAGG *)block)->tableid == tableid) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
@@ -113,7 +118,6 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     if (WT_STREQ(block_disagg->name, WT_HS_FILE_SHARED))
         F_SET(block_disagg, WT_BLOCK_DISAGG_HS);
 
-    tableid = S2BT(session)->id;
     block_disagg->tableid = tableid;
 
     WT_ERR(S2BT(session)->page_log->pl_open_handle(

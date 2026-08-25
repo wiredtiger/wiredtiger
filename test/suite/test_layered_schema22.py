@@ -27,8 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # Validate immutable metadata configuration fields on checkpoint pickup.
-# A matched pickup passes; a table dropped and recreated on the leader (new btree id), a table
-# created with different key formats on the two nodes, and a divergent nested field all panic.
+# A matched pickup passes, and a table dropped and recreated on the leader is adopted under its new
+# btree id. A table created with different key formats on the two nodes and a divergent nested
+# field both panic.
 # Non-diagnostic builds validate only the btree id of file entries; the full field comparison
 # runs on diagnostic builds.
 
@@ -83,24 +84,35 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
         conn_follow.close('debug=(skip_checkpoint=true)')
 
-    def subprocess_recreated_table_panics(self):
-        """Subprocess body for the btree id mismatch test; expected to panic/abort."""
+    def test_recreated_table_reconciled(self):
+        """A table recreated on the leader carries a new btree id: the follower adopts it."""
         self.session.create(self.uri, self.table_config)
         self.leader_checkpoint(1)
 
         conn_follow, session_follow = self.open_follower()
-        session_follow.close()
 
         # Drop and recreate the table on the leader with an identical configuration: the new table
-        # gets a new btree id. The follower never applies the drop, expected to panic.
+        # gets a new btree id. The follower never applies the drop, so its local entries still
+        # describe the table that is gone.
         self.dropUntilSuccess(self.session, self.uri)
         self.session.create(self.uri, self.table_config)
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[1] = 'after the recreate'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+        cursor.close()
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint(conn_follow)
 
-    def test_recreated_table_panics(self):
-        """A table recreated on the leader carries a new btree id: pickup panics."""
-        self.run_panic_subprocess('recreated_table_panics', 'the value of "id"')
+        # The follower reads the new table, so it discarded the old one rather than
+        # interpreting the checkpoint under the wrong btree identity.
+        self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor[1], 'after the recreate')
+        cursor.close()
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
 
     def make_mismatched_format(self):
         """
@@ -136,9 +148,13 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_follow, session_follow = self.open_follower()
         session_follow.close()
 
-        # Recreate the table with a different nested encryption keyid.
-        self.dropUntilSuccess(self.session, self.uri)
-        self.session.create(self.uri, self.table_config + ',encryption=(name=none,keyid=second)')
+        # Plant the divergent nested field on the follower rather than recreating the table on the
+        # leader: a recreate carries a new btree id, which the pickup settles by adopting the
+        # checkpoint's table, leaving nothing for the field comparison to reject.
+        config = self.stable_config(conn_follow, self.uri)
+        self.inject_stable_entry(conn_follow, self.stable_uri(self.uri),
+                                 config.replace('keyid=first', 'keyid=second'))
+
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint(conn_follow)
 

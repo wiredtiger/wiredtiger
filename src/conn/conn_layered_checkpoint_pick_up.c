@@ -656,6 +656,197 @@ err:
 }
 
 /*
+ * __disagg_pick_up_new_layered --
+ *     Pick up a layered table that the local metadata does not have: create the missing ingest
+ *     table and copy the shared metadata entries into the local metadata.
+ */
+static int
+__disagg_pick_up_new_layered(WT_SESSION_IMPL *session, WT_CURSOR **sh_cursors, const bool *sh_has,
+  bool is_startup, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids, uint32_t *new_ingestp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    char *ingest_value, *layered_ingest_uri;
+    const char *metadata_value;
+
+    ingest_value = NULL;
+    layered_ingest_uri = NULL;
+
+    WT_ERR(sh_cursors[WT_DISAGG_CURSOR_LAYERED]->get_value(
+      sh_cursors[WT_DISAGG_CURSOR_LAYERED], &metadata_value));
+    WT_ERR(__wt_config_getones(session, metadata_value, "ingest", &cval));
+    if (cval.len > 0) {
+        WT_ERR(__wt_calloc_def(session, cval.len + 1, &layered_ingest_uri));
+        memcpy(layered_ingest_uri, cval.str, cval.len);
+        layered_ingest_uri[cval.len] = '\0';
+        /*
+         * Read the metadata rather than the walk's cursor: a table dropped during this walk is
+         * still present to a cursor opened before the drop.
+         */
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, layered_ingest_uri, &ingest_value), true);
+        if (ret == WT_NOTFOUND) {
+            WT_ERR_MSG_CHK(session,
+              __layered_create_missing_ingest_table(
+                session, layered_ingest_uri, metadata_value, is_startup),
+              "Failed to create missing ingest table \"%s\" from \"%s\"", layered_ingest_uri,
+              metadata_value);
+            ++*new_ingestp;
+        }
+    }
+
+    WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], stable_btree_ids));
+    WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE], stable_btree_ids));
+    if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
+        WT_ERR(
+          __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], stable_btree_ids));
+    if (sh_has[WT_DISAGG_CURSOR_TABLE])
+        WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_TABLE], stable_btree_ids));
+
+err:
+    __wt_free(session, ingest_value);
+    __wt_free(session, layered_ingest_uri);
+    return (ret);
+}
+
+/*
+ * __disagg_file_id_cmp --
+ *     Compare the btree IDs of the local and the shared file: entry at the cursor positions,
+ *     reporting the local ID against the shared one. A difference means the entries describe
+ *     different tables that happen to share a name.
+ */
+static int
+__disagg_file_id_cmp(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor,
+  int64_t *md_idp, int64_t *sh_idp, int *cmpp)
+{
+    WT_CONFIG_ITEM md_id, sh_id;
+    const char *md_value, *sh_value;
+
+    WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
+    WT_RET(md_cursor->get_value(md_cursor, &md_value));
+    WT_RET(__wt_config_getones(session, sh_value, "id", &sh_id));
+    WT_RET(__wt_config_getones(session, md_value, "id", &md_id));
+
+    *md_idp = md_id.val;
+    *sh_idp = sh_id.val;
+    *cmpp = md_id.val < sh_id.val ? -1 : (md_id.val > sh_id.val ? 1 : 0);
+    return (0);
+}
+
+/*
+ * __disagg_close_checkpoint_views --
+ *     Close the checkpoint views of a stable constituent. Their names embed the checkpoint, so they
+ *     hash apart from the base URI and a drop leaves them behind to serve the dropped table.
+ */
+static int
+__disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(name_buf);
+    WT_DECL_ITEM(prefix_buf);
+    WT_DECL_RET;
+
+    WT_RET(__wt_scr_alloc(session, 0, &prefix_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &name_buf));
+
+    /* A view is named for the checkpoint it reads, as "<stable uri>/<checkpoint>". */
+    WT_ERR(__wt_buf_fmt(session, prefix_buf, "%s/", stable_uri));
+
+    /*
+     * Close one view and walk again: the close takes the view off the list and frees the name it
+     * was given, so neither a position in the list nor a pointer into it survives the call.
+     */
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, {
+        while (ret == 0) {
+            TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q)
+                if (!F_ISSET(dhandle, WT_DHANDLE_DEAD) &&
+                  WT_PREFIX_MATCH(dhandle->name, (const char *)prefix_buf->data))
+                    break;
+            if (dhandle == NULL)
+                break;
+
+            ret = __wt_buf_set(session, name_buf, dhandle->name, strlen(dhandle->name) + 1);
+            if (ret == 0)
+                ret = __wt_conn_dhandle_close_all(session, name_buf->data, true, true, false);
+        }
+    });
+    WT_ERR(ret);
+
+err:
+    __wt_scr_free(session, &name_buf);
+    __wt_scr_free(session, &prefix_buf);
+    return (ret);
+}
+
+/*
+ * __disagg_drop_local_layered --
+ *     Discard this node's state for a layered table dropped elsewhere. Dropping the owning entry
+ *     carries away the layered table and both constituents.
+ */
+static int
+__disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_ITEM(uri_buf);
+    WT_DECL_RET;
+    /* The table is already gone from the shared metadata, so this drop keeps to itself. */
+    const char *drop_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true,local_only=true", NULL};
+    const char *name;
+
+    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
+
+    WT_ERR_MSG_CHK(session, __wt_schema_drop(session, uri, drop_cfg, false),
+      "Failed to discard the dropped layered table \"%s\"", uri);
+
+    /* The drop does not reach the stable constituent's checkpoint views. */
+    name = uri;
+    if (!WT_PREFIX_SKIP(name, "table:"))
+        WT_PREFIX_SKIP_REQUIRED(session, name, "layered:");
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", name));
+    WT_ERR(__disagg_close_checkpoint_views(session, uri_buf->data));
+
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Discarded the local state of the dropped layered table \"%s\"", uri);
+
+err:
+    __wt_scr_free(session, &uri_buf);
+    return (ret);
+}
+
+/*
+ * __disagg_drop_on_helper_session --
+ *     Drop a stale layered table on a session of its own, so the tracked unit holding the drop's
+ *     handle locks ends before the caller reuses the name. The helper inherits this thread's lock
+ *     flags: the locks are already held here, and a second acquisition would deadlock.
+ */
+static int
+__disagg_drop_on_helper_session(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *drop_session;
+
+    /*
+     * The helper stands in for this thread, so the locks it needs have to be held here already:
+     * taking them again on the same thread would deadlock, which is why they are inherited.
+     */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    drop_session = NULL;
+    WT_RET(__wt_open_internal_session(
+      S2C(session), "disagg-drop", true, session->flags, session->lock_flags, &drop_session));
+
+    WT_ERR(__wt_meta_track_on(drop_session));
+    ret = __disagg_drop_local_layered(drop_session, uri);
+    WT_TRET(__wt_meta_track_off(drop_session, true, ret != 0));
+
+err:
+    WT_TRET(__wt_session_close_internal(drop_session));
+    return (ret);
+}
+
+/*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated.
@@ -745,10 +936,9 @@ static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   wt_timestamp_t ckpt_schema_epoch, bool is_startup)
 {
-    WT_CONFIG_ITEM cval;
-    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
-      *sh_cursors[WT_DISAGG_CURSOR_COUNT];
+    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
+    WT_DECL_ITEM(drop_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *latest_entry;
@@ -756,24 +946,24 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
-    uint64_t apply_elapsed_ms;
-    uint32_t dup_id, existing_tables, new_tables, new_ingest;
     size_t current_len;
-    int i;
-    char *first_uri, *layered_ingest_uri, *second_uri;
+    uint64_t apply_elapsed_ms;
+    int64_t md_btree_id, sh_btree_id;
+    uint32_t dropped_tables, dup_id, existing_tables, new_tables, new_ingest;
+    int i, id_cmp;
+    char *first_uri, *second_uri;
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
-    const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
+    const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     bool md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT], strict;
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
-    md_write_cursor = NULL;
     WT_CLEAR(stable_btree_ids);
 
     metadata_checkpoint_name = NULL;
-    first_uri = layered_ingest_uri = second_uri = NULL;
-    existing_tables = new_tables = new_ingest = 0;
+    first_uri = second_uri = NULL;
+    dropped_tables = existing_tables = new_tables = new_ingest = 0;
 
     /* Whether to check that the local and shared metadata contain the same layered tables. */
     strict = F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
@@ -818,7 +1008,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_cursors[i]));
-    WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_write_cursor));
 
     /* Open the cursors on the shared metadata table. */
     WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
@@ -887,6 +1076,41 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
 
         /*
+         * Differing btree IDs under one name are two tables sharing a name. The checkpoint is the
+         * durable record, so the local one was never published and goes, whichever ID is larger.
+         * Settle it before the validation rejects the difference and before the stale ID is
+         * collected.
+         *
+         * FIXME-WT-18310: an unpublished create for the name stays queued once its table is gone,
+         * and drains a dead incarnation's metadata on a later step-up.
+         */
+        id_cmp = 0;
+        if (md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED] &&
+          md_has[WT_DISAGG_CURSOR_FILE] && sh_has[WT_DISAGG_CURSOR_FILE]) {
+            WT_ERR(__disagg_file_id_cmp(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
+              md_cursors[WT_DISAGG_CURSOR_FILE], &md_btree_id, &sh_btree_id, &id_cmp));
+            if (id_cmp != 0) {
+                __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Dropping and recreating stale layered table \"%s\": the local btree ID %" PRId64
+                  " is not the checkpoint's %" PRId64,
+                  current, md_btree_id, sh_btree_id);
+
+                WT_ERR(__wt_scr_alloc(session, 0, &drop_buf));
+                WT_ERR(__wt_buf_fmt(session, drop_buf, "%s%s",
+                  md_has[WT_DISAGG_CURSOR_TABLE] ? "table:" : "layered:", current));
+                WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret,
+                  ret = __disagg_drop_on_helper_session(session, (const char *)drop_buf->data));
+                __wt_scr_free(session, &drop_buf);
+                WT_ERR(ret);
+                ++dropped_tables;
+
+                WT_ERR(__disagg_pick_up_new_layered(
+                  session, sh_cursors, sh_has, is_startup, &stable_btree_ids, &new_ingest));
+                continue;
+            }
+        }
+
+        /*
          * Collect the IDs the local metadata already holds. Applying a checkpoint only ever moves a
          * file's checkpoint forward, never its ID, so these survive the walk unchanged.
          */
@@ -925,7 +1149,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             }
         }
 
-        /* Verify that the immutable metadata fields agree before adopting the new checkpoint. */
+        /* The immutable fields have to agree before the checkpoint is adopted. */
+        WT_ASSERT(session, id_cmp == 0);
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
             if (md_has[i] && sh_has[i])
                 WT_ERR(__disagg_check_meta_match(session, sh_cursors[i], md_cursors[i]));
@@ -1011,36 +1236,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR_MSG(session, EINVAL,
                   "Unexpected local metadata entries for new layered table \"%s\"", current);
 
-            WT_ERR(sh_cursors[WT_DISAGG_CURSOR_LAYERED]->get_value(
-              sh_cursors[WT_DISAGG_CURSOR_LAYERED], &metadata_value));
-            WT_ERR(__wt_config_getones(session, metadata_value, "ingest", &cval));
-            if (cval.len > 0) {
-                WT_ERR(__wt_calloc_def(session, cval.len + 1, &layered_ingest_uri));
-                memcpy(layered_ingest_uri, cval.str, cval.len);
-                layered_ingest_uri[cval.len] = '\0';
-                md_write_cursor->set_key(md_write_cursor, layered_ingest_uri);
-                WT_ERR_NOTFOUND_OK(md_write_cursor->search(md_write_cursor), true);
-                if (ret == WT_NOTFOUND) {
-                    WT_ERR_MSG_CHK(session,
-                      __layered_create_missing_ingest_table(
-                        session, layered_ingest_uri, metadata_value, is_startup),
-                      "Failed to create missing ingest table \"%s\" from \"%s\"",
-                      layered_ingest_uri, metadata_value);
-                    ++new_ingest;
-                }
-                __wt_free(session, layered_ingest_uri);
-                layered_ingest_uri = NULL;
-            }
-            WT_ERR(__disagg_insert_meta(
-              session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], &stable_btree_ids));
-            WT_ERR(
-              __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
-            if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], &stable_btree_ids));
-            if (sh_has[WT_DISAGG_CURSOR_TABLE])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], &stable_btree_ids));
+            WT_ERR(__disagg_pick_up_new_layered(
+              session, sh_cursors, sh_has, is_startup, &stable_btree_ids, &new_ingest));
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -1173,8 +1370,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
-      " new ingest tables in %" PRIu64 "ms",
-      existing_tables, new_tables, new_ingest, apply_elapsed_ms);
+      " new ingest tables, %" PRIu32 " dropped tables in %" PRIu64 "ms",
+      existing_tables, new_tables, new_ingest, dropped_tables, apply_elapsed_ms);
 
 done:
 err:
@@ -1182,12 +1379,10 @@ err:
     __wt_free(session, first_uri);
     __wt_free(session, second_uri);
     __wt_free(session, metadata_checkpoint_name);
-    __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &current_buf);
+    __wt_scr_free(session, &drop_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
-    if (md_write_cursor != NULL)
-        WT_TRET(md_write_cursor->close(md_write_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         if (md_cursors[i] != NULL)
             WT_TRET(md_cursors[i]->close(md_cursors[i]));

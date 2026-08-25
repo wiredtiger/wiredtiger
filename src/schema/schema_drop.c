@@ -217,10 +217,21 @@ static int
 __drop_layered(
   WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     const char *ingest_uri, *stable_uri, *tablename;
+    bool local_only;
+
+    /*
+     * A local drop discards this node's state for a table that has already been removed elsewhere,
+     * so it neither publishes the removal nor releases shared storage. It travels in the
+     * configuration because a layered table is reached through its column group, so the drop
+     * re-enters from the top for each constituent.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "local_only", 0, &cval));
+    local_only = cval.val != 0;
 
     WT_UNUSED(force);
 
@@ -238,10 +249,11 @@ __drop_layered(
 
     /*
      * Only the leader can issue a trim command, and only for a constituent that exists: a table
-     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
-     * held here serializes the timestamp, making the relaxed loads safe.
+     * created after the step-down timestamp was set has no stable pages to trim. A local drop
+     * follows a removal that has already happened elsewhere, so the shared pages are not ours to
+     * trim. The schema lock held here serializes the timestamp, making the relaxed loads safe.
      */
-    if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+    if (!local_only && __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
         if (WT_CHECK_AND_RESET(ret, ENOENT) &&
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
@@ -258,7 +270,7 @@ __drop_layered(
      * leader outside that window always has the constituent, so treat ENOENT as an error there.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
-    if (WT_CHECK_AND_RESET(ret, ENOENT) &&
+    if (WT_CHECK_AND_RESET(ret, ENOENT) && !local_only &&
       __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
@@ -279,11 +291,18 @@ __drop_layered(
      * Remove all the associated metadata from the shared metadata table. The queue entry is outside
      * metadata tracking, so enqueue it only after the local drop can no longer fail. Should the
      * enqueue itself fail, metadata tracking unrolls the local drop, keeping both sides consistent.
+     *
+     * A local drop discards this node's copy of a table that has already been removed from the
+     * shared metadata, so it publishes nothing. A queued removal would also suppress a later
+     * pick-up of the same name, because a pending removal tells the pick-up that the local state is
+     * newer than the checkpoint.
      */
-    WT_SAVE_DHANDLE(session,
-      ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
-    WT_ERR(ret);
+    if (!local_only) {
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
+            WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
+        WT_ERR(ret);
+    }
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
