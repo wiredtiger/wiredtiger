@@ -832,6 +832,10 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         return 'file:' + tablename + '.wt_stable'
 
+    def ingest_uri(self, uri):
+        """Return the ingest component URI for a given layered table URI."""
+        return 'file:' + uri[len('layered:'):] + '.wt_ingest'
+
     def stable_in_local_metadata(self, conn, uri):
         """
         Return True if uri's stable constituent has a row in conn's local metadata.

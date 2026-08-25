@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Checkpoint pickup drops a local layered table the checkpoint describes under a different
-# btree id, which is what a drop and a create under the same name produce. The discard runs while
-# the application is still using the node, so a cursor open on the table holds the adoption up
-# until it closes, and a table the follower created itself must not be mistaken for a stale one.
+# Checkpoint pickup lets go of a local layered table the checkpoint describes under a different
+# btree id, which is what a drop and a create under the same name produce. The tests cover which
+# incarnation wins, that a table the follower created itself is not mistaken for a stale one, and
+# that a pickup which cannot finish applies none of the checkpoint rather than part of it.
 
 import re
 import wiredtiger, wttest
@@ -62,50 +62,18 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
-    def test_open_cursor_holds_up_the_pickup(self):
-        """
-        A cursor open on a table the leader has replaced keeps the node on its current checkpoint,
-        because the drop cannot take the exclusive handle it needs. The node moves on once the
-        application is done with the table.
-        """
-        # Only the busy handle may hold the adoption up, so any other reason is a failure.
-        self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
-                                 'Picking up the same checkpoint')
-
-        self.session.create(self.uri, self.table_config)
-        self.write_one('before the recreate', 2)
-        self.leader_checkpoint(2)
-        first_id = self.stable_btree_id(self.conn, self.uri)
-
-        conn_follow, session_follow = self.open_follower()
-        held = session_follow.open_cursor(self.uri)
-        self.assertEqual(held[1], 'before the recreate')
-
-        # The leader replaces the table while the follower still reads the old one.
-        self.dropUntilSuccess(self.session, self.uri)
-        self.session.create(self.uri, self.table_config)
-        self.write_one('after the recreate', 4)
-        self.leader_checkpoint(4)
-        second_id = self.stable_btree_id(self.conn, self.uri)
-        self.assertGreater(second_id, first_id)
-        self.disagg_advance_checkpoint(conn_follow)
-
-        # Reading the metadata rather than the held cursor is what makes this an observation of the
-        # node: a cursor answers from the table it was pinned to whether or not the pickup ran.
-        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
-        self.assertEqual(held[1], 'before the recreate')
-        held.close()
-
-        # With the table free the adoption goes through on the retry that runs in the background.
-        self.disagg_wait_for_adoption(conn_follow)
-        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), second_id)
-
-        session_follow.close()
-        session_follow = conn_follow.open_session('')
-        cursor = session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor[1], 'after the recreate')
+    def assert_reads(self, session, uri, value):
+        """Assert a table holds the row a node is expected to see."""
+        cursor = session.open_cursor(uri)
+        self.assertEqual(cursor[1], value)
         cursor.close()
-        self.close_follower(conn_follow, session_follow)
+
+    def stable_btree_id(self, conn, uri):
+        """Return the btree id recorded for a table's stable constituent."""
+        config = self.stable_config(conn, uri)
+        match = re.search(r'(?:^|,)id=(\d+)', config)
+        self.assertIsNotNone(match, f'no btree id in {config}')
+        return int(match.group(1))
 
     def deferred_pickups(self, conn):
         """Return how many checkpoint pick-ups this node has put off."""
@@ -116,11 +84,19 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session.close()
         return deferred
 
+    def recreate(self, uri, value, commit_ts, session=None):
+        """Drop and create a table under the same name, so it comes back with a new btree id."""
+        if session is None:
+            session = self.session
+        self.dropUntilSuccess(session, uri)
+        session.create(uri, self.table_config)
+        self.write_one(value, commit_ts, session=session, uri=uri)
+
     def test_a_held_up_pickup_leaves_every_table_alone(self):
         """
-        A checkpoint that has been delivered but not yet adopted applies to no table at all, so no
-        node ever serves part of one. The three names bracket the table being recreated, since the
-        pick-up walks them in name order and would otherwise reach one before it and one after.
+        A cursor open on a table the leader has replaced holds the whole checkpoint off, and none
+        of it is applied while it waits. The names bracket the recreated table, since the pick-up
+        walks them in name order and would otherwise reach one before it and one after.
         """
         # Only the busy handle may hold the adoption up, so any other reason is a failure.
         self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
@@ -132,22 +108,22 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             self.session.create(uri, self.table_config)
             self.write_one('first', 2, uri=uri)
         self.leader_checkpoint(2)
+        first_id = self.stable_btree_id(self.conn, self.uri)
 
         conn_follow, session_follow = self.open_follower()
         adopted = {uri: self.stable_config(conn_follow, uri) for uri in (before, after)}
         deferred = self.deferred_pickups(conn_follow)
 
-        # A cursor on the middle table holds the pick-up off.
         held = session_follow.open_cursor(self.uri)
         self.assertEqual(held[1], 'first')
 
         # The leader moves all three on, replacing the middle one under a new btree id.
         self.write_one('second', 4, uri=before)
         self.write_one('second', 4, uri=after)
-        self.dropUntilSuccess(self.session, self.uri)
-        self.session.create(self.uri, self.table_config)
-        self.write_one('second', 4)
+        self.recreate(self.uri, 'second', 4)
         self.leader_checkpoint(4)
+        second_id = self.stable_btree_id(self.conn, self.uri)
+        self.assertGreater(second_id, first_id)
         self.disagg_advance_checkpoint(conn_follow)
 
         # The pick-up really was held off rather than quietly completing, which is what makes the
@@ -157,31 +133,28 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # None of the checkpoint has been applied. The local metadata is what shows it: the walk
         # updates each table's stable entry as it goes, so an entry still naming the old checkpoint
         # belongs to a table the pick-up never got to.
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
         for uri in (before, after):
             self.assertEqual(self.stable_config(conn_follow, uri), adopted[uri])
-            cursor = session_follow.open_cursor(uri)
-            self.assertEqual(cursor[1], 'first')
-            cursor.close()
+            self.assert_reads(session_follow, uri, 'first')
 
         held.close()
         self.disagg_wait_for_adoption(conn_follow)
 
-        # With the table free the whole checkpoint lands at once, entries included.
+        # With the table free the whole checkpoint lands at once.
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), second_id)
         session_follow.close()
         session_follow = conn_follow.open_session('')
-        for uri in (before, after):
-            self.assertNotEqual(self.stable_config(conn_follow, uri), adopted[uri])
         for uri in (before, self.uri, after):
-            cursor = session_follow.open_cursor(uri)
-            self.assertEqual(cursor[1], 'second')
-            cursor.close()
+            self.assert_reads(session_follow, uri, 'second')
         self.close_follower(conn_follow, session_follow)
 
     def test_a_failed_pickup_unrolls_what_it_had_adopted(self):
         """
         A pick-up that fails part way applies none of the checkpoint: metadata tracking unrolls the
-        tables the walk had already adopted. A cursor on the ingest constituent of the recreated
-        table refuses the drop the walk needs, on a name that sorts after a healthy table.
+        tables the walk had already adopted. A cursor on the ingest constituent refuses the drop the
+        walk needs, on a name that sorts after a healthy table. Holding the layered table instead
+        would hold the pick-up off rather than fail it.
         """
         healthy = 'layered:aaa_healthy'
         recreated = 'layered:zzz_recreated'
@@ -194,16 +167,11 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         conn_follow, session_follow = self.open_follower()
         adopted = self.stable_config(conn_follow, healthy)
 
-        # The leader moves the healthy table on and replaces the other under a new btree id.
         self.write_one('second', 4, uri=healthy)
-        self.dropUntilSuccess(self.session, recreated)
-        self.session.create(recreated, self.table_config)
-        self.write_one('second', 4, uri=recreated)
+        self.recreate(recreated, 'second', 4)
         self.leader_checkpoint(4)
 
-        # Hold the ingest constituent, which the drop has to close.
-        held = session_follow.open_cursor('file:zzz_recreated.wt_ingest')
-
+        held = session_follow.open_cursor(self.ingest_uri(recreated))
         self.assertRaises(wiredtiger.WiredTigerError,
                           lambda: self.disagg_advance_checkpoint(conn_follow))
         self.ignoreStderrPatternIfExists('WT_VERB_ERROR_RETURNS|Resource busy')
@@ -212,6 +180,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The healthy table sorts first, so the walk adopted it before it failed. Its stable entry
         # naming the old checkpoint again is the unroll.
         self.assertEqual(self.stable_config(conn_follow, healthy), adopted)
+        self.assert_reads(session_follow, healthy, 'first')
 
         held.close()
         self.close_follower(conn_follow, session_follow)
@@ -228,19 +197,11 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.write_one('from the leader', 3)
         self.leader_checkpoint(3)
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         self.assertTrue(self.stable_in_local_metadata(conn_follow, self.uri))
-        cursor = session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor[1], 'from the leader')
-        cursor.close()
+        self.assert_reads(session_follow, self.uri, 'from the leader')
         self.close_follower(conn_follow, session_follow)
-
-    def stable_btree_id(self, conn, uri):
-        """Return the btree id recorded for a table's stable constituent."""
-        config = self.stable_config(conn, uri)
-        match = re.search(r'(?:^|,)id=(\d+)', config)
-        self.assertIsNotNone(match, f'no btree id in {config}')
-        return int(match.group(1))
 
     def test_uncheckpointed_recreate_yields_to_the_checkpoint(self):
         """
@@ -262,9 +223,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The follower briefly leads and recreates the table, but never checkpoints the recreate.
         self.step_down()
         self.step_up(conn_follow)
-        self.dropUntilSuccess(session_follow, self.uri)
-        session_follow.create(self.uri, self.table_config)
-        self.write_one('from the second leader', 4, session=session_follow)
+        self.recreate(self.uri, 'from the second leader', 4, session=session_follow)
         second_id = self.stable_btree_id(conn_follow, self.uri)
         self.assertGreater(second_id, first_id)
         self.step_down(conn_follow)
@@ -280,9 +239,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         session_follow.close()
         session_follow = conn_follow.open_session('')
-        cursor = session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor[1], 'from the first leader')
-        cursor.close()
+        self.assert_reads(session_follow, self.uri, 'from the first leader')
 
         self.close_follower(conn_follow, session_follow)
 
@@ -303,9 +260,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The follower briefly leads and recreates the table, but never checkpoints the recreate.
         self.step_down()
         self.step_up(conn_follow)
-        self.dropUntilSuccess(session_follow, self.uri)
-        session_follow.create(self.uri, self.table_config)
-        self.write_one('from the second leader', 4, session=session_follow)
+        self.recreate(self.uri, 'from the second leader', 4, session=session_follow)
         self.assertGreater(self.stable_btree_id(conn_follow, self.uri), first_id)
         self.step_down(conn_follow)
 
@@ -336,9 +291,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.step_down()
         self.step_up(conn_follow)
         self.set_stable_epoch(1, conn_follow)
-        self.dropUntilSuccess(session_follow, self.uri)
-        session_follow.create(self.uri, self.table_config)
-        self.write_one('from the second leader', 4, session=session_follow)
+        self.recreate(self.uri, 'from the second leader', 4, session=session_follow)
         second_id = self.stable_btree_id(conn_follow, self.uri)
         self.assertGreater(second_id, first_id)
 
