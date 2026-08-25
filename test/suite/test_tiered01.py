@@ -29,8 +29,20 @@
 import errno, re, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# Leftover object:/tier:/tiered: URIs fail drop, alter, verify, and salvage as unexpected object types.
-class test_tiered01(wttest.WiredTigerTestCase):
+class _tiered_uri_deprecate:
+    def _uri(self):
+        return self.prefix + 'test_tiered01'
+
+    def _assert_unsupported(self, expr):
+        uri = self._uri()
+        msg = f'{self.err_prefix}: {uri}'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, expr, '/' + re.escape(msg) + '/')
+        err, _sub, last_msg = self.session.get_last_error()
+        self.assertEqual(err, errno.ENOTSUP)
+        self.assertEqual(last_msg, msg)
+
+# Test that deprecated tiered storage URIs are refused.
+class test_tiered01(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
         ('tier', dict(prefix='tier:', err_prefix='unknown object type')),
@@ -38,25 +50,25 @@ class test_tiered01(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(uri_types)
 
-    def _assert_unsupported(self, expr, uri):
-        msg = f'{self.err_prefix}: {uri}'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, expr, '/' + re.escape(msg) + '/')
-        err, _sub, last_msg = self.session.get_last_error()
-        self.assertEqual(err, errno.ENOTSUP)
-        self.assertEqual(last_msg, msg)
+    def test_drop(self):
+        self._assert_unsupported(lambda: self.session.drop(self._uri()))
 
-    def test_leftover_uri_ops(self):
-        uri = self.prefix + 'test_tiered01'
-        self._assert_unsupported(lambda: self.session.drop(uri), uri)
-        self._assert_unsupported(lambda: self.session.alter(uri, 'access_pattern_hint=random'), uri)
-        self._assert_unsupported(lambda: self.session.verify(uri), uri)
-        self._assert_unsupported(lambda: self.session.salvage(uri), uri)
-        # session.truncate still treats tiered: as a btree URI and opens a file cursor.
-        if self.prefix == 'tiered:':
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.truncate(uri, None, None, None),
-                '/(No such file or directory|The system cannot find the file specified)/')
-            err, _sub, _msg = self.session.get_last_error()
-            self.assertEqual(err, errno.ENOENT)
-        else:
-            self._assert_unsupported(lambda: self.session.truncate(uri, None, None, None), uri)
+    def test_alter(self):
+        self._assert_unsupported(
+            lambda: self.session.alter(self._uri(), 'access_pattern_hint=random'))
+
+    def test_verify(self):
+        self._assert_unsupported(lambda: self.session.verify(self._uri()))
+
+    def test_salvage(self):
+        self._assert_unsupported(lambda: self.session.salvage(self._uri()))
+
+class test_tiered01_truncate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
+    uri_types = [
+        ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
+        ('tier', dict(prefix='tier:', err_prefix='unknown object type')),
+    ]
+    scenarios = make_scenarios(uri_types)
+
+    def test_truncate(self):
+        self._assert_unsupported(lambda: self.session.truncate(self._uri(), None, None, None))
