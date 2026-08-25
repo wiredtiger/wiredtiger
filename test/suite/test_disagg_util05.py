@@ -41,7 +41,7 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
     NO_STORAGE_ACCESS = frozenset(('copyright',))
 
     # Keep in sync with util_flag_allowed_disagg() in src/utilities/util_main.c
-    ALLOWED_FLAGS = frozenset(('-C', '-h', '-m', '-p', '-q', '-V', '-v', '-?'))
+    ALLOWED_FLAGS = frozenset(('-C', '-E', '-h', '-m', '-p', '-q', '-V', '-v', '-?'))
     NO_DISAGG_CHECK_FLAGS = frozenset(('-V', '-?'))
     HARNESS_FLAGS = frozenset(('-C', '-h'))
     FLAG_ARGS = {'-E': 'dummy_key', '-l': 'no-such-live-restore'}

@@ -31,7 +31,7 @@ typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
 static util_func_t disagg_supported[] = {
   util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
 
-static const char disagg_supported_flags[] = {'C', 'h', 'm', 'p', 'q', 'V', 'v', '?'};
+static const char disagg_supported_flags[] = {'C', 'E', 'h', 'm', 'p', 'q', 'V', 'v', '?'};
 
 /*
  * wt_explicit_zero --
