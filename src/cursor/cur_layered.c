@@ -2961,9 +2961,11 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
 
         /*
          * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
+         * anyway. Keep the cursor position if we are in the middle of a cursor traversal or
+         * mirroring writes to stable during stepdown window.
          */
-        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
+        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV) &&
+          op->write_target != WTI_CLAYERED_WRITE_BOTH)
             WT_RET(__clayered_reset_cursors(clayered, true));
     }
 
@@ -4071,8 +4073,6 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     __clayered_assert_mirrored_values(session, &op->stable->value, &c_ingest->value);
 #endif
 
-    if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
-        WT_ERR(__clayered_reset_cursors(clayered, true));
     clayered->current_cursor = c_ingest;
 
 err:
