@@ -475,22 +475,23 @@ __verify_one_checkpoint(
         __wt_verbose_warning(session, WT_VERB_VERIFY,
           "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
           vs->total_block_size);
-        /*
-         * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
-         * increments happen before the boundary, so a reconciliation that fails after the increment
-         * but before completion leaves the counter inconsistent. Fail in diagnostic builds so the
-         * drift is caught during testing; production builds only warn.
-         */
+
         if (vs->fix_btree_size) {
-            __wt_verbose(session, WT_VERB_VERIFY,
-              "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
-              ckpt->size, vs->total_block_size);
+        __wt_verbose_warning(session, WT_VERB_VERIFY,
+          "checkpoint %s: fixing checkpoint size from %" PRIu64 " to accumulated block size %" PRIu64,
+          name, ckpt->size, vs->total_block_size);
             ckpt->size = vs->total_block_size;
             /* Mark this checkpoint so its corrected size gets written to metadata. */
             F_SET(ckpt, WT_CKPT_UPDATE);
             vs->size_fixed = true;
         }
 #ifdef HAVE_DIAGNOSTIC
+        /*
+         * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
+         * increments happen before the boundary, so a reconciliation that fails after the increment
+         * but before completion leaves the counter inconsistent. Fail in diagnostic builds so the
+         * drift is caught during testing; production builds only warn.
+         */
         else
             WT_ERR_MSG(session, WT_ERROR,
               "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,

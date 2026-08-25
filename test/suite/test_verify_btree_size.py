@@ -64,7 +64,7 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         cursor.close()
         sizes = re.findall(r',size=(\d+),', value)
         self.assertGreater(len(sizes), 0, f"no checkpoint size in metadata for {self.stable_uri}")
-        return int(sizes[-1])
+        return int(sizes[0])
 
     def set_ckpt_size(self, new_size):
         # Overwrite the size= value in the stable file's checkpoint metadata.
@@ -123,8 +123,8 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         sizes = re.findall(r',size=(\d+),', meta)
         self.assertGreater(len(sizes), 0, f"no size in fetch_metadata output: {meta}")
         # The last size= value is the most recent checkpoint's size.
-        self.assertEqual(int(sizes[-1]), corrected_size,
-            f"fetch_metadata size {sizes[-1]} != corrected size {corrected_size}")
+        self.assertEqual(int(sizes[0]), corrected_size,
+            f"fetch_metadata size {sizes[0]} != corrected size {corrected_size}")
 
 if __name__ == "__main__":
     wttest.run()
