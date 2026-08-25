@@ -32,12 +32,12 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_verify_btree_size -- verify's fix_btree_size config: correcting a drifted
+# test_verify_btree_size -- the fix_btree_size verify config corrects a drifted
 # checkpoint metadata size on disaggregated btrees.
 @disagg_test_class
 class test_verify_btree_size(wttest.WiredTigerTestCase):
     test_name = __qualname__
-    conn_config = 'disaggregated=(role="leader")'
+    conn_config = 'disaggregated=(role="leader"),verbose=[verify]'
 
     uri_base = test_name
     uri = "layered:" + uri_base
@@ -96,22 +96,25 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         self.set_ckpt_size(1)
 
         # Verify with fix_btree_size off must not correct the metadata.
-        if wiredtiger.diagnostic_build():
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.verify(self.uri, 'strict=true,fix_btree_size=false'),
-                '/WT_ERROR/')
-            self.ignoreStderrPatternIfExists('stable table verification failed')
-        else:
-            pattern = r'WT_VERB_VERIFY.*checkpoint size .* does not match'
-            with self.customStdoutPattern(lambda output: self.assertRegex(output, pattern)):
+        # Both diagnostic and non-diagnostic builds print the size mismatch warning to stdout;
+        # diagnostic builds additionally return WT_ERROR.
+        pattern = r'WT_VERB_VERIFY.*checkpoint size .* does not match'
+        with self.customStdoutPattern(lambda output: self.assertRegex(output, pattern)):
+            if wiredtiger.diagnostic_build():
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: self.session.verify(self.uri, 'strict=true,fix_btree_size=false'),
+                    '/WT_ERROR/')
+                self.ignoreStderrPatternIfExists('stable table verification failed')
+            else:
                 self.verifyUntilSuccess(
                     self.session, self.uri, config='strict=true,fix_btree_size=false')
         self.assertEqual(self.get_ckpt_size(), 1,
             "verify without fix_btree_size must not correct the metadata")
 
         # Verify with fix_btree_size on corrects the metadata size.
-        self.ignoreStdoutPattern(r'WT_VERB_VERIFY.*checkpoint size')
-        self.verifyUntilSuccess(self.session, self.uri, config='strict=true,fix_btree_size=true')
+        str_pattern = r'WT_VERB_VERIFY.*size mismatch detected.*correcting'
+        with self.customStdoutPattern(lambda output: self.assertRegex(output, str_pattern)):
+            self.verifyUntilSuccess(self.session, self.uri, config='strict=true,fix_btree_size=true')
         corrected_size = self.get_ckpt_size()
         self.assertEqual(corrected_size, real_size,
             "fix_btree_size should restore the size derived from the tree, which should match the "

@@ -472,31 +472,30 @@ __verify_one_checkpoint(
     WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
-        __wt_verbose_warning(session, WT_VERB_VERIFY,
-          "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
-          vs->total_block_size);
 
         if (vs->fix_btree_size) {
-        __wt_verbose_warning(session, WT_VERB_VERIFY,
-          "checkpoint %s: fixing checkpoint size from %" PRIu64 " to accumulated block size %" PRIu64,
-          name, ckpt->size, vs->total_block_size);
+            __wt_verbose(session, WT_VERB_VERIFY,
+              "checkpoint %s: size mismatch detected, correcting checkpoint size from %" PRIu64
+              " to %" PRIu64,
+              name, ckpt->size, vs->total_block_size);
             ckpt->size = vs->total_block_size;
-            /* Mark this checkpoint so its corrected size gets written to metadata. */
-            F_SET(ckpt, WT_CKPT_UPDATE);
             vs->size_fixed = true;
-        }
+        } else {
+            __wt_verbose_warning(session, WT_VERB_VERIFY,
+              "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+              ckpt->size, vs->total_block_size);
 #ifdef HAVE_DIAGNOSTIC
-        /*
-         * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
-         * increments happen before the boundary, so a reconciliation that fails after the increment
-         * but before completion leaves the counter inconsistent. Fail in diagnostic builds so the
-         * drift is caught during testing; production builds only warn.
-         */
-        else
+            /*
+             * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary:
+             * bytes_total increments happen before the boundary, so a reconciliation that fails
+             * after the increment but before completion leaves the counter inconsistent. Fail in
+             * diagnostic builds so the drift is caught during testing; production builds only warn.
+             */
             WT_ERR_MSG(session, WT_ERROR,
               "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
               ckpt->size, vs->total_block_size);
 #endif
+        }
     }
 
     /*
@@ -869,7 +868,7 @@ __tree_stack(WT_VSTUFF *vs)
     int force_unused;
 
     for (strsz = 0, i = 0, len = WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1); i < len;
-      ++i)
+         ++i)
         force_unused = /* using plain WT_UNUSED(snprintf) is screwed on GCC */
           __wt_snprintf_len_incr(&data[strsz], 10, &strsz, "%" PRIu64 ".", vs->tree_stack[i]);
     WT_UNUSED(force_unused);
@@ -1768,7 +1767,7 @@ __verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, si
     WT_DECL_RET;
 
     for (uint32_t index_in_pali = 0, index_in_btree = 0;
-      index_in_pali <= num_pali && index_in_btree <= num_btree;) {
+         index_in_pali <= num_pali && index_in_btree <= num_btree;) {
         if (index_in_pali == num_pali && index_in_btree == num_btree)
             break;
         uint64_t id_in_pali =
