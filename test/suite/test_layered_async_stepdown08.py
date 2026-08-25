@@ -57,10 +57,6 @@ class test_layered_async_stepdown08(
     ]
     scenarios = make_scenarios(disagg_storages, worlds)
 
-    # The epoch a create is published at, above the step-down checkpoint's epoch so the create stays
-    # uncovered in the epoch world.
-    uncovered_epoch = 30
-
     def uri(self, name):
         return f'layered:{self.test_name}_{name}'
 
@@ -174,22 +170,26 @@ class test_layered_async_stepdown08(
         """
         Create a table for each state that can be alive at a step-down, take the step-down
         checkpoint, and return the URIs. Rows are written above that checkpoint's stable timestamp,
-        which is what keeps an unpublished table legal in the epoch world.
+        which is what keeps an unpublished table legal in the epoch-less world.
         """
         self.setup_world()
 
         # Published below the cutoff and covered by the checkpoint that follows.
         covered, covered_rows = self.create_with_rows('covered', 2)
         self.publish_and_make_stable(covered, 20)
+        tables = {'covered': (covered, covered_rows)}
 
-        # Published above the checkpoint's epoch, so the epoch world leaves it uncovered.
-        uncovered = self.uri('uncovered')
-        self.session.create(uncovered, self.table_config)
-        self.publish_if_epochs(uncovered, self.uncovered_epoch)
+        # A table the step-down checkpoint would leave behind, either published too high to be
+        # reached or never published at all. The epoch world refuses to declare the boundary while
+        # a table created in this era is in that state, so these two only exist without epochs.
+        if not self.use_epochs:
+            uncovered = self.uri('uncovered')
+            self.session.create(uncovered, self.table_config)
+            tables['uncovered'] = (uncovered, {})
 
-        # Created and never published.
-        unpublished = self.uri('unpublished')
-        self.session.create(unpublished, self.table_config)
+            unpublished = self.uri('unpublished')
+            self.session.create(unpublished, self.table_config)
+            tables['unpublished'] = (unpublished, {})
 
         self.set_step_down_ts(self.cutoff)
 
@@ -198,34 +198,24 @@ class test_layered_async_stepdown08(
         # epoch-less world reaches it with no stable value to publish.
         window, window_rows = self.create_with_rows('window', 6)
         self.publish_if_epochs(window, 40)
+        tables['window'] = (window, window_rows)
 
         self.step_down_checkpoint()
-        return {
-          'covered': (covered, covered_rows),
-          'uncovered': (uncovered, {}),
-          'unpublished': (unpublished, {}),
-          'window': (window, window_rows),
-        }
+        return tables
 
     def assert_mixed_states(self, tables):
         """
-        Assert all three states of every table. The epoch world withholds an unpublished table from
-        the checkpoint and from shared metadata; the epoch-less world has no notion of publication,
+        Assert all three states of every table. The epoch-less world has no notion of publication,
         so it covers everything it has a constituent for.
         """
         covered, _ = tables['covered']
-        uncovered, _ = tables['uncovered']
-        unpublished, _ = tables['unpublished']
         window, _ = tables['window']
 
         self.assert_table_state(self.conn, covered, True, True, True)
 
-        if self.use_epochs:
-            self.assert_table_state(self.conn, uncovered, True, False, False)
-            self.assert_table_state(self.conn, unpublished, True, False, False)
-        else:
-            self.assert_table_state(self.conn, uncovered, True, True, True)
-            self.assert_table_state(self.conn, unpublished, True, True, True)
+        if not self.use_epochs:
+            self.assert_table_state(self.conn, tables['uncovered'][0], True, True, True)
+            self.assert_table_state(self.conn, tables['unpublished'][0], True, True, True)
 
         # A window create has no constituent to checkpoint or advertise, in either world.
         self.assert_table_state(self.conn, window, False, False, False)
@@ -266,10 +256,11 @@ class test_layered_async_stepdown08(
             uri, rows = tables[name]
             self.assertEqual(self.read_kvs_at(uri, 7), rows, f'{name} did not serve its rows')
 
-        # The epoch world left this constituent without a checkpoint, so a follower has nothing to
-        # open for it. The epoch-less world checkpointed it, so it reads as the empty table it is.
-        uncovered, _ = tables['uncovered']
-        self.assertEqual(self.read_kvs_at(uncovered, 7), {})
+        # Without epochs the checkpoint reached this constituent, so it reads as the empty table it
+        # is. With epochs the state cannot exist, because the boundary would have been refused.
+        if not self.use_epochs:
+            uncovered, _ = tables['uncovered']
+            self.assertEqual(self.read_kvs_at(uncovered, 7), {})
 
     def test_timestampless_step_down_keeps_constituents(self):
         """
