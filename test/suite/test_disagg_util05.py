@@ -92,7 +92,8 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
                     outfilename='wt-help.out', errfilename=errfile, closeconn=False)
         return errfile
 
-    # Parse one section ("global_options:", "commands:") of `wt -?` output for its entry names.
+    # Parse one section ("global_options:", "commands:") of `wt -?` output for all entry names
+    # to test against the names in the rejected list.
     def _usage_section(self, errfile, section):
         names = []
         in_section = False
