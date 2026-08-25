@@ -479,6 +479,9 @@ __checkpoint_cleanup_page_skip(
         *skipp = false;
     }
 
+    if (!*skipp)
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read);
+
     if (*skipp) {
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);

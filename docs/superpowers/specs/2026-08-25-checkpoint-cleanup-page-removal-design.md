@@ -2,35 +2,34 @@
 
 ## Goal
 
-Add regression coverage proving checkpoint cleanup does not load a page solely
-to reclaim it while the page still contains live records, but does load it
-after the page is fully removed.
+Add a statistic that reports on-disk pages selected for reading by checkpoint
+cleanup, and use it to verify cleanup reads are observable separately from
+obsolete time-window reads.
 
 ## Approach
 
-Extend `test/suite/test_cc09.py` with a logged-table scenario using the
-checkpoint cleanup reclaim-space mode. The test will create data spanning
-multiple leaf pages, remove records from one page without removing the entire
-page, and run checkpoint cleanup. It will assert that
-`checkpoint_cleanup_pages_read_reclaim_space` does not increase. The test will
-then remove the remaining records from that page, run cleanup again, and assert
-that the same statistic increases.
+Extend `test/suite/test_cc08.py` with an assertion for the new statistic in the
+existing logged-table reclaim-space scenario, where checkpoint cleanup is
+already guaranteed to select and read pages.
 
-The existing statistic is used because it specifically counts pages loaded for
-reclaim-space processing. The obsolete-time-window read statistic is not
-appropriate for this behavior.
+The new statistic counts every on-disk page selected for reading by checkpoint
+cleanup, regardless of whether the reason is reclaim space, obsolete content,
+or complete page removal. The existing
+`checkpoint_cleanup_pages_read_obsolete_tw` and
+`checkpoint_cleanup_pages_read_reclaim_space` statistics remain unchanged for
+their existing behaviors.
 
 ## Synchronization and assertions
 
-Use the existing checkpoint-cleanup wait helper rather than fixed sleeps.
-Capture the reclaim-space read counter before each cleanup run and compare
-counter deltas, so unrelated reads that occurred during setup do not affect
-the assertions. Keep the test deterministic by using small leaf pages and
-known key ranges, and use a logged table because reclaim-space page reads are
-restricted to logged tables.
+Increment the new statistic in the on-disk cleanup page-selection path after
+all skip checks have selected the page for reading. Use the existing
+checkpoint-cleanup wait helper rather than fixed sleeps. Capture the read
+counter before cleanup and compare the delta, so unrelated reads during setup
+do not affect the assertion.
 
 ## Scope
 
-No production code or new statistic is required. The test is limited to the
-checkpoint cleanup Python suite and should run under the existing test
-registration and scenario infrastructure.
+Add the statistic through `dist/stat_data.py` and regenerate the generated
+statistic declarations and implementations with `dist/s_all`. The production
+change is limited to statistic accounting in checkpoint cleanup; the test
+should run under the existing test registration and scenario infrastructure.
