@@ -46,7 +46,10 @@ def all_files():
     directories.
     """
 
-    for p in pathlib.Path("..").rglob("*"):
+    script_path = pathlib.Path(__file__).resolve()
+    wiredtiger_dir = script_path.parent.parent
+
+    for p in wiredtiger_dir.rglob("*"):
         if (
             p.is_file()
             and ".git" not in p.parts
