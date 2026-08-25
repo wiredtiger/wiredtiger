@@ -32,7 +32,7 @@
 # until it closes, and a table the follower created itself must not be mistaken for a stale one.
 
 import re
-import wttest
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
 
@@ -107,12 +107,20 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         cursor.close()
         self.close_follower(conn_follow, session_follow)
 
+    def deferred_pickups(self, conn):
+        """Return how many checkpoint pick-ups this node has put off."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('statistics:')
+        deferred = cursor[wiredtiger.stat.conn.disagg_checkpoint_defer][2]
+        cursor.close()
+        session.close()
+        return deferred
+
     def test_a_held_up_pickup_leaves_every_table_alone(self):
         """
-        A pickup that cannot finish applies none of the checkpoint. The walk adopts tables as it
-        goes, so metadata tracking has to unroll the ones it reached before the table it cannot
-        drop, and never reaches the ones after it. The three names bracket the table being
-        recreated, since the walk visits them in name order.
+        A checkpoint that has been delivered but not yet adopted applies to no table at all, so no
+        node ever serves part of one. The three names bracket the table being recreated, since the
+        pick-up walks them in name order and would otherwise reach one before it and one after.
         """
         # Only the busy handle may hold the adoption up, so any other reason is a failure.
         self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
@@ -127,8 +135,9 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         conn_follow, session_follow = self.open_follower()
         adopted = {uri: self.stable_config(conn_follow, uri) for uri in (before, after)}
+        deferred = self.deferred_pickups(conn_follow)
 
-        # A cursor on the middle table stops the pickup from dropping it.
+        # A cursor on the middle table holds the pick-up off.
         held = session_follow.open_cursor(self.uri)
         self.assertEqual(held[1], 'first')
 
@@ -141,9 +150,13 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.leader_checkpoint(4)
         self.disagg_advance_checkpoint(conn_follow)
 
-        # None of the checkpoint has been applied, not even the table the walk reached first. The
-        # local metadata is what shows it: the walk updates each table's stable entry as it goes,
-        # so an entry still naming the old checkpoint is one the failure unrolled.
+        # The pick-up really was held off rather than quietly completing, which is what makes the
+        # assertions below meaningful.
+        self.assertGreater(self.deferred_pickups(conn_follow), deferred)
+
+        # None of the checkpoint has been applied. The local metadata is what shows it: the walk
+        # updates each table's stable entry as it goes, so an entry still naming the old checkpoint
+        # belongs to a table the pick-up never got to.
         for uri in (before, after):
             self.assertEqual(self.stable_config(conn_follow, uri), adopted[uri])
             cursor = session_follow.open_cursor(uri)
