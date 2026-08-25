@@ -9,6 +9,13 @@
 #include "wt_internal.h"
 
 /*
+ * How many pages the checkpoint queues for the reconciliation workers before waiting for them. Each
+ * queued page holds a hazard pointer, so this bounds what a checkpoint pins in cache, and it has to
+ * be deep enough that the workers are not left idle between batches.
+ */
+#define WT_CKPT_SYNC_QUEUE_MAX 1000
+
+/*
  * __sync_evict_reconciled_under_ckpt_snapshot --
  *     Return true if eviction already reconciled the page using this checkpoint's snapshot, so the
  *     on-disk image checkpoint would produce is identical and re-reconciliation can be skipped.
@@ -209,6 +216,22 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __sync_skip_leaf --
+ *     Tree-walk callback that skips leaf pages, for the pass that writes the internal pages. The
+ *     walk consults this before bringing a page in, so a skipped leaf costs nothing.
+ */
+static int
+__sync_skip_leaf(WT_SESSION_IMPL *session, WT_REF *ref, void *cookie, bool visible_all, bool *skipp)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(cookie);
+    WT_UNUSED(visible_all);
+
+    *skipp = F_ISSET(ref, WT_REF_FLAG_LEAF);
+    return (0);
+}
+
+/*
  * __sync_dup_hazard_pointer --
  *     Get a duplicate hazard pointer.
  */
@@ -296,7 +319,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
     uint64_t saved_pinned_id, t, time_start, time_stop;
     uint32_t flags, rec_flags;
+    u_int queued;
     bool checkpoint_scrub, dirty, is_hs, is_internal, tried_eviction;
+    bool parallel;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -315,6 +340,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
+    queued = 0;
+    parallel = WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session);
     reconcile_time = 0;
     saved_pinned_id = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->pinned_id);
     time_start = __wt_clock(session);
@@ -433,6 +460,17 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        /*
+         * Reconciling a leaf writes a new address into its parent, so an internal page cannot be
+         * written until the leaves beneath it are. Draining the queue at each internal page caps
+         * the outstanding work at one page's worth of children, too little to keep the workers
+         * busy. Write the leaves in this pass and walk again for the internal pages, so that
+         * nothing has to be held across the leaf pass: a reference kept that long needs protecting
+         * from eviction, which discards clean pages throughout a checkpoint.
+         */
+        if (parallel)
+            LF_SET(WT_READ_SKIP_INTL);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
@@ -451,14 +489,24 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 ++conn->ckpt.progress.pages_visited;
 
             /*
-             * Wait for the leaf pages to finish reconciling before checking whether the internal
-             * page is dirty, as reconciling the leaf pages could have made the internal page dirty.
+             * Reconciling a leaf writes a new address into its parent, so an internal page cannot
+             * be written until the leaves beneath it are. Draining the queue at each internal page
+             * caps the outstanding work at one page's worth of children, too little to keep the
+             * workers busy. Hold the internal pages instead and write them once the walk is done;
+             * the walk returns them beneath their children, so parents still follow their
+             * descendants. They cannot split while the tree is syncing, so the references stay
+             * valid, and a duplicated hazard pointer keeps them in cache until then.
              */
-            if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
-                if (WT_SESSION_IS_CHECKPOINT(session) && is_internal) {
-                    WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
-                    reconcile_time += t;
-                }
+
+            /*
+             * Each queued page holds a hazard pointer, so the queue cannot grow to the tree's whole
+             * dirty set. Drain once it is deep enough to have kept the workers busy.
+             */
+            if (parallel && queued >= WT_CKPT_SYNC_QUEUE_MAX) {
+                WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
+                reconcile_time += t;
+                queued = 0;
+            }
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -549,6 +597,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
                 WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup,
                   __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), flags));
+                ++queued;
             } else {
                 reconcile_start = __wt_clock(session);
                 WT_ERR(__wt_reconcile(session, walk, NULL,
@@ -572,10 +621,62 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
         }
 
-        /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
-        if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session)) {
+        /* Every leaf must be written before the internal pages that reference it. */
+        if (parallel) {
             WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
             reconcile_time += t;
+        }
+
+        /*
+         * Walk again for the internal pages. The walk returns a page beneath its children, so
+         * writing them in the order returned keeps a parent behind its descendants, and a page's
+         * dirty state is final by the time it is reached: everything below it has been written.
+         */
+        if (parallel) {
+            WT_ERR(__wt_page_release(session, walk, flags));
+            walk = NULL;
+            WT_ERR(__wt_page_release(session, prev, flags));
+            prev = NULL;
+
+            LF_CLR(WT_READ_SKIP_INTL);
+            for (;;) {
+                WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
+                WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __sync_skip_leaf, NULL, flags));
+
+                if (walk == NULL)
+                    break;
+
+                page = walk->page;
+                WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
+
+                /*
+                 * An internal page carries no reconciliation bounds to fold into the tree's: those
+                 * come from selecting updates, which only happens for a leaf.
+                 */
+                if (!__wt_page_is_modified(page))
+                    continue;
+
+                internal_bytes += __wt_atomic_load_size_relaxed(&page->memory_footprint);
+                ++internal_pages;
+                if (FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT))
+                    __wt_sleep(0, 10 * WT_THOUSAND);
+
+                WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
+                WT_STAT_CONN_INCRV(session, checkpoint_pages_reconciled_bytes,
+                  __wt_atomic_load_size_relaxed(&page->memory_footprint));
+                WT_STATP_DSRC_INCR(
+                  session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
+
+                reconcile_start = __wt_clock(session);
+                WT_ERR(__wt_reconcile(session, walk, NULL,
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), NULL));
+                reconcile_time += __wt_clock(session) - reconcile_start;
+
+                if (WT_SESSION_IS_CHECKPOINT(session) &&
+                  __wt_checkpoint_verbose_timer_started(session))
+                    __wt_checkpoint_progress_stats(
+                      session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
+            }
         }
 
         /*
