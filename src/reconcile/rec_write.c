@@ -3408,13 +3408,11 @@ split:
      *
      * The exception is a reconciliation that skipped the write: nothing was written, so the on-disk
      * state still predates the instantiation and the parent's existing cell may be a fast-truncate
-     * proxy cell. Keep the instantiated flag and the page-delete information, parent reconciliation
-     * needs them to evaluate the child as it was before instantiation and write the proxy cell out
-     * again. Eviction is excluded: it changes the ref state and may rewrite the page in memory, and
-     * neither of those paths carries pre-instantiation state onto the new page.
+     * proxy cell. Keep the instantiated flag and the page-delete information; parent reconciliation
+     * needs them to evaluate the child as it was before instantiation, and eviction needs them to
+     * return the ref to WT_REF_DELETED rather than WT_REF_DISK.
      */
-    skipped_write =
-      r->multi_next == 1 && F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && !F_ISSET(r, WT_REC_EVICT);
+    skipped_write = r->multi_next == 1 && F_ISSET(r->multi, WT_MULTI_SKIP_WRITE);
     if (mod->instantiated && !skipped_write) {
         /*
          * Unfortunately, it seems we need to lock the ref at this point. Ultimately the page_del

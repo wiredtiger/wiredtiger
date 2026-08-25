@@ -708,11 +708,12 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     WT_DECL_RET;
     WT_MULTI multi;
     WT_PAGE_MODIFY *mod;
-    bool closing;
+    bool closing, instantiated;
     void *tmp;
 
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
+    instantiated = mod->instantiated;
 
     WT_ASSERT(session, ref->addr == NULL || F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
 
@@ -786,7 +787,13 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
                 __wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max));
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
-            WT_REF_SET_STATE(ref, WT_REF_DISK);
+            /*
+             * If the write was skipped, the on-disk state still predates the instantiation and the
+             * page-delete information has been kept, so return the ref to WT_REF_DELETED, exactly
+             * as it was before instantiation. WT_REF_DISK would resurrect the truncated page: it
+             * requires the page-delete information to be gone.
+             */
+            WT_REF_SET_STATE(ref, instantiated ? WT_REF_DELETED : WT_REF_DISK);
         } else {
             /* The split code works with WT_MULTI structures, build one for the disk image. */
             memset(&multi, 0, sizeof(multi));
