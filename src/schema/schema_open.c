@@ -28,18 +28,6 @@ __schema_colgroup_name(
 }
 
 /*
- * __wt_schema_tiered_shared_colgroup_name --
- *     Get the URI for a tiered storage shared column group. This is used for metadata lookups.
- */
-int
-__wt_schema_tiered_shared_colgroup_name(
-  WT_SESSION_IMPL *session, const char *tablename, bool active, WT_ITEM *buf)
-{
-    WT_PREFIX_SKIP(tablename, "table:");
-    return (__wt_buf_fmt(session, buf, "colgroup:%s.%s", tablename, active ? "active" : "shared"));
-}
-
-/*
  * __wti_schema_open_colgroups --
  *     Open the column groups for a table.
  */

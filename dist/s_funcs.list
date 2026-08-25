@@ -41,7 +41,6 @@ __wt_get_verbose_categories
 __wt_lex_compare
 __wt_lex_compare_skip
 __wt_log_scan
-__wt_meta_track_drop_object
 __wt_nlpo2
 __wt_nlpo2_round
 __wt_page_from_npos
@@ -50,6 +49,7 @@ __wt_session_breakpoint
 __wt_strcat
 __wt_stream_set_no_buffer
 __wt_tiered_remove_work
+__wt_tiered_set_metadata
 __wt_try_readlock
 __wt_update_list_print
 __wt_verbose_category_string

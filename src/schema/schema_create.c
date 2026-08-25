@@ -210,13 +210,13 @@ __create_file(
     WT_DECL_RET;
     const char *filename, **p,
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL},
-      *filestripped;
+      *filemerged;
     char *fileconf, *filemeta;
     uint32_t allocsize, fileid;
     bool against_stable, exists, import, import_repair, is_metadata, is_shared;
 
     fileconf = filemeta = NULL;
-    filestripped = NULL;
+    filemerged = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
 
     import_repair = false;
@@ -341,11 +341,10 @@ __create_file(
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
-        /* Strip any configuration settings that should not be persisted. */
         filecfg[1] = fileconf;
         filecfg[2] = NULL;
-        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
-        WT_ERR(__wt_metadata_insert(session, uri, filestripped));
+        WT_ERR(__wt_config_merge(session, filecfg, NULL, &filemerged));
+        WT_ERR(__wt_metadata_insert(session, uri, filemerged));
 
         /*
          * Ensure that the timestamps in the imported data file are not in the future relative to
@@ -356,7 +355,7 @@ __create_file(
               __wt_config_getones(session, config, "import.compare_timestamp", &cval) == 0 &&
               (WT_CONFIG_LIT_MATCH("stable", cval) ||
                 WT_CONFIG_LIT_MATCH("stable_timestamp", cval));
-            WT_ERR(__check_imported_ts(session, uri, filestripped, against_stable));
+            WT_ERR(__check_imported_ts(session, uri, filemerged, against_stable));
         }
     }
 
@@ -393,7 +392,7 @@ err:
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
     __wt_free(session, filemeta);
-    __wt_free(session, filestripped);
+    __wt_free(session, filemerged);
     return (ret);
 }
 
