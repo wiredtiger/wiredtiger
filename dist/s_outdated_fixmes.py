@@ -180,9 +180,14 @@ def main():
     closed_ticket_found = False
     outdated_tickets = set()
 
+    # A ticket number can appear in multiple files. We do not want to be
+    # querying JIRA for the same ticket multiple times, so we cache the results.
+    cache = {}
+
     for ticket, file in sorted(find_fixme_tickets()):
-        query_result = query_jira_ticket(ticket, token)
-        if is_outdated(*query_result):
+        if ticket not in cache:
+            cache[ticket] = query_jira_ticket(ticket, token)
+        if is_outdated(*cache[ticket]):
             print(f"{ticket} is a closed ticket that has a FIXME comment in {file}.")
             closed_ticket_found = True
             outdated_tickets.add(ticket)
