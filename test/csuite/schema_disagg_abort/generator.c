@@ -16,12 +16,11 @@
 
 /* The generator's state machine. */
 typedef enum {
-    GEN_NORMAL,          /* the term's workload */
-    GEN_FLUSH_PUBLISHES, /* one-shot: emit the drop publishes a term must not end holding */
-    GEN_BEGIN_STEPDOWN,  /* one-shot: emit the step-down timestamp and the reserved publishes */
-    GEN_STEPDOWN,        /* the step-down: limited workload */
-    GEN_SWITCH,          /* one-shot: emit the switch event that ends the stream */
-    GEN_STOP             /* terminal: the phase stopped, or the stream ended */
+    GEN_NORMAL,         /* the term's workload */
+    GEN_BEGIN_STEPDOWN, /* one-shot: emit the step-down timestamp and the reserved publishes */
+    GEN_STEPDOWN,       /* the step-down: limited workload */
+    GEN_SWITCH,         /* one-shot: emit the switch event that ends the stream */
+    GEN_STOP            /* terminal: the phase stopped, or the stream ended */
 } GENERATOR_PHASE;
 
 /*
@@ -184,35 +183,6 @@ generator_switch_requested(GENERATOR_PACING *pacing)
 }
 
 /*
- * generator_flush_publishes --
- *     Emit the pending publish for every dropped slot, before the role transition. Once the
- *     boundary is set a drop can only be published above it, and a checkpoint between a create's
- *     epoch and its drop's has to advertise a table whose data the drop already destroyed.
- *     FIXME-WT-18272 FIXME-WT-18284 FIXME-WT-18324: Remove this function once these tickets are
- *     resolved. Corresponding generator state GEN_FLUSH_PUBLISHES won't be needed anymore, as well.
- */
-static void
-generator_flush_publishes(WORKLOAD_STATE *state)
-{
-    for (uint32_t t = 0; t < state->nth_workers; t++)
-        for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++) {
-            TABLE_STATE *slot_state = &state->workers[t].table_state[slot];
-            if (*slot_state != TABLE_DROPPED)
-                continue;
-
-            SCHEMA_EVENT ev = {0};
-            ev.type = EVENT_PUBLISH_DROP;
-            ev.thread_id = t;
-            ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
-            testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t,
-              slot, state->workers[t].slot_gen[slot]);
-
-            *slot_state = TABLE_NONE;
-            generator_emit(state, &ev);
-        }
-}
-
-/*
  * generator_emit_stepdown --
  *     Emit the step-down marker, then the publishes of the term's remaining unpublished creates at
  *     epochs reserved at or below the boundary. A table created before the boundary has to be
@@ -345,11 +315,8 @@ thread_generator_run(void *arg)
         switch (phase) {
         case GEN_NORMAL:
             progressed = generator_round(state, pacing.lead_max, GEN_NORMAL);
-            phase = generator_switch_requested(&pacing) ? GEN_FLUSH_PUBLISHES : GEN_NORMAL;
-            break;
-        case GEN_FLUSH_PUBLISHES:
-            generator_flush_publishes(state);
-            phase = state->leads ? GEN_BEGIN_STEPDOWN : GEN_SWITCH;
+            if (generator_switch_requested(&pacing))
+                phase = state->leads ? GEN_BEGIN_STEPDOWN : GEN_SWITCH;
             break;
         case GEN_BEGIN_STEPDOWN:
             /*
