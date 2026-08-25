@@ -180,43 +180,40 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     def test_a_failed_pickup_unrolls_what_it_had_adopted(self):
         """
         A pick-up that fails part way applies none of the checkpoint: metadata tracking unrolls the
-        tables the walk had already adopted. The planted entry makes the walk fail on a table that
-        sorts after a healthy one, so the healthy one has been adopted by the time it does.
+        tables the walk had already adopted. A cursor on the ingest constituent of the recreated
+        table refuses the drop the walk needs, on a name that sorts after a healthy table.
         """
         healthy = 'layered:aaa_healthy'
-        poison = 'layered:zzz_poison'
+        recreated = 'layered:zzz_recreated'
 
-        self.session.create(healthy, self.table_config)
-        self.write_one('first', 2, uri=healthy)
+        for uri in (healthy, recreated):
+            self.session.create(uri, self.table_config)
+            self.write_one('first', 2, uri=uri)
         self.leader_checkpoint(2)
 
         conn_follow, session_follow = self.open_follower()
         adopted = self.stable_config(conn_follow, healthy)
 
-        # The leader moves the healthy table on and adds a second one the follower has not seen.
+        # The leader moves the healthy table on and replaces the other under a new btree id.
         self.write_one('second', 4, uri=healthy)
-        self.session.create(poison, self.table_config)
-        self.write_one('first', 4, uri=poison)
+        self.dropUntilSuccess(self.session, recreated)
+        self.session.create(recreated, self.table_config)
+        self.write_one('second', 4, uri=recreated)
         self.leader_checkpoint(4)
 
-        # Plant the new table's stable entry on the follower without its layered entry. The pick-up
-        # rejects that: a table it is seeing for the first time cannot already have local rows.
-        self.inject_stable_entry(conn_follow, self.stable_uri(poison),
-                                 self.stable_config(self.conn, poison))
+        # Hold the ingest constituent, which the drop has to close.
+        held = session_follow.open_cursor('file:zzz_recreated.wt_ingest')
 
         self.assertRaises(wiredtiger.WiredTigerError,
                           lambda: self.disagg_advance_checkpoint(conn_follow))
-        # The rejection is the point of the test, so its report is not unexpected output.
-        self.ignoreStderrPatternIfExists('Unexpected local metadata entries|WT_VERB_ERROR_RETURNS')
-        self.ignoreStdoutPatternIfExists('Unexpected local metadata entries')
+        self.ignoreStderrPatternIfExists('WT_VERB_ERROR_RETURNS|Resource busy')
+        self.ignoreStdoutPatternIfExists('Resource busy')
 
         # The healthy table sorts first, so the walk adopted it before it failed. Its stable entry
         # naming the old checkpoint again is the unroll.
         self.assertEqual(self.stable_config(conn_follow, healthy), adopted)
-        cursor = session_follow.open_cursor(healthy)
-        self.assertEqual(cursor[1], 'first')
-        cursor.close()
 
+        held.close()
         self.close_follower(conn_follow, session_follow)
 
     def test_follower_create_is_not_a_dropped_table(self):
