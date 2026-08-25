@@ -788,10 +788,9 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             /*
-             * If the write was skipped, the on-disk state still predates the instantiation and the
-             * page-delete information has been kept, so return the ref to WT_REF_DELETED, exactly
-             * as it was before instantiation. WT_REF_DISK would resurrect the truncated page: it
-             * requires the page-delete information to be gone.
+             * A skipped write leaves the on-disk page predating any instantiation, so restore the
+             * pre-instantiation state: WT_REF_DELETED with the retained page-delete information.
+             * WT_REF_DISK would resurrect the truncated page.
              */
             WT_REF_SET_STATE(ref, instantiated ? WT_REF_DELETED : WT_REF_DISK);
         } else {

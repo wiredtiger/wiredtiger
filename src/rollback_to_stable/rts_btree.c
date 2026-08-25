@@ -1073,7 +1073,6 @@ __wti_rts_btree_abort_updates(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_PAGE *page;
-    WT_REF_STATE previous_state;
     bool dryrun, modified;
 
     dryrun = S2C(session)->rts->dryrun;
@@ -1122,17 +1121,13 @@ __wti_rts_btree_abort_updates(
      * the page-delete information no longer describes anything: discard it and clear the
      * instantiated flag together, as transaction rollback does. Leaving it in place would let a
      * later reconciliation that skips the write carry it forward, re-asserting the rolled-back
-     * truncate. Lock the ref to clear the two atomically.
+     * truncate.
      */
     if (!dryrun && page->modify != NULL && page->modify->instantiated && ref->page_del != NULL &&
       (ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
         ref->page_del->pg_del_durable_ts > rollback_timestamp)) {
-        WT_REF_LOCK(session, ref, &previous_state);
-        if (page->modify->instantiated) {
-            page->modify->instantiated = false;
-            __wt_free(session, ref->page_del);
-        }
-        WT_REF_UNLOCK(ref, previous_state);
+        __wt_free(session, ref->page_del);
+        page->modify->instantiated = false;
     }
     return (0);
 }
