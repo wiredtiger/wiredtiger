@@ -1888,6 +1888,9 @@ extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_modify_result_in_ingest_tombstone_namespace(WT_SESSION_IMPL *session,
+  const char *value_format, const WT_ITEM *base, const WT_MODIFY *entries, int nentries,
+  bool *in_namespacep, size_t *result_sizep);
 extern void __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern void __wt_optrack_record_funcid(
   WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp);
