@@ -146,11 +146,9 @@ err:
  *     Destroy a data handle.
  */
 static int
-__conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool final)
+__conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_DECL_RET;
-
-    WT_UNUSED(final);
 
     switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
@@ -253,7 +251,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     return (0);
 
 err:
-    WT_TRET(__conn_dhandle_destroy(session, dhandle, false));
+    WT_TRET(__conn_dhandle_destroy(session, dhandle));
     return (ret);
 }
 
@@ -959,7 +957,7 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
      * After successfully removing the handle, clean it up.
      */
     if (ret == 0 || final) {
-        WT_TRET(__conn_dhandle_destroy(session, dhandle, final));
+        WT_TRET(__conn_dhandle_destroy(session, dhandle));
         WT_DHANDLE_CLEAR(session);
     }
 #ifdef HAVE_DIAGNOSTIC
