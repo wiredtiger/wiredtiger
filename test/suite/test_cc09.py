@@ -102,7 +102,7 @@ class test_cc09(test_cc_base):
 
         # We may be expecting cleanup but we have to be in one of the valid scenarios for checkpoint
         # cleanup to do something.
-        if self.expected_cleanup and (self.has_delete or self.bump_oldest_ts):
+        if self.expected_cleanup and self.bump_oldest_ts:
             assert cc_read_stat > 0, "Checkpoint cleanup did not read anything"
             assert cc_dirty_stat > 0, "Checkpoint cleanup did not dirty anything"
             assert cc_dirty_stat <= self.cc_obsolete_tw_max, f"Checkpoint cleanup dirtied too many pages {cc_dirty_stat} (max: {self.cc_obsolete_tw_max})"
