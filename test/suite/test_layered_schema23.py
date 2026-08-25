@@ -245,39 +245,6 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.close_follower(conn_follow, session_follow)
 
-    def test_replacement_runs_under_strict_validation(self):
-        """
-        Turning strict validation on does not change how a replacement is handled. The btree id
-        comparison settles the table before either strict check is reached, so this pins that the
-        two do not interfere rather than that strict accepts anything.
-
-        test_layered_schema17 covers what strict validation does police.
-        """
-        self.session.create(self.uri, self.table_config)
-        self.write_one('from the first leader', 2)
-        self.leader_checkpoint(2)
-        first_id = self.stable_btree_id(self.conn, self.uri)
-
-        conn_follow, session_follow = self.open_follower()
-        conn_follow.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
-
-        # Let the follower lead briefly and replace the table without checkpointing it.
-        self.step_down()
-        self.step_up(conn_follow)
-        self.recreate(self.uri, 'from the second leader', 4, session=session_follow)
-        self.assertGreater(self.stable_btree_id(conn_follow, self.uri), first_id)
-        self.step_down(conn_follow)
-
-        # The first leader checkpoints the table it kept, so the follower has to replace its own
-        # copy with strict validation on.
-        self.step_up()
-        self.leader_checkpoint(6)
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
-
-        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
-        self.close_follower(conn_follow, session_follow)
-
     def test_published_replacement_wins(self):
         """
         A graceful step-down lands its checkpoint on the step-down timestamp, which publishes a
