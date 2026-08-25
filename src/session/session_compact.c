@@ -380,6 +380,7 @@ __wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
     WT_UNUSED(session);
     WT_UNUSED(uri);
 
+    /* FIXME-WT-18481: always returns true; delete this stub and its callers. */
     return (true);
 }
 
