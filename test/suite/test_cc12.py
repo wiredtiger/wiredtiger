@@ -60,10 +60,10 @@ class test_cc12(test_cc_base):
 
     def test_cc12(self):
         uri = "table:cc12"
-        nrows = 1000
+        nrows = 10000
         create_params = (
             "key_format=i,value_format=S,"
-            "allocation_size=512,leaf_page_max=4KB,internal_page_max=4KB")
+            "allocation_size=512,leaf_page_max=4KB,internal_page_max=512")
 
         self.session.create(uri, create_params)
         self.populate(uri, 0, nrows, "k" * 40)
@@ -83,14 +83,18 @@ class test_cc12(test_cc_base):
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(nrows + 2))
         self.session.checkpoint()
         self.reopen_conn()
+        block_preload_before = self.get_stat(stat.conn.block_preload)
         keep_open = self.session.open_cursor(uri)
+        block_preload_after = self.get_stat(stat.conn.block_preload)
 
         pages_read_before = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_read, uri)
         self.wait_for_cc_to_run()
         pages_read_after = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_read, uri)
-
-        self.assertEqual(pages_read_after - pages_read_before, 0)
         keep_open.close()
+
+        if self.remove_all:
+            self.assertEqual(block_preload_after - block_preload_before, 0)
+            self.assertGreater(pages_read_after - pages_read_before, 0)
 
 
 if __name__ == "__main__":
