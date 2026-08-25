@@ -40,7 +40,16 @@ class test_cc12(test_cc_base):
         ("full_remove", dict(remove_all=True)),
     ])
 
-    def remove_ranges(self, uri, cursor, nrows):
+    def remove_ranges(self, cursor, nrows):
+        if self.remove_all:
+            self.session.begin_transaction()
+            for key in range(nrows):
+                cursor.set_key(key)
+                self.assertEqual(cursor.remove(), 0)
+            self.session.commit_transaction(
+                "commit_timestamp=" + self.timestamp_str(nrows + 1))
+            return
+
         for start in range(0, nrows, 20):
             self.session.begin_transaction()
             for key in range(start, min(start + 10, nrows)):
@@ -48,15 +57,6 @@ class test_cc12(test_cc_base):
                 self.assertEqual(cursor.remove(), 0)
             self.session.commit_transaction(
                 "commit_timestamp=" + self.timestamp_str(nrows + 1))
-
-        if self.remove_all:
-            for start in range(10, nrows, 20):
-                self.session.begin_transaction()
-                for key in range(start, min(start + 10, nrows)):
-                    cursor.set_key(key)
-                    self.assertEqual(cursor.remove(), 0)
-                self.session.commit_transaction(
-                    "commit_timestamp=" + self.timestamp_str(nrows + 2))
 
     def test_cc12(self):
         uri = "table:cc12"
@@ -72,7 +72,7 @@ class test_cc12(test_cc_base):
         self.reopen_conn()
 
         cursor = self.session.open_cursor(uri)
-        self.remove_ranges(uri, cursor, nrows)
+        self.remove_ranges(cursor, nrows)
         cursor.close()
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(nrows + 2))
         self.session.checkpoint()
