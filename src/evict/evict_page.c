@@ -708,12 +708,11 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     WT_DECL_RET;
     WT_MULTI multi;
     WT_PAGE_MODIFY *mod;
-    bool closing, instantiated;
+    bool closing;
     void *tmp;
 
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    instantiated = mod->instantiated;
 
     WT_ASSERT(session, ref->addr == NULL || F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
 
@@ -785,14 +784,14 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_ASSERT(session,
               ref->page->disagg_info == NULL || closing ||
                 __wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max));
+            /*
+             * An instantiated page cannot reach here: a skipped write over unwritten changes leaves
+             * the page dirty, and eviction reconciles dirty pages, clearing the flag. WT_REF_DISK
+             * with live page-delete information would resurrect the truncated page.
+             */
+            WT_ASSERT(session, !mod->instantiated);
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
-            /*
-             * An instantiated page cannot reach here: a skipped write over unwritten changes
-             * leaves the page dirty, and eviction reconciles dirty pages, clearing the flag.
-             * WT_REF_DISK with live page-delete information would resurrect the truncated page.
-             */
-            WT_ASSERT(session, !instantiated);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
         } else {
             /* The split code works with WT_MULTI structures, build one for the disk image. */
