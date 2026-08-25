@@ -9,6 +9,26 @@
 #pragma once
 
 #include "checkpoint_private.h"
+
+/*
+ * Points at which a checkpoint can be made to crash. Everything up to and including
+ * CKPT_CRASH_BEFORE_CKPT_COMMIT precedes the checkpoint transaction commit, so the checkpoint is
+ * never recoverable; CKPT_CRASH_BEFORE_METADATA_SYNC follows both the commit and the log flush, so
+ * with logging enabled recovery always rolls the checkpoint forward. The key rotation points are
+ * taken wherever the disaggregated key provider runs, on the per-tree path as well as after the
+ * metadata sync, so they hold no position in that order.
+ */
+enum {
+    CKPT_CRASH_NONE = 0,
+    CKPT_CRASH_BEFORE_CKPT_COMMIT,
+    CKPT_CRASH_ENUM_MAY_RECOVER, /* Crash points past here may leave a recoverable checkpoint. */
+    CKPT_CRASH_BEFORE_METADATA_SYNC,
+    CKPT_CRASH_KEY_PROVIDER_BEFORE_KEY_ROTATION,
+    CKPT_CRASH_KEY_PROVIDER_DURING_KEY_ROTATION,
+    CKPT_CRASH_KEY_PROVIDER_AFTER_KEY_ROTATION,
+    CKPT_CRASH_ENUM_END,
+};
+
 /*
  * WT_CKPT_SESSION --
  *     Per-session checkpoint information.
@@ -21,20 +41,10 @@ struct __wt_ckpt_session {
     u_int handle_next;       /* Next empty slot */
     size_t handle_allocated; /* Bytes allocated */
 
-    /* Crash at a progress point in checkpoint. */
+    /* Crash before checkpointing the Nth data handle. */
     u_int crash_point;
     /* Crash at a specific point in checkpoint. */
     u_int crash_trigger_point;
-    enum {
-        CKPT_CRASH_NONE = 0,
-        CKPT_CRASH_BEFORE_METADATA_SYNC,
-        CKPT_CRASH_BEFORE_METADATA_UPDATE,
-        CKPT_CRASH_PROGRESS_ENUM_END,
-        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION,
-        KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,
-        KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION,
-        CKPT_CRASH_ENUM_END,
-    } ckpt_crash_state;
 
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *drop_list;
@@ -172,7 +182,7 @@ struct __wt_ckpt_snapshot {
 struct __wt_checkpoint_cleanup {
     WT_SESSION_IMPL *session; /* checkpoint cleanup session */
     wt_thread_t tid;          /* checkpoint cleanup thread */
-    int tid_set;              /* checkpoint cleanup thread set */
+    wt_shared bool tid_set;   /* checkpoint cleanup thread set */
     WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
     uint64_t interval;        /* Checkpoint cleanup interval */
     uint64_t file_wait_ms;    /* Checkpoint cleanup file wait in milliseconds */
