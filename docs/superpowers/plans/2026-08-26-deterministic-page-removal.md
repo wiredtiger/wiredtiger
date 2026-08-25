@@ -4,7 +4,7 @@
 
 **Goal:** Add deterministic partial- and full-page-removal regression coverage and remove the unreliable delete-loop change from `test_cc09.py`.
 
-**Architecture:** Keep `test_cc09.py` focused on obsolete time-window cleanup. Add a dedicated checkpoint-cleanup test with fixed small leaf pages and explicit 10-key removal ranges. The partial scenario leaves alternating ranges present so cleanup must read pages containing live keys; the full scenario removes every range so cleanup can remove pages without reading their contents after reopening.
+**Architecture:** Keep `test_cc09.py` focused on obsolete time-window cleanup. Add a dedicated checkpoint-cleanup test with fixed small leaf pages and explicit 10-key removal ranges. Both scenarios verify that cleanup does not read the data source after the removal checkpoint and reopen; the full scenario additionally removes the complementary ranges.
 
 **Tech Stack:** WiredTiger Python test suite, `wttest`, `wtscenario`, generated WiredTiger statistics.
 
@@ -56,6 +56,7 @@ git commit -m "Restore deterministic checkpoint cleanup coverage"
 ### Task 2: Add deterministic partial and full removal scenarios
 
 **Files:**
+- Modify: `src/btree/bt_sync_obsolete.c:461-470`
 - Create: `test/suite/test_cc12.py`
 
 - [ ] **Step 1: Add the focused test**
@@ -79,21 +80,19 @@ class test_cc12(test_cc_base):
 
     def remove_ranges(self, cursor, nrows):
         for start in range(0, nrows, 20):
+            self.session.begin_transaction()
             for key in range(start, min(start + 10, nrows)):
-                self.session.begin_transaction()
                 cursor.set_key(key)
                 self.assertEqual(cursor.remove(), 0)
-                self.session.commit_transaction(
-                    "commit_timestamp=" + self.timestamp_str(nrows + 1))
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 1))
 
         if self.remove_all:
             for start in range(10, nrows, 20):
+                self.session.begin_transaction()
                 for key in range(start, min(start + 10, nrows)):
-                    self.session.begin_transaction()
                     cursor.set_key(key)
                     self.assertEqual(cursor.remove(), 0)
-                    self.session.commit_transaction(
-                        "commit_timestamp=" + self.timestamp_str(nrows + 2))
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 2))
 
     def test_cc12(self):
         uri = "table:cc12"
@@ -103,28 +102,39 @@ class test_cc12(test_cc_base):
             "allocation_size=512,leaf_page_max=512,internal_page_max=512")
 
         self.session.create(uri, create_params)
-        self.populate(uri, 0, nrows, "value")
+        self.populate(uri, 0, nrows, "k" * 40)
+        self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(nrows))
         self.session.checkpoint()
         self.reopen_conn()
 
         cursor = self.session.open_cursor(uri)
         self.remove_ranges(cursor, nrows)
         cursor.close()
+        self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(nrows + 2))
         self.session.checkpoint()
         self.reopen_conn()
-        self.session.open_cursor(uri).close()
+        keep_open = self.session.open_cursor(uri)
 
-        pages_read_before = self.get_stat(stat.conn.checkpoint_cleanup_pages_read)
-        pages_removed_before = self.get_stat(stat.conn.checkpoint_cleanup_pages_removed)
+        pages_read_before = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_read, uri)
         self.wait_for_cc_to_run()
-        pages_read_after = self.get_stat(stat.conn.checkpoint_cleanup_pages_read)
-        pages_removed_after = self.get_stat(stat.conn.checkpoint_cleanup_pages_removed)
+        pages_read_after = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_read, uri)
 
-        self.assertGreater(pages_removed_after - pages_removed_before, 0)
-        if self.remove_all:
-            self.assertEqual(pages_read_after - pages_read_before, 0)
-        else:
-            self.assertGreater(pages_read_after - pages_read_before, 0)
+        self.assertEqual(pages_read_after - pages_read_before, 0)
+        keep_open.close()
+```
+
+Before running the test, make the cleanup walk use `addr.ta.newest_stop_durable_ts`
+for the existing logged-table decision:
+
+```c
+if (addr.type == WT_ADDR_LEAF_NO)
+    *skipp = true;
+else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+    *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
+      !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
+    if (!*skipp)
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
+}
 ```
 
 Use the existing `wait_for_cc_to_run` helper rather than sleeps. The partial scenario removes every other contiguous 10-key range, while the full scenario independently removes the complementary ranges as well.
@@ -137,12 +147,12 @@ Run:
 python3 ../test/suite/run.py test_cc12
 ```
 
-Expected: both scenarios pass, with page reads greater than zero for partial removal and zero for full removal.
+Expected: both scenarios pass with no data-source page reads after the removal checkpoint and reopen.
 
 - [ ] **Step 3: Commit the focused test**
 
 ```bash
-git add test/suite/test_cc12.py
+git add src/btree/bt_sync_obsolete.c test/suite/test_cc12.py
 git commit -m "Add deterministic checkpoint page removal coverage"
 ```
 

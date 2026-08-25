@@ -28,4 +28,6 @@ statistic. Assertions will verify the expected removal state and that cleanup do
 read pages solely because their contents were already fully removed.
 
 The scenarios will use deterministic key ranges and fixed page sizing rather than
-timing or incidental page layouts. No new statistics or production code are required.
+timing or incidental page layouts. The cleanup walk will use the existing aggregate
+`newest_stop_durable_ts` predicate, so internal pages without a stop timestamp follow
+the existing skip path. No new statistics are required.
