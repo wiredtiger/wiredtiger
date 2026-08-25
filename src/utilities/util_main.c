@@ -177,30 +177,6 @@ util_flag_allowed_disagg(int ch)
 }
 
 /*
- * util_config_is_disagg --
- *     Whether a wiredtiger_open configuration string configures disaggregated storage.
- */
-static bool
-util_config_is_disagg(const char *config)
-{
-    WT_CONFIG_ITEM value;
-    WT_CONFIG_PARSER *parser;
-    bool disagg;
-
-    if (config == NULL)
-        return (false);
-
-    /* A configuration string this malformed fails in wiredtiger_open, which reports it better. */
-    if (wiredtiger_config_parser_open(NULL, config, strlen(config), &parser) != 0)
-        return (false);
-
-    disagg = parser->get(parser, "disaggregated.page_log", &value) == 0 && value.len > 0;
-    (void)parser->close(parser);
-
-    return (disagg);
-}
-
-/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -356,12 +332,6 @@ main(int argc, char *argv[])
     }
     if ((recover || salvage) && readonly) {
         fprintf(stderr, "-R and -S cannot be used with -r\n");
-        goto err;
-    }
-    /* Reject the global options that are not supported in disaggregated storage mode. */
-    if (disagg_bad_flag != 0 && util_config_is_disagg(cmd_config)) {
-        fprintf(stderr, "%s: -%c is not supported in disaggregated storage mode\n", progname,
-          disagg_bad_flag);
         goto err;
     }
     argc -= __wt_optind;
@@ -531,12 +501,21 @@ open:
         goto err;
     }
 
-    /* Reject subcommands that are not supported in disaggregated storage mode. */
-    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL && func != NULL &&
-      !util_func_allowed_disagg(func)) {
-        fprintf(
-          stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
-        goto err;
+    /*
+     * Reject the global options and the subcommands that are not supported in disaggregated storage
+     * mode.
+     */
+    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL) {
+        if (disagg_bad_flag != 0) {
+            fprintf(stderr, "%s: -%c is not supported in disaggregated storage mode\n", progname,
+              disagg_bad_flag);
+            goto err;
+        }
+        if (func != NULL && !util_func_allowed_disagg(func)) {
+            fprintf(
+              stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
+            goto err;
+        }
     }
 
     if (secretkey != NULL) {

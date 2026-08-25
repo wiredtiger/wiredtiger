@@ -46,6 +46,13 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
     HARNESS_FLAGS = frozenset(('-C', '-h'))
     FLAG_ARGS = {'-E': 'dummy_key', '-l': 'no-such-live-restore'}
 
+    # wiredtiger_open applies the global options itself and refuses these two for a disaggregated
+    # database, so the open fails with the library's own message before wt's rejection can run.
+    OPEN_FAILURE_MSGS = {
+        '-l': 'Live restore is not compatible with disaggregated storage mode',
+        '-r': 'disaggregated storage is not supported with read-only connections',
+    }
+
     REJECT_MSG = 'is not supported in disaggregated storage mode'
 
     conn_config = 'disaggregated=(role="leader")'
@@ -60,9 +67,8 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Step the leader down and return a home and config that a wt subprocess can
     # attach to as a follower. A completed checkpoint is required so the follower
-    # would otherwise attach cleanly; the flag rejects fire before open, but
-    # keeping the leader-side state realistic ensures we reject for the right
-    # reason.
+    # attaches cleanly: the rejections are made against the open connection, so
+    # the connection has to succeed first.
     def _follower_setup(self, name='wt-follower'):
         self.session.create('layered:test_disagg_util05', 'key_format=S,value_format=S')
         self.session.checkpoint()
@@ -145,11 +151,12 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
                 argv.append(self.FLAG_ARGS[flag])
             rejected = flag not in self.ALLOWED_FLAGS
             # stat is read-oriented and allowed in disaggregated storage mode, so an allowed
-            # global option pairs with it cleanly; a rejected one never reaches the subcommand.
+            # global option pairs with it cleanly; a rejected one is caught before stat runs.
             _, stderr = self._run_wt_follower(follower_home, follower_config, argv + ['stat'],
                                               failure=rejected)
             if rejected:
-                self.assertIn(f'{flag} {self.REJECT_MSG}', stderr,
+                expected = self.OPEN_FAILURE_MSGS.get(flag, f'{flag} {self.REJECT_MSG}')
+                self.assertIn(expected, stderr,
                     f"expected reject message for {flag}, got stderr:\n{stderr}")
             else:
                 self.assertNotIn(self.REJECT_MSG, stderr)
