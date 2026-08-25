@@ -347,9 +347,15 @@ to_string(checkpoint_crash_phase phase)
         return "before_checkpoint_commit";
     case checkpoint_crash_phase::before_metadata_sync:
         return "before_metadata_sync";
-    default:
-        throw model_exception("The checkpoint crash phase does not have a name");
+    case checkpoint_crash_phase::data_files:
+        break;
     }
+
+    /*
+     * Listing every phase rather than falling back on a default keeps the compiler checking this
+     * switch when a phase is added.
+     */
+    throw model_exception("The checkpoint crash phase does not have a name");
 }
 
 /*
