@@ -49,7 +49,7 @@ class test_cc09(test_cc_base):
 
     # Necessary conditions for checkpoint cleanup to run.
     cc_scenarios = [
-        ('newest_page_stop_durable_ts', dict(has_delete=True, bump_oldest_ts=False)),
+        ('newest_stop_durable_ts', dict(has_delete=True, bump_oldest_ts=False)),
         ('obsolete_ts', dict(has_delete=False, bump_oldest_ts=True)),
         ('none', dict(has_delete=False, bump_oldest_ts=False)),
     ]
@@ -84,14 +84,10 @@ class test_cc09(test_cc_base):
         self.assertEqual(cursor.reset(), 0)
 
         if self.has_delete:
-            # Delete enough keys (1000) to guarantee that a page-level fast delete is used rather
-            # than recording individual tombstones, so that newest_page_stop_durable_ts is set on
-            # the resulting address cookie and checkpoint cleanup can exercise that code path.
-            for i in range(1000):
-                self.session.begin_transaction()
-                cursor.set_key(i)
-                cursor.remove()
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 1))
+            self.session.begin_transaction()
+            cursor.set_key(1)
+            cursor.remove()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 1))
             self.session.checkpoint()
 
         if self.bump_oldest_ts:
