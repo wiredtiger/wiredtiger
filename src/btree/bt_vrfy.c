@@ -115,11 +115,11 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "fix_btree_size", &cval));
     vs->fix_btree_size = cval.val != 0;
     if (vs->fix_btree_size) {
+        if (F_ISSET(S2C(session), WT_CONN_READONLY))
+            WT_RET_MSG(session, ENOTSUP, "fix_btree_size requires a writable connection");
         if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
             WT_RET_MSG(
               session, ENOTSUP, "fix_btree_size requires a disaggregated leader connection");
-        if (F_ISSET(S2C(session), WT_CONN_READONLY))
-            WT_RET_MSG(session, ENOTSUP, "fix_btree_size requires a writable connection");
     }
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
@@ -474,10 +474,10 @@ __verify_one_checkpoint(
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
 
         if (vs->fix_btree_size) {
-            __wt_verbose(session, WT_VERB_VERIFY,
-              "checkpoint %s: size mismatch detected, correcting checkpoint size from %" PRIu64
-              " to %" PRIu64,
-              name, ckpt->size, vs->total_block_size);
+            __wt_verbose_notice(session, WT_VERB_VERIFY,
+              "checkpoint %s: size mismatch detected, correcting checkpoint size from "
+              "%" PRIu64 " to %" PRIu64,
+              ckpt->name, ckpt->size, vs->total_block_size);
             ckpt->size = vs->total_block_size;
             vs->size_fixed = true;
         } else {

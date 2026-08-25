@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
 import re
 import wiredtiger
 import wttest
@@ -37,7 +38,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_verify_btree_size(wttest.WiredTigerTestCase):
     test_name = __qualname__
-    conn_config = 'disaggregated=(role="leader"),verbose=[verify]'
+    conn_config = 'disaggregated=(role="leader")'
 
     uri_base = test_name
     uri = "layered:" + uri_base
@@ -128,6 +129,36 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         # The last size= value is the most recent checkpoint's size.
         self.assertEqual(int(sizes[0]), corrected_size,
             f"fetch_metadata size {sizes[0]} != corrected size {corrected_size}")
+
+    def test_fix_btree_size_requires_leader(self):
+        # fix_btree_size is rejected on a follower. The follower skips verify until it has picked
+        # up a checkpoint, so the table must be checkpointed first.
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.populate()
+
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        try:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.verify(self.uri, 'fix_btree_size=true'),
+                '/requires a disaggregated leader connection/')
+        finally:
+            self.conn.reconfigure('disaggregated=(role="leader")')
+
+    def test_fix_btree_size_requires_writable(self):
+        # fix_btree_size is rejected on a read-only connection. Read-only disaggregated
+        # connections are rejected at open, so use a plain standalone database.
+        dirname = 'test_fix_btree_size_readonly'
+        os.mkdir(dirname)
+        conn = self.wiredtiger_open(dirname, 'create')
+        conn.open_session().create('table:t', 'key_format=S,value_format=S')
+        conn.close()
+
+        conn = self.wiredtiger_open(dirname, 'readonly=true')
+        session = conn.open_session()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: session.verify('table:t', 'fix_btree_size=true'),
+            '/requires a writable connection/')
+        conn.close()
 
 if __name__ == "__main__":
     wttest.run()
