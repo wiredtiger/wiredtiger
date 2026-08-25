@@ -196,7 +196,13 @@ def main():
         for ticket in outdated_tickets:
             label_ticket(ticket, token)
 
-    exit_code = 1 if closed_ticket_found else 0
+    if args.label_outdated:
+        # Always return 0; applying labels is the feedback.
+        exit_code = 0
+    else:
+        # Normal mode returns nonzero when closed tickets are found.
+        exit_code = 1 if closed_ticket_found else 0
+
     sys.exit(exit_code)
 
 
