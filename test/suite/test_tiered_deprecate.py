@@ -31,7 +31,7 @@ from wtscenario import make_scenarios
 
 class _tiered_uri_deprecate:
     def _uri(self):
-        return self.prefix + 'test_tiered01'
+        return self.prefix + 'test_tiered_deprecate'
 
     def _assert_unsupported(self, expr):
         uri = self._uri()
@@ -42,7 +42,7 @@ class _tiered_uri_deprecate:
         self.assertEqual(last_msg, msg)
 
 # Test that deprecated tiered storage URIs are refused.
-class test_tiered01(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
+class test_tiered_deprecate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
         ('tier', dict(prefix='tier:', err_prefix='unknown object type')),
@@ -63,7 +63,7 @@ class test_tiered01(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
     def test_salvage(self):
         self._assert_unsupported(lambda: self.session.salvage(self._uri()))
 
-class test_tiered01_truncate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
+class test_tiered_deprecate_truncate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
         ('tier', dict(prefix='tier:', err_prefix='unknown object type')),
