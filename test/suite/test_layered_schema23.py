@@ -92,11 +92,11 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session.create(uri, self.table_config)
         self.write_one(value, commit_ts, session=session, uri=uri)
 
-    def test_a_held_up_pickup_leaves_every_table_alone(self):
+    def test_busy_table_defers_the_whole_checkpoint(self):
         """
-        Hold a cursor on a table the leader has replaced, and the follower waits: it applies none
-        of the checkpoint until the cursor closes. The three names sort around the replaced table,
-        so the pick-up would reach one before it and one after.
+        A cursor on a replaced table makes the follower defer the whole checkpoint, not just that
+        table. The three names sort around the replaced one, so the pick-up would reach a table
+        before it and a table after it.
         """
         # Accept only a busy handle as the reason to wait.
         self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
@@ -147,11 +147,14 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             self.assert_reads(session_follow, uri, 'second')
         self.close_follower(conn_follow, session_follow)
 
-    def test_a_failed_pickup_unrolls_what_it_had_adopted(self):
+    def test_failed_pickup_rolls_back_applied_tables(self):
         """
-        Fail a pick-up part way and it takes back the tables it had already applied. A cursor on
-        the ingest constituent refuses the drop, and the name sorts after a healthy table so the
-        pick-up applies that one first. Holding the layered table would make it wait, not fail.
+        A pick-up that fails part way rolls back the tables it had already applied, so a node
+        never serves half a checkpoint. The replaced table sorts last, so the pick-up applies a
+        healthy table before it fails.
+
+        The cursor is on the ingest constituent because that fails the drop. A cursor on the
+        layered table pins a snapshot, which makes the pick-up defer rather than fail.
         """
         healthy = 'layered:aaa_healthy'
         recreated = 'layered:zzz_recreated'
@@ -182,8 +185,11 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         held.close()
         self.close_follower(conn_follow, session_follow)
 
-    def test_follower_create_is_not_a_dropped_table(self):
-        """A follower keeps a table it created itself: it has no stable copy to disagree."""
+    def test_follower_keeps_its_own_create(self):
+        """
+        A follower keeps a table it created itself. Such a table has no stable copy, so there is
+        no btree id for the checkpoint to disagree with.
+        """
         self.leader_checkpoint(1)
 
         conn_follow, session_follow = self.open_follower()
@@ -200,12 +206,13 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assert_reads(session_follow, self.uri, 'from the leader')
         self.close_follower(conn_follow, session_follow)
 
-    def test_uncheckpointed_recreate_yields_to_the_checkpoint(self):
+    def test_unpublished_replacement_loses(self):
         """
-        A replacement nobody checkpointed was never published, so the checkpoint wins even though
-        the local btree id is larger. The step-down declares no timestamp, which is what leaves
-        the replacement unpublished. test_recreate_published_before_a_graceful_step_down covers a
-        step-down that carries it into the checkpoint instead.
+        A replacement that reached no checkpoint was never published, so the checkpoint wins even
+        though the local btree id is larger.
+
+        The step-down declares no timestamp, which is what leaves the replacement unpublished.
+        test_published_replacement_wins covers the step-down that publishes it.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
@@ -238,10 +245,11 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.close_follower(conn_follow, session_follow)
 
-    def test_strict_validation_accepts_a_discarded_table(self):
+    def test_strict_validation_allows_a_replacement(self):
         """
-        Strict validation accepts a table the pick-up replaced on the way past. It still rejects a
-        table it did not replace, which test_layered_schema17 covers.
+        Strict validation accepts a table the pick-up replaced on the way past, rather than
+        reading it as an unexplained divergence. It still rejects tables the pick-up left alone,
+        which test_layered_schema17 covers.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
@@ -268,10 +276,10 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
         self.close_follower(conn_follow, session_follow)
 
-    def test_recreate_published_before_a_graceful_step_down(self):
+    def test_published_replacement_wins(self):
         """
-        A graceful step-down lands its checkpoint on the step-down timestamp, publishing a table
-        the outgoing leader replaced. Both nodes then settle on the replacement's btree id.
+        A graceful step-down lands its checkpoint on the step-down timestamp, which publishes a
+        table the outgoing leader replaced. Both nodes then settle on the replacement's btree id.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
