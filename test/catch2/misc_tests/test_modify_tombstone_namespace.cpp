@@ -7,7 +7,7 @@
  */
 
 /*
- * Cross-check __wt_modify_result_in_ingest_tombstone_namespace against actually applying the modify
+ * Cross-check __wt_modify_result_in_tombstone_namespace against actually applying the modify
  * vector: the predicted result size must always match __wt_modify_apply_api, and the namespace
  * prediction must never miss a result that is in the namespace. The prediction is exact unless an
  * entry can shift a byte of unknown provenance into the marker positions, in which case it may
@@ -66,7 +66,7 @@ check_case(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const std::string &base,
 
     bool predicted_ns = false;
     size_t predicted_size = 0;
-    __wt_modify_result_in_ingest_tombstone_namespace(session, cursor->value_format, &base_item,
+    __wt_modify_result_in_tombstone_namespace(session, cursor->value_format, &base_item,
       entries.data(), (int)entries.size(), &predicted_ns, &predicted_size);
 
     cursor->value.data = base.data();

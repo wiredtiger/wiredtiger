@@ -399,15 +399,15 @@ err:
 }
 
 /*
- * __wt_modify_result_in_ingest_tombstone_namespace --
- *     Predict whether applying a modify vector to the base value yields a result in the ingest
+ * __wt_modify_result_in_tombstone_namespace --
+ *     Predict whether applying a modify vector to the base value yields a result in the layered
  *     tombstone namespace, without materializing the result, and return the result's size. The size
  *     is exact. The namespace answer errs toward true when an entry shifts a byte of unknown
  *     provenance into the marker positions, so it can report a result that is not in the namespace,
  *     but never misses one that is.
  */
 void
-__wt_modify_result_in_ingest_tombstone_namespace(WT_SESSION_IMPL *session, const char *value_format,
+__wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *value_format,
   const WT_ITEM *base, const WT_MODIFY *entries, int nentries, bool *in_namespacep,
   size_t *result_sizep)
 {
