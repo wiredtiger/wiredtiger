@@ -505,7 +505,7 @@ open:
      * Reject the global options and the subcommands that are not supported in disaggregated storage
      * mode.
      */
-    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL) {
+    if (__wt_conn_is_disagg(conn)) {
         if (disagg_bad_flag != 0) {
             fprintf(stderr, "%s: -%c is not supported in disaggregated storage mode\n", progname,
               disagg_bad_flag);
