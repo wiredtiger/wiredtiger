@@ -245,11 +245,13 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.close_follower(conn_follow, session_follow)
 
-    def test_strict_validation_allows_a_replacement(self):
+    def test_replacement_runs_under_strict_validation(self):
         """
-        Strict validation accepts a table the pick-up replaced on the way past, rather than
-        reading it as an unexplained divergence. It still rejects tables the pick-up left alone,
-        which test_layered_schema17 covers.
+        Turning strict validation on does not change how a replacement is handled. The btree id
+        comparison settles the table before either strict check is reached, so this pins that the
+        two do not interfere rather than that strict accepts anything.
+
+        test_layered_schema17 covers what strict validation does police.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
