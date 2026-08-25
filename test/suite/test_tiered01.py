@@ -29,7 +29,7 @@
 import errno, re, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# Leftover tiered URI prefixes are rejected by schema drop, alter, truncate, verify, and salvage.
+# Leftover object:/tier:/tiered: URIs fail drop, alter, verify, and salvage as unexpected object types.
 class test_tiered01(wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
@@ -55,7 +55,7 @@ class test_tiered01(wttest.WiredTigerTestCase):
         if self.prefix == 'tiered:':
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.truncate(uri, None, None, None),
-                '/No such file or directory/')
+                '/(No such file or directory|The system cannot find the file specified)/')
             err, _sub, _msg = self.session.get_last_error()
             self.assertEqual(err, errno.ENOENT)
         else:
