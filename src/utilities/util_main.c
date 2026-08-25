@@ -503,9 +503,9 @@ open:
 
     /*
      * Reject the global options and the subcommands that are not supported in disaggregated storage
-     * mode.
+     * mode. __wt_conn_is_disagg requires an open session, so just check the page_log_meta directly.
      */
-    if (__wt_conn_is_disagg(conn)) {
+    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.page_log_meta != NULL) {
         if (disagg_bad_flag != 0) {
             fprintf(stderr, "%s: -%c is not supported in disaggregated storage mode\n", progname,
               disagg_bad_flag);
