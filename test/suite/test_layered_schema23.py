@@ -107,6 +107,63 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         cursor.close()
         self.close_follower(conn_follow, session_follow)
 
+    def test_a_held_up_pickup_leaves_every_table_alone(self):
+        """
+        A pickup that cannot finish applies none of the checkpoint. The walk adopts tables as it
+        goes, so metadata tracking has to unroll the ones it reached before the table it cannot
+        drop, and never reaches the ones after it. The three names bracket the table being
+        recreated, since the walk visits them in name order.
+        """
+        # Only the busy handle may hold the adoption up, so any other reason is a failure.
+        self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
+                                 'Picking up the same checkpoint')
+
+        before = 'layered:aaa_before'
+        after = 'layered:zzz_after'
+        for uri in (before, self.uri, after):
+            self.session.create(uri, self.table_config)
+            self.write_one('first', 2, uri=uri)
+        self.leader_checkpoint(2)
+
+        conn_follow, session_follow = self.open_follower()
+        adopted = {uri: self.stable_config(conn_follow, uri) for uri in (before, after)}
+
+        # A cursor on the middle table stops the pickup from dropping it.
+        held = session_follow.open_cursor(self.uri)
+        self.assertEqual(held[1], 'first')
+
+        # The leader moves all three on, replacing the middle one under a new btree id.
+        self.write_one('second', 4, uri=before)
+        self.write_one('second', 4, uri=after)
+        self.dropUntilSuccess(self.session, self.uri)
+        self.session.create(self.uri, self.table_config)
+        self.write_one('second', 4)
+        self.leader_checkpoint(4)
+        self.disagg_advance_checkpoint(conn_follow)
+
+        # None of the checkpoint has been applied, not even the table the walk reached first. The
+        # local metadata is what shows it: the walk updates each table's stable entry as it goes,
+        # so an entry still naming the old checkpoint is one the failure unrolled.
+        for uri in (before, after):
+            self.assertEqual(self.stable_config(conn_follow, uri), adopted[uri])
+            cursor = session_follow.open_cursor(uri)
+            self.assertEqual(cursor[1], 'first')
+            cursor.close()
+
+        held.close()
+        self.disagg_wait_for_adoption(conn_follow)
+
+        # With the table free the whole checkpoint lands at once, entries included.
+        session_follow.close()
+        session_follow = conn_follow.open_session('')
+        for uri in (before, after):
+            self.assertNotEqual(self.stable_config(conn_follow, uri), adopted[uri])
+        for uri in (before, self.uri, after):
+            cursor = session_follow.open_cursor(uri)
+            self.assertEqual(cursor[1], 'second')
+            cursor.close()
+        self.close_follower(conn_follow, session_follow)
+
     def test_follower_create_is_not_a_dropped_table(self):
         """A table the follower created itself has no stable constituent to disagree with."""
         self.leader_checkpoint(1)
