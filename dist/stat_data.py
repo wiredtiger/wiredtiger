@@ -359,6 +359,7 @@ conn_stats = [
     CacheStat('cache_shared_dsk_lock_contention', 'shared disk bucket lock contention count'),
     CacheStat('cache_shared_dsk_miss', 'shared disk miss'),
     CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
+    CacheStat('cache_truncate_txn_uncommitted_bytes', 'pages dirtied by fast-truncate in uncommitted txn - bytes', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
@@ -450,6 +451,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_pages_prune_timestamp_not_move', 'eviction server skips pages that have been reconciled previously at the same prune timestamp'),
     EvictStat('eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     EvictStat('eviction_server_skip_stable_trees', 'eviction server skips stable btrees in disagg'),
+    EvictStat('eviction_server_skip_stale_disagg_pages', 'eviction server skips pages on an outdated disaggregated read-only btree that a reader still has open'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
     EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips trees that are read-only if it is not looking for clean pages'),
@@ -518,6 +520,8 @@ conn_stats = [
     CheckpointCleanupStat('checkpoint_cleanup_handle_processed', 'most recent handles processed'),
     CheckpointCleanupStat('checkpoint_cleanup_inmem_pages_visited', 'most recent in-memory pages visited'),
     CheckpointCleanupStat('checkpoint_cleanup_success', 'successful calls'),
+    CheckpointCleanupStat('checkpoint_cleanup_thread_start', 'checkpoint cleanup thread started'),
+    CheckpointCleanupStat('checkpoint_cleanup_thread_stop', 'checkpoint cleanup thread stopped'),
 
     ##########################################
     # Checkpoint statistics
@@ -1033,6 +1037,7 @@ conn_stats = [
     TxnStat('txn_stepdown_epoch_set', 'step-down disaggregated schema epoch is currently set', 'no_clear,no_scale'),
     TxnStat('txn_stepdown_ts_set', 'step-down timestamp is currently set', 'no_clear,no_scale'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
+    TxnStat('txn_truncate_dirty_cache_rollback', 'truncate operations rolled back because they pinned too much dirty cache'),
     TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),
 
     ##########################################
@@ -1127,7 +1132,9 @@ dsrc_stats = [
     BtreeSizeStat('btree_size_leaf_hist_5', 'leaf page-size histogram bucket 5', 'no_scale'),
     BtreeSizeStat('btree_size_leaf_hist_6', 'leaf page-size histogram bucket 6', 'no_scale'),
     BtreeSizeStat('btree_size_leaf_hist_7', 'leaf page-size histogram bucket 7', 'no_scale'),
-    BtreeSizeStat('btree_size_leaf_hist_8', 'leaf page-size histogram bucket 8 (>= maximum leaf page size)', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_8', 'leaf page-size histogram bucket 8 (>= pre-compression leaf page budget)', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_buckets', 'leaf page-size histogram bucket count', 'max_aggregate,no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_ceiling', 'leaf page-size histogram ceiling', 'max_aggregate,no_scale,size'),
     BtreeSizeStat('btree_size_leaf_pages', 'leaf pages', 'no_scale'),
     BtreeSizeStat('btree_size_no_image_pages', 'pages skipped for having no on-disk image', 'no_scale'),
     BtreeSizeStat('btree_size_overflow_bytes', 'overflow page bytes', 'no_scale,size'),
@@ -1466,6 +1473,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
     LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
     LayeredStat('layered_curs_open_stable_refused', 'Layered table cursor stable open refused to preserve a transaction snapshot'),
+    LayeredStat('layered_curs_open_stable_stepdown_race', 'Layered table cursor stable open rolled back after racing a step-down'),
     LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from the ingest btrees'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
@@ -1482,6 +1490,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_stable_value_tombstone_suffix', 'Layered table stable values beginning with the tombstone byte sequence and ending with a tombstone byte'),
     LayeredStat('layered_curs_stable_value_tombstone_x3', 'Layered table stable values equal to three tombstone bytes'),
     LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
+    LayeredStat('layered_stable_live_open_refused', 'Layered table live stable open refused on a follower'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_failed', 'disagg pick up checkpoints failed'),
@@ -1606,7 +1615,9 @@ session_stats = [
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
-    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn', 'no_clear,no_scale,size'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn, from both updates and fast-truncate', 'no_clear,no_scale,size'),
+    SessionStat('txn_truncate_bytes_dirty', 'dirty bytes pinned by fast-truncate in this txn', 'no_clear,no_scale,size'),
     SessionStat('txn_updates', 'number of updates in this txn', 'no_clear,no_scale,size'),
+    SessionStat('txn_updates_bytes_dirty', 'dirty bytes from updates in this txn', 'no_clear,no_scale,size'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]

@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __disagg_accumulate_drop_size(
-  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
@@ -156,30 +154,34 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t stable_schema_epoch;
+    wt_timestamp_t last_ckpt_epoch;
 
     conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    stable_schema_epoch =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-
     /*
-     * Use the legacy method only when this node was never in epoch world. Either a completed epoch
-     * checkpoint or a live stable epoch means epoch-aware recovery is required.
+     * Use the legacy method whenever this node is not gating schema operations. A checkpoint can
+     * still carry an epoch while the application has stopped setting one, and such a node rebuilds
+     * from its local metadata like any legacy node.
      */
-    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
+    if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (__layered_create_missing_stable_tables_legacy(session));
+
+    last_ckpt_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+    WT_UNUSED(last_ckpt_epoch); /* Only read by the assertion below. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
 
-        /* When the stable epoch is known, entries older than it should have been pruned. */
-        WT_ASSERT(session,
-          entry->schema_epoch > stable_schema_epoch || stable_schema_epoch == WT_SCHEMA_EPOCH_NONE);
+        /*
+         * Entries at or below the last checkpoint's epoch should have been pruned. When no
+         * checkpoint has written an epoch yet the bound is zero and the assertion still holds:
+         * published entries always carry a nonzero epoch and unpublished ones the maximum.
+         */
+        WT_ASSERT(session, entry->schema_epoch > last_ckpt_epoch);
 
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
@@ -373,11 +375,6 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
      */
     entry->deferred = deferred;
 
-    /* Cannot fail past this point. */
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") with %s "
       "operation to shared "
@@ -391,6 +388,11 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
       entry->table_value == NULL ? "<none>" : entry->table_value);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  stable: %s",
       entry->stable_value == NULL ? "<none>" : entry->stable_value);
+
+    /* Cannot fail past this point. */
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /* No need to free the entry structure here as it has been added to the queue. */
     entry = NULL;
@@ -443,7 +445,7 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
         /*
-         * When EPOCH_NONE is passed (a checkpoint that doesn't use schema epochs), prune everything
+         * When EPOCH_NONE is passed (the node is not gating schema operations), prune everything
          * unconditionally. The legacy path rebuilds stable constituents directly from local
          * metadata rather than replaying queue entries, so the queue is no longer needed.
          */
@@ -483,19 +485,24 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
 
 /*
  * __disagg_shared_metadata_op_helper --
- *     Perform the remove/update operation in the shared metadata table.
+ *     Perform the remove/update operation in the shared metadata table. When drop_sizep is set, a
+ *     REMOVE sets it to the checkpoint size of the row it deletes, and leaves it alone when the row
+ *     carries no size; the caller owns the default.
  */
 static int
-__disagg_shared_metadata_op_helper(
-  WT_SESSION_IMPL *session, const char *key, const char *value, WT_SHARED_METADATA_OP metadata_op)
+__disagg_shared_metadata_op_helper(WT_SESSION_IMPL *session, const char *key, const char *value,
+  WT_SHARED_METADATA_OP metadata_op, uint64_t *drop_sizep)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    uint64_t size;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+    const char *config;
 
     WT_ASSERT(session, __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     cursor = NULL;
+    config = NULL;
 
     WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
     cursor->set_key(cursor, key);
@@ -511,8 +518,25 @@ __disagg_shared_metadata_op_helper(
          *
          * Since either form may appear depending on how the table was created, it is acceptable for
          * some lookups to return WT_NOTFOUND.
+         *
+         * Only the stable constituent carries a checkpoint size, so only that lookup asks for one.
+         * Take it from the row being deleted: that is the size the metadata walk stops counting,
+         * and deleting the row keeps the subtraction to one per dropped table.
          */
-        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
+        if (drop_sizep != NULL) {
+            WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
+            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+                WT_ERR(cursor->get_value(cursor, &config));
+                WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, config, &size), true);
+                if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+                    *drop_sizep = size;
+                    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "Drop size %" PRIu64 " for stable URI \"%s\"", size, key);
+                }
+                WT_ERR(cursor->remove(cursor));
+            }
+        } else
+            WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
         break;
     case WT_SHARED_METADATA_CREATE:
     case WT_SHARED_METADATA_UPDATE:
@@ -538,29 +562,34 @@ err:
 
 /*
  * __disagg_shared_metadata_op --
- *     Remove/update all relevant metadata entries of a table in the shared metadata table.
+ *     Remove/update all relevant metadata entries of a table in the shared metadata table,
+ *     returning the checkpoint size a REMOVE took out of the shared metadata table.
  */
 static int
-__disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry)
+__disagg_shared_metadata_op(
+  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_sizep)
 {
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
 
+    /* Only the stable constituent carries a size, and only a REMOVE takes one out. */
+    *drop_sizep = 0;
+
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
     WT_ERR(__disagg_shared_metadata_op_helper(
-      session, md_key->data, entry->colgroup_value, entry->metadata_op));
+      session, md_key->data, entry->colgroup_value, entry->metadata_op, NULL));
 
     WT_ERR(__wt_buf_fmt(session, md_key, "layered:%s", entry->table_name));
     WT_ERR(__disagg_shared_metadata_op_helper(
-      session, md_key->data, entry->layered_value, entry->metadata_op));
+      session, md_key->data, entry->layered_value, entry->metadata_op, NULL));
 
     WT_ERR(__wt_buf_fmt(session, md_key, "table:%s", entry->table_name));
     WT_ERR(__disagg_shared_metadata_op_helper(
-      session, md_key->data, entry->table_value, entry->metadata_op));
+      session, md_key->data, entry->table_value, entry->metadata_op, NULL));
 
     WT_ERR(__disagg_shared_metadata_op_helper(
-      session, entry->stable_uri, entry->stable_value, entry->metadata_op));
+      session, entry->stable_uri, entry->stable_value, entry->metadata_op, drop_sizep));
 err:
     __wt_scr_free(session, &md_key);
     return (ret);
@@ -630,42 +659,6 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 }
 
 /*
- * __disagg_accumulate_drop_size --
- *     Accumulate the drop size if the entry represents a table drop operation.
- */
-int
-__disagg_accumulate_drop_size(
-  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_sizep)
-{
-    WT_DECL_RET;
-    char *stable_config;
-
-    stable_config = NULL;
-
-    if (!(entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL))
-        return (0);
-
-    /* The stable entry is gone only after a real drop; a rolled-back drop leaves it. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &stable_config), true);
-
-    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-        uint64_t size = 0;
-        /* A table dropped before it was ever checkpointed has no checkpoint entry. */
-        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), true);
-        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-            *drop_sizep += size;
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
-              entry->table_name, entry->stable_uri);
-        }
-    }
-
-err:
-    __wt_free(session, stable_config);
-    return (ret);
-}
-
-/*
  * __disagg_requeue_skipped_creates --
  *     Return parked create entries to the head of the shared metadata queue, restoring their
  *     original order, so a later checkpoint revisits them.
@@ -690,8 +683,8 @@ __disagg_requeue_skipped_creates(
 
 /*
  * __wt_disagg_shared_metadata_queue_process --
- *     Process the update metadata list, returning the total checkpoint size of the tables actually
- *     dropped so the caller can reduce the database size accordingly.
+ *     Process the update metadata list, returning the total checkpoint size of the shared rows the
+ *     REMOVE entries deleted so the caller can reduce the database size accordingly.
  */
 int
 __wt_disagg_shared_metadata_queue_process(
@@ -701,6 +694,7 @@ __wt_disagg_shared_metadata_queue_process(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
+    uint64_t entry_drop_size;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -748,9 +742,8 @@ __wt_disagg_shared_metadata_queue_process(
         }
 
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
-        WT_ERR(__disagg_shared_metadata_op(session, entry));
-
-        WT_ERR(__disagg_accumulate_drop_size(session, entry, drop_sizep));
+        WT_ERR(__disagg_shared_metadata_op(session, entry, &entry_drop_size));
+        *drop_sizep += entry_drop_size;
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
@@ -1061,9 +1054,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
      * every queued create must be a window create. With schema epochs, uncovered creates
      * legitimately remain queued, so only window creates are checked.
      */
-    legacy = __wt_atomic_load_uint64_acquire(
-               &conn->txn_global.last_ckpt_disaggregated_schema_epoch) == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
+    legacy = __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
 
@@ -1441,8 +1432,17 @@ __disagg_step_down(WT_SESSION_IMPL *session)
       __wt_open_internal_session(S2C(session), "disagg-step-down", false, 0, 0, &internal_session));
 
     /*
-     * The schema lock serializes application schema operations against the step-down, which clears
-     * the shared metadata queue and changes layered-table state underneath them.
+     * The schema lock serializes two things against the step-down.
+     *
+     * First, application schema operations: the step-down clears the shared metadata queue and
+     * changes layered-table state underneath them.
+     *
+     * Second, cursor opens: every btree open runs under the schema lock, so holding it here means
+     * an open either completes before the step-down, and the walk below sees the handle and marks
+     * it read-only, or starts after the role change, and the open itself refuses to produce a live
+     * stable tree on a follower. Without this ordering an open could straddle the step-down: read
+     * the leader role before it, finish after the walk, and leave a writable live stable tree on a
+     * follower that nothing ever marks.
      */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
       WT_WITH_SCHEMA_LOCK(internal_session, ret = __disagg_step_down_int(internal_session)));
@@ -1683,10 +1683,17 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
+
+        /* Checkpoint cleanup is leader-only work, start/restart cleanup thread. */
+        WT_ERR(__wt_checkpoint_cleanup_start(session));
+
         WT_STAT_CONN_SET(session, disagg_step_up_time, WT_CLOCKDIFF_MS(time_stop, time_start));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
     } else if (was_leader && !leader) {
+        /* Checkpoint cleanup is leader-only work, thread stays down until the next step-up. */
+        WT_ERR(__wt_checkpoint_cleanup_stop(session));
+
         /* Leader step-down. */
         time_start = __wt_clock(session);
         ret = __disagg_step_down(session);

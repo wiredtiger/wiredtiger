@@ -38,15 +38,42 @@ println(const char *fmt, ...)
 }
 
 /*
+ * timestamp_name --
+ *     Return the configuration name for a timestamp bit.
+ */
+static const char *
+timestamp_name(uint8_t bit)
+{
+    switch (bit) {
+    case TS_OLDEST:
+        return ("oldest_timestamp");
+    case TS_STABLE:
+        return ("stable_timestamp");
+    case TS_STABLE_SCHEMA_EPOCH:
+        return ("stable_disaggregated_schema_epoch");
+    case TS_STEPDOWN_TIMESTAMP:
+        return ("step_down_timestamp");
+    case TS_STEPDOWN_SCHEMA_EPOCH:
+        return ("step_down_disaggregated_schema_epoch");
+    case TS_LAST_SCHEMA_EPOCH:
+        return ("last_disaggregated_schema_epoch");
+    case TS_LAST_CHECKPOINT:
+        return ("last_checkpoint");
+    default:
+        testutil_die(EINVAL, "unknown timestamp bit: %#" PRIx8, bit);
+    }
+}
+
+/*
  * query_ts --
  *     Return one of the connection's timestamps as an integer. A timestamp that was never set reads
- *     as zero; an unknown name is a coding error and fails the test.
+ *     as zero.
  */
 uint64_t
-query_ts(WT_CONNECTION *conn, const char *name)
+query_ts(WT_CONNECTION *conn, uint8_t bit)
 {
     char config[64], hex_ts[64];
-    testutil_snprintf(config, sizeof(config), "get=%s", name);
+    testutil_snprintf(config, sizeof(config), "get=%s", timestamp_name(bit));
     testutil_check(conn->query_timestamp(conn, hex_ts, config));
 
     uint64_t ts = 0;
@@ -55,32 +82,24 @@ query_ts(WT_CONNECTION *conn, const char *name)
 }
 
 /*
- * set_stepdown_ts --
- *     Set connection's step-down timestamps.
+ * set_ts --
+ *     Set the selected connection timestamps to given value.
  */
 void
-set_stepdown_ts(WT_CONNECTION *conn, uint64_t ts)
+set_ts(const TEST_CONFIG *cfg, WT_CONNECTION *conn, uint8_t mask, uint64_t ts)
 {
-    char config[128];
-    testutil_snprintf(config, sizeof(config),
-      "step_down_timestamp=%" PRIx64 ",step_down_disaggregated_schema_epoch=%" PRIx64, ts, ts);
-    testutil_check(conn->set_timestamp(conn, config));
-}
+    if (cfg->epoch_less)
+        mask &= (uint8_t)~TS_SCHEMA_EPOCHS;
+    testutil_assert(mask != 0);
 
-/*
- * set_frontier --
- *     Move the connection's frontier - the oldest and stable timestamps and the stable schema epoch
- *     - to one timestamp. The three always advance together, so everything at or below that
- *     timestamp is committed and published.
- */
-void
-set_frontier(WT_CONNECTION *conn, uint64_t ts)
-{
-    char config[128];
-    testutil_snprintf(config, sizeof(config),
-      "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64
-      ",stable_disaggregated_schema_epoch=%" PRIx64,
-      ts, ts, ts);
+    char config[256];
+    size_t len = 0;
+    for (uint8_t bit = 1; bit != 0; bit = (uint8_t)(bit << 1)) {
+        if ((mask & bit) == 0)
+            continue;
+        testutil_snprintf_len_incr(
+          config + len, sizeof(config) - len, &len, "%s=%" PRIx64 ",", timestamp_name(bit), ts);
+    }
     testutil_check(conn->set_timestamp(conn, config));
 }
 
@@ -129,11 +148,12 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-b build-dir] [-h dir] [-k [l|f]N] [-p] [-r l|f|lf] [-s N] [-T threads] "
-      "[-t time] [-u pool] [-v]\n",
+      "usage: %s [-b build-dir] [-e] [-h dir] [-k [l|f]N] [-p] [-r l|f|lf] [-s N] [-T threads] "
+      "[-t time] [-q] [-u pool] [-v]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
+      "\t-e run legacy schema operations without epochs (single node only)\n"
       "\t-h home directory\n"
       "\t-k kill after N seconds: lN the current leader, fN the current follower (two nodes),\n"
       "\t   plain N the lone node (single node); may be given more than once\n"
@@ -142,6 +162,7 @@ usage(void)
       "\t-s switch roles every N seconds\n"
       "\t-T number of schema threads\n"
       "\t-t total run time in seconds; the nodes stop gracefully unless killed\n"
+      "\t-q give every create a fresh table name, so no name is ever reused\n"
       "\t-u URI pool size per thread\n"
       "\t-v verify only\n");
     exit(EXIT_FAILURE);
@@ -225,10 +246,10 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
 
     *rand_thp = *rand_timep = true;
 
-    testutil_parse_begin_opt(argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:", cfg->opts);
+    testutil_parse_begin_opt(argc, argv, "A:b:eh:i:k:pP:r:R:s:t:T:u:vW:q", cfg->opts);
 
     int ch;
-    while ((ch = __wt_getopt(progname, argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "A:b:eh:i:k:pP:r:R:s:t:T:u:vW:q")) != EOF)
         switch (ch) {
         case 'A':
             if (strcmp(__wt_optarg, "l") == 0)
@@ -237,6 +258,9 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
                 cfg->start_leader = false;
             else
                 usage();
+            break;
+        case 'e':
+            cfg->epoch_less = true;
             break;
         case 'i':
             cfg->node_id = parse_uint_in_range(__wt_optarg, 0, MAX_NODES - 1, "Node id");
@@ -259,7 +283,10 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
             break;
         case 'T':
             *rand_thp = false;
-            cfg->nth = parse_uint_in_range(__wt_optarg, 1, MAX_TH, "Thread count");
+            cfg->thread_count = parse_uint_in_range(__wt_optarg, 1, MAX_TH, "Thread count");
+            break;
+        case 'q':
+            cfg->unique_tables = true;
             break;
         case 'u':
             pool_size_set = true;
@@ -313,9 +340,9 @@ randomize_run_parameters(TEST_CONFIG *cfg, bool rand_th, bool rand_time)
 
     const uint32_t rand_value = __wt_random(&cfg->opts->data_rnd);
     if (rand_th) {
-        cfg->nth = rand_value % MAX_TH;
-        if (cfg->nth < MIN_TH)
-            cfg->nth = MIN_TH;
+        cfg->thread_count = rand_value % MAX_TH;
+        if (cfg->thread_count < MIN_TH)
+            cfg->thread_count = MIN_TH;
     }
 
     /* No -r: run a random single node. */
@@ -344,6 +371,11 @@ validate_run_parameters(const TEST_CONFIG *cfg)
         fprintf(stderr, "-k lN / -k fN target roles; use plain -k N with a single node\n");
         usage();
     }
+    if (cfg->epoch_less && multi_node) {
+        fprintf(
+          stderr, "-e supports single-node roles only; schema epochs are required with -r lf\n");
+        usage();
+    }
 }
 
 /*
@@ -368,8 +400,9 @@ print_run_banner(const TEST_CONFIG *cfg)
     println("Parent: roles %s; %" PRIu32 " schema threads; pool %" PRIu32
             " slots; switch every %" PRIu32 "s; kill leader@%" PRIu32 " follower@%" PRIu32
             " lone@%" PRIu32 "; stop at %" PRIu32 "s",
-      roles_arg(cfg), cfg->nth, cfg->pool_size, cfg->switch_interval, cfg->kill_time[KILL_LEADER],
-      cfg->kill_time[KILL_FOLLOWER], cfg->kill_time[KILL_LONE], cfg->total_time);
+      roles_arg(cfg), cfg->thread_count, cfg->pool_size, cfg->switch_interval,
+      cfg->kill_time[KILL_LEADER], cfg->kill_time[KILL_FOLLOWER], cfg->kill_time[KILL_LONE],
+      cfg->total_time);
 
     char switch_arg[32] = "", kill_args[64] = "";
     if (cfg->switch_interval != 0)
@@ -380,10 +413,10 @@ print_run_banner(const TEST_CONFIG *cfg)
             testutil_snprintf_len_incr(kill_args, sizeof(kill_args), &len, " -k %s%" PRIu32,
               kill_prefix[k], cfg->kill_time[k]);
 
-    println("CONFIG: %s -r %s%s%s -u %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
+    println("CONFIG: %s%s -r %s%s%s -u %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
             " " TESTUTIL_SEED_FORMAT,
-      progname, roles_arg(cfg), switch_arg, kill_args, cfg->pool_size, cfg->nth, cfg->total_time,
-      cfg->opts->data_seed, cfg->opts->extra_seed);
+      progname, cfg->epoch_less ? " -e" : "", roles_arg(cfg), switch_arg, kill_args, cfg->pool_size,
+      cfg->thread_count, cfg->total_time, cfg->opts->data_seed, cfg->opts->extra_seed);
 }
 
 /*
@@ -399,7 +432,7 @@ main(int argc, char *argv[])
 
     TEST_CONFIG cfg = {0};
     cfg.opts = &s_opts;
-    cfg.nth = MIN_TH;
+    cfg.thread_count = MIN_TH;
     /*
      * Default: 32 slots per thread. A wide pool keeps the generator's picks off the few slots gated
      * behind a checkpoint, so it rarely comes up empty and has to wait.

@@ -752,7 +752,8 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
      * We need to pull the handle into the session handle cache and make sure it's referenced to
      * stop other internal code dropping the handle.
      */
-    if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
+    if ((ret = __wt_session_get_dhandle(
+           session, dhandle->name, dhandle->checkpoint, NULL, WT_DHANDLE_SKIP_OPEN)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
     time_start = WT_SESSION_IS_CHECKPOINT(session) ? __wt_clock(session) : 0;
@@ -817,7 +818,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
               F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
-              WT_IS_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
+              WT_IS_ANY_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -1121,6 +1122,7 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    uint32_t excl_ref;
 
     conn = S2C(session);
 
@@ -1137,11 +1139,18 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
           __wt_atomic_load_uint32_relaxed(&dhandle->references)));
         WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32,
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse)));
-        WT_RET(__wt_msg(session, "  Exclusive references to handle: %" PRIu32, dhandle->excl_ref));
-        if (dhandle->excl_ref != 0)
-            WT_RET(
-              __wt_msg(session, "  Session with exclusive use: %p", (void *)dhandle->excl_session));
-        WT_RET(__wt_msg(session, "  Flags: 0x%08" PRIx32, dhandle->flags));
+        /*
+         * Other sessions can concurrently take and release exclusive access to a handle we're
+         * dumping, we only hold the handle list lock.
+         */
+        excl_ref = __wt_tsan_suppress_load_uint32(&dhandle->excl_ref);
+        WT_RET(__wt_msg(session, "  Exclusive references to handle: %" PRIu32, excl_ref));
+        if (excl_ref != 0)
+            WT_RET(__wt_msg(session, "  Session with exclusive use: %p",
+              (void *)__wt_tsan_suppress_load_wt_session_impl_ptr(&dhandle->excl_session)));
+        /* Sweep can concurrently update the flags of a handle we're dumping. */
+        WT_RET(__wt_msg(
+          session, "  Flags: 0x%08" PRIx16, __wt_atomic_load_uint16_relaxed(&dhandle->flags)));
     }
     return (0);
 }

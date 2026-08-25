@@ -495,6 +495,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     /* Should not be called with anything other than a live btree handle. */
     WT_ASSERT(session, WT_DHANDLE_BTREE(session->dhandle) && !WT_READING_CHECKPOINT(session));
 
+    /* Both handle walks skip the metadata trees; they are checkpointed on their own at the end. */
+    WT_ASSERT(session, !WT_IS_ANY_METADATA(session->dhandle));
+
     btree = S2BT(session);
 
     /*
@@ -513,9 +516,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
-        /* Skip the shared metadata table for disaggregated storage; we'll checkpoint it later. */
-        if (WT_IS_DISAGG_META(btree->dhandle))
-            return (0);
         /* Skip checkpointing shared tables if we are not a leader. */
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
           !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
@@ -546,7 +546,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         S2C(session)->ckpt.handle_stats.meta_check_time += time_diff;
         if (ret == WT_ROLLBACK) {
             /*
-             * If create or drop or any schema operation of a table is with in an user transaction
+             * If create or drop or any schema operation of a table is within an user transaction
              * then checkpoint can see the dhandle before the commit, which will lead to the
              * rollback error. We will ignore this dhandle as part of this checkpoint by returning
              * from here.
@@ -1008,9 +1008,13 @@ __checkpoint_update_disagg_database_size(
      * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
      * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
      * added during the checkpoint. Negative deltas occur when data is removed reducing the total
-     * storage footprint. Guard against overflow/underflow in both cases.
+     * storage footprint. Undershooting the checkpoint buffer is an accounting bug: diagnostic
+     * builds abort, production logs an error and clamps so a wrapped uint64 is not published.
+     *
+     * A drop size is an independent input: a checkpoint that only drops tables has no size delta of
+     * its own, so gating on the delta alone loses the drop.
      */
-    if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
+    if (!recomputed && (session->ckpt.ckpt_size_delta != 0 || drop_size != 0)) {
         uint64_t db;
         int64_t delta;
 
@@ -1019,11 +1023,25 @@ __checkpoint_update_disagg_database_size(
         delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
 
         if (delta > 0) {
+            /* FIXME-WT-18423: Handle an overflow in the disaggregated database size accounting. */
             WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
             __wt_disagg_set_database_size(session, db + (uint64_t)delta);
-        } else {
-            WT_ASSERT(session, db >= (uint64_t)(-delta));
-            __wt_disagg_set_database_size(session, db - (uint64_t)(-delta));
+        } else if (delta < 0) {
+            uint64_t sub, new_size;
+
+            sub = (uint64_t)(-delta);
+            WT_ASSERT(session, db >= sub && db - sub >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+            /* FIXME-WT-18039: Replace this clamp and the assert above with WT_ASSERT_ALWAYS. */
+            if (db < sub || db - sub < WT_DISAGG_CHECKPOINT_SIZE_BUFFER) {
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "disaggregated database size would fall below the checkpoint buffer: "
+                  "decrementing %" PRIu64 " from %" PRIu64
+                  ", clamped to the checkpoint size buffer %" PRIu64,
+                  sub, db, (uint64_t)WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+                new_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+            } else
+                new_size = db - sub;
+            __wt_disagg_set_database_size(session, new_size);
         }
     }
 
@@ -1358,7 +1376,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t last_ckpt_ts;
+    wt_timestamp_t last_ckpt_ts, stable_disagg_epoch;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -1371,14 +1389,17 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * If the checkpoint is using timestamps, and the stable timestamp hasn't been updated since the
      * last checkpoint there is nothing more that could be written. Except when a non timestamped
      * file has been modified, as such if the connection has been modified it is currently unsafe to
-     * skip checkpoints. Also, don't skip if the stable disaggregated schema epoch changed, as the
-     * metadata operation queue may have entries to flush even without new committed data.
+     * skip checkpoints. Also, don't skip if this node gates schema operations and the stable
+     * disaggregated schema epoch changed, as the metadata operation queue may have entries to flush
+     * even without new committed data. A node with no live stable epoch carries the last written
+     * epoch forward, so the epoch cannot have changed.
      */
     last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
+    stable_disagg_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
     if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
       last_ckpt_ts == __wt_get_stable_timestamp(session) &&
-      txn_global->last_ckpt_disaggregated_schema_epoch ==
-        __wt_get_stable_disaggregated_schema_epoch(session)) {
+      (stable_disagg_epoch == WT_SCHEMA_EPOCH_NONE ||
+        txn_global->last_ckpt_disaggregated_schema_epoch == stable_disagg_epoch)) {
         ckpt_cfg->can_skip = true;
         return (0);
     }
@@ -1566,53 +1587,60 @@ static int
 __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
 {
 
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM cval, tval;
     u_int crash_point;
 
-    /* Perform a crash at a relative point in checkpoint. */
     WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_trigger_point", &tval));
     crash_point = (u_int)cval.val;
+
+    /*
+     * Perform a crash at a relative point in checkpoint. The input ranges from 1 to 1000 and
+     * selects proportionally one of the gathered data handles to stop on, or one of the phases that
+     * follow them. The range stops short of CKPT_CRASH_ENUM_MAY_RECOVER, so every point it can
+     * select precedes the checkpoint transaction commit and the checkpoint is never recoverable,
+     * with or without logging. Callers that want a crash the checkpoint can survive name it
+     * instead.
+     */
     if (crash_point > 0) {
-        u_int ckpt_total_crash_points;
-        /*
-         * Calculate total checkpoint crash points. The total checkpoint points required are the
-         * number of data handles that need to be checkpointed.
-         */
-        ckpt_total_crash_points = session->ckpt.handle_next + CKPT_CRASH_PROGRESS_ENUM_END - 1;
+        u_int scaled, total;
+
+        /* Every gathered handle is a crash site, as is each phase below the sentinel. */
+        total = session->ckpt.handle_next + CKPT_CRASH_ENUM_MAY_RECOVER - 1;
 
         /*
-         * Calculate the relative crash point. The input crash_point ranges from
-         * 1 to 1000; convert it to its corresponding crash point position.
+         * Give every site an equal share of the range. Dividing by the width of the range rather
+         * than by its last value keeps the result from running past the last site, which would
+         * never be reached and would survive to the teardown assertion.
          */
-        session->ckpt.crash_point =
-          (((crash_point - 1) * ckpt_total_crash_points) / (WT_THOUSAND - 1)) + 1;
+        scaled = (((crash_point - 1) * total) / WT_THOUSAND) + 1;
 
         /*
-         * If the crash point exceeds the number of handles, crash in the final phase after all
-         * regular tables are checkpointed. Use the crash trigger points to achieve this. Calculate
-         * and set the appropriate trigger point.
+         * Past the handles, what remains indexes the phases that follow them. A checkpoint that
+         * gathered no handles lands there for every input, which is what we want: the per-tree loop
+         * has no crash site to stop on.
          */
-        if (session->ckpt.crash_point > session->ckpt.handle_next)
-            session->ckpt.crash_trigger_point =
-              session->ckpt.crash_point - session->ckpt.handle_next;
+        if (scaled > session->ckpt.handle_next)
+            session->ckpt.crash_trigger_point = scaled - session->ckpt.handle_next;
+        else
+            session->ckpt.crash_point = scaled;
     }
 
     /* Perform a crash at a specific point in checkpoint. */
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_trigger_point", &cval));
-    if (cval.len > 0) {
-        if (WT_CONFIG_LIT_MATCH("before_metadata_sync", cval))
+    if (tval.len > 0) {
+        if (WT_CONFIG_LIT_MATCH("before_metadata_sync", tval))
             session->ckpt.crash_trigger_point = CKPT_CRASH_BEFORE_METADATA_SYNC;
-        else if (WT_CONFIG_LIT_MATCH("before_metadata_update", cval))
-            session->ckpt.crash_trigger_point = CKPT_CRASH_BEFORE_METADATA_UPDATE;
-        else if (WT_CONFIG_LIT_MATCH("before_key_rotation", cval))
-            session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION;
-        else if (WT_CONFIG_LIT_MATCH("during_key_rotation", cval))
-            session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_DURING_KEY_ROTATION;
-        else if (WT_CONFIG_LIT_MATCH("after_key_rotation", cval))
-            session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION;
+        else if (WT_CONFIG_LIT_MATCH("before_checkpoint_commit", tval))
+            session->ckpt.crash_trigger_point = CKPT_CRASH_BEFORE_CKPT_COMMIT;
+        else if (WT_CONFIG_LIT_MATCH("before_key_rotation", tval))
+            session->ckpt.crash_trigger_point = CKPT_CRASH_KEY_PROVIDER_BEFORE_KEY_ROTATION;
+        else if (WT_CONFIG_LIT_MATCH("during_key_rotation", tval))
+            session->ckpt.crash_trigger_point = CKPT_CRASH_KEY_PROVIDER_DURING_KEY_ROTATION;
+        else if (WT_CONFIG_LIT_MATCH("after_key_rotation", tval))
+            session->ckpt.crash_trigger_point = CKPT_CRASH_KEY_PROVIDER_AFTER_KEY_ROTATION;
         else
             WT_RET_MSG(session, EINVAL, "Debug checkpoint crash point %.*s is invalid",
-              (int)cval.len, cval.str);
+              (int)tval.len, tval.str);
     }
     return (0);
 }
@@ -1679,15 +1707,6 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         WT_RET(__wt_log_system_backup_id(session));
         break;
     case WT_TXN_LOG_CKPT_FLUSH:
-        /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
-         * workaround to allow ckpt_crash_before_metadata_sync crash point with logging enabled.
-         * test/model currently expects crash points to result in only non-recoverable checkpoints.
-         * However, from WT perspective, a crash after flushing the logs here is still considered
-         * a valid recoverable checkpoint.
-         */
-        /* Crash before metadata sync if checkpoint crash point is configured. */
-        if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
-            __wt_debug_crash(session);
         WT_RET(__wt_log_flush(session, WT_LOG_FSYNC));
         break;
     case WT_TXN_LOG_CKPT_STOP:
@@ -1765,6 +1784,41 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_disagg_get_write_epoch --
+ *     Return the schema epoch this checkpoint writes to its metadata. Only a leader writes one, and
+ *     a follower's epoch legitimately sits below the last checkpoint's.
+ */
+static int
+__checkpoint_disagg_get_write_epoch(
+  WT_SESSION_IMPL *session, wt_timestamp_t ckpt_disagg_schema_epoch, wt_timestamp_t *write_epochp)
+{
+    WT_CONNECTION_IMPL *conn;
+    wt_timestamp_t last_ckpt_epoch;
+    char epoch_string[2][WT_TS_INT_STRING_SIZE];
+
+    conn = S2C(session);
+    last_ckpt_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch);
+
+    if (ckpt_disagg_schema_epoch == WT_SCHEMA_EPOCH_NONE)
+        /*
+         * The application has stopped gating schema operations, so carry the epoch forward.
+         * Clearing it would tell every reader this is the legacy world.
+         */
+        *write_epochp = last_ckpt_epoch;
+    else if (ckpt_disagg_schema_epoch >= last_ckpt_epoch)
+        *write_epochp = ckpt_disagg_schema_epoch;
+    else
+        WT_RET_MSG(session, EINVAL,
+          "the stable disaggregated schema epoch %s is older than the schema epoch %s written by "
+          "the last checkpoint",
+          __wt_timestamp_to_string(ckpt_disagg_schema_epoch, epoch_string[0]),
+          __wt_timestamp_to_string(last_ckpt_epoch, epoch_string[1]));
+
+    return (0);
+}
+
+/*
  * __checkpoint_db_internal --
  *     Checkpoint a database or a list of objects in the database.
  */
@@ -1781,15 +1835,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
-    wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch;
+    wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch, ckpt_disagg_write_epoch;
     uint64_t drop_size, generation;
-    char schema_epoch_string[WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
+    char epoch_string[2][WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
 
     WT_CLEAR(ckpt_cfg);
     WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
-    ckpt_disagg_schema_epoch = WT_TS_NONE;
+    ckpt_disagg_write_epoch = WT_TS_NONE;
     ckpt_tmp_ts = WT_TS_NONE;
     drop_size = 0;
     hs_size = 0;
@@ -1910,13 +1964,20 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
     conn->disaggregated_storage.cur_schema_epoch = ckpt_disagg_schema_epoch;
+    ckpt_disagg_write_epoch = ckpt_disagg_schema_epoch;
     if (__wt_conn_is_disagg(session) &&
-      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
+        WT_ERR(__checkpoint_disagg_get_write_epoch(
+          session, ckpt_disagg_schema_epoch, &ckpt_disagg_write_epoch));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Starting disaggregated storage checkpoint with timestamp: %" PRIu64
-          " %s and schema epoch: %" PRIu64 " %s",
+          " %s, stable schema epoch: %" PRIu64 " %s and write schema epoch: %" PRIu64 " %s",
           ckpt_tmp_ts, __wt_timestamp_to_string(ckpt_tmp_ts, ts_string), ckpt_disagg_schema_epoch,
-          __wt_timestamp_to_string(ckpt_disagg_schema_epoch, schema_epoch_string));
+          __wt_timestamp_to_string(ckpt_disagg_schema_epoch, epoch_string[0]),
+          ckpt_disagg_write_epoch,
+          __wt_timestamp_to_string(ckpt_disagg_write_epoch, epoch_string[1]));
+    }
+    conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
@@ -2030,6 +2091,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * either one transaction or all of them together, so panic if we can't actually do that.
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
+
+    /*
+     * Crash with every data file durable but the checkpoint transaction still open. Because
+     * __wt_debug_crash only kills the process, a crash taken any later would leave recoverability
+     * up to whether the log server happened to have written the commit records yet.
+     */
+    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_CKPT_COMMIT)
+        __wt_debug_crash(session);
+
     if ((ret = __wti_checkpoint_parallel_commit(session)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint worker transaction commit failed");
     if ((ret = __wt_txn_commit(session, NULL)) != 0)
@@ -2037,10 +2107,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Clear the checkpoint flag, as it governs the checkpoint transaction above. */
     F_CLR(session, WT_SESSION_CHECKPOINT);
-
-    /* Crash before updating the metadata if checkpoint crash point is configured. */
-    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_UPDATE)
-        __wt_debug_crash(session);
 
     /*
      * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
@@ -2050,7 +2116,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_ERR(__checkpoint_log_stage(session, WT_TXN_LOG_CKPT_FLUSH));
 
-    /* Crash before metadata sync if checkpoint crash point is configured. */
+    /*
+     * Crash with the metadata still stale but the checkpoint transaction committed and its log
+     * records fsynced above. With logging enabled recovery replays them and the checkpoint takes
+     * effect; without logging nothing survives the stale turtle file and it is lost.
+     */
     if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
         __wt_debug_crash(session);
 
@@ -2080,7 +2150,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * WT_CONNECTION.rollback_to_stable is an allowed operation.
      */
     if (ckpt_cfg.use_timestamp) {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_schema_epoch;
+        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_write_epoch;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -2127,6 +2197,11 @@ err:
     if (failed) {
         conn->modified = true;
         WT_STAT_CONN_INCR(session, checkpoints_total_failed);
+        /*
+         * Roll back any parallel-checkpoint worker transactions before any early-return path below
+         * can skip the coordinator's own rollback and leave them running until connection teardown.
+         */
+        WT_TRET(__wti_checkpoint_parallel_rollback(session));
     }
 
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
@@ -2170,7 +2245,7 @@ err:
       "%s", "Checkpoint log stage operation failed");
 
     if (!failed)
-        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts, ckpt_disagg_schema_epoch));
+        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts, ckpt_disagg_write_epoch));
     WT_TRET(__checkpoint_disagg_advance(session, ckpt_tmp_ts, !failed && ret == 0));
 
     WT_TRET(__checkpoint_teardown(session, failed, saved_isolation));
@@ -2232,7 +2307,7 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM cval, tval;
     WT_DECL_RET;
     uint32_t orig_flags;
     bool checkpoint_cleanup, flush, flush_sync;
@@ -2268,6 +2343,18 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 
     WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
+
+    /*
+     * The two crash point settings select points on opposite sides of the checkpoint transaction
+     * commit, so they disagree about whether the checkpoint survives rather than refining each
+     * other. Reject the combination here, before the transaction starts: an error returned once it
+     * is running is escalated to a panic under disaggregated storage.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_trigger_point", &tval));
+    if (cval.val > 0 && tval.len > 0)
+        WT_ERR_MSG(session, EINVAL,
+          "checkpoint_crash_point and checkpoint_crash_trigger_point are mutually exclusive");
 
     /*
      * If this checkpoint includes a flush_tier then this call also must wait for any earlier
@@ -3015,7 +3102,7 @@ err:
  */
 static int
 __checkpoint_disagg_put(
-  WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, wt_timestamp_t ckpt_disagg_schema_epoch)
+  WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, wt_timestamp_t write_epoch)
 {
     WT_DECL_RET;
 
@@ -3033,7 +3120,7 @@ __checkpoint_disagg_put(
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       (ckpt_ts != conn->disaggregated_storage.last_checkpoint_timestamp ||
-        ckpt_disagg_schema_epoch != conn->disaggregated_storage.last_checkpoint_schema_epoch)) {
+        write_epoch != conn->disaggregated_storage.last_checkpoint_schema_epoch)) {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Update requested for disaggregated storage checkpoint metadata because the stable "
           "timestamp advanced");
@@ -3046,8 +3133,8 @@ __checkpoint_disagg_put(
             WT_TRET_MSG(session, __wt_disagg_put_crypt_helper(session), "%s",
               "Disaggregated storage checkpoint failed to write encryption metadata");
         WT_TRET_MSG(session,
-          __wt_disagg_put_checkpoint_meta(session, conn->disaggregated_storage.last_checkpoint_root,
-            0, ckpt_ts, ckpt_disagg_schema_epoch),
+          __wt_disagg_put_checkpoint_meta(
+            session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_ts, write_epoch),
           "%s", "Disaggregated storage checkpoint failed to write checkpoint metadata");
     }
 
@@ -3265,7 +3352,7 @@ fake:
      * that case, we need to sync the file here or we could roll forward the metadata in recovery
      * and open a checkpoint that isn't yet durable.
      */
-    if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
+    if (WT_IS_ANY_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR_MSG_CHK(
           session, __wt_checkpoint_sync(session, NULL), "checkpoint failed during file sync");
 

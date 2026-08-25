@@ -41,7 +41,9 @@ static const char *const __stats_dsrc_desc[] = {
   "btree-size: leaf page-size histogram bucket 5",
   "btree-size: leaf page-size histogram bucket 6",
   "btree-size: leaf page-size histogram bucket 7",
-  "btree-size: leaf page-size histogram bucket 8 (>= maximum leaf page size)",
+  "btree-size: leaf page-size histogram bucket 8 (>= pre-compression leaf page budget)",
+  "btree-size: leaf page-size histogram bucket count",
+  "btree-size: leaf page-size histogram ceiling",
   "btree-size: leaf pages",
   "btree-size: overflow page bytes",
   "btree-size: overflow pages",
@@ -351,7 +353,9 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
+  "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
+  "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
@@ -553,6 +557,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_size_leaf_hist_6 = 0;
     stats->btree_size_leaf_hist_7 = 0;
     stats->btree_size_leaf_hist_8 = 0;
+    stats->btree_size_leaf_hist_buckets = 0;
+    stats->btree_size_leaf_hist_ceiling = 0;
     stats->btree_size_leaf_pages = 0;
     stats->btree_size_overflow_bytes = 0;
     stats->btree_size_overflow_pages = 0;
@@ -841,7 +847,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_open_stable_refused = 0;
+    stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
+    stats->layered_stable_live_open_refused = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
     stats->layered_curs_stable_value_tombstone = 0;
@@ -1010,6 +1018,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_size_leaf_hist_6 += from->btree_size_leaf_hist_6;
     to->btree_size_leaf_hist_7 += from->btree_size_leaf_hist_7;
     to->btree_size_leaf_hist_8 += from->btree_size_leaf_hist_8;
+    if (from->btree_size_leaf_hist_buckets > to->btree_size_leaf_hist_buckets)
+        to->btree_size_leaf_hist_buckets = from->btree_size_leaf_hist_buckets;
+    if (from->btree_size_leaf_hist_ceiling > to->btree_size_leaf_hist_ceiling)
+        to->btree_size_leaf_hist_ceiling = from->btree_size_leaf_hist_ceiling;
     to->btree_size_leaf_pages += from->btree_size_leaf_pages;
     to->btree_size_overflow_bytes += from->btree_size_overflow_bytes;
     to->btree_size_overflow_pages += from->btree_size_overflow_pages;
@@ -1328,7 +1340,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_search_ingest += from->layered_curs_search_ingest;
     to->layered_curs_search_stable += from->layered_curs_search_stable;
     to->layered_curs_open_stable_refused += from->layered_curs_open_stable_refused;
+    to->layered_curs_open_stable_stepdown_race += from->layered_curs_open_stable_stepdown_race;
     to->layered_curs_update += from->layered_curs_update;
+    to->layered_stable_live_open_refused += from->layered_stable_live_open_refused;
     to->layered_curs_stable_value_tombstone_prefix +=
       from->layered_curs_stable_value_tombstone_prefix;
     to->layered_curs_stable_value_tombstone_suffix +=
@@ -1501,6 +1515,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_size_leaf_hist_6 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_6);
     to->btree_size_leaf_hist_7 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_7);
     to->btree_size_leaf_hist_8 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_8);
+    if ((v = WT_STAT_DSRC_READ(from, btree_size_leaf_hist_buckets)) >
+      to->btree_size_leaf_hist_buckets)
+        to->btree_size_leaf_hist_buckets = v;
+    if ((v = WT_STAT_DSRC_READ(from, btree_size_leaf_hist_ceiling)) >
+      to->btree_size_leaf_hist_ceiling)
+        to->btree_size_leaf_hist_ceiling = v;
     to->btree_size_leaf_pages += WT_STAT_DSRC_READ(from, btree_size_leaf_pages);
     to->btree_size_overflow_bytes += WT_STAT_DSRC_READ(from, btree_size_overflow_bytes);
     to->btree_size_overflow_pages += WT_STAT_DSRC_READ(from, btree_size_overflow_pages);
@@ -1863,7 +1883,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
     to->layered_curs_open_stable_refused +=
       WT_STAT_DSRC_READ(from, layered_curs_open_stable_refused);
+    to->layered_curs_open_stable_stepdown_race +=
+      WT_STAT_DSRC_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
+    to->layered_stable_live_open_refused +=
+      WT_STAT_DSRC_READ(from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
       WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_prefix);
     to->layered_curs_stable_value_tombstone_suffix +=
@@ -2200,6 +2224,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips ingest btrees in disagg",
   "cache: eviction server skips internal pages as it has an active child",
   "cache: eviction server skips metadata pages with history",
+  "cache: eviction server skips pages on an outdated disaggregated read-only btree that a reader "
+  "still has open",
   "cache: eviction server skips pages that are written with transactions greater than the "
   "checkpoint timestamp",
   "cache: eviction server skips pages that are written with transactions greater than the last "
@@ -2370,6 +2396,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages currently held in the cache",
   "cache: pages currently held in the cache from the ingest btrees",
   "cache: pages currently held in the cache from the stable btrees",
+  "cache: pages dirtied by fast-truncate in uncommitted txn - bytes",
   "cache: pages dirtied due to obsolete time window by eviction",
   "cache: pages evicted ahead of the page materialization frontier",
   "cache: pages evicted in parallel with checkpoint",
@@ -2462,6 +2489,8 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
+  "checkpoint-cleanup: checkpoint cleanup thread started",
+  "checkpoint-cleanup: checkpoint cleanup thread stopped",
   "checkpoint-cleanup: most recent duration on all eligible files (usecs)",
   "checkpoint-cleanup: most recent handles processed",
   "checkpoint-cleanup: most recent in-memory pages visited",
@@ -2688,7 +2717,9 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
+  "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
+  "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
@@ -3140,6 +3171,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transactions rolled back",
   "transaction: transactions rolled back because their own dirty content exceeds the eviction "
   "updates or dirty trigger",
+  "transaction: truncate operations rolled back because they pinned too much dirty cache",
   "transaction: update conflicts",
   "transaction: write transactions rolled back for straddling the step-down timestamp setting "
   "boundary",
@@ -3347,6 +3379,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_ingest_trees = 0;
     stats->eviction_server_skip_intl_page_with_active_child = 0;
     stats->eviction_server_skip_metatdata_with_history = 0;
+    stats->eviction_server_skip_stale_disagg_pages = 0;
     stats->eviction_server_skip_pages_checkpoint_timestamp = 0;
     stats->eviction_server_skip_pages_last_running = 0;
     stats->eviction_server_skip_pages_prune_timestamp = 0;
@@ -3498,6 +3531,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_inuse */
     /* not clearing cache_pages_inuse_ingest */
     /* not clearing cache_pages_inuse_stable */
+    /* not clearing cache_truncate_txn_uncommitted_bytes */
     stats->cache_eviction_dirty_obsolete_tw = 0;
     stats->cache_eviction_ahead_of_last_materialized_lsn = 0;
     stats->eviction_pages_in_parallel_with_checkpoint = 0;
@@ -3587,6 +3621,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
+    stats->checkpoint_cleanup_thread_start = 0;
+    stats->checkpoint_cleanup_thread_stop = 0;
     /* not clearing checkpoint_cleanup_duration */
     stats->checkpoint_cleanup_handle_processed = 0;
     stats->checkpoint_cleanup_inmem_pages_visited = 0;
@@ -3808,7 +3844,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_open_stable_refused = 0;
+    stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
+    stats->layered_stable_live_open_refused = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
     stats->layered_curs_stable_value_tombstone = 0;
@@ -4245,6 +4283,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
     stats->txn_rollback_too_large_for_cache = 0;
+    stats->txn_truncate_dirty_cache_rollback = 0;
     stats->txn_update_conflict = 0;
     stats->txn_rollback_stepdown = 0;
 }
@@ -4480,6 +4519,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_with_active_child);
     to->eviction_server_skip_metatdata_with_history +=
       WT_STAT_CONN_READ(from, eviction_server_skip_metatdata_with_history);
+    to->eviction_server_skip_stale_disagg_pages +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_stale_disagg_pages);
     to->eviction_server_skip_pages_checkpoint_timestamp +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_checkpoint_timestamp);
     to->eviction_server_skip_pages_last_running +=
@@ -4692,6 +4733,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_pages_inuse += WT_STAT_CONN_READ(from, cache_pages_inuse);
     to->cache_pages_inuse_ingest += WT_STAT_CONN_READ(from, cache_pages_inuse_ingest);
     to->cache_pages_inuse_stable += WT_STAT_CONN_READ(from, cache_pages_inuse_stable);
+    to->cache_truncate_txn_uncommitted_bytes +=
+      WT_STAT_CONN_READ(from, cache_truncate_txn_uncommitted_bytes);
     to->cache_eviction_dirty_obsolete_tw +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_obsolete_tw);
     to->cache_eviction_ahead_of_last_materialized_lsn +=
@@ -4802,6 +4845,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_evict += WT_STAT_CONN_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_CONN_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
+    to->checkpoint_cleanup_thread_start += WT_STAT_CONN_READ(from, checkpoint_cleanup_thread_start);
+    to->checkpoint_cleanup_thread_stop += WT_STAT_CONN_READ(from, checkpoint_cleanup_thread_stop);
     to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
     to->checkpoint_cleanup_handle_processed +=
       WT_STAT_CONN_READ(from, checkpoint_cleanup_handle_processed);
@@ -5058,7 +5103,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_search_stable += WT_STAT_CONN_READ(from, layered_curs_search_stable);
     to->layered_curs_open_stable_refused +=
       WT_STAT_CONN_READ(from, layered_curs_open_stable_refused);
+    to->layered_curs_open_stable_stepdown_race +=
+      WT_STAT_CONN_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
+    to->layered_stable_live_open_refused +=
+      WT_STAT_CONN_READ(from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
       WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone_prefix);
     to->layered_curs_stable_value_tombstone_suffix +=
@@ -5628,6 +5677,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rollback += WT_STAT_CONN_READ(from, txn_rollback);
     to->txn_rollback_too_large_for_cache +=
       WT_STAT_CONN_READ(from, txn_rollback_too_large_for_cache);
+    to->txn_truncate_dirty_cache_rollback +=
+      WT_STAT_CONN_READ(from, txn_truncate_dirty_cache_rollback);
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
     to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
 }
@@ -5636,7 +5687,9 @@ static const char *const __stats_session_desc[] = {
   "session: bytes read into cache",
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
-  "session: dirty bytes in this txn",
+  "session: dirty bytes from updates in this txn",
+  "session: dirty bytes in this txn, from both updates and fast-truncate",
+  "session: dirty bytes pinned by fast-truncate in this txn",
   "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
@@ -5666,7 +5719,9 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
+    /* not clearing txn_updates_bytes_dirty */
     /* not clearing txn_bytes_dirty */
+    /* not clearing txn_truncate_bytes_dirty */
     /* not clearing txn_updates */
     stats->read_time = 0;
     stats->write_time = 0;

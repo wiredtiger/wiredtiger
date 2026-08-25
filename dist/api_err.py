@@ -206,6 +206,11 @@ sub_errors = [
         than the eviction updates trigger or the eviction dirty trigger allows. Eviction
         cannot reclaim content pinned by an uncommitted transaction, so the transaction
         cannot succeed against the configured cache size and has been rolled back.'''),
+    Error('WT_VERIFY_PAGE_ID_MISMATCH', -32017,
+        "Verify found a mismatch between the btree and PALI page ID lists", '''
+        This sub-level error indicates that the disaggregated-storage verify pass found
+        one or more page IDs present in the btree walk but absent from the page log (or
+        vice versa), meaning a page was either leaked or discarded prematurely.'''),
 ]
 
 # Update the #defines in the wiredtiger.h.in file.
@@ -220,7 +225,7 @@ for line in open('../src/include/wiredtiger.h.in', 'r'):
 tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.h.in')
 
-# Output the wiredtiger_strerror and wiredtiger_sterror_r code.
+# Output the wiredtiger_strerror and __wt_wiredtiger_error code.
 tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 tfile.write('''/* DO NOT EDIT: automatically built by dist/api_err.py. */

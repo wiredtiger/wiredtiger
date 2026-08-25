@@ -330,15 +330,13 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
         return;
 
     /*
-     * The stable cursor's btree must be read-write for a leader and read-only for a follower.
-     *
-     * FIXME-WT-18179: A read operation can race with a step-down and open a live stable btree
-     * on a follower. Temporarily disable this assertion until this race is fixed.
-     *
-     * WT_ASSERT(CUR2S(clayered),
-     *   (clayered->last_role == WTI_CLAYERED_ROLE_LEADER) !=
-     *     F_ISSET_ATOMIC_32(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
+     * A follower's stable constituent is always read-only: either a checkpoint view, or a live tree
+     * frozen by a step-down. Only this direction holds; a leader can inherit a read-only stable
+     * tree across a role change, and the next operation reopens it for the new role.
      */
+    WT_ASSERT(CUR2S(clayered),
+      clayered->last_role == WTI_CLAYERED_ROLE_LEADER ||
+        F_ISSET_ATOMIC_32(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
 }
 
 /* __clayered_enter() local flags. */
@@ -822,6 +820,26 @@ retry:
 
     WT_ERR(ret);
 
+    /*
+     * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a
+     * read timestamp below it: reads silently lose keys whose newest visible version was removed as
+     * obsolete.
+     *
+     * The value read here is never older than the bound checkpoint's oldest timestamp: the pickup
+     * publishes it while holding the checkpoint lock, the first open of the checkpoint's stable
+     * dhandle takes that lock (see FIXME-WT-16477 in the dhandle open path), and every later use
+     * acquires the dhandle lock the opener released. A newer pickup completing mid-bind can only
+     * make the comparison stricter, against an oldest timestamp the reader must satisfy on its next
+     * advance anyway.
+     */
+    if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ)) {
+        WT_ASSERT_ALWAYS(session,
+          WT_SESSION_TXN_SHARED(session)->read_timestamp >=
+            __wt_atomic_load_uint64_acquire(
+              &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp),
+          "advancing stable to a checkpoint that cannot serve the transaction's read timestamp");
+    }
+
 err:
     __wt_scr_free(session, &last_ckpt_uri);
     __wt_free(session, checkpoint_name);
@@ -835,6 +853,7 @@ err:
 static int
 __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
 {
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
@@ -848,7 +867,20 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
     if (__clayered_stable_bind_check_needed(session))
         WT_RET(__clayered_stable_bind_check_role_change(session, true));
 
-    return (__clayered_open_stable_int(clayered, layered->stable_uri));
+    /*
+     * The open refuses with EBUSY and the disaggregated sub-error when a role change has happened
+     * since the operation was started. Convert it to a rollback: a cursor operation must not return
+     * EBUSY, and the application already retries a rollback, reopening the cursor for the current
+     * role. No other busy source is expected on this path.
+     */
+    ret = __clayered_open_stable_int(clayered, layered->stable_uri);
+    if (ret == EBUSY) {
+        WT_ASSERT(session, session->err_info.sub_level_err == WT_CONFLICT_DISAGG);
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_stepdown_race);
+        WT_RET_SUB(session, WT_ROLLBACK, WT_NONE,
+          "the live stable table open raced a step-down to the follower role");
+    }
+    return (ret);
 }
 
 /*
@@ -904,23 +936,10 @@ __clayered_can_advance_stable(
         return (false);
 
     /*
-     * Don't advance while parked on the stable cursor, even under a read timestamp. A newer
-     * checkpoint may no longer hold the parked key once the leader's oldest timestamp has moved
-     * past the key's removal; reopening onto it loses the position and can skip stable keys, and
-     * the history store can't recover the value because the read is now older than that
-     * checkpoint's oldest timestamp. Check this before the read-timestamp fast path below.
-     *
-     * FIXME-WT-17968: This check is only needed here because a follower can adopt a checkpoint
-     * whose oldest timestamp exceeds a pinned reader's read timestamp. Once that is prevented, move
-     * the check back inside the no-read-timestamp branch below.
-     */
-    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-      clayered->current_cursor == clayered->stable_cursor)
-        return (false);
-
-    /*
-     * With a read timestamp set and the parked-on-stable case excluded above, it's safe to advance
-     * even during iteration: a timestamped read stays consistent across the checkpoint change.
+     * With a read timestamp set it's safe to advance even during iteration, including while parked
+     * on the stable cursor: an adopted checkpoint's oldest timestamp never passes an active read
+     * timestamp (the stable open refuses such a bind), so a version of any key visible to the read
+     * survives in the newer checkpoint or its history store and a parked position transfers.
      */
     txn_shared = WT_SESSION_TXN_SHARED(session);
     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
@@ -928,6 +947,14 @@ __clayered_can_advance_stable(
     else {
         /* if this is an iteration, we won't reopen the cursor, we're done. */
         if (iteration)
+            return (false);
+
+        /*
+         * Don't advance while parked on the stable cursor: without a read timestamp, a newer
+         * snapshot may not see the parked key in the newer checkpoint, losing the position.
+         */
+        if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+          clayered->current_cursor == clayered->stable_cursor)
             return (false);
 
         /*
@@ -1151,6 +1178,10 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
      * The resolved role is stale if the step-down timestamp is set or the role already changed.
      * Step-down changes both values while holding the schema lock, and the failed open that led
      * here acquired that lock, so relaxed loads see current values.
+     *
+     * FIXME-WT-18359: Investigate whether this guard is reachable now that
+     * WT_LAYERED_TABLE_STEP_DOWN_CREATED skips opening the stable constituent for tables created
+     * during the step-down window.
      */
     return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
       !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
@@ -3048,19 +3079,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     WT_CURSOR *const c_ingest = op->ingest;
     WT_DECL_RET;
     WT_ITEM value;
-    bool blind_remove;
-    bool found_local;
 
     WT_CLEAR(value);
-    found_local = true;
-
-    /*
-     * A NULL operation stable cursor has two meanings: this operation may have deliberately hidden
-     * an available stable cursor for an overwrite follower write, or the follower may not have a
-     * checkpoint yet. Only the former can assume a key missed by ingest exists in stable.
-     */
-    blind_remove = op->stable == NULL && clayered->stable_cursor != NULL &&
-      F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE);
 
     WT_RET(__clayered_modify_check(op, key));
 
@@ -3068,22 +3088,10 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     bool hold_value =
       clayered->current_cursor != NULL && F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT);
 
-    if (blind_remove || !positioned || !hold_value) {
+    if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        if (blind_remove) {
-            ret = __clayered_lookup_ingest_and_truncate(op, &value, &found_local);
-            if (ret == WT_NOTFOUND && found_local) {
-                /* A local deletion marker violates the caller's live-key guarantee. */
-                WT_ASSERT_ALWAYS(
-                  session, false, "overwrite=true should guarantee the key exists for remove()");
-                return (0);
-            }
-
-            if (ret == WT_NOTFOUND && !found_local)
-                ret = 0;
-        } else
-            ret = __clayered_lookup(op, &value);
+        ret = __clayered_lookup(op, &value);
         if (ret != 0) {
             WT_TRET(__clayered_reset_cursors(clayered, false));
             return (ret);
@@ -3096,14 +3104,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             return (WT_NOTFOUND);
     }
 
-    /*
-     * If ingest wasn't confirmed positioned on this key (found_local is false, whether because the
-     * key was only in stable, or -- for overwrite=true -- because neither ingest nor the truncate
-     * list had an entry for it), current_cursor can still be whatever an unrelated earlier
-     * operation on this cursor left it as -- WT_CURSOR::set_key doesn't clear it. Never trust it in
-     * that case: always set the key explicitly rather than risk writing under a stale one.
-     */
-    if (!found_local || clayered->current_cursor != c_ingest)
+    /* If we are positioned on the stable table, we need to set the key. */
+    if (clayered->current_cursor != c_ingest)
         c_ingest->set_key(c_ingest, key);
 
     /*

@@ -933,7 +933,8 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
      * other resources that could block checkpoints or eviction.
      */
     WT_BTREE *btree = S2BT_SAFE(session);
-    if (btree != NULL && (F_ISSET(btree, WT_BTREE_NO_EVICT) || WT_IS_METADATA(session->dhandle)))
+    if (btree != NULL &&
+      (F_ISSET(btree, WT_BTREE_NO_EVICT) || WT_IS_ANY_METADATA(session->dhandle)))
         return (0);
 
     /* Check if eviction is needed. */
@@ -1070,4 +1071,17 @@ __evict_page_updates_candidate(WT_PAGE *page)
      * updates cache pressure.
      */
     return (page->modify->bytes_updates != 0);
+}
+
+/*
+ * __wti_evict_prune_ts_unmoved --
+ *     Return whether the prune timestamp has not advanced since the page's last reconciliation.
+ */
+static WT_INLINE bool
+__wti_evict_prune_ts_unmoved(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    wt_timestamp_t prune_timestamp;
+
+    prune_timestamp = __wt_atomic_load_uint64_acquire(&S2BT(session)->prune_timestamp);
+    return (prune_timestamp != WT_TS_NONE && page->modify->rec_prune_timestamp >= prune_timestamp);
 }
