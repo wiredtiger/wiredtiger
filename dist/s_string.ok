@@ -1058,6 +1058,7 @@ enum
 env
 eof
 ep
+epochless
 epp
 eq
 equalp
@@ -1149,6 +1150,7 @@ fstream
 fsync
 fsyncLock
 fsyncUnlock
+fsynced
 fsyncing
 ftruncate
 func
@@ -1701,6 +1703,7 @@ reconfigurations
 reconfigures
 reconfiguring
 reconfigwt
+recoverability
 recsize
 rectype
 rectypep

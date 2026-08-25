@@ -78,8 +78,8 @@ class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
         self.conn.close()
 
         subdir = 'SUBPROCESS'
-        [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
-            f'{self.test_name}.{self.test_name}.subprocess_func', silent=True)
+        new_home_dir = self.crash_in_subprocess(subdir,
+            f'{self.test_name}.{self.test_name}.subprocess_func', self.debug_crash_signal)
 
         # The subprocess wrote to new_home_dir; its turtle reference survived the crash intact.
         self.validate_turtle_page(home=new_home_dir)
