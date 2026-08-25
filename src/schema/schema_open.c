@@ -80,11 +80,7 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
         __wti_schema_destroy_colgroup(session, &table->cgroups[i]);
 
         WT_ERR(__wt_buf_init(session, buf, 0));
-        if (table->is_tiered_shared)
-            WT_ERR(__wt_schema_tiered_shared_colgroup_name(
-              session, table->iface.name, i == 0 ? true : false, buf));
-        else
-            WT_ERR(__schema_colgroup_name(session, table, ckey.str, ckey.len, buf));
+        WT_ERR(__schema_colgroup_name(session, table, ckey.str, ckey.len, buf));
         if ((ret = __wt_metadata_search(session, buf->data, &cgconfig)) != 0) {
             /* It is okay if the table is incomplete. */
             if (ret == WT_NOTFOUND)
@@ -515,10 +511,6 @@ __schema_open_table(WT_SESSION_IMPL *session)
 
     if (table->ncolgroups > 0 && table->is_simple)
         WT_ERR_MSG(session, EINVAL, "%s requires a table with named columns", tablename);
-
-    if ((ret = __wt_config_gets(session, table_cfg, "shared", &cval)) == 0)
-        table->is_tiered_shared = true;
-    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(__wt_calloc_def(session, WT_COLGROUPS(table), &table->cgroups));
     WT_ERR(__wti_schema_open_colgroups(session, table));
