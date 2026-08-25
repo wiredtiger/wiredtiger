@@ -63,7 +63,7 @@ class test_cc12(test_cc_base):
         nrows = 1000
         create_params = (
             "key_format=i,value_format=S,"
-            "allocation_size=512,leaf_page_max=512,internal_page_max=512")
+            "allocation_size=512,leaf_page_max=4KB,internal_page_max=4KB")
 
         self.session.create(uri, create_params)
         self.populate(uri, 0, nrows, "k" * 40)
@@ -74,6 +74,12 @@ class test_cc12(test_cc_base):
         cursor = self.session.open_cursor(uri)
         self.remove_ranges(cursor, nrows)
         cursor.close()
+
+        cursor = self.session.open_cursor(uri)
+        remaining = sum(1 for _ in cursor)
+        cursor.close()
+        self.assertEqual(remaining, 0 if self.remove_all else nrows // 2)
+
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(nrows + 2))
         self.session.checkpoint()
         self.reopen_conn()

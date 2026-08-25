@@ -446,7 +446,7 @@ __checkpoint_cleanup_page_skip(
      * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if at
      * least of one of the following conditions is met:
      *
-     * - The page is internal or a leaf with no overflow items. Obsolete leaf pages with overflow
+     * - The page is a leaf with no overflow items because obsolete leaf pages with overflow
      * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can be
      * freed during reconciliation after being marked dirty.
      *
@@ -458,7 +458,7 @@ __checkpoint_cleanup_page_skip(
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
      * operation is performed using no timestamp.
      */
-    if (addr.type == WT_ADDR_INT || addr.type == WT_ADDR_LEAF_NO)
+    if (addr.type == WT_ADDR_LEAF_NO)
         *skipp = true;
     else if (addr.ta.newest_page_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
