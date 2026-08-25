@@ -111,7 +111,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         first_id = self.stable_btree_id(self.conn, self.uri)
 
         conn_follow, session_follow = self.open_follower()
-        adopted = {uri: self.stable_config(conn_follow, uri) for uri in (before, after)}
+        before_pickup = {uri: self.stable_config(conn_follow, uri) for uri in (before, after)}
         deferred = self.deferred_pickups(conn_follow)
 
         held = session_follow.open_cursor(self.uri)
@@ -133,7 +133,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # entry naming the old checkpoint marks a table it never reached.
         self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
         for uri in (before, after):
-            self.assertEqual(self.stable_config(conn_follow, uri), adopted[uri])
+            self.assertEqual(self.stable_config(conn_follow, uri), before_pickup[uri])
             self.assert_reads(session_follow, uri, 'first')
 
         held.close()
@@ -165,11 +165,13 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.leader_checkpoint(2)
 
         conn_follow, session_follow = self.open_follower()
-        adopted = self.stable_config(conn_follow, healthy)
+        before_pickup = {uri: self.stable_config(conn_follow, uri) for uri in (healthy, recreated)}
+        first_id = self.stable_btree_id(conn_follow, recreated)
 
         self.write_one('second', 4, uri=healthy)
         self.recreate(recreated, 'second', 4)
         self.leader_checkpoint(4)
+        self.assertGreater(self.stable_btree_id(self.conn, recreated), first_id)
 
         held = session_follow.open_cursor(self.ingest_uri(recreated))
         self.assertRaises(wiredtiger.WiredTigerError,
@@ -178,11 +180,23 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.ignoreStdoutPatternIfExists('Resource busy')
 
         # The healthy table went first, so its entry naming the old checkpoint again is the
-        # pick-up taking it back.
-        self.assertEqual(self.stable_config(conn_follow, healthy), adopted)
-        self.assert_reads(session_follow, healthy, 'first')
+        # pick-up taking it back. The replaced table never moved: it is still the follower's own
+        # copy, under the btree id the failed checkpoint would have replaced.
+        for uri in (healthy, recreated):
+            self.assertEqual(self.stable_config(conn_follow, uri), before_pickup[uri])
+            self.assert_reads(session_follow, uri, 'first')
+        self.assertEqual(self.stable_btree_id(conn_follow, recreated), first_id)
 
+        # A failed pick-up is not retried on its own, unlike a deferred one. Release the table and
+        # deliver again, which is what the retry above WiredTiger does, and the checkpoint lands.
         held.close()
+        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
+        self.assertGreater(self.stable_btree_id(conn_follow, recreated), first_id)
+        session_follow.close()
+        session_follow = conn_follow.open_session('')
+        for uri in (healthy, recreated):
+            self.assert_reads(session_follow, uri, 'second')
         self.close_follower(conn_follow, session_follow)
 
     def test_follower_keeps_its_own_create(self):
