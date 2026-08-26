@@ -145,6 +145,7 @@ DUPLICATEV
 DataSet
 Decrementing
 Decrypt
+Dedup
 DeleteFileW
 Deterministically
 Dhandle
@@ -351,6 +352,7 @@ Mutexes
 MySecret
 NN
 NNN
+NOKEEP
 NOLINT
 NOLINTNEXTLINE
 NONINFRINGEMENT
@@ -958,6 +960,7 @@ decrypted
 decrypting
 decryptor
 decrypts
+deduplicates
 deflateEnd
 deflateInit
 del

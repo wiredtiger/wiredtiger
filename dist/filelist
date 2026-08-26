@@ -123,6 +123,7 @@ src/cursor/cur_std.c
 src/cursor/cur_table.c
 src/cursor/cur_version.c
 src/evict/evict_conn.c
+src/evict/evict_dirty_index.c
 src/evict/evict_dispatch.c
 src/evict/evict_exclusive.c
 src/evict/evict_file.c

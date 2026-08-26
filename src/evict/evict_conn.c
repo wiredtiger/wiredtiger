@@ -78,6 +78,13 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__evict_config_abs_to_pct(
       session, &(evict->eviction_trigger), "eviction trigger", conn->cache_size, shared));
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_index", &cval));
+    __wt_atomic_store_bool_relaxed(&evict->eviction_dirty_index, cval.val != 0);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_index_disagg", &cval));
+    __wt_atomic_store_bool_relaxed(&evict->eviction_dirty_index_disagg,
+      cval.val != 0 && __wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index));
+
     WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
     double dirty_target = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
@@ -537,6 +544,10 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint16_relaxed(&evict->evict_max_eviction_queue_attempts));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_evict_page,
       __wt_atomic_load_uint16_relaxed(&evict->evict_max_evict_page_attempts));
+    WT_STATP_CONN_SET(session, stats, eviction_dirty_index_ring_full_capacity_max,
+      __wt_atomic_load_uint64_relaxed(&evict->dirty_index_ring_full_capacity_max));
+    WT_STATP_CONN_SET(session, stats, eviction_dirty_index_ring_peak_occupancy,
+      __wt_atomic_load_uint64_relaxed(&evict->dirty_index_ring_peak_occupancy));
 
     WT_STATP_CONN_SET(session, stats, eviction_worker_lock_wait_time,
       __wt_atomic_load_uint64_relaxed(&evict->evict_lock_wait_time));

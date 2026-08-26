@@ -36,6 +36,8 @@ __btree_clear(WT_SESSION_IMPL *session)
     if (btree->collator_owned && btree->collator->terminate != NULL)
         WT_TRET(btree->collator->terminate(btree->collator, &session->iface));
 
+    __wt_dirty_index_destroy(session, btree);
+
     /* Destroy locks. */
     __wt_rwlock_destroy(session, &btree->ovfl_lock);
     __wt_spin_destroy(session, &btree->flush_lock);
@@ -341,6 +343,14 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* A btree cannot be both an ingest btree and a stable btree. */
     WT_ASSERT(session,
       !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(btree, WT_BTREE_DISAGGREGATED));
+
+    /*
+     * Allocate the dirty-page ring now, while the handle is still private to this open and before
+     * eviction can see it. The block manager and the btree flags that gate eligibility are set, and
+     * sizing reads the just-loaded checkpoint's on-disk size. Ring teardown and auto-grow are not
+     * checkpoint operations, so neither is allocation.
+     */
+    WT_ERR(__wt_dirty_index_alloc(session, btree));
 
     if (0) {
 err:

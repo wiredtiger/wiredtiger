@@ -2112,6 +2112,8 @@ static WT_INLINE bool __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DE
   bool hide_prepared) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
   bool hide_prepared) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_page_disagg_evict_blocked(WT_SESSION_IMPL *session, WT_REF *ref,
+  WT_PAGE *page, bool modified) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_page_evict_clean(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)

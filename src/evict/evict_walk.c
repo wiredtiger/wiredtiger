@@ -29,8 +29,371 @@
  */
 #include "wt_internal.h"
 
+/*
+ * Why modified-page eviction is pointless on a btree right now. Shared by the eviction walker's
+ * modified-page gate and the dirty-index drain so the two paths cannot drift: a block reason added
+ * here applies to both.
+ */
+typedef enum {
+    WTI_DIRTY_EVICT_OK = 0,     /* Dirty pages may be evicted. */
+    WTI_DIRTY_EVICT_SYNCING,    /* The btree is being checkpointed. */
+    WTI_DIRTY_EVICT_DISAGG_CKPT /* Disagg btree already visited by the running checkpoint. */
+} WTI_DIRTY_EVICT_BLOCK;
+
 static int __evict_clear_walk(WT_SESSION_IMPL *, bool);
+static WTI_DIRTY_EVICT_BLOCK __evict_dirty_tree_block(WT_SESSION_IMPL *, WT_BTREE *, bool);
+static int __evict_dirty_index_drain(
+  WT_SESSION_IMPL *, WT_BTREE *, WTI_EVICT_QUEUE *, u_int, u_int *, u_int *);
+static int __evict_dirty_index_drain_ring(WT_SESSION_IMPL *, WT_BTREE *, WTI_DIRTY_INDEX *,
+  WTI_EVICT_QUEUE *, u_int, u_int *, wt_timestamp_t *, wt_timestamp_t *, u_int *);
+static void __evict_try_queue_page(
+  WT_SESSION_IMPL *, WTI_EVICT_QUEUE *, WT_REF *, WT_PAGE *, WTI_EVICT_ENTRY *, bool *, bool *);
 static int __evict_walk_tree(WT_SESSION_IMPL *, WTI_EVICT_QUEUE *, u_int, u_int *);
+
+/*
+ * __evict_dirty_tree_block --
+ *     Return why dirty eviction is pointless on this btree, or WTI_DIRTY_EVICT_OK. A tree being
+ *     checkpointed cannot reconcile a page a second time; a disaggregated tree already visited by
+ *     the running checkpoint holds only pages bound for the next checkpoint, which fail the
+ *     post-lock recheck --
+ *     unless eviction is aggressive, when any candidate beats starving the cache. The caller
+ *     applies the eviction-mode gate (this matters only when looking for dirty pages) and maps the
+ *     reason to its own statistic.
+ */
+static WTI_DIRTY_EVICT_BLOCK
+__evict_dirty_tree_block(WT_SESSION_IMPL *session, WT_BTREE *btree, bool aggressive)
+{
+    if (WT_BTREE_SYNCING(btree))
+        return (WTI_DIRTY_EVICT_SYNCING);
+    if (!aggressive && __wt_btree_disagg_checkpointed(session, btree))
+        return (WTI_DIRTY_EVICT_DISAGG_CKPT);
+    return (WTI_DIRTY_EVICT_OK);
+}
+
+/*
+ * __evict_drain_stable_blocked --
+ *     True while the pinned stable timestamp sits below the midpoint of the blocked commit
+ *     timestamp range from the last drain pass. Under a precise checkpoint those pages cannot be
+ *     evicted, so the drain would only re-examine and re-insert refs it cannot queue; the walker
+ *     still evicts any page that falls below stable in the meantime.
+ */
+static WT_INLINE bool
+__evict_drain_stable_blocked(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    wt_timestamp_t block_ts;
+
+    block_ts = __wt_atomic_load_uint64_relaxed(&btree->drain_stable_block_ts);
+    return (block_ts != WT_TS_NONE && __wt_txn_pinned_stable_timestamp(session) < block_ts);
+}
+
+/*
+ * __evict_dirty_index_drain --
+ *     Drain the per-btree ring into the eviction queue as a fast path alongside the tree walk.
+ */
+static int
+__evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_QUEUE *queue,
+  u_int max_entries, u_int *slotp, u_int *drainedp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WTI_DIRTY_INDEX *idx;
+    wt_timestamp_t ts_max, ts_min;
+    u_int drained;
+
+    *drainedp = 0;
+    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
+      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
+        return (0);
+    if (*slotp >= max_entries)
+        return (0);
+
+    conn = S2C(session);
+    if (!__wt_atomic_load_bool_relaxed(&conn->evict->eviction_dirty_index))
+        return (0);
+    if (WTI_DIRTY_INDEX_IS_DISAGG(btree) &&
+      !__wt_atomic_load_bool_relaxed(&conn->evict->eviction_dirty_index_disagg))
+        return (0);
+
+    /*
+     * The drain produces modified-page candidates, so skip a btree whose modified pages cannot be
+     * evicted right now: pages queued from it are blocked by the candidacy filter, burn the
+     * per-tree budget the walker needs, and the trim path re-inserts the same refs. Same predicate
+     * as the walker's modified-page gate; the drain is implicitly limited to modified pages, so it
+     * needs no additional eviction-mode gate.
+     *
+     * Never let aggressive mode waive the disaggregated-checkpoint gate here: the walker's
+     * aggressive bypass costs one skipped tree per pass, but the drain would instead scan the whole
+     * ring and reinsert every page the per-page candidacy check still blocks on the same predicate,
+     * every pass, for as long as the checkpoint runs.
+     */
+    switch (__evict_dirty_tree_block(session, btree, false)) {
+    case WTI_DIRTY_EVICT_SYNCING:
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_checkpoint);
+        return (0);
+    case WTI_DIRTY_EVICT_DISAGG_CKPT:
+        WT_STAT_CONN_DSRC_INCR(
+          session, cache_eviction_dirty_index_drain_skipped_disagg_checkpointed);
+        return (0);
+    case WTI_DIRTY_EVICT_OK:
+        break;
+    }
+
+    ts_min = WT_TS_MAX;
+    ts_max = WT_TS_NONE;
+    WT_RET(__evict_dirty_index_drain_ring(
+      session, btree, idx, queue, max_entries, slotp, &ts_min, &ts_max, &drained));
+
+    /*
+     * Re-arm the stable-lag gate at the midpoint of the commit timestamp range that blocked this
+     * pass. This is O(1) and tracks the median for the roughly uniform commit-timestamp spread
+     * under steady load. The walker then parks the drain until the pinned stable timestamp crosses
+     * it, by which point about half the ring is evictable again. Clear the gate when nothing was
+     * blocked.
+     */
+    if (ts_min <= ts_max)
+        __wt_atomic_store_uint64_relaxed(
+          &btree->drain_stable_block_ts, ts_min + (ts_max - ts_min) / 2);
+    else
+        __wt_atomic_store_uint64_relaxed(&btree->drain_stable_block_ts, WT_TS_NONE);
+    *drainedp = drained;
+    return (0);
+}
+
+/*
+ * __evict_dirty_index_drain_ring --
+ *     Pop refs from one ring into the eviction queue. Each ref is protected by a short-lived hazard
+ *     pointer so concurrent teardown cannot free the page while it is examined. Writes into the
+ *     Populate available eviction-queue slots and return the number of refs queued.
+ */
+static int
+__evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DIRTY_INDEX *idx,
+  WTI_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp, wt_timestamp_t *ts_minp,
+  wt_timestamp_t *ts_maxp, u_int *drainedp)
+{
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_REF *ref;
+    WTI_DIRTY_INDEX_SLOT *di_slot, *slots;
+    wt_timestamp_t pinned_stable, ts;
+    uint64_t pos, scan_limit, seq;
+    uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
+    uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
+    bool aggressive, bp_released, busy, precise_ckpt, queued, reinsert, urgent_queued;
+
+    *drainedp = 0;
+    if (*slotp >= max_entries)
+        return (0);
+
+    aggressive = __wt_evict_aggressive(session);
+
+    /*
+     * A precise checkpoint cannot evict a dirty page whose newest commit timestamp is ahead of the
+     * pinned stable timestamp. Fold such pages' commit timestamps into the caller's running range
+     * (the candidacy filter's own predicate) so it can park the drain until stable catches up.
+     * Garbage-collecting trees gate on a different (prune) timestamp; leave those to the filter.
+     */
+    precise_ckpt = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
+      !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT);
+    pinned_stable = precise_ckpt ? __wt_txn_pinned_stable_timestamp(session) : WT_TS_NONE;
+
+    drained = filtered_total = hazard_total = queued_total = scanned = stale_total = 0;
+    already_queued = seen_clean = seen_dirty = seen_updates = 0;
+
+    /*
+     * Hold the split generation across the loop, and publish it before reading any slot: a split
+     * retiring a ref the ring still holds stashes it at the generation current once the ref is out
+     * of the ring, which is at least this one, so the stash cannot reclaim until we leave.
+     */
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+
+    slots = __wt_atomic_load_ptr_acquire(&idx->slots);
+    pos = __wt_atomic_load_uint64_relaxed(&idx->tail);
+    scan_limit = WT_MIN(__wt_atomic_load_uint64_acquire(&idx->head) - pos, idx->capacity);
+    if (WT_STAT_ENABLED(session))
+        __wt_atomic_stats_max_uint64(
+          &S2C(session)->evict->dirty_index_ring_peak_occupancy, scan_limit);
+    while (*slotp < max_entries && scanned < scan_limit) {
+        reinsert = false;
+        slot = (uint32_t)pos & idx->mask;
+        di_slot = &slots[slot];
+        seq = __wt_atomic_load_uint64_acquire(&di_slot->sequence);
+        if (seq != pos + 1)
+            break;
+        ref = __wt_atomic_load_ptr_acquire(&di_slot->ref);
+        ++scanned;
+        if (ref == NULL) {
+            ++stale_total;
+            __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
+            __wt_atomic_store_uint64_release(&idx->tail, ++pos);
+            continue;
+        }
+
+        /*
+         * A hazard pointer protects the page from concurrent teardown for the rest of the
+         * iteration.
+         */
+        ret = __wt_hazard_set(session, ref, &busy);
+        if (ret != 0)
+            break;
+        if (busy) {
+            /*
+             * Busy (eviction, reconciliation or split in progress). Leave the entry in place and
+             * retry on a later pass: without a hazard pointer we cannot safely clear the page
+             * back-pointer, and dropping only the slot could permanently suppress reinsertion.
+             *
+             * Consumption is tail-ordered, so an entry that never becomes available stalls the
+             * whole ring. That needs a ref stuck outside WT_REF_MEM for the life of the handle and
+             * missed by every retirement path that searches the ring, which is not known to happen;
+             * the deliberate choice is to leave it unhandled rather than carry the machinery to
+             * recover. It is also self-limiting: the drain then queues nothing, the tree parks into
+             * walker-only mode after WTI_DRAIN_EMPTY_THRESHOLD passes and only probes every
+             * WTI_DRAIN_PROBE_INTERVAL, so the tree falls back to plain walker eviction. A
+             * drain_hazard count that climbs while drain_queued stays at zero is the signature.
+             */
+            ++hazard_total;
+            break;
+        }
+
+        /*
+         * The hazard pointer succeeded, so the page is pinned in WT_REF_MEM and ref->page is valid.
+         * The only remaining ineligibility is a clean page: the ring holds pages with updates, so
+         * if the page lost its modify structure, drop the stale entry and clear the back-pointer,
+         * letting the producer re-insert when the page is next dirtied.
+         */
+        if (ref->page->modify == NULL) {
+            bp_released = __wti_dirty_index_unlink_page(ref->page, slot);
+            ++seen_clean;
+            ++stale_total;
+            goto release;
+        }
+        ++seen_dirty;
+        if (__evict_page_updates_candidate(ref->page))
+            ++seen_updates;
+
+        /*
+         * Drop the page's claim on this slot before the pop completes, so a concurrent modify can
+         * re-insert the page at a fresh position instead of waiting out the rest of this iteration.
+         * A re-insert reserves a new slot at the head, and the slot being drained is emptied below
+         * and never names the page again, so the early release cannot leave two slots naming it.
+         */
+        bp_released = __wti_dirty_index_unlink_page(ref->page, slot);
+
+        /* Already on the eviction queue; the existing entry will drive eviction. */
+        if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU) ||
+          F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU_URGENT)) {
+            ++already_queued;
+            ++stale_total;
+            goto release;
+        }
+
+        /*
+         * A page held back only by too few modifications under low disaggregated pressure will fail
+         * the same way on every future pass until connection-wide pressure changes, which
+         * reinserting it cannot influence. Drop it instead of paying for another round trip through
+         * the ring; the next write to the page, or the walker's ordinary tree traversal, will find
+         * it again.
+         */
+        if (!aggressive && __wti_evict_disagg_low_pressure_skip(session, btree, ref->page)) {
+            ++stale_total;
+            goto release;
+        }
+
+        /*
+         * Apply the full per-page candidacy filter the walker uses; the drain differs from the
+         * walker only in the source of refs. The queue-attempt accounting lives inside it, so both
+         * callers stay in step.
+         */
+        queued = urgent_queued = false;
+        __evict_try_queue_page(
+          session, queue, ref, NULL, queue->evict_queue + *slotp, &urgent_queued, &queued);
+
+        if (queued) {
+            ++(*slotp);
+            ++drained;
+        }
+        if (queued || urgent_queued)
+            ++queued_total;
+        else {
+            ++filtered_total;
+            /*
+             * Track a page held un-evictable by the stable timestamp under a precise checkpoint:
+             * fold its commit timestamp into the running range so the caller can park the drain
+             * until stable crosses the midpoint of this timestamp range.
+             */
+            if (precise_ckpt &&
+              (ts = __wt_atomic_load_uint64_relaxed(&ref->page->modify->newest_commit_timestamp)) >
+                pinned_stable) {
+                if (ts < *ts_minp)
+                    *ts_minp = ts;
+                if (ts > *ts_maxp)
+                    *ts_maxp = ts;
+            }
+            /*
+             * The page did not qualify under the current pressure mode (e.g. a page with no tracked
+             * update bytes under updates-only pressure). Re-insert at the back of the active ring
+             * so it gets another look when the pressure mode shifts. The re-insert has to wait
+             * until this slot has been released below: it reserves the slot at the head, and with a
+             * single entry in flight that is the slot being drained right now, so inserting here
+             * would spin out its reservation retries and drop the page every time.
+             */
+            reinsert = true;
+        }
+
+release:
+        __wt_atomic_store_ptr_release(&di_slot->ref, NULL);
+        if ((page = __wt_atomic_load_ptr_acquire(&ref->page)) != NULL)
+            __wti_dirty_index_release_page(page, bp_released);
+        __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
+        __wt_atomic_store_uint64_release(&idx->tail, ++pos);
+        /*
+         * Still under the hazard pointer, so the page cannot be torn down between the release above
+         * and the re-insert. The insert's back-pointer compare-and-swap settles any race with a
+         * producer re-inserting the same page; count only a genuine re-insert.
+         */
+        if (reinsert && __wt_dirty_index_insert(session, btree, ref))
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_reinserted);
+        WT_TRET(__wt_hazard_clear(session, ref));
+        if (ret != 0)
+            break;
+    }
+
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+
+    /* Flush accumulated per-slot counters once to avoid hammering the shared stat buckets. */
+    if (scanned > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_scanned, scanned);
+    if (stale_total > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_stale, stale_total);
+    if (hazard_total > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_hazard, hazard_total);
+    if (queued_total > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_queued, queued_total);
+    if (filtered_total > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_filtered, filtered_total);
+
+    /*
+     * Credit the shared eviction-discovery stats. The drain examines, classifies, and queues pages
+     * for eviction the same way the walker's tree scan does, so these counters reflect total
+     * eviction discovery rather than walker-only work. "Pages walked for eviction" (eviction_walk)
+     * is the exception: it measures tree traversal, which the drain does not perform -- it pops
+     * ring slots -- so the drain's examined-page count belongs in its own drain_scanned counter,
+     * not here. Keeping eviction_walk walker-only lets analysis separate walker traversal from
+     * drain volume; total discovery is eviction_walk + drain_scanned.
+     */
+    if (seen_clean + seen_dirty > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen, seen_clean + seen_dirty);
+    if (seen_clean > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_clean, seen_clean);
+    if (seen_dirty > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_dirty, seen_dirty);
+    if (seen_updates > 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_updates, seen_updates);
+    if (already_queued > 0)
+        WT_STAT_CONN_INCRV(session, eviction_pages_already_queued, already_queued);
+    if (drained > 0)
+        WT_STAT_CONN_INCRV(session, eviction_pages_ordinary_queued, drained);
+    *drainedp = drained;
+    return (ret);
+}
 
 /*
  * __evict_clear_walk --
@@ -434,28 +797,28 @@ retry:
             continue;
         }
 
-        /* Skip files that are checkpointing if we are only looking for dirty pages. */
-        if (WT_BTREE_SYNCING(btree) &&
-          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
-        }
-
         /*
-         * Skip disaggregated btrees that have already been visited by the ongoing checkpoint when
-         * we are looking only for dirty pages and the cache is not under pressure. Every modified
-         * page in such a tree belongs to the next checkpoint and would fail the post-lock recheck,
-         * so walking only inflates the worker failure rate. When looking for clean or update pages,
-         * or when eviction is aggressive, walk anyway: any candidates the workers can lay hands on
-         * are better than starving the cache.
+         * When looking only for dirty pages, skip a tree whose dirty pages cannot be evicted right
+         * now: one being checkpointed, or a disaggregated tree already visited by the ongoing
+         * checkpoint (its modified pages belong to the next checkpoint and would fail the post-lock
+         * recheck, so walking only inflates the worker failure rate). When looking for clean or
+         * update pages, or when eviction is aggressive, walk anyway: any candidates the workers can
+         * lay hands on are better than starving the cache. The drain shares this predicate.
          */
         aggressive = __wt_evict_aggressive(session);
-        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) && !aggressive &&
-          __wt_btree_disagg_checkpointed(session, btree)) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_disagg_trees_checkpointed);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
+        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+            switch (__evict_dirty_tree_block(session, btree, aggressive)) {
+            case WTI_DIRTY_EVICT_SYNCING:
+                WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            case WTI_DIRTY_EVICT_DISAGG_CKPT:
+                WT_STAT_CONN_INCR(session, eviction_server_skip_disagg_trees_checkpointed);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            case WTI_DIRTY_EVICT_OK:
+                break;
+            }
         }
 
         /*
@@ -606,7 +969,8 @@ err:
     /*
      * If we didn't find any entries on a walk when we weren't interrupted, let our caller know.
      */
-    if (queue->evict_entries == slot && __wt_atomic_load_uint32_v_relaxed(&evict->pass_intr) == 0)
+    if (ret == 0 && queue->evict_entries == slot &&
+      __wt_atomic_load_uint32_v_relaxed(&evict->pass_intr) == 0)
         ret = WT_NOTFOUND;
 
     queue->evict_entries = slot;
@@ -751,9 +1115,11 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
 
+    btree = S2BT(session);
     conn = S2C(session);
     txn = session->txn;
 
@@ -781,7 +1147,6 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
     } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        WT_BTREE *btree = S2BT(session);
         wt_timestamp_t newest_commit_timestamp =
           __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp);
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
@@ -801,39 +1166,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * For pages that are getting random updates (often index pages), try not to reconcile them too
-     * often. It makes better use of I/O if they accumulate more changes between reconciliations
+     * often. It makes better use of I/O if they accumulate more changes between reconciliations.
      */
-#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
-    /*
-     * If the cache is dirty, but not under pressure skip pages with just a few modifications
-     * hopefully they can accumulate more changes before being reconciled. The cache has low
-     * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
-     * only for disaggregated storage.
-     */
-#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
-    0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
-    if (__wt_conn_is_disagg(session) &&
-      __wt_atomic_load_uint32_relaxed(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
-        double pct_dirty = 0.0, pct_updates = 0.0;
-        bool high_pressure = false;
-
-        if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
-            WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
-            high_pressure =
-              (pct_dirty > (__wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger) *
-                             WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-        }
-
-        if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
-            WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
-            high_pressure = (pct_updates >
-              (__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
-                WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-        }
-
-        if (!high_pressure)
-            return (true);
-    }
+    if (__wti_evict_disagg_low_pressure_skip(session, btree, page))
+        return (true);
     return (false);
 }
 
@@ -1141,6 +1477,11 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     modified = __wt_page_is_modified(page);
     *queuedp = false;
 
+    /* Record this queue attempt -- every attempt, queued or filtered, for both callers. */
+    ++page->evict_queue_attempts;
+    __wt_atomic_stats_max_uint16(
+      &evict->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
+
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_during_checkpoint);
@@ -1304,14 +1645,15 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
-    uint64_t root_pages_skipped;
-    uint32_t evict_walk_period, target_pages, walk_flags;
+    uint64_t pass_gen, root_pages_skipped;
+    uint32_t drain_queued, evict_walk_period, target_pages, walk_flags;
     int restarts;
-    bool give_up, queued, urgent_queued;
+    bool give_up, queued, should_drain, urgent_queued;
 
     conn = S2C(session);
     btree = S2BT(session);
     evict = conn->evict;
+    drain_queued = 0;
     last_parent = NULL;
     restarts = 0;
     give_up = urgent_queued = false;
@@ -1319,14 +1661,105 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
     WT_ASSERT_SPINLOCK_OWNED(session, &evict->evict_walk_lock);
 
-    start = queue->evict_queue + *slotp;
     target_pages = __evict_get_target_pages(session, max_entries, *slotp);
 
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
         return (0);
 
-    end = start + target_pages;
+    /* Per-btree slot budget; drain fills the leading portion, walker fills the remainder. */
+    end = queue->evict_queue + *slotp + target_pages;
+
+    /*
+     * Drain on every pass, then walk. The earlier odd-pass alternation existed because draining
+     * removed candidates the walker would have found and they were lost; now the LRU-trim re-insert
+     * keeps those pages in the ring, so the drain is no longer extractive. Drain first to feed the
+     * pre-identified dirty candidates, then fall through to the walk for the rest of the budget.
+     * Disabled trees still probe periodically to detect a shift back to write-heavy.
+     */
+    pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
+    if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
+        should_drain = pass_gen >= __wt_atomic_load_uint64_relaxed(&btree->drain_next_probe_gen);
+    else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+        /*
+         * Yield a pass to the walker once the drain has filled the whole budget too many times in a
+         * row, so the internal tier the ring cannot supply still gets reclaimed.
+         *
+         * Only force this when the overall cache is over its target (WT_EVICT_CACHE_CLEAN).
+         * Internal pages need eviction only under whole-cache pressure; gating on dirty/updates
+         * pressure alone would fire during the insert-heavy load phase -- where the cache is still
+         * filling and the forced tree walk just steals write throughput from a drain that is
+         * keeping up.
+         */
+        should_drain =
+          __wt_atomic_load_uint32_relaxed(&btree->drain_filled_skips) < WTI_DRAIN_FILLED_SKIP_MAX;
+    else
+        should_drain = true;
+
+    should_drain = should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
+      F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES);
+
+    if (should_drain && __evict_drain_stable_blocked(session, btree)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_stable_lag);
+        should_drain = false;
+    }
+    if (should_drain) {
+        if (F_ISSET(evict, WT_EVICT_CACHE_NOKEEP)) {
+            /*
+             * WT_EVICT_CACHE_NOKEEP means the cache is more than halfway to the eviction trigger;
+             * clean-page demand is dominant. Pre-queuing dirty pages from the ring competes for the
+             * same queue slots the walker needs for clean eviction. Skip without touching
+             * drain_consecutive_empty so the drain resumes as soon as pressure drops.
+             */
+            WT_STAT_CONN_DSRC_INCR(
+              session, cache_eviction_dirty_index_drain_skipped_clean_pressure);
+        } else {
+            WT_RET(__evict_dirty_index_drain(
+              session, btree, queue, (u_int)(end - queue->evict_queue), slotp, &drain_queued));
+
+            /*
+             * Update the adaptive switch. Atomic accesses are used because eviction passes from
+             * different threads may visit this btree; the values carry no ordering dependency. A
+             * drain skipped because the tree is checkpointing also returns zero -- exclude that
+             * case so a long checkpoint does not park the drain on a tree whose ring is full, not
+             * empty.
+             */
+            if (drain_queued > 0) {
+                __wt_atomic_store_uint32(&btree->drain_consecutive_empty, 0);
+                if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
+                    __wt_atomic_store_bool(&btree->drain_disabled, false);
+            } else if (!WT_BTREE_SYNCING(btree) &&
+              __wt_atomic_add_uint32(&btree->drain_consecutive_empty, 1) >=
+                WTI_DRAIN_EMPTY_THRESHOLD) {
+                __wt_atomic_store_bool(&btree->drain_disabled, true);
+                __wt_atomic_store_uint64_relaxed(
+                  &btree->drain_next_probe_gen, pass_gen + WTI_DRAIN_PROBE_INTERVAL);
+            }
+        }
+    }
+    if (drain_queued >= target_pages) {
+        /*
+         * The drain filled this tree's budget; skip the walker this pass. Return before touching
+         * the saved walk position: falling through would load and release it, count an abandoned
+         * walk, and restart from the root next pass. On a read-mixed single-tree workload that walk
+         * churn contends with the application cursors. Leave the position for the next visit and
+         * keep the visit period hot, since the drain is productive here. Count the consecutive
+         * drain-filled passes so the should-drain gate above eventually yields a pass to the
+         * walker.
+         */
+        __wt_atomic_add_uint32(&btree->drain_filled_skips, 1);
+        __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, 0);
+        WT_STAT_CONN_DSRC_INCR(session, eviction_walk_passes);
+        WT_STAT_CONN_INCR(session, eviction_walk_skipped_drain_filled);
+        return (0);
+    }
+
+    /*
+     * The walker is about to run -- either the drain was skipped this pass or it did not fill the
+     * budget. Either way the internal tier gets a look, so reset the drain-filled run length.
+     */
+    __wt_atomic_store_uint32_relaxed(&btree->drain_filled_skips, 0);
+    start = queue->evict_queue + *slotp;
 
     min_pages = __evict_get_min_pages(session, target_pages);
 
@@ -1368,8 +1801,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
       last_parent = ref == NULL ? NULL : (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home),
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
 
+        /*
+         * Credit the candidates the dirty-index drain already queued for this tree. Without this,
+         * the walker counts only what it queued itself and abandons a tree the ring just serviced
+         * as a "desert", starving the eviction queue on write-heavy trees.
+         */
         if ((give_up = __evict_should_give_up_walk(
-               session, pages_seen, pages_queued, min_pages, target_pages)))
+               session, pages_seen, pages_queued + drain_queued, min_pages, target_pages)))
             break;
 
         if (ref == NULL) {
@@ -1434,11 +1872,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             continue;
         }
 
-        /* update number of attempts this page has been evicted */
-        ++page->evict_queue_attempts;
-        __wt_atomic_stats_max_uint16(
-          &evict->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
-
         __evict_try_queue_page(
           session, queue, ref, last_parent, evict_entry, &urgent_queued, &queued);
         if (queued) {
@@ -1469,12 +1902,17 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     if (btree->evict_walk_dominating && pages_queued == 0)
         WT_STAT_CONN_INCR(session, eviction_server_walk_dominating_cache_unproductive);
 
-    /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
+    /*
+     * If we couldn't find the number of pages we were looking for, skip the tree next time. Count
+     * the candidates the dirty-index drain queued for this tree as well: the throttle decides how
+     * often the eviction server visits the tree, and the drain runs only as part of that visit, so
+     * backing off a tree the ring is actively servicing would starve both the walker and the drain.
+     */
     evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
-    if (pages_queued < target_pages / 2 && !urgent_queued)
+    if (pages_queued + drain_queued < target_pages / 2 && !urgent_queued)
         __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period,
           WT_MIN(WT_MAX(1, 2 * evict_walk_period), WTI_EVICT_WALK_PERIOD_MAX));
-    else if (pages_queued == target_pages) {
+    else if (pages_queued + drain_queued >= target_pages) {
         __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, 0);
         /*
          * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
