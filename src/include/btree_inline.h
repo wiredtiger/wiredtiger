@@ -2199,19 +2199,19 @@ __wt_btree_syncing_by_other_sessions(WT_SESSION_IMPL *session)
 /*
  * __wt_page_held_by_checkpoint --
  *     Check whether a parallel checkpoint may still hold a bare reference to the page. It queues
- *     dirty leaves for its reconciliation workers without pinning them, and an in-memory split
- *     replaces a page's WT_REF and frees the original. Nothing but the checkpoint's own worker can
- *     clean a page while the tree is syncing, so a dirty page is one whose reference may still be
+ *     dirty leaves for its reconciliation workers without one, and an in-memory split replaces a
+ *     page's WT_REF and frees the original. Nothing but the checkpoint's own worker can clean a
+ *     page while the tree is syncing, so a dirty page is one whose reference may still be
  *     outstanding. Call only for a page already known to be dirty.
  */
 static WT_INLINE bool
-__wt_page_held_by_checkpoint(WT_SESSION_IMPL *session)
+__wt_page_held_by_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Without workers the checkpoint reconciles as it walks, holding its own hazard pointer. */
     if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
         return (false);
 
-    return (__wt_btree_syncing_by_other_sessions(session));
+    return (__wt_btree_syncing_by_other_sessions(session) && __wt_page_is_modified(page));
 }
 
 /*
@@ -2258,10 +2258,6 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (WT_PAGE_IS_INTERNAL(page))
         return (false);
     if (!__wt_page_is_modified(page))
-        return (false);
-
-    /* A parallel checkpoint on another session may hold a bare reference to a dirty page. */
-    if (__wt_page_held_by_checkpoint(session))
         return (false);
 
     /*
@@ -2618,7 +2614,12 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * return success immediately and skip more detailed eviction tests. We don't need further tests
      * since the page won't be written or discarded from the cache.
      */
-    if (__wt_leaf_page_can_split(session, page)) {
+    /*
+     * A page a parallel checkpoint has queued must not split: that replaces its WT_REF and frees
+     * the original, which the checkpoint is still holding. Test it here rather than inside the
+     * split check, which __split_insert asserts on and so must not change under a caller.
+     */
+    if (!__wt_page_held_by_checkpoint(session, page) && __wt_leaf_page_can_split(session, page)) {
         if (inmem_splitp != NULL)
             *inmem_splitp = true;
         return (true);

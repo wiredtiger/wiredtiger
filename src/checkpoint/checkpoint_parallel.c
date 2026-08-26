@@ -179,6 +179,36 @@ __checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
 }
 
 /*
+ * __checkpoint_parallel_reconcile --
+ *     Reconcile a queued page, holding a hazard pointer across the write.
+ */
+static int
+__checkpoint_parallel_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
+{
+    WT_DECL_RET;
+    bool busy;
+
+    /*
+     * Eviction leaves the page alone while it is dirty and the tree is syncing, but reconciliation
+     * marks it clean before it is finished, so from that point only a hazard pointer stops eviction
+     * discarding a page still being written. Taking it here rather than where the page was queued
+     * also leaves one hazard pointer per worker instead of one for every page in the queue. A
+     * locked reference is eviction, which is about to fail its own hazard pointer check.
+     */
+    for (;;) {
+        WT_RET(__wt_hazard_set(session, ref, &busy));
+        if (!busy)
+            break;
+        __wt_yield();
+    }
+
+    ret = __wt_reconcile(session, ref, NULL, reconcile_flags, NULL);
+
+    WT_TRET(__wt_hazard_clear(session, ref));
+    return (ret);
+}
+
+/*
  * __checkpoint_parallel_thread_run --
  *     Entry function for a checkpoint page reconciliation thread. This is called repeatedly from
  *     the thread group code, with that in mind the internal loop may seem redundant but working on
@@ -231,7 +261,7 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         time_rec_start = __wt_clock(session);
         WT_WITH_DHANDLE(session, entry->dhandle,
-          ret = __wt_reconcile(session, entry->ref, NULL, reconcile_flags, NULL));
+          ret = __checkpoint_parallel_reconcile(session, entry->ref, reconcile_flags));
 
         /* Update the reconciliation time and the statistics. */
         entry->reconcile_time = __wt_clock(session) - time_rec_start;
@@ -446,7 +476,7 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_ti
         }
         done_popped++;
 
-        /* The queued page was never pinned, so there is no reference to release here. */
+        /* The queued page had no hazard pointer from here, so there is nothing to release. */
         WT_TRET(entry->result);
         reconcile_time += entry->reconcile_time;
         __checkpoint_parallel_free(session, entry);
