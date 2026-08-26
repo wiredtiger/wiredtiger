@@ -785,7 +785,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * The walk below is a bounded, forward-only scan of the shared metadata, where crossing a page
      * boundary costs a page log round trip. Declare it, so pre-fetch does not have to infer it: the
      * scan runs on an internal session, and it interleaves cache-resident local metadata with pages
-     * that must be fetched, so neither of pre-fetch's heuristics recognises it.
+     * that must be fetched, so neither of the prefetch heuristics recognizes it.
      */
     prefetch_set = scan_hint_set = false;
     if (S2C(session)->prefetch.available) {
