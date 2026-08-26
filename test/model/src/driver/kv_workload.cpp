@@ -41,6 +41,16 @@ extern "C" {
 
 namespace model {
 
+/*
+ * The model decides whether a checkpoint crash keeps the checkpoint from which side of
+ * CKPT_CRASH_ENUM_MAY_RECOVER the phase sits on. It names only the phases it has to tell apart, so
+ * rather than mirroring the enum, pin the two facts it relies on.
+ */
+static_assert(CKPT_CRASH_BEFORE_CKPT_COMMIT < CKPT_CRASH_ENUM_MAY_RECOVER,
+  "a crash before the checkpoint transaction commits must never keep the checkpoint");
+static_assert(CKPT_CRASH_BEFORE_METADATA_SYNC > CKPT_CRASH_ENUM_MAY_RECOVER,
+  "a crash before the metadata sync must be able to keep the checkpoint");
+
 namespace operation {
 
 /*
@@ -147,10 +157,11 @@ parse(const char *str)
     }
     if (name == "checkpoint_crash") {
         CHECK_NUM_ARGS(1);
-        /* A numeric argument selects a tree to crash on, otherwise it names a phase. */
-        if (!args[0].empty() && std::isdigit(static_cast<unsigned char>(args[0][0])))
-            return checkpoint_crash(parse_uint64(args[0]));
-        return checkpoint_crash(checkpoint_crash_phase_from_string(args[0]));
+        return checkpoint_crash(parse_uint64(args[0]));
+    }
+    if (name == "checkpoint_crash_trigger") {
+        CHECK_NUM_ARGS(1);
+        return checkpoint_crash_trigger(checkpoint_crash_phase_from_string(args[0]));
     }
     if (name == "commit_transaction") {
         CHECK_NUM_ARGS_RANGE(1, 3);
@@ -315,7 +326,8 @@ kv_workload::assert_timestamps(const kv_database_config &database_config, const 
 
     if (database_config.disaggregated) {
         if (std::holds_alternative<operation::checkpoint>(op) ||
-          std::holds_alternative<operation::checkpoint_crash>(op)) {
+          std::holds_alternative<operation::checkpoint_crash>(op) ||
+          std::holds_alternative<operation::checkpoint_crash_trigger>(op)) {
             if (stable == k_timestamp_none) {
                 std::ostringstream err;
                 err << "Checkpoint operation without a stable timestamp";
@@ -361,8 +373,10 @@ kv_workload::verify()
          * followed by a crash.
          */
         bool recoverable_checkpoint_crash =
-          std::holds_alternative<operation::checkpoint_crash>(op) && database_config.logging &&
-          operation::recoverable_with_logging(std::get<operation::checkpoint_crash>(op).phase);
+          std::holds_alternative<operation::checkpoint_crash_trigger>(op) &&
+          database_config.logging &&
+          operation::recoverable_with_logging(
+            std::get<operation::checkpoint_crash_trigger>(op).phase);
 
         /*
          * Verify that the table operations reference existing tables.
@@ -381,7 +395,8 @@ kv_workload::verify()
 
         if (database_config.disaggregated) {
             if (std::holds_alternative<operation::crash>(op) ||
-              std::holds_alternative<operation::checkpoint_crash>(op))
+              std::holds_alternative<operation::checkpoint_crash>(op) ||
+              std::holds_alternative<operation::checkpoint_crash_trigger>(op))
                 tables = tables_as_of_last_checkpoint;
         }
 
@@ -408,6 +423,7 @@ kv_workload::verify()
         }
         if (std::holds_alternative<operation::crash>(op) ||
           std::holds_alternative<operation::checkpoint_crash>(op) ||
+          std::holds_alternative<operation::checkpoint_crash_trigger>(op) ||
           std::holds_alternative<operation::restart>(op)) {
             oldest = ckpt_oldest;
             stable = ckpt_stable;

@@ -610,12 +610,12 @@ kv_workload_generator::run()
 
                 /*
                  * Under disaggregated storage the checkpoint is published through the page log
-                 * rather than the local metadata, so whether a post-commit crash keeps it is not
-                 * the same question. Stay in the per-tree phase there.
+                 * rather than the local metadata, so whether a crash in one of the final phases
+                 * keeps it is not the same question. Stop on a tree there.
                  */
                 if (!_database_config.disaggregated &&
                   _spec.checkpoint_crash_final_phase > _random.next_float())
-                    *p << operation::checkpoint_crash(_random.next_float() < 0.5f ?
+                    *p << operation::checkpoint_crash_trigger(_random.next_float() < 0.5f ?
                         operation::checkpoint_crash_phase::before_checkpoint_commit :
                         operation::checkpoint_crash_phase::before_metadata_sync);
                 else
@@ -766,9 +766,9 @@ kv_workload_generator::run()
               _database_config.logging) {
                 const operation::any &crash_op = (*s->sequence)[0];
                 recoverable_checkpoint_crash =
-                  std::holds_alternative<operation::checkpoint_crash>(crash_op) &&
+                  std::holds_alternative<operation::checkpoint_crash_trigger>(crash_op) &&
                   operation::recoverable_with_logging(
-                    std::get<operation::checkpoint_crash>(crash_op).phase);
+                    std::get<operation::checkpoint_crash_trigger>(crash_op).phase);
             }
 
             /* Simulate how checkpoints, crashes, and restarts manipulate the timestamps. */
@@ -826,6 +826,7 @@ kv_workload_generator::run()
         /* If the operation resulted in a database crash or restart, stop all started sequences. */
         if (std::holds_alternative<operation::crash>(op) ||
           std::holds_alternative<operation::checkpoint_crash>(op) ||
+          std::holds_alternative<operation::checkpoint_crash_trigger>(op) ||
           std::holds_alternative<operation::restart>(op)) {
             t.complete_all();
             continue;

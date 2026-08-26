@@ -69,15 +69,6 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
     "log=(enabled,file_max=10M,remove=false),session_max=100," \
     "statistics=(all),statistics_log=(wait=1,json,on_close)"
 
-/*
- * Configuration for the checkpoint crash tests. Connection logging comes from the workload's own
- * database configuration, so this only has to leave out table logging, which would make recovery
- * replay the tables' own updates too: the point there is to isolate the one thing connection
- * logging changes for a checkpoint crash, which is whether a checkpoint whose transaction already
- * committed survives.
- */
-#define ENV_CONFIG_NO_TABLE_LOGGING "cache_size=20M,create,session_max=100"
-
 /* Keys. */
 const model::data_value key1("Key 1");
 const model::data_value key2("Key 2");
@@ -329,14 +320,14 @@ test_workload_checkpoint_crash_phase(void)
                          << model::operation::insert(k_table1_id, 2, key2, value2)
                          << model::operation::commit_transaction(2, 20)
                          << model::operation::set_stable_timestamp(20)
-                         << model::operation::checkpoint_crash(phase)
+                         << model::operation::checkpoint_crash_trigger(phase)
                          << model::operation::begin_transaction(3)
                          << model::operation::get(k_table1_id, 3, key2)
                          << model::operation::commit_transaction(3, 30);
 
                 std::string test_home =
                   std::string(home) + DIR_DELIM_STR + "checkpoint_crash_" + std::to_string(run++);
-                verify_workload(workload, opts, test_home, ENV_CONFIG_NO_TABLE_LOGGING);
+                verify_workload(workload, opts, test_home, nullptr);
             }
 }
 
@@ -400,9 +391,9 @@ test_workload_parse(void)
              << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
              << model::operation::remove(k_table1_id, 1, model::data_value((uint64_t)1))
              << model::operation::checkpoint() << model::operation::checkpoint_crash(123)
-             << model::operation::checkpoint_crash(
+             << model::operation::checkpoint_crash_trigger(
                   model::operation::checkpoint_crash_phase::before_checkpoint_commit)
-             << model::operation::checkpoint_crash(
+             << model::operation::checkpoint_crash_trigger(
                   model::operation::checkpoint_crash_phase::before_metadata_sync)
              << model::operation::crash() << model::operation::begin_transaction(1)
              << model::operation::insert(
@@ -442,15 +433,16 @@ test_workload_parse(void)
       model::operation::any(model::operation::checkpoint("test")));
     testutil_assert(model::operation::parse("checkpoint_crash(123)") ==
       model::operation::any(model::operation::checkpoint_crash(123)));
-    testutil_assert(model::operation::parse("checkpoint_crash(\"before_metadata_sync\")") ==
-      model::operation::any(model::operation::checkpoint_crash(
+    testutil_assert(model::operation::parse("checkpoint_crash_trigger(\"before_metadata_sync\")") ==
+      model::operation::any(model::operation::checkpoint_crash_trigger(
         model::operation::checkpoint_crash_phase::before_metadata_sync)));
-    testutil_assert(model::operation::parse("checkpoint_crash(\"before_checkpoint_commit\")") ==
-      model::operation::any(model::operation::checkpoint_crash(
+    testutil_assert(
+      model::operation::parse("checkpoint_crash_trigger(\"before_checkpoint_commit\")") ==
+      model::operation::any(model::operation::checkpoint_crash_trigger(
         model::operation::checkpoint_crash_phase::before_checkpoint_commit)));
-    testutil_assert(model::operation::parse("checkpoint_crash(123)") !=
-      model::operation::any(model::operation::checkpoint_crash(
-        model::operation::checkpoint_crash_phase::before_metadata_sync)));
+    testutil_assert(model::operation::parse("checkpoint_crash_trigger(\"before_metadata_sync\")") !=
+      model::operation::any(model::operation::checkpoint_crash_trigger(
+        model::operation::checkpoint_crash_phase::before_checkpoint_commit)));
     testutil_assert(model::operation::parse("commit_transaction(1)") ==
       model::operation::any(model::operation::commit_transaction(1)));
     testutil_assert(model::operation::parse("commit_transaction(1, 2)") ==
@@ -461,7 +453,7 @@ test_workload_parse(void)
     /* An unrecognized crash phase must be rejected rather than silently ignored. */
     bool caught = false;
     try {
-        (void)model::operation::parse("checkpoint_crash(\"before_lunch\")");
+        (void)model::operation::parse("checkpoint_crash_trigger(\"before_lunch\")");
     } catch (model::model_exception &) {
         caught = true;
     }

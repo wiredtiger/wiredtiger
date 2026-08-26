@@ -128,11 +128,23 @@ protected:
     int
     do_operation(const operation::checkpoint_crash &op)
     {
+        (void)op;
+        restart(true /* crash */);
+        return 0;
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::checkpoint_crash_trigger &op)
+    {
         /*
          * A crash taken after the checkpoint transaction committed leaves the checkpoint's metadata
          * updates in the log, so recovery rolls the checkpoint forward and the outcome is
-         * indistinguishable from a checkpoint followed by a crash. Without logging, and for any
-         * crash taken before the commit, the checkpoint is lost.
+         * indistinguishable from a checkpoint followed by a crash. Without logging, and for a crash
+         * taken before the commit, the checkpoint is lost.
          */
         bool recoverable =
           operation::recoverable_with_logging(op.phase) && _database.config().logging;

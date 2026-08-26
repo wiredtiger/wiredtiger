@@ -269,6 +269,7 @@ protected:
      *     Execute the given workload operation in WiredTiger.
      */
     int do_operation(const operation::checkpoint_crash &op);
+    int do_operation(const operation::checkpoint_crash_trigger &op);
 
     /*
      * kv_workload_runner_wt::do_operation --

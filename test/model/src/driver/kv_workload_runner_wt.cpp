@@ -169,7 +169,8 @@ kv_workload_runner_wt::run(const kv_workload &workload)
                 for (; p < workload.size(); p++) {
                     const kv_workload_operation &op = workload[p];
                     if (std::holds_alternative<operation::crash>(op.operation) ||
-                      std::holds_alternative<operation::checkpoint_crash>(op.operation)) {
+                      std::holds_alternative<operation::checkpoint_crash>(op.operation) ||
+                      std::holds_alternative<operation::checkpoint_crash_trigger>(op.operation)) {
                         _state->expect_crash = true;
                         _state->crash_index = p;
                     }
@@ -333,10 +334,29 @@ kv_workload_runner_wt::do_operation(const operation::checkpoint_crash &op)
     wiredtiger_session_guard session_guard(session);
 
     std::ostringstream config;
-    if (operation::named_phase(op.phase))
-        config << "debug=(checkpoint_crash_trigger_point=" << operation::to_string(op.phase) << ")";
-    else
-        config << "debug=(checkpoint_crash_point=" << op.crash_step << ")";
+    config << "debug=(checkpoint_crash_point=" << op.crash_step << ")";
+    std::string config_str = config.str();
+
+    return session->checkpoint(session, config_str.c_str());
+}
+
+/*
+ * kv_workload_runner_wt::do_operation --
+ *     Execute the given workload operation in WiredTiger.
+ */
+int
+kv_workload_runner_wt::do_operation(const operation::checkpoint_crash_trigger &op)
+{
+    std::shared_lock lock(_connection_lock);
+
+    WT_SESSION *session;
+    int ret = _connection->open_session(_connection, nullptr, nullptr, &session);
+    if (ret != 0)
+        return ret;
+    wiredtiger_session_guard session_guard(session);
+
+    std::ostringstream config;
+    config << "debug=(checkpoint_crash_trigger_point=" << operation::to_string(op.phase) << ")";
     std::string config_str = config.str();
 
     return session->checkpoint(session, config_str.c_str());
