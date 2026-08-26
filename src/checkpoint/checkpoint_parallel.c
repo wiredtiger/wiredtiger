@@ -448,8 +448,11 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_ti
         }
         done_popped++;
 
+        /*
+         * The entry is not touched beyond its own fields: nothing pins the page, so the reference
+         * may already have been replaced by an in-memory split once the worker finished with it.
+         */
         WT_TRET(entry->result);
-        WT_TRET(__wt_page_release(session, entry->ref, entry->release_flags));
         reconcile_time += entry->reconcile_time;
         __checkpoint_parallel_free(session, entry);
     }

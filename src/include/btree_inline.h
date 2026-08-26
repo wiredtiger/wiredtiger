@@ -2197,6 +2197,24 @@ __wt_btree_syncing_by_other_sessions(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_page_held_by_checkpoint --
+ *     Check whether a parallel checkpoint may still hold a bare reference to the page. It queues
+ *     dirty leaves for its reconciliation workers without pinning them, and an in-memory split
+ *     replaces a page's WT_REF and frees the original. Only dirty pages are queued, and nothing but
+ *     the checkpoint's own worker can clean one while the tree is syncing, so the dirty state spans
+ *     the whole window in which a reference is outstanding.
+ */
+static WT_INLINE bool
+__wt_page_held_by_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /* Without workers the checkpoint reconciles as it walks, holding its own hazard pointer. */
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return (false);
+
+    return (__wt_btree_syncing_by_other_sessions(session) && __wt_page_is_modified(page));
+}
+
+/*
  * __wt_leaf_page_can_split --
  *     Check whether a page can be split in memory.
  */
@@ -2216,6 +2234,10 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
      * corruption when the parent internal page is updated.
      */
     if (WT_SESSION_BTREE_SYNC(session))
+        return (false);
+
+    /* The same hazard applies to a checkpoint running on another session. */
+    if (__wt_page_held_by_checkpoint(session, page))
         return (false);
 
     /*

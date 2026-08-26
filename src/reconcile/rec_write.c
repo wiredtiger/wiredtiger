@@ -339,6 +339,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WTI_RECONCILE *r;
     uint64_t rec, rec_hs_wrapup, rec_img_build, rec_reentry_hs, rec_start;
     void *addr;
+    bool is_root;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -475,6 +476,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     __wt_verbose_debug1(
       session, WT_VERB_RECONCILE, "finished building disk image for %p", (void *)ref);
 
+    /*
+     * Read the reference before the page's state is settled. Marking the page clean lets another
+     * thread dirty it and eviction split it in-memory, which frees this reference.
+     */
+    is_root = __wt_ref_is_root(ref);
+
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r, timeline));
     __rec_write_page_status(session, r);
@@ -494,7 +501,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
      * any more.
      */
-    if (__wt_ref_is_root(ref)) {
+    if (is_root) {
         WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
         if (ret != 0)
             goto err;
