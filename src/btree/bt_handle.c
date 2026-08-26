@@ -607,9 +607,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
             WT_RET(
               __wt_schema_page_log_from_config(session, btree->dhandle->cfg, &btree->page_log));
-
-            /* A page log service and a storage source cannot both be enabled. */
-            WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
         }
     }
 
