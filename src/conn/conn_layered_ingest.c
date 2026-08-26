@@ -619,6 +619,11 @@ __layered_copy_ingest_table(
                  * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
                  * way now.
                  */
+                /* Only full updates carry the escape; the write path keeps modifies out. */
+                WT_ASSERT_ALWAYS(session,
+                  type != WT_UPDATE_MODIFY ||
+                    !__wt_clayered_value_in_tombstone_namespace(value, true /* encode */),
+                  "an ingest modify version reconstructed into the tombstone namespace");
                 if (__wt_clayered_deleted(value))
                     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
                 else {

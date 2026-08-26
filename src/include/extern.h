@@ -16,6 +16,8 @@ extern bool __wt_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *
   WT_EXTLIST *el) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_checksum_alt_match(const void *chunk, size_t len, uint32_t v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_clayered_value_in_tombstone_namespace(const WT_ITEM *value, bool encode)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
@@ -41,6 +43,9 @@ extern bool __wt_metadata_btree_ids_find_duplicate(uint32_t *btree_ids, size_t c
   uint32_t *dup_idp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_modify_idempotent(const void *modify)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session,
+  const char *value_format, const WT_ITEM *base, const WT_MODIFY *entries, int nentries,
+  size_t *result_sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
@@ -1888,9 +1893,6 @@ extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session,
-  const char *value_format, const WT_ITEM *base, const WT_MODIFY *entries, int nentries,
-  bool *in_namespacep, size_t *result_sizep);
 extern void __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern void __wt_optrack_record_funcid(
   WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp);

@@ -398,25 +398,28 @@ err:
     return (ret);
 }
 
+/* A tracked result byte that does not exist yet or has unknown provenance. */
+#define WT_MODIFY_BYTE_UNKNOWN (-1)
+
 /*
- * __wt_modify_result_in_tombstone_namespace --
+ * __wt_modify_result_may_be_in_tombstone_namespace --
  *     Predict whether applying a modify vector to the base value yields a result in the layered
  *     tombstone namespace, without materializing the result, and return the result's size. The size
  *     is exact. The namespace answer errs toward true when an entry shifts a byte of unknown
  *     provenance into the marker positions, so it can report a result that is not in the namespace,
  *     but never misses one that is.
  */
-void
-__wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *value_format,
-  const WT_ITEM *base, const WT_MODIFY *entries, int nentries, bool *in_namespacep,
-  size_t *result_sizep)
+bool
+__wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *value_format,
+  const WT_ITEM *base, const WT_MODIFY *entries, int nentries, size_t *result_sizep)
 {
     const WT_MODIFY *mod;
     size_t consumed, len, newlen, pos, src;
     int32_t head[2], newhead[2], pad_byte;
     int i;
-    bool append, sformat;
+    bool append, in_namespace, sformat;
 
+    WT_ASSERT(session, __wt_tombstone.size == WT_ELEMENTS(head));
     WT_ASSERT(session, value_format[1] == '\0');
     sformat = value_format[0] == 'S';
     pad_byte = sformat ? ' ' : __wt_process.modify_pad_byte;
@@ -425,12 +428,9 @@ __wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *
     WT_ASSERT(session, !sformat || base->size > 0);
     len = base->size - (sformat ? 1 : 0);
 
-    /*
-     * Walk the entries once, tracking the content length and the bytes at the marker positions; -1
-     * marks a byte that does not exist yet or was shifted in from beyond the tracked positions.
-     */
-    head[0] = len > 0 ? ((const uint8_t *)base->data)[0] : -1;
-    head[1] = len > 1 ? ((const uint8_t *)base->data)[1] : -1;
+    /* Walk the entries once, tracking the content length and the bytes at the marker positions. */
+    head[0] = len > 0 ? ((const uint8_t *)base->data)[0] : WT_MODIFY_BYTE_UNKNOWN;
+    head[1] = len > 1 ? ((const uint8_t *)base->data)[1] : WT_MODIFY_BYTE_UNKNOWN;
 
     for (i = 0; i < nentries; ++i) {
         mod = &entries[i];
@@ -454,7 +454,7 @@ __wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *
                 if (pos < len)
                     continue;
                 if (pos >= newlen)
-                    head[pos] = -1;
+                    head[pos] = WT_MODIFY_BYTE_UNKNOWN;
                 else if (pos < mod->offset)
                     head[pos] = pad_byte;
                 else
@@ -465,13 +465,13 @@ __wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *
                 if (pos < mod->offset)
                     newhead[pos] = head[pos];
                 else if (pos >= newlen)
-                    newhead[pos] = -1;
+                    newhead[pos] = WT_MODIFY_BYTE_UNKNOWN;
                 else if (pos < mod->offset + mod->data.size)
                     newhead[pos] = ((const uint8_t *)mod->data.data)[pos - mod->offset];
                 else {
                     /* Shifted through the replaced window from a position we may not track. */
                     src = pos - mod->data.size + consumed;
-                    newhead[pos] = src < WT_ELEMENTS(head) ? head[src] : -1;
+                    newhead[pos] = src < WT_ELEMENTS(head) ? head[src] : WT_MODIFY_BYTE_UNKNOWN;
                 }
             }
             head[0] = newhead[0];
@@ -480,14 +480,15 @@ __wt_modify_result_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *
         len = newlen;
     }
 
-    WT_ASSERT(session, __wt_tombstone.size == WT_ELEMENTS(head));
-    *in_namespacep = len >= __wt_tombstone.size;
+    in_namespace = len >= __wt_tombstone.size;
     for (pos = 0; pos < WT_ELEMENTS(head); ++pos)
-        if (head[pos] >= 0 && head[pos] != ((const uint8_t *)__wt_tombstone.data)[pos])
-            *in_namespacep = false;
+        if (head[pos] != WT_MODIFY_BYTE_UNKNOWN &&
+          head[pos] != ((const uint8_t *)__wt_tombstone.data)[pos])
+            in_namespace = false;
 
     if (result_sizep != NULL)
         *result_sizep = len + (sformat ? 1 : 0);
+    return (in_namespace);
 }
 
 /*
