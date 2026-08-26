@@ -57,8 +57,6 @@ extern bool __wti_cell_type_check(uint8_t cell_type, uint8_t dsk_type)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wti_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wti_prefetch_server_running(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wti_rts_visibility_has_stable_update(WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wti_rts_visibility_page_needs_abort(WT_SESSION_IMPL *session, WT_REF *ref,
@@ -1897,6 +1895,8 @@ extern void __wt_optrack_record_funcid(
 extern void __wt_os_stdio(WT_SESSION_IMPL *session);
 extern void __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
+extern void __wt_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
+extern void __wt_prefetch_scan_end(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
 extern void __wt_random_init(WT_SESSION_IMPL *session, WT_RAND_STATE *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_default(WT_RAND_STATE *rnd_state)

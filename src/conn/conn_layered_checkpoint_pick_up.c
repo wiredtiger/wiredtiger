@@ -753,6 +753,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *latest_entry;
     WT_DISAGG_STABLE_BTREE_IDS stable_btree_ids;
+    WT_PREFETCH_SCAN prefetch_scan;
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
@@ -764,8 +765,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
     const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
-    bool md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT];
-    bool prefetch_set, scan_hint_set, strict;
+    bool md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT], strict;
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
@@ -783,21 +783,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     /*
      * The walk below is a bounded, forward-only scan of the shared metadata, where crossing a page
-     * boundary costs a page log round trip. Declare it, so pre-fetch does not have to infer it: the
-     * scan runs on an internal session, and it interleaves cache-resident local metadata with pages
-     * that must be fetched, so neither of the prefetch heuristics recognizes it.
-     *
-     * The startup pick-up runs before the pre-fetch server threads are created, so test that they
-     * are running rather than that pre-fetch is configured: queueing a page with no server to read
-     * it signals a condition variable that does not exist yet.
+     * boundary costs a page log round trip. Declare it: the scan runs on an internal session, and
+     * it interleaves cache-resident local metadata with pages that must be fetched, so neither of
+     * the prefetch heuristics recognizes it.
      */
-    prefetch_set = scan_hint_set = false;
-    if (__wti_prefetch_server_running(session)) {
-        prefetch_set = !F_ISSET(session, WT_SESSION_PREFETCH_ENABLED);
-        scan_hint_set = !session->pf.scan_hint;
-        F_SET(session, WT_SESSION_PREFETCH_ENABLED);
-        session->pf.scan_hint = true;
-    }
+    __wt_prefetch_scan_begin(session, &prefetch_scan);
 
     __wt_timer_start(session, &apply_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -1197,10 +1187,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
 done:
 err:
-    if (scan_hint_set)
-        session->pf.scan_hint = false;
-    if (prefetch_set)
-        F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
+    __wt_prefetch_scan_end(session, &prefetch_scan);
 
     __wt_free(session, stable_btree_ids.ids);
     __wt_free(session, first_uri);

@@ -63,6 +63,15 @@ struct __wt_prefetch {
 };
 
 /*
+ * WT_PREFETCH_SCAN --
+ *	The session pre-fetch state a declared scan replaced, so it can be put back.
+ */
+struct __wt_prefetch_scan {
+    bool prefetch_set;  /* The scan set WT_SESSION_PREFETCH_ENABLED */
+    bool scan_hint_set; /* The scan set the hint */
+};
+
+/*
  * WT_ERROR_INFO --
  *  An error structure containing verbose information about an error from a session API call.
  */
