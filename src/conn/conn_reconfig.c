@@ -382,7 +382,7 @@ int
 __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG cparser, cparser_inner;
-    WT_CONFIG_ITEM k, v;
+    WT_CONFIG_ITEM cval, k, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     int count, count_inner;
@@ -486,7 +486,9 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wt_logmgr_reconfig(session, cfg));
     WT_ERR(__wti_statlog_create(session, cfg));
-    WT_ERR(__wt_tiered_conn_config(session, cfg, true));
+    WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.name", &cval));
+    if (cval.len != 0)
+        WT_ERR_MSG(session, ENOTSUP, "tiered storage is not supported");
     WT_ERR(__wti_sweep_config(session, cfg));
     WT_ERR(__wti_timing_stress_config(session, cfg));
     WT_ERR(__wti_disagg_debug_mode_config(session, cfg));
