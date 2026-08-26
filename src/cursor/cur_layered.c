@@ -3717,13 +3717,18 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *cursor = &clayered->iface;
     WT_CURSOR *c_stable = op->stable;
-    bool need_full_update;
+    bool found, need_full_update;
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
 
-    /* A modify needs a base value, though a zero-length base is valid. */
+    /*
+     * The search only fetches the base value for the namespace checks below. A missing key is left
+     * to the raw modify, whose write-path search distinguishes a key that does not exist from one
+     * this transaction cannot modify (WT_NOTFOUND versus WT_ROLLBACK).
+     */
     c_stable->set_key(c_stable, &cursor->key);
-    WT_ERR(c_stable->search(c_stable));
+    WT_ERR_NOTFOUND_OK(c_stable->search(c_stable), true);
+    found = ret == 0;
 
     /*
      * While stable tombstone encoding is on, a base or a result in the tombstone namespace cannot
@@ -3731,7 +3736,7 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
      * raw modify stores its result unescaped. Both take the encoded full-update path instead. With
      * encoding off the stored value is the raw value and a plain modify applies directly.
      */
-    need_full_update = __clayered_stable_tombstone_encoding(S2C(session)) &&
+    need_full_update = found && __clayered_stable_tombstone_encoding(S2C(session)) &&
       (__clayered_value_in_tombstone_namespace(&c_stable->value, false /* decode */) ||
         __wt_modify_result_may_be_in_tombstone_namespace(
           session, c_stable->value_format, &c_stable->value, entries, nentries));
