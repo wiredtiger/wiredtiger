@@ -2493,12 +2493,6 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.tiered_flush_error_continue", &cval));
-    if (cval.val)
-        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
-    else
-        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
-
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
@@ -2605,7 +2599,7 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
       {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"sweep", WT_VERB_SWEEP}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
-      {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
+      {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
       {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE}, {NULL, 0}};
 
     WT_ASSERT(NULL, catp != NULL);

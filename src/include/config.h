@@ -350,8 +350,6 @@ extern const char __WT_CONFIG_CHOICE_stable_timestamp[];
 extern const char __WT_CONFIG_CHOICE_sweep[];
 extern const char __WT_CONFIG_CHOICE_temporary[];
 extern const char __WT_CONFIG_CHOICE_thread_group[];
-extern const char __WT_CONFIG_CHOICE_tiered[];
-extern const char __WT_CONFIG_CHOICE_tiered_flush_finish[];
 extern const char __WT_CONFIG_CHOICE_timestamp[];
 extern const char __WT_CONFIG_CHOICE_transaction[];
 extern const char __WT_CONFIG_CHOICE_tree_walk[];

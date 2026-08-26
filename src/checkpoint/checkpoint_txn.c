@@ -2167,10 +2167,6 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
         WT_ERR_MSG(session, EINVAL,
           "checkpoint_crash_point and checkpoint_crash_trigger_point are mutually exclusive");
 
-    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
-    if (cval.val != 0)
-        WT_ERR_MSG(session, ENOTSUP, "flush_tier is not supported");
-
     /*
      * Only one checkpoint can be active at a time, and checkpoints must run in the same order as
      * they update the metadata. It's probably a bad idea to run checkpoints out of multiple

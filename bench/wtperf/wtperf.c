@@ -1716,7 +1716,7 @@ close_reopen(WTPERF *wtperf)
      * files, and so that read-only workloads can be identified.
      */
     /* wtperf->conn is released no matter the return value from close(). */
-    ret = wtperf->conn->close(wtperf->conn, "final_flush=true");
+    ret = wtperf->conn->close(wtperf->conn, NULL);
     wtperf->conn = NULL;
     if (ret != 0) {
         lprintf(wtperf, ret, 0, "Closing the connection failed");
@@ -2375,7 +2375,7 @@ err:
         testutil_check(__wt_thread_join(NULL, &monitor_thread));
 
     if (wtperf->conn != NULL && opts->close_conn &&
-      (t_ret = wtperf->conn->close(wtperf->conn, "final_flush=true")) != 0) {
+      (t_ret = wtperf->conn->close(wtperf->conn, NULL)) != 0) {
         lprintf(wtperf, t_ret, 0, "Error closing connection to %s", wtperf->home);
         if (ret == 0)
             ret = t_ret;
