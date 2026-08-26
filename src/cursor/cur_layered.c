@@ -3751,9 +3751,10 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     } else {
         WT_ERR(c_stable->modify(c_stable, entries, nentries));
         /* With encoding on, a stored modify never reconstructs into the tombstone namespace. */
-        WT_ASSERT(session,
+        WT_ASSERT_ALWAYS(session,
           !__clayered_stable_tombstone_encoding(S2C(session)) ||
-            !__clayered_value_in_tombstone_namespace(&c_stable->value, true /* encode */));
+            !__clayered_value_in_tombstone_namespace(&c_stable->value, true /* encode */),
+          "a raw stable modify stored an unescaped tombstone-namespace value");
     }
 
     clayered->current_cursor = c_stable;
@@ -3829,8 +3830,9 @@ __clayered_modify_try_ingest(
     }
 
     /* The raw modify path never produces a tombstone-namespace value. */
-    WT_ASSERT(
-      session, !__clayered_value_in_tombstone_namespace(&c_ingest->value, true /* encode */));
+    WT_ASSERT_ALWAYS(session,
+      !__clayered_value_in_tombstone_namespace(&c_ingest->value, true /* encode */),
+      "a raw ingest modify stored an unescaped tombstone-namespace value");
     return (0);
 }
 
