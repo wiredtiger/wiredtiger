@@ -350,8 +350,7 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
     if (ret == 0) {
-        if (!F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-            FLD_SET_ATOMIC_16(session->dhandle->flags, WT_DHANDLE_OUTDATED);
+        FLD_SET_ATOMIC_16(session->dhandle->flags, WT_DHANDLE_OUTDATED);
         WT_DHANDLE_RELEASE(session->dhandle);
     } else if (ret != WT_NOTFOUND)
         WT_RET(ret);
