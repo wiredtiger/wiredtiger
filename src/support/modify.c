@@ -451,7 +451,8 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
         append = mod->offset >= len;
 
         for (pos = 0; pos < WT_ELEMENTS(head); ++pos) {
-            /* An append leaves existing bytes in place, a replace those below its offset. */
+            /* An append leaves existing bytes in place. A replace leaves those below its offset in
+             * place. */
             if (pos < (append ? len : mod->offset))
                 continue;
 
