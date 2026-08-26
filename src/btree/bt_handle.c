@@ -1127,9 +1127,10 @@ __btree_preload(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    /* Pre-load the second-level internal pages. */
+    /* Pre-load second-level internal pages that checkpoint cleanup will not need to process. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
-        if (__wt_ref_addr_copy(session, ref, &addr)) {
+        if (__wt_ref_addr_copy(session, ref, &addr) &&
+          addr.ta.newest_page_stop_durable_ts == WT_TS_NONE) {
             /*
              * FIXME-WT-14612: If we want to use prefetch with disaggregated storage we will need to
              * supply block metadata.

@@ -269,7 +269,7 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
      * This is not reflected in the aggregate, but is supposed to be reflected in the parent's
      * aggregate. First check that the aggregate is consistent with being deleted at the given time.
      */
-    if (unpack->ta.newest_stop_durable_ts > unpack->page_del.pg_del_durable_ts)
+    if (unpack->ta.newest_page_stop_durable_ts > unpack->page_del.pg_del_durable_ts)
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32
           " on page at %s has invalid newest durable stop time; should be <= %" PRIu64
@@ -305,7 +305,9 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
      * possible.
      */
     WT_TIME_AGGREGATE_COPY(&ta_with_delete, &unpack->ta);
-    ta_with_delete.newest_stop_durable_ts = unpack->page_del.pg_del_durable_ts;
+    ta_with_delete.newest_durable_ts =
+      WT_MAX(ta_with_delete.newest_durable_ts, unpack->page_del.pg_del_durable_ts);
+    ta_with_delete.newest_page_stop_durable_ts = unpack->page_del.pg_del_durable_ts;
     ta_with_delete.newest_txn = unpack->page_del.txnid;
     ta_with_delete.newest_stop_ts = unpack->page_del.pg_del_start_ts;
     ta_with_delete.newest_stop_txn = unpack->page_del.txnid;

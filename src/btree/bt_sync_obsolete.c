@@ -60,9 +60,12 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (__sync_obsolete_limit_reached(session))
         return (false);
 
-    /* Ensure there is globally visible content. */
-    if (!__wt_txn_has_newest_and_visible_all(
-          session, ta.newest_txn, WT_MAX(ta.newest_start_durable_ts, ta.newest_stop_durable_ts)))
+    /*
+     * Ensure there is globally visible content. newest_durable_ts already captures the maximum
+     * durable timestamp across all modifications including deletes, so it is always >=
+     * newest_page_stop_durable_ts; no need for WT_MAX here.
+     */
+    if (!__wt_txn_has_newest_and_visible_all(session, ta.newest_txn, ta.newest_durable_ts))
         return (false);
 
     return (true);
@@ -147,7 +150,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
     has_stop = WT_TIME_AGGREGATE_HAS_STOP(&newest_ta);
     if (do_visibility_check && has_stop)
         obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+          session, newest_ta.newest_stop_txn, newest_ta.newest_page_stop_durable_ts);
 
     if (obsolete) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -253,8 +256,9 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+            obsolete = __wt_txn_visible_all(
+              session, newest_ta.newest_stop_txn, newest_ta.newest_page_stop_durable_ts);
     }
 
     __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -456,12 +460,14 @@ __checkpoint_cleanup_page_skip(
      */
     if (addr.type == WT_ADDR_LEAF_NO)
         *skipp = true;
-    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+    else if (addr.ta.newest_page_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
-          !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-        if (!*skipp)
+        if (F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) &&
+          F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
+            *skipp = false;
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
+        } else
+            *skipp = true;
     }
 
     /*
@@ -472,6 +478,9 @@ __checkpoint_cleanup_page_skip(
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }
+
+    if (!*skipp)
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read);
 
     if (*skipp) {
         __wt_verbose_debug2(
@@ -563,11 +572,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_start_durable_ts, newest_stop_durable_ts;
+    wt_timestamp_t newest_durable_ts, newest_page_stop_durable_ts;
     size_t addr_size;
     uint64_t newest_txn, write_gen;
 
-    newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
+    newest_durable_ts = newest_page_stop_durable_ts = WT_TS_NONE;
     newest_txn = WT_TXN_NONE;
     addr_size = write_gen = 0;
 
@@ -604,17 +613,33 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     while ((ret = __wt_config_next(&ckptconf, &key, &cval)) == 0) {
+        ret = __wt_config_subgets(session, &cval, "newest_durable_ts", &value);
+        if (ret == 0)
+            newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
+        WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_subgets(session, &cval, "newest_page_stop_durable_ts", &value);
+        if (ret == 0)
+            newest_page_stop_durable_ts =
+              WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)value.val);
+        WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "addr", &value);
         if (ret == 0)
             addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
+        /*
+         * Backward compatibility: legacy metadata uses newest_start_durable_ts and
+         * newest_stop_durable_ts. New metadata also writes these fields, both set to the new
+         * newest_durable_ts as a safe over-estimate. We merge them into newest_durable_ts (not
+         * newest_page_stop_durable_ts) because the old newest_stop_durable_ts tracked the max
+         * durable timestamp of any delete, not full-page deletes only.
+         */
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
         if (ret == 0)
-            newest_start_durable_ts = WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
+            newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
+            newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
         if (ret == 0)
@@ -632,7 +657,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         return (false);
 
     /* The table has a durable stop timestamp. */
-    if (newest_stop_durable_ts != WT_TS_NONE)
+    if (newest_page_stop_durable_ts != WT_TS_NONE)
         return (true);
 
     /*
@@ -653,7 +678,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * FIXME-WT-13321 Rely on the oldest_start_ts rather than the newest_*_ts.
      */
     if (__wt_txn_has_newest_and_visible_all(
-          session, newest_txn, WT_MAX(newest_start_durable_ts, newest_stop_durable_ts)))
+          session, newest_txn, WT_MAX(newest_durable_ts, newest_page_stop_durable_ts)))
         return (true);
 
     return (false);

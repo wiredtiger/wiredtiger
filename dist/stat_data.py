@@ -1380,6 +1380,7 @@ conn_dsrc_stats = [
     ##########################################
     CheckpointCleanupStat('checkpoint_cleanup_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_read', 'pages read into cache by checkpoint cleanup'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache due to obsolete time window'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache (reclaim_space)'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_removed', 'pages removed'),
@@ -1549,8 +1550,8 @@ conn_dsrc_stats = [
     RecStat('rec_pages_with_internal_deltas', 'pages written with at least one internal page delta'),
     RecStat('rec_pages_with_leaf_deltas', 'pages written with at least one leaf page delta'),
     RecStat('rec_skip_write', 'writes skipped in disaggregated storage'),
-    RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp'),
-    RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp'),
+    RecStat('rec_time_aggr_newest_durable_ts', 'pages written including an aggregated newest durable timestamp'),
+    RecStat('rec_time_aggr_newest_page_stop_durable_ts', 'pages written including an aggregated newest page stop durable timestamp'),
     RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp'),
     RecStat('rec_time_aggr_newest_stop_txn', 'pages written including an aggregated newest stop transaction ID'),
     RecStat('rec_time_aggr_newest_txn', 'pages written including an aggregated newest transaction ID'),
