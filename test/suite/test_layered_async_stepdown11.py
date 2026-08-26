@@ -152,8 +152,7 @@ class test_layered_async_stepdown11(
             lambda: self.publish(below, 15),
             '/at or below the step down boundary/')
 
-        self.set_stable_epoch(15)
-        self.complete_step_down(20)
+        self.complete_step_down(20, epoch=15)
         self.assertFalse(self.uri_in_shared_metadata(self.conn, above))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, below))
 
@@ -172,8 +171,7 @@ class test_layered_async_stepdown11(
         # The boundary itself belongs to this era: the step-down checkpoint runs at its epoch.
         self.publish(uri, 15)
 
-        self.set_stable_epoch(15)
-        self.complete_step_down(20)
+        self.complete_step_down(20, epoch=15)
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
 
     # A table created before the boundary is carried by the step-down checkpoint, which is what
@@ -186,8 +184,7 @@ class test_layered_async_stepdown11(
         self.publish(uri, 12)
 
         self.set_step_down_ts(20, 15)
-        self.set_stable_epoch(15)
-        self.complete_step_down(20)
+        self.complete_step_down(20, epoch=15)
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
 
     # A create issued inside the window cannot be claimed by this era: its publish is rejected
@@ -208,8 +205,7 @@ class test_layered_async_stepdown11(
             lambda: self.publish(uri, 12),
             '/at or below the step down boundary/')
 
-        self.set_stable_epoch(15)
-        self.complete_step_down(20)
+        self.complete_step_down(20, epoch=15)
         self.step_up()
         self.publish(uri, 16)
         self.set_stable_epoch(16)
@@ -232,8 +228,41 @@ class test_layered_async_stepdown11(
             '/at or below the step down boundary/')
         self.publish(uri, 16)
 
-        self.set_stable_epoch(15)
-        self.complete_step_down(20)
+        self.complete_step_down(20, epoch=15)
         # The create was covered by the step-down checkpoint, so the table survives this era and
         # the drop lands in the next one.
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
+
+    # A drop issued before the boundary belongs to this era: it can only be published at an epoch
+    # the step-down checkpoint reaches, taking the table out of it.
+    def test_pre_boundary_drop_publishes_below_boundary(self):
+        self.set_stable_epoch(10)
+        self.set_global_ts(1, 1)
+        uri = self.uri('pre_dropped')
+        self.session.create(uri, self.table_config)
+        self.publish(uri, 11)
+        self.dropUntilSuccess(self.session, uri)
+
+        self.set_step_down_ts(20, 15)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.publish(uri, 16),
+            '/above the step down boundary/')
+        self.publish(uri, 12)
+
+        self.complete_step_down(20, epoch=15)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
+
+    # A create and drop pair left unpublished before the boundary is published together below it,
+    # so the whole history resolves inside this era and the table never surfaces.
+    def test_pre_boundary_create_drop_pair_publishes_below_boundary(self):
+        self.set_stable_epoch(10)
+        self.set_global_ts(1, 1)
+        uri = self.uri('pair')
+        self.session.create(uri, self.table_config)
+        self.dropUntilSuccess(self.session, uri)
+
+        self.set_step_down_ts(20, 15)
+        self.publish(uri, 12)
+
+        self.complete_step_down(20, epoch=15)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))

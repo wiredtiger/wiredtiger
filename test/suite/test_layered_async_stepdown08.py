@@ -61,7 +61,7 @@ class test_layered_async_stepdown08(
         return f'layered:{self.test_name}_{name}'
 
     # The step-down timestamp every test splits its work on.
-    cutoff = 5
+    cutoff_ts = 5
 
     def setup_world(self):
         """Configure the stable schema epoch only in the epoch world."""
@@ -98,14 +98,14 @@ class test_layered_async_stepdown08(
     def enter_window(self):
         """Set up the world, then open the step-down window by setting the timestamp."""
         self.setup_world()
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
 
     def step_down_checkpoint(self):
         """
         Take the final leader checkpoint at the step-down timestamp. Everything committed at or below
         the cutoff becomes durable here; the rows written above it belong to the follower era.
         """
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.cutoff))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.cutoff_ts))
         self.session.checkpoint()
 
     def checkpoint_covering_epoch(self, epoch, stable_ts):
@@ -150,7 +150,7 @@ class test_layered_async_stepdown08(
         before, before_rows = self.create_with_rows('before', 2)
         self.publish_and_make_stable(before, 20)
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
         after, after_rows = self.create_with_rows('after', 6)
         self.publish_if_epochs(after, 40)
 
@@ -163,7 +163,7 @@ class test_layered_async_stepdown08(
             self.assertEqual(self.read_kvs_at(after, 7), after_rows)
 
         assert_both_sides()
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)
         assert_both_sides()
 
     def create_tables_with_mixed_states(self):
@@ -191,7 +191,7 @@ class test_layered_async_stepdown08(
             self.session.create(unpublished, self.table_config)
             tables['unpublished'] = (unpublished, {})
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
 
         # Created after the step-down timestamp. Its publish epoch has to exceed the stable schema
         # epoch the covered table advanced to, so the epoch world defers this entry by epoch and the
@@ -293,13 +293,13 @@ class test_layered_async_stepdown08(
         # Published below the cutoff, so the step-down checkpoint covers it and its rows.
         self.publish_and_make_stable(before, 20)
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
         after, after_rows = self.create_with_rows('after', 6)
         self.publish_if_epochs(after, 40)
         self.assertTrue(self.stable_constituent_exists(self.conn, before))
         self.assert_table_state(self.conn, after, False, False, False)
 
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)
         self.assertTrue(self.stable_constituent_exists(self.conn, before))
         self.assert_table_state(self.conn, after, False, False, False)
 
@@ -327,10 +327,10 @@ class test_layered_async_stepdown08(
         follower_keys = sorted(self.local_metadata_keys(conn_follow, uri))
         self.close_follower(conn_follow, session_follow)
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
         self.session.create(uri, self.table_config)
         self.assertEqual(sorted(self.local_metadata_keys(self.conn, uri)), follower_keys)
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)
 
     def test_multiple_window_creates_requeue(self):
         """
@@ -370,7 +370,7 @@ class test_layered_async_stepdown08(
         self.dropUntilSuccess(self.session, uri)
         self.publish_if_epochs(uri, 20)
 
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)
         self.step_up()
         self.checkpoint_covering_epoch(20, 7)
 
@@ -386,7 +386,7 @@ class test_layered_async_stepdown08(
         reader = self.conn.open_session('')
         reader.begin_transaction()
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
         uri, rows = self.create_with_rows('window_reader', 6)
         self.assertFalse(self.stable_constituent_exists(self.conn, uri))
 
@@ -401,7 +401,7 @@ class test_layered_async_stepdown08(
 
         # A reader that began after the timestamp sees the rows through the ingest constituent.
         self.assertEqual(self.read_kvs_at(uri, 7), rows)
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)
 
     def test_create_racing_step_down_timestamp(self):
         """
@@ -427,7 +427,7 @@ class test_layered_async_stepdown08(
         thread = threading.Thread(target=create_tables)
         thread.start()
         try:
-            self.set_step_down_ts(self.cutoff)
+            self.set_step_down_ts(self.cutoff_ts)
         except Exception as e:
             errors.append(e)
         thread.join()
@@ -436,4 +436,4 @@ class test_layered_async_stepdown08(
         for uri in uris:
             self.assertTrue(self.uri_in_local_metadata(self.conn, uri))
         self.assert_no_unexpected_tables(self.conn, uris)
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)

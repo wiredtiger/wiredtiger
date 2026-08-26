@@ -32,7 +32,7 @@ frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
  * reader_apply_reserved_publishes --
  *     Queue and drain the publishes that follow the step-down marker in the stream. Their epochs
  *     are reserved at or below the boundary, so they run with the boundary declared but before the
- *     stable frontier reaches it, putting their tables into the step-down checkpoint.
+ *     stable frontier reaches it, resolving the term's remaining schema history inside this era.
  */
 static void
 reader_apply_reserved_publishes(WORKLOAD_STATE *state, uint32_t count)
@@ -46,11 +46,11 @@ reader_apply_reserved_publishes(WORKLOAD_STATE *state, uint32_t count)
         while (!pipe_wait_readable(state->cfg->self_pipe_read_fd))
             ;
         testutil_assert(pipe_event_read(state->cfg->self_pipe_read_fd, &ev));
-        testutil_assert(ev.type == EVENT_PUBLISH_CREATE);
+        testutil_assert(ev.type == EVENT_PUBLISH_CREATE || ev.type == EVENT_PUBLISH_DROP);
         evq_enqueue(state, &ev);
     }
     evq_drain_barrier(state);
-    println("Node %" PRIu32 ": %" PRIu32 " creates published inside the step-down boundary",
+    println("Node %" PRIu32 ": %" PRIu32 " operations published inside the step-down boundary",
       state->cfg->node_id, count);
 }
 

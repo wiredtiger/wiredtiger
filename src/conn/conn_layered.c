@@ -348,6 +348,12 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->metadata_op = metadata_op;
     entry->schema_epoch = schema_epoch;
+    /*
+     * Record which side of the step-down boundary the operation was issued on. The schema lock held
+     * here serializes the boundary, making the relaxed load safe.
+     */
+    entry->step_down_created =
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE;
     WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
 
@@ -799,9 +805,10 @@ err:
 
 /*
  * __disagg_publish_check_step_down --
- *     Check a publish epoch against the step-down boundary: a table created before the boundary
- *     must be published at or below it, one created inside the window only above it. The caller
- *     holds the schema and queue locks.
+ *     Check a publish epoch against the step-down boundary: a table whose latest operation was
+ *     issued before the boundary must be published at or below it, so the step-down checkpoint
+ *     carries it, while one whose latest operation was issued inside the window belongs to the next
+ *     era and can only be published above it. The caller holds the schema and queue locks.
  */
 static int
 __disagg_publish_check_step_down(
@@ -818,7 +825,7 @@ __disagg_publish_check_step_down(
         return (0);
 
     latest = __wti_disagg_table_latest_create_remove(session, table_name);
-    step_down_created = latest != NULL && latest->stable_value == NULL;
+    step_down_created = latest != NULL && latest->step_down_created;
 
     if (step_down_created && schema_epoch <= step_down_epoch)
         WT_RET_MSG(session, EINVAL,
@@ -829,8 +836,8 @@ __disagg_publish_check_step_down(
         WT_RET_MSG(session, EINVAL,
           "Cannot publish for table \"%s\" at schema epoch %" PRIu64
           " above the step down boundary %" PRIu64
-          ": the table was created before the boundary, so the step down checkpoint has to carry "
-          "it",
+          ": the table's latest schema operation predates the boundary, so the step down "
+          "checkpoint has to carry it",
           table_name, schema_epoch, step_down_epoch);
 
     return (0);
