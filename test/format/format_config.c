@@ -1509,7 +1509,7 @@ config_disagg_storage(void)
              */
             if (GV(OPS_PREPARE) && config_explicit(NULL, "ops.prepare"))
                 WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
-            config_off_all("ops.prepare");
+            config_off(NULL, "ops.prepare");
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");
