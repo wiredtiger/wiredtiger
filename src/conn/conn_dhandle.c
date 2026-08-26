@@ -354,7 +354,7 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
           if (!F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
             F_SET(session->dhandle, WT_DHANDLE_OUTDATED));
         WT_DHANDLE_RELEASE(session->dhandle);
-        WT_RET_BUSY_OK(ret);
+        WT_RET(ret);
     } else if (ret != WT_NOTFOUND)
         WT_RET(ret);
 
