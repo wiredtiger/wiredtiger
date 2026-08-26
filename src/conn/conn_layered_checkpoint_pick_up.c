@@ -787,7 +787,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * it interleaves cache-resident local metadata with pages that must be fetched, so neither of
      * the prefetch heuristics recognizes it.
      */
-    __wt_prefetch_scan_begin(session, &prefetch_scan);
+    __wti_prefetch_scan_begin(session, &prefetch_scan);
 
     __wt_timer_start(session, &apply_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -1187,7 +1187,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
 done:
 err:
-    __wt_prefetch_scan_end(session, &prefetch_scan);
+    __wti_prefetch_scan_end(session, &prefetch_scan);
 
     __wt_free(session, stable_btree_ids.ids);
     __wt_free(session, first_uri);

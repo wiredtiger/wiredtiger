@@ -47,12 +47,12 @@ __prefetch_server_running(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_prefetch_scan_begin --
+ * __wti_prefetch_scan_begin --
  *     Declare that the session is about to traverse a btree end to end, so pre-fetch does not have
  *     to infer it from the session's recent reads.
  */
 void
-__wt_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan)
+__wti_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan)
 {
     scan->prefetch_set = scan->scan_hint_set = false;
 
@@ -66,11 +66,11 @@ __wt_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan)
 }
 
 /*
- * __wt_prefetch_scan_end --
+ * __wti_prefetch_scan_end --
  *     End a declared scan.
  */
 void
-__wt_prefetch_scan_end(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan)
+__wti_prefetch_scan_end(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan)
 {
     if (scan->scan_hint_set)
         session->pf.scan_hint = false;

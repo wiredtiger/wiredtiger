@@ -1895,8 +1895,6 @@ extern void __wt_optrack_record_funcid(
 extern void __wt_os_stdio(WT_SESSION_IMPL *session);
 extern void __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
-extern void __wt_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
-extern void __wt_prefetch_scan_end(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
 extern void __wt_random_init(WT_SESSION_IMPL *session, WT_RAND_STATE *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_default(WT_RAND_STATE *rnd_state)
@@ -2032,6 +2030,8 @@ extern void __wti_layered_table_truncate_rollback_apply(
 extern void __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 extern void __wti_mark_committed_truncate_table_apply(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TXN_OP *op);
+extern void __wti_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
+extern void __wti_prefetch_scan_end(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
 extern void __wti_read_row_time_window(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw);
 extern void __wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len);
