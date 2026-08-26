@@ -106,8 +106,11 @@ worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
 static void
 schema_op_stall_report(WORKLOAD_STATE *state)
 {
-    println("Node %" PRIu32 ": stable %" PRIu64 ", frontier %" PRIu64, state->cfg->node_id,
-      query_ts(state->conn, TS_STABLE), __wt_atomic_load_uint64(&state->frontier_ts));
+    println("Node %" PRIu32 ": stable %" PRIu64 ", frontier %" PRIu64 ", last checkpoint %" PRIu64
+            ", step-down %" PRIu64,
+      state->cfg->node_id, query_ts(state->conn, TS_STABLE),
+      __wt_atomic_load_uint64(&state->frontier_ts), query_ts(state->conn, TS_LAST_CHECKPOINT),
+      __wt_atomic_load_uint64(&state->stepdown_ts));
     for (uint32_t t = 0; t < state->worker_count; t++)
         println("  worker %" PRIu32 ": %" PRIu64 " events queued", t, evq_depth(state, t));
 }
