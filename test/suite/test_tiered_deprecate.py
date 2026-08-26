@@ -80,12 +80,6 @@ class test_tiered_deprecate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
         self.assertEqual(last_msg, msg)
 
 class test_tiered_deprecate_api(wttest.WiredTigerTestCase):
-    def _assert_enotsup(self, expr, msg):
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, expr, '/' + re.escape(msg) + '/')
-        err, _sub, last_msg = self.session.get_last_error()
-        self.assertEqual(err, errno.ENOTSUP)
-        self.assertEqual(last_msg, msg)
-
     def test_flush_tier(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint('flush_tier=(enabled)'),
