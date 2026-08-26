@@ -503,7 +503,7 @@ open:
 
     /*
      * Reject the global options and the subcommands that are not supported in disaggregated storage
-     * mode. 
+     * mode.
      */
     if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.page_log_meta != NULL) {
         if (disagg_bad_flag != 0) {
