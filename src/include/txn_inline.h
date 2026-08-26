@@ -2072,6 +2072,7 @@ static WT_INLINE int
 __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     WT_TXN *txn;
     uint64_t prepared_id;
 
@@ -2086,13 +2087,13 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    WT_RET(__wt_txn_config(session, conf));
+    WT_ERR(__wt_txn_config(session, conf));
 
     if (conf != NULL) {
-        WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
+        WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
-            WT_RET(__wt_txn_claim_prepared_txn(session, prepared_id));
+            WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
+            WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
             return (0);
         }
     }
@@ -2104,14 +2105,14 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (txn->isolation == WT_ISO_SNAPSHOT &&
       !(F_ISSET(txn, WT_TXN_AUTOCOMMIT) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
         if (session->ncursors > 0)
-            WT_RET(__wt_session_copy_values(session));
+            WT_ERR(__wt_session_copy_values(session));
 
         /*
          * Stall here if the cache is completely full. Eviction check can return rollback, but the
          * WT_SESSION.begin_transaction API can't, continue on.
          */
-        WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, true, false, NULL), WT_ROLLBACK);
+        WT_ERR_ERROR_OK(__wt_evict_app_assist_worker_check(session, false, true, true, false, NULL),
+          WT_ROLLBACK, false);
 
         __wt_txn_get_snapshot(session);
     }
@@ -2146,6 +2147,18 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     __txn_clear_bytes_dirty(session);
 
     return (0);
+
+err:
+    /*
+     * The transaction never started, so nothing will release it: discard the configuration applied
+     * so far so it isn't inherited by the next transaction on this session.
+     */
+    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    txn->flags = 0;
+    txn->time_point.flags = 0;
+    txn->operation_timeout_us = 0;
+    return (ret);
 }
 
 /*

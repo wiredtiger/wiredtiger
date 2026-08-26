@@ -907,17 +907,6 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
 err:
-    if (ret != 0) {
-        /*
-         * In the event that we error during configuration we should clear the flags on the
-         * transaction so they are not set in a subsequent call to transaction begin.
-         */
-        if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
-            F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
-        txn->flags = 0;
-        txn->time_point.flags = 0;
-        txn->operation_timeout_us = 0;
-    }
     return (ret);
 }
 

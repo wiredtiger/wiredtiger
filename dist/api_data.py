@@ -2036,9 +2036,10 @@ methods = {
 
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_cache_size', 'false', r'''
-        when set, operations performed by this session ignore the cache size and are not blocked
-        when the cache is full. Note that use of this option for operations that create cache
-        pressure can starve ordinary sessions that obey the cache size.''',
+        when set, operations performed by this transaction ignore the cache size and are not
+        blocked when the cache is full. The setting applies until the transaction is resolved.
+        Note that use of this option for operations that create cache pressure can starve
+        ordinary transactions that obey the cache size.''',
         type='boolean'),
     Config('ignore_prepare', 'false', r'''
         whether to ignore updates by other prepared transactions when doing of read operations

@@ -83,11 +83,17 @@ class test_txn34(wttest.WiredTigerTestCase):
                 'timed out waiting for the cache to fill: %d of %d bytes in use' % (in_use, limit))
             time.sleep(0.1)
 
-    def rolled_back_while_reading(self, reader, read_cursor, txn_config, commit=False):
+    # Traversals to attempt before concluding that the reader is never rolled back. The table holds
+    # far fewer records than this, so a reader that obeys the cache size has many opportunities to
+    # be pulled into eviction.
+    read_attempts = 500
+
+    def rolled_back_while_reading(self, reader, read_cursor, txn_config, resolve='rollback'):
+        """Read until rolled back, then resolve the transaction the requested way."""
         reader.begin_transaction(txn_config)
         rolled_back = False
         try:
-            for i in range(80):
+            for _ in range(self.read_attempts):
                 try:
                     read_cursor.next()
                 except wiredtiger.WiredTigerError as e:
@@ -97,10 +103,12 @@ class test_txn34(wttest.WiredTigerTestCase):
                     raise e
             return rolled_back
         finally:
-            if commit and not rolled_back:
-                reader.commit_transaction()
-            else:
+            # A rolled-back transaction can only be rolled back, so the caller's choice of how to
+            # resolve it only applies when the read succeeded.
+            if rolled_back or resolve == 'rollback':
                 reader.rollback_transaction()
+            else:
+                reader.commit_transaction()
             read_cursor.reset()
 
     @wttest.skip_for_hook("disagg", "disagg requires an additional condition to evict pages")
@@ -120,7 +128,7 @@ class test_txn34(wttest.WiredTigerTestCase):
         # was rolled back or committed.
         self.assertTrue(self.rolled_back_while_reading(reader, read_cursor, None))
         self.assertFalse(self.rolled_back_while_reading(
-            reader, read_cursor, 'ignore_cache_size=true', commit=True))
+            reader, read_cursor, 'ignore_cache_size=true', resolve='commit'))
         self.assertTrue(self.rolled_back_while_reading(reader, read_cursor, None))
 
         self.ignoreStdoutPatternIfExists('Cache capacity has overflown')

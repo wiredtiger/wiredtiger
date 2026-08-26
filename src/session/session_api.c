@@ -516,6 +516,11 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
             F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
         else
             F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        /*
+         * The session now owns this flag, so a running transaction that had claimed it must no
+         * longer undo it on release.
+         */
+        F_CLR(session->txn, WT_TXN_IGNORE_CACHE_SIZE);
     }
     WT_RET_NOTFOUND_OK(ret);
 
