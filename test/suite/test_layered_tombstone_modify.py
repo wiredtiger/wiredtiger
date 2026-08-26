@@ -320,3 +320,19 @@ class test_layered_tombstone_modify(wttest.WiredTigerTestCase):
                     cursor.modify([wiredtiger.Modify(b"x", 0, 1)]),
                     wiredtiger.WT_NOTFOUND,
                 )
+
+    def test_modify_namespace_transitions_survive_stepup_drain(self):
+        """Step up after follower modifies; the drain moves every ingest version to stable."""
+        for key, case in enumerate(self.modify_cases, 1):
+            self.write_value(self.follow, key, case.base_value, commit_ts=1)
+            self.apply_modify(self.follow, key, case.modifications, commit_ts=2)
+
+        self.conn.close("debug=(skip_checkpoint=true)")
+        self.follow_conn.reconfigure('disaggregated=(role="leader")')
+        self.follow_conn.set_timestamp(
+            "stable_timestamp=" + self.timestamp_str(2)
+        )
+        self.follow.checkpoint()
+
+        for key, case in enumerate(self.modify_cases, 1):
+            self.check_value(self.follow, key, case.expected_value)
