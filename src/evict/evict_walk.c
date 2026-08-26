@@ -428,8 +428,8 @@ retry:
 
         /*
          * Skip stable checkpoint handles on followers unless we are looking for clean pages.
-         * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated
-         * step-down trees with dedicated handling instead of matching the stable checkpoint URI.
+         * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
+         * with dedicated handling instead of matching the stable checkpoint URI.
          */
         if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
