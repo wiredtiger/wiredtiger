@@ -109,16 +109,6 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
                     names.append(m.group(1))
         return names
 
-    def _run_wt_follower(self, follower_home, follower_config, wt_args, failure=False):
-        self.runWt(['-h', follower_home, '-C', follower_config] + list(wt_args),
-                   outfilename='wt.out', errfilename='wt.err', closeconn=False,
-                   failure=failure)
-        with open('wt.out') as f:
-            out = f.read()
-        with open('wt.err') as f:
-            err = f.read()
-        return out, err
-
     def test_reject_subcommands(self):
         follower_home, follower_config = self._follower_setup()
 
@@ -130,12 +120,13 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
             if cmd in self.NO_STORAGE_ACCESS:
                 continue
             rejected = cmd not in self.ALLOWED
-            _, stderr = self._run_wt_follower(follower_home, follower_config, [cmd, '-?'],
-                                              failure=rejected)
+            self.runWt(['-h', follower_home, '-C', follower_config, cmd, '-?'],
+                       outfilename='wt.out', errfilename='wt.err', closeconn=False,
+                       failure=rejected)
             if rejected:
-                self.assertIn(self.REJECT_MSG, stderr)
+                self.check_file_contains('wt.err', self.REJECT_MSG)
             else:
-                self.assertNotIn(self.REJECT_MSG, stderr)
+                self.check_file_not_contains('wt.err', self.REJECT_MSG)
 
     def test_reject_flags(self):
         follower_home, follower_config = self._follower_setup()
@@ -151,13 +142,12 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
             if flag in self.FLAG_ARGS:
                 argv.append(self.FLAG_ARGS[flag])
             rejected = flag not in self.ALLOWED_FLAGS
-            # stat is read-oriented and allowed in disaggregated storage mode, so an allowed
-            # global option pairs with it cleanly; a rejected one is caught before stat runs.
-            _, stderr = self._run_wt_follower(follower_home, follower_config, argv + ['stat'],
-                                              failure=rejected)
+            self.runWt(['-h', follower_home, '-C', follower_config] + argv + ['stat'],
+                       outfilename='wt.out', errfilename='wt.err', closeconn=False,
+                       failure=rejected)
+
             if rejected:
-                expected = self.OPEN_FAILURE_MSGS.get(flag, f'{flag} {self.REJECT_MSG}')
-                self.assertIn(expected, stderr,
-                    f"expected reject message for {flag}, got stderr:\n{stderr}")
+                expected = expected = self.OPEN_FAILURE_MSGS.get(flag, f'{flag} {self.REJECT_MSG}')
+                self.check_file_contains('wt.err', expected)
             else:
-                self.assertNotIn(self.REJECT_MSG, stderr)
+                self.check_file_not_contains('wt.err', self.REJECT_MSG)
