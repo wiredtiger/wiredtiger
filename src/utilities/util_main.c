@@ -503,7 +503,7 @@ open:
 
     /*
      * Reject the global options and the subcommands that are not supported in disaggregated storage
-     * mode. __wt_conn_is_disagg requires an open session, so just check the page_log_meta directly.
+     * mode. 
      */
     if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.page_log_meta != NULL) {
         if (disagg_bad_flag != 0) {
