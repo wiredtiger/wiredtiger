@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wttest
+import wttest
 from helper_disagg import disagg_test_class
 from wtscenario import make_scenarios
 
