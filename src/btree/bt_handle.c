@@ -1350,27 +1350,3 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 
     return (0);
 }
-
-/*
- * __wt_btree_switch_object --
- *     Switch to a writeable object for a tiered btree.
- */
-int
-__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-    /* If the btree is readonly, there is nothing to do. */
-    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
-        return (0);
-
-    /*
-     * When initially opening a tiered Btree, a tier switch is done internally without the btree
-     * being fully opened. That's okay, the btree will be told later about the current object
-     * number.
-     */
-    bm = btree->bm;
-    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid));
-}
