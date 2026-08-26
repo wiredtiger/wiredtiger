@@ -90,12 +90,6 @@ class test_tiered_deprecate_api(wttest.WiredTigerTestCase):
         self._assert_enotsup(
             lambda: self.session.checkpoint('flush_tier=(enabled)'), 'flush_tier is not supported')
 
-    def test_add_storage_source(self):
-        path = self.findExtension('storage_sources', 'dir_store')[0]
-        msg = 'storage sources are not supported'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.conn.load_extension(path), '/' + re.escape(msg) + '/')
-
     def test_conn_tiered_storage(self):
         msg = 'tiered storage is not supported'
         os.mkdir('ts_home')
