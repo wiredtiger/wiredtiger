@@ -434,7 +434,15 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
     WT_ASSERT(session, !sformat || base->size > 0);
     len = base->size - (sformat ? 1 : 0);
 
-    /* Walk the entries once, tracking the content length and the bytes at the marker positions. */
+    /*
+     * Track two things across one pass over the entries, never touching the value bytes: the
+     * content length, replaying each entry's length arithmetic, and the bytes that end up at the
+     * marker positions. A marker position keeps its byte when an entry cannot touch it (an append
+     * writes only at or past the old end, a replace only at or past its offset), takes a literal
+     * when the entry's data covers it, takes the pad byte in the gap an append leaves below its
+     * offset, and otherwise becomes unknown. An unknown byte counts as a possible marker byte, so
+     * the answer only ever errs toward true.
+     */
     head[0] = len > 0 ? WT_MODIFY_GET_BYTE(base, 0) : WT_MODIFY_BYTE_UNKNOWN;
     head[1] = len > 1 ? WT_MODIFY_GET_BYTE(base, 1) : WT_MODIFY_BYTE_UNKNOWN;
 
