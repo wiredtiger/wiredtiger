@@ -398,6 +398,21 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_checkpoint_parallel_idle --
+ *     Check whether any reconciliation the checkpoint queued is still outstanding.
+ */
+bool
+__wt_checkpoint_parallel_idle(WT_SESSION_IMPL *session)
+{
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return (true);
+
+    /* A drain resets the count, so a non-zero value is work pushed and not yet waited for. */
+    return (
+      __wt_atomic_load_uint64_acquire(&S2C(session)->ckpt_reconcile_threads->work_pushed) == 0);
+}
+
+/*
  * __wt_checkpoint_parallel_finish --
  *     Wait for the checkpoint page reconciliation workers to finish and release the acquired
  *     resources.

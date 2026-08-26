@@ -481,22 +481,18 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             is_internal = F_ISSET(walk, WT_REF_FLAG_INTERNAL);
             page = walk->page;
 
+            /*
+             * The ordering rests on this pass queueing leaves only: an internal page reaching the
+             * queue would be written without waiting for the pages beneath it.
+             */
+            WT_ASSERT(session, !parallel || !is_internal);
+
             if (is_internal)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
             else
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
             if (WT_SESSION_IS_CHECKPOINT(session))
                 ++conn->ckpt.progress.pages_visited;
-
-            /*
-             * Reconciling a leaf writes a new address into its parent, so an internal page cannot
-             * be written until the leaves beneath it are. Draining the queue at each internal page
-             * caps the outstanding work at one page's worth of children, too little to keep the
-             * workers busy. Hold the internal pages instead and write them once the walk is done;
-             * the walk returns them beneath their children, so parents still follow their
-             * descendants. They cannot split while the tree is syncing, so the references stay
-             * valid, and a duplicated hazard pointer keeps them in cache until then.
-             */
 
             /*
              * Each queued page holds a hazard pointer, so the queue cannot grow to the tree's whole
@@ -645,6 +641,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     break;
 
                 page = walk->page;
+
+                /*
+                 * A leaf here would be written after the internal page above it, and any page still
+                 * queued would be written after the internal page that references it.
+                 */
+                WT_ASSERT(session, F_ISSET(walk, WT_REF_FLAG_INTERNAL));
+                WT_ASSERT(session, __wt_checkpoint_parallel_idle(session));
+
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
 
                 /*
