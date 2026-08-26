@@ -81,7 +81,7 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
             target_is_directory=True)
 
         config = (f'create,'
-                  f'extensions=[{self._page_log_extension_path()}=(config="(verbose=0)")],'
+                  f'extensions=[{self._page_log_extension_path()}],'
                   f'disaggregated=(role="follower",page_log={self.page_log()})')
         return follower_home, config
 
