@@ -40,12 +40,6 @@ class test_dump06(wttest.WiredTigerTestCase, suite_subprocess):
     hex_file = 'dump_hex.out'
     json_file = 'dump_json.out'
 
-    def dump_value_lines(self, filename):
-        lines = open(filename).readlines()
-        start = lines.index('Data\n') + 1
-        pairs = lines[start:]
-        return [pairs[i + 1].rstrip('\n') for i in range(0, len(pairs), 2)]
-
     def test_dump_pretty_empty_value(self):
         self.session.create(self.uri, self.table_format)
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -60,12 +54,8 @@ class test_dump06(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['dump', '-x', self.uri], outfilename=self.hex_file)
         self.runWt(['dump', '-j', self.uri], outfilename=self.json_file)
 
-        pretty = self.dump_value_lines(self.pretty_file)
-        hexvals = self.dump_value_lines(self.hex_file)
-
-        self.assertEqual(pretty, ['', 'A', '', 'B', 'C'])
-        self.assertEqual(hexvals[0], '')
-        self.assertEqual(hexvals[2], '')
+        self.check_file_contains(self.pretty_file, 'Data\n1\n\n2\nA\n3\n\n5\nB\n6\nC\n')
+        self.check_file_contains(self.hex_file, 'Data\n81\n\n82\n41\n83\n\n85\n42\n86\n43\n')
         self.check_file_contains(self.json_file, '"key0" : 1,\n"value0" : ""\n')
         self.check_file_contains(self.json_file, '"key0" : 3,\n"value0" : ""\n')
 
