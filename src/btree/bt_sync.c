@@ -509,12 +509,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /*
-             * Check if the page is dirty. Add a barrier between the check and taking a reference to
-             * any page modify structure. (It needs to be ordered else a page could be dirtied after
-             * taking the local reference.)
+             * Check if the page is dirty. The check is an acquire read, which orders it against
+             * taking a reference to the page modify structure below.
              */
             dirty = __wt_page_is_modified(page);
-            WT_ACQUIRE_BARRIER();
 
             /* Skip clean pages, but always update the maximum transaction ID and timestamp. */
             if (!dirty) {
