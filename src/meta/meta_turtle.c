@@ -40,7 +40,8 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
       "key_format=S,value_format=S,id=%d,version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
       WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
     cfg[1] = buf->data;
-    ret = __wt_config_merge(session, cfg, NULL, (const char **)metaconfp);
+    /* shared is a runtime override of connection config and is not persisted. */
+    ret = __wt_config_merge(session, cfg, "tiered_storage=(shared=),", (const char **)metaconfp);
 
 err:
     __wt_scr_free(session, &buf);

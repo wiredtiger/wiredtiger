@@ -128,3 +128,9 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
         # Ensure the metadata for the table we created is found
         value = cursor['table:' + self.table_name1]
         self.assertTrue(value.find('key_format') != -1)
+
+        md = self.session.open_cursor('metadata:')
+        file_value = md['file:' + self.table_name1 + '.wt']
+        self.assertIn('tiered_storage=', file_value)
+        self.assertNotIn('shared=', file_value)
+        md.close()

@@ -343,7 +343,8 @@ __create_file(
 
         filecfg[1] = fileconf;
         filecfg[2] = NULL;
-        WT_ERR(__wt_config_merge(session, filecfg, NULL, &filemerged));
+        /* shared is a runtime override of connection config and is not persisted. */
+        WT_ERR(__wt_config_merge(session, filecfg, "tiered_storage=(shared=),", &filemerged));
         WT_ERR(__wt_metadata_insert(session, uri, filemerged));
 
         /*
