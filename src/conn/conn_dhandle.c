@@ -340,21 +340,16 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
 
     /*
      * If there is a matching data handle, mark it as outdated. The data handle and cursor caches
-     * will know to ignore it, and it will eventually age out when references are released. Races
-     * are for readonly btrees are benign, cursors in the midst of an open may get an older btree,
-     * and they will continue to work. For layered tables, Having references to an older dhandle for
-     * a stable tree just means some data in the ingest table will be pinned for a longer time.
+     * will know to ignore it, and it will eventually age out when references are released. We need
+     * the dhandle lock, to prevent races with dhandle close and the sweep expire path. Cursors in
+     * the midst of an open may get an older btree, and they will continue to work. For layered
+     * tables, Having references to an older dhandle for a stable tree just means some data in the
+     * ingest table will be pinned for a longer time.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
     if (ret == 0) {
-        /*
-         * Update the flags word under the dhandle write lock, the same lock handle close holds.
-         * Don't wait for the lock: a cursor can hold the read lock indefinitely, and contention
-         * means a close is in progress, making the mark moot. A dead handle needs no mark for the
-         * same reason.
-         */
         WT_WITH_DHANDLE_WRITE_LOCK_NOWAIT(session, ret,
           if (!F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
             F_SET(session->dhandle, WT_DHANDLE_OUTDATED));
