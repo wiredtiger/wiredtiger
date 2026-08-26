@@ -33,8 +33,7 @@ __checkpoint_parallel_free(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECON
  *     Push a work unit to the queue.
  */
 int
-__wt_checkpoint_parallel_push_work(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
+__wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
 {
     WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -50,7 +49,6 @@ __wt_checkpoint_parallel_push_work(
     entry->snapshot = &ckpt_threads->checkpoint_snapshot;
     entry->ref = ref;
     entry->reconcile_flags = reconcile_flags;
-    entry->release_flags = release_flags;
 
     __wt_spin_lock(session, &ckpt_threads->work_lock);
     TAILQ_INSERT_TAIL(&ckpt_threads->work_qh, entry, q);
@@ -448,10 +446,7 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_ti
         }
         done_popped++;
 
-        /*
-         * The entry is not touched beyond its own fields: nothing pins the page, so the reference
-         * may already have been replaced by an in-memory split once the worker finished with it.
-         */
+        /* The queued page was never pinned, so there is no reference to release here. */
         WT_TRET(entry->result);
         reconcile_time += entry->reconcile_time;
         __checkpoint_parallel_free(session, entry);

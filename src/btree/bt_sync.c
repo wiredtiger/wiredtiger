@@ -565,13 +565,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
               !is_internal) {
                 /*
-                 * Hand the position to a worker without pinning it. The page is dirty and stays
-                 * that way until the worker writes it, which stops eviction discarding it and,
-                 * because the page does not yet carry this checkpoint's generation, stops an
-                 * in-memory split replacing the reference.
+                 * Hand the position to a worker without pinning it. Nothing can free the reference
+                 * for as long as this tree is syncing: eviction leaves a dirty page alone, and an
+                 * in-memory split, which would replace the reference, needs one.
                  */
                 WT_ERR(__wt_checkpoint_parallel_push_work(session, walk,
-                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), flags));
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub)));
             } else {
                 reconcile_start = __wt_clock(session);
                 WT_ERR(__wt_reconcile(session, walk, NULL,
