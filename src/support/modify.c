@@ -405,16 +405,16 @@ err:
  * __wt_modify_result_may_be_in_tombstone_namespace --
  *     Predict whether applying a modify vector to the base value yields a result in the layered
  *     tombstone namespace, without materializing the result. The answer errs toward true when an
- *     entry shifts a byte of unknown provenance into the marker positions, so it can report a
- *     result that is not in the namespace, but never misses one that is.
+ *     entry's effect on the marker positions is not tracked exactly, so it can report a result that
+ *     is not in the namespace, but never misses one that is.
  */
 bool
 __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *value_format,
   const WT_ITEM *base, const WT_MODIFY *entries, int nentries)
 {
     const WT_MODIFY *mod;
-    size_t consumed, len, newlen, pos, src;
-    int32_t head[2], newhead[2], pad_byte;
+    size_t len, pos;
+    int32_t head[2], pad_byte;
     int i;
     bool append, in_namespace, sformat;
 
@@ -434,49 +434,26 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
     for (i = 0; i < nentries; ++i) {
         mod = &entries[i];
         append = mod->offset >= len;
-        /* The replace size truncates at the old end. */
-        consumed = append ? 0 : WT_MIN(mod->size, len - mod->offset);
-        newlen = append ? mod->offset + mod->data.size : len + mod->data.size - consumed;
 
-        /*
-         * An entry at or past the marker positions of a value that already covers them can change
-         * only the length: an append pads from the old end, which is past the markers too.
-         */
-        if (mod->offset >= WT_ELEMENTS(head) && len >= WT_ELEMENTS(head)) {
-            len = newlen;
-            continue;
+        for (pos = 0; pos < WT_ELEMENTS(head); ++pos) {
+            /* An append leaves existing bytes in place, a replace those below its offset. */
+            if (pos < (append ? len : mod->offset))
+                continue;
+
+            if (pos >= mod->offset && pos - mod->offset < mod->data.size)
+                head[pos] = ((const uint8_t *)mod->data.data)[pos - mod->offset];
+            else if (append && pos < mod->offset)
+                /* The gap between the old end and the offset is pad bytes. */
+                head[pos] = pad_byte;
+            else
+                head[pos] = WT_MODIFY_BYTE_UNKNOWN;
         }
 
-        if (append) {
-            /* The entry appends: the gap between the old end and the offset is pad bytes. */
-            for (pos = 0; pos < WT_ELEMENTS(head); ++pos) {
-                if (pos < len)
-                    continue;
-                if (pos >= newlen)
-                    head[pos] = WT_MODIFY_BYTE_UNKNOWN;
-                else if (pos < mod->offset)
-                    head[pos] = pad_byte;
-                else
-                    head[pos] = ((const uint8_t *)mod->data.data)[pos - mod->offset];
-            }
-        } else {
-            for (pos = 0; pos < WT_ELEMENTS(head); ++pos) {
-                if (pos < mod->offset)
-                    newhead[pos] = head[pos];
-                else if (pos >= newlen)
-                    newhead[pos] = WT_MODIFY_BYTE_UNKNOWN;
-                else if (pos < mod->offset + mod->data.size)
-                    newhead[pos] = ((const uint8_t *)mod->data.data)[pos - mod->offset];
-                else {
-                    /* Shifted through the replaced window from a position we may not track. */
-                    src = pos - mod->data.size + consumed;
-                    newhead[pos] = src < WT_ELEMENTS(head) ? head[src] : WT_MODIFY_BYTE_UNKNOWN;
-                }
-            }
-            head[0] = newhead[0];
-            head[1] = newhead[1];
-        }
-        len = newlen;
+        if (append)
+            len = mod->offset + mod->data.size;
+        else
+            /* The replace size truncates at the old end. */
+            len = len + mod->data.size - WT_MIN(mod->size, len - mod->offset);
     }
 
     in_namespace = len >= __wt_tombstone.size;

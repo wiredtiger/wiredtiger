@@ -9,7 +9,7 @@
 /*
  * Cross-check __wt_modify_result_may_be_in_tombstone_namespace against actually applying the modify
  * vector: the prediction must never miss a result that is in the namespace. The prediction is exact
- * unless an entry can shift a byte of unknown provenance into the marker positions, in which case
+ * unless an entry disturbs the marker positions without covering them with its data, in which case
  * it may over-report; vectors are checked accordingly.
  */
 
@@ -33,14 +33,14 @@ struct mod_entry {
 };
 
 /*
- * The prediction is exact unless a shrinking entry can shift a byte from beyond the marker
- * positions into them.
+ * The prediction is exact unless an entry starts at or below the marker positions without its data
+ * covering them through.
  */
 bool
 prediction_is_exact(const std::vector<mod_entry> &entries)
 {
     for (const auto &e : entries)
-        if (e.offset + e.data.size() <= 1 && e.size > e.data.size())
+        if (e.offset + e.data.size() <= 1)
             return false;
     return true;
 }
