@@ -664,35 +664,17 @@ __conn_add_storage_source(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_SESSION_IMPL *session;
-    uint64_t i;
 
-    nstorage = NULL;
+    WT_UNUSED(name);
+    WT_UNUSED(storage_source);
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     CONNECTION_API_CALL(conn, session, add_storage_source, config, cfg);
     WT_UNUSED(cfg);
-
-    WT_ERR(__wt_calloc_one(session, &nstorage));
-    WT_ERR(__wt_strdup(session, name, &nstorage->name));
-    nstorage->storage_source = storage_source;
-    TAILQ_INIT(&nstorage->bucketqh);
-    WT_ERR(__wt_calloc_def(session, conn->hash_size, &nstorage->buckethashqh));
-    for (i = 0; i < conn->hash_size; i++)
-        TAILQ_INIT(&nstorage->buckethashqh[i]);
-
-    __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->ext.storagesrcqh, nstorage, q);
-    nstorage = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
+    WT_ERR_MSG(session, ENOTSUP, "storage sources are not supported");
 
 err:
-    if (nstorage != NULL) {
-        __wt_free(session, nstorage->name);
-        __wt_free(session, nstorage);
-    }
-
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -704,27 +686,10 @@ static int
 __conn_get_storage_source(
   WT_CONNECTION *wt_conn, const char *name, WT_STORAGE_SOURCE **storage_sourcep)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage_source;
-    WT_STORAGE_SOURCE *storage_source;
-
-    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_UNUSED(name);
     *storage_sourcep = NULL;
-
-    ret = EINVAL;
-    TAILQ_FOREACH (nstorage_source, &conn->ext.storagesrcqh, q)
-        if (WT_STREQ(nstorage_source->name, name)) {
-            storage_source = nstorage_source->storage_source;
-            WT_RET(storage_source->ss_add_reference(storage_source));
-            *storage_sourcep = storage_source;
-            ret = 0;
-            break;
-        }
-    if (ret != 0)
-        WT_RET_MSG(conn->default_session, ret, "unknown storage_source '%s'", name);
-
-    return (ret);
+    WT_RET_MSG(((WT_CONNECTION_IMPL *)wt_conn)->default_session, ENOTSUP,
+      "storage sources are not supported");
 }
 
 /*
@@ -1381,13 +1346,6 @@ err:
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_CLOSE, NULL));
     F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL);
-
-    /*
-     * See if close should wait for tiered storage to finish any flushing after the final
-     * checkpoint.
-     */
-    WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
-    WT_TRET(__wti_tiered_storage_destroy(session, cval.val));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -3728,11 +3686,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_builtin_extensions(conn, cfg));
     WT_ERR(__conn_load_extensions(session, cfg, false));
 
-    /*
-     * Do some early initialization for tiered storage, as this may affect our choice of file system
-     * for some operations.
-     */
-    WT_ERR(__wt_tiered_conn_config(session, cfg, false));
+    WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.name", &cval));
+    if (cval.len != 0)
+        WT_ERR_MSG(session, ENOTSUP, "tiered storage is not supported");
 
     /*
      * The metadata/log encryptor is configured after extensions, since extensions may load
