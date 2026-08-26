@@ -185,8 +185,7 @@ retry:
      * XXX Would like to change so one piece of code advances the LSN.
      */
     WT_ASSIGN_LSN(&log->alloc_lsn, &slot->slot_end_lsn);
-    WT_ASSERT(
-      session, log->alloc_lsn.l.file >= __wt_atomic_load_uint32_relaxed(&log->write_lsn.l.file));
+    WT_ASSERT(session, __wt_lsn_file(&log->alloc_lsn) >= __wt_lsn_file(&log->write_lsn));
     return (0);
 }
 
