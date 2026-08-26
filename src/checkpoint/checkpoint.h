@@ -201,7 +201,6 @@ struct __wt_checkpoint_page_to_reconcile {
 
     WT_REF *ref;
     uint32_t reconcile_flags;
-    uint32_t release_flags;
 
     int result;              /* Result - will be filled out later. */
     uint64_t reconcile_time; /* Time spent in reconciliation. */
@@ -272,9 +271,8 @@ extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_timep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_parallel_push_work(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref,
+  uint32_t reconcile_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
