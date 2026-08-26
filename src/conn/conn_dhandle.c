@@ -341,10 +341,10 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
     /*
      * If there is a matching data handle, mark it as outdated. The data handle and cursor caches
      * will know to ignore it, and it will eventually age out when references are released. We need
-     * the dhandle lock, to prevent races with dhandle close and the sweep expire path. Cursors in
-     * the midst of an open may get an older btree, and they will continue to work. For layered
-     * tables, Having references to an older dhandle for a stable tree just means some data in the
-     * ingest table will be pinned for a longer time.
+     * the dhandle lock when setting the flag, to prevent racing with other threads concurrently
+     * closing the dhandle. Cursors in the midst of an open may get an older btree, and they will
+     * continue to work. For layered tables, Having references to an older dhandle for a stable tree
+     * just means some data in the ingest table will be pinned for a longer time.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
