@@ -137,12 +137,9 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         self.populate()
 
         self.conn.reconfigure('disaggregated=(role="follower")')
-        try:
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.session.verify(self.uri, 'fix_btree_size=true'),
-                '/requires a disaggregated leader connection/')
-        finally:
-            self.conn.reconfigure('disaggregated=(role="leader")')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.verify(self.uri, 'fix_btree_size=true'),
+            '/requires a disaggregated leader connection/')
 
     def test_fix_btree_size_requires_writable(self):
         # fix_btree_size is rejected on a read-only connection. Read-only disaggregated
