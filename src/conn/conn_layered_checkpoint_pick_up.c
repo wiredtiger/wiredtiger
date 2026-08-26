@@ -786,9 +786,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * boundary costs a page log round trip. Declare it, so pre-fetch does not have to infer it: the
      * scan runs on an internal session, and it interleaves cache-resident local metadata with pages
      * that must be fetched, so neither of the prefetch heuristics recognizes it.
+     *
+     * The startup pick-up runs before the pre-fetch server threads are created, so test that they
+     * are running rather than that pre-fetch is configured: queueing a page with no server to read
+     * it signals a condition variable that does not exist yet.
      */
     prefetch_set = scan_hint_set = false;
-    if (S2C(session)->prefetch.available) {
+    if (__wti_prefetch_server_running(session)) {
         prefetch_set = !F_ISSET(session, WT_SESSION_PREFETCH_ENABLED);
         scan_hint_set = !session->pf.scan_hint;
         F_SET(session, WT_SESSION_PREFETCH_ENABLED);

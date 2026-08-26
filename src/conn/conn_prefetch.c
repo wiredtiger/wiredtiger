@@ -37,11 +37,11 @@ __wti_conn_prefetch_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __prefetch_thread_chk --
- *     Check to decide if the pre-fetch thread should continue running.
+ * __wti_prefetch_server_running --
+ *     Check whether the pre-fetch server threads are running.
  */
-static bool
-__prefetch_thread_chk(WT_SESSION_IMPL *session)
+bool
+__wti_prefetch_server_running(WT_SESSION_IMPL *session)
 {
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_PREFETCH));
 }
@@ -178,8 +178,8 @@ __wti_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &conn->prefetch.threads, "prefetch-server",
-      WT_PREFETCH_THREAD_COUNT, WT_PREFETCH_THREAD_COUNT, session_flags, __prefetch_thread_chk,
-      __prefetch_thread_run, NULL));
+      WT_PREFETCH_THREAD_COUNT, WT_PREFETCH_THREAD_COUNT, session_flags,
+      __wti_prefetch_server_running, __prefetch_thread_run, NULL));
     return (0);
 
 err:
