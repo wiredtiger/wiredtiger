@@ -18,7 +18,6 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
   const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK *block;
-    WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
 
@@ -35,18 +34,17 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
      * In diagnostic mode, verify the block we're about to read isn't on the available list, or for
      * the writable objects, the discard list.
      */
-    WT_ERR(__wti_block_misplaced(session, block, "read", offset, size,
+    WT_RET(__wti_block_misplaced(session, block, "read", offset, size,
       bm->is_live && block == bm->block, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Read the block. */
-    WT_ERR(__wti_block_read_off(session, block, buf, objectid, offset, size, checksum));
+    WT_RET(__wti_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
-    WT_ERR(__wti_block_discard(session, block, (size_t)size));
+    WT_RET(__wti_block_discard(session, block, (size_t)size));
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
