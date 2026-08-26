@@ -282,8 +282,7 @@ tiered_config = [
         configure a storage source for this table''',
         type='category', subconfig=[
         Config('name', 'none', r'''
-            permitted values are \c "none" or a custom storage source name created with
-            WT_CONNECTION::add_storage_source'''),
+            permitted value is \c "none"'''),
         Config('auth_token', '', r'''
             authentication string identifier'''),
         Config('bucket', '', r'''
@@ -1299,8 +1298,7 @@ wiredtiger_open_tiered_storage_configuration = [
             interval in seconds at which to check for tiered storage related work to perform''',
             min=1, max=1000),
         Config('name', 'none', r'''
-            Permitted values are \c "none" or a custom storage name created with
-            WT_CONNECTION::add_storage_source'''),
+            permitted value is \c "none"'''),
         Config('shared', 'false', r'''
             enable sharing tiered tables across other WiredTiger instances.''',
             type='boolean'),
@@ -2225,7 +2223,6 @@ methods = {
 'WT_CONNECTION.add_data_source' : Method([]),
 'WT_CONNECTION.add_encryptor' : Method([]),
 'WT_CONNECTION.add_page_log' : Method([]),
-'WT_CONNECTION.add_storage_source' : Method([]),
 'WT_CONNECTION.close' : Method([
     Config('debug', '', r'''
         configure debug specific behavior on connection close. Generally only used for internal

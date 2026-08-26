@@ -655,89 +655,6 @@ __wti_conn_remove_key_provider(WT_SESSION_IMPL *session)
 }
 
 /*
- * __conn_add_storage_source --
- *     WT_CONNECTION->add_storage_source method.
- */
-static int
-__conn_add_storage_source(
-  WT_CONNECTION *wt_conn, const char *name, WT_STORAGE_SOURCE *storage_source, const char *config)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    WT_UNUSED(name);
-    WT_UNUSED(storage_source);
-
-    conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_storage_source, config, cfg);
-    WT_UNUSED(cfg);
-    WT_ERR_MSG(session, ENOTSUP, "storage sources are not supported");
-
-err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
- * __conn_get_storage_source --
- *     WT_CONNECTION->get_storage_source method.
- */
-static int
-__conn_get_storage_source(
-  WT_CONNECTION *wt_conn, const char *name, WT_STORAGE_SOURCE **storage_sourcep)
-{
-    WT_UNUSED(name);
-    *storage_sourcep = NULL;
-    WT_RET_MSG(((WT_CONNECTION_IMPL *)wt_conn)->default_session, ENOTSUP,
-      "storage sources are not supported");
-}
-
-/*
- * __wti_conn_remove_storage_source --
- *     Remove storage_source added by WT_CONNECTION->add_storage_source, only used internally.
- */
-int
-__wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
-{
-    WT_BUCKET_STORAGE *bstorage;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-    WT_STORAGE_SOURCE *storage;
-
-    conn = S2C(session);
-
-    while ((nstorage = TAILQ_FIRST(&conn->ext.storagesrcqh)) != NULL) {
-        /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->ext.storagesrcqh, nstorage, q);
-        while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
-            /* Remove from the connection's list, free memory. */
-            TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
-            __wt_free(session, bstorage->auth_token);
-            __wt_free(session, bstorage->bucket);
-            __wt_free(session, bstorage->bucket_prefix);
-            __wt_free(session, bstorage->cache_directory);
-            if (bstorage->file_system != NULL && bstorage->file_system->terminate != NULL)
-                WT_TRET(
-                  bstorage->file_system->terminate(bstorage->file_system, (WT_SESSION *)session));
-            __wt_free(session, bstorage);
-        }
-
-        /* Call any termination method. */
-        storage = nstorage->storage_source;
-        WT_ASSERT(session, storage != NULL);
-        if (storage->terminate != NULL)
-            WT_TRET(storage->terminate(storage, (WT_SESSION *)session));
-
-        __wt_free(session, nstorage->buckethashqh);
-        __wt_free(session, nstorage->name);
-        __wt_free(session, nstorage);
-    }
-
-    return (ret);
-}
-
-/*
  * __wti_conn_backup_init --
  *     Initialize the WT_CONN_BACKUP structure.
  */
@@ -768,14 +685,12 @@ __wti_conn_ext_init(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    TAILQ_INIT(&conn->ext.collqh);       /* Collator list */
-    TAILQ_INIT(&conn->ext.compqh);       /* Compressor list */
-    TAILQ_INIT(&conn->ext.encryptqh);    /* Encryptor list */
-    TAILQ_INIT(&conn->ext.pagelogqh);    /* Page log list */
-    TAILQ_INIT(&conn->ext.storagesrcqh); /* Storage source list */
+    TAILQ_INIT(&conn->ext.collqh);    /* Collator list */
+    TAILQ_INIT(&conn->ext.compqh);    /* Compressor list */
+    TAILQ_INIT(&conn->ext.encryptqh); /* Encryptor list */
+    TAILQ_INIT(&conn->ext.pagelogqh); /* Page log list */
     WT_RET(__wt_spin_init(session, &conn->ext.encryptor_lock, "encryptor"));
     WT_RET(__wt_spin_init(session, &conn->ext.page_log_lock, "page log"));
-    WT_RET(__wt_spin_init(session, &conn->ext.storage_lock, "tiered storage"));
     return (0);
 }
 
@@ -791,7 +706,6 @@ __wti_conn_ext_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
     __wt_spin_destroy(session, &conn->ext.encryptor_lock);
     __wt_spin_destroy(session, &conn->ext.page_log_lock);
-    __wt_spin_destroy(session, &conn->ext.storage_lock);
 }
 
 /*
@@ -3292,10 +3206,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_get_home, __conn_compile_configuration, __conn_configure_method, __conn_is_new,
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
-      __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
-      __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
-      __conn_dump_error_log, __conn_set_key_provider, __conn_get_key_provider,
-      __conn_get_extension_api};
+      __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_get_page_log,
+      __conn_set_context_uint, __conn_dump_error_log, __conn_set_key_provider,
+      __conn_get_key_provider, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
