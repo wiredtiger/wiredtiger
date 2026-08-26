@@ -285,10 +285,10 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, SCHEM
         /* Legacy mode should not see these events. */
         testutil_assert(!state->cfg->epoch_less);
         ev->event_ts = worker_ts(state, ev);
+        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
         if (relay)
             (void)pipe_relay_event(state->cfg, ev);
         record_event_line(ctx->record_fp, ev);
-        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
         worker_complete(state, ev->event_ts);
         break;
     case EVENT_NONE:
