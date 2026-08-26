@@ -29,40 +29,13 @@ frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
 }
 
 /*
- * reader_apply_reserved_publishes --
- *     Queue and drain the publishes that follow the step-down marker in the stream. Their epochs
- *     are reserved at or below the boundary, so they run with the boundary declared but before the
- *     stable frontier reaches it, resolving the term's remaining schema history inside this era.
- */
-static void
-reader_apply_reserved_publishes(WORKLOAD_STATE *state, uint32_t count)
-{
-    SCHEMA_EVENT ev;
-
-    if (count == 0)
-        return;
-
-    for (uint32_t i = 0; i < count; i++) {
-        while (!pipe_wait_readable(state->cfg->self_pipe_read_fd))
-            ;
-        testutil_assert(pipe_event_read(state->cfg->self_pipe_read_fd, &ev));
-        testutil_assert(ev.type == EVENT_PUBLISH_CREATE || ev.type == EVENT_PUBLISH_DROP);
-        evq_enqueue(state, &ev);
-    }
-    evq_drain_barrier(state);
-    println("Node %" PRIu32 ": %" PRIu32 " operations published inside the step-down boundary",
-      state->cfg->node_id, count);
-}
-
-/*
  * reader_step_down --
  *     The step-down work once the timestamp is set.
  */
 static void
-reader_step_down(WORKLOAD_STATE *state, const SCHEMA_EVENT *marker)
+reader_step_down(WORKLOAD_STATE *state, uint64_t ts)
 {
     WT_CONNECTION *conn = state->conn;
-    const uint64_t ts = marker->event_ts;
 
     /* Signal the timestamp and checkpoint threads to pause. */
     __wt_atomic_store_uint64(&state->stepdown_ts, ts);
@@ -70,7 +43,6 @@ reader_step_down(WORKLOAD_STATE *state, const SCHEMA_EVENT *marker)
         __wt_sleep(0, WT_THOUSAND);
 
     set_ts(conn, TS_STEPDOWN, ts);
-    reader_apply_reserved_publishes(state, marker->publish_count);
     set_ts(conn, TS_FRONTIER, ts);
 
     WT_SESSION *session;
@@ -132,7 +104,7 @@ thread_reader_run(void *arg)
              */
             evq_drain_barrier(state);
             frontier_assert(state, ev.event_ts);
-            reader_step_down(state, &ev);
+            reader_step_down(state, ev.event_ts);
             break;
         case EVENT_SWITCH:
             /* The final event of the term's stream: this node must step up. */

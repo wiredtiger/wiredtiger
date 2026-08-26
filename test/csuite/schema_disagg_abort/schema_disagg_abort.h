@@ -155,8 +155,6 @@ typedef struct {
     uint64_t event_ts;
     uint32_t key_min;
     uint32_t key_max;
-    /* Step-down marker only: how many publishes at reserved epochs follow it in the stream. */
-    uint32_t publish_count;
     char uri[64];
 } SCHEMA_EVENT;
 

@@ -16,11 +16,12 @@
 
 /* The generator's state machine. */
 typedef enum {
-    GEN_NORMAL,         /* the term's workload */
-    GEN_BEGIN_STEPDOWN, /* one-shot: emit the step-down timestamp and the reserved publishes */
-    GEN_STEPDOWN,       /* the step-down: limited workload */
-    GEN_SWITCH,         /* one-shot: emit the switch event that ends the stream */
-    GEN_STOP            /* terminal: the phase stopped, or the stream ended */
+    GEN_NORMAL,          /* the term's workload */
+    GEN_FLUSH_PUBLISHES, /* one-shot: emit the publishes a term must not end holding */
+    GEN_BEGIN_STEPDOWN,  /* one-shot: emit the step-down timestamp */
+    GEN_STEPDOWN,        /* the step-down: limited workload */
+    GEN_SWITCH,          /* one-shot: emit the switch event that ends the stream */
+    GEN_STOP             /* terminal: the phase stopped, or the stream ended */
 } GENERATOR_PHASE;
 
 /*
@@ -183,33 +184,14 @@ generator_switch_requested(GENERATOR_PACING *pacing)
 }
 
 /*
- * generator_emit_stepdown --
- *     Emit the step-down marker, then the publishes of the term's remaining unpublished creates and
- *     drops at epochs reserved at or below the boundary. An operation issued before the boundary
- *     belongs to this era, so its publish must not pass the boundary, and running the publishes
- *     behind the marker exercises them with the boundary set. The counter is bumped past the
- *     reserved range first, so the boundary the marker carries sits above every reserved epoch and
- *     the window's later allocations sit above the boundary.
+ * generator_flush_publishes --
+ *     Emit the pending publish for every slot in an unpublished state, before the role transition.
+ *     FIXME-WT-18272 FIXME-WT-18284: Remove this function once these tickets are resolved.
+ *     Corresponding generator state GEN_FLUSH_PUBLISHES won't be needed anymore, as well.
  */
 static void
-generator_emit_stepdown(WORKLOAD_STATE *state)
+generator_flush_publishes(WORKLOAD_STATE *state)
 {
-    uint32_t pending = 0;
-    for (uint32_t t = 0; t < state->nth_workers; t++)
-        for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++)
-            if (state->workers[t].table_state[slot] == TABLE_CREATED ||
-              state->workers[t].table_state[slot] == TABLE_DROPPED)
-                ++pending;
-
-    uint64_t reserved_ts =
-      __wt_atomic_add_uint64(&state->current_ts, (uint64_t)pending) - (uint64_t)pending;
-
-    SCHEMA_EVENT marker = {0};
-    marker.type = EVENT_STEPDOWN;
-    marker.event_ts = __wt_atomic_load_uint64(&state->current_ts);
-    marker.publish_count = pending;
-    generator_emit(state, &marker);
-
     for (uint32_t t = 0; t < state->nth_workers; t++)
         for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++) {
             TABLE_STATE *slot_state = &state->workers[t].table_state[slot];
@@ -219,14 +201,13 @@ generator_emit_stepdown(WORKLOAD_STATE *state)
             SCHEMA_EVENT ev = {0};
             ev.type = *slot_state == TABLE_CREATED ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
             ev.thread_id = t;
-            ev.event_ts = ++reserved_ts;
+            ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
             testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t,
               slot, state->workers[t].slot_gen[slot]);
 
             *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_NONE;
             generator_emit(state, &ev);
         }
-    testutil_assert(reserved_ts == marker.event_ts);
 }
 
 /*
@@ -316,15 +297,18 @@ thread_generator_run(void *arg)
         switch (phase) {
         case GEN_NORMAL:
             progressed = generator_round(state, pacing.lead_max, GEN_NORMAL);
-            if (generator_switch_requested(&pacing))
-                phase = state->leads ? GEN_BEGIN_STEPDOWN : GEN_SWITCH;
+            phase = generator_switch_requested(&pacing) ? GEN_FLUSH_PUBLISHES : GEN_NORMAL;
+            break;
+        case GEN_FLUSH_PUBLISHES:
+            generator_flush_publishes(state);
+            phase = state->leads ? GEN_BEGIN_STEPDOWN : GEN_SWITCH;
             break;
         case GEN_BEGIN_STEPDOWN:
             /*
              * Tell the reader to start the step-down work, then generate a limited workload until
              * the step-down ends.
              */
-            generator_emit_stepdown(state);
+            generator_transition_emit(state, EVENT_STEPDOWN);
             __wt_epoch(NULL, &pacing.stepdown_start);
             pacing.stepdown_emitted = state->emitted;
             phase = GEN_STEPDOWN;
