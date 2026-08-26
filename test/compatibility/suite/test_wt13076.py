@@ -58,7 +58,8 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
             session.commit_transaction('commit_timestamp=10')
         session.checkpoint()
 
-        deleted = range(self.nrows) if self.delete_all else range(0, self.nrows, 2)
+        # Deleting a contiguous range fully removes some child pages while their parent remains live.
+        deleted = range(self.nrows) if self.delete_all else range(self.nrows // 2)
         for key in deleted:
             session.begin_transaction()
             cursor.set_key(key)
@@ -73,7 +74,7 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         conn = wiredtiger.wiredtiger_open('.', 'statistics=(all)')
         session = conn.open_session()
         cursor = session.open_cursor(self.uri)
-        deleted = set(range(self.nrows) if self.delete_all else range(0, self.nrows, 2))
+        deleted = set(range(self.nrows) if self.delete_all else range(self.nrows // 2))
         for round_number in range(rounds):
             start = self.nrows + round_number * 20
             deleted.update(
