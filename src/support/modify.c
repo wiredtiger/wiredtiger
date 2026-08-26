@@ -402,6 +402,13 @@ err:
 #define WT_MODIFY_BYTE_UNKNOWN (-1)
 
 /*
+ * Read one byte of an item for the marker tracking. The unsigned cast is load-bearing: it keeps
+ * every real byte in 0..255 so none collides with WT_MODIFY_BYTE_UNKNOWN; a signed cast would
+ * sign-extend 0xff into the sentinel.
+ */
+#define WT_MODIFY_GET_BYTE(item, i) ((int32_t)((const uint8_t *)(item)->data)[i])
+
+/*
  * __wt_modify_result_may_be_in_tombstone_namespace --
  *     Predict whether applying a modify vector to the base value yields a result in the layered
  *     tombstone namespace, without materializing the result. The answer errs toward true when an
@@ -428,8 +435,8 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
     len = base->size - (sformat ? 1 : 0);
 
     /* Walk the entries once, tracking the content length and the bytes at the marker positions. */
-    head[0] = len > 0 ? ((const uint8_t *)base->data)[0] : WT_MODIFY_BYTE_UNKNOWN;
-    head[1] = len > 1 ? ((const uint8_t *)base->data)[1] : WT_MODIFY_BYTE_UNKNOWN;
+    head[0] = len > 0 ? WT_MODIFY_GET_BYTE(base, 0) : WT_MODIFY_BYTE_UNKNOWN;
+    head[1] = len > 1 ? WT_MODIFY_GET_BYTE(base, 1) : WT_MODIFY_BYTE_UNKNOWN;
 
     for (i = 0; i < nentries; ++i) {
         mod = &entries[i];
@@ -441,7 +448,7 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
                 continue;
 
             if (pos >= mod->offset && pos - mod->offset < mod->data.size)
-                head[pos] = ((const uint8_t *)mod->data.data)[pos - mod->offset];
+                head[pos] = WT_MODIFY_GET_BYTE(&mod->data, pos - mod->offset);
             else if (append && pos < mod->offset)
                 /* The gap between the old end and the offset is pad bytes. */
                 head[pos] = pad_byte;
@@ -459,7 +466,7 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
     in_namespace = len >= __wt_tombstone.size;
     for (pos = 0; pos < WT_ELEMENTS(head); ++pos)
         if (head[pos] != WT_MODIFY_BYTE_UNKNOWN &&
-          head[pos] != ((const uint8_t *)__wt_tombstone.data)[pos])
+          head[pos] != WT_MODIFY_GET_BYTE(&__wt_tombstone, pos))
             in_namespace = false;
 
     return (in_namespace);
