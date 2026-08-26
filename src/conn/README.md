@@ -1,6 +1,6 @@
 # Connection
 
-## Background Compaction
+## Background Compaction 
 
 ### Overview
 
@@ -30,4 +30,3 @@ There are three types of cleanup as indicated by `cleanup_type`:
    - Idle time metrics include:
       - `background_compact.max_file_idle_time` (seconds), used to remove tracking of files that have not been updated after a long time (usually a result of file deletion).
       - `max_file_skip_time`, max compact wait time from last compact run. The debug mode `debug_mode.background_compact` provides a shorter time period for testing purposes, see the [hardcoded configurations](https://github.com/wiredtiger/wiredtiger/blob/cec2d68c2a51be610745b4ab481c572aaec08d3c/src/conn/conn_api.c#L2158-L2176). 
-
