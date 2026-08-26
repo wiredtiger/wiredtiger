@@ -3734,7 +3734,7 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     need_full_update = __clayered_stable_tombstone_encoding(S2C(session)) &&
       (__clayered_value_in_tombstone_namespace(&c_stable->value, false /* decode */) ||
         __wt_modify_result_may_be_in_tombstone_namespace(
-          session, c_stable->value_format, &c_stable->value, entries, nentries, NULL));
+          session, c_stable->value_format, &c_stable->value, entries, nentries));
 
     if (need_full_update) {
         __clayered_deleted_decode(session, &c_stable->value, true);
@@ -3800,7 +3800,7 @@ __clayered_modify_try_ingest(
      * misread as escaped.
      */
     if (__wt_modify_result_may_be_in_tombstone_namespace(
-          session, c_ingest->value_format, &c_ingest->value, entries, nentries, NULL)) {
+          session, c_ingest->value_format, &c_ingest->value, entries, nentries)) {
         WT_RET(__wt_modify_apply_api(c_ingest, entries, nentries));
         *need_full_updatep = true;
         return (0);

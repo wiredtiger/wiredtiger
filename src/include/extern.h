@@ -44,8 +44,8 @@ extern bool __wt_metadata_btree_ids_find_duplicate(uint32_t *btree_ids, size_t c
 extern bool __wt_modify_idempotent(const void *modify)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session,
-  const char *value_format, const WT_ITEM *base, const WT_MODIFY *entries, int nentries,
-  size_t *result_sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const char *value_format, const WT_ITEM *base, const WT_MODIFY *entries, int nentries)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)

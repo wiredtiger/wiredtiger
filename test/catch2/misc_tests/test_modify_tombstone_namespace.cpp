@@ -8,10 +8,9 @@
 
 /*
  * Cross-check __wt_modify_result_may_be_in_tombstone_namespace against actually applying the modify
- * vector: the predicted result size must always match __wt_modify_apply_api, and the namespace
- * prediction must never miss a result that is in the namespace. The prediction is exact unless an
- * entry can shift a byte of unknown provenance into the marker positions, in which case it may
- * over-report; vectors are checked accordingly.
+ * vector: the prediction must never miss a result that is in the namespace. The prediction is exact
+ * unless an entry can shift a byte of unknown provenance into the marker positions, in which case
+ * it may over-report; vectors are checked accordingly.
  */
 
 #include <catch2/catch.hpp>
@@ -64,9 +63,8 @@ check_case(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const std::string &base,
     base_item.data = base.data();
     base_item.size = base.size();
 
-    size_t predicted_size = 0;
-    bool predicted_ns = __wt_modify_result_may_be_in_tombstone_namespace(session,
-      cursor->value_format, &base_item, entries.data(), (int)entries.size(), &predicted_size);
+    bool predicted_ns = __wt_modify_result_may_be_in_tombstone_namespace(
+      session, cursor->value_format, &base_item, entries.data(), (int)entries.size());
 
     cursor->value.data = base.data();
     cursor->value.size = base.size();
@@ -76,7 +74,6 @@ check_case(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const std::string &base,
     bool actual_ns =
       cursor->value.size >= 2 && result[0] == (uint8_t)0x14 && result[1] == (uint8_t)0x14;
 
-    CHECK(predicted_size == cursor->value.size);
     if (prediction_is_exact(case_entries))
         CHECK(predicted_ns == actual_ns);
     else

@@ -404,14 +404,13 @@ err:
 /*
  * __wt_modify_result_may_be_in_tombstone_namespace --
  *     Predict whether applying a modify vector to the base value yields a result in the layered
- *     tombstone namespace, without materializing the result, and return the result's size. The size
- *     is exact. The namespace answer errs toward true when an entry shifts a byte of unknown
- *     provenance into the marker positions, so it can report a result that is not in the namespace,
- *     but never misses one that is.
+ *     tombstone namespace, without materializing the result. The answer errs toward true when an
+ *     entry shifts a byte of unknown provenance into the marker positions, so it can report a
+ *     result that is not in the namespace, but never misses one that is.
  */
 bool
 __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const char *value_format,
-  const WT_ITEM *base, const WT_MODIFY *entries, int nentries, size_t *result_sizep)
+  const WT_ITEM *base, const WT_MODIFY *entries, int nentries)
 {
     const WT_MODIFY *mod;
     size_t consumed, len, newlen, pos, src;
@@ -486,8 +485,6 @@ __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *session, const
           head[pos] != ((const uint8_t *)__wt_tombstone.data)[pos])
             in_namespace = false;
 
-    if (result_sizep != NULL)
-        *result_sizep = len + (sformat ? 1 : 0);
     return (in_namespace);
 }
 
