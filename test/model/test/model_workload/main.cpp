@@ -70,14 +70,13 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
     "statistics=(all),statistics_log=(wait=1,json,on_close)"
 
 /*
- * Configurations for the checkpoint crash tests. They deliberately leave out table logging, which
- * would make recovery replay the tables' own updates too: the point here is to isolate the one
- * thing connection logging changes for a checkpoint crash, which is whether a checkpoint whose
- * transaction already committed survives.
+ * Configuration for the checkpoint crash tests. Connection logging comes from the workload's own
+ * database configuration, so this only has to leave out table logging, which would make recovery
+ * replay the tables' own updates too: the point there is to isolate the one thing connection
+ * logging changes for a checkpoint crash, which is whether a checkpoint whose transaction already
+ * committed survives.
  */
-#define ENV_CONFIG_LOGGED \
-    "cache_size=20M,create,log=(enabled,file_max=10M,remove=false),session_max=100"
-#define ENV_CONFIG_NOT_LOGGED "cache_size=20M,create,log=(enabled=false),session_max=100"
+#define ENV_CONFIG_NO_TABLE_LOGGING "cache_size=20M,create,session_max=100"
 
 /* Keys. */
 const model::data_value key1("Key 1");
@@ -311,15 +310,17 @@ test_workload_checkpoint_crash_phase(void)
     static const model::operation::checkpoint_crash_phase phases[] = {
       model::operation::checkpoint_crash_phase::before_checkpoint_commit,
       model::operation::checkpoint_crash_phase::before_metadata_sync};
-    static const char *const configs[] = {ENV_CONFIG_LOGGED, ENV_CONFIG_NOT_LOGGED};
+    static const bool logging_settings[] = {true, false};
 
     size_t run = 0;
     /* Repeat each combination: the mismatch this guards against used to be timing-dependent. */
     for (int repeat = 0; repeat < 3; repeat++)
         for (auto phase : phases)
-            for (const char *config : configs) {
+            for (bool logging : logging_settings) {
                 model::kv_workload workload;
-                workload << model::operation::create_table(k_table1_id, "table1", "S", "S")
+                workload << model::operation::config(
+                              "database", logging ? "logging=true" : "logging=false")
+                         << model::operation::create_table(k_table1_id, "table1", "S", "S")
                          << model::operation::begin_transaction(1)
                          << model::operation::insert(k_table1_id, 1, key1, value1)
                          << model::operation::commit_transaction(1, 10)
@@ -335,7 +336,7 @@ test_workload_checkpoint_crash_phase(void)
 
                 std::string test_home =
                   std::string(home) + DIR_DELIM_STR + "checkpoint_crash_" + std::to_string(run++);
-                verify_workload(workload, opts, test_home, config);
+                verify_workload(workload, opts, test_home, ENV_CONFIG_NO_TABLE_LOGGING);
             }
 }
 

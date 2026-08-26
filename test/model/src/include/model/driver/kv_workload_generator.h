@@ -106,13 +106,6 @@ struct kv_workload_generator_spec {
     /* The probability of running with connection level logging */
     float conn_logging;
 
-    /*
-     * Whether the connection that will run this workload has logging turned on. Unlike the
-     * probability above this is not a choice the generator makes: the connection configuration is
-     * resolved by the caller, which must set this to match.
-     */
-    bool conn_logging_enabled;
-
     /* Probabilities of operations within a transaction. */
     float finish_transaction; /* Commit, prepare, or rollback. */
     float get;

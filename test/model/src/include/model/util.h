@@ -33,7 +33,6 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -571,14 +570,6 @@ join(const std::string &a, const std::string &b, const std::string &sep = ",")
  *     Return a string in quotes, with appropriate escaping.
  */
 std::string quote(const std::string &str);
-
-/*
- * wt_connection_logging_enabled --
- *     Check whether a WiredTiger connection configuration string turns on logging. Returns no value
- *     if the string does not mention it, which callers need in order to tell a configuration that
- *     turns logging off from one that leaves an earlier setting alone.
- */
-std::optional<bool> wt_connection_logging_enabled(const std::string &config);
 
 /*
  * starts_with --

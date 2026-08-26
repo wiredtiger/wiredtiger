@@ -99,7 +99,6 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     update_existing = 0.1;
 
     conn_logging = 0.5;
-    conn_logging_enabled = false;
 
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
@@ -526,10 +525,14 @@ kv_workload_generator::generate_transaction(size_t seq_no)
 void
 kv_workload_generator::run()
 {
-    /* Top-level configuration. */
+    /*
+     * Top-level configuration. The model applies one database configuration wholesale, so collect
+     * the keys and emit them together.
+     */
+    std::string database_config;
     if (_random.next_float() < _spec.disaggregated) {
         _database_config.disaggregated = true;
-        _workload << operation::config("database", "disaggregated=true");
+        database_config = join(database_config, "disaggregated=true");
 
         /* Adjust the specs based on what's not supported. */
         _spec.column_var = 0;
@@ -538,6 +541,12 @@ kv_workload_generator::run()
         /* FIXME-WT-15040 Prepared transactions are not yet supported. */
         _spec.prepared_transaction = 0;
     }
+    if (_random.next_float() < _spec.conn_logging) {
+        _database_config.logging = true;
+        database_config = join(database_config, "logging=true");
+    }
+    if (!database_config.empty())
+        _workload << operation::config("database", database_config);
 
     /* Create tables. */
     uint64_t num_tables = _random.next_uint64(_spec.min_tables, _spec.max_tables);
@@ -754,7 +763,7 @@ kv_workload_generator::run()
              */
             bool recoverable_checkpoint_crash = false;
             if (s->sequence->type() == kv_workload_sequence_type::checkpoint_crash &&
-              _spec.conn_logging_enabled) {
+              _database_config.logging) {
                 const operation::any &crash_op = (*s->sequence)[0];
                 recoverable_checkpoint_crash =
                   std::holds_alternative<operation::checkpoint_crash>(crash_op) &&
@@ -829,11 +838,9 @@ kv_workload_generator::run()
 
     /*
      * Validate that the workload is correct, such checking that we filled in the timestamps in the
-     * correct order. The caller prepends the connection configuration only after generation, so
-     * spell out the logging setting assumed above; otherwise verification would disagree with us
-     * about whether a checkpoint crash keeps the checkpoint.
+     * correct order.
      */
-    _workload.verify(_spec.conn_logging_enabled ? "log=(enabled=true)" : "log=(enabled=false)");
+    _workload.verify();
 }
 
 /*

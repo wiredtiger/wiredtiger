@@ -338,7 +338,7 @@ kv_workload::assert_timestamps(const kv_database_config &database_config, const 
  *     Verify that the workload is valid. Throw an exception on error.
  */
 void
-kv_workload::verify(const char *connection_config)
+kv_workload::verify()
 {
     kv_database_config database_config{};
     std::map<model::table_id_t, std::string> tables;
@@ -349,15 +349,6 @@ kv_workload::verify(const char *connection_config)
     timestamp_t oldest = k_timestamp_none;
     timestamp_t stable = k_timestamp_none;
 
-    /*
-     * WiredTiger appends the caller's override after the configuration recorded in the workload, so
-     * the override wins.
-     */
-    std::optional<bool> logging_override = connection_config == nullptr ?
-      std::nullopt :
-      wt_connection_logging_enabled(connection_config);
-    bool workload_logging_enabled = false;
-
     for (size_t i = 0; i < _operations.size(); i++) {
         const operation::any &op = _operations[i].operation;
         if (std::holds_alternative<operation::config>(op)) {
@@ -365,20 +356,12 @@ kv_workload::verify(const char *connection_config)
             database_config = kv_database_config::from_string(c.value);
         }
 
-        if (std::holds_alternative<operation::wt_config>(op)) {
-            const operation::wt_config &c = std::get<operation::wt_config>(op);
-            if (c.type == "connection")
-                workload_logging_enabled =
-                  wt_connection_logging_enabled(c.value).value_or(workload_logging_enabled);
-        }
-
         /*
          * A checkpoint crash that WiredTiger can recover from behaves as a checkpoint immediately
          * followed by a crash.
          */
         bool recoverable_checkpoint_crash =
-          std::holds_alternative<operation::checkpoint_crash>(op) &&
-          logging_override.value_or(workload_logging_enabled) &&
+          std::holds_alternative<operation::checkpoint_crash>(op) && database_config.logging &&
           operation::recoverable_with_logging(std::get<operation::checkpoint_crash>(op).phase);
 
         /*
@@ -449,9 +432,9 @@ kv_workload::verify(const char *connection_config)
  *     Run the workload in the model. Return the return codes of the workload operations.
  */
 std::vector<int>
-kv_workload::run(kv_database &database, const char *connection_config) const
+kv_workload::run(kv_database &database) const
 {
-    kv_workload_runner runner{database, connection_config};
+    kv_workload_runner runner{database};
     return runner.run(*this);
 }
 

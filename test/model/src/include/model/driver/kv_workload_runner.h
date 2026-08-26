@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -50,16 +49,9 @@ class kv_workload_runner {
 public:
     /*
      * kv_workload_runner::kv_workload_runner --
-     *     Create a new workload runner. The connection configuration is the override that the
-     *     caller will pass to WiredTiger, if any. WiredTiger appends it after the configuration
-     *     recorded in the workload, so it wins over any wt_config operation.
+     *     Create a new workload runner.
      */
-    inline kv_workload_runner(kv_database &database, const char *connection_config = nullptr)
-        : _database(database), _logging_override(connection_config == nullptr ?
-                                   std::nullopt :
-                                   wt_connection_logging_enabled(connection_config))
-    {
-    }
+    inline kv_workload_runner(kv_database &database) : _database(database) {}
 
     /*
      * kv_workload_runner::database --
@@ -142,7 +134,8 @@ protected:
          * indistinguishable from a checkpoint followed by a crash. Without logging, and for any
          * crash taken before the commit, the checkpoint is lost.
          */
-        bool recoverable = operation::recoverable_with_logging(op.phase) && logging_enabled();
+        bool recoverable =
+          operation::recoverable_with_logging(op.phase) && _database.config().logging;
         restart(!recoverable);
         return 0;
     }
@@ -352,9 +345,7 @@ protected:
     int
     do_operation(const operation::wt_config &op)
     {
-        if (op.type == "connection")
-            _workload_logging_enabled =
-              wt_connection_logging_enabled(op.value).value_or(_workload_logging_enabled);
+        (void)op;
         return 0;
     }
 
@@ -444,24 +435,6 @@ protected:
 
 private:
     kv_database &_database;
-
-    /*
-     * Whether the WiredTiger connection has logging turned on, which makes a checkpoint whose
-     * transaction already committed survive a crash. The workload's own configuration is only
-     * consulted when the caller's override is silent about logging.
-     */
-    bool _workload_logging_enabled = false;
-    std::optional<bool> _logging_override;
-
-    /*
-     * kv_workload_runner::logging_enabled --
-     *     Get whether the connection running this workload has logging turned on.
-     */
-    inline bool
-    logging_enabled() const noexcept
-    {
-        return _logging_override.value_or(_workload_logging_enabled);
-    }
 
     mutable std::shared_mutex _tables_lock;
     std::unordered_map<table_id_t, kv_table_ptr> _tables;

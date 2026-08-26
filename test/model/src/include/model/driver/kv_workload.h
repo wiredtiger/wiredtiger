@@ -1532,12 +1532,9 @@ public:
 
     /*
      * kv_workload::verify --
-     *     Verify that the workload is valid. Throw an exception on error. Pass the connection
-     *     configuration override that WiredTiger will be given, if any: whether a checkpoint crash
-     *     keeps the checkpoint depends on logging, and getting that wrong here rejects workloads
-     *     that are in fact valid.
+     *     Verify that the workload is valid. Throw an exception on error.
      */
-    void verify(const char *connection_config = nullptr);
+    void verify();
 
     /*
      * kv_workload::verify_noexcept --
@@ -1545,10 +1542,10 @@ public:
      *     exception.
      */
     bool
-    verify_noexcept(const char *connection_config = nullptr)
+    verify_noexcept()
     {
         try {
-            verify(connection_config);
+            verify();
             return true;
         } catch (...) {
             return false;
@@ -1557,11 +1554,9 @@ public:
 
     /*
      * kv_workload::run --
-     *     Run the workload in the model. Return the return codes of the workload operations. Pass
-     *     the same connection configuration override that WiredTiger will be given, so that the
-     *     model sees settings that the workload itself does not record.
+     *     Run the workload in the model. Return the return codes of the workload operations.
      */
-    std::vector<int> run(kv_database &database, const char *connection_config = nullptr) const;
+    std::vector<int> run(kv_database &database) const;
 
     /*
      * kv_workload::run_in_wiredtiger --

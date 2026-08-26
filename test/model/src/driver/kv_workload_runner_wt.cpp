@@ -686,6 +686,8 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
     config << k_config_base;
     if (database_config.disaggregated)
         config << "," << wt_disagg_config_string();
+    if (database_config.logging)
+        config << ",log=(enabled=true)";
     if (_state->connection_config[0] != '\0')
         config << "," << _state->connection_config;
     if (!_connection_config_override.empty())

@@ -191,7 +191,7 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
 {
     /* Run the workload in the model. */
     model::kv_database database;
-    std::vector<int> ret_model = workload.run(database, env_config);
+    std::vector<int> ret_model = workload.run(database);
 
     /* When we load the workload from WiredTiger, that would be after running recovery. */
     database.restart();
