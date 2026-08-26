@@ -471,11 +471,11 @@ __create_import_cmp_id(const void *a, const void *b)
 }
 
 /*
- * __wt_find_import_metadata --
+ * __find_import_metadata --
  *     Find metadata entry by URI in session's import list. The list must already be sorted by uri.
  */
-int
-__wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char **config)
+static int
+__find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char **config)
 {
     WT_IMPORT_ENTRY entry, *result;
 
@@ -520,7 +520,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     exists = tracked = false;
 
     if (session->import_list != NULL)
-        WT_RET(__wt_find_import_metadata(session, name, &cfg[1]));
+        WT_RET(__find_import_metadata(session, name, &cfg[1]));
 
     tablename = name;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "colgroup:");
@@ -575,7 +575,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
     if (session->import_list != NULL)
         /* Use the import configuration, it should have key and value format configurations. */
-        WT_ERR(__wt_find_import_metadata(session, source, &sourcecfg[0]));
+        WT_ERR(__find_import_metadata(session, source, &sourcecfg[0]));
     else {
         /* Calculate the key/value formats: these go into the source config. */
         WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
@@ -906,7 +906,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
          * in the config.
          */
         if (session->import_list != NULL)
-            WT_ERR(__wt_find_import_metadata(session, uri, &cfg[1]));
+            WT_ERR(__find_import_metadata(session, uri, &cfg[1]));
         else if (!import_repair) {
             __wt_config_init(session, &conf, config);
             for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)

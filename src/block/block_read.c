@@ -21,7 +21,6 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
     WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
-    bool last_release;
 
     WT_UNUSED(block_meta);
 
@@ -30,10 +29,6 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
     /* Crack the cookie. */
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
-
-    if (bm->is_multi_handle)
-        /* Lookup the block handle */
-        WT_RET(__wt_blkcache_get_handle(session, bm, objectid, true, &block));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -51,13 +46,6 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
     WT_ERR(__wti_block_discard(session, block, (size_t)size));
 
 err:
-    if (bm->is_multi_handle) {
-        last_release = false;
-        __wt_blkcache_release_handle(session, block, &last_release);
-        if (last_release && __wt_block_eligible_for_sweep(bm, block))
-            WT_TRET(__wt_bm_sweep_handles(session, bm));
-    }
-
     return (ret);
 }
 

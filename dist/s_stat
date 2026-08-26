@@ -36,6 +36,12 @@ compress_write_ratio_hist_max
 flush_tier_fail
 flush_tier_skipped
 flush_tier_switched
+local_objects_inuse
+local_objects_removed
+tiered_retention
+tiered_work_units_created
+tiered_work_units_dequeued
+tiered_work_units_removed
 live_restore_hist_source_read_latency_total_msecs
 lock_btree_page_count
 lock_btree_page_wait_application

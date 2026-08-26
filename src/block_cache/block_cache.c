@@ -817,16 +817,8 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
         WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
           false, allocsize, lr_fh_meta, &bm->block));
     } else {
-        bm->is_multi_handle = true;
-        WT_ERR(__wt_rwlock_init(session, &bm->handle_array_lock));
-
-        /* Allocate space to store the handle (do first for simpler cleanup). */
-        WT_ERR(__wt_realloc_def(
-          session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
-
-        /* Open the active file, and save in array */
-        WT_ERR(__wti_blkcache_tiered_open(session, uri, 0, &bm->block));
-        bm->handle_array[bm->handle_array_next++] = bm->block;
+        /* Leftover tiered URIs must not map onto a file or a multi-handle open. */
+        WT_ERR(__wt_object_unsupported(session, uri));
     }
 
     *bmp = bm;
