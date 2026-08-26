@@ -40,3 +40,40 @@ TEST_CASE("operation_timeout_us is cleared after a failed begin_transaction", "[
     /* Rollback to clean up. */
     REQUIRE(session->iface.rollback_transaction(&session->iface, NULL) == 0);
 }
+
+TEST_CASE("ignore_cache_size is scoped to the transaction that set it", "[txn_config]")
+{
+    connection_wrapper conn("WT_TEST.txn_config_ignore_cache_size");
+    WT_SESSION_IMPL *session = conn.create_session();
+
+    REQUIRE(!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+
+    SECTION("cleared when the transaction is resolved")
+    {
+        REQUIRE(session->iface.begin_transaction(&session->iface, "ignore_cache_size=true") == 0);
+        REQUIRE(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+        REQUIRE(session->iface.commit_transaction(&session->iface, NULL) == 0);
+        REQUIRE(!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+
+        REQUIRE(session->iface.begin_transaction(&session->iface, "ignore_cache_size=true") == 0);
+        REQUIRE(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+        REQUIRE(session->iface.rollback_transaction(&session->iface, NULL) == 0);
+        REQUIRE(!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+    }
+
+    SECTION("cleared on a failed begin_transaction")
+    {
+        REQUIRE(session->iface.begin_transaction(
+                  &session->iface, "ignore_cache_size=true,read_timestamp=0") == EINVAL);
+        REQUIRE(!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+    }
+
+    SECTION("a session-level setting outlives the transaction")
+    {
+        REQUIRE(session->iface.reconfigure(&session->iface, "ignore_cache_size=true") == 0);
+        REQUIRE(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+        REQUIRE(session->iface.begin_transaction(&session->iface, "ignore_cache_size=true") == 0);
+        REQUIRE(session->iface.commit_transaction(&session->iface, NULL) == 0);
+        REQUIRE(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+    }
+}

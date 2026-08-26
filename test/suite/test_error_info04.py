@@ -34,16 +34,15 @@ from error_info_util import error_info_util
 # be returned and not be saved inside the get_last_error() function call.
 class test_error_info04(error_info_util):
     uri = "table:test_error_info.wt"
-    conn_config = "cache_max_wait_ms=1,eviction_dirty_target=1,eviction_dirty_trigger=2"
+    conn_config = "eviction_dirty_target=1,eviction_dirty_trigger=2"
 
-    def test_commit_transaction_skip_save(self):
-        # Create a basic table.
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        # Start 100 transactions which should be enough to trigger application eviction when committed.
+    def build_dirty_transactions(self):
+        """Leave 100 uncommitted transactions, each large enough to trigger application eviction."""
         sessions = []
         for i in range(100):
-            temp_session = self.conn.open_session()
+            # Build the transactions up without being pulled into eviction, so that eviction is
+            # only attempted when they are resolved.
+            temp_session = self.conn.open_session('ignore_cache_size=true')
             cursor = temp_session.open_cursor(self.uri)
             temp_session.begin_transaction()
             cursor.set_key(str(i))
@@ -53,6 +52,17 @@ class test_error_info04(error_info_util):
 
         # Configure the lowest cache max wait time so that application attempts eviction.
         self.conn.reconfigure('cache_max_wait_ms=2')
+        for temp_session in sessions:
+            temp_session.reconfigure('ignore_cache_size=false')
+
+        return sessions
+
+    def test_commit_transaction_skip_save(self):
+        # Create a basic table.
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        sessions = self.build_dirty_transactions()
+
         # Commit all transactions large enough to trigger eviction app worker threads.
         for temp_session in sessions:
             self.assertEqual(temp_session.commit_transaction(), 0)
@@ -64,19 +74,8 @@ class test_error_info04(error_info_util):
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Start 100 transactions which should be enough to trigger application eviction when rolled back.
-        sessions = []
-        for i in range(100):
-            temp_session = self.conn.open_session()
-            cursor = temp_session.open_cursor(self.uri)
-            temp_session.begin_transaction()
-            cursor.set_key(str(i))
-            cursor.set_value(str(i)*1024*500)
-            cursor.insert()
-            sessions.append(temp_session)
+        sessions = self.build_dirty_transactions()
 
-        # Configure the lowest cache max wait time so that application attempts eviction.
-        self.conn.reconfigure('cache_max_wait_ms=2')
         # Rollback all transactions large enough to trigger eviction app worker threads.
         for temp_session in sessions:
             self.assertEqual(temp_session.rollback_transaction(), 0)

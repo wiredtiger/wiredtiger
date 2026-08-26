@@ -860,6 +860,16 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (cval.val == 0)
         txn->txn_log.txn_logsync = 0;
 
+    /*
+     * Exempt this transaction from the cache size. Track that we set the session flag so it is
+     * cleared on release, unless the session was already configured to ignore the cache size.
+     */
+    WT_ERR(__wt_conf_gets_def(session, conf, ignore_cache_size, 0, &cval));
+    if (cval.val && !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
+        F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        F_SET(txn, WT_TXN_IGNORE_CACHE_SIZE);
+    }
+
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
     if (cval.len > 0 && WT_CONF_STRING_MATCH(force, cval))
@@ -902,6 +912,8 @@ err:
          * In the event that we error during configuration we should clear the flags on the
          * transaction so they are not set in a subsequent call to transaction begin.
          */
+        if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+            F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
         txn->flags = 0;
         txn->time_point.flags = 0;
         txn->operation_timeout_us = 0;
@@ -1001,6 +1013,8 @@ __txn_release(WT_SESSION_IMPL *session)
      * Purposely do NOT clear the commit and durable timestamps on release. Other readers may still
      * find these transactions in the durable queue and will need to see those timestamps.
      */
+    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
     txn->flags = 0;
     txn->time_point.flags = 0;
     txn->time_point.prepare_timestamp = WT_TS_NONE;
