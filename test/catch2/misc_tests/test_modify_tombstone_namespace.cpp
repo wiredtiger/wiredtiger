@@ -15,6 +15,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <random>
 #include <string>
 #include <vector>
@@ -30,6 +31,31 @@ struct mod_entry {
     std::string data;
     size_t offset;
     size_t size;
+};
+
+/* A connection with mock cursors: the code under test needs only a session and a value format. */
+struct prediction_fixture {
+    connection_wrapper conn;
+    WT_SESSION_IMPL *session;
+    WT_CURSOR cur_u;
+    WT_CURSOR cur_s;
+
+    prediction_fixture(const std::string &home) : conn(home)
+    {
+        session = conn.create_session();
+        WT_CLEAR(cur_u);
+        cur_u.session = (WT_SESSION *)session;
+        cur_u.value_format = "u";
+        WT_CLEAR(cur_s);
+        cur_s.session = (WT_SESSION *)session;
+        cur_s.value_format = "S";
+    }
+
+    ~prediction_fixture()
+    {
+        __wt_buf_free(session, &cur_u.value);
+        __wt_buf_free(session, &cur_s.value);
+    }
 };
 
 /*
@@ -48,7 +74,7 @@ prediction_is_exact(const std::vector<mod_entry> &entries)
 /* Predict via the function under test, apply via the cursor API, and compare. */
 void
 check_case(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const std::string &base,
-  std::vector<mod_entry> &case_entries)
+  const std::vector<mod_entry> &case_entries)
 {
     std::vector<WT_MODIFY> entries(case_entries.size());
     for (size_t i = 0; i < case_entries.size(); ++i) {
@@ -83,115 +109,197 @@ check_case(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const std::string &base,
 
 } // namespace
 
-TEST_CASE("Modify tombstone namespace prediction matches application",
-  "[modify][modify_tombstone_namespace]")
+TEST_CASE(
+  "Modify tombstone namespace prediction: directed cases", "[modify][modify_tombstone_namespace]")
 {
-    const std::string home = "WT_TEST.modify_tombstone_namespace";
+    const std::string home = "WT_TEST.modify_tombstone_namespace_directed";
     utils::wiredtiger_cleanup(home);
 
     {
-        connection_wrapper conn(home);
-
-        WT_SESSION_IMPL *session_impl = conn.create_session();
-        WT_SESSION *session = &session_impl->iface;
-        REQUIRE(session->create(session, "file:modify_u.wt", "key_format=S,value_format=u") == 0);
-        REQUIRE(session->create(session, "file:modify_s.wt", "key_format=S,value_format=S") == 0);
-
-        WT_CURSOR *cursor_u = nullptr, *cursor_s = nullptr;
-        REQUIRE(
-          session->open_cursor(session, "file:modify_u.wt", nullptr, nullptr, &cursor_u) == 0);
-        REQUIRE(
-          session->open_cursor(session, "file:modify_s.wt", nullptr, nullptr, &cursor_s) == 0);
+        prediction_fixture fix(home);
 
         const std::string ts = "\x14\x14";
+        const std::string deep(17, 'x');
 
-        {
-            std::vector<std::pair<std::string, std::vector<mod_entry>>> cases = {
-              /* Rewrite the leading bytes into the namespace. */
-              {"abcdef", {{ts, 0, 2}}},
-              /* Pad past the end of the value; leading bytes untouched. */
-              {"ab", {{"\x14", 5, 3}}},
-              /* Append onto an empty value, result exactly the two tombstone bytes. */
-              {"", {{ts, 0, 0}}},
-              /* Replace through (and past) the end. */
-              {ts + "abc", {{"", 1, 100}}},
-              /* Delete shifts trailing bytes into the leading positions. */
-              {std::string("zz\x14\x14", 4), {{"", 0, 2}}},
-              /* Delete shifts non-marker bytes in: an over-report is allowed, a miss is not. */
-              {"abcd", {{"", 0, 2}}},
-              /* Result shorter than the namespace prefix. */
-              {ts, {{"", 0, 1}}},
-              /* Grow then shrink: the intermediate exceeds both base and result sizes. */
-              {std::string("\x14\x14rest", 6), {{std::string(100, 'x'), 0, 0}, {"", 0, 100}}},
-              /* Cumulative offsets: a leading insert shifts what the second entry sees. */
-              {"abcd", {{"\x14", 0, 0}, {"\x14", 1, 1}}},
-              /* Empty data, zero size: a no-op entry. */
-              {"abcd", {{"", 2, 0}}},
-            };
-            for (auto &c : cases) {
-                CAPTURE(c.first, c.second.size());
-                check_case(session_impl, cursor_u, c.first, c.second);
-            }
+        std::vector<std::pair<std::string, std::vector<mod_entry>>> cases = {
+          /* Rewrite the leading bytes into the namespace. */
+          {"abcdef", {{ts, 0, 2}}},
+          /* Pad past the end of the value; leading bytes untouched. */
+          {"ab", {{"\x14", 5, 3}}},
+          /* Append onto an empty value, result exactly the two tombstone bytes. */
+          {"", {{ts, 0, 0}}},
+          /* Replace through (and past) the end. */
+          {ts + "abc", {{"", 1, 100}}},
+          /* Delete shifts trailing bytes into the leading positions. */
+          {std::string("zz\x14\x14", 4), {{"", 0, 2}}},
+          /* Delete shifts non-marker bytes in: an over-report is allowed, a miss is not. */
+          {"abcd", {{"", 0, 2}}},
+          /* Result shorter than the namespace prefix. */
+          {ts, {{"", 0, 1}}},
+          /* Grow then shrink: the intermediate exceeds both base and result sizes. */
+          {std::string("\x14\x14rest", 6), {{std::string(100, 'x'), 0, 0}, {"", 0, 100}}},
+          /* Cumulative offsets: a leading insert shifts what the second entry sees. */
+          {"abcd", {{"\x14", 0, 0}, {"\x14", 1, 1}}},
+          /* Empty data, zero size: a no-op entry. */
+          {"abcd", {{"", 2, 0}}},
+          /* Plant the marker deep with one entry, shift it to the front with the next. */
+          {deep, {{ts, 15, 2}, {"", 0, 15}}},
+          /* Same shape, but the shift leaves the marker short of the front. */
+          {deep, {{ts, 15, 2}, {"", 0, 14}}},
+          /* An unknown head is cured by a later covering entry. */
+          {"abcd", {{"", 0, 2}, {ts, 0, 2}}},
+          /* A known marker head is destroyed by a later shrink. */
+          {"abcd", {{ts, 0, 2}, {"", 0, 2}}},
+          /* One base byte plus one appended byte assemble the marker. */
+          {"\x14", {{"\x14", 1, 0}}},
+          /* Pad plus data assemble a 2-byte value; the pad byte proves it clean. */
+          {"", {{"\x14", 1, 0}}},
+          /* Pure pads, no data. */
+          {"", {{"", 3, 0}}},
+          /* Same-size overwrite of a 1-byte value: too short regardless of content. */
+          {"\x14", {{"\x14", 0, 1}}},
+          /* Marker base kept in place, the second marker byte written by the entry. */
+          {std::string("\x14y", 2), {{"\x14", 1, 1}}},
+          /* Tail delete leaves exactly the tombstone bytes; the head is untouched. */
+          {ts + "abc", {{"", 2, 3}}},
+          /* Shrink-by-one pulls the marker to the front. */
+          {"a" + ts, {{"", 0, 1}}},
+          /* Shrink-by-one pulls non-marker bytes to the front. */
+          {std::string("ab\x14", 3), {{"", 0, 1}}},
+        };
+        for (auto &c : cases) {
+            CAPTURE(c.first, c.second.size());
+            check_case(fix.session, &fix.cur_u, c.first, c.second);
         }
 
-        {
-            std::random_device rd;
-            const unsigned seed = rd();
-            CAPTURE(seed);
-            std::mt19937 rng(seed);
-
-            auto rand_byte = [&](void) -> char {
-                /* Bias toward the tombstone byte so namespace results are common. */
-                return (rng() % 5 == 0) ? '\x14' : (char)(rng() % 256);
-            };
-
-            for (int trial = 0; trial < 5000; ++trial) {
-                CAPTURE(trial);
-                std::string base;
-                for (size_t i = rng() % 48; i > 0; --i)
-                    base.push_back(rand_byte());
-
-                std::vector<mod_entry> entries(1 + rng() % 6);
-                for (auto &e : entries) {
-                    for (size_t i = rng() % 24; i > 0; --i)
-                        e.data.push_back(rand_byte());
-                    e.offset = rng() % 56;
-                    e.size = rng() % 24;
-                }
-                check_case(session_impl, cursor_u, base, entries);
-            }
+        /* String-format cases: the content excludes the trailing nul and the pad byte is ' '. */
+        std::vector<std::pair<std::string, std::vector<mod_entry>>> s_cases = {
+          /* Rewrite the leading content bytes into the namespace. */
+          {std::string("ab\0", 3), {{ts, 0, 2}}},
+          /* Append at the content end, past the nul, assembling the marker. */
+          {std::string("\x14\0", 2), {{"\x14", 1, 0}}},
+          /* Pads below an appending entry's offset are spaces, not marker bytes. */
+          {std::string("\0", 1), {{"\x14", 2, 0}}},
+          /* Tail delete of the content leaves exactly the tombstone bytes. */
+          {ts + std::string("ab\0", 3), {{"", 2, 2}}},
+        };
+        for (auto &c : s_cases) {
+            CAPTURE(c.first, c.second.size());
+            check_case(fix.session, &fix.cur_s, c.first, c.second);
         }
+    }
 
-        {
-            std::random_device rd;
-            const unsigned seed = rd();
-            CAPTURE(seed);
-            std::mt19937 rng(seed);
+    utils::wiredtiger_cleanup(home);
+}
 
-            auto rand_char = [&](void) -> char {
-                return (rng() % 5 == 0) ? '\x14' : (char)(1 + rng() % 255);
-            };
+TEST_CASE("Modify tombstone namespace prediction: randomized raw format",
+  "[modify][modify_tombstone_namespace]")
+{
+    const std::string home = "WT_TEST.modify_tombstone_namespace_rand_u";
+    utils::wiredtiger_cleanup(home);
 
-            for (int trial = 0; trial < 2000; ++trial) {
-                CAPTURE(trial);
-                std::string base;
-                for (size_t i = rng() % 32; i > 0; --i)
-                    base.push_back(rand_char());
-                base.push_back('\0');
+    {
+        prediction_fixture fix(home);
 
-                std::vector<mod_entry> entries(1 + rng() % 4);
-                for (auto &e : entries) {
-                    for (size_t i = rng() % 16; i > 0; --i)
-                        e.data.push_back(rand_char());
-                    e.offset = rng() % 40;
-                    e.size = rng() % 16;
-                }
-                check_case(session_impl, cursor_s, base, entries);
+        std::random_device rd;
+        const unsigned seed = rd();
+        CAPTURE(seed);
+        std::mt19937 rng(seed);
+
+        auto rand_byte = [&](void) -> char {
+            /* Bias toward the tombstone byte so namespace results are common. */
+            return (rng() % 5 == 0) ? '\x14' : (char)(rng() % 256);
+        };
+        /* Bias toward the marker positions and the value length, where classification changes. */
+        auto rand_offset = [&](size_t base_len) -> size_t {
+            switch (rng() % 3) {
+            case 0:
+                return rng() % 3;
+            case 1:
+                return base_len + 2 - std::min<size_t>(base_len + 2, rng() % 5);
+            default:
+                return rng() % 56;
             }
-        }
+        };
+        auto rand_len = [&](size_t bound) -> size_t {
+            return (rng() % 3 == 0) ? rng() % 3 : rng() % bound;
+        };
 
-        REQUIRE(cursor_u->close(cursor_u) == 0);
-        REQUIRE(cursor_s->close(cursor_s) == 0);
+        std::string base;
+        std::vector<mod_entry> entries;
+        base.reserve(64);
+
+        for (int trial = 0; trial < 5000; ++trial) {
+            CAPTURE(trial);
+            base.clear();
+            for (size_t i = rng() % 48; i > 0; --i)
+                base.push_back(rand_byte());
+
+            entries.assign(1 + rng() % 6, mod_entry());
+            for (auto &e : entries) {
+                for (size_t i = rand_len(24); i > 0; --i)
+                    e.data.push_back(rand_byte());
+                e.offset = rand_offset(base.size());
+                e.size = rand_len(24);
+            }
+            check_case(fix.session, &fix.cur_u, base, entries);
+        }
+    }
+
+    utils::wiredtiger_cleanup(home);
+}
+
+TEST_CASE("Modify tombstone namespace prediction: randomized string format",
+  "[modify][modify_tombstone_namespace]")
+{
+    const std::string home = "WT_TEST.modify_tombstone_namespace_rand_s";
+    utils::wiredtiger_cleanup(home);
+
+    {
+        prediction_fixture fix(home);
+
+        std::random_device rd;
+        const unsigned seed = rd();
+        CAPTURE(seed);
+        std::mt19937 rng(seed);
+
+        auto rand_char = [&](void) -> char {
+            return (rng() % 5 == 0) ? '\x14' : (char)(1 + rng() % 255);
+        };
+        auto rand_offset = [&](size_t content_len) -> size_t {
+            switch (rng() % 3) {
+            case 0:
+                return rng() % 3;
+            case 1:
+                return content_len + 2 - std::min<size_t>(content_len + 2, rng() % 5);
+            default:
+                return rng() % 40;
+            }
+        };
+        auto rand_len = [&](size_t bound) -> size_t {
+            return (rng() % 3 == 0) ? rng() % 3 : rng() % bound;
+        };
+
+        std::string base;
+        std::vector<mod_entry> entries;
+        base.reserve(48);
+
+        for (int trial = 0; trial < 2000; ++trial) {
+            CAPTURE(trial);
+            base.clear();
+            for (size_t i = rng() % 32; i > 0; --i)
+                base.push_back(rand_char());
+            base.push_back('\0');
+
+            entries.assign(1 + rng() % 4, mod_entry());
+            for (auto &e : entries) {
+                for (size_t i = rand_len(16); i > 0; --i)
+                    e.data.push_back(rand_char());
+                e.offset = rand_offset(base.size() - 1);
+                e.size = rand_len(16);
+            }
+            check_case(fix.session, &fix.cur_s, base, entries);
+        }
     }
 
     utils::wiredtiger_cleanup(home);
