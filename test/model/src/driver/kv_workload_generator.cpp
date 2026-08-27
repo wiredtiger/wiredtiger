@@ -524,9 +524,8 @@ kv_workload_generator::run()
         _spec.rollback_to_stable = 0;
 
         /*
-         * The checkpoint is published through the page log rather than the local metadata, so
-         * whether a crash in one of the checkpoint's final phases keeps it is not the same
-         * question.
+         * The checkpoint is published to the page log after the point where these crashes are
+         * taken, so there is no phase here that keeps it.
          */
         _spec.checkpoint_crash_trigger = 0;
 
