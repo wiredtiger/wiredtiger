@@ -41,7 +41,6 @@
 
 import re
 import os
-import signal
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from suite_subprocess import suite_subprocess
@@ -175,7 +174,8 @@ class test_layered_schema28(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin, s
         """
         # The checkpoint cannot be rolled back once it has refused the unpublished stable
         # table, so WiredTiger panics rather than leaving the epoch and the timestamp
-        # disagreeing on which incarnation is durable. A panic aborts, so run it apart.
+        # disagreeing on which incarnation is durable. A panic takes the connection down, so run
+        # it apart.
         #
         # The subprocess works in its own home directory, so this connection stays open; it
         # only needs a stable timestamp for the closing checkpoint.
@@ -184,7 +184,12 @@ class test_layered_schema28(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin, s
         subdir = 'SUBPROCESS_stable_data_above_pre_drop_schema_epoch'
         func = (f'{self.test_name}.{self.test_name}.'
                 'subprocess_stable_data_above_pre_drop_schema_epoch')
-        home = self.crash_in_subprocess(subdir, func, signal.SIGABRT)
+        returncode, home = self.run_subprocess_function(subdir, func, silent=True,
+            scenario=getattr(self, 'scenario_number', None))
+
+        # A panic drops core only in a diagnostic build, so require an abnormal exit rather than a
+        # signal.
+        self.assertNotEqual(returncode, 0)
 
         with open(os.path.join(home, 'stderr.txt'), 'r') as f:
             err = f.read()
