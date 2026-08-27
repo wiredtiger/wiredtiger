@@ -420,7 +420,7 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
-        uint32_t fileid = __wt_atomic_load_uint32(&log->fileid);
+        uint32_t fileid = __wt_atomic_load_uint32_relaxed(&log->fileid);
         if ((conn->debug.log_cnt + 1) >= fileid)
             min_lognum = 0;
         else if (WT_IS_INIT_LSN(&log->ckpt_lsn))
@@ -1083,7 +1083,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
     WT_INIT_LSN(&log->trunc_lsn);
     WT_INIT_LSN(&log->write_lsn);
     WT_INIT_LSN(&log->write_start_lsn);
-    __wt_atomic_store_uint32(&log->fileid, 0);
+    __wt_atomic_store_uint32_relaxed(&log->fileid, 0);
     WT_RET(__logmgr_version(session, false));
 
     WT_RET(__wt_cond_alloc(session, "log sync", &log->log_sync_cond));
