@@ -81,9 +81,7 @@ struct __wt_error_info {
 #define S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
 
 /* Get the file system for a session */
-#define S2FS(session)                                                \
-    ((session)->bucket_storage == NULL ? S2C(session)->file_system : \
-                                         (session)->bucket_storage->file_system)
+#define S2FS(session) (S2C(session)->file_system)
 
 typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
@@ -139,7 +137,6 @@ struct __wt_session_impl {
 
     wt_shared WT_DATA_HANDLE *dhandle; /* Current data handle */
     WT_DHANDLE_CLEAR_LOG dhandle_clear_log;
-    WT_BUCKET_STORAGE *bucket_storage; /* Current bucket storage and file system */
 
     /*
      * Each session keeps a cache of data handles. The set of handles can grow quite large so we
