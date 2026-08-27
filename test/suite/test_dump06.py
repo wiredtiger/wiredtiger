@@ -40,22 +40,36 @@ class test_dump06(wttest.WiredTigerTestCase, suite_subprocess):
     hex_file = 'dump_hex.out'
     json_file = 'dump_json.out'
 
+    k_v_pairs = [(1, b''), (2, b'A'), (3, b''), (5, b'B'), (6, b'C')]
+
     def test_dump_pretty_empty_value(self):
         self.session.create(self.uri, self.table_format)
         cursor = self.session.open_cursor(self.uri, None, None)
-        cursor[1] = b''
-        cursor[2] = b'A'
-        cursor[3] = b''
-        cursor[5] = b'B'
-        cursor[6] = b'C'
+        for k, v in self.k_v_pairs:
+            cursor[k] = v
         cursor.close()
 
         self.runWt(['dump', '-p', self.uri], outfilename=self.pretty_file)
         self.runWt(['dump', '-x', self.uri], outfilename=self.hex_file)
         self.runWt(['dump', '-j', self.uri], outfilename=self.json_file)
 
-        self.check_file_contains(self.pretty_file, 'Data\n1\n\n2\nA\n3\n\n5\nB\n6\nC\n')
-        self.check_file_contains(self.hex_file, 'Data\n81\n\n82\n41\n83\n\n85\n42\n86\n43\n')
+        # Pretty-print format
+        pretty_expected = []
+        for k, v in self.k_v_pairs:
+            pretty_expected.append(f'{k}')
+            pretty_expected.append(v.decode())
+        pretty_expected = 'Data\n' + '\n'.join(pretty_expected)
+        self.check_file_contains(self.pretty_file, pretty_expected)
+
+        # Hex format
+        hex_expected = []
+        for k, v in self.k_v_pairs:
+            hex_expected.append(f'{k + 0x80:x}')
+            hex_expected.append(v.hex())
+        hex_expected = 'Data\n' + '\n'.join(hex_expected)
+        self.check_file_contains(self.hex_file, hex_expected)
+
+        # JSON format
         self.check_file_contains(self.json_file, '"key0" : 1,\n"value0" : ""\n')
         self.check_file_contains(self.json_file, '"key0" : 3,\n"value0" : ""\n')
 
