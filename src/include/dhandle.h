@@ -102,8 +102,7 @@ struct __wt_dhandle_clear_log {
     } while (0)
 
 enum wt_dhandle_type { WT_DHANDLE_TYPE_BTREE = 0, WT_DHANDLE_TYPE_LAYERED, WT_DHANDLE_TYPE_TABLE };
-/* Number of values above. */
-#define WT_DHANDLE_TYPE_NUM (1 + WT_DHANDLE_TYPE_TABLE)
+#define WT_DHANDLE_TYPE_NUM 3
 
 /*
  * WT_DATA_HANDLE --
