@@ -95,9 +95,6 @@ typedef struct __wt_crypt_keys WT_CRYPT_KEYS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
-#if !defined(DOXYGEN)
-struct __wt_storage_source; typedef struct __wt_storage_source WT_STORAGE_SOURCE;
-#endif
 
 /*!
  * A raw item of data to be managed, including a pointer to the data and a
@@ -1341,10 +1338,10 @@ struct __wt_session {
      * in seconds to retain data on tiered storage on the local tier for faster read access., an
      * integer between \c 0 and \c 10000; default \c 300.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;name,
-     * permitted values are \c "none" or a custom storage source name created with
-     * WT_CONNECTION::add_storage_source., a string; default \c none.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;shared, enable sharing tiered tables across other WiredTiger
-     * instances., a boolean flag; default \c false.}
+     * permitted value is \c "none"., a string; default \c none.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * shared, enable sharing tiered tables across other WiredTiger instances., a boolean flag;
+     * default \c false.}
      * @config{ ),,}
      * @config{type, set the type of data source used to store a column group\, index or simple
      * table.  By default\, a \c "file:" URI is derived from the object name.  The \c type
@@ -2944,23 +2941,6 @@ struct __wt_connection {
      */
     int __F(add_page_log)(WT_CONNECTION *connection, const char *name,
         WT_PAGE_LOG *page_log, const char *config);
-
-    /*!
-     * Add a storage source implementation.
-     *
-     * The application must first implement the WT_STORAGE_SOURCE
-     * interface and then register the implementation with WiredTiger:
-     *
-     * @snippet ex_storage_source.c WT_STORAGE_SOURCE register
-     *
-     * @param connection the connection handle
-     * @param name the name of the storage source implementation
-     * @param storage_source the populated storage source structure
-     * @configempty{WT_CONNECTION.add_storage_source, see dist/api_data.py}
-     * @errors
-     */
-    int __F(add_storage_source)(WT_CONNECTION *connection, const char *name,
-        WT_STORAGE_SOURCE *storage_source, const char *config);
 #endif
 
     /*!
@@ -2978,22 +2958,6 @@ struct __wt_connection {
      */
     int __F(get_page_log)(WT_CONNECTION *connection, const char *name,
         WT_PAGE_LOG **page_logp);
-
-    /*!
-     * Get a storage source implementation.
-     *
-     * Look up a storage source by name and return it. The returned storage source
-     * must be released by calling WT_STORAGE_SOURCE::terminate.
-     *
-     * @snippet ex_storage_source.c WT_STORAGE_SOURCE register
-     *
-     * @param connection the connection handle
-     * @param name the name of the storage source implementation
-     * @param storage_source the storage source structure
-     * @errors
-     */
-    int __F(get_storage_source)(WT_CONNECTION *connection, const char *name,
-        WT_STORAGE_SOURCE **storage_sourcep);
 
     /*!
      * Set a global context parameter, which tells WiredTiger about relevant changes
@@ -5552,132 +5516,6 @@ struct __wt_file_handle {
 
 #if !defined(DOXYGEN)
 /* This interface is not yet public. */
-
-/*!
- * The interface implemented by applications to provide a storage source
- * implementation. This documentation refers to "object" and "bucket"
- * to mean a "file-like object" and a "container of objects", respectively.
- *
- * <b>Thread safety:</b> WiredTiger may invoke methods on the WT_STORAGE_SOURCE
- * interface from multiple threads concurrently. It is the responsibility of
- * the implementation to protect any shared data.
- *
- * Applications register implementations with WiredTiger by calling
- * WT_CONNECTION::add_storage_source.
- *
- * @snippet ex_storage_source.c WT_STORAGE_SOURCE register
- */
-struct __wt_storage_source {
-    /*!
-     * A reference is added to the storage source.  The reference is released by a
-     * call to WT_STORAGE_SOURCE::terminate.  A reference is added as a side effect
-     * of calling WT_CONNECTION::get_storage_source.
-     *
-     * @errors
-     *
-     * @param storage_source the WT_STORAGE_SOURCE
-     */
-    int (*ss_add_reference)(WT_STORAGE_SOURCE *storage_source);
-
-    /*!
-     * Create a customized file system to access the storage source
-     * objects.
-     *
-     * The file system returned behaves as if objects in the specified buckets are
-     * files in the file system.  In particular, the fs_open_file method requires
-     * its flags argument to include either WT_FS_OPEN_CREATE or WT_FS_OPEN_READONLY.
-     * Objects being created are not deemed to "exist" and be visible to
-     * WT_FILE_SYSTEM::fs_exist and other file system methods until the new handle has
-     * been closed.  Objects once created are immutable. That is, only objects that
-     * do not already exist can be opened with the create flag, and objects that
-     * already exist can only be opened with the readonly flag.  Only objects that
-     * exist can be transferred to the underlying shared object storage.  This can
-     * happen at any time after an object is created, and can be forced to happen using
-     * WT_STORAGE_SOURCE::ss_flush.
-     *
-     * Additionally file handles returned by the file system behave as file handles to a
-     * local file.  For example, WT_FILE_HANDLE::fh_sync synchronizes writes to the
-     * local file, and does not imply any transferring of data to the shared object store.
-     *
-     * The directory argument to the WT_FILE_SYSTEM::fs_directory_list method is normally
-     * the empty string as the cloud equivalent (bucket) has already been given when
-     * customizing the file system.  If specified, the directory path is interpreted
-     * as another prefix, which is removed from the results.
-     *
-     * Names used by the file system methods are generally flat.  However, in some
-     * implementations of a file system returned by a storage source, "..", ".", "/"
-     * may have a particular meaning, as in a POSIX file system.  We suggest that
-     * these constructs be avoided when a caller chooses file names within the returned
-     * file system; they may be rejected by the implementation.  Within a bucket name,
-     * these characters may or may not be acceptable. That is implementation dependent.
-     * In the prefix, "/" is specifically allowed, as this may have performance or
-     * administrative benefits.  That said, within a prefix, certain combinations
-     * involving "/" may be rejected, for example "/../".
-     *
-     * @errors
-     *
-     * @param storage_source the WT_STORAGE_SOURCE
-     * @param session the current WiredTiger session
-     * @param bucket_name the name of the bucket.  Use of '/' is implementation dependent.
-     * @param auth_token the authorization identifier.
-     * @param config additional configuration. The only allowable value is \c cache_directory,
-     *    the name of a directory holding cached objects. Its default is
-     *    \c "<home>/cache-<bucket>" with \c <home> replaced by the @ref home, and
-     *    \c <bucket> replaced by the bucket_name.
-     * @param[out] file_system the customized file system returned
-     */
-    int (*ss_customize_file_system)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-        const char *bucket_name, const char *auth_token, const char *config,
-        WT_FILE_SYSTEM **file_system);
-
-    /*!
-     * Copy a file from the default file system to an object name in shared object storage.
-     *
-     * @errors
-     *
-     * @param storage_source the WT_STORAGE_SOURCE
-     * @param session the current WiredTiger session
-     * @param file_system the destination bucket and credentials
-     * @param source the name of the source input file
-     * @param object the name of the destination object
-     * @param config additional configuration, currently must be NULL
-     */
-    int (*ss_flush)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-        WT_FILE_SYSTEM *file_system, const char *source, const char *object,
-            const char *config);
-
-    /*!
-     * After a flush, rename the source file from the default file system to be cached in
-     * the shared object storage.
-     *
-     * @errors
-     *
-     * @param storage_source the WT_STORAGE_SOURCE
-     * @param session the current WiredTiger session
-     * @param file_system the destination bucket and credentials
-     * @param source the name of the source input file
-     * @param object the name of the destination object
-     * @param config additional configuration, currently must be NULL
-     */
-    int (*ss_flush_finish)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-        WT_FILE_SYSTEM *file_system, const char *source, const char *object,
-        const char *config);
-
-    /*!
-     * A callback performed when the storage source or reference is closed
-     * and will no longer be used.  The initial creation of the storage source
-     * counts as a reference, and each call to WT_STORAGE_SOURCE::add_reference
-     * increase the number of references.  When all references are released, the
-     * storage source and any resources associated with it are released.
-     *
-     * This method is not required and should be set to NULL when not
-     * required by the storage source implementation.
-     *
-     * The WT_STORAGE_SOURCE::terminate callback is intended to allow cleanup;
-     * the handle will not be subsequently accessed by WiredTiger.
-     */
-    int (*terminate)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session);
-};
 
 /*!
  * The maximum page log LSN, which can be used by some calls to identify the most recent log entry.

@@ -509,15 +509,14 @@ struct __wt_page_history {
  *	A list entry for a storage source with a unique name (bucket, prefix).
  */
 struct __wt_bucket_storage {
-    const char *bucket;                /* Bucket name */
-    const char *bucket_prefix;         /* Bucket prefix */
-    const char *cache_directory;       /* Locally cached file location */
-    int owned;                         /* Storage needs to be terminated */
-    uint64_t retain_secs;              /* Tiered period */
-    const char *auth_token;            /* Tiered authentication cookie */
-    bool tiered_shared;                /* Tiered shared */
-    WT_FILE_SYSTEM *file_system;       /* File system for bucket */
-    WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
+    const char *bucket;          /* Bucket name */
+    const char *bucket_prefix;   /* Bucket prefix */
+    const char *cache_directory; /* Locally cached file location */
+    int owned;                   /* Storage needs to be terminated */
+    uint64_t retain_secs;        /* Tiered period */
+    const char *auth_token;      /* Tiered authentication cookie */
+    bool tiered_shared;          /* Tiered shared */
+    WT_FILE_SYSTEM *file_system; /* File system for bucket */
     /* Linked list of bucket storage entries */
     TAILQ_ENTRY(__wt_bucket_storage) hashq;
     TAILQ_ENTRY(__wt_bucket_storage) q;
@@ -639,19 +638,6 @@ struct __wt_named_page_log {
 };
 
 /*
- * WT_NAMED_STORAGE_SOURCE --
- *	A storage source list entry
- */
-struct __wt_named_storage_source {
-    const char *name;                  /* Name of storage source */
-    WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
-    TAILQ_HEAD(__wt_buckethash, __wt_bucket_storage) * buckethashqh;
-    TAILQ_HEAD(__wt_bucket_qh, __wt_bucket_storage) bucketqh;
-    /* Linked list of storage sources */
-    TAILQ_ENTRY(__wt_named_storage_source) q;
-};
-
-/*
  * WT_CONN_BACKUP --
  *     Hot backup state for a connection.
  */
@@ -681,10 +667,6 @@ struct __wt_conn_extensions {
     /* Locked: page log list */
     WT_SPINLOCK page_log_lock; /* Page log list lock */
     TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
-
-    /* Locked: storage source list */
-    WT_SPINLOCK storage_lock; /* Storage source list lock */
-    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 };
 
 /*
