@@ -936,6 +936,20 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
+    ret = __wt_conf_getones(session, conf, ignore_cache_size, &cval);
+    if (ret == 0)
+        /* Can only reconfigure this if transaction is not active: it would otherwise race with a
+         * transaction that has claimed the flag for itself. */
+        WT_RET(__wt_txn_context_check(session, false));
+
+    if (ret == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        else
+            F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
     return (0);
 }
 
