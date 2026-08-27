@@ -30,7 +30,7 @@ import re
 import wttest
 from suite_subprocess import suite_subprocess
 
-# Test that an internal page whose children are all fast-truncated records the truncate's
+# Test that an internal page whose children are all fast-truncated records the truncate
 # stop point in its address aggregate. The aggregate written in a child's deleted-address
 # cell describes the child as it was before the truncate, so a parent built by merging
 # those cells unchanged claims its records never stop.
