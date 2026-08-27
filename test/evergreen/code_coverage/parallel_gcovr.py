@@ -35,6 +35,7 @@
 import argparse
 import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -78,6 +79,17 @@ def split_into_groups(data_files, num_groups):
     return [group for group in groups if group]
 
 
+def gcov_major_version():
+    # Version of the gcov resolved from PATH, which is the one gcovr will run.
+    try:
+        output = subprocess.run(["gcov", "--version"], capture_output=True,
+                                text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    match = re.search(r"\s(\d+)\.\d+\.\d+", output)
+    return int(match.group(1)) if match else None
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', default=os.cpu_count(), type=int,
@@ -95,6 +107,18 @@ def main():
 
     if args.jobs < 1:
         sys.exit("Number of jobs must be >= 1")
+
+    # Only gcov 12 and newer name their intermediate files uniquely per data
+    # file; older versions hash the source path, so concurrent gcovr
+    # processes handling the same sources clobber each other's files, and gcovr's
+    # directory lock only guards against its own threads.
+    if args.jobs > 1:
+        gcov_version = gcov_major_version()
+        if gcov_version is None or gcov_version < 12:
+            logging.warning(
+                "gcov major version is %s; parallel gcovr processes require >= 12, "
+                "falling back to a single process", gcov_version)
+            args.jobs = 1
 
     data_files = find_coverage_data(args.search_dir)
     if not data_files:
