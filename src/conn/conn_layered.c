@@ -606,6 +606,71 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
 }
 
 /*
+ * __wt_disagg_table_has_unpublished_create --
+ *     Return true if the table's newest queued schema operation is an unpublished create, so
+ *     nothing about the table has reached shared metadata.
+ */
+bool
+__wt_disagg_table_has_unpublished_create(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *latest;
+    bool unpublished;
+
+    conn = S2C(session);
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+
+    if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
+        return (false);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    latest = __wti_disagg_table_latest_create_remove(session, table_name);
+    unpublished = latest != NULL && latest->metadata_op == WT_SHARED_METADATA_CREATE &&
+      latest->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED;
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (unpublished);
+}
+
+/*
+ * __wt_disagg_cancel_unpublished_create --
+ *     Dequeue a table's unpublished create entries. Dropping a never-published table leaves no work
+ *     for shared metadata.
+ */
+void
+__wt_disagg_cancel_unpublished_create(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry, *tmp;
+
+    conn = S2C(session);
+
+    /* The schema lock serializes this against publish stamping the queued epochs. */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
+    {
+        if (strcmp(entry->table_name, table_name) != 0)
+            continue;
+        /* An unpublished table is never checkpointed, so it has no queued updates. */
+        WT_ASSERT(session, entry->metadata_op != WT_SHARED_METADATA_UPDATE);
+        if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+          entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
+            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+            __disagg_shared_metadata_queue_free(session, &entry);
+        }
+    }
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Dequeued the unpublished CREATE for table \"%s\" instead of adding its REMOVE", table_name);
+}
+
+/*
  * __disagg_shared_metadata_op_helper --
  *     Perform the remove/update operation in the shared metadata table. When drop_sizep is set, a
  *     REMOVE sets it to the checkpoint size of the row it deletes, and leaves it alone when the row
@@ -1207,9 +1272,6 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
         /*
          * A window create is the table's newest create, unpublished and missing its stable table.
          * Older creates belong to dropped tables of the same name.
-         *
-         * FIXME-WT-18318: The unpublished create skipped here survives the step-down and can go
-         * stale across leader changes.
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL ||
           __wti_disagg_table_latest_create_remove(session, entry->table_name) != entry)
