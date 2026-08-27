@@ -255,6 +255,9 @@ __drop_layered(
      * Refuse a follower's drop while its ingest constituent holds writes no picked-up checkpoint
      * covers. A leader reaches the equivalent guard through the stable constituent, which is
      * durable and refuses to close while it holds uncheckpointed data.
+     *
+     * FIXME-WT-18500: Make this check atomic with closing the ingest tree. Otherwise, a concurrent
+     * write can commit after the check and be discarded without being covered by a checkpoint.
      */
     if (!leader)
         WT_ERR(__drop_layered_check_ingest_durable(session, ingest_uri));
