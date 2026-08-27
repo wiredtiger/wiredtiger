@@ -179,6 +179,10 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
             WT_ERR(cursor->get_key(cursor, &key));
             if (!WT_PREFIX_MATCH(key, "file:") || !WT_SUFFIX_MATCH(key, ".wt_stable"))
                 continue;
+            /* The shared metadata and history store files are always open and cannot be verified.
+             */
+            if (strcmp(key, WT_DISAGG_METADATA_URI) == 0 || strcmp(key, WT_HS_URI_SHARED) == 0)
+                continue;
             WT_ERR(__wt_buf_catfmt(session, report, "fix_btree_size: verifying %s\n", key));
             WT_ERR(session->iface.verify(&session->iface, key, "fix_btree_size=true"));
         }
@@ -188,8 +192,8 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
     }
 
     /* Checkpoint to persist the corrected metadata and recompute the database size. */
-    WT_ERR(__wt_buf_catfmt(
-      session, report, "fix_btree_size: checkpointing to persist corrections\n"));
+    WT_ERR(
+      __wt_buf_catfmt(session, report, "fix_btree_size: checkpointing to persist corrections\n"));
     WT_ERR(session->iface.checkpoint(&session->iface, "debug=(database_size_fix=true)"));
 
 err:
