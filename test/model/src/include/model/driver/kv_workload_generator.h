@@ -117,11 +117,7 @@ struct kv_workload_generator_spec {
     /* Probabilities of special operations. */
     float checkpoint;
     float checkpoint_crash;
-    /*
-     * Given a checkpoint crash, the probability of crashing in one of the checkpoint's final phases
-     * rather than while checkpointing an individual tree.
-     */
-    float checkpoint_crash_final_phase;
+    float checkpoint_crash_trigger;
     float crash;
     float evict;
     float restart;

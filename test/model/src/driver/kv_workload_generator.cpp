@@ -86,7 +86,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     checkpoint = 0.02;
     checkpoint_crash = 0.002;
-    checkpoint_crash_final_phase = 0.4;
+    checkpoint_crash_trigger = 0.001;
     crash = 0.002;
     evict = 0.1;
     restart = 0.002;
@@ -538,6 +538,13 @@ kv_workload_generator::run()
         _spec.column_var = 0;
         _spec.rollback_to_stable = 0;
 
+        /*
+         * The checkpoint is published through the page log rather than the local metadata, so
+         * whether a crash in one of the checkpoint's final phases keeps it is not the same
+         * question.
+         */
+        _spec.checkpoint_crash_trigger = 0;
+
         /* FIXME-WT-15040 Prepared transactions are not yet supported. */
         _spec.prepared_transaction = 0;
     }
@@ -607,19 +614,19 @@ kv_workload_generator::run()
 
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
+                *p << operation::checkpoint_crash(_random.next_uint64(1, 1000));
+                _sequences.push_back(std::move(p));
 
-                /*
-                 * Under disaggregated storage the checkpoint is published through the page log
-                 * rather than the local metadata, so whether a crash in one of the final phases
-                 * keeps it is not the same question. Stop on a tree there.
-                 */
-                if (!_database_config.disaggregated &&
-                  _spec.checkpoint_crash_final_phase > _random.next_float())
-                    *p << operation::checkpoint_crash_trigger(_random.next_float() < 0.5f ?
-                        operation::checkpoint_crash_phase::before_checkpoint_commit :
-                        operation::checkpoint_crash_phase::before_metadata_sync);
-                else
-                    *p << operation::checkpoint_crash(_random.next_uint64(1, 1000));
+                if (!has_checkpoint)
+                    has_stable_timestamp = false;
+            }
+            probability_case(_spec.checkpoint_crash_trigger)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
+                *p << operation::checkpoint_crash_trigger(_random.next_float() < 0.5f ?
+                    operation::checkpoint_crash_phase::before_checkpoint_commit :
+                    operation::checkpoint_crash_phase::before_metadata_sync);
                 _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)

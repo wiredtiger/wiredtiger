@@ -302,7 +302,7 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
 
         UPDATE_SPEC(checkpoint, float);
         UPDATE_SPEC(checkpoint_crash, float);
-        UPDATE_SPEC(checkpoint_crash_final_phase, float);
+        UPDATE_SPEC(checkpoint_crash_trigger, float);
         UPDATE_SPEC(crash, float);
         UPDATE_SPEC(evict, float);
         UPDATE_SPEC(restart, float);
