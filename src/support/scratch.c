@@ -173,15 +173,8 @@ __wt_buf_set_printable_format(WT_SESSION_IMPL *session, const void *buffer, size
             break;
         case 'U':
         case 'u':
-            if (pv.u.item.size == 0) {
-                /*
-                 * The buffer is reused across records; without writing anything here, buf->data
-                 * would still reference the previous record's formatted string instead of an empty
-                 * one.
-                 */
-                WT_ERR(__wt_buf_catfmt(session, buf, "%s", sep));
+            if (pv.u.item.size == 0)
                 break;
-            }
 
             if (tmp == NULL)
                 WT_ERR(__wt_scr_alloc(session, 0, &tmp));
