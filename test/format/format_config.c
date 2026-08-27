@@ -1507,7 +1507,7 @@ config_disagg_storage(void)
              * Prepared and truncate operations aren't accounted for by the async step-down drain,
              * so either could straddle step_down_ts and break the checkpoint's boundary guarantee.
              */
-            if (GV(OPS_PREPARE) && config_explicit(NULL, "ops.prepare"))
+            if (config_explicit(NULL, "ops.prepare"))
                 WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
             config_off(NULL, "ops.prepare");
             if (config_explicit(NULL, "ops.truncate"))
