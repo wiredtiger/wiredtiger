@@ -2946,19 +2946,23 @@ __wt_btcur_skip_page(
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
     ta = NULL;
     clean_page = false;
+
+    /*
+     * Trees on the local block manager never skip an internal page. Reading one in is what marks it
+     * dirty for the deleted children it references, and the reconciliation that follows is what
+     * frees their blocks. The checkpoint cleanup thread is otherwise the only trigger and runs too
+     * rarely to bound the space a truncate-heavy workload holds.
+     *
+     * The btree and ref-type flags are stable without the lock.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        return (0);
+
     /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
      * our transaction. If so, we can avoid reading the records on the page and move to the next
      * page.
      *
-     * Skip this test on an internal page, as we rely on reconciliation to mark the internal page
-     * dirty. There could be a period of time when the internal page is marked clean but the leaf
-     * page is dirty and has newer data than let on by the internal page's aggregated information.
-     */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        return (0);
-
-    /*
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
      * make changes to the data structures (i.e., aggregate timestamps) we are reading.
      *
@@ -2970,6 +2974,15 @@ __wt_btcur_skip_page(
         __wt_spin_backoff(&yield_count, &sleep_usecs);
     if (yield_count != 0)
         ++walk_skip_stats->total_skip_lock_contended;
+
+    /*
+     * An internal page resident in memory cannot be judged by its aggregate: a descendant may be
+     * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
+     * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
+     * describes the whole subtree, and skipping it skips the subtree.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
+        goto unlock;
 
     /*
      * Check the fast-truncate information; there are 3 cases:
