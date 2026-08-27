@@ -104,7 +104,13 @@ def main():
     logging.info("Converting %d coverage data files using %d gcovr processes",
                  len(data_files), len(groups))
 
+    # Remove tracefiles left by a previous run: the merge step globs every JSON
+    # file in this directory, so stale ones would be double-counted.
     os.makedirs(args.output_dir, exist_ok=True)
+    for name in os.listdir(args.output_dir):
+        if name.endswith(".json"):
+            os.remove(os.path.join(args.output_dir, name))
+
     start_time = datetime.now()
     processes = list()
     for index, group in enumerate(groups):
