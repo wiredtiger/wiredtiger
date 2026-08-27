@@ -428,3 +428,18 @@ define_c_test(
 if(TARGET test_wt16990_disagg_checkpoint_panic)
     set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
 endif()
+
+define_c_test(
+    TARGET test_layered_stepdown_timing
+    SOURCES layered_stepdown_timing/main.c
+    DIR_NAME layered_stepdown_timing
+    # CI runs at a small scale; run the binary directly (default -n 100000) for the full timing.
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} -G -n 1000
+    DEPENDS "WT_POSIX"
+    LABEL "disagg"
+)
+
+# Use C++ linker for building this target; see the comment above for details.
+if(TARGET test_layered_stepdown_timing)
+    set_target_properties(test_layered_stepdown_timing PROPERTIES LINKER_LANGUAGE CXX)
+endif()

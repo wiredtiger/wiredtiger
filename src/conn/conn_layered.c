@@ -1247,13 +1247,17 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    uint64_t btrees_marked, dhandles_walked, time_start, time_stop;
 
     conn = S2C(session);
+    btrees_marked = dhandles_walked = 0;
+    time_start = __wt_clock(session);
 
     for (dhandle = NULL;;) {
         WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
         if (dhandle == NULL)
             break;
+        ++dhandles_walked;
 
         /* Clear the mark on tables created during the step-down window. */
         if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
@@ -1275,6 +1279,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 
         /* Mark the disaggregated as readonly. */
         F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
+        ++btrees_marked;
 
         /*
          * Mark the handle outdated so that if we step back up as leader in the future, we open a
@@ -1296,6 +1301,12 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, false);
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+
+    time_stop = __wt_clock(session);
+    __wt_verbose_notice(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Marking btrees readonly during step down took %" PRIu64 " ms (%" PRIu64
+      " dhandles walked, %" PRIu64 " btrees marked readonly)",
+      WT_CLOCKDIFF_MS(time_stop, time_start), dhandles_walked, btrees_marked);
     return (0);
 }
 
