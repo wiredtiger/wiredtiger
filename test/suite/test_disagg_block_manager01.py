@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 # A table using the disaggregated block manager needs a page log to read or write anything. A
 # connection that never configured disaggregated storage has none, in which case the disaggregated
@@ -91,20 +92,38 @@ class test_disagg_block_manager01(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[str(self.nrows - 1)], self.value)
         cursor.close()
 
+# The same combination reached from the other direction: a table created while a page log was
+# configured, opened later by a connection that has none. The configuration outlives the connection
+# that accepted it, so the refusal has to happen on every open of the tree, not only on create.
+@disagg_test_class
+class test_disagg_block_manager01_reopen(wttest.WiredTigerTestCase):
+    conn_config = 'disaggregated=(role="leader")'
+
+    no_page_log = test_disagg_block_manager01.no_page_log
+
+    # Set before the reopen, so the connection comes back with no page log to resolve the table's
+    # configuration against. Dropping the page log from the connection configuration alone is not
+    # enough: the name is recorded in the base configuration and in the table's own metadata, and a
+    # reopened connection finds it again through either.
+    drop_page_log = False
+
+    def conn_extensions(self, extlist):
+        if self.drop_page_log:
+            return
+        self.add_scenario_config()
+        return self.disagg_conn_extensions(extlist)
+
     def test_reopen_rejected(self):
-        # The configuration outlives the connection that accepted it, so a database already carrying
-        # a disaggregated table must refuse to open it too. Create the file normally and edit the
-        # metadata afterwards, since create refuses the disaggregated configuration. Editing the entry
-        # in place keeps the file version this build writes, which differs between builds.
-        uri = 'file:disagg.wt'
-        self.session.create(uri, 'key_format=S,value_format=S')
+        uri = 'table:disagg'
+        self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg')
+        cursor = self.session.open_cursor(uri)
+        cursor['key'] = 'value'
+        cursor.close()
+        self.session.checkpoint()
 
-        # Drop the handle opened by the create, so the edited configuration is the one read back.
-        self.reopen_conn()
-
-        meta = self.session.open_cursor('metadata:', None, 'readonly=false')
-        meta[uri] = meta[uri] + ',block_manager=disagg'
-        meta.close()
+        # The connection itself has no reason to fail: only the tables that need the page log do.
+        self.drop_page_log = True
+        self.reopen_conn(config='create,config_base=false')
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(uri), '/Invalid argument/')
