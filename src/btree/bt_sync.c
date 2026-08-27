@@ -9,13 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * How many pages the checkpoint queues for the reconciliation workers before waiting for them. Each
- * queued page holds a hazard pointer, so this bounds what a checkpoint pins in cache, and it has to
- * be deep enough that the workers are not left idle between batches.
- */
-#define WT_CKPT_SYNC_QUEUE_MAX 1000
-
-/*
  * __sync_evict_reconciled_under_ckpt_snapshot --
  *     Return true if eviction already reconciled the page using this checkpoint's snapshot, so the
  *     on-disk image checkpoint would produce is identical and re-reconciliation can be skipped.
@@ -319,7 +312,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
     uint64_t saved_pinned_id, t, time_start, time_stop;
     uint32_t flags, rec_flags;
-    u_int queued;
     bool checkpoint_scrub, dirty, is_hs, is_internal, tried_eviction;
     bool parallel;
 
@@ -340,7 +332,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
-    queued = 0;
     parallel = WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session);
     reconcile_time = 0;
     saved_pinned_id = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->pinned_id);
@@ -495,16 +486,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 ++conn->ckpt.progress.pages_visited;
 
             /*
-             * Each queued page holds a hazard pointer, so the queue cannot grow to the tree's whole
-             * dirty set. Drain once it is deep enough to have kept the workers busy.
-             */
-            if (parallel && queued >= WT_CKPT_SYNC_QUEUE_MAX) {
-                WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
-                reconcile_time += t;
-                queued = 0;
-            }
-
-            /*
              * Check if the page is dirty. The check is an acquire read, which orders it against
              * taking a reference to the page modify structure below.
              */
@@ -584,14 +565,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
               !is_internal) {
                 /*
-                 * Duplicate the position, and give it to the parallel checkpoint worker. The
-                 * existing walk position will be release by the walk code.
+                 * Hand the position to a worker, which takes a hazard pointer before writing it.
+                 * Until gets to it the page is dirty and this tree is syncing, so eviction leaves
+                 * it alone, and an in-memory split, the one thing that would replace the reference,
+                 * declines a page a checkpoint may be holding.
                  */
-                WT_REF *walk_dup = NULL;
-                WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
-                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup,
-                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), flags));
-                ++queued;
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk,
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub)));
             } else {
                 reconcile_start = __wt_clock(session);
                 WT_ERR(__wt_reconcile(session, walk, NULL,
