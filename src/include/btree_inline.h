@@ -2613,11 +2613,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * Check for in-memory splits before other eviction tests. If the page should split in-memory,
      * return success immediately and skip more detailed eviction tests. We don't need further tests
      * since the page won't be written or discarded from the cache.
-     */
-    /*
+     *
      * A page a parallel checkpoint has queued must not split: that replaces its WT_REF and frees
-     * the original, which the checkpoint is still holding. Test it here rather than inside the
-     * split check, which __split_insert asserts on and so must not change under a caller.
+     * the original, which the checkpoint is still holding. Test that here rather than inside the
+     * split check, whose result is asserted on once this decision has been made, and so must not
+     * change in between.
      */
     if (!__wt_page_held_by_checkpoint(session, page) && __wt_leaf_page_can_split(session, page)) {
         if (inmem_splitp != NULL)
