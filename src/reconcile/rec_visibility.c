@@ -1027,7 +1027,7 @@ __rec_upd_select_track_modify_base(WTI_UPDATE_SELECT *upd_select, WT_UPDATE *upd
 {
     if (upd->type == WT_UPDATE_MODIFY)
         upd_select->modify_needs_onpage_value = true;
-    else if (upd->type == WT_UPDATE_STANDARD)
+    else if (WT_UPDATE_DATA_VALUE(upd))
         upd_select->modify_needs_onpage_value = false;
 }
 
@@ -1085,8 +1085,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
                  * A rolled-back prepared MODIFY is retained and may still be reconstructed during
                  * draining.
                  */
-                if (upd->type == WT_UPDATE_MODIFY)
-                    upd_select->modify_needs_onpage_value = true;
+                __rec_upd_select_track_modify_base(upd_select, upd);
             }
 
             continue;
