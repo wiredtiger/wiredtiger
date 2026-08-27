@@ -426,9 +426,12 @@ retry:
             continue;
         }
 
-        /* Skip read-only btrees if we are not looking for clean/updates pages. */
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
-          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+        /*
+         * Skip stable checkpoint handles on followers unless we are looking for clean pages.
+         * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
+         * with dedicated handling instead of matching the stable checkpoint URI.
+         */
+        if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -787,15 +790,9 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             wt_timestamp_t prune_timestamp =
               __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-            if (prune_timestamp != WT_TS_NONE) {
-                if (newest_commit_timestamp > prune_timestamp) {
-                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
-                    return (true);
-                }
-                if (page->modify->rec_prune_timestamp >= prune_timestamp) {
-                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
-                    return (true);
-                }
+            if (prune_timestamp != WT_TS_NONE && newest_commit_timestamp > prune_timestamp) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
+                return (true);
             }
         } else {
             if (newest_commit_timestamp > __wt_txn_pinned_stable_timestamp(session)) {
@@ -1244,6 +1241,16 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_non_aggressive);
             return;
         }
+    }
+
+    /*
+     * Skip while the prune timestamp is stalled for leaf pages, one that never advances floods the
+     * queue and pins the eviction server on this tree forever.
+     */
+    if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF) && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+      __wti_evict_prune_ts_unmoved(session, page)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
+        return;
     }
 
     /* Evaluate dirty page candidacy, when eviction is not aggressive. */

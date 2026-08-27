@@ -8,9 +8,7 @@
 
 /*
  * The checkpoint stage: the node's checkpoint duty, paced independently of the workload - produced
- * while leading, adopted from the page log while following. Off the event stream so a checkpoint
- * can land between a schema operation and its publish, and can still be taken while a worker is
- * blocked waiting for one; on its own thread so a slow checkpoint cannot freeze the frontier.
+ * while leading, adopted from the page log while following.
  */
 
 #include "schema_disagg_abort.h"
@@ -68,6 +66,12 @@ ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session)
         return (false);
 
     if (ckpt_args.checkpoint_lsn == state->adopted_ckpt_lsn) {
+        free(ckpt_args.checkpoint_metadata.mem);
+        return (false);
+    }
+
+    /* Never adopt a checkpoint the node has not caught up with. */
+    if (__wt_atomic_load_uint64(&state->current_ts) < ckpt_args.checkpoint_timestamp) {
         free(ckpt_args.checkpoint_metadata.mem);
         return (false);
     }
@@ -136,7 +140,7 @@ thread_ckpt_run(void *arg)
     __wt_epoch(NULL, &ckpt.phase_start);
 
     /* The cadence draws from the stream one past the generator's per-worker streams. */
-    WT_RAND_STATE *rnd = &state->gen_rnd[state->nth_workers];
+    WT_RAND_STATE *rnd = &state->gen_rnd[state->worker_count];
     struct timespec last = ckpt.phase_start;
     uint64_t wait = 1 + __wt_random(rnd) % MAX_CKPT_INVL;
 
@@ -159,29 +163,28 @@ thread_ckpt_run(void *arg)
 }
 
 /*
- * workers_min --
- *     Return the minimum completed timestamp across all worker threads: the frontier with no
- *     unfinished publish or commit at or below it. Returns 0 if any worker has not yet completed an
- *     operation this phase.
+ * frontier_advance --
+ *     Advance the frontier over the timestamps the workers completed: the frontier with no
+ *     unfinished schema operation or commit at or below it. Only the timestamp thread may call it.
  */
 static uint64_t
-workers_min(WORKLOAD_STATE *state)
+frontier_advance(WORKLOAD_STATE *state)
 {
-    uint64_t min_val = UINT64_MAX;
-    for (uint32_t i = 0; i < state->nth_workers; i++) {
-        const uint64_t val = __wt_atomic_load_uint64(&state->workers[i].completed_ts);
-        if (val == 0)
-            return (0);
-        if (val < min_val)
-            min_val = val;
+    uint64_t frontier_ts = __wt_atomic_load_uint64(&state->frontier_ts);
+
+    while (__wt_atomic_load_uint8(&state->completed_ts[(frontier_ts + 1) % FRONTIER_WINDOW]) != 0) {
+        /* Consume the mark for this timestamp. */
+        __wt_atomic_store_uint8(&state->completed_ts[(frontier_ts + 1) % FRONTIER_WINDOW], 0);
+        ++frontier_ts;
     }
-    return (min_val);
+    __wt_atomic_store_uint64(&state->frontier_ts, frontier_ts);
+
+    return (frontier_ts);
 }
 
 /*
  * thread_ts_run --
- *     Advances the oldest and stable timestamps and the stable schema epoch to the workers'
- *     completed frontier, keeping stable data on published tables only.
+ *     Advance the oldest and stable timestamps, plus the stable schema epoch, when in use.
  */
 WT_THREAD_RET
 thread_ts_run(void *arg)
@@ -189,6 +192,9 @@ thread_ts_run(void *arg)
     WORKLOAD_STATE *state = arg;
 
     while (workload_active(state, STAGE_TS)) {
+        /* Frontier of the fully complete operations across all workers. */
+        const uint64_t frontier_ts = frontier_advance(state);
+
         /*
          * Setting timestamps is a critical section: the stable frontier must not advance while a
          * step-down is in progress.
@@ -197,14 +203,11 @@ thread_ts_run(void *arg)
         if (__wt_atomic_load_uint64(&state->stepdown_ts) == 0) {
             /*
              * The single frontier serves both schema and data operations: everything at or below it
-             * is published and committed.
+             * is completed.
              */
-            const uint64_t frontier = workers_min(state);
-            if (frontier != 0) {
-                const uint64_t cur_stable = query_ts(state->conn, TS_STABLE);
-                if (frontier >= cur_stable)
-                    set_ts(state->conn, TS_FRONTIER, frontier);
-            }
+            const uint64_t stable_ts = query_ts(state->conn, TS_STABLE);
+            if (frontier_ts >= stable_ts)
+                set_ts(state->cfg, state->conn, TS_FRONTIER, frontier_ts);
         }
         __wt_atomic_store_bool(&state->ts_busy, false);
 
@@ -235,13 +238,13 @@ leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
         return;
     }
 
-    /* The timestamp thread owns the stable epoch and timestamps; just checkpoint. */
+    /* The timestamp thread owns the frontier; just checkpoint. */
     testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
-    println(
-      "Node %" PRIu32 ": checkpoint %" PRIu32 " complete", state->cfg->node_id, ++ckpt->produced);
+    println("Node %" PRIu32 ": checkpoint %" PRIu32 " complete; stable timestamp = %" PRIu64,
+      state->cfg->node_id, ++ckpt->produced, stable_ts);
 
-    /* A stable frontier implies every worker published, so this checkpoint has a schema op. */
+    /* A stable frontier implies every worker completed an operation this phase. */
     if (ckpt->produced == 1u)
         testutil_sentinel(NULL, LEADER_READY_FILE);
 }
