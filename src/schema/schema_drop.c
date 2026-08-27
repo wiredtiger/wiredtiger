@@ -206,6 +206,11 @@ __drop_layered_check_ingest_durable(WT_SESSION_IMPL *session, const char *ingest
      * The bound is the adopted disaggregated checkpoint, not the last local one: a local checkpoint
      * persists nothing of an in-memory tree, so its timestamp says nothing about whether these
      * writes survive the close.
+     *
+     * This guard exists because schema-epoch ordering can defer the drop past a later checkpoint:
+     * if this follower steps up, it can owe that checkpoint the table's pre-drop writes, which
+     * closing the ingest tree has already discarded. The alternative would be to allow the drop and
+     * verify on step-up that all drops are published and the stable schema epoch covers them.
      */
     max_write_ts = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
     ckpt_ts = __wt_atomic_load_uint64_acquire(
