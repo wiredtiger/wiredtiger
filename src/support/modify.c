@@ -585,7 +585,7 @@ retry:
          * happens, for example, if an update list was truncated, deleting the standard update
          * required by a previous modify update). Assert the case.
          */
-        WT_ASSERT(session, cbt->slot != UINT32_MAX);
+        WT_ASSERT(session, cbt->slot != UINT32_MAX && cbt->ins == NULL);
 
         /*
          * We need the on-page value as the base, so the page must be present. If it isn't, an

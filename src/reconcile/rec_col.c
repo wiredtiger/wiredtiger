@@ -359,6 +359,7 @@ __wti_rec_col_var(
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
+    cbt->ins = NULL;
 
     /* Set the "last" values to cause failure if they're not set. */
     last.value = r->last;
@@ -718,6 +719,7 @@ compare:
                      * Impossible slot, there's no backing on-page item.
                      */
                     cbt->slot = UINT32_MAX;
+                    cbt->ins = ins;
                     WT_ERR(__wt_modify_reconstruct_from_upd_list(
                       session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
                     __wt_value_return(cbt, cbt->upd_value);
