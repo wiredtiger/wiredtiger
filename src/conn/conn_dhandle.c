@@ -373,8 +373,17 @@ __conn_dhandle_refuse_uncovered_ingest(WT_SESSION_IMPL *session, WT_BTREE *btree
         return (0);
 
     /*
-     * Exclusive access stops the bound advancing under us. Compare against the disaggregated
-     * checkpoint: a local one persists nothing of an in-memory tree.
+     * Return EBUSY if the table has committed writes newer than the newest checkpoint. Suppose a
+     * follower drops such a table and later steps up. The drop's schema epoch can be above a
+     * checkpoint's epoch. Such a checkpoint must still include the table, with every write from
+     * before the drop. Those writes exist only in this ingest tree. Once the tree is closed they
+     * are gone, and that checkpoint cannot be written. So refuse the close until a checkpoint has
+     * covered the writes.
+     *
+     * An alternative design: allow the drop, and at step-up verify that every drop is published and
+     * the stable schema epoch is at or above all of them.
+     *
+     * Compare against the disagg checkpoint: a local one persists nothing of an in-memory tree.
      */
     if (__wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts) >
       __wt_atomic_load_uint64_acquire(
