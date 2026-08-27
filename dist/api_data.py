@@ -627,9 +627,9 @@ connection_runtime_config = [
         min='1MB', max='10TB'),
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait for space to be
-        available in cache before giving up. Default or 0 will wait forever. Use the
-        \c ignore_cache_size configuration to allow operations to proceed regardless of cache
-        usage''',
+        available in cache before giving up. Default or 0 will wait forever. Individual
+        sessions and transactions can bypass this wait with their own \c ignore_cache_size
+        configuration''',
         min=0),
     Config('cache_stuck_timeout_ms', '300000', r'''
         the number of milliseconds to wait before a stuck cache times out in diagnostic mode.

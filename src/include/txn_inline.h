@@ -2093,7 +2093,15 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
         WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
             WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
-            WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
+            if ((ret = __wt_txn_claim_prepared_txn(session, prepared_id)) != 0) {
+                /*
+                 * The claim may have already moved its modify array onto us; leave txn->flags and
+                 * txn->mod alone.
+                 */
+                if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+                    F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+                return (ret);
+            }
             return (0);
         }
     }
