@@ -2158,8 +2158,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
 err:
     /*
-     * The transaction never started, so nothing will release it: discard the configuration applied
-     * so far so it isn't inherited by the next transaction on this session.
+     * In the event that we error we should clear the flags on the transaction so they are not set
+     * in a subsequent call to transaction begin.
      */
     if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
         F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);

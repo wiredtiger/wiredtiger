@@ -50,8 +50,7 @@ class test_error_info04(error_info_util):
             cursor.insert()
             sessions.append(temp_session)
 
-        # Configure a low cache max wait time so that resolving the transactions attempts
-        # eviction and gives up quickly.
+        # Configure the lowest cache max wait time so that application attempts eviction.
         self.conn.reconfigure('cache_max_wait_ms=2')
 
         return sessions
