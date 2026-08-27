@@ -40,20 +40,18 @@ class test_error_info04(error_info_util):
         """Leave 100 uncommitted transactions, each large enough to trigger application eviction."""
         sessions = []
         for i in range(100):
-            # Build the transactions up without being pulled into eviction, so that eviction is
-            # only attempted when they are resolved.
-            temp_session = self.conn.open_session('ignore_cache_size=true')
+            temp_session = self.conn.open_session()
             cursor = temp_session.open_cursor(self.uri)
-            temp_session.begin_transaction()
+            # Build the transaction up without being pulled into eviction: the setting expires
+            # when the transaction is resolved, so eviction is only attempted then.
+            temp_session.begin_transaction('ignore_cache_size=true')
             cursor.set_key(str(i))
             cursor.set_value(str(i)*1024*500)
             cursor.insert()
             sessions.append(temp_session)
 
-        # Put the sessions back under the cache size, then configure a low cache max wait time so
-        # that resolving the transactions attempts eviction and gives up quickly.
-        for temp_session in sessions:
-            temp_session.reconfigure('ignore_cache_size=false')
+        # Configure a low cache max wait time so that resolving the transactions attempts
+        # eviction and gives up quickly.
         self.conn.reconfigure('cache_max_wait_ms=2')
 
         return sessions
