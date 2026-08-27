@@ -358,6 +358,64 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
+ * __conn_dhandle_check_drop_durable --
+ *     Refuse a drop-time close that would discard a layered constituent's committed data when no
+ *     checkpoint covers it. Must run under the exclusive dhandle lock used for the close, after the
+ *     transaction visibility check, so a commit cannot slip between the check and the close.
+ */
+static int
+__conn_dhandle_check_drop_durable(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree = S2BT(session);
+    const char *uri = session->dhandle->name;
+
+    if (WT_URI_IS_INGEST(uri)) {
+        /*
+         * An ingest tree is in-memory, so closing it discards its content instead of taking the
+         * dirty-data path that refuses to close a durable tree. The node has no other copy of
+         * writes the leader has not yet checkpointed, so bound the drop by the maximum write
+         * timestamp, a possibly conservative upper bound on the durable timestamps the tree holds,
+         * which the checkpoint must cover.
+         *
+         * The bound is the adopted disaggregated checkpoint, not the last local one: a local
+         * checkpoint persists nothing of an in-memory tree, so its timestamp says nothing about
+         * whether these writes survive the close.
+         *
+         * This guard exists because schema-epoch ordering can defer the drop past a later
+         * checkpoint: if this node steps up, it can owe that checkpoint the table's pre-drop
+         * writes, which closing the ingest tree has already discarded. It applies regardless of the
+         * node's role: transactions committed after the step-down timestamp was set write to ingest
+         * while the connection is still a leader.
+         */
+        WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+        wt_timestamp_t max_write_ts = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+        wt_timestamp_t bound = __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_timestamp);
+
+        if (max_write_ts != WT_TS_NONE && max_write_ts > bound)
+            WT_RET_SUB(session, EBUSY, WT_DIRTY_DATA,
+              "the table has ingested data that no checkpoint covers and must not be dropped yet");
+
+    } else if (WT_URI_IS_STABLE(uri)) {
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH)) {
+            /*
+             * A table awaiting publication has never been checkpointed, so closing its handle loses
+             * any committed data it holds. An empty table may be modified in memory yet hold
+             * nothing committed, so this must not fall through to the generic modified check.
+             */
+            if (__wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+                WT_RET_SUB(session, EBUSY, WT_DIRTY_DATA,
+                  "the table has unpublished data and must be checkpointed before it can be "
+                  "dropped");
+        } else if (btree->modified)
+            /* Reached when the drop marks the handle dead, skipping the checkpoint-close check. */
+            WT_RET_SUB(
+              session, EBUSY, WT_DIRTY_DATA, "the table has dirty data and cannot be closed yet");
+    }
+
+    return (0);
+}
+
+/*
  * __wt_conn_dhandle_close --
  *     Sync and close the underlying btree handle.
  */
@@ -400,6 +458,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             if (!__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
                 WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
                   "the table has uncommitted data and cannot be closed yet");
+
+            /* A drop must not discard layered constituent data that no checkpoint covers. */
+            WT_RET(__conn_dhandle_check_drop_durable(session));
         }
 
         /* Turn off eviction. */

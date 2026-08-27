@@ -459,6 +459,64 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assert_follower_drop_succeeds(conn_follower, session_follower)
         self.close_follower(conn_follower, session_follower)
 
+    def test_drop_ingest_constituent_directly_is_refused(self):
+        # Dropping the ingest constituent URI directly must hit the same guard as dropping the
+        # layered table: the protection lives in the final close path, not only in the layered
+        # drop.
+        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
+        self.write_rows(commit_ts=3, session=session_follower)
+        ingest_uri = 'file:' + self.test_name + '.wt_ingest'
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: session_follower.drop(ingest_uri))
+        err, sub, msg = session_follower.get_last_error()
+        self.assertEqual(err, errno.EBUSY)
+        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
+        self.assertTrue('no checkpoint covers' in msg)
+
+        # The refused drop left no partial state.
+        self.assert_all_rows(session_follower)
+        self.assertTrue(self.uri_in_local_metadata(conn_follower, self.uri))
+
+        # A covering picked-up checkpoint releases the drop of the whole table as usual.
+        self.leader_write_and_checkpoint(3)
+        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_wait_for_adoption(conn_follower)
+        self.assert_follower_drop_succeeds(conn_follower, session_follower)
+        self.close_follower(conn_follower, session_follower)
+
+    def test_drop_waits_for_commit_then_requires_coverage(self):
+        # A transaction that closed its cursor but is still committing blocks the drop with
+        # WT_UNCOMMITTED_DATA; once it commits, the drop is refused with WT_DIRTY_DATA until a
+        # checkpoint covers the write.
+        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
+        session_a = conn_follower.open_session('')
+        session_a.begin_transaction()
+        cursor = session_a.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
+            cursor[i] = 'value'
+        cursor.close()
+
+        # The uncommitted transaction blocks the drop even though its cursor is closed.
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: session_follower.drop(self.uri))
+        err, sub, msg = session_follower.get_last_error()
+        self.assertEqual(err, errno.EBUSY)
+        self.assertEqual(sub, wiredtiger.WT_UNCOMMITTED_DATA)
+        self.assertTrue('uncommitted data' in msg)
+
+        # Once committed, the drop is refused because no picked-up checkpoint covers the write.
+        session_a.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+        session_a.close()
+        self.assert_follower_drop_refused(session_follower)
+        self.assert_all_rows(session_follower)
+
+        # A covering picked-up checkpoint releases the drop.
+        self.leader_write_and_checkpoint(3)
+        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_wait_for_adoption(conn_follower)
+        self.assert_follower_drop_succeeds(conn_follower, session_follower)
+        self.close_follower(conn_follower, session_follower)
+
     #
     # Follower drop tests where only the stable timestamp advances
     #

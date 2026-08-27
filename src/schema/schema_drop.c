@@ -178,53 +178,6 @@ err:
 }
 
 /*
- * __drop_layered_check_ingest_durable --
- *     Refuse to drop a follower's layered table while its ingest constituent holds writes the
- *     node's last picked-up checkpoint does not cover.
- */
-static int
-__drop_layered_check_ingest_durable(WT_SESSION_IMPL *session, const char *ingest_uri)
-{
-    WT_BTREE *btree;
-    WT_DECL_RET;
-    wt_timestamp_t ckpt_ts, max_write_ts;
-
-    ret = __wt_session_get_dhandle(session, ingest_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
-    if (ret == EBUSY)
-        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
-    WT_RET(ret);
-
-    btree = S2BT(session);
-
-    /*
-     * An ingest tree is in-memory, so closing it discards its content instead of taking the
-     * dirty-data path that refuses to close a durable tree. A follower has no other copy of writes
-     * the leader has not yet checkpointed, so bound the drop by the maximum write timestamp, a
-     * possibly conservative upper bound on the durable timestamps the tree holds, which the
-     * checkpoint must cover.
-     *
-     * The bound is the adopted disaggregated checkpoint, not the last local one: a local checkpoint
-     * persists nothing of an in-memory tree, so its timestamp says nothing about whether these
-     * writes survive the close.
-     *
-     * This guard exists because schema-epoch ordering can defer the drop past a later checkpoint:
-     * if this follower steps up, it can owe that checkpoint the table's pre-drop writes, which
-     * closing the ingest tree has already discarded. The alternative would be to allow the drop and
-     * verify on step-up that all drops are published and the stable schema epoch covers them.
-     */
-    max_write_ts = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
-    ckpt_ts = __wt_atomic_load_uint64_acquire(
-      &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-    if (max_write_ts != WT_TS_NONE && max_write_ts > ckpt_ts)
-        WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
-          "the table has ingested data that no checkpoint covers and must not be dropped yet");
-
-err:
-    WT_TRET(__wt_session_release_dhandle(session));
-    return (ret);
-}
-
-/*
  * __drop_layered --
  *     WT_SESSION::drop for a layered table.
  */
@@ -255,17 +208,6 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
     leader = __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader);
-
-    /*
-     * Refuse a follower's drop while its ingest constituent holds writes no picked-up checkpoint
-     * covers. A leader reaches the equivalent guard through the stable constituent, which is
-     * durable and refuses to close while it holds uncheckpointed data.
-     *
-     * FIXME-WT-18500: Make this check atomic with closing the ingest tree. Otherwise, a concurrent
-     * write can commit after the check and be discarded without being covered by a checkpoint.
-     */
-    if (!leader)
-        WT_ERR(__drop_layered_check_ingest_durable(session, ingest_uri));
 
     /*
      * Only the leader can issue a trim command, and only for a constituent that exists: a table
