@@ -80,15 +80,10 @@ class test_tiered_deprecate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
         self.assertEqual(last_msg, msg)
 
 class test_tiered_deprecate_api(wttest.WiredTigerTestCase):
-    def _assert_enotsup(self, expr, msg):
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, expr, '/' + re.escape(msg) + '/')
-        err, _sub, last_msg = self.session.get_last_error()
-        self.assertEqual(err, errno.ENOTSUP)
-        self.assertEqual(last_msg, msg)
-
     def test_flush_tier(self):
-        self._assert_enotsup(
-            lambda: self.session.checkpoint('flush_tier=(enabled)'), 'flush_tier is not supported')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.checkpoint('flush_tier=(enabled)'),
+            '/unknown configuration key/')
 
     def test_conn_tiered_storage(self):
         msg = 'tiered storage is not supported'

@@ -777,9 +777,6 @@ connection_runtime_config = [
             is intended for debugging and is informational only, that is, it is ignored during
             recovery''',
             type='boolean'),
-        Config('tiered_flush_error_continue', 'false', r'''
-            on a write to tiered storage, continue when an error occurs.''',
-            type='boolean'),
         Config('update_restore_evict', 'false', r'''
             if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
@@ -1079,7 +1076,7 @@ connection_runtime_config = [
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
         'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
         'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4',
-        'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'split_5', 'split_6', 'split_7', 'split_8']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1130,7 +1127,6 @@ connection_runtime_config = [
             'sweep',
             'temporary',
             'thread_group',
-            'tiered',
             'timestamp',
             'transaction',
             'verify',
@@ -1751,11 +1747,6 @@ methods = {
     Config('remove_files', 'true', r'''
         if the underlying files should be removed''',
         type='boolean'),
-    Config('remove_shared', 'false', r'''
-        to force the removal of any shared objects. This is intended for tiered tables, and can
-        only be set if the drop operation is configured to remove the underlying files. Ignore
-        this configuration if it is set for non-tiered tables''',
-        type='boolean', undoc=True),
 ]),
 
 'WT_SESSION.log_flush' : Method([
@@ -2216,31 +2207,6 @@ methods = {
         dropped if open in a cursor. While a hot backup is in progress, checkpoints created
         prior to the start of the backup cannot be dropped''',
         type='list'),
-    Config('flush_tier', '', r'''
-        configure flushing objects to tiered storage after checkpoint''',
-        type='category', subconfig= [
-            Config('enabled', 'false', r'''
-                if true and tiered storage is in use, perform one iteration of object switching
-                and flushing objects to tiered storage''',
-                type='boolean'),
-            Config('force', 'false', r'''
-                if false (the default), flush_tier of any individual object may be skipped if the
-                underlying object has not been modified since the previous flush_tier. If true,
-                this option forces the flush_tier''',
-                type='boolean'),
-            Config('sync', 'true', r'''
-                wait for all objects to be flushed to the shared storage to the level specified.
-                When false, do not wait for any objects to be written to the tiered storage system
-                but return immediately after generating the objects and work units for an internal
-                thread.  When true, the caller waits until all work queued for this call to be
-                completely processed before returning''',
-                type='boolean'),
-            Config('timeout', '0', r'''
-                amount of time, in seconds, to wait for flushing of objects to complete.
-                WiredTiger returns EBUSY if the timeout is reached. A value of zero disables
-                the timeout''',
-                type='int'),
-    ]),
     Config('force', 'false', r'''
         if false (the default), checkpoints may be skipped if the underlying object has not been
         modified. If true, this option forces the checkpoint''',
@@ -2269,9 +2235,6 @@ methods = {
             Skips the checkpoint during shutdown.''',
             type='boolean'),
         ]),
-    Config('final_flush', 'false', r'''
-        wait for final flush_tier to copy objects''',
-        type='boolean', undoc=True),
     Config('leak_memory', 'false', r'''
         don't free memory during close''',
         type='boolean'),
