@@ -234,7 +234,6 @@ __drop_layered(
     const char *ingest_uri, *stable_uri, *tablename;
     bool leader;
 
-    leader = __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader);
     stable_value = NULL;
 
     WT_UNUSED(force);
@@ -250,6 +249,7 @@ __drop_layered(
     ingest_uri = ingest_uri_buf->data;
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
+    leader = __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader);
 
     /*
      * Refuse a follower's drop while its ingest constituent holds writes no picked-up checkpoint
