@@ -524,9 +524,12 @@ kv_workload_generator::run()
         _spec.rollback_to_stable = 0;
 
         /*
-         * The checkpoint is published to the page log after the point where these crashes are
-         * taken, so there is no phase here that keeps it.
+         * A layered table is created with logging disabled whatever the connection is configured
+         * with, so connection logging says nothing about the workload's data. That also settles the
+         * phase-named crash: the checkpoint is published to the page log after the point where
+         * those crashes are taken, so there is no phase here that keeps it.
          */
+        _spec.conn_logging = 0;
         _spec.checkpoint_crash_trigger = 0;
 
         /* FIXME-WT-15040 Prepared transactions are not yet supported. */
