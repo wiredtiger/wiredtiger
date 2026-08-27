@@ -40,7 +40,7 @@
  *   c: cache size in MB (default 100)
  *   G: enable disaggregated storage (required)
  *   h: home directory for the WiredTiger database
- *   n: number of layered tables to create (default 20,000)
+ *   n: number of layered tables to create (default 6,666, i.e. ~20k active dhandles)
  *   p: preserve the home directory after the test completes
  *   r: reopen an existing database instead of recreating the tables (implies -p)
  *   L: linger this many seconds as a follower after the step-down before closing
@@ -55,7 +55,11 @@ extern char *__wt_optarg; /* argument associated with option */
 #define TABLE_URI_PREFIX "layered:test_"
 #define TABLE_CONFIG "key_format=S,value_format=S"
 #define VALUE_SIZE 2048
-#define DEFAULT_NTABLES 20000
+/*
+ * Every layered table carries three dhandles (layered, ingest, stable), so 6,666 tables make for
+ * ~20k active dhandles on the step-down walk.
+ */
+#define DEFAULT_NTABLES 6666
 #define DEFAULT_CACHE_SIZE_MB 100
 /*
  * The table handles alone far exceed the target cache size, so create under a large cache and
