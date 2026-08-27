@@ -476,7 +476,6 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_ti
         }
         done_popped++;
 
-        /* The queued page had no hazard pointer from here, so there is nothing to release. */
         WT_TRET(entry->result);
         reconcile_time += entry->reconcile_time;
         __checkpoint_parallel_free(session, entry);
