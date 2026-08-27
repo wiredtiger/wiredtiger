@@ -105,6 +105,7 @@ Cclmpv
 Ceil
 CentOS
 Charset
+Checkpointed
 Checkpointing
 Checksums
 CityHash
@@ -924,6 +925,7 @@ cx
 cxa
 cygwin
 dKB
+dMB
 dT
 da
 darwin
@@ -1315,6 +1317,7 @@ keyids
 keylen
 keynum
 keyp
+keyspace
 keystr
 keyv
 kp
@@ -1648,6 +1651,7 @@ prout
 providerp
 proxied
 prunable
+prvW
 ps
 psp
 pthread
@@ -1831,6 +1835,7 @@ strcmp
 strdup
 strerror
 strftime
+strided
 stringized
 strlen
 strncmp
