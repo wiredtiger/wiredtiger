@@ -13,7 +13,6 @@ test_dump02.py
 test_dump03.py
 test_dump04.py
 test_dump05.py
-test_dump06.py
 test_dupc.py
 test_durable_ts03.py
 test_empty.py
