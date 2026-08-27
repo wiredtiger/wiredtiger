@@ -92,7 +92,7 @@ def gcov_major_version():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-j', '--jobs', default=os.cpu_count(), type=int,
+    parser.add_argument('-j', '--jobs', default=os.cpu_count() or 1, type=int,
                         help='How many gcovr processes to run in parallel')
     parser.add_argument('-f', '--filter', default='src',
                         help='gcovr filter for source files to report on')
