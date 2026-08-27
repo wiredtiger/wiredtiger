@@ -80,9 +80,6 @@ struct __wt_error_info {
 #define S2BT(session) ((WT_BTREE *)(session)->dhandle->handle)
 #define S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
 
-/* Get the file system for a session */
-#define S2FS(session) (S2C(session)->file_system)
-
 typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
 /* Number of cursors cached to trigger cursor sweep. */
