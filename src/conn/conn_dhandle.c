@@ -358,6 +358,34 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
+ * __conn_dhandle_refuse_uncovered_ingest --
+ *     Refuse to close an ingest btree holding writes no checkpoint covers: the tree is in memory,
+ *     so the close would discard the only copy.
+ */
+static int
+__conn_dhandle_refuse_uncovered_ingest(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    /* The discard this guards runs in the same critical section. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &session->dhandle->close_lock);
+
+    /* An ingest tree is the only one a close discards rather than checkpoints. */
+    if (!WT_URI_IS_INGEST(btree->dhandle->name))
+        return (0);
+
+    /*
+     * Exclusive access stops the bound advancing under us. Compare against the disaggregated
+     * checkpoint: a local one persists nothing of an in-memory tree.
+     */
+    if (__wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts) >
+      __wt_atomic_load_uint64_acquire(
+        &S2C(session)->disaggregated_storage.last_checkpoint_timestamp))
+        WT_RET_SUB(session, EBUSY, WT_DIRTY_DATA,
+          "the table has ingested data that no checkpoint covers and cannot be closed yet");
+
+    return (0);
+}
+
+/*
  * __wt_conn_dhandle_close --
  *     Sync and close the underlying btree handle.
  */
@@ -447,6 +475,10 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          */
         if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
             discard = true;
+
+        /* Before the mark-dead decision, so a forced drop cannot bypass it. */
+        if (!discard && !final)
+            WT_ERR(__conn_dhandle_refuse_uncovered_ingest(session, btree));
 
         /*
          * Mark the handle dead (letting the tree be discarded later) if it's not already marked

@@ -254,9 +254,8 @@ typedef struct {
             TABLE_STATE state;
             /* Advanced by every create under -q, so a slot's table name is never reused. */
             uint32_t gen;
-            /* Slot took an insert while stepping down; not droppable until the step-down completes.
-             */
-            bool stepdown_insert;
+            /* Inserted data is uncovered yet. Not droppable until a checkpoint. */
+            bool uncovered_insert;
         } table[MAX_POOL_SIZE];
     } workers[MAX_TH];
 
