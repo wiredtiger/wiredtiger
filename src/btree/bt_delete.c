@@ -179,6 +179,20 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
 
     /*
+     * If every entry on the page already carries a stop time, the truncate changes nothing: the
+     * deletes are visible to us, the preceding visibility checks cover the newest stop. Page-delete
+     * information would only duplicate what the image already says, and a later reconciliation that
+     * skips the write can discard it while the parent still holds a fast-truncate proxy cell that
+     * needs it. Skip the page entirely.
+     */
+    if (addr.ta.newest_stop_ts != WT_TS_MAX && addr.ta.newest_stop_txn != WT_TXN_MAX) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast_skip_deleted);
+        WT_REF_SET_STATE(ref, WT_REF_DISK);
+        *skipp = true;
+        return (0);
+    }
+
+    /*
      * This action dirties the parent page: mark it dirty now, there's no future reconciliation of
      * the child leaf page that will dirty it as we write the tree.
      */
