@@ -93,12 +93,17 @@ class test_disagg_block_manager01(wttest.WiredTigerTestCase):
 
     def test_reopen_rejected(self):
         # The configuration outlives the connection that accepted it, so a database already carrying
-        # a disaggregated table must refuse to open it too. Write the configuration straight into
-        # the metadata, since create refuses it.
+        # a disaggregated table must refuse to open it too. Create the file normally and edit the
+        # metadata afterwards, since create refuses the disaggregated configuration. Editing the entry
+        # in place keeps the file version this build writes, which differs between builds.
         uri = 'file:disagg.wt'
-        meta = self.session.open_cursor('metadata:create', None, 'readonly=false')
-        meta[uri] = 'key_format=S,value_format=S,block_manager=disagg,' + \
-            'version=(major=2,minor=1)'
+        self.session.create(uri, 'key_format=S,value_format=S')
+
+        # Drop the handle opened by the create, so the edited configuration is the one read back.
+        self.reopen_conn()
+
+        meta = self.session.open_cursor('metadata:', None, 'readonly=false')
+        meta[uri] = meta[uri] + ',block_manager=disagg'
         meta.close()
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
