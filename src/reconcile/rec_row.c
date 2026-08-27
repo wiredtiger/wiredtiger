@@ -342,13 +342,10 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
      */
     if (supd->onpage_upd != NULL) {
         if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
-            if (supd->rip != NULL) {
+            if (supd->rip != NULL)
                 cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
-                cbt->ins = NULL;
-            } else {
+            else
                 cbt->slot = UINT32_MAX;
-                cbt->ins = supd->ins;
-            }
             WT_ERR(__wt_modify_reconstruct_from_upd_list(
               session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
             __wt_value_return(cbt, cbt->upd_value);
@@ -899,7 +896,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
-    cbt->ins = NULL;
 
     key = &r->k;
     val = &r->v;
@@ -953,7 +949,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
              * Impossible slot, there's no backing on-page item.
              */
             cbt->slot = UINT32_MAX;
-            cbt->ins = ins;
             WT_ERR(__wt_modify_reconstruct_from_upd_list(
               session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
             __wt_value_return(cbt, cbt->upd_value);
@@ -1098,7 +1093,6 @@ __wti_rec_row_leaf(
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
-    cbt->ins = NULL;
 
     WT_RET(__wti_rec_split_init(session, r, 0, btree->maxleafpage_precomp));
 
@@ -1255,7 +1249,6 @@ __wti_rec_row_leaf(
 
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
-                cbt->ins = NULL;
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 WT_ERR(__wt_modify_reconstruct_from_upd_list(
                   session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
