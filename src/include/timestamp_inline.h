@@ -245,11 +245,11 @@
     } while (0)
 
 /*
- * Apply a page deletion as the global stop point for every record in an aggregate. The aggregate
+ * Merge a page deletion as the global stop point for every record in an aggregate. The aggregate
  * unpacked from a deleted-address cell describes the child page as it was before the truncate, so
- * its stop information is stale and must be replaced rather than merged.
+ * its stop information is stale and must be replaced.
  */
-#define WT_TIME_AGGREGATE_APPLY_PAGE_DEL(ta, page_del)                                \
+#define WT_TIME_AGGREGATE_MERGE_PAGE_DEL(ta, page_del)                                \
     do {                                                                              \
         (ta)->newest_stop_durable_ts = (page_del)->pg_del_durable_ts;                 \
         (ta)->newest_txn = (page_del)->txnid;                                         \

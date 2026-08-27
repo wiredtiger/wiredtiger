@@ -1586,7 +1586,7 @@ __verify_page_content_int(
         ta = &unpack.ta;
         if (unpack.type == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             WT_TIME_AGGREGATE_COPY(&effective_ta, &unpack.ta);
-            WT_TIME_AGGREGATE_APPLY_PAGE_DEL(&effective_ta, &unpack.page_del);
+            WT_TIME_AGGREGATE_MERGE_PAGE_DEL(&effective_ta, &unpack.page_del);
             ta = &effective_ta;
         }
 

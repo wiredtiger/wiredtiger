@@ -613,7 +613,7 @@ deletion information to the packing code.}
 @row{timestamp_inline.h, Macro, \c WT_TIME_AGGREGATE_UPDATE_PAGE_DEL,
 Akin to \c WT_TIME_AGGREGATE_UPDATE but for a \c WT_PAGE_DELETED; used in internal page
 reconciliation.}
-@row{timestamp_inline.h, Macro, \c WT_TIME_AGGREGATE_APPLY_PAGE_DEL,
+@row{timestamp_inline.h, Macro, \c WT_TIME_AGGREGATE_MERGE_PAGE_DEL,
 Replace the stop information in an aggregate unpacked from a \c WT_CELL_ADDR_DEL cell with the
 global stop point supplied by its \c WT_PAGE_DELETED; the unpacked stop information describes
 the child page before the truncate and cannot be used as-is.}
