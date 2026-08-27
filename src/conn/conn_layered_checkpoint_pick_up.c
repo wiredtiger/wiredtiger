@@ -770,6 +770,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
     md_write_cursor = NULL;
+    WT_CLEAR(prefetch_scan);
     WT_CLEAR(stable_btree_ids);
 
     metadata_checkpoint_name = NULL;
