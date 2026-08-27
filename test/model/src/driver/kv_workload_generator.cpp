@@ -759,7 +759,7 @@ kv_workload_generator::run()
                 const operation::any &crash_op = (*s->sequence)[0];
                 recoverable_checkpoint_crash =
                   std::holds_alternative<operation::checkpoint_crash_trigger>(crash_op) &&
-                  operation::recoverable_with_logging(
+                  operation::checkpoint_committed_at(
                     std::get<operation::checkpoint_crash_trigger>(crash_op).phase);
             }
 

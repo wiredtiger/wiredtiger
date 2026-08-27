@@ -42,9 +42,9 @@ extern "C" {
 namespace model {
 
 /*
- * The model decides whether a checkpoint crash keeps the checkpoint from which side of
- * CKPT_CRASH_ENUM_MAY_RECOVER the phase sits on. It names only the phases it has to tell apart, so
- * rather than mirroring the enum, pin the two facts it relies on.
+ * operation::checkpoint_committed_at decides whether a checkpoint crash keeps the checkpoint from
+ * which side of CKPT_CRASH_ENUM_MAY_RECOVER the phase sits on. It names only the phases it has to
+ * tell apart, so rather than mirroring the enum, pin the two facts it relies on.
  */
 static_assert(CKPT_CRASH_BEFORE_CKPT_COMMIT < CKPT_CRASH_ENUM_MAY_RECOVER,
   "a crash before the checkpoint transaction commits must never keep the checkpoint");
@@ -375,7 +375,7 @@ kv_workload::verify()
         bool recoverable_checkpoint_crash =
           std::holds_alternative<operation::checkpoint_crash_trigger>(op) &&
           database_config.logging &&
-          operation::recoverable_with_logging(
+          operation::checkpoint_committed_at(
             std::get<operation::checkpoint_crash_trigger>(op).phase);
 
         /*

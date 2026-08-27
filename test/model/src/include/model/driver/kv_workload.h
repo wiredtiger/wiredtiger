@@ -318,13 +318,14 @@ enum class checkpoint_crash_phase {
 };
 
 /*
- * recoverable_with_logging --
- *     Return whether a crash in this phase leaves a checkpoint that recovery can roll forward when
- *     connection logging is enabled. Only a crash taken after the checkpoint transaction committed
- *     and its log records were flushed qualifies.
+ * checkpoint_committed_at --
+ *     Return whether the checkpoint transaction has committed and its log records been flushed by
+ *     the time this phase is reached. Such a checkpoint survives a crash whenever connection
+ *     logging is enabled, because recovery replays the metadata updates. The static assertions in
+ *     kv_workload.cpp pin this ordering to the WiredTiger crash point enumeration.
  */
 inline bool
-recoverable_with_logging(checkpoint_crash_phase phase)
+checkpoint_committed_at(checkpoint_crash_phase phase)
 {
     /* Decide per phase rather than by comparison, so that a new phase has to answer this. */
     switch (phase) {

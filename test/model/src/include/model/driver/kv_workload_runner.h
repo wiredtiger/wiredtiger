@@ -147,7 +147,7 @@ protected:
          * taken before the commit, the checkpoint is lost.
          */
         bool recoverable =
-          operation::recoverable_with_logging(op.phase) && _database.config().logging;
+          operation::checkpoint_committed_at(op.phase) && _database.config().logging;
         restart(!recoverable);
         return 0;
     }
