@@ -57,6 +57,33 @@ err:
 }
 
 /*
+ * __disagg_ckpt_addr --
+ *     Return the address of the named checkpoint in the given metadata config string. Return
+ *     WT_NOTFOUND if there is no such checkpoint, or if it has no address.
+ */
+static int
+__disagg_ckpt_addr(WT_SESSION_IMPL *session, const char *config, const char *name, char **addrp)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM a, k, v;
+
+    *addrp = NULL;
+
+    WT_RET(__wt_config_getones(session, config, "checkpoint", &v));
+    __wt_config_subinit(session, &ckptconf, &v);
+
+    /* There is never more than a single checkpoint of any name, so take the first match. */
+    while (__wt_config_next(&ckptconf, &k, &v) == 0) {
+        if (!WT_CONFIG_MATCH(name, k))
+            continue;
+        WT_RET(__wt_config_subgets(session, &v, "addr", &a));
+        return (__wt_strndup(session, a.str, a.len, addrp));
+    }
+
+    return (WT_NOTFOUND);
+}
+
+/*
  * __disagg_discard_old_checkpoint_check --
  *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
@@ -66,18 +93,17 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
   const char *cfg_new, const char **checkpoint_name, bool *discardp)
 {
     WT_DECL_RET;
-    uint64_t checkpoint_time, checkpoint_time_new;
     int64_t checkpoint_order, checkpoint_order_new;
+    char *checkpoint_addr, *checkpoint_addr_new;
     const char *checkpoint_name_new;
 
     checkpoint_order = checkpoint_order_new = 0;
-    checkpoint_time = checkpoint_time_new = 0;
+    checkpoint_addr = checkpoint_addr_new = NULL;
     *checkpoint_name = checkpoint_name_new = NULL;
     *discardp = false;
 
-    WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, cfg_current, checkpoint_name, &checkpoint_order,
-                         &checkpoint_time),
-      true);
+    WT_ERR_NOTFOUND_OK(
+      __wt_ckpt_last_name(session, cfg_current, checkpoint_name, &checkpoint_order, NULL), true);
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, *checkpoint_name == NULL);
@@ -88,8 +114,8 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
      * It is possible that the new checkpoint is empty (e.g. all disagg tables were dropped). The
      * state has still advanced, so discard the old checkpoint.
      */
-    WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new,
-                         &checkpoint_order_new, &checkpoint_time_new),
+    WT_ERR_NOTFOUND_OK(
+      __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &checkpoint_order_new, NULL),
       true);
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, checkpoint_name_new == NULL);
@@ -97,18 +123,24 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     }
 
     if (checkpoint_order == checkpoint_order_new) {
+        WT_ERR(__disagg_ckpt_addr(session, cfg_current, *checkpoint_name, &checkpoint_addr));
+        WT_ERR(__disagg_ckpt_addr(session, cfg_new, checkpoint_name_new, &checkpoint_addr_new));
+        WT_ASSERT(session, checkpoint_addr != NULL && checkpoint_addr_new != NULL);
+
         /*
          * Checkpoint orders are strictly increasing if the checkpoints are written by different
-         * nodes.
+         * nodes, so the same order must specify the same checkpoint address.
          */
-        if (checkpoint_time != checkpoint_time_new) {
+        if (strcmp(checkpoint_addr, checkpoint_addr_new) != 0) {
             /* FIXME-WT-17599: escalate the warning to an error. */
             __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Checkpoint order should be strictly increasing. "
-              "Current checkpoint order: %" PRId64 ", time: %" PRIu64
-              ". New checkpoint order: %" PRId64 ", time: %" PRIu64
-              ". Current configuration: '%s'. New configuration: '%s'.",
-              checkpoint_order, checkpoint_time, checkpoint_order_new, checkpoint_time_new,
+              "Current checkpoint order: %" PRId64
+              ", address: '%s'. "
+              "New checkpoint order: %" PRId64
+              ", address: '%s'. "
+              "Current configuration: '%s'. New configuration: '%s'.",
+              checkpoint_order, checkpoint_addr, checkpoint_order_new, checkpoint_addr_new,
               cfg_current, cfg_new);
             *discardp = true;
         }
@@ -124,6 +156,8 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
         WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) == 0);
 #endif
 err:
+    __wt_free(session, checkpoint_addr);
+    __wt_free(session, checkpoint_addr_new);
     __wt_free(session, checkpoint_name_new);
     return (ret);
 }
