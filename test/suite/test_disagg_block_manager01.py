@@ -86,7 +86,7 @@ class test_disagg_block_manager01(wttest.WiredTigerTestCase):
 
         # The surviving table proves the walk ran; the rejected one must be absent.
         self.assertIn(plain, uris)
-        self.assertFalse([u for u in uris if 'disagg' in u], 'stale metadata: %s' % uris)
+        self.assertEqual([u for u in uris if 'disagg' in u], [], 'stale metadata: %s' % uris)
 
         cursor = self.session.open_cursor(plain)
         self.assertEqual(cursor[str(self.nrows - 1)], self.value)
