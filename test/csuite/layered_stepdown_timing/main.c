@@ -37,6 +37,7 @@
 /*
  * Command-line flags for testutil_parse_single_opt.
  *   b: build directory override
+ *   c: cache size in MB (default 100)
  *   G: enable disaggregated storage (required)
  *   h: home directory for the WiredTiger database
  *   n: number of layered tables to create (default 20,000)
@@ -47,7 +48,7 @@
  *   v: verbose mode
  *   W: number of worker threads (default 4)
  */
-#define GETOPTS "b:Gh:n:prvW:L:l:"
+#define GETOPTS "b:c:Gh:n:prvW:L:l:"
 
 extern char *__wt_optarg; /* argument associated with option */
 
@@ -55,7 +56,7 @@ extern char *__wt_optarg; /* argument associated with option */
 #define TABLE_CONFIG "key_format=S,value_format=S"
 #define VALUE_SIZE 2048
 #define DEFAULT_NTABLES 20000
-#define CACHE_SIZE_MB 100
+#define DEFAULT_CACHE_SIZE_MB 100
 /*
  * The table handles alone far exceed the target cache size, so create under a large cache and
  * shrink to the target size once every table exists: the shrink alone leaves eviction with plenty
@@ -69,7 +70,6 @@ extern char *__wt_optarg; /* argument associated with option */
  * trigger, and the dirty content keeps eviction busy long after the writers stop.
  */
 #define CACHE_FULL_PCT 80
-#define MAX_FILL_BYTES (10ULL * CACHE_SIZE_MB * WT_MEGABYTE)
 
 typedef struct {
     WT_CONNECTION *conn;
@@ -92,8 +92,8 @@ static int64_t
 stat_get(WT_SESSION *session, int stat_key)
 {
     WT_CURSOR *stat;
-    const char *desc, *pvalue;
     int64_t value;
+    const char *desc, *pvalue;
 
     testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &stat));
     stat->set_key(stat, stat_key);
@@ -133,8 +133,8 @@ create_thread(void *arg)
 
 /*
  * writer_thread --
- *     Hammer random tables with a 50/50 mix of inserts and updates until told to stop, dirtying
- *     the cache across all the tables.
+ *     Hammer random tables with a 50/50 mix of inserts and updates until told to stop, dirtying the
+ *     cache across all the tables.
  */
 static WT_THREAD_RET
 writer_thread(void *arg)
@@ -170,8 +170,7 @@ writer_thread(void *arg)
         cursor->set_key(cursor, key);
         cursor->set_value(cursor, value);
         /* Cache pressure can roll the operation back; retry until it commits. */
-        while ((ret = do_insert ? cursor->insert(cursor) : cursor->update(cursor)) ==
-            WT_ROLLBACK &&
+        while ((ret = do_insert ? cursor->insert(cursor) : cursor->update(cursor)) == WT_ROLLBACK &&
           *w->running)
             testutil_check(cursor->reset(cursor));
         if (ret != 0) {
@@ -232,8 +231,8 @@ main(int argc, char *argv[])
     WORKER_ARG *worker_args;
     WT_SESSION *session;
     wt_thread_t *threads;
-    uint64_t bytes_inserted, cache_full_bytes, i, inserts_total, updates_total, leader_linger_sec;
-    uint64_t linger_sec;
+    uint64_t bytes_inserted, cache_full_bytes, cache_size_mb, i, inserts_total, updates_total;
+    uint64_t leader_linger_sec, linger_sec, max_fill_bytes;
     uint64_t ntables, nthreads;
     uint64_t time_start, time_stop;
     int ch;
@@ -246,11 +245,15 @@ main(int argc, char *argv[])
 
     reopen = false;
     linger_sec = leader_linger_sec = 0;
+    cache_size_mb = DEFAULT_CACHE_SIZE_MB;
     testutil_parse_begin_opt(argc, argv, GETOPTS, opts);
     while ((ch = __wt_getopt(opts->progname, argc, argv, GETOPTS)) != EOF)
         switch (ch) {
         case 'r': /* Reopen an existing database. */
             reopen = true;
+            break;
+        case 'c': /* Cache size in MB. */
+            cache_size_mb = (uint64_t)atoll(__wt_optarg);
             break;
         case 'L': /* Linger as a follower after the step-down. */
             linger_sec = (uint64_t)atoll(__wt_optarg);
@@ -274,6 +277,7 @@ main(int argc, char *argv[])
 
     ntables = opts->nrecords == 0 ? DEFAULT_NTABLES : opts->nrecords;
     nthreads = opts->n_write_threads == 0 ? 4 : opts->n_write_threads;
+    max_fill_bytes = 10ULL * cache_size_mb * WT_MEGABYTE;
 
     if (!reopen)
         testutil_recreate_dir(opts->home);
@@ -332,17 +336,17 @@ main(int argc, char *argv[])
         printf("Reopened existing database, skipping table creation\n");
 
     /* Shrink the cache to the target size; eviction starts draining the resident handles. */
-    testutil_snprintf(conn_config, sizeof(conn_config), "cache_size=%dMB", CACHE_SIZE_MB);
+    testutil_snprintf(conn_config, sizeof(conn_config), "cache_size=%" PRIu64 "MB", cache_size_mb);
     testutil_check(opts->conn->reconfigure(opts->conn, conn_config));
 
     /*
      * Hammer random tables with inserts and updates until the cache is full, so eviction keeps
-     * running in the background. The random spread opens every table's handles for the step-down
-     * to walk.
+     * running in the background. The random spread opens every table's handles for the step-down to
+     * walk.
      */
-    printf(
-      "Writing to fill the %dMB cache using %" PRIu64 " threads...\n", CACHE_SIZE_MB, nthreads);
-    cache_full_bytes = ((uint64_t)CACHE_SIZE_MB * WT_MEGABYTE * CACHE_FULL_PCT) / 100;
+    printf("Writing to fill the %" PRIu64 "MB cache using %" PRIu64 " threads...\n", cache_size_mb,
+      nthreads);
+    cache_full_bytes = (cache_size_mb * WT_MEGABYTE * CACHE_FULL_PCT) / 100;
     time_start = __wt_clock((WT_SESSION_IMPL *)session);
     memset(worker_args, 0, nthreads * sizeof(WORKER_ARG));
     for (i = 0; i < nthreads; ++i) {
@@ -362,9 +366,10 @@ main(int argc, char *argv[])
         if (__wt_atomic_load_uint64_relaxed(&bytes_inserted) >= ntables * (uint64_t)VALUE_SIZE &&
           stat_get(session, WT_STAT_CONN_CACHE_BYTES_INUSE) >= (int64_t)cache_full_bytes)
             break;
-        if (__wt_atomic_load_uint64_relaxed(&bytes_inserted) >= MAX_FILL_BYTES) {
-            fprintf(stderr, "warning: wrote %dMB without filling the cache, stopping writes\n",
-              (int)(MAX_FILL_BYTES / WT_MEGABYTE));
+        if (__wt_atomic_load_uint64_relaxed(&bytes_inserted) >= max_fill_bytes) {
+            fprintf(stderr,
+              "warning: wrote %" PRIu64 "MB without filling the cache, stopping writes\n",
+              max_fill_bytes / WT_MEGABYTE);
             break;
         }
         __wt_sleep(0, 20 * WT_THOUSAND);
