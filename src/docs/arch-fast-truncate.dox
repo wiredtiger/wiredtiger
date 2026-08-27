@@ -306,6 +306,11 @@ deleted the page.
 Prepared truncations cannot be represented on disk.
 Truncations that are globally visible do not result in a cell in the parent page at all.)
 
+The time aggregate packed in the cell describes the child page as it was before the
+truncate, so its stop information is stale.
+The effective aggregate for the deleted pages is the packed one with the truncate applied as
+its global stop point, and that is what the parent page's aggregate is built from.
+
 These fields are, however, only present if the page header includes the \c
 WT_PAGE_FT_UPDATE flag, whose value is 0x20.
 Proper support for timestamped fast-truncate only appeared in WT 11.0; earlier versions
@@ -616,7 +621,8 @@ reconciliation.}
 @row{timestamp_inline.h, Macro, \c WT_TIME_AGGREGATE_MERGE_PAGE_DEL,
 Replace the stop information in an aggregate unpacked from a \c WT_CELL_ADDR_DEL cell with the
 global stop point supplied by its \c WT_PAGE_DELETED; the unpacked stop information describes
-the child page before the truncate and cannot be used as-is.}
+the child page before the truncate and cannot be used as-is. Used by internal page
+reconciliation and verification.}
 
 @row{txn_inline.h, Function, \c __wt_txn_op_delete_apply_prepare_state,
 The code for updating \c WT_PAGE_DELETED at prepare time.}
