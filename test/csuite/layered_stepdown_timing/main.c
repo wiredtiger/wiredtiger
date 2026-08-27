@@ -38,6 +38,7 @@
  * Command-line flags for testutil_parse_single_opt.
  *   b: build directory override
  *   c: cache size in MB (default 100)
+ *   e: mild eviction (4-8 threads, default targets) instead of aggressive eviction
  *   G: enable disaggregated storage (required)
  *   h: home directory for the WiredTiger database
  *   n: number of layered tables to create (default 6,666, i.e. ~20k active dhandles)
@@ -47,8 +48,10 @@
  *   l: linger this many seconds as leader, writes still running, before the step-down
  *   v: verbose mode
  *   W: number of worker threads (default 4)
+ *   x: transactional writes with commit timestamps; set stable to the last committed timestamp
+ *      and take a precise checkpoint before stepping down
  */
-#define GETOPTS "b:c:Gh:n:prvW:L:l:"
+#define GETOPTS "b:c:eGh:n:prvW:L:l:x"
 
 extern char *__wt_optarg; /* argument associated with option */
 
@@ -86,6 +89,8 @@ typedef struct {
     int err;                  /* First unexpected error seen by this thread */
     volatile bool *running;   /* Cleared when the cache is full */
     uint64_t *bytes_inserted; /* Shared counter of payload bytes written */
+    uint64_t *next_ts;        /* Shared commit timestamp allocator, NULL for untimestamped */
+    uint64_t commit_ts;       /* Last commit timestamp this thread committed */
 } WORKER_ARG;
 
 /*
@@ -132,25 +137,70 @@ create_thread(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
-/* Updates hit a small hot keyspace repeatedly; inserts always land on a fresh key. */
+/*
+ * Updates hit a small hot keyspace repeatedly; inserts always land on a fresh key. The keyspace is
+ * private to each thread: cross-thread write conflicts would roll the whole batch back.
+ */
 #define UPDATE_KEYSPACE 1000
+
+/* Operations per transaction in timestamp mode; one commit per operation is too slow. */
+#define TS_OPS_PER_TXN 100
+
+/*
+ * How far behind the timestamp allocator the oldest/stable timestamps trail during the write phase.
+ * Without advancing them, every update version stays pinned forever and eviction cannot make
+ * progress.
+ */
+#define TS_ADVANCE_MARGIN 10000
+
+/*
+ * writer_op --
+ *     A single insert or update against a random table.
+ */
+static int
+writer_op(WORKER_ARG *w, WT_SESSION *session, WT_RAND_STATE *rnd, uint64_t *seqp, const char *value,
+  bool *was_insert)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    char key[64], uri[128];
+
+    testutil_snprintf(
+      uri, sizeof(uri), "%s%05" PRIu64, TABLE_URI_PREFIX, __wt_random(rnd) % w->ntables);
+    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+
+    *was_insert = __wt_random(rnd) % 2 == 0;
+    if (*was_insert)
+        testutil_snprintf(key, sizeof(key), "i%06" PRIu64 "-%09" PRIu64, w->tid, (*seqp)++);
+    else
+        testutil_snprintf(key, sizeof(key), "u%06" PRIu64 "-%09" PRIu64, w->tid,
+          (uint64_t)(__wt_random(rnd) % UPDATE_KEYSPACE));
+    cursor->set_key(cursor, key);
+    cursor->set_value(cursor, value);
+    ret = *was_insert ? cursor->insert(cursor) : cursor->update(cursor);
+    if (ret != 0 && ret != WT_ROLLBACK)
+        fprintf(stderr, "writer %" PRIu64 ": %s into %s failed: %s\n", w->tid,
+          *was_insert ? "insert" : "update", uri, session->strerror(session, ret));
+    testutil_check(cursor->close(cursor));
+    return (ret);
+}
 
 /*
  * writer_thread --
  *     Hammer random tables with a 50/50 mix of inserts and updates until told to stop, dirtying the
- *     cache across all the tables.
+ *     cache across all the tables. Timestamp mode batches operations into transactions committed
+ *     with monotonically increasing commit timestamps.
  */
 static WT_THREAD_RET
 writer_thread(void *arg)
 {
     WORKER_ARG *w;
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    uint64_t seq;
-    char key[64], uri[128], value[VALUE_SIZE];
-    bool do_insert;
+    uint64_t batch_ins, batch_ops, batch_upd, j, seq, ts;
+    char ts_config[64], value[VALUE_SIZE];
+    bool was_insert;
 
     w = (WORKER_ARG *)arg;
     memset(value, (int)('a' + (w->tid % 26)), sizeof(value) - 1);
@@ -161,38 +211,56 @@ writer_thread(void *arg)
     testutil_check(w->conn->open_session(w->conn, NULL, NULL, &session));
 
     while (*w->running) {
-        testutil_snprintf(
-          uri, sizeof(uri), "%s%05" PRIu64, TABLE_URI_PREFIX, __wt_random(&rnd) % w->ntables);
-        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+        if (w->next_ts != NULL)
+            testutil_check(session->begin_transaction(session, NULL));
 
-        do_insert = __wt_random(&rnd) % 2 == 0;
-        if (do_insert)
-            testutil_snprintf(key, sizeof(key), "i%06" PRIu64 "-%09" PRIu64, w->tid, seq++);
-        else
-            testutil_snprintf(
-              key, sizeof(key), "u%09" PRIu64, (uint64_t)(__wt_random(&rnd) % UPDATE_KEYSPACE));
-        cursor->set_key(cursor, key);
-        cursor->set_value(cursor, value);
-        /* Cache pressure can roll the operation back; retry until it commits. */
-        while ((ret = do_insert ? cursor->insert(cursor) : cursor->update(cursor)) == WT_ROLLBACK &&
-          *w->running)
-            testutil_check(cursor->reset(cursor));
-        if (ret != 0) {
-            w->err = ret;
-            fprintf(stderr, "writer %" PRIu64 ": %s into %s failed: %s\n", w->tid,
-              do_insert ? "insert" : "update", uri, session->strerror(session, ret));
-            testutil_check(cursor->close(cursor));
-            break;
+        batch_ops = batch_ins = batch_upd = 0;
+        for (j = 0; j < TS_OPS_PER_TXN && *w->running; ++j) {
+            ret = writer_op(w, session, &rnd, &seq, value, &was_insert);
+            /* Cache pressure can roll the unit back; abandon it and start a fresh one. */
+            if (ret == WT_ROLLBACK)
+                break;
+            if (ret != 0) {
+                w->err = ret;
+                goto done;
+            }
+            ++batch_ops;
+            if (was_insert)
+                ++batch_ins;
+            else
+                ++batch_upd;
         }
-        testutil_check(cursor->close(cursor));
-        ++w->ops;
-        if (do_insert)
-            ++w->inserts;
-        else
-            ++w->updates;
-        __wt_atomic_add_uint64(w->bytes_inserted, VALUE_SIZE);
+
+        if (w->next_ts != NULL) {
+            if (ret == WT_ROLLBACK) {
+                /* The unit can only roll back; replay it in full with fresh insert keys. */
+                testutil_check(session->rollback_transaction(session, NULL));
+                continue;
+            }
+            ts = __wt_atomic_fetch_add_uint64(w->next_ts, 1);
+            testutil_snprintf(ts_config, sizeof(ts_config), "commit_timestamp=%" PRIx64, ts);
+            ret = session->commit_transaction(session, ts_config);
+            if (ret == WT_ROLLBACK) {
+                testutil_check(session->rollback_transaction(session, NULL));
+                continue;
+            }
+            if (ret != 0) {
+                w->err = ret;
+                fprintf(stderr, "writer %" PRIu64 ": commit failed: %s\n", w->tid,
+                  session->strerror(session, ret));
+                break;
+            }
+            w->commit_ts = ts;
+        }
+
+        /* Only count the batch once it is committed (in autocommit mode, each op committed). */
+        w->ops += batch_ops;
+        w->inserts += batch_ins;
+        w->updates += batch_upd;
+        __wt_atomic_add_uint64(w->bytes_inserted, batch_ops * VALUE_SIZE);
     }
 
+done:
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
 }
@@ -236,20 +304,26 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     wt_thread_t *threads;
     uint64_t bytes_inserted, cache_full_bytes, cache_size_mb, i, inserts_total, updates_total;
-    uint64_t leader_linger_sec, linger_sec, max_fill_bytes;
+    uint64_t last_commit, leader_linger_sec, linger_sec, max_fill_bytes, next_ts;
     uint64_t ntables, nthreads;
     uint64_t time_start, time_stop;
     int ch;
     char conn_config[512];
-    bool reopen, running;
+    const char *eviction_config;
+    bool reopen, running, ts_mode;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     opts->table_type = TABLE_ROW;
 
     reopen = false;
+    ts_mode = false;
     linger_sec = leader_linger_sec = 0;
     cache_size_mb = DEFAULT_CACHE_SIZE_MB;
+    eviction_config =
+      ",eviction=(threads_min=8,threads_max=8)"
+      ",eviction_target=70,eviction_trigger=85"
+      ",eviction_dirty_target=5,eviction_dirty_trigger=30";
     testutil_parse_begin_opt(argc, argv, GETOPTS, opts);
     while ((ch = __wt_getopt(opts->progname, argc, argv, GETOPTS)) != EOF)
         switch (ch) {
@@ -258,6 +332,12 @@ main(int argc, char *argv[])
             break;
         case 'c': /* Cache size in MB. */
             cache_size_mb = (uint64_t)atoll(__wt_optarg);
+            break;
+        case 'e': /* Mild eviction instead of aggressive. */
+            eviction_config = ",eviction=(threads_min=4,threads_max=8)";
+            break;
+        case 'x': /* Timestamped transactional writes + precise checkpoint before step-down. */
+            ts_mode = true;
             break;
         case 'L': /* Linger as a follower after the step-down. */
             linger_sec = (uint64_t)atoll(__wt_optarg);
@@ -290,7 +370,7 @@ main(int argc, char *argv[])
 
     /*
      * Open the connection. Logging keeps table creation fast; the idle handle close is disabled so
-     * every table stays open for the step-down to walk. Eviction is configured aggressively: low
+     * every table stays open for the step-down to walk. Eviction defaults to aggressive: low
      * targets and triggers keep the eviction workers busy well before the cache fills.
      */
     testutil_snprintf(conn_config, sizeof(conn_config),
@@ -300,10 +380,8 @@ main(int argc, char *argv[])
       ",statistics=(all)"
       ",statistics_log=(wait=1,json=true,on_close=true)"
       ",file_manager=(close_idle_time=0)"
-      ",eviction=(threads_min=8,threads_max=8)"
-      ",eviction_target=70,eviction_trigger=85"
-      ",eviction_dirty_target=5,eviction_dirty_trigger=30",
-      reopen ? "" : "create", CREATE_CACHE_SIZE_MB);
+      "%s",
+      reopen ? "" : "create", CREATE_CACHE_SIZE_MB, eviction_config);
     testutil_wiredtiger_open(opts, opts->home, conn_config, NULL, &opts->conn, false, false);
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
@@ -351,6 +429,7 @@ main(int argc, char *argv[])
     printf("Writing to fill the %" PRIu64 "MB cache using %" PRIu64 " threads...\n", cache_size_mb,
       nthreads);
     cache_full_bytes = (cache_size_mb * WT_MEGABYTE * CACHE_FULL_PCT) / 100;
+    next_ts = 2; /* Timestamp 1 is used by the create-mode checkpoint. */
     time_start = __wt_clock((WT_SESSION_IMPL *)session);
     memset(worker_args, 0, nthreads * sizeof(WORKER_ARG));
     for (i = 0; i < nthreads; ++i) {
@@ -360,15 +439,24 @@ main(int argc, char *argv[])
         worker_args[i].tid = i;
         worker_args[i].running = &running;
         worker_args[i].bytes_inserted = &bytes_inserted;
+        worker_args[i].next_ts = ts_mode ? &next_ts : NULL;
         testutil_check(__wt_thread_create(NULL, &threads[i], writer_thread, &worker_args[i]));
     }
     /*
      * Wait until enough has been written to cover the tables and the cache has filled, then stop
-     * the writers. The dirty content keeps eviction busy long after the writers stop.
+     * the writers. The dirty content keeps eviction busy long after the writers stop. Timestamp
+     * mode only waits for the coverage pass: it ends with a precise checkpoint that cleans the
+     * cache anyway, and timestamped writes throttle at the dirty trigger well before the cache
+     * fills.
      */
-    for (;;) {
+    for (uint64_t polls = 0;; ++polls) {
+        /* A dead writer means the cache may never fill; bail and report its error below. */
+        for (i = 0; i < nthreads; ++i)
+            if (worker_args[i].err != 0)
+                goto fill_done;
         if (__wt_atomic_load_uint64_relaxed(&bytes_inserted) >= ntables * (uint64_t)VALUE_SIZE &&
-          stat_get(session, WT_STAT_CONN_CACHE_BYTES_INUSE) >= (int64_t)cache_full_bytes)
+          (ts_mode ||
+            stat_get(session, WT_STAT_CONN_CACHE_BYTES_INUSE) >= (int64_t)cache_full_bytes))
             break;
         if (__wt_atomic_load_uint64_relaxed(&bytes_inserted) >= max_fill_bytes) {
             fprintf(stderr,
@@ -376,8 +464,19 @@ main(int argc, char *argv[])
               max_fill_bytes / WT_MEGABYTE);
             break;
         }
+        /* Advance oldest/stable once a second so update versions do not stay pinned forever. */
+        if (ts_mode && polls % 50 == 0) {
+            last_commit = __wt_atomic_load_uint64_relaxed(&next_ts);
+            if (last_commit > TS_ADVANCE_MARGIN) {
+                testutil_snprintf(conn_config, sizeof(conn_config),
+                  "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64,
+                  last_commit - TS_ADVANCE_MARGIN, last_commit - TS_ADVANCE_MARGIN);
+                testutil_check(opts->conn->set_timestamp(opts->conn, conn_config));
+            }
+        }
         __wt_sleep(0, 20 * WT_THOUSAND);
     }
+fill_done:
 
     /* Keep writing as leader for a while: the cache keeps churning with eviction fully engaged. */
     if (leader_linger_sec > 0) {
@@ -408,6 +507,25 @@ main(int argc, char *argv[])
       stat_get(session, WT_STAT_CONN_CACHE_BYTES_INUSE),
       stat_get(session, WT_STAT_CONN_CACHE_BYTES_DIRTY_TOTAL),
       stat_get(session, WT_STAT_CONN_CACHE_EVICTION_DIRTY));
+
+    /*
+     * In timestamp mode, pin the stable timestamp to the last committed write and take a precise
+     * checkpoint, so everything on stable is durable before the step-down.
+     */
+    if (ts_mode) {
+        last_commit = 0;
+        for (i = 0; i < nthreads; ++i)
+            last_commit = WT_MAX(last_commit, worker_args[i].commit_ts);
+        testutil_snprintf(conn_config, sizeof(conn_config),
+          "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, last_commit, last_commit);
+        testutil_check(opts->conn->set_timestamp(opts->conn, conn_config));
+        printf("Stable timestamp set to the last committed write: %" PRIx64 "\n", last_commit);
+        time_start = __wt_clock((WT_SESSION_IMPL *)session);
+        testutil_check(session->checkpoint(session, NULL));
+        time_stop = __wt_clock((WT_SESSION_IMPL *)session);
+        printf("Precise checkpoint before step-down took %" PRIu64 " ms\n",
+          WT_CLOCKDIFF_MS(time_stop, time_start));
+    }
 
     /* Time the step-down to the follower role. */
     time_start = __wt_clock((WT_SESSION_IMPL *)session);
