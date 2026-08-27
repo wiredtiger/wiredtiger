@@ -88,16 +88,21 @@ class test_truncate33(wttest.WiredTigerTestCase, suite_subprocess):
             stop_cursor.set_key(self.trunc_stop)
             self.session.truncate(None, start_cursor, stop_cursor, None)
 
-    def internal_page_stop_timestamps(self, dumpfile):
-        """Collect the aggregate stop timestamp of every internal page in a dump_address run."""
+    def internal_page_timestamps(self, dumpfile):
+        """Collect stop timestamps of every internal page in a dump_address run."""
         stops = []
+        durable_stops = []
         for line in open(dumpfile).readlines():
             if 'row-store internal' not in line:
                 continue
+            durable_match = re.search(r'newest_durable: \(\d+, \d+\)/\((\d+), (\d+)\)', line)
             match = re.search(r'newest_stop: \((\d+), (\d+)\)', line)
+            if durable_match:
+                durable_stops.append((int(durable_match.group(1)) << 32) +
+                    int(durable_match.group(2)))
             if match:
                 stops.append((int(match.group(1)) << 32) + int(match.group(2)))
-        return stops
+        return stops, durable_stops
 
     def test_truncate_internal_page_aggregate(self):
         self.populate()
@@ -110,10 +115,12 @@ class test_truncate33(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.runWt(['verify', '-d', 'dump_address', self.uri, '-d'], outfilename='dump.out')
 
-        stops = self.internal_page_stop_timestamps('dump.out')
+        stops, durable_stops = self.internal_page_timestamps('dump.out')
         self.assertGreater(len(stops), 1, 'expected a tree with more than one internal page')
         self.assertIn(self.truncate_ts, stops,
             'no internal page aggregate records the truncate as its stop point')
+        self.assertIn(self.truncate_ts, durable_stops,
+            'no internal page aggregate records the truncate as its durable stop point')
 
 if __name__ == '__main__':
     wttest.run()
