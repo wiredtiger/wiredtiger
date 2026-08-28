@@ -279,30 +279,27 @@ lsm_config = [
 
 tiered_config = [
     Config('tiered_storage', '', r'''
-        configure a storage source for this table''',
+        Removed options, preserved to allow parsing old metadata''',
         type='category', subconfig=[
         Config('name', 'none', r'''
-            permitted value is \c "none"'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('auth_token', '', r'''
-            authentication string identifier'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('bucket', '', r'''
-            the bucket indicating the location for this table'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('bucket_prefix', '', r'''
-            the unique bucket prefix for this table'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('cache_directory', '', r'''
-            a directory to store locally cached versions of files in the storage source. By
-            default, it is named with \c "-cache" appended to the bucket name. A relative
-            directory name is relative to the home directory'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('local_retention', '300', r'''
-            time in seconds to retain data on tiered storage on the local tier for faster
-            read access''',
-            min='0', max='10000'),
+            removed option, preserved to allow parsing old metadata''',
+            min='0', max='10000', undoc=True),
         Config('object_target_size', '0', r'''
-            this option is no longer supported, retained for backward compatibility''',
+            removed option, preserved to allow parsing old metadata''',
             min='0', undoc=True),
         Config('shared', 'false', r'''
-            enable sharing tiered tables across other WiredTiger instances.''',
-            type='boolean'),
+            removed option, preserved to allow parsing old metadata''',
+            type='boolean', undoc=True),
         ]),
 ]
 
@@ -506,8 +503,7 @@ file_meta = file_config + [
         readonly for more information''',
         type='boolean'),
     Config('tiered_object', 'false', r'''
-        this file is a tiered object. When opened on its own, it is marked as readonly and may
-        be restricted in other ways''',
+        removed option, preserved to allow parsing old metadata''',
         type='boolean', undoc=True),
     Config('version', '(major=0,minor=0)', r'''
         the file version'''),
@@ -1267,41 +1263,35 @@ wiredtiger_open_statistics_log_configuration = [
 
 tiered_storage_configuration_common = [
     Config('local_retention', '300', r'''
-        time in seconds to retain data on tiered storage on the local tier for faster read
-        access''',
-        min='0', max='10000'),
+        removed option, preserved to allow parsing old metadata''',
+        min='0', max='10000', undoc=True),
 ]
 connection_reconfigure_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
-        enable tiered storage. Enabling tiered storage may use one session from the configured
-        session_max''',
+        Removed options, preserved to allow parsing old metadata''',
         type='category', subconfig=tiered_storage_configuration_common)
 ]
 wiredtiger_open_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
-        enable tiered storage. Enabling tiered storage may use one session from the configured
-        session_max''',
+        Removed options, preserved to allow parsing old metadata''',
         type='category', undoc=True, subconfig=
         tiered_storage_configuration_common + [
         Config('auth_token', '', r'''
-            authentication string identifier'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('bucket', '', r'''
-            bucket string identifier where the objects should reside'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('bucket_prefix', '', r'''
-            unique string prefix to identify our objects in the bucket. Multiple instances
-            can share the storage bucket and this identifier is used in naming objects'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('cache_directory', '', r'''
-            a directory to store locally cached versions of files in the storage source. By
-            default, it is named with \c "-cache" appended to the bucket name. A relative
-            directory name is relative to the home directory'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('interval', '60', r'''
-            interval in seconds at which to check for tiered storage related work to perform''',
-            min=1, max=1000),
+            removed option, preserved to allow parsing old metadata''',
+            min=1, max=1000, undoc=True),
         Config('name', 'none', r'''
-            permitted value is \c "none"'''),
+            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('shared', 'false', r'''
-            enable sharing tiered tables across other WiredTiger instances.''',
-            type='boolean'),
+            removed option, preserved to allow parsing old metadata''',
+            type='boolean', undoc=True),
     ]),
 ]
 

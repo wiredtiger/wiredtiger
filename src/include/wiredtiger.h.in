@@ -1322,26 +1322,8 @@ struct __wt_session {
      * that is\, when a Btree page is split\, it will be split into smaller pages\, where each page
      * is the specified percentage of the maximum Btree page size., an integer between \c 50 and \c
      * 100; default \c 90.}
-     * @config{tiered_storage = (, configure a storage source for this table., a set of related
-     * configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token,
-     * authentication string identifier., a string; default empty.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * bucket, the bucket indicating the location for this table., a string; default empty.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket_prefix, the unique bucket prefix for this table., a
-     * string; default empty.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;cache_directory, a directory to store
-     * locally cached versions of files in the storage source.  By default\, it is named with \c
-     * "-cache" appended to the bucket name.  A relative directory name is relative to the home
-     * directory., a string; default empty.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time
-     * in seconds to retain data on tiered storage on the local tier for faster read access., an
-     * integer between \c 0 and \c 10000; default \c 300.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;name,
-     * permitted value is \c "none"., a string; default \c none.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * shared, enable sharing tiered tables across other WiredTiger instances., a boolean flag;
-     * default \c false.}
+     * @config{tiered_storage = (, Removed options\, preserved to allow parsing old metadata., a set
+     * of related configuration options defined as follows.}
      * @config{ ),,}
      * @config{type, set the type of data source used to store a column group\, index or simple
      * table.  By default\, a \c "file:" URI is derived from the object name.  The \c type
@@ -2532,12 +2514,8 @@ struct __wt_connection {
      * setting this value above 0 configures statistics logging., an integer between \c 0 and \c
      * 100000; default \c 0.}
      * @config{ ),,}
-     * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one
-     * session from the configured session_max., a set of related configuration options defined as
-     * follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds to retain data on
-     * tiered storage on the local tier for faster read access., an integer between \c 0 and \c
-     * 10000; default \c 300.}
+     * @config{tiered_storage = (, Removed options\, preserved to allow parsing old metadata., a set
+     * of related configuration options defined as follows.}
      * @config{ ),,}
      * @config{verbose, enable messages for various subsystems and operations.  Options are given as
      * a list\, where each message type can optionally define an associated verbosity level\, such

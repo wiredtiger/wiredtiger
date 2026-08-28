@@ -1357,6 +1357,10 @@ __schema_create_config_check(
             WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
               "Cold collections only supported when disaggregated storage is enabled");
 
+    if (__wt_config_getones_none(session, config, "tiered_storage.name", &cval) == 0 &&
+      cval.len != 0)
+        WT_RET_MSG(session, ENOTSUP, "tiered storage is not supported");
+
     return (0);
 }
 
