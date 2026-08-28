@@ -102,6 +102,7 @@ struct __wt_dhandle_clear_log {
     } while (0)
 
 enum wt_dhandle_type { WT_DHANDLE_TYPE_BTREE = 0, WT_DHANDLE_TYPE_LAYERED, WT_DHANDLE_TYPE_TABLE };
+/* FIXME-WT-18518: compile-time check that this matches wt_dhandle_type. */
 #define WT_DHANDLE_TYPE_NUM 3
 
 /*
