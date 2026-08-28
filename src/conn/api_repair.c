@@ -179,7 +179,8 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
             WT_ERR(cursor->get_key(cursor, &key));
             if (!WT_PREFIX_MATCH(key, "file:") || !WT_SUFFIX_MATCH(key, ".wt_stable"))
                 continue;
-            /* The shared metadata and history store files are always open and cannot be verified.
+            /*
+             * The shared metadata and history store files are always open and cannot be verified.
              */
             if (strcmp(key, WT_DISAGG_METADATA_URI) == 0 || strcmp(key, WT_HS_URI_SHARED) == 0)
                 continue;
