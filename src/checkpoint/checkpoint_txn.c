@@ -1290,10 +1290,6 @@ __checkpoint_establish_time(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /*
-     * If tiered storage is in use, move the time up to at least the most recent flush first. NOTE:
-     * reading the most recent flush time is not an acquire read (or repeated on retry) because
-     * currently checkpoint and flush tier are mutually exclusive.
-     *
      * Update the global value that tracks the most recent checkpoint, and use it to make sure the
      * most recent checkpoint time doesn't move backwards. Also make sure that this checkpoint time
      * is not the same as the previous one, by running the clock forwards as needed.
@@ -1307,8 +1303,6 @@ __checkpoint_establish_time(WT_SESSION_IMPL *session)
      * except in restricted ways:
      *    - to manage the interaction between hot backups and checkpointing, where the absolute time
      *      does not matter;
-     *    - to track when tiered storage was last flushed in order to avoid redoing work, where the
-     *      absolute time does not matter;
      *    - to detect and retry races between opening checkpoint cursors and checkpoints in progress
      *      (which only cares about ordering and only since the last database open).
      *
@@ -1327,7 +1321,6 @@ __checkpoint_establish_time(WT_SESSION_IMPL *session)
      */
 
     __wt_seconds(session, &ckpt_sec);
-    ckpt_sec = WT_MAX(ckpt_sec, conn->tiered.flush_most_recent);
 
     for (;;) {
         WT_ACQUIRE_READ_WITH_BARRIER(most_recent, conn->ckpt.most_recent);
@@ -2098,15 +2091,6 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_eviction_snapshot_retire(session);
 
     __wt_atomic_store_bool_v_release(&txn_global->checkpoint_running, false);
-
-    /*
-     * Signal the tiered storage thread because it waits for the checkpoint to complete to process
-     * flush units. Indicate that the checkpoint has completed.
-     */
-    if (conn->tiered.cond != NULL) {
-        __wt_atomic_store_bool_relaxed(&conn->tiered.flush_ckpt_complete, true);
-        __wt_cond_signal(session, conn->tiered.cond);
-    }
 
     return (ret);
 }

@@ -104,7 +104,7 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
          * isn't currently working. It assumes that the existing default block manager is
          * responsible for objects.
          */
-        WT_RET(__wt_block_disagg_manager_create(session, NULL, filename));
+        WT_RET(__wt_block_disagg_manager_create(session, filename));
     } else {
         WT_RET(__wt_block_manager_create(session, filename, allocsize));
 

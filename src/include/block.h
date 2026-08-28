@@ -18,6 +18,9 @@
  */
 #define WT_BLOCK_INVALID_OFFSET 0
 
+/* Address cookies omit object ID 0; unpack defaults a missing id to 0. */
+#define WT_TIERED_OBJECTID_NONE 0
+
 /*
  * The max corrupt block size that we'll attempt to detect bitflips for. Essentially default
  * leaf_page_max with a buffer.
