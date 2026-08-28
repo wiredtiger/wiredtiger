@@ -58,22 +58,13 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
 
     SCHEMA_EVENT ev = {0}; /* EVENT_NONE until a move is taken */
     switch (*slot_state) {
-    case TABLE_NONE: {
-        /* Linger: recreating before the stable epoch passes the published drop is a violation. */
-        const uint64_t published_drop = __wt_atomic_load_uint64(drop_epoch);
-        if (published_drop != 0) {
-            if (published_drop == UINT64_MAX ||
-              query_ts(state->conn, TS_STABLE_SCHEMA_EPOCH) < published_drop)
-                break;
-            __wt_atomic_store_uint64(drop_epoch, 0);
-        }
+    case TABLE_NONE:
         /* A legacy create is complete immediately; epoch mode publishes it in a later event. */
         ev.type = EVENT_CREATE;
         *slot_state = state->cfg->epoch_less ? TABLE_PUBLISHED : TABLE_CREATED;
         if (state->cfg->unique_tables)
             ++state->workers[t].table[slot].gen;
         break;
-    }
     case TABLE_CREATED:
         testutil_assert(!state->cfg->epoch_less);
         switch (__wt_random(rnd) % 3) {
@@ -103,12 +94,23 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         break;
     case TABLE_DROPPED:
         testutil_assert(!state->cfg->epoch_less);
-        /* Publish the drop, which frees the slot, or linger in the window. */
+        /* Publish the drop, or linger in the window. */
         if (__wt_random(rnd) % 2 == 0) {
             ev.type = EVENT_PUBLISH_DROP;
+            *slot_state = TABLE_REMOVED;
+        }
+        break;
+    case TABLE_REMOVED: {
+        /* Free the slot once the stable epoch passes the published drop; zero is not applied yet.
+         */
+        const uint64_t published_drop = __wt_atomic_load_uint64(drop_epoch);
+        if (published_drop != 0 &&
+          __wt_atomic_load_uint64(&state->stable_epoch) >= published_drop) {
+            __wt_atomic_store_uint64(drop_epoch, 0);
             *slot_state = TABLE_NONE;
         }
         break;
+    }
     }
     if (ev.type == EVENT_NONE)
         return (false);
@@ -121,9 +123,6 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
     }
-    /* The worker assigns the epoch when it applies the publish. */
-    if (ev.type == EVENT_PUBLISH_DROP && !state->cfg->unique_tables)
-        __wt_atomic_store_uint64(drop_epoch, UINT64_MAX);
 
     generator_emit(state, &ev);
     return (true);
@@ -217,9 +216,7 @@ generator_flush_publishes(WORKLOAD_STATE *state)
             testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t,
               slot, state->workers[t].table[slot].gen);
 
-            *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_NONE;
-            if (ev.type == EVENT_PUBLISH_DROP && !state->cfg->unique_tables)
-                __wt_atomic_store_uint64(&state->workers[t].table[slot].drop_epoch, UINT64_MAX);
+            *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_REMOVED;
             generator_emit(state, &ev);
         }
 }

@@ -305,7 +305,7 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, SCHEM
         testutil_assert(!state->cfg->epoch_less);
         ev->event_ts = worker_ts(state, ev);
         schema_op_publish(ctx->session, ev->uri, ev->event_ts);
-        if (state->generates && ev->type == EVENT_PUBLISH_DROP && !state->cfg->unique_tables) {
+        if (state->generates && ev->type == EVENT_PUBLISH_DROP) {
             testutil_assert(ev->slot < state->cfg->pool_size);
             __wt_atomic_store_uint64(
               &state->workers[thread_index].table[ev->slot].drop_epoch, ev->event_ts);
