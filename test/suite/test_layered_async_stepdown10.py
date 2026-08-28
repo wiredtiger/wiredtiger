@@ -384,9 +384,15 @@ class test_layered_async_stepdown10(
         ckpt_session.close()
         time.sleep(self.phase_sleep)
 
-        # Phase 4: demote to follower, and let the workload run against the demoted node.
+        # Phase 4: finish the workload before demotion because application write transactions must
+        # not be active when the connection adopts the step-down checkpoint.
+        self.done.set()
+        self.worker.join()
+        self.done.clear()
         self.demotion_started = True
         self.step_down()
+        self.worker = wtthread.Thread(target=self.workload)
+        self.worker.start()
         time.sleep(self.phase_sleep)
 
     # The workload must have made progress on every unconditional operation, or the stress and
@@ -465,13 +471,13 @@ class test_layered_async_stepdown10(
         self.setup_stress_state()
         self.setup_seed_tables()
 
-        worker = wtthread.Thread(target=self.workload)
-        worker.start()
+        self.worker = wtthread.Thread(target=self.workload)
+        self.worker.start()
         try:
             self.step_down_in_phases()
         finally:
             self.done.set()
-            worker.join()
+            self.worker.join()
 
         self.assertEqual(self.workload_errors, [])
         self.assert_workload_progress()
