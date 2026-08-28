@@ -1029,7 +1029,12 @@ struct __wt_connection_stats {
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_pick_up_checkpoint_time_startup;
+    int64_t disagg_pick_up_prefetch_checks;
+    int64_t disagg_pick_up_prefetch_issued;
     int64_t disagg_role_leader;
+    int64_t disagg_pick_up_queue_scan_entries;
+    int64_t disagg_shared_metadata_queue_length;
+    int64_t disagg_pick_up_queue_scan_calls;
     int64_t disagg_snapshot_rebuild;
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
@@ -1037,6 +1042,15 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
+    int64_t disagg_pick_up_file_create_config_usecs;
+    int64_t disagg_pick_up_file_create_exists_usecs;
+    int64_t disagg_pick_up_ingest_create_usecs;
+    int64_t disagg_pick_up_file_create_blockmgr_usecs;
+    int64_t disagg_pick_up_insert_meta_usecs;
+    int64_t disagg_pick_up_file_create_meta_insert_usecs;
+    int64_t disagg_pick_up_cursor_merge_usecs;
+    int64_t disagg_pick_up_ingest_search_usecs;
+    int64_t disagg_pick_up_update_file_meta_usecs;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;

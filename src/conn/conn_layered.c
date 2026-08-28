@@ -429,6 +429,28 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_disagg_shared_metadata_queue_length --
+ *     Return the number of entries in the shared metadata queue.
+ */
+uint64_t
+__wti_disagg_shared_metadata_queue_length(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    uint64_t count;
+
+    conn = S2C(session);
+    count = 0;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        ++count;
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (count);
+}
+
+/*
  * __wti_disagg_shared_metadata_queue_prune --
  *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
  */
@@ -469,16 +491,28 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *last;
+    uint64_t examined;
 
     conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
+    examined = 0;
     last = NULL;
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        ++examined;
         if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
           strcmp(entry->table_name, table_name) == 0)
             last = entry;
+    }
+
+    /*
+     * The scan has no early exit because it wants the newest match, so its cost is the whole queue
+     * on every call. Track it: callers in the checkpoint pick-up loop run once per table, making
+     * the total quadratic in the queue length.
+     */
+    ++conn->disaggregated_storage.shared_metadata_scan_calls;
+    conn->disaggregated_storage.shared_metadata_scan_entries += examined;
 
     return (last);
 }

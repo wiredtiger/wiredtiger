@@ -430,6 +430,44 @@ struct __wt_disaggregated_storage {
     WT_SPINLOCK shared_metadata_queue_lock;
 
     /*
+     * Cumulative cost of the queue scans that look for the newest create or remove of a table. Both
+     * are protected by the queue lock. Checkpoint pick-up logs the delta across a single pick-up,
+     * which is where the scans are quadratic in the queue length.
+     */
+    uint64_t shared_metadata_scan_calls;
+    uint64_t shared_metadata_scan_entries;
+
+    /*
+     * Per-phase cost of checkpoint pick-up, in nanoseconds. Only the pick-up thread writes these,
+     * under the checkpoint lock. The phases do not cover the whole pick-up: what is left over after
+     * subtracting them is the cursor merge that walks the local and shared metadata.
+     */
+    uint64_t pick_up_ingest_search_nsecs;
+    uint64_t pick_up_ingest_create_nsecs;
+    uint64_t pick_up_insert_meta_nsecs;
+    uint64_t pick_up_update_file_meta_nsecs;
+
+    /*
+     * Cost of creating a file, split by phase, in nanoseconds. Accumulated for every file create,
+     * not just the ones checkpoint pick-up drives; pick-up reports the delta across itself. What is
+     * left after subtracting these from the ingest-create phase is the schema-layer overhead.
+     */
+    uint64_t create_file_exists_nsecs;
+    uint64_t create_file_blockmgr_nsecs;
+    uint64_t create_file_config_nsecs;
+    uint64_t create_file_meta_insert_nsecs;
+
+    /*
+     * FIXME-WT-18000: Experiment for BF-44421. Set while checkpoint pick-up applies metadata, so
+     * the pre-fetch check can let the metadata scan through whichever session ends up walking.
+     * Also records what that session turned out to be.
+     */
+    wt_shared bool pick_up_in_progress;
+    wt_shared const char *pick_up_prefetch_session;
+    uint64_t pick_up_prefetch_checks;
+    uint64_t pick_up_prefetch_issued;
+
+    /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the
      * callers of posix_sync. But that's not possible because (1) posix_directory_sync also has no
      * way to change behavior because it doesn't have a file handle, and (2) the flags for a file

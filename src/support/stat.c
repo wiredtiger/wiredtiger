@@ -2691,7 +2691,12 @@ static const char *const __stats_connection_desc[] = {
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: pick up checkpoint time at startup (msecs)",
+  "disagg: pre-fetch checks reached during checkpoint pick-up",
+  "disagg: pre-fetch work issued during checkpoint pick-up",
   "disagg: role leader",
+  "disagg: shared metadata queue entries examined during checkpoint pick-up",
+  "disagg: shared metadata queue length at the most recent checkpoint pick-up",
+  "disagg: shared metadata queue scans performed during checkpoint pick-up",
   "disagg: snapshots rebuilt after racing a checkpoint pick-up or role change",
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
@@ -2699,6 +2704,15 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up in progress",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
+  "disagg: time assembling the file metadata configuration during checkpoint pick-up (usecs)",
+  "disagg: time checking whether the file already exists during checkpoint pick-up (usecs)",
+  "disagg: time creating missing ingest tables during checkpoint pick-up (usecs)",
+  "disagg: time creating the underlying file during checkpoint pick-up (usecs)",
+  "disagg: time inserting new metadata entries during checkpoint pick-up (usecs)",
+  "disagg: time inserting the new file metadata during checkpoint pick-up (usecs)",
+  "disagg: time merging the local and shared metadata cursors during checkpoint pick-up (usecs)",
+  "disagg: time searching the local metadata for ingest tables during checkpoint pick-up (usecs)",
+  "disagg: time updating existing file metadata entries during checkpoint pick-up (usecs)",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -3818,7 +3832,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_pick_up_checkpoint_time_startup = 0;
+    stats->disagg_pick_up_prefetch_checks = 0;
+    stats->disagg_pick_up_prefetch_issued = 0;
     stats->disagg_role_leader = 0;
+    stats->disagg_pick_up_queue_scan_entries = 0;
+    /* not clearing disagg_shared_metadata_queue_length */
+    stats->disagg_pick_up_queue_scan_calls = 0;
     stats->disagg_snapshot_rebuild = 0;
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
@@ -3826,6 +3845,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
+    stats->disagg_pick_up_file_create_config_usecs = 0;
+    stats->disagg_pick_up_file_create_exists_usecs = 0;
+    stats->disagg_pick_up_ingest_create_usecs = 0;
+    stats->disagg_pick_up_file_create_blockmgr_usecs = 0;
+    stats->disagg_pick_up_insert_meta_usecs = 0;
+    stats->disagg_pick_up_file_create_meta_insert_usecs = 0;
+    stats->disagg_pick_up_cursor_merge_usecs = 0;
+    stats->disagg_pick_up_ingest_search_usecs = 0;
+    stats->disagg_pick_up_update_file_meta_usecs = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -5075,7 +5103,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_pick_up_checkpoint_time_startup +=
       WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
+    to->disagg_pick_up_prefetch_checks += WT_STAT_CONN_READ(from, disagg_pick_up_prefetch_checks);
+    to->disagg_pick_up_prefetch_issued += WT_STAT_CONN_READ(from, disagg_pick_up_prefetch_issued);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
+    to->disagg_pick_up_queue_scan_entries +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_queue_scan_entries);
+    to->disagg_shared_metadata_queue_length +=
+      WT_STAT_CONN_READ(from, disagg_shared_metadata_queue_length);
+    to->disagg_pick_up_queue_scan_calls += WT_STAT_CONN_READ(from, disagg_pick_up_queue_scan_calls);
     to->disagg_snapshot_rebuild += WT_STAT_CONN_READ(from, disagg_snapshot_rebuild);
     to->disagg_stable_tombstone_encoding +=
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
@@ -5084,6 +5119,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
+    to->disagg_pick_up_file_create_config_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_create_config_usecs);
+    to->disagg_pick_up_file_create_exists_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_create_exists_usecs);
+    to->disagg_pick_up_ingest_create_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_ingest_create_usecs);
+    to->disagg_pick_up_file_create_blockmgr_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_create_blockmgr_usecs);
+    to->disagg_pick_up_insert_meta_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_insert_meta_usecs);
+    to->disagg_pick_up_file_create_meta_insert_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_create_meta_insert_usecs);
+    to->disagg_pick_up_cursor_merge_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_cursor_merge_usecs);
+    to->disagg_pick_up_ingest_search_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_ingest_search_usecs);
+    to->disagg_pick_up_update_file_meta_usecs +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_update_file_meta_usecs);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);

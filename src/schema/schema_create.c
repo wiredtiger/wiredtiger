@@ -214,10 +214,13 @@ __create_file(
     char *fileconf, *filemeta;
     uint32_t allocsize, fileid;
     bool against_stable, exists, import, import_repair, is_metadata, is_shared;
+    struct timespec phase_start, phase_stop;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
+    WT_CLEAR(phase_start);
+    WT_CLEAR(phase_stop);
 
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
@@ -230,7 +233,11 @@ __create_file(
     WT_ERR(__wt_schema_unsupported_format(session, config, true));
 
     /* Check if the file already exists. */
+    __wt_epoch(session, &phase_start);
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
+        __wt_epoch(session, &phase_stop);
+        S2C(session)->disaggregated_storage.create_file_exists_nsecs +=
+          WT_TIMEDIFF_NS(phase_stop, phase_start);
         /*
          * Regardless of the 'exclusive' flag, we should raise an error if we try to import an
          * existing URI rather than just silently returning.
@@ -239,6 +246,9 @@ __create_file(
             WT_TRET(EEXIST);
         goto err;
     }
+    __wt_epoch(session, &phase_stop);
+    S2C(session)->disaggregated_storage.create_file_exists_nsecs +=
+      WT_TIMEDIFF_NS(phase_stop, phase_start);
 
     exists = false;
     /*
@@ -331,9 +341,14 @@ __create_file(
                   uri);
             }
         }
-    } else
+    } else {
         /* Create the file. */
+        __wt_epoch(session, &phase_start);
         WT_ERR(__create_file_block_manager(session, uri, filename, allocsize, filecfg));
+        __wt_epoch(session, &phase_stop);
+        S2C(session)->disaggregated_storage.create_file_blockmgr_nsecs +=
+          WT_TIMEDIFF_NS(phase_stop, phase_start);
+    }
 
     /*
      * If creating an ordinary file, update the file ID and current version numbers and strip
@@ -341,6 +356,7 @@ __create_file(
      * information is reconstructed inside import repair or when grabbing file metadata.
      */
     if (!is_metadata) {
+        __wt_epoch(session, &phase_start);
         if (!import_repair) {
             WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
             fileid = __wt_generate_file_id(session, uri, is_shared);
@@ -363,7 +379,15 @@ __create_file(
         filecfg[1] = fileconf;
         filecfg[2] = NULL;
         WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        __wt_epoch(session, &phase_stop);
+        S2C(session)->disaggregated_storage.create_file_config_nsecs +=
+          WT_TIMEDIFF_NS(phase_stop, phase_start);
+
+        __wt_epoch(session, &phase_start);
         WT_ERR(__wt_metadata_insert(session, uri, filestripped));
+        __wt_epoch(session, &phase_stop);
+        S2C(session)->disaggregated_storage.create_file_meta_insert_nsecs +=
+          WT_TIMEDIFF_NS(phase_stop, phase_start);
 
         /*
          * Ensure that the timestamps in the imported data file are not in the future relative to

@@ -26,6 +26,9 @@ __layered_create_missing_ingest_table(
     WT_CONFIG_ITEM key_format, value_format;
     WT_DECL_ITEM(ingest_config);
     WT_DECL_RET;
+    struct timespec phase_start, phase_stop;
+
+    __wt_epoch(session, &phase_start);
 
     WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
     WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
@@ -53,6 +56,11 @@ __layered_create_missing_ingest_table(
 
 err:
     __wt_scr_free(session, &ingest_config);
+
+    __wt_epoch(session, &phase_stop);
+    S2C(session)->disaggregated_storage.pick_up_ingest_create_nsecs +=
+      WT_TIMEDIFF_NS(phase_stop, phase_start);
+
     return (ret);
 }
 
@@ -637,7 +645,10 @@ __disagg_insert_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids)
 {
     WT_DECL_RET;
+    struct timespec phase_start, phase_stop;
     const char *key, *value;
+
+    __wt_epoch(session, &phase_start);
 
     WT_ERR(sh_cursor->get_key(sh_cursor, &key));
     WT_ERR(sh_cursor->get_value(sh_cursor, &value));
@@ -652,6 +663,10 @@ __disagg_insert_meta(
     WT_ERR(__disagg_stable_btree_ids_add(session, stable_btree_ids, key, value));
 
 err:
+    __wt_epoch(session, &phase_stop);
+    S2C(session)->disaggregated_storage.pick_up_insert_meta_nsecs +=
+      WT_TIMEDIFF_NS(phase_stop, phase_start);
+
     return (ret);
 }
 
@@ -667,10 +682,13 @@ __disagg_update_file_meta(
     WT_CONFIG_ITEM cval, cval_cur;
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
+    struct timespec phase_start, phase_stop;
     char *cfg_ret, *current_value_copy;
     const char *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
     bool discard;
+
+    __wt_epoch(session, &phase_start);
 
     cfg_ret = current_value_copy = NULL;
     checkpoint_name = NULL;
@@ -734,6 +752,11 @@ err:
     __wt_free(session, current_value_copy);
     __wt_free(session, cfg_ret);
     __wt_free(session, checkpoint_name);
+
+    __wt_epoch(session, &phase_stop);
+    S2C(session)->disaggregated_storage.pick_up_update_file_meta_nsecs +=
+      WT_TIMEDIFF_NS(phase_stop, phase_start);
+
     return (ret);
 }
 
@@ -756,7 +779,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
-    uint64_t apply_elapsed_ms;
+    struct timespec merge_start, merge_stop, phase_start, phase_stop;
+    uint64_t apply_elapsed_ms, queue_length, scan_calls, scan_entries;
+    uint64_t ingest_create_us, ingest_search_us, insert_meta_us, update_file_meta_us;
+    uint64_t merge_nsecs;
+    uint64_t create_blockmgr_us, create_config_us, create_exists_us, create_meta_insert_us;
+    uint64_t prefetch_checks, prefetch_issued;
+    const char *merge_session_name, *prefetch_session_name;
     uint32_t dup_id, existing_tables, new_tables, new_ingest;
     size_t current_len;
     int i;
@@ -774,6 +803,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     first_uri = layered_ingest_uri = second_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
+    merge_nsecs = 0;
+    prefetch_checks = prefetch_issued = 0;
+    merge_session_name = prefetch_session_name = NULL;
 
     /* Whether to check that the local and shared metadata contain the same layered tables. */
     strict = F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
@@ -781,9 +813,33 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
     __wt_timer_start(session, &apply_timer);
+
+    /*
+     * Snapshot the queue scan counters so the completion message can report what this pick-up cost
+     * on its own.
+     */
+    queue_length = __wti_disagg_shared_metadata_queue_length(session);
+    scan_calls = S2C(session)->disaggregated_storage.shared_metadata_scan_calls;
+    scan_entries = S2C(session)->disaggregated_storage.shared_metadata_scan_entries;
+    ingest_search_us = S2C(session)->disaggregated_storage.pick_up_ingest_search_nsecs;
+    ingest_create_us = S2C(session)->disaggregated_storage.pick_up_ingest_create_nsecs;
+    insert_meta_us = S2C(session)->disaggregated_storage.pick_up_insert_meta_nsecs;
+    update_file_meta_us = S2C(session)->disaggregated_storage.pick_up_update_file_meta_nsecs;
+    create_exists_us = S2C(session)->disaggregated_storage.create_file_exists_nsecs;
+    create_blockmgr_us = S2C(session)->disaggregated_storage.create_file_blockmgr_nsecs;
+    create_config_us = S2C(session)->disaggregated_storage.create_file_config_nsecs;
+    create_meta_insert_us = S2C(session)->disaggregated_storage.create_file_meta_insert_nsecs;
+    prefetch_checks = S2C(session)->disaggregated_storage.pick_up_prefetch_checks;
+    prefetch_issued = S2C(session)->disaggregated_storage.pick_up_prefetch_issued;
+    WT_STAT_CONN_SET(session, disagg_shared_metadata_queue_length, queue_length);
+
+    /* FIXME-WT-18000: Experiment for BF-44421, see __wt_session_prefetch_check. */
+    __wt_atomic_store_bool_relaxed(&S2C(session)->disaggregated_storage.pick_up_in_progress, true);
+
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
-      ckpt_meta->metadata_lsn);
+      "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64
+      ", shared metadata queue length=%" PRIu64,
+      ckpt_meta->metadata_lsn, queue_length);
 
     /*
      * Look up the most recent checkpoint of the shared metadata table. If there is no checkpoint
@@ -832,6 +888,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &sh_cursors[i]));
 
+    merge_session_name = __wt_atomic_load_ptr_relaxed(
+      &((WT_SESSION_IMPL *)sh_cursors[0]->session)->name);
+
     /* Position the cursors by setting the lower and upper bounds. */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         WT_ERR(__disagg_bound_cursor(session, md_cursors[i], __disagg_cursor_prefixes[i]));
@@ -848,6 +907,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     }
 
     for (;;) {
+
+        /*
+         * Time the merge machinery: advancing the eight cursors, picking the minimum table name,
+         * and marking which cursors sit at it. This is the per-table overhead of walking the local
+         * and shared metadata in lockstep, as opposed to the work of reconciling a table.
+         */
+        __wt_epoch(session, &merge_start);
 
         /* Advance the cursors that are positioned at the current table name. */
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
@@ -872,8 +938,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
 
         /* All cursors are exhausted. */
-        if (current == NULL)
+        if (current == NULL) {
+            __wt_epoch(session, &merge_stop);
+            merge_nsecs += WT_TIMEDIFF_NS(merge_stop, merge_start);
             break;
+        }
 
         /* Copy and zero-terminate the table name. */
         WT_ERR(__wt_buf_set(session, current_buf, current, current_len + 1));
@@ -885,6 +954,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             md_has[i] = __disagg_key_at_table(md_keys[i], i, current, current_len);
             sh_has[i] = __disagg_key_at_table(sh_keys[i], i, current, current_len);
         }
+
+        __wt_epoch(session, &merge_stop);
+        merge_nsecs += WT_TIMEDIFF_NS(merge_stop, merge_start);
 
         /*
          * Collect the IDs the local metadata already holds. Applying a checkpoint only ever moves a
@@ -1019,7 +1091,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 memcpy(layered_ingest_uri, cval.str, cval.len);
                 layered_ingest_uri[cval.len] = '\0';
                 md_write_cursor->set_key(md_write_cursor, layered_ingest_uri);
+                __wt_epoch(session, &phase_start);
                 WT_ERR_NOTFOUND_OK(md_write_cursor->search(md_write_cursor), true);
+                __wt_epoch(session, &phase_stop);
+                S2C(session)->disaggregated_storage.pick_up_ingest_search_nsecs +=
+                  WT_TIMEDIFF_NS(phase_stop, phase_start);
                 if (ret == WT_NOTFOUND) {
                     WT_ERR_MSG_CHK(session,
                       __layered_create_missing_ingest_table(
@@ -1171,13 +1247,78 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
     WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
+
+    __wt_atomic_store_bool_relaxed(
+      &S2C(session)->disaggregated_storage.pick_up_in_progress, false);
+    prefetch_checks = S2C(session)->disaggregated_storage.pick_up_prefetch_checks - prefetch_checks;
+    prefetch_issued = S2C(session)->disaggregated_storage.pick_up_prefetch_issued - prefetch_issued;
+    prefetch_session_name = __wt_atomic_load_ptr_relaxed(
+      &S2C(session)->disaggregated_storage.pick_up_prefetch_session);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_prefetch_checks, prefetch_checks);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_prefetch_issued, prefetch_issued);
+
+    scan_calls = S2C(session)->disaggregated_storage.shared_metadata_scan_calls - scan_calls;
+    scan_entries = S2C(session)->disaggregated_storage.shared_metadata_scan_entries - scan_entries;
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_queue_scan_calls, scan_calls);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_queue_scan_entries, scan_entries);
+
+    ingest_search_us =
+      (S2C(session)->disaggregated_storage.pick_up_ingest_search_nsecs - ingest_search_us) /
+      WT_THOUSAND;
+    ingest_create_us =
+      (S2C(session)->disaggregated_storage.pick_up_ingest_create_nsecs - ingest_create_us) /
+      WT_THOUSAND;
+    insert_meta_us =
+      (S2C(session)->disaggregated_storage.pick_up_insert_meta_nsecs - insert_meta_us) /
+      WT_THOUSAND;
+    update_file_meta_us =
+      (S2C(session)->disaggregated_storage.pick_up_update_file_meta_nsecs - update_file_meta_us) /
+      WT_THOUSAND;
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_ingest_search_usecs, ingest_search_us);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_ingest_create_usecs, ingest_create_us);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_insert_meta_usecs, insert_meta_us);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_update_file_meta_usecs, update_file_meta_us);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_cursor_merge_usecs, merge_nsecs / WT_THOUSAND);
+
+    create_exists_us =
+      (S2C(session)->disaggregated_storage.create_file_exists_nsecs - create_exists_us) /
+      WT_THOUSAND;
+    create_blockmgr_us =
+      (S2C(session)->disaggregated_storage.create_file_blockmgr_nsecs - create_blockmgr_us) /
+      WT_THOUSAND;
+    create_config_us =
+      (S2C(session)->disaggregated_storage.create_file_config_nsecs - create_config_us) /
+      WT_THOUSAND;
+    create_meta_insert_us =
+      (S2C(session)->disaggregated_storage.create_file_meta_insert_nsecs - create_meta_insert_us) /
+      WT_THOUSAND;
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_file_create_exists_usecs, create_exists_us);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_file_create_blockmgr_usecs, create_blockmgr_us);
+    WT_STAT_CONN_INCRV(session, disagg_pick_up_file_create_config_usecs, create_config_us);
+    WT_STAT_CONN_INCRV(
+      session, disagg_pick_up_file_create_meta_insert_usecs, create_meta_insert_us);
+
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
-      " new ingest tables in %" PRIu64 "ms",
-      existing_tables, new_tables, new_ingest, apply_elapsed_ms);
+      " new ingest tables in %" PRIu64 "ms; scanned the shared metadata queue (length %" PRIu64
+      ") %" PRIu64 " times, examining %" PRIu64 " entries; phases (usecs): ingest_search=%" PRIu64
+      " ingest_create=%" PRIu64 " insert_meta=%" PRIu64 " update_file_meta=%" PRIu64
+      " cursor_merge=%" PRIu64 "; file create split (usecs): exists=%" PRIu64 " blockmgr=%" PRIu64
+      " config=%" PRIu64 " meta_insert=%" PRIu64 "; pre-fetch: merge_session=\"%s\" "
+      "checked_session=\"%s\" checks=%" PRIu64 " issued=%" PRIu64,
+      existing_tables, new_tables, new_ingest, apply_elapsed_ms, queue_length, scan_calls,
+      scan_entries, ingest_search_us, ingest_create_us, insert_meta_us, update_file_meta_us,
+      merge_nsecs / WT_THOUSAND, create_exists_us, create_blockmgr_us, create_config_us,
+      create_meta_insert_us, merge_session_name == NULL ? "(none)" : merge_session_name,
+      prefetch_session_name == NULL ? "(none)" : prefetch_session_name, prefetch_checks,
+      prefetch_issued);
 
 done:
 err:
+    /* FIXME-WT-18000: Experiment for BF-44421. Must not leak past the pick-up on any exit path. */
+    __wt_atomic_store_bool_relaxed(
+      &S2C(session)->disaggregated_storage.pick_up_in_progress, false);
+
     __wt_free(session, stable_btree_ids.ids);
     __wt_free(session, first_uri);
     __wt_free(session, second_uri);
@@ -1984,6 +2125,13 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
 
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
+
+    /*
+     * FIXME-WT-18000: Experiment for BF-44421. The merge below is a bounded forward-only scan of
+     * the shared metadata, where every page crossing is a page log round trip. Ask for prefetch;
+     * __wt_session_prefetch_check has the matching exemption for this session.
+     */
+    F_SET(internal_session, WT_SESSION_PREFETCH_ENABLED);
     /* Now actually pick up the checkpoint. */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
       ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta, superseded_ok));
