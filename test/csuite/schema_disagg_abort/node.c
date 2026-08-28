@@ -263,8 +263,13 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     for (uint32_t i = 0; i < cfg->thread_count; i++) {
         state->workers[i].busy = false;
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
-        for (uint32_t j = 0; j < cfg->pool_size; j++)
-            state->workers[i].table[j].stepdown_insert = false;
+        /*
+         * A leading phase checkpoints every slot, including inherited ingest data; a follower phase
+         * covers nothing, so the slots it inherits stay blocked.
+         */
+        if (as_leader)
+            for (uint32_t j = 0; j < cfg->pool_size; j++)
+                state->workers[i].table[j].uncovered_insert = false;
         /* State and slot generation survive role transitioning. */
     }
 
