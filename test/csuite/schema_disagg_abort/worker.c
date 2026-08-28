@@ -143,7 +143,7 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
         struct timespec now;
         __wt_epoch(NULL, &now);
         const bool timed_out = WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT;
-        /* Leader is gone, so none produces checkpoints to unblock this operation. */
+        /* Leader is gone, so noone produces checkpoints to unblock this operation. */
         const bool abandoned = !state->generates && (!state->cfg->peer_alive || timed_out);
         int err, sub_err;
         const char *err_msg;
