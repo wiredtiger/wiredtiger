@@ -199,11 +199,17 @@ struct __wt_disagg_metadata_op {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
+    /* The create-time configuration of the stable component, for recreating it at step-up. */
+    char *stable_create_config;
+
     WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
     wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
 
     /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
+
+    /* The operation was issued inside the step-down window, so it belongs to the next era. */
+    bool in_step_down_window;
 
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
