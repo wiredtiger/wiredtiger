@@ -62,8 +62,8 @@ class test_layered_schema16(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
             ',oldest_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(1)
 
-        # Create the table and make it and a row durable, so the checkpoint under test refers
-        # to a generation whose data the drop then destroys.
+        # Checkpoint the original table and its row so later checkpoints can refer to this
+        # generation.
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 2)
         cursor = self.session.open_cursor(self.uri)
@@ -111,7 +111,8 @@ class test_layered_schema16(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
             ',oldest_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(1)
 
-        # Create the table and make it and a row durable.
+        # Checkpoint the original table and its row so later checkpoints can refer to this
+        # generation.
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 2)
         cursor = self.session.open_cursor(self.uri)
