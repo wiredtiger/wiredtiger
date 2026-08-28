@@ -133,8 +133,8 @@ class test_layered_txn03(wttest.WiredTigerTestCase):
         self.assertEqual(self.read_at('k', 20), 'v20')
         self.assertEqual(self.read_at('k', 30), 'v30')
 
-        # Advance past the first version and checkpoint, giving garbage collection both the licence
-        # and the occasion to discard it.
+        # Advance past the first version and checkpoint, so garbage collection is both permitted to
+        # discard it and given the occasion to do so.
         self.set_oldest(20)
         self.session.checkpoint()
         self.disagg_advance_checkpoint_and_wait(self.conn_follow)
