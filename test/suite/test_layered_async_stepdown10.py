@@ -95,6 +95,8 @@ class test_layered_async_stepdown10(
         self.step_down_ts = None
         self.demotion_started = False
         self.done = threading.Event()
+        self.pause_requested = threading.Event()
+        self.pause_acknowledged = threading.Event()
 
     # Whether a drop is guaranteed to reach the shared metadata, so the final verification may
     # insist the table is gone from it.
@@ -354,6 +356,11 @@ class test_layered_async_stepdown10(
         try:
             while not self.done.is_set():
                 time.sleep(0.002)
+                if self.pause_requested.is_set():
+                    self.pause_acknowledged.set()
+                    while self.pause_requested.is_set():
+                        time.sleep(0.01)
+                    self.pause_acknowledged.clear()
                 op = rng.choices(list(ops), weights=[w for w, _ in ops.values()])[0]
                 ops[op][1](wsession, rng)
         except Exception:
@@ -384,15 +391,14 @@ class test_layered_async_stepdown10(
         ckpt_session.close()
         time.sleep(self.phase_sleep)
 
-        # Phase 4: finish the workload before demotion because application write transactions must
-        # not be active when the connection adopts the step-down checkpoint.
-        self.done.set()
-        self.worker.join()
-        self.done.clear()
+        # Phase 4: finish the current operation and pause for demotion.
+        self.pause_requested.set()
+        while not self.pause_acknowledged.is_set():
+            self.assertTrue(self.worker.is_alive(), 'workload exited before acknowledging pause')
+            self.pause_acknowledged.wait(0.01)
         self.demotion_started = True
         self.step_down()
-        self.worker = wtthread.Thread(target=self.workload)
-        self.worker.start()
+        self.pause_requested.clear()
         time.sleep(self.phase_sleep)
 
     # The workload must have made progress on every unconditional operation, or the stress and
@@ -477,6 +483,7 @@ class test_layered_async_stepdown10(
             self.step_down_in_phases()
         finally:
             self.done.set()
+            self.pause_requested.clear()
             self.worker.join()
 
         self.assertEqual(self.workload_errors, [])
