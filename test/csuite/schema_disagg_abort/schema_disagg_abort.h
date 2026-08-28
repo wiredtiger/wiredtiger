@@ -131,6 +131,7 @@ typedef enum {
 typedef struct {
     EVENT_TYPE type;
     uint32_t thread_id;
+    uint32_t slot;
     /*-
      * The completion timestamp for this event:
      *   - a publish epoch,

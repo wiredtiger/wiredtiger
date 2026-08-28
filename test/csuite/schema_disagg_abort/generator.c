@@ -114,6 +114,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         return (false);
 
     ev.thread_id = t;
+    ev.slot = slot;
     testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot,
       state->workers[t].table[slot].gen);
     if (ev.type == EVENT_INSERT) {
@@ -212,6 +213,7 @@ generator_flush_publishes(WORKLOAD_STATE *state)
             SCHEMA_EVENT ev = {0};
             ev.type = *slot_state == TABLE_CREATED ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
             ev.thread_id = t;
+            ev.slot = slot;
             testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t,
               slot, state->workers[t].table[slot].gen);
 
