@@ -495,7 +495,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'first'})
 
     # An uncommitted ingest write conflicts with another follower writer after demotion.
-    def test_conflict_across_demotion(self):
+    def test_conflict_after_demotion(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)

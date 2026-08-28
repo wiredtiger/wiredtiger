@@ -398,7 +398,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     # A writer begun after the cutoff commits before the demotion, and a follower writer can then
     # continue writing to ingest.
-    def test_ingest_writer_survives_demotion(self):
+    def test_ingest_writes_before_and_after_demotion(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
