@@ -352,7 +352,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
      * Record which side of the step-down boundary the operation was issued on. The schema lock held
      * here serializes the boundary, making the relaxed load safe.
      */
-    entry->step_down_created =
+    entry->in_step_down_window =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE;
     WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
@@ -816,7 +816,7 @@ __disagg_publish_check_step_down(
 {
     WT_DISAGG_METADATA_OP *latest;
     wt_timestamp_t step_down_epoch;
-    bool step_down_created;
+    bool in_step_down_window;
 
     /* The schema lock held by the caller serializes the boundary, making the relaxed load safe. */
     step_down_epoch = __wt_atomic_load_uint64_relaxed(
@@ -825,14 +825,14 @@ __disagg_publish_check_step_down(
         return (0);
 
     latest = __wti_disagg_table_latest_create_remove(session, table_name);
-    step_down_created = latest != NULL && latest->step_down_created;
+    in_step_down_window = latest != NULL && latest->in_step_down_window;
 
-    if (step_down_created && schema_epoch <= step_down_epoch)
+    if (in_step_down_window && schema_epoch <= step_down_epoch)
         WT_RET_MSG(session, EINVAL,
           "Cannot publish for table \"%s\" at schema epoch %" PRIu64
           " at or below the step down boundary %" PRIu64,
           table_name, schema_epoch, step_down_epoch);
-    if (!step_down_created && schema_epoch > step_down_epoch)
+    if (!in_step_down_window && schema_epoch > step_down_epoch)
         WT_RET_MSG(session, EINVAL,
           "Cannot publish for table \"%s\" at schema epoch %" PRIu64
           " above the step down boundary %" PRIu64

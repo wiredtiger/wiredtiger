@@ -206,7 +206,7 @@ struct __wt_disagg_metadata_op {
     bool deferred;
 
     /* The operation was issued inside the step-down window, so it belongs to the next era. */
-    bool step_down_created;
+    bool in_step_down_window;
 
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
