@@ -2923,6 +2923,19 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
+ * __wt_btcur_skip_page_inc --
+ *     Count a skipped deleted page as internal or leaf.
+ */
+static WT_INLINE void
+__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats)
+{
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        walk_skip_stats->total_del_internal_pages_skipped++;
+    else
+        walk_skip_stats->total_del_leaf_pages_skipped++;
+}
+
+/*
  * __wt_btcur_skip_page --
  *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
  *     traversal.
@@ -3001,7 +3014,7 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
-        walk_skip_stats->total_del_pages_skipped++;
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats);
         goto unlock;
     }
 
@@ -3013,7 +3026,7 @@ __wt_btcur_skip_page(
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
-            walk_skip_stats->total_del_pages_skipped++;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
             goto unlock;
         }
 
@@ -3026,7 +3039,7 @@ __wt_btcur_skip_page(
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            walk_skip_stats->total_del_pages_skipped++;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
       __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,

@@ -89,6 +89,7 @@ class test_disagg_fast_truncate03(wttest.WiredTigerTestCase):
             ),
             "internal_evicted": self.read_stat(stat.dsrc.cache_eviction_internal),
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
+            "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
         }
 
     def evict_keys(self, keys):
@@ -223,6 +224,10 @@ class test_disagg_fast_truncate03(wttest.WiredTigerTestCase):
         self.assertEqual(
             after["evict_blocked"], before["evict_blocked"],
             "step 5: the evicted internal page was re-dirtied",
+        )
+        self.assertGreater(
+            after["internal_skip"], before["internal_skip"],
+            "step 5: no deleted internal page was skipped",
         )
         self.prout("step 5: the evicted internal page was skipped")
 
