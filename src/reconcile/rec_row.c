@@ -1171,7 +1171,8 @@ __wti_rec_row_leaf(
          */
         if (upd == NULL) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                if (!upd_select.was_modify && __rec_row_garbage_collect_tw_eligible(r, twp)) {
+                if (!upd_select.modify_needs_onpage_value &&
+                  __rec_row_garbage_collect_tw_eligible(r, twp)) {
                     upd = &upd_tombstone;
                     ++r->keys_removed_from_disk_image_count;
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
