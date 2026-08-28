@@ -108,13 +108,23 @@ class test_layered_txn03(wttest.WiredTigerTestCase):
         self.seed_versions('k', [10, 20, 30])
         self.set_oldest(20)
 
-        # The refusal is reported through the return value alone, so match on the exception rather
-        # than on the error output.
         _, session = self.target()
         session.begin_transaction()
-        with self.assertRaises(wiredtiger.WiredTigerError) as caught:
-            session.timestamp_transaction('read_timestamp=' + self.timestamp_str(10))
-        self.assertIn('Invalid argument', str(caught.exception))
+
+        # The refusal is reported through the return value, so match on the exception rather than
+        # on the error output.
+        def refuse():
+            with self.assertRaises(wiredtiger.WiredTigerError) as caught:
+                session.timestamp_transaction('read_timestamp=' + self.timestamp_str(10))
+            self.assertIn('Invalid argument', str(caught.exception))
+
+        if wiredtiger.standalone_build():
+            refuse()
+        else:
+            # This is a MongoDB message, not written in standalone builds.
+            with self.expectedStdoutPattern('less than the oldest timestamp'):
+                refuse()
+
         session.rollback_transaction()
 
     # Rounding the read timestamp up moves it to the oldest timestamp, giving the version visible
