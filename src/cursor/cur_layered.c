@@ -578,6 +578,10 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     __clayered_assert_stable_mode(clayered);
 
     __clayered_op_init(clayered, op, flags, mode, role);
+    if (mode == WTI_CLAYERED_MODE_WRITE)
+        WT_ASSERT(session, op->write_target != WTI_CLAYERED_WRITE_NONE);
+    else
+        WT_ASSERT(session, op->write_target == WTI_CLAYERED_WRITE_NONE);
 
     if (!F_ISSET(clayered, WTI_CLAYERED_ACTIVE)) {
         /*
@@ -2953,7 +2957,7 @@ err:
 
 /*
  * __clayered_put_constituent --
- *     Put an entry into one constituent tree.
+ *     Put an already encoded value into one constituent tree.
  */
 static WT_INLINE int
 __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key,
@@ -2973,11 +2977,9 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
 
         /*
          * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway. Keep the cursor position if we are in the middle of a cursor traversal or
-         * mirroring writes to stable during stepdown window.
+         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
          */
-        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV) &&
-          op->write_target != WTI_CLAYERED_WRITE_BOTH)
+        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
             WT_RET(__clayered_reset_cursors(clayered, true));
     }
 
@@ -3010,11 +3012,11 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
 }
 
 /*
- * __clayered_put --
- *     Put an entry into the constituent or constituents selected for the operation.
+ * __clayered_put_both --
+ *     Put an entry into both constituent trees.
  */
 static WT_INLINE int
-__clayered_put(
+__clayered_put_both(
   WTI_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WTI_CLAYERED_PUT_OP put_op)
 {
     WT_DECL_ITEM(ingest_buf);
@@ -3026,46 +3028,70 @@ __clayered_put(
     WT_CLEAR(ingest_value);
     WT_CLEAR(stable_value);
 
-    if (op->write_target == WTI_CLAYERED_WRITE_BOTH) {
-        /*
-         * Build both table-specific encodings before writing either table. The stable write may
-         * consume the input value, so the ingest encoding must already be available. A reserve has
-         * no value to encode, but must still be installed on both update chains.
-         */
-        if (put_op != WTI_CLAYERED_PUT_RESERVE) {
-            WT_ERR(__clayered_deleted_encode(session, value, true, &stable_value, &stable_buf));
-            WT_ERR(__clayered_deleted_encode(session, value, false, &ingest_value, &ingest_buf));
-        }
+    /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
+    F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
-        /* Stable must be updated first so the engine's conflict check is authoritative. */
-        WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
-
-        /*
-         * Once stable is written the mirror is mandatory: stable content above the cutover survives
-         * only through its ingest copy, so a failed mirror must abort the transaction.
-         */
-        ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
-        if (ret != 0)
-            F_SET(session->txn, WT_TXN_ERROR);
-#ifdef HAVE_DIAGNOSTIC
-        else if (put_op != WTI_CLAYERED_PUT_RESERVE)
-            __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
-#endif
-    } else {
-        WT_CURSOR *c = op->write_target == WTI_CLAYERED_WRITE_INGEST ? op->ingest : op->stable;
-        bool to_stable = c != op->ingest;
-
-        WT_ASSERT(session, c != NULL);
-        if (put_op != WTI_CLAYERED_PUT_RESERVE)
-            WT_ERR(__clayered_deleted_encode(session, value, c != op->ingest,
-              to_stable ? &stable_value : &ingest_value, to_stable ? &stable_buf : &ingest_buf));
-        WT_ERR(__clayered_put_constituent(
-          op, c, key, to_stable ? &stable_value : &ingest_value, put_op));
+    /*
+     * Build both table-specific encodings before writing either table. The stable write may consume
+     * the input value, so the ingest encoding must already be available. A reserve has no value to
+     * encode, but must still be installed on both update chains.
+     */
+    if (put_op != WTI_CLAYERED_PUT_RESERVE) {
+        WT_ERR(__clayered_deleted_encode(session, value, true, &stable_value, &stable_buf));
+        WT_ERR(__clayered_deleted_encode(session, value, false, &ingest_value, &ingest_buf));
     }
+
+    /*
+     * Write to stable first to detect conflict and exit early, also leaving ingest clean of aborted
+     * transaction markers had we written to ingest first.
+     */
+    WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
+
+    /* Any failure after the stable leg leaves an incomplete mirror and must fail the transaction.
+     */
+    ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
+    WT_ASSERT(
+      session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
+    WT_ERR(ret);
+#ifdef HAVE_DIAGNOSTIC
+    if (put_op != WTI_CLAYERED_PUT_RESERVE)
+        __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
+#endif
 
 err:
     __wt_scr_free(session, &ingest_buf);
     __wt_scr_free(session, &stable_buf);
+    return (ret);
+}
+
+/*
+ * __clayered_put --
+ *     Put an entry into the constituent or constituents selected for the operation.
+ */
+static WT_INLINE int
+__clayered_put(
+  WTI_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WTI_CLAYERED_PUT_OP put_op)
+{
+    WT_CURSOR *c;
+    WT_DECL_ITEM(buf);
+    WT_ITEM encoded;
+    WT_SESSION_IMPL *session = CUR2S(op->clayered);
+    WT_DECL_RET;
+
+    if (op->write_target == WTI_CLAYERED_WRITE_BOTH)
+        return (__clayered_put_both(op, key, value, put_op));
+
+    WT_CLEAR(encoded);
+    c = op->write_target == WTI_CLAYERED_WRITE_STABLE ? op->stable : op->ingest;
+    WT_ASSERT(session, c != NULL);
+
+    if (put_op != WTI_CLAYERED_PUT_RESERVE)
+        WT_ERR(__clayered_deleted_encode(
+          session, value, op->write_target == WTI_CLAYERED_WRITE_STABLE, &encoded, &buf));
+    WT_ERR(__clayered_put_constituent(op, c, key, &encoded, put_op));
+
+err:
+    __wt_scr_free(session, &buf);
     return (ret);
 }
 
