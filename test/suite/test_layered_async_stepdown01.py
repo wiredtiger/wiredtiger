@@ -115,6 +115,40 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.complete_step_down(20)
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'vase'})
 
+    # Removing a mirrored key during iteration must not lose the stable-only neighbor in either
+    # direction.
+    def test_remove_mirrored_key_during_iteration(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'a': 'stable', 'c': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'b': 'mirrored'}, 30)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        self.session.begin_transaction()
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'a')
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'b')
+        self.assertEqual(cursor.remove(), 0)
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'c')
+        self.session.rollback_transaction()
+
+        cursor.reset()
+        self.session.begin_transaction()
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'c')
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'b')
+        self.assertEqual(cursor.remove(), 0)
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'a')
+        self.session.rollback_transaction()
+        cursor.close()
+
     # All tables share one cutoff, so a single call routes every table's later writes to ingest.
     def test_multiple_tables_share_cutoff(self):
         uri1 = f'layered:{self.test_name}_multi1'

@@ -3293,9 +3293,8 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_DECL_RET;
 
     ret = __clayered_put_constituent(op, c_ingest, key, &__wt_tombstone, WTI_CLAYERED_PUT_UPDATE);
-    /* A failed mirror leaves the stable-side removal without its ingest counterpart. */
-    if (ret != 0)
-        F_SET(session->txn, WT_TXN_ERROR);
+    WT_ASSERT(
+      session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
     return (ret);
 }
 
@@ -3306,20 +3305,15 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 static WT_INLINE int
 __clayered_remove_int(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
-    bool stable_positioned;
-
-    /*
-     * A mirrored write makes ingest the current constituent. Its write path resets the stable
-     * cursor position outside an active traversal, so the layered cursor may remain positioned
-     * while stable is not.
-     */
-    stable_positioned = positioned && op->clayered->current_cursor == op->stable;
     if (op->write_target == WTI_CLAYERED_WRITE_BOTH) {
-        WT_RET(__clayered_remove_from_stable(op, key, stable_positioned));
+        /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
+        F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+        WT_RET(__clayered_remove_from_stable(
+          op, key, positioned && op->clayered->current_cursor == op->stable));
         return (__clayered_remove_mirror(op, key));
     }
     return (op->write_target == WTI_CLAYERED_WRITE_STABLE ?
-        __clayered_remove_from_stable(op, key, stable_positioned) :
+        __clayered_remove_from_stable(op, key, positioned) :
         __clayered_remove_from_ingest(op, key, positioned));
 }
 
