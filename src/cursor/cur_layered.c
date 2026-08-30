@@ -4051,6 +4051,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, 
     clayered->current_cursor = c_ingest;
 
 err:
+    __wt_scr_free(session, &buf);
     if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
     return (ret);

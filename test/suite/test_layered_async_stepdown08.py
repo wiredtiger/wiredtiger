@@ -172,7 +172,7 @@ class test_layered_async_stepdown08(
         uri, rows = self.create_with_rows('existing', 2)
         self.publish_and_make_stable(uri, 20)
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(self.cutoff_ts)
         self.write_at(uri, {'window': 'window'}, 6)
 
         expected = {**rows, 'window': 'window'}
@@ -180,7 +180,7 @@ class test_layered_async_stepdown08(
         self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 7), expected)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(uri), 7), {'window': 'window'})
 
-        self.complete_step_down(self.cutoff)
+        self.complete_step_down(self.cutoff_ts)
         self.assertEqual(self.read_kvs_at(uri, 7), expected)
         self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(uri), 7), rows)
 
