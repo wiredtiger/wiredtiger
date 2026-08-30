@@ -443,14 +443,14 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.close_follower(conn_follower, session_follower)
 
     def test_drop_on_leader_in_step_down_window_is_refused(self):
-        # Past the step-down boundary a leader's commits land in the ingest constituent, which the
-        # final step-down checkpoint cannot cover, so the same guard refuses the drop.
+        # Past the step-down boundary a leader's commits are mirrored to both constituents. The
+        # stable constituent is closed first and refuses the drop because it has dirty data.
         self.publish_and_checkpoint_table()
 
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(20) +
             ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(10))
         self.write_rows(commit_ts=30)
-        self.assert_drop_refused_uncovered(self.session)
+        self.assert_drop_refused('dirty data', session=self.session)
 
         # The window writes stay readable. Layered reads need an explicit snapshot while the
         # step-down boundary is set.
@@ -460,6 +460,12 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The stable constituent is dropped before the ingest one, so its metadata removal must
         # have unrolled: both constituents are back.
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
+
+        # Complete the transition so teardown can verify the checkpointed stable constituent rather
+        # than the dirty live table containing the mirrored window write.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        self.session.checkpoint()
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
     def test_drop_on_follower_of_leader_only_data_is_allowed(self):
         # Rows the follower only reads live in the picked-up checkpoint, not in its ingest tree.
