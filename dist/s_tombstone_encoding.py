@@ -143,7 +143,9 @@ DECISION_ARG = 2
 
 # Tokens that make the constituent-decision argument legitimate. A bare boolean literal is allowed
 # because the modify helpers know their target table statically.
-ARG_OK = re.compile(r"stable_cursor|current_cursor|ingest|^\s*(?:true|false)\b")
+ARG_OK = re.compile(
+    r"stable_cursor|current_cursor|ingest|"
+    r"write_target\s*==\s*WTI_CLAYERED_WRITE_STABLE|^\s*(?:true|false)\b")
 
 # The reserved marker itself: the __wt_tombstone global, or a literal 0x14 / \x14 byte. Escaping and
 # stripping must stay inside the sanctioned helpers so the stable-encoding switch remains the only
@@ -227,20 +229,21 @@ CALLGRAPH_REACHABILITY = (
 # this inventory updated.
 CALLGRAPH_GOLDEN_CALLERS = {
     ENCODE_FN: frozenset({
-        "__clayered_modify_stable", "__clayered_put", "__clayered_update_ingest_value",
-        STABLE_TO_INGEST_FN}),
+        "__clayered_modify_ingest", "__clayered_modify_stable", "__clayered_put",
+        "__clayered_put_both", STABLE_TO_INGEST_FN}),
     DECODE_FN: frozenset({
         "__clayered_assert_mirrored_values", "__clayered_decode_current", "__clayered_insert",
         "__clayered_modify_stable", "__clayered_modify_try_ingest", INGEST_TO_STABLE_FN}),
     DECODE_CURRENT_FN: frozenset({
         "__clayered_copy_duplicate_kv", "__clayered_iterate", "__clayered_modify",
-        "__clayered_modify_both", "__clayered_modify_ingest", "__clayered_next_random",
-        "__clayered_search", "__clayered_search_near", "__clayered_update"}),
+        "__clayered_modify_ingest", "__clayered_next_random", "__clayered_search",
+        "__clayered_search_near", "__clayered_update"}),
     INGEST_TO_STABLE_FN: frozenset({"__layered_copy_ingest_table"}),
     STABLE_TO_INGEST_FN: frozenset({"__prepare_discover_alloc_upd"}),
     # Not a conversion helper: it stores bytes its callers already encoded, so it is exempt from
     # rule D4 and its caller set is pinned here instead.
-    "__clayered_put_constituent": frozenset({"__clayered_put", "__clayered_remove_mirror"}),
+    "__clayered_put_constituent": frozenset({
+        "__clayered_put", "__clayered_put_both", "__clayered_remove_mirror"}),
 }
 
 # Rules D3/D4 anchor on behavior rather than names, using the tool's ///content-regex form: every

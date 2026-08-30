@@ -115,6 +115,29 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.complete_step_down(20)
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'vase'})
 
+    # A size-changing modify produces the same value whether the key predates the transition or was
+    # written during it.
+    def test_size_changing_modify_while_step_down_ts_set(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'stable-only': 'abcde'}, 10)
+
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'mirrored': 'abcde'}, 30)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        for key in ('stable-only', 'mirrored'):
+            cursor.set_key(key)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('X', 1, 0)]), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
+        cursor.close()
+
+        expected = {'stable-only': 'aXbcde', 'mirrored': 'aXbcde'}
+        self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected)
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
+
     # Removing a mirrored key during iteration must not lose the stable-only neighbor in either
     # direction.
     def test_remove_mirrored_key_during_iteration(self):
