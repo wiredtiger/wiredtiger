@@ -632,6 +632,8 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
 {
     int i, ret;
 
+    ret = WT_ROLLBACK;
+
     /*
      * A pass reads every table under one long-running transaction, which cache pressure can roll
      * back; that says nothing about consistency. Repeat the pass instead: whatever data the new
