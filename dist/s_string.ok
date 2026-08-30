@@ -146,6 +146,8 @@ DataSet
 Decrementing
 Decrypt
 DeleteFileW
+Dequeue
+Dequeued
 Deterministically
 Dhandle
 DisAgg
@@ -966,6 +968,7 @@ demuxes
 demuxing
 dequeue
 dequeued
+dequeues
 der
 deref
 dereference
