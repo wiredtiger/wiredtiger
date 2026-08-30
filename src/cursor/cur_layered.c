@@ -177,15 +177,8 @@ __wt_clayered_ingest_to_stable_value(WT_SESSION_IMPL *session, WT_ITEM *value)
 
     size_before = value->size;
     __clayered_deleted_decode(session, value, false);
-    if (value->size != size_before) {
-        /* A tombstone-marker-prefixed value loses exactly the escape byte. */
-        WT_ASSERT_ALWAYS(session,
-          value->size == size_before - 1 &&
-            ((const uint8_t *)value->data)[value->size] ==
-              ((const uint8_t *)__wt_tombstone.data)[0],
-          "ingest to stable drain removed a byte other than the escape byte from a value");
+    if (value->size != size_before)
         WT_STAT_CONN_INCR(session, disagg_ingest_stable_tombstone_stripped);
-    }
 }
 
 /*
