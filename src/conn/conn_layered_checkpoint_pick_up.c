@@ -1641,6 +1641,7 @@ __disagg_pick_up_checkpoint(
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
     WT_TIMER pickup_timer;
+    wt_timestamp_t prune_epoch;
     uint64_t current_meta_lsn, pickup_elapsed_ms;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool is_startup;
@@ -1780,15 +1781,6 @@ __disagg_pick_up_checkpoint(
     /*
      * Part 3: Do the bookkeeping.
      *
-     * A node with no live stable epoch is not gating schema operations, so the adopted checkpoint
-     * covers the whole queue and it is cleared.
-     */
-    __wti_disagg_shared_metadata_queue_prune(session,
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE ?
-        WT_SCHEMA_EPOCH_NONE :
-        metadata.schema_epoch);
-
-    /*
      * The merge is complete: a failure from here leaves the local metadata resolving to the new
      * checkpoint while the published LSN still admits only the old one, and there is no
      * compensation short of completing the adoption, so it is fatal.
@@ -1796,6 +1788,16 @@ __disagg_pick_up_checkpoint(
     if ((ret = __disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata)) != 0)
         WT_ERR_PANIC(
           session, ret, "failed to adopt a checkpoint after completing its metadata merge");
+
+    /*
+     * Prune entries the adopted checkpoint covers, once its epoch is published so that a publish is
+     * either rejected against it or removed by this pass. A node with no live stable epoch is not
+     * gating schema operations, and passing no epoch clears the queue outright.
+     */
+    prune_epoch = __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE ?
+      WT_SCHEMA_EPOCH_NONE :
+      metadata.schema_epoch;
+    __wti_disagg_shared_metadata_queue_prune(session, prune_epoch);
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);

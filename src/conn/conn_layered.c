@@ -930,7 +930,7 @@ __wt_disagg_shared_metadata_queue_publish(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *tmp;
-    wt_timestamp_t prev_schema_epoch, step_down_epoch;
+    wt_timestamp_t last_ckpt_epoch, prev_schema_epoch, step_down_epoch;
 
     conn = S2C(session);
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
@@ -942,6 +942,9 @@ __wt_disagg_shared_metadata_queue_publish(
     /* The schema lock held here serializes the boundary, making the relaxed load safe. */
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
+
+    last_ckpt_epoch =
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
@@ -959,6 +962,15 @@ __wt_disagg_shared_metadata_queue_publish(
                   "Cannot publish for table \"%s\" at schema epoch %" PRIu64
                   " at or below the step down boundary %" PRIu64,
                   table_name, schema_epoch, step_down_epoch);
+            /*
+             * The last checkpoint claims to cover everything at or below its epoch, so an entry
+             * stamped there can never reach shared metadata.
+             */
+            if (schema_epoch <= last_ckpt_epoch)
+                WT_ERR_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
+                  "Cannot publish for table \"%s\" at schema epoch %" PRIu64
+                  " at or below the last checkpoint schema epoch %" PRIu64,
+                  table_name, schema_epoch, last_ckpt_epoch);
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
