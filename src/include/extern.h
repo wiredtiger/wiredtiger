@@ -1211,7 +1211,7 @@ extern int __wt_turtle_validate_version(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_activity_drain(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step_down_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1249,7 +1249,8 @@ extern int __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool di
 extern int __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
   WT_TXN_TIME_POINT *txn_time_point, WT_ITEM *key, uint64_t recno, bool commit, WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
+extern int __wt_txn_rollback(
+  WT_SESSION_IMPL *session, const char *cfg[], bool api_call, wt_timestamp_t step_down_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

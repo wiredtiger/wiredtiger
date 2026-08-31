@@ -1945,9 +1945,11 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
+    wt_timestamp_t step_down_ts;
 
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
+    step_down_ts = WT_TS_NONE;
     SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_commit);
 
@@ -1971,12 +1973,16 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
      *
      * A prepared transaction is exempt: rollback is not an option for it once prepared, so a
      * straddling prepared commit is resolved instead by the commit-time relocation logic, which
-     * this call would otherwise pre-empt.
+     * this call would otherwise pre-empt. That logic needs the step-down timestamp too, read here
+     * under the same lock for the same reason -- reading it inside commit itself would race a
+     * concurrent set or clear with no lock protecting it -- so capture it in the same locked
+     * section regardless of whether the straddler check below applies.
      */
-    if (txn->mod_count != 0 && !txn->stepdown_ts_set && !F_ISSET(txn, WT_TXN_PREPARE) &&
-      __wt_conn_is_disagg(session)) {
+    if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        ret = __wt_txn_stepdown_straddler_check(session, true);
+        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        if (!txn->stepdown_ts_set && !F_ISSET(txn, WT_TXN_PREPARE))
+            ret = __wt_txn_stepdown_straddler_check(session, true);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         WT_ERR(ret);
     }
@@ -1989,7 +1995,7 @@ err:
      */
     if (ret == 0) {
         F_SET(session, WT_SESSION_RESOLVING_TXN);
-        ret = __wt_txn_commit(session, cfg);
+        ret = __wt_txn_commit(session, cfg, step_down_ts);
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     } else if (F_ISSET(txn, WT_TXN_RUNNING)) {
         if (F_ISSET(txn, WT_TXN_PREPARE))
@@ -1997,7 +2003,7 @@ err:
 
         WT_TRET(__wt_session_reset_cursors(session, false));
         F_SET(session, WT_SESSION_RESOLVING_TXN);
-        WT_TRET(__wt_txn_rollback(session, cfg, false));
+        WT_TRET(__wt_txn_rollback(session, cfg, false, step_down_ts));
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     }
 #ifdef HAVE_CALL_LOG
@@ -2103,12 +2109,14 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
+    wt_timestamp_t step_down_ts;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_rollback);
 
     txn = session->txn;
+    step_down_ts = WT_TS_NONE;
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
         WT_STAT_CONN_INCR(session, txn_prepare_rollback);
         WT_STAT_CONN_DECR(session, txn_prepare_active);
@@ -2116,10 +2124,21 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    /*
+     * Only a prepared rollback can be a step-down straddler (see __wt_txn_rollback), so only
+     * bother reading the step-down timestamp -- under its lock, for the same reason commit does --
+     * for one.
+     */
+    if (F_ISSET(txn, WT_TXN_PREPARE) && __wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+    }
+
     WT_TRET(__wt_session_reset_cursors(session, false));
 
     F_SET(session, WT_SESSION_RESOLVING_TXN);
-    WT_TRET(__wt_txn_rollback(session, cfg, true));
+    WT_TRET(__wt_txn_rollback(session, cfg, true, step_down_ts));
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:

@@ -159,11 +159,11 @@
                 continue;                                           \
             }                                                       \
         } else if ((ret) == 0)                                      \
-            (ret) = __wt_txn_commit((s), NULL);                     \
+            (ret) = __wt_txn_commit((s), NULL, WT_TS_NONE);         \
         else {                                                      \
             if (retry)                                              \
                 WT_TRET(__wt_session_copy_values(s));               \
-            WT_TRET(__wt_txn_rollback((s), NULL, false));           \
+            WT_TRET(__wt_txn_rollback((s), NULL, false, WT_TS_NONE)); \
             if ((retry) && (ret) == WT_ROLLBACK) {                  \
                 (ret) = 0;                                          \
                 WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \

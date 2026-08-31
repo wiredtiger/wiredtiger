@@ -1780,10 +1780,12 @@ err:
 
 /*
  * __wt_txn_commit --
- *     Commit the current transaction.
+ *     Commit the current transaction. step_down_ts is the step-down timestamp, read by the caller
+ *     under the step-down lock (or WT_TS_NONE on a connection where step-down is not relevant):
+ *     reading it here instead would race a concurrent set or clear with no lock protecting it.
  */
 int
-__wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step_down_ts)
 {
     struct timespec tsp;
     WT_CACHE *cache;
@@ -1798,7 +1800,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
-    wt_timestamp_t step_down_ts;
     uint64_t recno;
     uint32_t ingest_cursor_stable_id;
 #ifdef HAVE_DIAGNOSTIC
@@ -1816,7 +1817,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     key = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
     wrote_ingest = wrote_stable = false;
@@ -1941,13 +1941,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
                     /*
                      * A prepared straddler: it wrote to stable under pre-boundary routing, but this
-                     * transaction's final commit timestamp landed above the step-down timestamp.
-                     * Resolving it also duplicates it onto ingest first, so the value survives the
-                     * checkpoint that will exclude it from stable.
+                     * transaction's durable timestamp -- what actually governs its placement
+                     * relative to the step-down checkpoint, not its commit timestamp, which it can
+                     * set independently -- landed above the step-down timestamp. Resolving it also
+                     * duplicates it onto ingest first, so the value survives the checkpoint that
+                     * will exclude it from stable.
                      */
                     if (step_down_ts != WT_TS_NONE &&
-                      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
-                      txn->time_point.commit_timestamp > step_down_ts &&
+                      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE) &&
+                      txn->time_point.durable_timestamp > step_down_ts &&
                       WT_URI_IS_STABLE(op->btree->dhandle->name))
                         WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
@@ -2252,7 +2254,7 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    WT_TRET(__wt_txn_rollback(session, cfg, false));
+    WT_TRET(__wt_txn_rollback(session, cfg, false, step_down_ts));
     return (ret);
 }
 
@@ -2427,10 +2429,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_txn_rollback --
- *     Roll back the current transaction.
+ *     Roll back the current transaction. step_down_ts is the step-down timestamp, read by the
+ *     caller under the step-down lock (or WT_TS_NONE on a connection where step-down is not
+ *     relevant): reading it here instead would race a concurrent set or clear with no lock
+ *     protecting it.
  */
 int
-__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
+__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
+  wt_timestamp_t step_down_ts)
 {
     WT_CURSOR *cursor, *ingest_cursor;
     WT_DECL_RET;
@@ -2517,18 +2523,21 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                         recno = op->u.op_col.recno;
 
                     /*
-                     * A prepared rollback on a dhandle that has gone through a step-down needs the
-                     * same duplication as a committing straddler: marking the update aborted in
-                     * place (below) is only visible on this node's own resident page, but if this
-                     * dhandle's stable content was captured in a step-down checkpoint while still
-                     * prepared, a future step-up's prepared-transaction discovery pass walks that
-                     * checkpoint and would otherwise resurrect this key as still-pending. Duplicating
-                     * it now records the resolution (here, an abort) on ingest before that can
-                     * happen. WT_DHANDLE_OUTDATED is set on exactly the dhandles that carried content
-                     * across a role change, so scope to those rather than every stable dhandle.
+                     * A prepared rollback straddling the boundary needs the same duplication as a
+                     * committing straddler: marking the update aborted in place (below) is only
+                     * visible on this node's own resident page, but if this stable content was
+                     * captured in a step-down checkpoint while still prepared, a future step-up's
+                     * prepared-transaction discovery pass walks that checkpoint and would otherwise
+                     * resurrect this key as still-pending. Duplicating it now records the resolution
+                     * (here, an abort) on ingest before that can happen. rollback_timestamp is only
+                     * ever set under preserve_prepared, which is also the only configuration where
+                     * that discovery pass restores an on-disk prepared cell, so both the boundary
+                     * comparison and the resurrection risk it guards against are scoped to it.
                      */
-                    if (WT_URI_IS_STABLE(op->btree->dhandle->name) &&
-                      F_ISSET(op->btree->dhandle, WT_DHANDLE_OUTDATED))
+                    if (step_down_ts != WT_TS_NONE && WT_URI_IS_STABLE(op->btree->dhandle->name) &&
+                      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+                      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK) &&
+                      txn->time_point.rollback_timestamp > step_down_ts)
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     else

@@ -2102,7 +2102,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     if ((ret = __wti_checkpoint_parallel_commit(session)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint worker transaction commit failed");
-    if ((ret = __wt_txn_commit(session, NULL)) != 0)
+    if ((ret = __wt_txn_commit(session, NULL, WT_TS_NONE)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint transaction commit failed");
 
     /* Clear the checkpoint flag, as it governs the checkpoint transaction above. */
@@ -2230,7 +2230,7 @@ err:
          */
         WT_DHANDLE_CLEAR(session);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ROLLBACK);
-        WT_TRET_MSG(session, __wt_txn_rollback(session, NULL, false), "%s",
+        WT_TRET_MSG(session, __wt_txn_rollback(session, NULL, false, WT_TS_NONE), "%s",
           "Checkpoint transaction rollback failed");
     }
 
