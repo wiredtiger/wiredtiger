@@ -421,8 +421,7 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
         found = a.val;
         WT_RET(__ckpt_load(session, &k, &v, ckpt));
     }
-    if (ret != 0 && ret != WT_NOTFOUND)
-        return (ret);
+    WT_RET_NOTFOUND_OK(ret);
 
     return (found ? 0 : WT_NOTFOUND);
 }
