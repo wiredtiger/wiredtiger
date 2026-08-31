@@ -1021,6 +1021,105 @@ __disagg_publish_check_step_down(
 }
 
 /*
+ * __disagg_queue_find_published_create --
+ *     Return the epoch a stable table's create was published at, or none when the table has no
+ *     published create to cover.
+ */
+static wt_timestamp_t
+__disagg_queue_find_published_create(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    WT_SHARED_METADATA_OP latest_op;
+    wt_timestamp_t latest_epoch;
+
+    conn = S2C(session);
+    latest_op = WT_SHARED_METADATA_NONE;
+    latest_epoch = WT_SCHEMA_EPOCH_NONE;
+
+    /* Entries are queued in the order they were issued, so the last match is the latest. */
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if ((entry->metadata_op == WT_SHARED_METADATA_CREATE ||
+              entry->metadata_op == WT_SHARED_METADATA_REMOVE) &&
+          strcmp(entry->stable_uri, stable_uri) == 0) {
+            latest_op = entry->metadata_op;
+            latest_epoch = entry->schema_epoch;
+        }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    /* A superseded or unpublished create is not something an epoch can cover. */
+    if (latest_op != WT_SHARED_METADATA_CREATE || latest_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
+        return (WT_SCHEMA_EPOCH_NONE);
+
+    return (latest_epoch);
+}
+
+/*
+ * __wt_disagg_btree_publish_if_covered --
+ *     Publish the btree if the given schema epoch covers its create, returning whether it was.
+ *     Recovery replays a covered create, so the btree is safe to write before any checkpoint
+ *     includes it. The caller holds the schema lock.
+ */
+bool
+__wt_disagg_btree_publish_if_covered(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t schema_epoch)
+{
+    wt_timestamp_t create_epoch;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    /* The btree may have been published since the caller last looked. */
+    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return (false);
+
+    create_epoch = __disagg_queue_find_published_create(session, btree->dhandle->name);
+    if (create_epoch == WT_SCHEMA_EPOCH_NONE || create_epoch > schema_epoch)
+        return (false);
+
+    F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    __wt_evict_file_exclusive_off(session);
+
+    return (true);
+}
+
+/*
+ * __wt_disagg_btree_publish_for_eviction --
+ *     Publish the current btree so eviction can write it out rather than hold it in memory until
+ *     the next checkpoint. Only a leader writes pages, and a leader that has declared a step-down
+ *     boundary is on its way to becoming a follower, so it leaves the table for the next leader.
+ *     The caller holds the schema lock, which is what settles the role and orders the clear against
+ *     the checkpoint's epoch snapshot.
+ */
+void
+__wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+
+    btree = S2BT(session);
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /* The btree may have been published since the eviction walk chose it. */
+    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return;
+
+    /*
+     * Both of these are changed under the schema lock the caller holds, so they cannot move while
+     * this decision is made and the loads need no ordering of their own.
+     */
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+        return;
+
+    if (__wt_disagg_btree_publish_if_covered(
+          session, btree, __wt_get_stable_disaggregated_schema_epoch(session)))
+        WT_STAT_CONN_INCR(session, disagg_publish_epoch_cleared);
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_publish --
  *     Publish schema operations in the shared metadata queue for the given object.
  */

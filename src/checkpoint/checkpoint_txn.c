@@ -416,9 +416,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    WT_DISAGG_METADATA_OP *entry;
-    WT_SHARED_METADATA_OP latest_op;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp, latest_epoch;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
     bool published;
 
     conn = S2C(session);
@@ -438,18 +436,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
      * FIXME-WT-18187: This walks the whole queue once per awaiting-publish btree. Caching the
      * create schema epoch on WT_BTREE would make this an O(1) field read.
      */
-    latest_op = WT_SHARED_METADATA_NONE;
-    latest_epoch = WT_SCHEMA_EPOCH_NONE;
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
-          strcmp(entry->stable_uri, dhandle->name) == 0) {
-            latest_op = entry->metadata_op;
-            latest_epoch = entry->schema_epoch;
-        }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    published = latest_op == WT_SHARED_METADATA_CREATE && latest_epoch <= ckpt_epoch;
+    published = __wt_disagg_btree_publish_if_covered(session, btree, ckpt_epoch);
 
     if (!published) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
@@ -457,11 +444,6 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
           btree->min_unpublished_durable_ts <= ckpt_timestamp)
             WT_RET_MSG(session, EINVAL, "stable data checkpointed for unpublished table \"%s\"",
               dhandle->name);
-    }
-
-    if (published) {
-        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
-        __wt_evict_file_exclusive_off(session);
     }
 
     return (0);
@@ -523,6 +505,13 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         /* Skip checkpointing outdated trees. */
         if (F_ISSET(btree->dhandle, WT_DHANDLE_OUTDATED))
             return (0);
+
+        /*
+         * The checkpoint persists any data committed while the tree awaited publication, so retire
+         * the bound the drop path checks.
+         */
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            __wt_atomic_store_uint64_relaxed(&btree->min_unpublished_durable_ts, WT_TS_NONE);
     }
 
     /*
