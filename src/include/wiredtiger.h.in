@@ -888,9 +888,11 @@ struct __wt_session {
      * when it is released and no longer needed., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{ignore_cache_size, when set\, operations performed by this session ignore the cache
-     * size and are not blocked when the cache is full.  Note that use of this option for operations
-     * that create cache pressure can starve ordinary sessions that obey the cache size., a boolean
-     * flag; default \c false.}
+     * size and are not blocked when the cache is full.  WT_SESSION::reconfigure returns \c EINVAL
+     * if this setting is specified while a transaction is running; use the \c ignore_cache_size
+     * setting of WT_SESSION::begin_transaction to configure a single transaction.  Note that use of
+     * this option for operations that create cache pressure can starve ordinary sessions that obey
+     * the cache size., a boolean flag; default \c false.}
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
@@ -1657,9 +1659,10 @@ struct __wt_session {
      * id doesn't exist., a string; default empty.}
      * @config{ignore_cache_size, when set\, operations performed by this transaction ignore the
      * cache size and are not blocked when the cache is full.  The setting applies until the
-     * transaction is resolved.  Note that use of this option for operations that create cache
-     * pressure can starve ordinary transactions that obey the cache size., a boolean flag; default
-     * \c false.}
+     * transaction is resolved.  Setting it to \c false has no effect: it does not override a
+     * session configured with \c ignore_cache_size.  Note that use of this option for operations
+     * that create cache pressure can starve ordinary transactions that obey the cache size., a
+     * boolean flag; default \c false.}
      * @config{ignore_prepare, whether to ignore updates by other prepared transactions when doing
      * of read operations of this transaction.  When \c true\, forces the transaction to be
      * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
@@ -2697,9 +2700,11 @@ struct __wt_connection {
      * when it is released and no longer needed., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{ignore_cache_size, when set\, operations performed by this session ignore the cache
-     * size and are not blocked when the cache is full.  Note that use of this option for operations
-     * that create cache pressure can starve ordinary sessions that obey the cache size., a boolean
-     * flag; default \c false.}
+     * size and are not blocked when the cache is full.  WT_SESSION::reconfigure returns \c EINVAL
+     * if this setting is specified while a transaction is running; use the \c ignore_cache_size
+     * setting of WT_SESSION::begin_transaction to configure a single transaction.  Note that use of
+     * this option for operations that create cache pressure can starve ordinary sessions that obey
+     * the cache size., a boolean flag; default \c false.}
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}

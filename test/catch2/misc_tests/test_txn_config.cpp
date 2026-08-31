@@ -77,6 +77,15 @@ TEST_CASE("ignore_cache_size is scoped to the transaction that set it", "[txn_co
         REQUIRE(session->iface.begin_transaction(
                   &session->iface, "ignore_cache_size=true,claim_prepared_id=1") != 0);
         REQUIRE(!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
+
+        /*
+         * The failure must not leave the exemption recorded on the transaction: a later transaction
+         * would then drop a session-level setting when it is released.
+         */
+        REQUIRE(session->iface.reconfigure(&session->iface, "ignore_cache_size=true") == 0);
+        REQUIRE(session->iface.begin_transaction(&session->iface, NULL) == 0);
+        REQUIRE(session->iface.commit_transaction(&session->iface, NULL) == 0);
+        REQUIRE(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE));
     }
 
     SECTION("a session-level setting outlives the transaction")

@@ -862,7 +862,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     /*
      * Exempt this transaction from the cache size. Track that we set the session flag so it is
-     * cleared on release, unless the session was already configured to ignore the cache size.
+     * cleared on release, unless the session was already configured to ignore the cache size. A
+     * false setting is not an override of the session-level setting.
      */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_cache_size, 0, &cval));
     if (cval.val && !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
@@ -938,8 +939,10 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     ret = __wt_conf_getones(session, conf, ignore_cache_size, &cval);
     if (ret == 0)
-        /* Can only reconfigure this if transaction is not active: it would otherwise race with a
-         * transaction that has claimed the flag for itself. */
+        /*
+         * Can only reconfigure this if a transaction is not active: it would otherwise race with a
+         * transaction that has claimed the flag for itself.
+         */
         WT_RET(__wt_txn_context_check(session, false));
 
     if (ret == 0) {
