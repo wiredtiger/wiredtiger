@@ -109,12 +109,19 @@ class test_layered_prepare11(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.complete_step_down(11)
         self.assertEqual(self.read_kvs_at(self.uri, 20), {})
 
+        # txn_prepared_updates is a cumulative connection stat, already non-zero from this test's
+        # own prepare above; the check below is on how much it moves across the step-up, not its
+        # absolute value.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        prepared_before_step_up = stat_cursor[wiredtiger.stat.conn.txn_prepared_updates][2]
+        stat_cursor.close()
+
         # Step back up and confirm no phantom prepared transaction was reconstructed from a stale
         # on-disk prepared cell in the step-down checkpoint.
         self.conn.reconfigure('disaggregated=(role="leader")')
         self.assertEqual(self.read_kvs_at(self.uri, 20), {})
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        prepared_discovered = stat_cursor[wiredtiger.stat.conn.txn_prepared_updates][2]
+        prepared_discovered = stat_cursor[wiredtiger.stat.conn.txn_prepared_updates][2] - prepared_before_step_up
         stat_cursor.close()
         self.assertEqual(prepared_discovered, 0)
 

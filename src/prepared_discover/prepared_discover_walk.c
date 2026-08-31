@@ -159,6 +159,13 @@ __prepared_discover_process_update_list(
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /*
+         * A rolled-back prepared update keeps its in-progress prepare state (only its transaction
+         * id changes) since the two fields cannot be updated atomically together; skip it rather
+         * than treating it as still pending.
+         */
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+        /*
          * Prepared updates must be at the start of the chain, so the first time an update that
          * hasn't been prepared is seen, it's safe to terminate the update chain traversal
          */
