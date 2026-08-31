@@ -26,6 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
+
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
@@ -79,6 +81,18 @@ class test_disagg_fast_truncate03(wttest.WiredTigerTestCase):
             self.session, "statistics:" + self.uri, config="statistics=(fast)"
         ) as stat_cursor:
             return stat_cursor[stat_key][2]
+
+    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30):
+        """Repeat an action until a counter it drives rises above baseline."""
+        deadline = time.time() + timeout
+        while True:
+            action()
+            value = self.read_stat(stat_key)
+            if value > baseline:
+                return value
+            self.assertLess(time.time(), deadline,
+                f"{msg} (still {value} after {timeout} seconds)")
+            time.sleep(0.1)
 
     def snapshot_stats(self):
         """Snapshot the counters that witness each step of the scenario."""
@@ -190,18 +204,21 @@ class test_disagg_fast_truncate03(wttest.WiredTigerTestCase):
         self.prout("step 2: eviction of the dirty emptied internal page was refused")
 
         # Step 3 -- checkpoint reconciles the page: proxy cells for the deleted children,
-        # no removal, and the page is left clean.
+        # no removal, and the page is left clean. Snapshot before the checkpoint: the page
+        # becomes evictable the moment it is clean, so a sample taken afterwards races with
+        # the eviction server.
+        before = self.snapshot_stats()
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
         self.session.checkpoint()
         self.prout("step 3: checkpointed")
 
-        # Step 4 -- the page is still marked for eviction and now clean: the next walk's
-        # release evicts it. The reference stays in the tree (WT_REF_DISK).
-        before = self.snapshot_stats()
-        self.assertEqual(self.scan_table(), surviving)
-        after = self.snapshot_stats()
-        self.assertGreater(
-            after["internal_evicted"], before["internal_evicted"],
+        # Step 4 -- the page is clean and still marked for eviction, so the walk queues it for
+        # urgent eviction. An attempt the walk's own hazard pointer blocks drops the queue entry
+        # rather than re-queueing it, so the walk has to be repeated until an eviction lands.
+        # The reference and the on-disk page survive as WT_REF_DISK.
+        self.retry_for_stat_increase(
+            lambda: self.assertEqual(self.scan_table(), surviving),
+            stat.dsrc.cache_eviction_internal, before["internal_evicted"],
             "step 4: the clean emptied internal page was not evicted",
         )
         self.prout("step 4: the clean emptied internal page was evicted")
