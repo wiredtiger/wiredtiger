@@ -606,40 +606,42 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
 }
 
 /*
- * __wt_disagg_table_has_unpublished_create --
- *     Return true if the table's newest queued schema operation is an unpublished create, so
- *     nothing about the table has reached shared metadata.
+ * __wt_disagg_table_last_unpublished_op --
+ *     Return the op type of the table's newest queued schema operation if it is unpublished, or
+ *     WT_SHARED_METADATA_NONE if the newest operation is published or the queue is empty.
  */
-bool
-__wt_disagg_table_has_unpublished_create(WT_SESSION_IMPL *session, const char *table_name)
+WT_SHARED_METADATA_OP
+__wt_disagg_table_last_unpublished_op(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *latest;
-    bool unpublished;
+    WT_SHARED_METADATA_OP op;
 
     conn = S2C(session);
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
 
     if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
-        return (false);
+        return (WT_SHARED_METADATA_NONE);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     latest = __wti_disagg_table_latest_create_remove(session, table_name);
-    unpublished = latest != NULL && latest->metadata_op == WT_SHARED_METADATA_CREATE &&
-      latest->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED;
+    op = (latest != NULL && latest->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) ?
+      latest->metadata_op :
+      WT_SHARED_METADATA_NONE;
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    return (unpublished);
+    return (op);
 }
 
 /*
- * __wt_disagg_cancel_unpublished_create --
- *     Dequeue a table's unpublished create entries. Dropping a never-published table leaves no work
- *     for shared metadata.
+ * __wt_disagg_cancel_unpublished_op --
+ *     Dequeue all unpublished entries of the given op type for a table. Used when a schema
+ *     operation can be dropped because neither side has reached shared metadata.
  */
 void
-__wt_disagg_cancel_unpublished_create(WT_SESSION_IMPL *session, const char *table_name)
+__wt_disagg_cancel_unpublished_op(
+  WT_SESSION_IMPL *session, const char *table_name, WT_SHARED_METADATA_OP op)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *tmp;
@@ -657,8 +659,7 @@ __wt_disagg_cancel_unpublished_create(WT_SESSION_IMPL *session, const char *tabl
             continue;
         /* An unpublished table is never checkpointed, so it has no queued updates. */
         WT_ASSERT(session, entry->metadata_op != WT_SHARED_METADATA_UPDATE);
-        if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-          entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
+        if (entry->metadata_op == op && entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
             TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
             __disagg_shared_metadata_queue_free(session, &entry);
         }
@@ -667,7 +668,7 @@ __wt_disagg_cancel_unpublished_create(WT_SESSION_IMPL *session, const char *tabl
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Dequeued the unpublished CREATE for table \"%s\" instead of adding its REMOVE", table_name);
+      "Dequeued unpublished op for table \"%s\" instead of adding its counterpart", table_name);
 }
 
 /*

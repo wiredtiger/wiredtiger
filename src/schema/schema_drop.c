@@ -281,8 +281,8 @@ __drop_layered(
      * tracking, so enqueue it only after the local drop can no longer fail. Should the enqueue
      * itself fail, metadata tracking unrolls the local drop, keeping both sides consistent.
      */
-    if (__wt_disagg_table_has_unpublished_create(session, tablename))
-        __wt_disagg_cancel_unpublished_create(session, tablename);
+    if (__wt_disagg_table_last_unpublished_op(session, tablename) == WT_SHARED_METADATA_CREATE)
+        __wt_disagg_cancel_unpublished_op(session, tablename, WT_SHARED_METADATA_CREATE);
     else {
         WT_SAVE_DHANDLE(session,
           ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
