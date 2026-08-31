@@ -2042,6 +2042,26 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    /*
+     * A transaction that began after the boundary is already ingest-routed and prepares freely.
+     * One that began before the boundary and has not yet routed a write past it can still be
+     * rolled back safely here -- prepare hasn't happened yet, so there is nothing to undo. Reuse
+     * the same straddler check ordinary writes go through rather than refusing every prepare while
+     * the window is open: refusing here only, not at commit, is what lets the commit-time relocation
+     * logic assume a transaction that does reach prepare during the window is always resolvable one
+     * way or another.
+     *
+     * Unlike the cursor-operation straddler check, this one has to be the guarantee, not just an
+     * early optimization ahead of one: once a transaction is prepared it is exempt from the
+     * commit-time check under the step-down lock, so this is the only place left that can still
+     * reject it. Take the lock the same way that check does, so a set racing this read is never
+     * missed.
+     */
+    __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+    ret = __wt_txn_stepdown_straddler_check(session, true);
+    __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+    WT_ERR(ret);
+
     F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_ERR(__wt_txn_prepare(session, cfg));
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
