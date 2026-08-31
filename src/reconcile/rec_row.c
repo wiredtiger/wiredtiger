@@ -534,7 +534,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     WT_PAGE_DELETED *page_del;
     WTI_REC_KV *key, *val;
     WT_REF *ref;
-    WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
+    WT_TIME_AGGREGATE *source_ta, ta;
     size_t size;
     bool build_delta, cell_zero_tmp, prev_dirty, retain_onpage;
     const void *p;
@@ -542,7 +542,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     btree = S2BT(session);
     child = NULL;
     ref = NULL;
-    WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
 
     key = &r->k;
     kpack = &_kpack;
@@ -777,12 +776,9 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         WT_TIME_AGGREGATE_COPY(&ta, source_ta);
 
-        /*
-         * Track the time window. The fast-truncate is a stop time window and has to be considered
-         * in the internal page's aggregate information for RTS to find it.
-         */
+        /* A fast-truncate supplies the global stop point for every record on the child page. */
         if (page_del != NULL)
-            WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
+            WT_TIME_AGGREGATE_MERGE_PAGE_DEL(&ta, page_del);
 
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
 
@@ -809,8 +805,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             WT_ERR(__rec_pack_delta_row_int(session, r, key, val, &ta));
         WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
-        if (page_del != NULL)
-            WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
 
         /* Update compression state. */

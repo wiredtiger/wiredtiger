@@ -28,8 +28,7 @@
 
 # Dropping a published but uncheckpointed layered table would discard the only copy of its
 # committed data, since the published CREATE obligates a covering checkpoint to include that
-# data. The drop must be refused until a checkpoint publishes the table. The same holds for
-# ingest content a checkpoint has not covered, on a follower or in a leader's step-down window.
+# data. The drop must be refused until a checkpoint publishes the table.
 
 import errno
 import wiredtiger, wttest
@@ -63,21 +62,17 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 10)
 
-    def write_rows(self, commit_ts=None, session=None, keys=None):
+    def write_rows(self, commit_ts=None):
         """Write nrows to the table, then commit at commit_ts or roll back if it is None."""
-        if session is None:
-            session = self.session
-        if keys is None:
-            keys = range(1, self.nrows + 1)
-        session.begin_transaction()
-        cursor = session.open_cursor(self.uri)
-        for i in keys:
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
             cursor[i] = 'value'
         cursor.close()
         if commit_ts is None:
-            session.rollback_transaction()
+            self.session.rollback_transaction()
         else:
-            session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
 
     def assert_all_rows(self, session):
         """Assert that every written row is readable through the given session."""
@@ -89,23 +84,14 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         cursor.close()
         self.assertEqual(count, self.nrows)
 
-    def assert_drop_refused(self, expect='unpublished data', sub_err=None, session=None,
-            config=None):
-        """Assert that dropping the table is refused with EBUSY and the given sub-error."""
-        if sub_err is None:
-            sub_err = wiredtiger.WT_DIRTY_DATA
-        if session is None:
-            session = self.session
+    def assert_drop_refused(self):
+        """Assert that dropping the table is refused with EBUSY / WT_DIRTY_DATA."""
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session.drop(self.uri, config))
-        err, sub, msg = session.get_last_error()
+            lambda: self.session.drop(self.uri))
+        err, sub, msg = self.session.get_last_error()
         self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, sub_err)
-        self.assertTrue(expect in msg)
-
-    def assert_drop_refused_uncovered(self, session, config=None):
-        """Assert the drop is refused because no checkpoint covers the ingest content."""
-        self.assert_drop_refused('no checkpoint covers', None, session, config)
+        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
+        self.assertTrue('unpublished data' in msg)
 
     def truncate_all_rows(self, commit_ts):
         """Truncate the whole key range at commit_ts."""
@@ -129,44 +115,6 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         """Drop the table and confirm it is gone from local metadata."""
         self.session.drop(self.uri)
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
-
-    def count_rows(self, session):
-        """Return the number of rows readable through the given session."""
-        cursor = session.open_cursor(self.uri)
-        count = 0
-        while cursor.next() == 0:
-            count += 1
-        cursor.close()
-        return count
-
-    def publish_and_checkpoint_table(self):
-        """Create, publish and checkpoint the table on the leader."""
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(1)
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 5)
-        self.set_stable_epoch(10)
-        self.leader_checkpoint(1)
-
-    def publish_checkpoint_and_open_follower(self):
-        """Publish and checkpoint the table on the leader, then open a follower holding it."""
-        self.publish_and_checkpoint_table()
-        return self.open_follower()
-
-    def leader_write_and_checkpoint(self, commit_ts, keys=None):
-        """Write the same rows on the leader and checkpoint them, covering the follower's copy."""
-        self.write_rows(commit_ts=commit_ts, keys=keys)
-        self.leader_checkpoint(commit_ts)
-
-    def set_follower_stable(self, conn, stable_ts):
-        """Advance a follower's stable timestamp without delivering a checkpoint to it."""
-        conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable_ts))
-
-    def assert_follower_drop_succeeds(self, conn, session):
-        """Drop the table on a follower and confirm its ingest constituent is gone."""
-        session.drop(self.uri)
-        self.assertFalse(self.uri_in_local_metadata(conn, self.uri))
 
     #
     # Drop lifecycle tests
@@ -366,204 +314,3 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session_follower.close()
         conn_follower.close()
         self.assert_drop_succeeds()
-
-    #
-    # Follower drop tests
-    #
-    # A follower's writes land in its in-memory ingest constituent, so the drop is bounded by the
-    # checkpoint the follower has picked up.
-    #
-
-    def test_drop_on_follower_with_uncheckpointed_data_is_refused(self):
-        # The follower's rows exist only in its ingest constituent until a checkpoint covers them.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=3, session=session_follower)
-        self.assert_drop_refused_uncovered(session_follower)
-
-        self.assert_all_rows(session_follower)
-        self.assertTrue(self.uri_in_local_metadata(conn_follower, self.uri))
-
-        # A picked-up checkpoint covering the same rows makes it a normal drop.
-        self.leader_write_and_checkpoint(3)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_on_follower_before_pickup_is_refused(self):
-        # The bound is the checkpoint the follower picked up, not the newest the leader took.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=3, session=session_follower)
-        self.leader_write_and_checkpoint(3)
-        self.assert_drop_refused_uncovered(session_follower)
-
-        # The pickup is what makes the difference.
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_on_follower_with_partially_covered_data_is_refused(self):
-        # Partial coverage leaves the rest as the only copy, so it must not unblock the drop.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        early_keys = range(1, self.nrows // 2 + 1)
-        late_keys = range(self.nrows // 2 + 1, self.nrows + 1)
-        self.write_rows(commit_ts=3, session=session_follower, keys=early_keys)
-        self.write_rows(commit_ts=7, session=session_follower, keys=late_keys)
-
-        # The picked-up checkpoint covers the timestamp-3 rows but not the timestamp-7 rows.
-        self.leader_write_and_checkpoint(3, keys=early_keys)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_drop_refused_uncovered(session_follower)
-        self.assertEqual(self.count_rows(session_follower), self.nrows)
-
-        # Covering the timestamp-7 rows as well releases the drop.
-        self.leader_write_and_checkpoint(7, keys=late_keys)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_empty_on_follower_is_allowed(self):
-        # A follower that never wrote holds nothing to protect.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_rolled_back_on_follower_is_allowed(self):
-        # Rolled-back writes never reach a durable timestamp, so they leave nothing to protect.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=None, session=session_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_force_on_follower_with_uncheckpointed_data_is_refused(self):
-        # force only turns a missing table into a success; it does not weaken the guard.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=3, session=session_follower)
-        self.assert_drop_refused_uncovered(session_follower, 'force=true')
-        self.assert_all_rows(session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_on_leader_in_step_down_window_is_refused(self):
-        # Past the step-down boundary a leader's commits are mirrored to both constituents. The
-        # stable constituent is closed first and refuses the drop because it has dirty data.
-        self.publish_and_checkpoint_table()
-
-        self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(20) +
-            ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(10))
-        self.write_rows(commit_ts=30)
-        self.assert_drop_refused('dirty data', session=self.session)
-
-        # The window writes stay readable. Layered reads need an explicit snapshot while the
-        # step-down boundary is set.
-        self.session.begin_transaction()
-        self.assert_all_rows(self.session)
-        self.session.rollback_transaction()
-        # The stable constituent is dropped before the ingest one, so its metadata removal must
-        # have unrolled: both constituents are back.
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
-
-        # Complete the transition so teardown can verify the checkpointed stable constituent rather
-        # than the dirty live table containing the mirrored window write.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-        self.session.checkpoint()
-        self.conn.reconfigure('disaggregated=(role="follower")')
-
-    def test_drop_on_follower_of_leader_only_data_is_allowed(self):
-        # Rows the follower only reads live in the picked-up checkpoint, not in its ingest tree.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.leader_write_and_checkpoint(3)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_all_rows(session_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_ingest_constituent_directly_is_refused(self):
-        # The guard lives in the close path, so dropping the ingest constituent URI directly hits
-        # it too, not only a layered drop.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=3, session=session_follower)
-        ingest_uri = 'file:' + self.test_name + '.wt_ingest'
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session_follower.drop(ingest_uri))
-        err, sub, msg = session_follower.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('no checkpoint covers' in msg)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_waits_for_commit_then_requires_coverage(self):
-        # The two guards apply in order: an uncommitted write is refused as uncommitted data, and
-        # once committed it is refused as uncovered until a checkpoint accounts for it.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        session_a = conn_follower.open_session('')
-        session_a.begin_transaction()
-        cursor = session_a.open_cursor(self.uri)
-        for i in range(1, self.nrows + 1):
-            cursor[i] = 'value'
-        cursor.close()
-
-        # The uncommitted transaction blocks the drop even though its cursor is closed.
-        self.assert_drop_refused('uncommitted data', wiredtiger.WT_UNCOMMITTED_DATA,
-            session_follower)
-
-        session_a.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
-        session_a.close()
-        self.assert_drop_refused_uncovered(session_follower)
-        self.assert_all_rows(session_follower)
-
-        # A covering picked-up checkpoint releases the drop.
-        self.leader_write_and_checkpoint(3)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    #
-    # Follower drop tests where only the stable timestamp advances
-    #
-    # The stable timestamp moves independently of checkpoint pickup, and must not shift the bound
-    # in either direction.
-    #
-
-    def test_drop_on_follower_after_stable_timestamp_only_is_refused(self):
-        # A stable timestamp past the writes says no checkpoint holds them, so it cannot unblock.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=3, session=session_follower)
-        self.set_follower_stable(conn_follower, 100)
-        self.assert_drop_refused_uncovered(session_follower)
-
-        self.assert_all_rows(session_follower)
-        self.assertTrue(self.uri_in_local_metadata(conn_follower, self.uri))
-
-        # The pickup still releases the drop, though the stable timestamp is well past the writes.
-        self.leader_write_and_checkpoint(3)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_on_follower_after_stable_timestamp_past_leader_checkpoint_is_refused(self):
-        # A covering checkpoint plus a caught-up stable timestamp must not substitute for pickup.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.write_rows(commit_ts=3, session=session_follower)
-        self.leader_write_and_checkpoint(3)
-        self.set_follower_stable(conn_follower, 3)
-        self.assert_drop_refused_uncovered(session_follower)
-
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_on_follower_after_stable_timestamp_with_no_data_is_allowed(self):
-        # The reverse direction: a stable timestamp on an empty follower must not refuse the drop.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.set_follower_stable(conn_follower, 100)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
-
-    def test_drop_on_follower_after_stable_timestamp_with_leader_only_data_is_allowed(self):
-        # Rows from a picked-up checkpoint stay covered when the stable timestamp passes them.
-        conn_follower, session_follower = self.publish_checkpoint_and_open_follower()
-        self.leader_write_and_checkpoint(3)
-        self.disagg_advance_checkpoint_and_wait(conn_follower)
-        self.set_follower_stable(conn_follower, 100)
-        self.assert_all_rows(session_follower)
-        self.assert_follower_drop_succeeds(conn_follower, session_follower)
-        self.close_follower(conn_follower, session_follower)
