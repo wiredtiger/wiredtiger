@@ -1088,8 +1088,7 @@ __wt_disagg_btree_publish_if_covered(
  *     Publish the current btree so eviction can write it out rather than hold it in memory until
  *     the next checkpoint. Only a leader writes pages, and a leader that has declared a step-down
  *     boundary is on its way to becoming a follower, so it leaves the table for the next leader.
- *     The caller holds the schema lock, which is what settles the role and orders the clear against
- *     the checkpoint's epoch snapshot.
+ *     The caller holds the schema lock.
  */
 void
 __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
@@ -1107,10 +1106,12 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
         return;
 
     /*
-     * Both of these are changed under the schema lock the caller holds, so they cannot move while
-     * this decision is made and the loads need no ordering of their own.
+     * Publish only for a settled leader. A step up publishes the leader role before it rebuilds the
+     * tables the new era needs, and a leader that has declared a step-down boundary is on its way
+     * to becoming a follower, so both leave the table for a later pass.
      */
     if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
+      F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
         return;
 

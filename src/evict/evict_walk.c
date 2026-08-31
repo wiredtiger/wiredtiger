@@ -425,8 +425,7 @@ retry:
         if (btree->evict_disabled > 0) {
             /*
              * A disaggregated btree is held out of eviction until it is published, so try
-             * publishing it below instead of skipping it here. This read of the role is a hint that
-             * saves taking the schema lock: the publish itself re-checks it under that lock.
+             * publishing it below instead of skipping it here.
              */
             try_publish = F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
               __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
