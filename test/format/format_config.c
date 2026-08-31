@@ -1513,10 +1513,10 @@ config_disagg_storage(void)
 
             /*
              * A prepared transaction that straddles step_down_ts is resolved by duplicating its
-             * still-prepared update onto the ingest constituent (see
-             * __txn_stepdown_duplicate_to_ingest in src/txn/txn.c), which only handles row-store
-             * ops. Column-store tables have no such path, so restrict to row-store when both are
-             * configured together rather than losing prepare coverage under stepdown_async entirely.
+             * still-prepared update onto the ingest constituent, which only handles row-store ops.
+             * Column-store tables have no such path, so restrict to row-store when both are
+             * configured together rather than losing prepare coverage under stepdown_async
+             * entirely.
              */
             if (GV(OPS_PREPARE)) {
                 bool has_column_store = false;

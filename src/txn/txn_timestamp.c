@@ -947,16 +947,19 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
           __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
 
     /*
-     * A prepared transaction that began after the step-down timestamp was set commits to the
-     * ingest constituent, so its durable timestamp -- not its commit timestamp, which a prepared
-     * transaction can set independently of durability -- must sit above that boundary too. One
-     * that began before the boundary is exempt: landing above it while it wrote to stable under
+     * A prepared transaction that began after the step-down timestamp was set commits to the ingest
+     * constituent, so its durable timestamp -- not its commit timestamp, which a prepared
+     * transaction can set independently of durability -- must sit above that boundary too. One that
+     * began before the boundary is exempt: landing above it while it wrote to stable under
      * pre-boundary routing is the straddling case resolved by duplicating the update onto ingest,
      * not a contradiction to reject.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE) && txn->stepdown_ts_set) {
-        wt_timestamp_t step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        wt_timestamp_t step_down_ts;
+
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (durable_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "durable timestamp %s must be after the step down timestamp %s",
@@ -1121,6 +1124,27 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
+
+    /*
+     * A transaction that began after the step-down timestamp was set is already ingest-routed, so
+     * its prepare timestamp should sit above that boundary too, the same as its eventual durable or
+     * rollback timestamp. Checked only under preserve_prepared, where the prepare timestamp is
+     * itself load-bearing for restart-replay ordering; otherwise it does not affect placement and
+     * is not worth enforcing here.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && txn->stepdown_ts_set) {
+        wt_timestamp_t step_down_ts;
+
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        if (step_down_ts != WT_TS_NONE && prepare_ts <= step_down_ts)
+            WT_RET_MSG(session, EINVAL,
+              "prepare timestamp %s must be after the step down timestamp %s",
+              __wt_timestamp_to_string(prepare_ts, ts_string[0]),
+              __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+    }
+
     txn->time_point.prepare_timestamp = prepare_ts;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_PREPARE);
 
@@ -1267,8 +1291,11 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
 
     /* Same boundary rule as a prepared commit's durable timestamp, for the same reason. */
     if (txn->stepdown_ts_set) {
-        wt_timestamp_t step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        wt_timestamp_t step_down_ts;
+
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (rollback_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "rollback timestamp %s must be after the step down timestamp %s",

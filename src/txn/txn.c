@@ -1662,12 +1662,14 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
  *     this doesn't cover (see the FIXME below), a clone of it duplicated onto ingest: clone the
  *     still-prepared update onto the sibling ingest table before resolution runs, then resolve both
  *     the original and the clone with the same resolution call, once each. The original stable-side
- *     update ends up resolved normally either way -- for a committing straddler its commit
- *     timestamp keeps it out of the step-down checkpoint, and a rollback marks it aborted in place.
+ *     update ends up resolved normally either way --
+ *     for a committing straddler its commit timestamp keeps it out of the step-down checkpoint, and
+ *     a rollback marks it aborted in place.
  *
- *     The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
- *     changes -- ops are already sorted by btree ID before commit/rollback walk them, so this is one
- *     cursor per table rather than open/close per key. The caller closes it once done.
+ * The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
+ *     changes --
+ *     ops are already sorted by btree ID before commit/rollback walk them, so this is one cursor
+ *     per table rather than open/close per key. The caller closes it once done.
  */
 static int
 __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
@@ -1681,8 +1683,8 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     WT_DECL_RET;
     WT_ITEM ingest_value, value;
     WT_UPDATE *clone, *orig;
-    const char *stable_uri;
     size_t size;
+    const char *stable_uri;
 
     stable_uri = op->btree->dhandle->name;
 
@@ -2442,8 +2444,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
  *     protecting it.
  */
 int
-__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
-  wt_timestamp_t step_down_ts)
+__wt_txn_rollback(
+  WT_SESSION_IMPL *session, const char *cfg[], bool api_call, wt_timestamp_t step_down_ts)
 {
     WT_CURSOR *cursor, *ingest_cursor;
     WT_DECL_RET;
@@ -2548,8 +2550,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
                      * visible on this node's own resident page, but if this stable content was
                      * captured in a step-down checkpoint while still prepared, a future step-up's
                      * prepared-transaction discovery pass walks that checkpoint and would otherwise
-                     * resurrect this key as still-pending. Duplicating it now records the resolution
-                     * (here, an abort) on ingest before that can happen.
+                     * resurrect this key as still-pending. Duplicating it now records the
+                     * resolution (here, an abort) on ingest before that can happen.
                      */
                     if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name))
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,

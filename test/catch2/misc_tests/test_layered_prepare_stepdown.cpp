@@ -20,14 +20,14 @@
 #include "../../utility/test_util.h"
 
 /*
- * A transaction prepared before the step-down timestamp is set, but resolving (commit or
- * rollback) after it, straddles the boundary. Its write already sits in the stable constituent
- * under the pre-boundary routing rules, yet by the time it resolves its final timestamp can land
- * above the step-down timestamp -- and unlike an ordinary in-flight writer, a prepared transaction
- * cannot be rolled back to force a retry into ingest. These tests exercise the relocation
- * mechanism that resolves the straddle by duplicating the still-prepared update onto ingest
- * before the transaction resolves, so the caller's own resolution call (commit or rollback) can
- * apply to the clone the same way it applies to the original.
+ * A transaction prepared before the step-down timestamp is set, but resolving (commit or rollback)
+ * after it, straddles the boundary. Its write already sits in the stable constituent under the
+ * pre-boundary routing rules, yet by the time it resolves its final timestamp can land above the
+ * step-down timestamp -- and unlike an ordinary in-flight writer, a prepared transaction cannot be
+ * rolled back to force a retry into ingest. These tests exercise the relocation mechanism that
+ * resolves the straddle by duplicating the still-prepared update onto ingest before the transaction
+ * resolves, so the caller's own resolution call (commit or rollback) can apply to the clone the
+ * same way it applies to the original.
  *
  * Only a single (leader) connection is needed for these tests: the mechanism runs entirely inside
  * transaction commit and rollback based on the step-down timestamp and the transaction's own
@@ -46,11 +46,14 @@ static const char *TABLE_CFG = "key_format=S,value_format=S,block_manager=disagg
  *     oldest and stable timestamps pinned at 1.
  */
 static void
-setup_leader(connection_wrapper **conn_wrap, WT_SESSION **sessionp)
+setup_leader(connection_wrapper **conn_wrap, WT_SESSION **sessionp, bool preserve_prepared = false)
 {
     testutil_system("rm -rf %s && mkdir -p %s/kv_home", HOME.c_str(), HOME.c_str());
 
-    *conn_wrap = new connection_wrapper(HOME, layered_disagg_build_cfg("leader").c_str());
+    std::string cfg = layered_disagg_build_cfg("leader");
+    if (preserve_prepared)
+        cfg += ",preserve_prepared=true";
+    *conn_wrap = new connection_wrapper(HOME, cfg.c_str());
     WT_CONNECTION *conn = (*conn_wrap)->get_wt_connection();
     WT_SESSION *session = (WT_SESSION *)(*conn_wrap)->create_session();
 
@@ -90,8 +93,7 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
     /* The value is visible through the layered table above the boundary. */
     WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
     REQUIRE(
-      check_session->open_cursor(check_session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) ==
-      0);
+      check_session->open_cursor(check_session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
     REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
     cursor->set_key(cursor, "straddler");
     REQUIRE(cursor->search(cursor) == 0);
@@ -116,8 +118,7 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
     delete conn_wrap;
 }
 
-TEST_CASE(
-  "Layered step-down: an ordinary post-boundary prepared transaction is unaffected",
+TEST_CASE("Layered step-down: an ordinary post-boundary prepared transaction is unaffected",
   "[layered_prepare_stepdown]")
 {
     connection_wrapper *conn_wrap;
@@ -142,9 +143,8 @@ TEST_CASE(
     REQUIRE(cursor->close(cursor) == 0);
 
     WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
-    REQUIRE(
-      check_session->open_cursor(check_session, INGEST_URI.c_str(), nullptr, nullptr, &cursor) ==
-      0);
+    REQUIRE(check_session->open_cursor(
+              check_session, INGEST_URI.c_str(), nullptr, nullptr, &cursor) == 0);
     REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
     cursor->set_key(cursor, "post-boundary");
     REQUIRE(cursor->search(cursor) == 0);
@@ -188,8 +188,9 @@ TEST_CASE(
     delete conn_wrap;
 }
 
-TEST_CASE("Layered step-down: a post-boundary prepared commit's durable timestamp must be after "
-          "the boundary",
+TEST_CASE(
+  "Layered step-down: a post-boundary prepared commit's durable timestamp must be after "
+  "the boundary",
   "[layered_prepare_stepdown]")
 {
     connection_wrapper *conn_wrap;
@@ -227,8 +228,9 @@ TEST_CASE("Layered step-down: a post-boundary prepared commit's durable timestam
     delete conn_wrap;
 }
 
-TEST_CASE("Layered step-down: a post-boundary prepared rollback's rollback timestamp must be "
-          "after the boundary",
+TEST_CASE(
+  "Layered step-down: a post-boundary prepared rollback's rollback timestamp must be "
+  "after the boundary",
   "[layered_prepare_stepdown]")
 {
     connection_wrapper *conn_wrap;
@@ -255,8 +257,9 @@ TEST_CASE("Layered step-down: a post-boundary prepared rollback's rollback times
     delete conn_wrap;
 }
 
-TEST_CASE("Layered step-down: a prepared commit straddler with multiple updates to the same key "
-          "relocates the latest one",
+TEST_CASE(
+  "Layered step-down: a prepared commit straddler with multiple updates to the same key "
+  "relocates the latest one",
   "[layered_prepare_stepdown]")
 {
     connection_wrapper *conn_wrap;
@@ -301,8 +304,9 @@ TEST_CASE("Layered step-down: a prepared commit straddler with multiple updates 
     delete conn_wrap;
 }
 
-TEST_CASE("Layered step-down: a prepared commit straddler that inserts then removes the same key "
-          "relocates the removal",
+TEST_CASE(
+  "Layered step-down: a prepared commit straddler that inserts then removes the same key "
+  "relocates the removal",
   "[layered_prepare_stepdown]")
 {
     connection_wrapper *conn_wrap;

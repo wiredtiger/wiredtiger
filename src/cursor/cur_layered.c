@@ -230,12 +230,12 @@ int
 __wt_clayered_stable_to_ingest_uri(
   WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *ingest_uri)
 {
-    const char *stable_suffix;
     size_t prefix_len;
+    const char *stable_suffix;
 
     stable_suffix = strstr(stable_uri, ".wt_stable");
-    WT_ASSERT_ALWAYS(session, stable_suffix != NULL,
-      "expected a stable constituent URI, got %s", stable_uri);
+    WT_ASSERT_ALWAYS(
+      session, stable_suffix != NULL, "expected a stable constituent URI, got %s", stable_uri);
     prefix_len = (size_t)(stable_suffix - stable_uri);
     return (__wt_buf_fmt(session, ingest_uri, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
 }
