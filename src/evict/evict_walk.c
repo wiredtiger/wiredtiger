@@ -342,7 +342,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, dhandle_list_locked;
+    bool aggressive, dhandle_list_locked, try_publish;
 
     WT_TRACK_OP_INIT(session);
 
@@ -418,12 +418,22 @@ retry:
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
             continue;
 
-        /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
+
+        /* Skip files that don't allow eviction. */
+        try_publish = false;
         if (btree->evict_disabled > 0) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
+            /*
+             * A disaggregated btree is held out of eviction until it is published, so try
+             * publishing it below instead of skipping it here.
+             */
+            try_publish = F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+              __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
+            if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || !try_publish) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            }
         }
 
         /*
@@ -557,6 +567,13 @@ retry:
         __wti_evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
         dhandle_list_locked = false;
+
+        /*
+         * Publish the btree if the epoch now covers its create. A declined attempt costs nothing:
+         * the eviction-disabled re-check below skips the tree while it stays unpublished.
+         */
+        if (try_publish)
+            WT_WITH_DHANDLE(session, dhandle, __wt_disagg_btree_evict_publish(session));
 
         /*
          * Re-check the "no eviction" flag, used to enforce exclusive access when a handle is being
