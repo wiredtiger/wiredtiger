@@ -209,6 +209,8 @@ struct __wt_txn_global {
     wt_shared wt_timestamp_t stable_timestamp;
     wt_shared wt_timestamp_t step_down_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t step_down_timestamp;
+    wt_shared uint64_t step_down_start_time;
+    wt_shared uint64_t step_down_prepared_count;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
@@ -226,11 +228,8 @@ struct __wt_txn_global {
     WT_RWLOCK visibility_rwlock;
 
     /*
-     * Protects the step-down timestamp and the step-down disaggregated schema epoch: writers set or
-     * clear them together, readers sample the timestamp at transaction begin and check it when a
-     * write transaction commits. A committing write transaction either observes the timestamp and
-     * rolls back, or its writes happen before the timestamp store and are visible to every
-     * transaction that begins with the timestamp set.
+     * Protects the step-down timestamp and epoch and serializes their publication and clearing with
+     * final write-transaction resolution.
      */
     WT_RWLOCK step_down_lock;
 
@@ -333,6 +332,7 @@ struct __wt_txn_op {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_OP_KEY_REPEATED 0x1u
+#define WT_TXN_OP_LAYERED_MIRRORED 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
@@ -445,12 +445,6 @@ struct __wt_txn {
      */
     wt_timestamp_t first_commit_timestamp;
 
-    /*
-     * True if the step-down timestamp was set when this transaction began. Used to mirror the
-     * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
-     * straddlers.
-     */
-    bool stepdown_ts_set;
     /*
      * The disaggregated role observed when the snapshot was established; the role-change generation
      * it was established under is published in the session's generation slot. A snapshot

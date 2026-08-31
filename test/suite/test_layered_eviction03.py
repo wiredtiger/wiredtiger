@@ -29,6 +29,7 @@
 import random, string, wttest
 from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # Test that a follower never use application threads to evict pages with updates and dirty pages.
@@ -61,3 +62,35 @@ class test_layered_eviction03(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
         self.assertStatGreaterSoon(stat.conn.cache_eviction_app_threads_skip_updates_dirty_page, 0)
+
+
+@disagg_test_class
+class test_layered_eviction03_stepdown(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
+
+    conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="leader")'
+
+    def test_unplanned_stepdown_has_no_window_time(self):
+        self.assertEqual(self.get_stat(stat.conn.disagg_step_down_window_time), 0)
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.assertEqual(self.get_stat(stat.conn.disagg_step_down_window_time), 0)
+
+    def test_stepdown_window_skips_dirty_app_evict(self):
+        uri = f"layered:{self.test_name}"
+        self.set_global_ts(1, 1)
+        self.session.create(uri, 'key_format=S,value_format=S')
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(uri, None, None)
+        for i in range(5000):
+            self.session.begin_transaction()
+            cursor[str(i)] = 'x' * 1000
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30 + i))
+
+        self.assertStatGreaterSoon(stat.conn.cache_eviction_app_threads_skip_updates_dirty_page, 0)
+        self.assertStatGreaterSoon(stat.conn.disagg_step_down_mirrored_writes, 0)
+        self.complete_step_down(20)
+        self.assertStatGreaterSoon(stat.conn.disagg_step_down_window_time, 0)
+        cursor.close()
