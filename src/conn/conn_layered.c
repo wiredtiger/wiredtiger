@@ -996,9 +996,11 @@ __wt_disagg_shared_metadata_queue_publish(
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *tmp;
     wt_timestamp_t prev_schema_epoch, step_down_epoch;
+    bool found;
 
     conn = S2C(session);
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
+    found = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
@@ -1012,6 +1014,7 @@ __wt_disagg_shared_metadata_queue_publish(
     {
         if (strcmp(entry->table_name, table_name) != 0)
             continue;
+        found = true;
 
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
@@ -1046,6 +1049,10 @@ __wt_disagg_shared_metadata_queue_publish(
               ", while publishing at schema epoch %" PRIu64,
               table_name, entry->schema_epoch, schema_epoch);
     }
+
+    if (!found)
+        WT_ERR_MSG(session, EINVAL, "No pending schema operations to publish for table \"%s\"",
+          table_name);
 
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);

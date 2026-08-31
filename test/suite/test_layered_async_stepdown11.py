@@ -182,8 +182,9 @@ class test_layered_async_stepdown11(
         self.leader_checkpoint(25)
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
 
-    # A drop issued inside the window is bounded the same way as a create.
-    def test_publish_window_drop_below_boundary_rejected(self):
+    # Dropping a never-published table inside the window cancels the pending create. Neither the
+    # create nor the drop reaches shared metadata, so there is nothing to publish.
+    def test_publish_window_drop_cancels_unpublished_create(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
         uri = self.uri('window_dropped')
@@ -193,9 +194,9 @@ class test_layered_async_stepdown11(
         self.dropUntilSuccess(self.session, uri)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.publish(uri, 12),
-            '/at or below the step down boundary/')
-        self.publish(uri, 16)
+            lambda: self.publish(uri, 12), '/No pending schema operations to publish/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.publish(uri, 16), '/No pending schema operations to publish/')
 
         self.set_stable_epoch(15)
         self.complete_step_down(20)
