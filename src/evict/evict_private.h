@@ -17,8 +17,8 @@
 #define WTI_EVICT_WALK_INCR 100         /* Pages added each walk */
 
 /*
- * Reaching the end of the tree twice guarantees at least one full traversal from wherever the scan
- * arrived, at which point the scan stops resuming the tree and moves on.
+ * The walk end is incremented each time the walk reaches the boundary of the tree. Two ends
+ * guarantee at least one full traversal from wherever the scan arrived.
  */
 #define WTI_EVICT_WALK_MAX_ENDS 2 /* Tree walk ends before the scan moves on */
 
