@@ -2252,6 +2252,7 @@ err:
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *tmp, *upd;
@@ -2271,8 +2272,17 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * the window is open: refusing here only, not at commit, is what lets the commit-time relocation
      * logic assume a transaction that does reach prepare during the window is always resolvable one
      * way or another.
+     *
+     * Unlike the cursor-operation straddler check, this one has to be the guarantee, not just an
+     * early optimization ahead of one: once a transaction is prepared it is exempt from the
+     * commit-time check under the step-down lock, so this is the only place left that can still
+     * reject it. Take the lock the same way that check does, so a set racing this read is never
+     * missed.
      */
-    WT_RET(__wt_txn_stepdown_straddler_check(session, true));
+    __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+    ret = __wt_txn_stepdown_straddler_check(session, true);
+    __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+    WT_RET(ret);
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
