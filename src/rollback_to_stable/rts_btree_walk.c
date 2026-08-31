@@ -378,8 +378,7 @@ __wti_rts_btree_walk_btree_apply(
               __wt_timestamp_to_string(newest_stop_durable_ts, ts_string[1]), rollback_txnid,
               write_gen);
     }
-    if (ret != 0 && ret != WT_NOTFOUND)
-        return (ret);
+    WT_RET_NOTFOUND_OK(ret);
 
     max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
