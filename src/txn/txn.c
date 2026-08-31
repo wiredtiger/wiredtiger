@@ -1681,8 +1681,8 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     else {
         if (orig->type == WT_UPDATE_MODIFY) {
             /*
-             * A modify update is only a delta against whatever is below it on the same page;
-             * ingest has no such base to apply it against, so reconstruct the full value first.
+             * A modify update is only a delta against whatever is below it on the same page; ingest
+             * has no such base to apply it against, so reconstruct the full value first.
              */
             WT_RET(__wt_modify_reconstruct_from_upd_list(
               session, stable_cbt, orig, stable_cbt->upd_value, WT_OPCTX_TRANSACTION));
@@ -1773,8 +1773,8 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     cbt = (WT_CURSOR_BTREE *)ingest_cursor;
     ingest_btree = CUR2BT(cbt);
     WT_WITH_BTREE(session, ingest_btree,
-      ret = __txn_stepdown_clone_update(
-        session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
+      ret =
+        __txn_stepdown_clone_update(session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
     WT_ERR(ret);
 
     /*
@@ -1792,13 +1792,12 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
      * resolution helper, which two unrelated call sites also rely on -- not worth it to save one
      * extra search on a path this rare (a prepared transaction actively straddling a step-down
      * boundary).
-     */
-    /*
-     * Resolution attributes cache accounting to the session's current dhandle rather than to the
-     * btree argument, which the ordinary single-op caller never notices because opening a cursor
-     * on a new btree id sets the dhandle as a side effect and it then stays put. Calling this twice
-     * in a row for two different btrees relies on that same dhandle being right both times, which
-     * it isn't without pinning it explicitly here.
+     *
+     * Resolution also attributes cache accounting to the session's current dhandle rather than to
+     * the btree argument, which the ordinary single-op caller never notices because opening a
+     * cursor on a new btree id sets the dhandle as a side effect and it then stays put. Calling
+     * this twice in a row for two different btrees relies on that same dhandle being right both
+     * times, which it isn't without pinning it explicitly here.
      */
     WT_WITH_BTREE(session, op->btree,
       ret = __wt_txn_resolve_prepared_op(

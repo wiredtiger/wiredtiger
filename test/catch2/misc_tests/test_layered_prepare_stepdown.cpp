@@ -345,7 +345,8 @@ TEST_CASE(
     REQUIRE(cursor->search(cursor) == 0);
     const char *value;
     REQUIRE(cursor->get_value(cursor, &value) == 0);
-    CHECK(std::string(value) == std::string((const char *)__wt_tombstone.data, __wt_tombstone.size));
+    CHECK(
+      std::string(value) == std::string((const char *)__wt_tombstone.data, __wt_tombstone.size));
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
@@ -402,8 +403,7 @@ TEST_CASE(
     delete conn_wrap;
 }
 
-TEST_CASE(
-  "Layered step-down: a prepared rollback straddling the boundary is correctly relocated",
+TEST_CASE("Layered step-down: a prepared rollback straddling the boundary is correctly relocated",
   "[layered_prepare_stepdown]")
 {
     connection_wrapper *conn_wrap;
@@ -415,10 +415,10 @@ TEST_CASE(
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
     /*
-     * A prepared transaction that begins before the step-down boundary, with a rollback
-     * timestamp landing after it, straddles the boundary on the rollback path. The relocation
-     * mechanism clones the update onto ingest before rollback applies, then rollback deletes both
-     * the original and the clone, leaving the key correctly absent.
+     * A prepared transaction that begins before the step-down boundary, with a rollback timestamp
+     * landing after it, straddles the boundary on the rollback path. The relocation mechanism
+     * clones the update onto ingest before rollback applies, then rollback deletes both the
+     * original and the clone, leaving the key correctly absent.
      */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "straddler-rollback");
