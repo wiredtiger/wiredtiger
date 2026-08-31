@@ -126,7 +126,7 @@ class test_layered_prepare11(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.assertEqual(prepared_discovered, 0)
 
         # preserve_prepared retains the rolled-back update until the prune timestamp passes its
-        # rollback timestamp; advance past it and checkpoint so teardown's verify doesn't find the
+        # rollback timestamp; advance past it and checkpoint so the final verify does not find the
         # table still holding content pinned by that retention window.
         self.set_global_ts(20, 20)
         ckpt_session = self.conn.open_session()

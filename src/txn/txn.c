@@ -1741,8 +1741,8 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
 
     stable_uri = op->btree->dhandle->name;
 
-    /* The caller only calls this for a row-store op; layered tables are row-store only. */
-    WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
+    /* The stable constituent of a layered table is always on-disk row-store. */
+    WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW);
 
     /*
      * Fetch the update through the same prepared-op search resolution itself uses, so it's current
@@ -1997,14 +1997,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
                      * relative to the step-down checkpoint, not its commit timestamp, which it can
                      * set independently -- landed above the step-down timestamp. Resolving it also
                      * duplicates it onto ingest first, so the value survives the checkpoint that
-                     * will exclude it from stable. Layered tables are row-store only, so a
-                     * column-store op here is never actually a candidate.
+                     * will exclude it from stable.
                      */
-                    if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name) &&
-                      (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW))
+                    if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                        /* The stable constituent of a layered table is always on-disk row-store. */
+                        WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW);
                         WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
-                    else
+                    } else
                         WT_ERR(__wt_txn_resolve_prepared_op(
                           session, op->btree, &txn->time_point, key, recno, true, &cursor));
                 }
@@ -2593,14 +2593,14 @@ __wt_txn_rollback(
                      * captured in a step-down checkpoint while still prepared, a future step-up's
                      * prepared-transaction discovery pass walks that checkpoint and would otherwise
                      * resurrect this key as still-pending. Duplicating it now records the
-                     * resolution (here, an abort) on ingest before that can happen. Layered tables
-                     * are row-store only, so a column-store op here is never actually a candidate.
+                     * resolution (here, an abort) on ingest before that can happen.
                      */
-                    if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name) &&
-                      (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW))
+                    if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                        /* The stable constituent of a layered table is always on-disk row-store. */
+                        WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW);
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
-                    else
+                    } else
                         WT_TRET(__wt_txn_resolve_prepared_op(
                           session, op->btree, &txn->time_point, key, recno, false, &cursor));
                 }
@@ -2647,9 +2647,9 @@ __wt_txn_rollback(
          * assert the error is not generated in diagnostic mode.
          */
 #ifdef HAVE_DIAGNOSTIC
-        int ret2 = cursor->close(cursor);
-        WT_ASSERT(session, ret2 != WT_ROLLBACK);
-        WT_TRET(ret2);
+        int temp_ret = cursor->close(cursor);
+        WT_ASSERT(session, temp_ret != WT_ROLLBACK);
+        WT_TRET(temp_ret);
 #else
         WT_TRET_ERROR_OK(cursor->close(cursor), WT_ROLLBACK);
 #endif
@@ -2657,9 +2657,9 @@ __wt_txn_rollback(
     }
     if (ingest_cursor != NULL) {
 #ifdef HAVE_DIAGNOSTIC
-        int ret2 = ingest_cursor->close(ingest_cursor);
-        WT_ASSERT(session, ret2 != WT_ROLLBACK);
-        WT_TRET(ret2);
+        int temp_ret = ingest_cursor->close(ingest_cursor);
+        WT_ASSERT(session, temp_ret != WT_ROLLBACK);
+        WT_TRET(temp_ret);
 #else
         WT_TRET_ERROR_OK(ingest_cursor->close(ingest_cursor), WT_ROLLBACK);
 #endif
