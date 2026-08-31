@@ -1766,11 +1766,16 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
 
     /*
      * Clone rather than move the update: the original stays linked into the stable page, still
-     * prepared, until it is resolved in place below.
+     * prepared, until it is resolved in place below. The low-level insert this does attributes
+     * cache accounting to the session's current dhandle, which a bare call here would leave
+     * pointing at whatever btree the caller last touched instead of ingest.
      */
     cbt = (WT_CURSOR_BTREE *)ingest_cursor;
-    WT_ERR(__txn_stepdown_clone_update(session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
     ingest_btree = CUR2BT(cbt);
+    WT_WITH_BTREE(session, ingest_btree,
+      ret = __txn_stepdown_clone_update(
+        session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
+    WT_ERR(ret);
 
     /*
      * The low-level insert above leaves the cursor positioned and the page pinned; the resolve call
@@ -1788,10 +1793,21 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
      * extra search on a path this rare (a prepared transaction actively straddling a step-down
      * boundary).
      */
-    WT_ERR(__wt_txn_resolve_prepared_op(
-      session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
-    WT_ERR(__wt_txn_resolve_prepared_op(
-      session, ingest_btree, &session->txn->time_point, key, recno, commit, ingest_cursorp));
+    /*
+     * Resolution attributes cache accounting to the session's current dhandle rather than to the
+     * btree argument, which the ordinary single-op caller never notices because opening a cursor
+     * on a new btree id sets the dhandle as a side effect and it then stays put. Calling this twice
+     * in a row for two different btrees relies on that same dhandle being right both times, which
+     * it isn't without pinning it explicitly here.
+     */
+    WT_WITH_BTREE(session, op->btree,
+      ret = __wt_txn_resolve_prepared_op(
+        session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
+    WT_ERR(ret);
+    WT_WITH_BTREE(session, ingest_btree,
+      ret = __wt_txn_resolve_prepared_op(
+        session, ingest_btree, &session->txn->time_point, key, recno, commit, ingest_cursorp));
+    WT_ERR(ret);
 
 err:
     /*

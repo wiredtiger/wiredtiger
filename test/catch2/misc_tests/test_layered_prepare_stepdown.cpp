@@ -337,13 +337,70 @@ TEST_CASE(
               check_session, INGEST_URI.c_str(), nullptr, nullptr, &cursor) == 0);
     REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
     cursor->set_key(cursor, "inserted-then-removed");
-    CHECK(cursor->search(cursor) == WT_NOTFOUND);
+    /*
+     * A plain file cursor has no concept of the tombstone marker ingest uses in place of a real
+     * tombstone, so it finds the key rather than reporting it deleted; a layered-aware reader is
+     * the one that turns this value back into WT_NOTFOUND.
+     */
+    REQUIRE(cursor->search(cursor) == 0);
+    const char *value;
+    REQUIRE(cursor->get_value(cursor, &value) == 0);
+    CHECK(std::string(value) == std::string((const char *)__wt_tombstone.data, __wt_tombstone.size));
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
     delete conn_wrap;
 }
 
+TEST_CASE(
+  "Layered step-down: a prepared commit straddler that inserts then modifies the same key "
+  "relocates the reconstructed modified value",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+
+    /*
+     * A modify against the transaction's own prior insert makes the chain's head a delta, not a
+     * full value; the clone must reconstruct the full value rather than copy the delta bytes.
+     */
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "insert-then-modify");
+    cursor->set_value(cursor, "initial");
+    REQUIRE(cursor->insert(cursor) == 0);
+
+    cursor->set_key(cursor, "insert-then-modify");
+    WT_MODIFY mods[1];
+    mods[0].data.data = "reconstructed";
+    mods[0].data.size = strlen("reconstructed");
+    mods[0].offset = 0;
+    mods[0].size = mods[0].data.size;
+    REQUIRE(cursor->modify(cursor, mods, 1) == 0);
+    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=10") == 0);
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+    REQUIRE(session->commit_transaction(session, "commit_timestamp=12,durable_timestamp=12") == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
+    REQUIRE(check_session->open_cursor(
+              check_session, INGEST_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+    REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
+    cursor->set_key(cursor, "insert-then-modify");
+    REQUIRE(cursor->search(cursor) == 0);
+    const char *value;
+    REQUIRE(cursor->get_value(cursor, &value) == 0);
+    CHECK(std::string(value) == "reconstructed");
+    REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    delete conn_wrap;
+}
 
 TEST_CASE(
   "Layered step-down: a prepared rollback straddling the boundary is correctly relocated",
