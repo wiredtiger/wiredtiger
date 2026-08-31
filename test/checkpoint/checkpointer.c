@@ -583,7 +583,7 @@ verify_consistency_once(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_
             if (ret == WT_NOTFOUND && t_ret == WT_NOTFOUND)
                 continue;
             else if (ret == WT_NOTFOUND || t_ret == WT_NOTFOUND) {
-                (void)log_print_err(
+                ret = log_print_err(
                   "verify_consistency tables with different amount of data", EFAULT, 1);
                 goto err;
             }
