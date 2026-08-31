@@ -1504,15 +1504,33 @@ config_disagg_storage(void)
                 config_single(NULL, "ops.throttle.sleep_us=1000", false);
 
             /*
-             * Prepared and truncate operations aren't accounted for by the async step-down drain,
-             * so either could straddle step_down_ts and break the checkpoint's boundary guarantee.
+             * Truncate operations aren't accounted for by the async step-down drain, so they could
+             * straddle step_down_ts and break the checkpoint's boundary guarantee.
              */
-            if (config_explicit(NULL, "ops.prepare"))
-                WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
-            config_off(NULL, "ops.prepare");
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");
+
+            /*
+             * A prepared transaction that straddles step_down_ts is resolved by duplicating its
+             * still-prepared update onto the ingest constituent (see
+             * __txn_stepdown_duplicate_to_ingest in src/txn/txn.c), which only handles row-store
+             * ops. Column-store tables have no such path, so restrict to row-store when both are
+             * configured together rather than losing prepare coverage under stepdown_async entirely.
+             */
+            if (GV(OPS_PREPARE)) {
+                bool has_column_store = false;
+                for (u_int ti = 1; ti <= ntables; ++ti)
+                    if (tables[ti]->type != ROW)
+                        has_column_store = true;
+                if (has_column_store) {
+                    if (config_explicit(NULL, "ops.prepare"))
+                        WARN("%s",
+                          "turning off ops.prepare: disagg.stepdown_async only supports it with "
+                          "row-store tables");
+                    config_off(NULL, "ops.prepare");
+                }
+            }
         }
     } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
