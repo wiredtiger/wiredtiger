@@ -1657,33 +1657,22 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 
 /*
  * __txn_stepdown_duplicate_to_ingest --
- *     A prepared op wrote to the stable constituent under pre-boundary routing, but this
- *     transaction is resolving (commit or rollback, the caller's choice) while stable straddles a
- *     step-down boundary. Clone the still-prepared update onto the sibling ingest table before
- *     resolution runs, exactly the direction and reason a follower already restores an on-disk
- *     stable prepared cell onto ingest during prepared-transaction discovery: resolution can only
- *     land on ingest. On success the caller resolves the clone with the same resolution call it
- *     already makes for the original op, just pointed at the returned ingest btree -- so commit and
- *     rollback share this one duplication step and need no separate logic here; whichever the
- *     caller is doing, resolving the clone the same way is correct. The original stable-side update
- *     is untouched: for a committing straddler its commit timestamp keeps it out of the step-down
- *     checkpoint and out of any boundary-respecting reader, the same way an ingest-routed write's
- *     double-write into stable is already made harmless; for a rollback it is simply marked aborted
- *     in place as usual.
+ *     A prepared op wrote to stable under pre-boundary routing, but the transaction is resolving
+ *     (commit or rollback) after the step-down boundary was set. Clone the still-prepared update
+ *     onto ingest before resolution runs, then let the caller resolve the clone with the same
+ *     resolution call it already makes for the original, just pointed at ingest -- so commit and
+ *     rollback share this one step. The original stable-side update is left alone: a committing
+ *     straddler's commit timestamp already keeps it out of the step-down checkpoint, and a rollback
+ *     marks it aborted in place as usual.
  *
- *     The update to clone is fetched through the same prepared-op search the resolution call itself
- *     uses. That search already handles a prepared value that was reconciled to an on-disk stable
- *     page and later re-read transparently -- op->u.op_upd is not safe to read directly here since
- *     it can be stale once that has happened, but the searched-up update always reflects the
- *     current, correct in-memory representation regardless of how it got there. Passing the
- *     caller's own cursor slot in also means the resolution call the caller makes right after this
- *     one, against the same stable btree, finds a cursor already open on it.
+ *     The update is fetched through the same prepared-op search resolution itself uses, so it's
+ *     current whether it's still in memory or was reconciled to disk and reread; reading op->u.op_upd
+ *     directly here would risk a stale pointer in the latter case. Reusing the caller's cursor slot
+ *     also means its own resolution call, right after this one, finds a cursor already open.
  *
- *     The ingest cursor is cached across calls in *ingest_cursorp, keyed by the stable btree's ID,
- *     and reopened only when that ID changes. Prepared transactions have their modify list sorted
- *     by btree ID before commit or rollback ever walks it, so every op on the same table is
- *     contiguous and this reuses one cursor per table rather than paying open/close per key. The
- *     caller owns closing it once the whole op list has been walked.
+ *     The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
+ *     changes -- ops are already sorted by btree ID before commit/rollback walk them, so this is one
+ *     cursor per table rather than open/close per key. The caller closes it once done.
  */
 static int
 __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
@@ -1703,8 +1692,17 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
     stable_uri = op->btree->dhandle->name;
 
     /* Layered tables are row-store only; column-store ops never reach a stable constituent. */
-    if (op->type != WT_TXN_OP_BASIC_ROW && op->type != WT_TXN_OP_INMEM_ROW)
+    if (op->type != WT_TXN_OP_BASIC_ROW && op->type != WT_TXN_OP_INMEM_ROW) {
+        /*
+         * FIXME-WT-18422: a prepared truncate straddling the boundary isn't relocated by this
+         * function and needs its own handling; catch it here rather than silently leaving it
+         * unresolved on stable.
+         */
+        WT_ASSERT(session,
+          op->type != WT_TXN_OP_TRUNCATE_ROW && op->type != WT_TXN_OP_TRUNCATE_COL &&
+            op->type != WT_TXN_OP_REF_DELETE);
         return (0);
+    }
 
     WT_RET(__txn_search_prepared_op(session, op->btree, key, recno, stable_cursorp, &orig));
 
