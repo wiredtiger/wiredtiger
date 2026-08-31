@@ -343,8 +343,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
       !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(btree, WT_BTREE_DISAGGREGATED));
 
     /*
-     * Only a stable btree waits to be published: an ingest btree holds nothing the shared metadata
-     * advertises, so eviction never has to be held off for it.
+     * Only a stable btree waits to be published: an ingest btree has no shared metadata of its own,
+     * so eviction never has to be held off for it.
      */
     WT_ASSERT(session,
       !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) || F_ISSET(btree, WT_BTREE_DISAGGREGATED));

@@ -425,11 +425,12 @@ retry:
         if (btree->evict_disabled > 0) {
             /*
              * A disaggregated btree is held out of eviction until it is published, so try
-             * publishing it below instead of skipping it here.
+             * publishing it below instead of skipping it here. This read of the role is a hint that
+             * saves taking the schema lock: the publish itself re-checks it under that lock.
              */
             try_publish = F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
               __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
-            if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || !try_publish) {
+            if (!try_publish) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
                 __evict_disagg_btree_skip_count(session, btree);
                 continue;
@@ -572,8 +573,14 @@ retry:
          * Publish the btree if the epoch now covers its create. A declined attempt costs nothing:
          * the eviction-disabled re-check below skips the tree while it stays unpublished.
          */
-        if (try_publish)
-            WT_WITH_DHANDLE(session, dhandle, __wt_disagg_btree_evict_publish(session));
+        if (try_publish) {
+            WT_WITH_DHANDLE(session, dhandle,
+              WT_WITH_SCHEMA_LOCK_NOWAIT(
+                session, ret, __wt_disagg_btree_publish_for_eviction(session)));
+
+            /* A busy schema lock is not an error here: a later pass publishes the tree. */
+            WT_ERR_ERROR_OK(ret, EBUSY, false);
+        }
 
         /*
          * Re-check the "no eviction" flag, used to enforce exclusive access when a handle is being
