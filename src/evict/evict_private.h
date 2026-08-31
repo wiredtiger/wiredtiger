@@ -17,6 +17,12 @@
 #define WTI_EVICT_WALK_INCR 100         /* Pages added each walk */
 
 /*
+ * Reaching the end of the tree twice guarantees at least one full traversal from wherever the scan
+ * arrived, at which point the scan stops resuming the tree and moves on.
+ */
+#define WTI_EVICT_WALK_MAX_ENDS 2 /* Tree walk ends before the scan moves on */
+
+/*
  * The walk period doubles on every unproductive walk of a tree, so saturation means the tree has
  * been unproductive for many consecutive walks.
  */
