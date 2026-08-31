@@ -31,12 +31,11 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
-# test_layered_prepare11.py
-#    WT-18422: a transaction prepared before the step-down timestamp is set, but resolving after
-# it, straddles the boundary. Its write already sits in the stable constituent under pre-boundary
+# A transaction prepared before the step-down timestamp is set, but resolving after it,
+# straddles the boundary. Its write already sits in the stable constituent under pre-boundary
 # routing, and unlike an ordinary in-flight writer it cannot be rolled back to force a retry into
-# ingest once prepared. __txn_stepdown_duplicate_to_ingest (src/txn/txn.c) resolves this by
-# duplicating the still-prepared update onto ingest before the transaction resolves.
+# ingest once prepared. This is resolved by duplicating the still-prepared update onto ingest
+# before the transaction resolves.
 @disagg_test_class
 class test_layered_prepare11(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),'

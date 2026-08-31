@@ -840,22 +840,6 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
         if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
             WT_RET_MSG(session, EINVAL,
               "rollback timestamp and commit timestamp should not be set together");
-
-        /*
-         * A prepared transaction that began after the step-down timestamp was set commits to the
-         * ingest constituent, the same as a non-prepared one, so its commit timestamp must sit
-         * above that boundary too. A prepared transaction that began before the boundary was set is
-         * deliberately exempt here: landing above the boundary while it wrote to stable under
-         * pre-boundary routing is exactly the straddling case that gets resolved by duplicating the
-         * update onto ingest, not a contradiction to reject.
-         */
-        step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        if (txn->stepdown_ts_set && *commit_tsp <= step_down_ts)
-            WT_RET_MSG(session, EINVAL,
-              "commit timestamp %s must be after the step down timestamp %s",
-              __wt_timestamp_to_string(*commit_tsp, ts_string[0]),
-              __wt_timestamp_to_string(step_down_ts, ts_string[1]));
     }
 
     return (0);
@@ -961,6 +945,24 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
           "transaction",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
+
+    /*
+     * A prepared transaction that began after the step-down timestamp was set commits to the
+     * ingest constituent, so its durable timestamp -- not its commit timestamp, which a prepared
+     * transaction can set independently of durability -- must sit above that boundary too. One
+     * that began before the boundary is exempt: landing above it while it wrote to stable under
+     * pre-boundary routing is the straddling case resolved by duplicating the update onto ingest,
+     * not a contradiction to reject.
+     */
+    if (F_ISSET(txn, WT_TXN_PREPARE) && txn->stepdown_ts_set) {
+        wt_timestamp_t step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        if (durable_ts <= step_down_ts)
+            WT_RET_MSG(session, EINVAL,
+              "durable timestamp %s must be after the step down timestamp %s",
+              __wt_timestamp_to_string(durable_ts, ts_string[0]),
+              __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+    }
 
     return (0);
 }
@@ -1262,6 +1264,18 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
           __wt_timestamp_to_string(rollback_ts, ts_string[0]),
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
+
+    /* Same boundary rule as a prepared commit's durable timestamp, for the same reason. */
+    if (txn->stepdown_ts_set) {
+        wt_timestamp_t step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        if (rollback_ts <= step_down_ts)
+            WT_RET_MSG(session, EINVAL,
+              "rollback timestamp %s must be after the step down timestamp %s",
+              __wt_timestamp_to_string(rollback_ts, ts_string[0]),
+              __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+    }
+
     txn->time_point.rollback_timestamp = rollback_ts;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
 

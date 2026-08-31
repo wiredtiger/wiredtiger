@@ -20,19 +20,17 @@
 #include "../../utility/test_util.h"
 
 /*
- * test_layered_prepare_stepdown.cpp
- *
- * WT-18422: a transaction prepared before the step-down timestamp is set, but resolving (commit or
+ * A transaction prepared before the step-down timestamp is set, but resolving (commit or
  * rollback) after it, straddles the boundary. Its write already sits in the stable constituent
  * under the pre-boundary routing rules, yet by the time it resolves its final timestamp can land
  * above the step-down timestamp -- and unlike an ordinary in-flight writer, a prepared transaction
  * cannot be rolled back to force a retry into ingest. These tests exercise the relocation
- * mechanism in src/txn/txn.c that resolves the straddle by duplicating the still-prepared update
- * onto ingest before the transaction resolves, so the caller's own resolution call (commit or
- * rollback) can apply to the clone the same way it applies to the original.
+ * mechanism that resolves the straddle by duplicating the still-prepared update onto ingest
+ * before the transaction resolves, so the caller's own resolution call (commit or rollback) can
+ * apply to the clone the same way it applies to the original.
  *
  * Only a single (leader) connection is needed for these tests: the mechanism runs entirely inside
- * __wt_txn_commit / __wt_txn_rollback based on the step-down timestamp and the transaction's own
+ * transaction commit and rollback based on the step-down timestamp and the transaction's own
  * timestamps, with no dependency on an actual role change or checkpoint having happened.
  */
 
@@ -153,6 +151,187 @@ TEST_CASE(
     const char *value;
     REQUIRE(cursor->get_value(cursor, &value) == 0);
     CHECK(std::string(value) == "post-boundary-value");
+    REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    delete conn_wrap;
+}
+
+TEST_CASE(
+  "Layered step-down: preparing a transaction that began before the boundary is rolled back",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+
+    /*
+     * The transaction begins with no boundary set, so it routes its write to stable; the boundary
+     * only appears afterward. Preparing it now would freeze it as an unresolvable straddler, so it
+     * must be rejected here, while rollback is still legal, rather than at commit.
+     */
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "too-late");
+    cursor->set_value(cursor, "too-late-value");
+    REQUIRE(cursor->insert(cursor) == 0);
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+
+    CHECK(session->prepare_transaction(session, "prepare_timestamp=12") == WT_ROLLBACK);
+    REQUIRE(cursor->close(cursor) == 0);
+    REQUIRE(session->rollback_transaction(session, nullptr) == 0);
+
+    delete conn_wrap;
+}
+
+TEST_CASE("Layered step-down: a post-boundary prepared commit's durable timestamp must be after "
+          "the boundary",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "low-durable");
+    cursor->set_value(cursor, "low-durable-value");
+    REQUIRE(cursor->insert(cursor) == 0);
+    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=5") == 0);
+
+    /*
+     * Only the durable timestamp determines what a prepared transaction's commit actually makes
+     * durable; a prepared commit's own commit timestamp can be set independently and is no longer
+     * checked against the boundary (a low commit timestamp here, on its own, is not an error). The
+     * durable timestamp landing at or below the boundary is what must be rejected.
+     *
+     * Set it through a separate timestamp_transaction call rather than passing it directly to
+     * commit_transaction: once a transaction is prepared, any error returned from inside
+     * commit_transaction itself is treated as fatal (there is no safe way to reject a commit the
+     * coordinator already expects to succeed), so this check has to be caught here instead, while
+     * it is still just a configuration error and not an attempted commit.
+     */
+    REQUIRE(session->timestamp_transaction(session, "commit_timestamp=10") == 0);
+    CHECK(session->timestamp_transaction(session, "durable_timestamp=11") == EINVAL);
+    REQUIRE(cursor->close(cursor) == 0);
+    REQUIRE(session->rollback_transaction(session, nullptr) == 0);
+
+    delete conn_wrap;
+}
+
+TEST_CASE("Layered step-down: a post-boundary prepared rollback's rollback timestamp must be "
+          "after the boundary",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "low-rollback");
+    cursor->set_value(cursor, "low-rollback-value");
+    REQUIRE(cursor->insert(cursor) == 0);
+    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=5") == 0);
+
+    /* Same reasoning as the durable-timestamp case: catch this before rollback_transaction itself
+     * is called, since a prepared transaction cannot tolerate an error from that call either. */
+    CHECK(session->timestamp_transaction(session, "rollback_timestamp=11") == EINVAL);
+    REQUIRE(cursor->close(cursor) == 0);
+    REQUIRE(session->rollback_transaction(session, nullptr) == 0);
+
+    delete conn_wrap;
+}
+
+TEST_CASE("Layered step-down: a prepared commit straddler with multiple updates to the same key "
+          "relocates the latest one",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+
+    /*
+     * Two writes to the same key before prepare: WiredTiger chains them on one page and marks only
+     * the first as the op to resolve (WT_TXN_OP_KEY_REPEATED on the second), so duplication must
+     * fire once, on the primary op, and clone whatever the chain currently resolves to -- the
+     * second (latest) value -- not the first.
+     */
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "repeated-key");
+    cursor->set_value(cursor, "first-value");
+    REQUIRE(cursor->insert(cursor) == 0);
+    cursor->set_key(cursor, "repeated-key");
+    cursor->set_value(cursor, "second-value");
+    REQUIRE(cursor->insert(cursor) == 0);
+    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=10") == 0);
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+    REQUIRE(session->commit_transaction(session, "commit_timestamp=12,durable_timestamp=12") == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
+    REQUIRE(check_session->open_cursor(
+              check_session, INGEST_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+    REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
+    cursor->set_key(cursor, "repeated-key");
+    REQUIRE(cursor->search(cursor) == 0);
+    const char *value;
+    REQUIRE(cursor->get_value(cursor, &value) == 0);
+    CHECK(std::string(value) == "second-value");
+    REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    delete conn_wrap;
+}
+
+TEST_CASE("Layered step-down: a prepared commit straddler that inserts then removes the same key "
+          "relocates the removal",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+
+    /* The chain's head is a tombstone here, not a standard update; the clone must preserve that. */
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "inserted-then-removed");
+    cursor->set_value(cursor, "value");
+    REQUIRE(cursor->insert(cursor) == 0);
+    cursor->set_key(cursor, "inserted-then-removed");
+    REQUIRE(cursor->remove(cursor) == 0);
+    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=10") == 0);
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+    REQUIRE(session->commit_transaction(session, "commit_timestamp=12,durable_timestamp=12") == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
+    REQUIRE(check_session->open_cursor(
+              check_session, INGEST_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+    REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
+    cursor->set_key(cursor, "inserted-then-removed");
+    CHECK(cursor->search(cursor) == WT_NOTFOUND);
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 

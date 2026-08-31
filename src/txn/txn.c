@@ -1656,24 +1656,25 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_stepdown_duplicate_to_ingest --
+ * __txn_stepdown_resolve_straddler --
  *     A prepared op wrote to stable under pre-boundary routing, but the transaction is resolving
- *     (commit or rollback) after the step-down boundary was set. Clone the still-prepared update
- *     onto ingest before resolution runs, then let the caller resolve the clone with the same
- *     resolution call it already makes for the original, just pointed at ingest -- so commit and
- *     rollback share this one step. The original stable-side update is left alone: a committing
- *     straddler's commit timestamp already keeps it out of the step-down checkpoint, and a rollback
- *     marks it aborted in place as usual.
+ *     (commit or rollback) after the step-down boundary was set. Resolve it and, unless it's a type
+ *     this doesn't cover (see the FIXME below), a clone of it duplicated onto ingest: clone the
+ *     still-prepared update onto the sibling ingest table before resolution runs, then resolve both
+ *     the original and the clone with the same resolution call, once each. The original stable-side
+ *     update ends up resolved normally either way -- for a committing straddler its commit
+ *     timestamp keeps it out of the step-down checkpoint, and a rollback marks it aborted in place.
  *
  *     The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
  *     changes -- ops are already sorted by btree ID before commit/rollback walk them, so this is one
  *     cursor per table rather than open/close per key. The caller closes it once done.
  */
 static int
-__txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
-  uint64_t recno, WT_CURSOR **stable_cursorp, WT_CURSOR **ingest_cursorp, uint32_t *ingest_cursor_stable_idp,
-  WT_BTREE **ingest_btreep)
+__txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
+  uint64_t recno, bool commit, WT_CURSOR **stable_cursorp, WT_CURSOR **ingest_cursorp,
+  uint32_t *ingest_cursor_stable_idp)
 {
+    WT_BTREE *ingest_btree;
     WT_CURSOR *ingest_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(ingest_uri);
@@ -1683,27 +1684,27 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
     const char *stable_uri;
     size_t size;
 
-    *ingest_btreep = NULL;
     stable_uri = op->btree->dhandle->name;
 
     /* Layered tables are row-store only; column-store ops never reach a stable constituent. */
     if (op->type != WT_TXN_OP_BASIC_ROW && op->type != WT_TXN_OP_INMEM_ROW) {
         /*
-         * FIXME-WT-18422: a prepared truncate straddling the boundary isn't relocated by this
+         * FIXME-WT-18526: a prepared truncate straddling the boundary isn't relocated by this
          * function and needs its own handling; catch it here rather than silently leaving it
          * unresolved on stable.
          */
         WT_ASSERT(session,
           op->type != WT_TXN_OP_TRUNCATE_ROW && op->type != WT_TXN_OP_TRUNCATE_COL &&
             op->type != WT_TXN_OP_REF_DELETE);
-        return (0);
+        return (__wt_txn_resolve_prepared_op(
+          session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
     }
 
     /*
      * Fetch the update through the same prepared-op search resolution itself uses, so it's current
      * whether it's still in memory or was reconciled to disk and reread; op->u.op_upd would risk a
-     * stale pointer in the latter case. Reusing the caller's cursor slot also means its own
-     * resolution call, right after this one, finds a cursor already open.
+     * stale pointer in the latter case. Reusing the caller's cursor slot also means the resolution
+     * call below, against the same stable btree, finds a cursor already open.
      */
     WT_RET(__txn_search_prepared_op(session, op->btree, key, recno, stable_cursorp, &orig));
 
@@ -1723,21 +1724,24 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
     }
 
     /*
-     * Restoring a stable value into ingest must re-establish the ingest escape when the stable
-     * image is unescaped, mirroring what prepared-transaction discovery already does for the
-     * on-disk case.
+     * A tombstone carries no value -- __wt_upd_alloc requires a NULL value for one, unlike a
+     * standard update. Only a standard update's value needs the ingest escape re-established,
+     * mirroring what prepared-transaction discovery already does for the on-disk case.
      */
-    value.data = orig->data;
-    value.size = orig->size;
-    WT_ERR(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, NULL));
+    if (orig->type == WT_UPDATE_TOMBSTONE)
+        WT_ERR(__wt_upd_alloc(session, NULL, orig->type, &clone, &size));
+    else {
+        value.data = orig->data;
+        value.size = orig->size;
+        WT_ERR(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, NULL));
+        WT_ERR(__wt_upd_alloc(session, &ingest_value, orig->type, &clone, &size));
+    }
 
     /*
      * Clone the update rather than moving it: the original stays linked into the stable page, still
-     * prepared, until the caller's own resolution call (already made against op->btree) marks it
-     * resolved in place. The clone carries the same prepare identity so the caller's later
-     * resolution call finds and resolves it the same way it resolves the original.
+     * prepared, until it is resolved in place below. The clone carries the same prepare identity so
+     * its own resolution call, right after, finds and resolves it the same way as the original.
      */
-    WT_ERR(__wt_upd_alloc(session, &ingest_value, orig->type, &clone, &size));
     clone->txnid = orig->txnid;
     clone->prepared_id = orig->prepared_id;
     clone->prepare_ts = orig->prepare_ts;
@@ -1750,7 +1754,20 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
     WT_ERR(__wt_row_modify(cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, true));
-    *ingest_btreep = CUR2BT(cbt);
+    ingest_btree = CUR2BT(cbt);
+
+    /*
+     * The low-level insert above leaves the cursor positioned and the page pinned; the resolve call
+     * below searches the same key again through the ordinary cursor API, which asserts no page is
+     * already pinned. Reset releases both, the same way returning to the application between
+     * operations normally would.
+     */
+    WT_ERR(ingest_cursor->reset(ingest_cursor));
+
+    WT_ERR(__wt_txn_resolve_prepared_op(
+      session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
+    WT_ERR(__wt_txn_resolve_prepared_op(
+      session, ingest_btree, &session->txn->time_point, key, recno, commit, ingest_cursorp));
 
 err:
     /*
@@ -1769,7 +1786,6 @@ int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
     struct timespec tsp;
-    WT_BTREE *ingest_btree;
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -1926,23 +1942,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     /*
                      * A prepared straddler: it wrote to stable under pre-boundary routing, but this
                      * transaction's final commit timestamp landed above the step-down timestamp.
-                     * Duplicate it onto ingest before resolving the original, then resolve the clone
-                     * the same way.
+                     * Resolving it also duplicates it onto ingest first, so the value survives the
+                     * checkpoint that will exclude it from stable.
                      */
-                    ingest_btree = NULL;
                     if (step_down_ts != WT_TS_NONE &&
                       F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
                       txn->time_point.commit_timestamp > step_down_ts &&
                       WT_URI_IS_STABLE(op->btree->dhandle->name))
-                        WT_ERR(__txn_stepdown_duplicate_to_ingest(session, op, key, recno, &cursor,
-                          &ingest_cursor, &ingest_cursor_stable_id, &ingest_btree));
-
-                    WT_ERR(__wt_txn_resolve_prepared_op(
-                      session, op->btree, &txn->time_point, key, recno, true, &cursor));
-
-                    if (ingest_btree != NULL)
+                        WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
+                          &cursor, &ingest_cursor, &ingest_cursor_stable_id));
+                    else
                         WT_ERR(__wt_txn_resolve_prepared_op(
-                          session, ingest_btree, &txn->time_point, key, recno, true, &cursor));
+                          session, op->btree, &txn->time_point, key, recno, true, &cursor));
                 }
 
                 /*
@@ -2421,7 +2432,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 {
-    WT_BTREE *ingest_btree;
     WT_CURSOR *cursor, *ingest_cursor;
     WT_DECL_RET;
     WT_ITEM *key;
@@ -2517,18 +2527,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                      * happen. WT_DHANDLE_OUTDATED is set on exactly the dhandles that carried content
                      * across a role change, so scope to those rather than every stable dhandle.
                      */
-                    ingest_btree = NULL;
                     if (WT_URI_IS_STABLE(op->btree->dhandle->name) &&
                       F_ISSET(op->btree->dhandle, WT_DHANDLE_OUTDATED))
-                        WT_TRET(__txn_stepdown_duplicate_to_ingest(session, op, key, recno, &cursor,
-                          &ingest_cursor, &ingest_cursor_stable_id, &ingest_btree));
-
-                    WT_TRET(__wt_txn_resolve_prepared_op(
-                      session, op->btree, &txn->time_point, key, recno, false, &cursor));
-
-                    if (ingest_btree != NULL)
+                        WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
+                          &cursor, &ingest_cursor, &ingest_cursor_stable_id));
+                    else
                         WT_TRET(__wt_txn_resolve_prepared_op(
-                          session, ingest_btree, &txn->time_point, key, recno, false, &cursor));
+                          session, op->btree, &txn->time_point, key, recno, false, &cursor));
                 }
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
