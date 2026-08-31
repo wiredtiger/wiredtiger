@@ -1657,9 +1657,9 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 
 /*
  * __txn_stepdown_clone_update --
- *     Clone a prepared update for duplication onto ingest. The clone carries the same value (in
- *     the on-disk form ingest expects) and prepare identity as orig, so a later resolution call
- *     against the clone finds and resolves it the same way it would resolve the original.
+ *     Clone a prepared update for duplication onto ingest. The clone carries the same value (in the
+ *     on-disk form ingest expects) and prepare identity as orig, so a later resolution call against
+ *     the clone finds and resolves it the same way it would resolve the original.
  */
 static int
 __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_UPDATE *orig, WT_UPDATE **clonep)
