@@ -659,6 +659,12 @@ __wt_disagg_cancel_unpublished_op(
             continue;
         /* An unpublished table is never checkpointed, so it has no queued updates. */
         WT_ASSERT(session, entry->metadata_op != WT_SHARED_METADATA_UPDATE);
+        /*
+         * The epoch guard protects published entries: publish stamps a real epoch, so
+         * WT_SCHEMA_EPOCH_UNPUBLISHED (WT_TS_MAX) only matches entries that never reached shared
+         * metadata. The loop does not break after the first match because a table: URI create
+         * enqueues two CREATE entries for the same table.
+         */
         if (entry->metadata_op == op && entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
             TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
             __disagg_shared_metadata_queue_free(session, &entry);
