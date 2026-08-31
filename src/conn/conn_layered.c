@@ -1051,8 +1051,8 @@ __wt_disagg_shared_metadata_queue_publish(
     }
 
     if (!found)
-        WT_ERR_MSG(session, EINVAL, "No pending schema operations to publish for table \"%s\"",
-          table_name);
+        WT_ERR_MSG(
+          session, EINVAL, "No pending schema operations to publish for table \"%s\"", table_name);
 
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
