@@ -1656,15 +1656,51 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_stepdown_clone_update --
+ *     Clone a prepared update for duplication onto ingest. The clone carries the same value (in
+ *     the on-disk form ingest expects) and prepare identity as orig, so a later resolution call
+ *     against the clone finds and resolves it the same way it would resolve the original.
+ */
+static int
+__txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_UPDATE *orig, WT_UPDATE **clonep)
+{
+    WT_ITEM ingest_value, value;
+    WT_UPDATE *clone;
+    size_t size;
+
+    /*
+     * A tombstone carries no value -- __wt_upd_alloc requires a NULL value for one, unlike a
+     * standard update. Only a standard update's value needs the ingest escape re-established,
+     * mirroring what prepared-transaction discovery already does for the on-disk case.
+     */
+    if (orig->type == WT_UPDATE_TOMBSTONE)
+        WT_RET(__wt_upd_alloc(session, NULL, orig->type, &clone, &size));
+    else {
+        value.data = orig->data;
+        value.size = orig->size;
+        WT_RET(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, NULL));
+        WT_RET(__wt_upd_alloc(session, &ingest_value, orig->type, &clone, &size));
+    }
+
+    clone->txnid = orig->txnid;
+    clone->prepared_id = orig->prepared_id;
+    clone->prepare_ts = orig->prepare_ts;
+    clone->upd_durable_ts = orig->upd_durable_ts;
+    clone->upd_start_ts = orig->upd_start_ts;
+    clone->prepare_state = orig->prepare_state;
+
+    *clonep = clone;
+    return (0);
+}
+
+/*
  * __txn_stepdown_resolve_straddler --
  *     A prepared op wrote to stable under pre-boundary routing, but the transaction is resolving
- *     (commit or rollback) after the step-down boundary was set. Resolve it and, unless it's a type
- *     this doesn't cover (see the FIXME below), a clone of it duplicated onto ingest: clone the
- *     still-prepared update onto the sibling ingest table before resolution runs, then resolve both
- *     the original and the clone with the same resolution call, once each. The original stable-side
- *     update ends up resolved normally either way --
- *     for a committing straddler its commit timestamp keeps it out of the step-down checkpoint, and
- *     a rollback marks it aborted in place.
+ *     (commit or rollback) after the step-down boundary was set. Clone the still-prepared update
+ *     onto the sibling ingest table before resolution runs, then resolve both the original and the
+ *     clone with the same resolution call, once each. The original stable-side update ends up
+ *     resolved normally either way: for a committing straddler its commit timestamp keeps it out of
+ *     the step-down checkpoint, and a rollback marks it aborted in place.
  *
  * The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
  *     changes --
@@ -1681,26 +1717,13 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(ingest_uri);
     WT_DECL_RET;
-    WT_ITEM ingest_value, value;
     WT_UPDATE *clone, *orig;
-    size_t size;
     const char *stable_uri;
 
     stable_uri = op->btree->dhandle->name;
 
-    /* Layered tables are row-store only; column-store ops never reach a stable constituent. */
-    if (op->type != WT_TXN_OP_BASIC_ROW && op->type != WT_TXN_OP_INMEM_ROW) {
-        /*
-         * FIXME-WT-18526: a prepared truncate straddling the boundary isn't relocated by this
-         * function and needs its own handling; catch it here rather than silently leaving it
-         * unresolved on stable.
-         */
-        WT_ASSERT(session,
-          op->type != WT_TXN_OP_TRUNCATE_ROW && op->type != WT_TXN_OP_TRUNCATE_COL &&
-            op->type != WT_TXN_OP_REF_DELETE);
-        return (__wt_txn_resolve_prepared_op(
-          session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
-    }
+    /* The caller only calls this for a row-store op; layered tables are row-store only. */
+    WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
 
     /*
      * Fetch the update through the same prepared-op search resolution itself uses, so it's current
@@ -1726,30 +1749,10 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     }
 
     /*
-     * A tombstone carries no value -- __wt_upd_alloc requires a NULL value for one, unlike a
-     * standard update. Only a standard update's value needs the ingest escape re-established,
-     * mirroring what prepared-transaction discovery already does for the on-disk case.
+     * Clone rather than move the update: the original stays linked into the stable page, still
+     * prepared, until it is resolved in place below.
      */
-    if (orig->type == WT_UPDATE_TOMBSTONE)
-        WT_ERR(__wt_upd_alloc(session, NULL, orig->type, &clone, &size));
-    else {
-        value.data = orig->data;
-        value.size = orig->size;
-        WT_ERR(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, NULL));
-        WT_ERR(__wt_upd_alloc(session, &ingest_value, orig->type, &clone, &size));
-    }
-
-    /*
-     * Clone the update rather than moving it: the original stays linked into the stable page, still
-     * prepared, until it is resolved in place below. The clone carries the same prepare identity so
-     * its own resolution call, right after, finds and resolves it the same way as the original.
-     */
-    clone->txnid = orig->txnid;
-    clone->prepared_id = orig->prepared_id;
-    clone->prepare_ts = orig->prepare_ts;
-    clone->upd_durable_ts = orig->upd_durable_ts;
-    clone->upd_start_ts = orig->upd_start_ts;
-    clone->prepare_state = orig->prepare_state;
+    WT_ERR(__txn_stepdown_clone_update(session, orig, &clone));
 
     /* Insert the clone into the ingest page, the same way prepared-transaction discovery does. */
     cbt = (WT_CURSOR_BTREE *)ingest_cursor;
@@ -1766,6 +1769,14 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
      */
     WT_ERR(ingest_cursor->reset(ingest_cursor));
 
+    /*
+     * Both calls below re-search for the key they already have in hand (orig was just found on
+     * stable above; clone was just inserted on ingest), since resolution always starts from a
+     * search. Skipping that search would mean splitting the resolve logic out of the shared
+     * resolution helper, which two unrelated call sites also rely on -- not worth it to save one
+     * extra search on a path this rare (a prepared transaction actively straddling a step-down
+     * boundary).
+     */
     WT_ERR(__wt_txn_resolve_prepared_op(
       session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
     WT_ERR(__wt_txn_resolve_prepared_op(
@@ -1957,9 +1968,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
                      * relative to the step-down checkpoint, not its commit timestamp, which it can
                      * set independently -- landed above the step-down timestamp. Resolving it also
                      * duplicates it onto ingest first, so the value survives the checkpoint that
-                     * will exclude it from stable.
+                     * will exclude it from stable. Layered tables are row-store only, so a
+                     * column-store op here is never actually a candidate.
                      */
-                    if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name))
+                    if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name) &&
+                      (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW))
                         WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     else
@@ -2551,9 +2564,11 @@ __wt_txn_rollback(
                      * captured in a step-down checkpoint while still prepared, a future step-up's
                      * prepared-transaction discovery pass walks that checkpoint and would otherwise
                      * resurrect this key as still-pending. Duplicating it now records the
-                     * resolution (here, an abort) on ingest before that can happen.
+                     * resolution (here, an abort) on ingest before that can happen. Layered tables
+                     * are row-store only, so a column-store op here is never actually a candidate.
                      */
-                    if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name))
+                    if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name) &&
+                      (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW))
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     else

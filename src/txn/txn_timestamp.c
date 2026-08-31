@@ -958,7 +958,8 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
         wt_timestamp_t step_down_ts;
 
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (durable_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
@@ -1136,7 +1137,8 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
         wt_timestamp_t step_down_ts;
 
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (step_down_ts != WT_TS_NONE && prepare_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
@@ -1294,7 +1296,8 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
         wt_timestamp_t step_down_ts;
 
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (rollback_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
