@@ -877,8 +877,9 @@ struct __wt_session {
      * default \c true.}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default value will be the global
-     * setting of the connection config.  0 will wait forever.  1 will never wait., an integer
-     * greater than or equal to \c 0; default \c 0.}
+     * setting of the connection config.  0 will wait forever.  Use the \c ignore_cache_size
+     * configuration to allow operations to proceed regardless of cache usage., an integer greater
+     * than or equal to \c 0; default \c 0.}
      * @config{debug = (, configure debug specific behavior on a session.  Generally only used for
      * internal testing purposes., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_fail_before_turtle_update, Fail before writing a
@@ -887,9 +888,11 @@ struct __wt_session {
      * when it is released and no longer needed., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{ignore_cache_size, when set\, operations performed by this session ignore the cache
-     * size and are not blocked when the cache is full.  Note that use of this option for operations
-     * that create cache pressure can starve ordinary sessions that obey the cache size., a boolean
-     * flag; default \c false.}
+     * size and are not blocked when the cache is full.  WT_SESSION::reconfigure returns \c EINVAL
+     * if this setting is specified while a transaction is running; use the \c ignore_cache_size
+     * setting of WT_SESSION::begin_transaction to configure a single transaction.  Note that use of
+     * this option for operations that create cache pressure can starve ordinary sessions that obey
+     * the cache size., a boolean flag; default \c false.}
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
@@ -1654,6 +1657,12 @@ struct __wt_session {
      * @config{claim_prepared_id, allow a session to claim a prepared transaction that was restored
      * upon restart by specifying the transaction's prepared ID. Returns WT_NOTFOUND if the prepared
      * id doesn't exist., a string; default empty.}
+     * @config{ignore_cache_size, when set\, operations performed by this transaction ignore the
+     * cache size and are not blocked when the cache is full.  The setting applies until the
+     * transaction is resolved.  Setting it to \c false has no effect: it does not override a
+     * session configured with \c ignore_cache_size.  Note that use of this option for operations
+     * that create cache pressure can starve ordinary transactions that obey the cache size., a
+     * boolean flag; default \c false.}
      * @config{ignore_prepare, whether to ignore updates by other prepared transactions when doing
      * of read operations of this transaction.  When \c true\, forces the transaction to be
      * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
@@ -2189,8 +2198,9 @@ struct __wt_connection {
      * empty.}
      * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
-     * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
-     * never wait., an integer greater than or equal to \c 0; default \c 0.}
+     * for space to be available in cache before giving up.  Default or 0 will wait forever.
+     * Individual sessions and transactions can bypass this wait with their own \c ignore_cache_size
+     * configuration., an integer greater than or equal to \c 0; default \c 0.}
      * @config{cache_overhead, assume the heap allocator overhead is the specified percentage\, and
      * adjust the cache usage by that amount (for example\, if there is 10GB of data in cache\, a
      * percentage of 10 means WiredTiger treats this as 11GB). This value is configurable because
@@ -2679,8 +2689,9 @@ struct __wt_connection {
      * default \c true.}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default value will be the global
-     * setting of the connection config.  0 will wait forever.  1 will never wait., an integer
-     * greater than or equal to \c 0; default \c 0.}
+     * setting of the connection config.  0 will wait forever.  Use the \c ignore_cache_size
+     * configuration to allow operations to proceed regardless of cache usage., an integer greater
+     * than or equal to \c 0; default \c 0.}
      * @config{debug = (, configure debug specific behavior on a session.  Generally only used for
      * internal testing purposes., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_fail_before_turtle_update, Fail before writing a
@@ -2689,9 +2700,11 @@ struct __wt_connection {
      * when it is released and no longer needed., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{ignore_cache_size, when set\, operations performed by this session ignore the cache
-     * size and are not blocked when the cache is full.  Note that use of this option for operations
-     * that create cache pressure can starve ordinary sessions that obey the cache size., a boolean
-     * flag; default \c false.}
+     * size and are not blocked when the cache is full.  WT_SESSION::reconfigure returns \c EINVAL
+     * if this setting is specified while a transaction is running; use the \c ignore_cache_size
+     * setting of WT_SESSION::begin_transaction to configure a single transaction.  Note that use of
+     * this option for operations that create cache pressure can starve ordinary sessions that obey
+     * the cache size., a boolean flag; default \c false.}
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
@@ -3147,8 +3160,9 @@ struct __wt_connection {
  * sessions created\, and can be overridden in configuring \c cache_cursors in
  * WT_CONNECTION.open_session., a boolean flag; default \c true.}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
- * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never
- * wait., an integer greater than or equal to \c 0; default \c 0.}
+ * space to be available in cache before giving up.  Default or 0 will wait forever.  Individual
+ * sessions and transactions can bypass this wait with their own \c ignore_cache_size
+ * configuration., an integer greater than or equal to \c 0; default \c 0.}
  * @config{cache_overhead, assume the heap allocator overhead is the specified percentage\, and
  * adjust the cache usage by that amount (for example\, if there is 10GB of data in cache\, a
  * percentage of 10 means WiredTiger treats this as 11GB). This value is configurable because
