@@ -1709,6 +1709,35 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
 
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ingest_cbt, key, true, NULL, false, NULL));
     WT_RET(ret);
+
+    /*
+     * A straddler's write never reached ingest under pre-boundary routing, so the key should be
+     * absent there, or -- if a previous op for the same key already cloned a tombstone here --
+     * carry nothing but a tombstone visible to this transaction, whether that tombstone is still
+     * in memory or has already been written to the disk image.
+     */
+    if (ingest_cbt->compare == 0) {
+        WT_UPDATE *existing;
+
+        if (ingest_cbt->ins != NULL)
+            existing = ingest_cbt->ins->upd;
+        else if (ingest_cbt->ref->page->modify != NULL &&
+          ingest_cbt->ref->page->modify->mod_row_update != NULL)
+            existing = ingest_cbt->ref->page->modify->mod_row_update[ingest_cbt->slot];
+        else
+            existing = NULL;
+
+        if (existing != NULL)
+            WT_ASSERT(session,
+              existing->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, existing));
+        else {
+            WT_TIME_WINDOW tw;
+
+            WT_ASSERT(session,
+              !__wt_read_cell_time_window(ingest_cbt, &tw) || WT_TIME_WINDOW_HAS_STOP(&tw));
+        }
+    }
+
     return (__wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, true));
 }
 

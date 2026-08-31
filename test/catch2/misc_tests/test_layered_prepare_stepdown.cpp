@@ -8,6 +8,7 @@
 
 #ifndef _WIN32
 
+#include <cstring>
 #include <string>
 
 #include <catch2/catch.hpp>
@@ -345,8 +346,12 @@ TEST_CASE(
     REQUIRE(cursor->search(cursor) == 0);
     const char *value;
     REQUIRE(cursor->get_value(cursor, &value) == 0);
-    CHECK(
-      std::string(value) == std::string((const char *)__wt_tombstone.data, __wt_tombstone.size));
+    /*
+     * The marker is raw bytes, not a null-terminated string; compare exactly its own length rather
+     * than constructing a std::string from value directly, which would read past it looking for a
+     * terminator that isn't there.
+     */
+    CHECK(memcmp(value, __wt_tombstone.data, __wt_tombstone.size) == 0);
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
