@@ -2040,9 +2040,11 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_TXN *txn;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, prepare_transaction, config, cfg, true);
+    txn = session->txn;
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
@@ -2061,12 +2063,15 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
      * early optimization ahead of one: once a transaction is prepared it is exempt from the
      * commit-time check under the step-down lock, so this is the only place left that can still
      * reject it. Take the lock the same way that check does, so a set racing this read is never
-     * missed.
+     * missed. A transaction with nothing written has nothing to straddle, and a non-disaggregated
+     * connection has no step-down timestamp at all, so skip the lock entirely in either case.
      */
-    __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-    ret = __wt_txn_stepdown_straddler_check(session, true);
-    __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-    WT_ERR(ret);
+    if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        ret = __wt_txn_stepdown_straddler_check(session, true);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        WT_ERR(ret);
+    }
 
     F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_ERR(__wt_txn_prepare(session, cfg));

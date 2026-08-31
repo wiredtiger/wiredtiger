@@ -1807,7 +1807,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
     bool wrote_ingest, wrote_stable;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    bool cannot_fail, is_straddling_commit, locked, prepare, readonly, update_durable_ts;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1873,6 +1873,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
         WT_ERR(__wt_session_copy_values(session));
     }
     __wt_txn_release_snapshot(session);
+
+    /*
+     * Whether this transaction is a straddler needing relocation is decided once for the whole
+     * commit, not per op: step_down_ts and the transaction's own durable timestamp don't change
+     * across the loop below. Only whether a given op's own dhandle is the stable constituent is
+     * genuinely per-op.
+     */
+    is_straddling_commit = step_down_ts != WT_TS_NONE &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE) &&
+      txn->time_point.durable_timestamp > step_down_ts;
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1947,10 +1957,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
                      * duplicates it onto ingest first, so the value survives the checkpoint that
                      * will exclude it from stable.
                      */
-                    if (step_down_ts != WT_TS_NONE &&
-                      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE) &&
-                      txn->time_point.durable_timestamp > step_down_ts &&
-                      WT_URI_IS_STABLE(op->btree->dhandle->name))
+                    if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name))
                         WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     else
@@ -2450,7 +2457,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool prepare, readonly;
+    bool is_straddling_rollback, prepare, readonly;
 
     cursor = NULL;
     ingest_cursor = NULL;
@@ -2479,6 +2486,19 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
      * transaction table at the end of the function.
      */
     __wt_txn_release_snapshot(session);
+
+    /*
+     * Whether this transaction is a straddler needing relocation is decided once for the whole
+     * rollback, not per op: step_down_ts and the transaction's own rollback timestamp don't change
+     * across the loop below. Only whether a given op's own dhandle is the stable constituent is
+     * genuinely per-op. rollback_timestamp is only ever set under preserve_prepared, which is also
+     * the only configuration where a future step-up's prepared-discovery pass can resurrect a stale
+     * on-disk prepared cell, so this is scoped to it.
+     */
+    is_straddling_rollback = step_down_ts != WT_TS_NONE &&
+      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK) &&
+      txn->time_point.rollback_timestamp > step_down_ts;
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -2529,15 +2549,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
                      * captured in a step-down checkpoint while still prepared, a future step-up's
                      * prepared-transaction discovery pass walks that checkpoint and would otherwise
                      * resurrect this key as still-pending. Duplicating it now records the resolution
-                     * (here, an abort) on ingest before that can happen. rollback_timestamp is only
-                     * ever set under preserve_prepared, which is also the only configuration where
-                     * that discovery pass restores an on-disk prepared cell, so both the boundary
-                     * comparison and the resurrection risk it guards against are scoped to it.
+                     * (here, an abort) on ingest before that can happen.
                      */
-                    if (step_down_ts != WT_TS_NONE && WT_URI_IS_STABLE(op->btree->dhandle->name) &&
-                      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-                      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK) &&
-                      txn->time_point.rollback_timestamp > step_down_ts)
+                    if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name))
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     else
@@ -2597,9 +2611,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
     }
     if (ingest_cursor != NULL) {
 #ifdef HAVE_DIAGNOSTIC
-        int ingest_ret2 = ingest_cursor->close(ingest_cursor);
-        WT_ASSERT(session, ingest_ret2 != WT_ROLLBACK);
-        WT_TRET(ingest_ret2);
+        int ret2 = ingest_cursor->close(ingest_cursor);
+        WT_ASSERT(session, ret2 != WT_ROLLBACK);
+        WT_TRET(ret2);
 #else
         WT_TRET_ERROR_OK(ingest_cursor->close(ingest_cursor), WT_ROLLBACK);
 #endif
