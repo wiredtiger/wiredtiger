@@ -367,6 +367,9 @@ extern int __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURS
   const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_clayered_stable_to_ingest_uri(
+  WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *ingest_uri)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_clayered_stable_to_ingest_value(WT_SESSION_IMPL *session, const WT_ITEM *value,
   WT_ITEM *final_value, WT_ITEM **tmpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)

@@ -221,6 +221,26 @@ __wt_clayered_stable_to_ingest_value(
 }
 
 /*
+ * __wt_clayered_stable_to_ingest_uri --
+ *     Derive a layered table's ingest URI from its stable constituent's URI by swapping the
+ *     ".wt_stable" suffix for ".wt_ingest". The result is written into ingest_uri, a scratch buffer
+ *     owned by the caller.
+ */
+int
+__wt_clayered_stable_to_ingest_uri(
+  WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *ingest_uri)
+{
+    const char *stable_suffix;
+    size_t prefix_len;
+
+    stable_suffix = strstr(stable_uri, ".wt_stable");
+    WT_ASSERT_ALWAYS(session, stable_suffix != NULL,
+      "expected a stable constituent URI, got %s", stable_uri);
+    prefix_len = (size_t)(stable_suffix - stable_uri);
+    return (__wt_buf_fmt(session, ingest_uri, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+}
+
+/*
  * __wt_clayered_stable_value_stat --
  *     Count and warn about a stable-table value that shares the tombstone's encoded namespace,
  *     classified by its length and trailing byte. Values beginning with the marker are expected to

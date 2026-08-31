@@ -1665,11 +1665,6 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
  *     straddler's commit timestamp already keeps it out of the step-down checkpoint, and a rollback
  *     marks it aborted in place as usual.
  *
- *     The update is fetched through the same prepared-op search resolution itself uses, so it's
- *     current whether it's still in memory or was reconciled to disk and reread; reading op->u.op_upd
- *     directly here would risk a stale pointer in the latter case. Reusing the caller's cursor slot
- *     also means its own resolution call, right after this one, finds a cursor already open.
- *
  *     The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
  *     changes -- ops are already sorted by btree ID before commit/rollback walk them, so this is one
  *     cursor per table rather than open/close per key. The caller closes it once done.
@@ -1686,7 +1681,7 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
     WT_ITEM ingest_value, value;
     WT_UPDATE *clone, *orig;
     const char *stable_uri;
-    size_t prefix_len, size;
+    size_t size;
 
     *ingest_btreep = NULL;
     stable_uri = op->btree->dhandle->name;
@@ -1704,6 +1699,12 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
         return (0);
     }
 
+    /*
+     * Fetch the update through the same prepared-op search resolution itself uses, so it's current
+     * whether it's still in memory or was reconciled to disk and reread; op->u.op_upd would risk a
+     * stale pointer in the latter case. Reusing the caller's cursor slot also means its own
+     * resolution call, right after this one, finds a cursor already open.
+     */
     WT_RET(__txn_search_prepared_op(session, op->btree, key, recno, stable_cursorp, &orig));
 
     if (*ingest_cursorp != NULL && *ingest_cursor_stable_idp == op->btree->id)
@@ -1714,10 +1715,8 @@ __txn_stepdown_duplicate_to_ingest(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_I
             *ingest_cursorp = NULL;
         }
 
-        /* Derive the sibling ingest URI by swapping the ".wt_stable" suffix for ".wt_ingest". */
         WT_RET(__wt_scr_alloc(session, 0, &ingest_uri));
-        prefix_len = (size_t)(strstr(stable_uri, ".wt_stable") - stable_uri);
-        WT_ERR(__wt_buf_fmt(session, ingest_uri, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+        WT_ERR(__wt_clayered_stable_to_ingest_uri(session, stable_uri, ingest_uri));
         WT_ERR(__wt_open_cursor(session, ingest_uri->data, NULL, NULL, &ingest_cursor));
         *ingest_cursorp = ingest_cursor;
         *ingest_cursor_stable_idp = op->btree->id;

@@ -31,17 +31,10 @@ __prepared_discover_open_ingest_cursor(WT_SESSION_IMPL *session, WT_CURSOR **ing
 {
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_RET;
-    size_t prefix_len;
-    const char *stable_suffix, *stable_uri;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
-    stable_uri = session->dhandle->name;
-    stable_suffix = strstr(stable_uri, ".wt_stable");
-    WT_ASSERT_ALWAYS(session, stable_suffix != NULL,
-      "prepared update restoration expected stable btree URI, got %s", stable_uri);
-    prefix_len = (size_t)(stable_suffix - stable_uri);
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
-    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+    WT_ERR(__wt_clayered_stable_to_ingest_uri(session, session->dhandle->name, ingest_uri_buf));
     WT_SAVE_DHANDLE(
       session, ret = __wt_open_cursor(session, ingest_uri_buf->data, NULL, cfg, ingest_cursorp));
     WT_ERR(ret);
