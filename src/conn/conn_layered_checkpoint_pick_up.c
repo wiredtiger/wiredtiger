@@ -66,6 +66,7 @@ __disagg_ckpt_addr(WT_SESSION_IMPL *session, const char *config, const char *nam
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
+    WT_DECL_RET;
 
     *addrp = NULL;
 
@@ -73,14 +74,14 @@ __disagg_ckpt_addr(WT_SESSION_IMPL *session, const char *config, const char *nam
     __wt_config_subinit(session, &ckptconf, &v);
 
     /* There is never more than a single checkpoint of any name, so take the first match. */
-    while (__wt_config_next(&ckptconf, &k, &v) == 0) {
+    while ((ret = __wt_config_next(&ckptconf, &k, &v)) == 0) {
         if (!WT_CONFIG_MATCH(name, k))
             continue;
         WT_RET(__wt_config_subgets(session, &v, "addr", &a));
         return (__wt_strndup(session, a.str, a.len, addrp));
     }
 
-    return (WT_NOTFOUND);
+    return (ret);
 }
 
 /*
