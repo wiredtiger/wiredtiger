@@ -63,7 +63,7 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 10)
 
-    def write_rows(self, commit_ts=None, session=None, keys=None):
+    def write_rows(self, commit_ts=None, session=None, keys=None, value='value'):
         """Write nrows to the table, then commit at commit_ts or roll back if it is None."""
         if session is None:
             session = self.session
@@ -72,19 +72,19 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session.begin_transaction()
         cursor = session.open_cursor(self.uri)
         for i in keys:
-            cursor[i] = 'value'
+            cursor[i] = value
         cursor.close()
         if commit_ts is None:
             session.rollback_transaction()
         else:
             session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
 
-    def assert_all_rows(self, session):
+    def assert_all_rows(self, session, value='value'):
         """Assert that every written row is readable through the given session."""
         cursor = session.open_cursor(self.uri)
         count = 0
         while cursor.next() == 0:
-            self.assertEqual(cursor.get_value(), 'value')
+            self.assertEqual(cursor.get_value(), value)
             count += 1
         cursor.close()
         self.assertEqual(count, self.nrows)
@@ -460,6 +460,34 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The stable constituent is dropped before the ingest one, so its metadata removal must
         # have unrolled: both constituents are back.
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
+
+    def test_refused_drop_keeps_the_history_reads_depend_on(self):
+        # A refused drop must leave the table exactly as it was. The drop destroys the stable
+        # constituent before it reaches the ingest one that refuses, and the rows a snapshot below
+        # the newest checkpoint must see live only in the history store.
+        self.publish_and_checkpoint_table()
+        self.write_rows(commit_ts=10, value='old')
+        self.leader_checkpoint(10)
+        self.write_rows(commit_ts=20, value='new')
+        self.leader_checkpoint(20)
+
+        # Past the step-down boundary the commits land in the ingest constituent, which no
+        # checkpoint covers, so the drop is refused.
+        self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(30) +
+            ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(10))
+        self.write_rows(commit_ts=40, value='window')
+        self.assert_drop_refused_uncovered(self.session)
+
+        # Every snapshot still reads what it read before the drop was attempted.
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(10))
+        self.assert_all_rows(self.session, value='old')
+        self.session.rollback_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        self.assert_all_rows(self.session, value='new')
+        self.session.rollback_transaction()
+        self.session.begin_transaction()
+        self.assert_all_rows(self.session, value='window')
+        self.session.rollback_transaction()
 
     def test_drop_on_follower_of_leader_only_data_is_allowed(self):
         # Rows the follower only reads live in the picked-up checkpoint, not in its ingest tree.
