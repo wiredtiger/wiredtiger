@@ -393,7 +393,7 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
         if (WT_CONFIG_MATCH(checkpoint, k))
             return (__ckpt_load(session, &k, &v, ckpt));
 
-    return (ret == WT_NOTFOUND ? WT_NOTFOUND : ret);
+    return (ret);
 }
 
 /*
