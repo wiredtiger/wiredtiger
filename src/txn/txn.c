@@ -1352,9 +1352,12 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     /*
      * The head of the update chain is not a prepared update, which means all the prepared updates
      * of the key are resolved. The head of the update chain can also be null in the scenario that
-     * we rolled back all associated updates in the previous iteration of this function.
+     * we rolled back all associated updates in the previous iteration of this function. A rolled-
+     * back update also counts as already resolved even though its prepare state still reads
+     * in-progress: the state and the transaction id cannot be updated atomically together, so only
+     * the id moves to aborted.
      */
-    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
+    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS || upd->txnid == WT_TXN_ABORTED)
         goto prepare_verify;
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
