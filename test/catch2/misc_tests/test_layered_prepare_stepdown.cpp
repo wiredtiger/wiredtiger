@@ -51,8 +51,10 @@ setup_leader(connection_wrapper **conn_wrap, WT_SESSION **sessionp, bool preserv
     testutil_system("rm -rf %s && mkdir -p %s/kv_home", HOME.c_str(), HOME.c_str());
 
     std::string cfg = layered_disagg_build_cfg("leader");
-    if (preserve_prepared)
+    if (preserve_prepared) {
         cfg += ",preserve_prepared=true";
+        cfg += ",precise_checkpoint=true";
+    }
     *conn_wrap = new connection_wrapper(HOME, cfg.c_str());
     WT_CONNECTION *conn = (*conn_wrap)->get_wt_connection();
     WT_SESSION *session = (WT_SESSION *)(*conn_wrap)->create_session();
@@ -338,6 +340,59 @@ TEST_CASE(
     CHECK(cursor->search(cursor) == WT_NOTFOUND);
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
+
+    delete conn_wrap;
+}
+
+
+TEST_CASE(
+  "Layered step-down: a prepared rollback straddling the boundary is correctly relocated",
+  "[layered_prepare_stepdown]")
+{
+    connection_wrapper *conn_wrap;
+    WT_SESSION *session;
+    setup_leader(&conn_wrap, &session, /*preserve_prepared=*/true);
+    WT_CONNECTION *conn = conn_wrap->get_wt_connection();
+
+    WT_CURSOR *cursor;
+    REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+
+    /*
+     * A prepared transaction that begins before the step-down boundary, with a rollback
+     * timestamp landing after it, straddles the boundary on the rollback path. The relocation
+     * mechanism clones the update onto ingest before rollback applies, then rollback deletes both
+     * the original and the clone, leaving the key correctly absent.
+     */
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    cursor->set_key(cursor, "straddler-rollback");
+    cursor->set_value(cursor, "straddler-rollback-value");
+    REQUIRE(cursor->insert(cursor) == 0);
+    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=10,prepared_id=1") == 0);
+
+    REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
+
+    REQUIRE(session->rollback_transaction(session, "rollback_timestamp=12") == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    /* The key is not visible through the layered table. */
+    WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
+    REQUIRE(
+      check_session->open_cursor(check_session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
+    REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
+    cursor->set_key(cursor, "straddler-rollback");
+    CHECK(cursor->search(cursor) == WT_NOTFOUND);
+    REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
+    REQUIRE(cursor->close(cursor) == 0);
+
+    /* It is also correctly absent from the ingest constituent. */
+    WT_CURSOR *ingest_cursor;
+    REQUIRE(check_session->open_cursor(
+              check_session, INGEST_URI.c_str(), nullptr, nullptr, &ingest_cursor) == 0);
+    REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
+    ingest_cursor->set_key(ingest_cursor, "straddler-rollback");
+    CHECK(ingest_cursor->search(ingest_cursor) == WT_NOTFOUND);
+    REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
+    REQUIRE(ingest_cursor->close(ingest_cursor) == 0);
 
     delete conn_wrap;
 }

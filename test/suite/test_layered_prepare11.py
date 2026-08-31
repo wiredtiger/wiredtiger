@@ -38,7 +38,10 @@ from wtscenario import make_scenarios
 # before the transaction resolves.
 @disagg_test_class
 class test_layered_prepare11(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),'
+    # preserve_prepared is required for the rollback-straddler scenario below: rollback_timestamp
+    # (the only signal that tells a rolled-back prepared straddler apart from an ordinary one) is
+    # only ever set, and only ever checked against the step-down boundary, under this config.
+    conn_base_config = 'statistics=(all),preserve_prepared=true,precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -56,13 +59,14 @@ class test_layered_prepare11(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddler'] = 'straddler-value'
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
+        self.session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(10) + ',prepared_id=' + self.prepared_id_str(1))
 
         self.set_step_down_ts(11)
 
         # Must not raise WT_ROLLBACK: a prepared transaction can never be rejected at commit.
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(12))
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(12))
+        self.session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(12) + ',durable_timestamp=' + self.timestamp_str(12))
         cursor.close()
 
         self.assertEqual(self.read_kvs_at(self.uri, 20), {'straddler': 'straddler-value'})
@@ -89,10 +93,13 @@ class test_layered_prepare11(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddler'] = 'straddler-value'
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
+        self.session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(10) + ',prepared_id=' + self.prepared_id_str(1))
 
         self.set_step_down_ts(11)
-        self.session.rollback_transaction()
+        # rollback_timestamp above the boundary is what marks this a straddler needing relocation,
+        # the same role durable_timestamp plays for a straddling commit.
+        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(12))
         cursor.close()
 
         # Rolled back: never visible, on either side of the boundary.

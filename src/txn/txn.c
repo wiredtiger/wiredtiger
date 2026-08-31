@@ -1657,29 +1657,44 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 
 /*
  * __txn_stepdown_clone_update --
- *     Clone a prepared update for duplication onto ingest. The clone carries the same value (in the
- *     on-disk form ingest expects) and prepare identity as orig, so a later resolution call against
- *     the clone finds and resolves it the same way it would resolve the original.
+ *     Clone a prepared update and insert it into the ingest page the caller's cursor is positioned
+ *     on, the same way prepared-transaction discovery does. The clone carries the same value (in
+ *     the on-disk form ingest expects) and prepare identity as orig, so a later resolution call
+ *     against the clone finds and resolves it the same way it would resolve the original.
  */
 static int
-__txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_UPDATE *orig, WT_UPDATE **clonep)
+__txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cbt,
+  WT_CURSOR_BTREE *ingest_cbt, WT_ITEM *key, WT_UPDATE *orig)
 {
+    WT_DECL_RET;
     WT_ITEM ingest_value, value;
     WT_UPDATE *clone;
     size_t size;
 
     /*
-     * A tombstone carries no value -- __wt_upd_alloc requires a NULL value for one, unlike a
-     * standard update. Only a standard update's value needs the ingest escape re-established,
-     * mirroring what prepared-transaction discovery already does for the on-disk case.
+     * Ingest has no real tombstone type: a delete is recorded there as a standard update carrying
+     * the special tombstone marker value, the same as prepared-transaction discovery does when it
+     * restores an on-disk stop-prepared cell onto ingest.
      */
     if (orig->type == WT_UPDATE_TOMBSTONE)
-        WT_RET(__wt_upd_alloc(session, NULL, orig->type, &clone, &size));
+        WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &clone, &size));
     else {
-        value.data = orig->data;
-        value.size = orig->size;
+        if (orig->type == WT_UPDATE_MODIFY) {
+            /*
+             * A modify update is only a delta against whatever is below it on the same page;
+             * ingest has no such base to apply it against, so reconstruct the full value first.
+             */
+            WT_RET(__wt_modify_reconstruct_from_upd_list(
+              session, stable_cbt, orig, stable_cbt->upd_value, WT_OPCTX_TRANSACTION));
+            __wt_value_return(stable_cbt, stable_cbt->upd_value);
+            value.data = stable_cbt->upd_value->buf.data;
+            value.size = stable_cbt->upd_value->buf.size;
+        } else {
+            value.data = orig->data;
+            value.size = orig->size;
+        }
         WT_RET(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, NULL));
-        WT_RET(__wt_upd_alloc(session, &ingest_value, orig->type, &clone, &size));
+        WT_RET(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &clone, &size));
     }
 
     clone->txnid = orig->txnid;
@@ -1689,8 +1704,9 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_UPDATE *orig, WT_UPDATE
     clone->upd_start_ts = orig->upd_start_ts;
     clone->prepare_state = orig->prepare_state;
 
-    *clonep = clone;
-    return (0);
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ingest_cbt, key, true, NULL, false, NULL));
+    WT_RET(ret);
+    return (__wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, true));
 }
 
 /*
@@ -1717,7 +1733,7 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(ingest_uri);
     WT_DECL_RET;
-    WT_UPDATE *clone, *orig;
+    WT_UPDATE *orig;
     const char *stable_uri;
 
     stable_uri = op->btree->dhandle->name;
@@ -1752,13 +1768,8 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
      * Clone rather than move the update: the original stays linked into the stable page, still
      * prepared, until it is resolved in place below.
      */
-    WT_ERR(__txn_stepdown_clone_update(session, orig, &clone));
-
-    /* Insert the clone into the ingest page, the same way prepared-transaction discovery does. */
     cbt = (WT_CURSOR_BTREE *)ingest_cursor;
-    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
-    WT_ERR(ret);
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, true));
+    WT_ERR(__txn_stepdown_clone_update(session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
     ingest_btree = CUR2BT(cbt);
 
     /*
