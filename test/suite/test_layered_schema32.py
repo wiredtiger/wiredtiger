@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,122 +25,117 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_layered_schema32.py
-#    Dropping a layered table whose create was never published dequeues the create, rather than
-#    leaving a create and a remove stuck in the shared metadata queue forever.
 
-import wttest
-from wiredtiger import stat
+# Recreating a dropped layered table allocates a new table that owns its own page log. A
+# read cached across the drop must not bind the new table to the dropped table's page log:
+# it would write its pages there, then fail to find them when it reopens.
+
+import glob, json, os, subprocess
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
-from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema32(
-  LayeredStepdownMixin, wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
-    table_config = 'key_format=S,value_format=S'
+    uri = f'layered:{test_name}'
+    table_config = 'key_format=i,value_format=S'
+    nrows = 200
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def layered_uri(self, name):
-        """A distinct layered table URI."""
-        return f'layered:{self.test_name}_{name}'
+    #
+    # Helper methods
+    #
 
-    def conn_stat(self, conn, stat_key):
-        """Read a connection statistic from the given connection."""
-        session = conn.open_session('')
-        cursor = session.open_cursor('statistics:')
-        val = cursor[stat_key][2]
+    def write_rows(self, commit_ts, value):
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
+            cursor[i] = value
         cursor.close()
-        session.close()
-        return val
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
 
-    def assert_fully_absent(self, conn, uri):
-        """The table has no stable constituent locally and nothing in shared metadata."""
-        self.assertFalse(self.uri_stable_exists(conn, uri))
-        self.assertFalse(self.uri_in_shared_metadata(conn, uri))
+    def read_all_rows(self):
+        """Read the whole table and close the cursor, leaving the read cached."""
+        cursor = self.session.open_cursor(self.uri)
+        count = 0
+        while cursor.next() == 0:
+            count += 1
+        cursor.close()
+        return count
 
-    def test_drop_unpublished_layered(self):
-        """A drop of an unpublished table empties the queue and survives role transitions."""
-        self.set_stable_epoch(1)
-        uri = self.layered_uri('unpublished')
-        self.session.create(uri, self.table_config)
-        self.session.drop(uri)
-
-        # Nothing is stuck in the queue: the checkpoint defers no entries.
-        self.leader_checkpoint(10)
-        self.assertEqual(
-            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 0)
-        self.assert_fully_absent(self.conn, uri)
-
-        # Role transitions do not resurrect the dropped table.
-        self.step_down()
+    def create_on_follower_then_step_up(self, epoch, commit_ts, value):
+        """Create and populate the table as a follower, then step up to build the stable."""
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, epoch)
+        self.write_rows(commit_ts, value)
         self.step_up()
-        self.assert_fully_absent(self.conn, uri)
 
-    def test_drop_unpublished_table_uri(self):
-        """The same through the table URI, which queues two creates for one table."""
+    def pages_by_table(self):
+        """Return {page log table id: page count} straight from the page log."""
+        sqlite_exe = os.path.join(os.environ.get('WT_BUILDDIR', '.'), 'sqlite3')
+        counts = {}
+        home = os.path.abspath(self.home)
+        for db in sorted(glob.glob(os.path.join(home, 'kv_home', 'pages_*.db'))):
+            result = subprocess.run(
+                [sqlite_exe, '-json', db,
+                 'SELECT table_id, COUNT(*) AS n FROM pages GROUP BY table_id;'],
+                capture_output=True, text=True)
+            if result.returncode != 0 or not result.stdout.strip():
+                continue
+            for row in json.loads(result.stdout):
+                counts[int(row['table_id'])] = counts.get(int(row['table_id']), 0) + int(row['n'])
+        return counts
+
+    def assert_owns_pages(self, table_id, label):
+        """Assert the given table wrote pages under its own page log table."""
+        counts = self.pages_by_table()
+        self.assertGreater(counts.get(table_id, 0), 0,
+            f'{label} (id {table_id}) owns no pages, page log holds {sorted(counts.items())}')
+
+    #
+    # Test cases
+    #
+
+    def test_recreate_after_cached_follower_read(self):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(1)
-        name = f'{self.test_name}_table_uri'
-        self.session.create(f'table:{name}', self.table_config + ',type=layered')
-        self.session.drop(f'table:{name}')
 
-        self.leader_checkpoint(10)
-        self.assertEqual(
-            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 0)
-        self.assert_fully_absent(self.conn, f'layered:{name}')
-
-    def test_recreate_after_publish(self):
-        """A published incarnation's queue entries survive a later unpublished create and drop."""
-        self.set_stable_epoch(1)
-        uri = self.layered_uri('recreated')
-
-        # The first incarnation is published, so its drop must reach shared metadata.
-        self.session.create(uri, self.table_config)
-        self.publish(uri, 10)
-        self.session.drop(uri)
-
-        # The second incarnation is never published, so its drop dequeues its create.
-        self.session.create(uri, self.table_config)
-        self.session.drop(uri)
-
-        # The checkpoint covers the published create, and the only entry it defers is the first
-        # incarnation's still-unpublished remove: the second incarnation left nothing behind.
-        self.set_stable_epoch(10)
-        self.leader_checkpoint(10)
-        self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
-        self.assertEqual(
-            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 1)
-
-        # Publishing that remove lets the next checkpoint apply it, taking the table out of shared
-        # metadata. The deferral counter stops growing because the queue is now empty.
-        deferred = self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable)
-        self.publish(uri, 20)
-        self.set_stable_epoch(20)
-        self.leader_checkpoint(20)
-        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
-        self.assertEqual(
-            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), deferred)
-
-    def test_drop_unpublished_on_follower(self):
-        """A follower dequeues too, so its step-up does not rebuild the dropped table."""
-        self.set_stable_epoch(1)
-        self.leader_checkpoint(5)
-        conn_follow, session_follow = self.open_follower_epoch(1)
-
-        uri = self.layered_uri('on_follower')
-        session_follow.create(uri, self.table_config)
-        session_follow.drop(uri)
-
+        # Step up to build the original table, then checkpoint it so it owns pages.
         self.step_down()
-        self.step_up(conn_follow)
-        self.assert_fully_absent(conn_follow, uri)
+        self.create_on_follower_then_step_up(epoch=5, commit_ts=10, value='first')
+        self.set_stable_epoch(6)
+        self.leader_checkpoint(10)
+        first_id = self.stable_id(self.conn, self.uri)
+        self.assert_owns_pages(first_id, 'the original table')
 
-        self.close_follower(conn_follow, session_follow)
+        # Read the table as a follower, then drop it with that read still cached.
+        self.step_down()
+        self.assertEqual(self.read_all_rows(), self.nrows)
+        self.session.drop(self.uri)
+
+        # The recreated table must own its own page log table, not the dropped one's.
+        self.create_on_follower_then_step_up(epoch=15, commit_ts=30, value='second')
+        second_id = self.stable_id(self.conn, self.uri)
+        self.assertNotEqual(second_id, first_id)
+        self.set_stable_epoch(16)
+        self.leader_checkpoint(30)
+        self.assert_owns_pages(second_id, 'the recreated table')
+
+        # A fresh connection reads back the recreated table's own content.
+        conn_follower, session_follower = self.open_follower()
+        cursor = session_follower.open_cursor(self.uri)
+        count = 0
+        while cursor.next() == 0:
+            self.assertEqual(cursor.get_value(), 'second')
+            count += 1
+        cursor.close()
+        self.assertEqual(count, self.nrows)
+        self.close_follower(conn_follower, session_follower)
