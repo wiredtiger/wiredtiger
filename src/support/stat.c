@@ -243,6 +243,14 @@ static const char *const __stats_dsrc_desc[] = {
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "compression: compressed page maximum internal page size prior to compression",
   "compression: compressed page maximum leaf page size prior to compression",
+  "compression: page and delta writes skipped compression, buffer size at most  128 bytes",
+  "compression: page and delta writes skipped compression, buffer size at most  256 bytes",
+  "compression: page and delta writes skipped compression, buffer size at most  512 bytes",
+  "compression: page and delta writes skipped compression, buffer size at most  768 bytes",
+  "compression: page and delta writes skipped compression, buffer size at most 1024 bytes",
+  "compression: page and delta writes skipped compression, buffer size at most 2048 bytes",
+  "compression: page and delta writes skipped compression, buffer size at most 4096 bytes",
+  "compression: page and delta writes skipped compression, buffer size greater than 4096 bytes",
   "compression: page written to disk failed to compress",
   "compression: page written to disk was too small to compress",
   "compression: pages read from disk",
@@ -740,6 +748,14 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->checkpoint_snapshot_acquired = 0;
     /* not clearing compress_precomp_intl_max_page_size */
     /* not clearing compress_precomp_leaf_max_page_size */
+    stats->compress_write_skip_hist_128 = 0;
+    stats->compress_write_skip_hist_256 = 0;
+    stats->compress_write_skip_hist_512 = 0;
+    stats->compress_write_skip_hist_768 = 0;
+    stats->compress_write_skip_hist_1024 = 0;
+    stats->compress_write_skip_hist_2048 = 0;
+    stats->compress_write_skip_hist_4096 = 0;
+    stats->compress_write_skip_hist_max = 0;
     stats->compress_write_fail = 0;
     stats->compress_write_too_small = 0;
     stats->compress_read = 0;
@@ -1233,6 +1249,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->checkpoint_snapshot_acquired += from->checkpoint_snapshot_acquired;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
     to->compress_precomp_leaf_max_page_size += from->compress_precomp_leaf_max_page_size;
+    to->compress_write_skip_hist_128 += from->compress_write_skip_hist_128;
+    to->compress_write_skip_hist_256 += from->compress_write_skip_hist_256;
+    to->compress_write_skip_hist_512 += from->compress_write_skip_hist_512;
+    to->compress_write_skip_hist_768 += from->compress_write_skip_hist_768;
+    to->compress_write_skip_hist_1024 += from->compress_write_skip_hist_1024;
+    to->compress_write_skip_hist_2048 += from->compress_write_skip_hist_2048;
+    to->compress_write_skip_hist_4096 += from->compress_write_skip_hist_4096;
+    to->compress_write_skip_hist_max += from->compress_write_skip_hist_max;
     to->compress_write_fail += from->compress_write_fail;
     to->compress_write_too_small += from->compress_write_too_small;
     to->compress_read += from->compress_read;
@@ -1772,6 +1796,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, compress_precomp_intl_max_page_size);
     to->compress_precomp_leaf_max_page_size +=
       WT_STAT_DSRC_READ(from, compress_precomp_leaf_max_page_size);
+    to->compress_write_skip_hist_128 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_128);
+    to->compress_write_skip_hist_256 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_256);
+    to->compress_write_skip_hist_512 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_512);
+    to->compress_write_skip_hist_768 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_768);
+    to->compress_write_skip_hist_1024 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_1024);
+    to->compress_write_skip_hist_2048 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_2048);
+    to->compress_write_skip_hist_4096 += WT_STAT_DSRC_READ(from, compress_write_skip_hist_4096);
+    to->compress_write_skip_hist_max += WT_STAT_DSRC_READ(from, compress_write_skip_hist_max);
     to->compress_write_fail += WT_STAT_DSRC_READ(from, compress_write_fail);
     to->compress_write_too_small += WT_STAT_DSRC_READ(from, compress_write_too_small);
     to->compress_read += WT_STAT_DSRC_READ(from, compress_read);
