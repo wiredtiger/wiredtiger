@@ -156,6 +156,18 @@ err:
 }
 
 /*
+ * __verify_fix_btree_size_one --
+ *     Verify a single URI with fix_btree_size=true and append a line to the report.
+ */
+static int
+__verify_fix_btree_size_one(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri)
+{
+    WT_RET(__wt_buf_catfmt(session, report, "fix_btree_size: verifying %s\n", uri));
+    WT_RET(session->iface.verify(&session->iface, uri, "fix_btree_size=true"));
+    return (0);
+}
+
+/*
  * __repair_fix_btree_size --
  *     Run verify with fix_btree_size=true on the given URI (or all stable files if NULL), then
  *     checkpoint to persist the corrected metadata and recompute the database size.
@@ -169,10 +181,9 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
 
     cursor = NULL;
 
-    if (uri != NULL) {
-        WT_ERR(__wt_buf_catfmt(session, report, "fix_btree_size: verifying %s\n", uri));
-        WT_ERR(session->iface.verify(&session->iface, uri, "fix_btree_size=true"));
-    } else {
+    if (uri != NULL)
+        WT_ERR(__verify_fix_btree_size_one(session, report, uri));
+    else {
         /* Walk the metadata and verify every stable file. */
         WT_ERR(__wt_metadata_cursor(session, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
@@ -184,12 +195,10 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
              */
             if (strcmp(key, WT_DISAGG_METADATA_URI) == 0 || strcmp(key, WT_HS_URI_SHARED) == 0)
                 continue;
-            WT_ERR(__wt_buf_catfmt(session, report, "fix_btree_size: verifying %s\n", key));
-            WT_ERR(session->iface.verify(&session->iface, key, "fix_btree_size=true"));
+            WT_ERR(__verify_fix_btree_size_one(session, report, key));
         }
         WT_ERR_NOTFOUND_OK(ret, false);
         WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-        cursor = NULL;
     }
 
     /* Checkpoint to persist the corrected metadata and recompute the database size. */
