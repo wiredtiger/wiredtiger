@@ -3042,8 +3042,9 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 /*
  * __rec_wrapup_decrease_disagg_size --
  *     The prior delta chain is obsolete, so its cumulative size must stop counting toward the
- *     tree's byte total. The replacement cookie records the size being obsoleted; diagnostic builds
- *     check the two agree.
+ *     tree's byte total. Only call this once the chain has terminated, that is, this reconciliation
+ *     wrote a single full page image with no deltas. The replacement cookie records the size being
+ *     obsoleted; diagnostic builds check the two agree.
  */
 static int
 __rec_wrapup_decrease_disagg_size(
@@ -3052,6 +3053,11 @@ __rec_wrapup_decrease_disagg_size(
     WT_PAGE *page;
 
     page = r->page;
+
+    /* The caller gates on disagg_delta_chain_end; verify the chain has in fact terminated. */
+    WT_ASSERT(session,
+      r->multi_next == 1 && r->multi->block_meta != NULL &&
+        !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0);
 
 #ifdef HAVE_DIAGNOSTIC
     if (cookie != NULL) {
