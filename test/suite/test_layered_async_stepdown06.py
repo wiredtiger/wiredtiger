@@ -37,10 +37,16 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, write_modes)
 
     test_name = __qualname__
 
@@ -70,19 +76,19 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(t_post, 40), {'b': 'ingest'})
         self.assertEqual(self.read_kvs_at(t_both, 40), {'a': 'stable', 'b': 'ingest'})
 
-        # Ground truth: transition-window writes are mirrored. A follower cannot open the live
-        # stable table, so read the checkpoint view; a constituent that was never checkpointed has
-        # nothing in stable.
+        # A follower cannot open the live stable table, so read the checkpoint view.
         self.assertEqual(self.read_keys_at(self.ingest_uri(t_pre), 40), set())
         if self.stable_is_checkpointed(self.conn, t_post):
-            self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_post), 40), {'b'})
+            expected_post = {'b'} if self.stable_has_step_down_writes() else set()
+            self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_post), 40), expected_post)
         self.assertEqual(self.read_keys_at(self.ingest_uri(t_both), 40), {'b'})
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 40), {'a', 'b'})
+        expected_both = {'a', 'b'} if self.stable_has_step_down_writes() else {'a'}
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 40), expected_both)
 
         # A follower write commits fine and routes to ingest.
         self.write_at(t_both, {'c': 'follower'}, 50)
         self.assertEqual(self.read_keys_at(self.ingest_uri(t_both), 60), {'b', 'c'})
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 60), {'a', 'b'})
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 60), expected_both)
         self.assertEqual(self.read_kvs_at(t_both, 60),
             {'a': 'stable', 'b': 'ingest', 'c': 'follower'})
 
@@ -105,8 +111,9 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.restart_without_local_files(
             config=self.conn_base_config + 'disaggregated=(role="follower")')
 
-        self.assertEqual(self.read_kvs_at(self.uri, 40),
-            {**{k: 'stable' for k in pre}, **{k: 'ingest' for k in post}},
+        expected_restart = {**{k: 'stable' for k in pre},
+            **({k: 'ingest' for k in post} if self.stable_has_step_down_writes() else {})}
+        self.assertEqual(self.read_kvs_at(self.uri, 40), expected_restart,
             'the restarted node must serve exactly the checkpointed content')
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
 

@@ -44,13 +44,18 @@ class test_layered_async_stepdown12(LayeredStepdownMixin, wttest.WiredTigerTestC
         ('escaped', dict(encoding='true')),
         ('unescaped', dict(encoding='false')),
     ]
-    scenarios = make_scenarios(disagg_storages, encodings)
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, encodings, write_modes)
 
     uri = f'layered:{test_name}'
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + \
-            f'disaggregated=(legacy_tombstone_encoding_break_glass={self.encoding},role="leader")'
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},' \
+            f'legacy_tombstone_encoding_break_glass={self.encoding},role="leader")'
 
     def setUp(self):
         super().setUp()
@@ -107,7 +112,8 @@ class test_layered_async_stepdown12(LayeredStepdownMixin, wttest.WiredTigerTestC
             for key, value in expected.items() if key != 'base'
         }
         ingest_expected['removed'] = marker
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-                         stable_expected)
+        if not self.stable_has_step_down_writes():
+            stable_expected = {'base': b'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), stable_expected)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40),
                          ingest_expected)
