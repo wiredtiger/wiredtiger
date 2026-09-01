@@ -119,6 +119,16 @@ class test_layered_schema32(
         self.assertEqual(
             self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 1)
 
+        # Publishing that remove lets the next checkpoint apply it, taking the table out of shared
+        # metadata. The deferral counter stops growing because the queue is now empty.
+        deferred = self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable)
+        self.publish(uri, 20)
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(20)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
+        self.assertEqual(
+            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), deferred)
+
     def test_drop_unpublished_on_follower(self):
         """A follower dequeues too, so its step-up does not rebuild the dropped table."""
         self.set_stable_epoch(1)
