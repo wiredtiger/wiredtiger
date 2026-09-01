@@ -25,26 +25,83 @@
 int
 __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_ret)
 {
+    /*
+     * The last-seen key/value pair for each key, across all of the configuration strings. The items
+     * reference the original strings, which outlive this function.
+     */
+    struct __wt_config_collapse_override {
+        WT_CONFIG_ITEM k, v;
+    } *overrides;
     WT_CONFIG cparser;
     WT_CONFIG_ITEM k, v;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    size_t i, overrides_allocated, overrides_next;
+    const char **c;
+    char *p;
 
     *config_ret = NULL;
+    overrides = NULL;
+    overrides_allocated = overrides_next = 0;
 
-    WT_RET(__wt_scr_alloc(session, 1024, &tmp));
+    /*
+     * Parse every string once, keeping the last value for every key. This matches
+     * __wti_config_get, which finds the last match within the last string containing the key --
+     * including repeated keys within the first string. Parsing every string once up front avoids
+     * re-scanning every string for every key of the first, default string, which is quadratic in
+     * the configuration size.
+     */
+    for (c = cfg; *c != NULL; ++c) {
+        __wt_config_init(session, &cparser, *c);
+        while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+            if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+                continue;
+            for (i = 0; i < overrides_next; ++i)
+                if (overrides[i].k.len == k.len && strncmp(overrides[i].k.str, k.str, k.len) == 0)
+                    break;
+            if (i == overrides_next) {
+                WT_ERR(
+                  __wt_realloc_def(session, &overrides_allocated, overrides_next + 1, &overrides));
+                ++overrides_next;
+            }
+            overrides[i].k = k;
+            overrides[i].v = v;
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+    }
+
+    WT_ERR(__wt_scr_alloc(session, 1024, &tmp));
 
     __wt_config_init(session, &cparser, cfg[0]);
     while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
-        WT_ERR(__wti_config_get(session, cfg, &k, &v));
+        /*
+         * Dotted keys require descending into nested structures; take the slow path for them. Every
+         * other key of the first string is in the table.
+         */
+        if (memchr(k.str, '.', k.len) != NULL)
+            WT_ERR(__wti_config_get(session, cfg, &k, &v));
+        else
+            for (i = 0; i < overrides_next; ++i)
+                if (overrides[i].k.len == k.len && strncmp(overrides[i].k.str, k.str, k.len) == 0) {
+                    v = overrides[i].v;
+                    break;
+                }
         /* Include the quotes around string keys/values. */
         if (k.type == WT_CONFIG_ITEM_STRING)
             WT_CONFIG_PRESERVE_QUOTES(session, &k);
         if (v.type == WT_CONFIG_ITEM_STRING)
             WT_CONFIG_PRESERVE_QUOTES(session, &v);
-        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+        WT_ERR(__wt_buf_extend(session, tmp, tmp->size + k.len + v.len + 2));
+        p = (char *)tmp->data + tmp->size;
+        memcpy(p, k.str, k.len);
+        p += k.len;
+        *p++ = '=';
+        memcpy(p, v.str, v.len);
+        p += v.len;
+        *p++ = ',';
+        tmp->size = (size_t)(p - (char *)tmp->data);
     }
 
     /* We loop until error, and the expected error is WT_NOTFOUND. */
@@ -62,6 +119,7 @@ __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_r
     ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
 
 err:
+    __wt_free(session, overrides);
     __wt_scr_free(session, &tmp);
     return (ret);
 }

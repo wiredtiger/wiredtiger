@@ -459,8 +459,8 @@ struct __wt_disaggregated_storage {
 
     /*
      * FIXME-WT-18000: Experiment for BF-44421. Set while checkpoint pick-up applies metadata, so
-     * the pre-fetch check can let the metadata scan through whichever session ends up walking.
-     * Also records what that session turned out to be.
+     * the pre-fetch check can let the metadata scan through whichever session ends up walking. Also
+     * records what that session turned out to be.
      */
     wt_shared bool pick_up_in_progress;
     wt_shared const char *pick_up_prefetch_session;

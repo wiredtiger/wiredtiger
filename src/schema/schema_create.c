@@ -375,10 +375,18 @@ __create_file(
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
-        /* Strip any configuration settings that should not be persisted. */
-        filecfg[1] = fileconf;
-        filecfg[2] = NULL;
-        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        /*
+         * Strip any configuration settings that should not be persisted. Only tiered storage
+         * settings are stripped; there is nothing to do unless the connection uses tiered storage.
+         */
+        if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session))) {
+            filecfg[1] = fileconf;
+            filecfg[2] = NULL;
+            WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        } else {
+            filestripped = fileconf;
+            fileconf = NULL;
+        }
         __wt_epoch(session, &phase_stop);
         S2C(session)->disaggregated_storage.create_file_config_nsecs +=
           WT_TIMEDIFF_NS(phase_stop, phase_start);

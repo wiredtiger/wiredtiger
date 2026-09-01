@@ -23,10 +23,10 @@ static int
 __layered_create_missing_ingest_table(
   WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg, bool is_startup)
 {
+    struct timespec phase_start, phase_stop;
     WT_CONFIG_ITEM key_format, value_format;
     WT_DECL_ITEM(ingest_config);
     WT_DECL_RET;
-    struct timespec phase_start, phase_stop;
 
     __wt_epoch(session, &phase_start);
 
@@ -644,8 +644,8 @@ static int
 __disagg_insert_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids)
 {
-    WT_DECL_RET;
     struct timespec phase_start, phase_stop;
+    WT_DECL_RET;
     const char *key, *value;
 
     __wt_epoch(session, &phase_start);
@@ -679,10 +679,10 @@ static int
 __disagg_update_file_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
 {
+    struct timespec phase_start, phase_stop;
     WT_CONFIG_ITEM cval, cval_cur;
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    struct timespec phase_start, phase_stop;
     char *cfg_ret, *current_value_copy;
     const char *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
@@ -888,8 +888,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &sh_cursors[i]));
 
-    merge_session_name = __wt_atomic_load_ptr_relaxed(
-      &((WT_SESSION_IMPL *)sh_cursors[0]->session)->name);
+    merge_session_name =
+      __wt_atomic_load_ptr_relaxed(&((WT_SESSION_IMPL *)sh_cursors[0]->session)->name);
 
     /* Position the cursors by setting the lower and upper bounds. */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
@@ -1248,12 +1248,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
     WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
 
-    __wt_atomic_store_bool_relaxed(
-      &S2C(session)->disaggregated_storage.pick_up_in_progress, false);
+    __wt_atomic_store_bool_relaxed(&S2C(session)->disaggregated_storage.pick_up_in_progress, false);
     prefetch_checks = S2C(session)->disaggregated_storage.pick_up_prefetch_checks - prefetch_checks;
     prefetch_issued = S2C(session)->disaggregated_storage.pick_up_prefetch_issued - prefetch_issued;
-    prefetch_session_name = __wt_atomic_load_ptr_relaxed(
-      &S2C(session)->disaggregated_storage.pick_up_prefetch_session);
+    prefetch_session_name =
+      __wt_atomic_load_ptr_relaxed(&S2C(session)->disaggregated_storage.pick_up_prefetch_session);
     WT_STAT_CONN_INCRV(session, disagg_pick_up_prefetch_checks, prefetch_checks);
     WT_STAT_CONN_INCRV(session, disagg_pick_up_prefetch_issued, prefetch_issued);
 
@@ -1304,7 +1303,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
       ") %" PRIu64 " times, examining %" PRIu64 " entries; phases (usecs): ingest_search=%" PRIu64
       " ingest_create=%" PRIu64 " insert_meta=%" PRIu64 " update_file_meta=%" PRIu64
       " cursor_merge=%" PRIu64 "; file create split (usecs): exists=%" PRIu64 " blockmgr=%" PRIu64
-      " config=%" PRIu64 " meta_insert=%" PRIu64 "; pre-fetch: merge_session=\"%s\" "
+      " config=%" PRIu64 " meta_insert=%" PRIu64
+      "; pre-fetch: merge_session=\"%s\" "
       "checked_session=\"%s\" checks=%" PRIu64 " issued=%" PRIu64,
       existing_tables, new_tables, new_ingest, apply_elapsed_ms, queue_length, scan_calls,
       scan_entries, ingest_search_us, ingest_create_us, insert_meta_us, update_file_meta_us,
@@ -1316,8 +1316,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 done:
 err:
     /* FIXME-WT-18000: Experiment for BF-44421. Must not leak past the pick-up on any exit path. */
-    __wt_atomic_store_bool_relaxed(
-      &S2C(session)->disaggregated_storage.pick_up_in_progress, false);
+    __wt_atomic_store_bool_relaxed(&S2C(session)->disaggregated_storage.pick_up_in_progress, false);
 
     __wt_free(session, stable_btree_ids.ids);
     __wt_free(session, first_uri);
