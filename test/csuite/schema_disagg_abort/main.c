@@ -133,8 +133,9 @@ adopted_lsn_read(void)
     if (fp == NULL)
         return (0);
 
-    uint64_t lsn = 0;
-    (void)fscanf(fp, "%" SCNu64, &lsn);
+    uint64_t lsn;
+    if (fscanf(fp, "%" SCNu64, &lsn) != 1)
+        lsn = 0;
     testutil_check(fclose(fp));
     return (lsn);
 }
