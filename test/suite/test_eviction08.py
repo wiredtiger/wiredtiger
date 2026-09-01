@@ -30,11 +30,9 @@ import time
 import wttest
 from wiredtiger import stat
 
-'''
-A table that dominates the cache can supply every eviction candidate the server asks for, pass
-after pass. The eviction scan must still rotate to other tables once it has fully traversed that
-table, rather than walking it over and over while other tables are never visited.
-'''
+# A table that dominates the cache can supply every eviction candidate the server asks for, pass
+# after pass. The eviction scan must still rotate to other tables once it has fully traversed that
+# table, rather than walking it over and over while other tables are never visited.
 class test_eviction08(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=20MB,statistics=(all),'
                    'eviction=(threads_min=1,threads_max=1)')
