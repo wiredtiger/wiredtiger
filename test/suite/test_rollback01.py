@@ -65,7 +65,7 @@ class test_rollback(wttest.WiredTigerTestCase):
 
         # Configure the connection with an unrealistically small cache_max_wait_ms value and
         # a very low eviction trigger threshold.
-        self.conn.reconfigure('cache_max_wait_ms=2,cache_size=1MB')
+        self.conn.reconfigure('cache_max_wait_ms=1,cache_size=1MB')
 
         # Start a new transaction and insert a value far too large for cache.
         self.session.begin_transaction()
