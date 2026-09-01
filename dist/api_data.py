@@ -791,6 +791,11 @@ connection_runtime_config = [
             if true, act as if eviction is being run in parallel to checkpoint. We should return
             EBUSY in eviction if we detect any timestamp ordering issue.''',
             type='boolean'),
+        Config('fail_drop_after_trim', 'false', r'''
+            if true, a layered-table drop returns EBUSY after issuing the trim but before dropping
+            the constituents, simulating a transient post-trim failure. The local drop rolls back
+            via metadata tracking, but the trim is not retracted.''',
+            type='boolean', undoc=True),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),

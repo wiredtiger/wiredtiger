@@ -2552,6 +2552,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.fail_drop_after_trim", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_FAIL_DROP_AFTER_TRIM);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_FAIL_DROP_AFTER_TRIM);
     return (0);
 }
 
