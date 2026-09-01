@@ -32,8 +32,9 @@ The steps are as follows:
 <dd>
 Tiered storage is no longer supported. Checkpoint configuration
 <code>flush_tier</code> is an unknown configuration key. The
-<code>WT_STORAGE_SOURCE</code> interface and
-<code>WT_CONNECTION.add_storage_source</code> have been removed.
+<code>WT_STORAGE_SOURCE</code> interface,
+<code>WT_CONNECTION.add_storage_source</code>, and
+<code>WT_CONNECTION.get_storage_source</code> have been removed.
 Opening a <code>tiered:</code>, <code>object:</code>, or <code>tier:</code>
 URI is refused. The connection verbose choice \c tiered is no longer
 recognized. The \c dir_store extension is no longer provided.
