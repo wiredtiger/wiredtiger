@@ -299,11 +299,16 @@ class test_checkpoint_scrub_evict02(wttest.WiredTigerTestCase):
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_split_leaf, self.uri), 0,
           'eviction never realized the checkpoint split')
 
-        # A chunk that kept its image is instantiated in cache instead of being left on disk, so
-        # the cache would hold a page per chunk. The tree's leaf pages bound how many that is.
+        # A chunk that kept its image is instantiated in cache instead of being left on disk, which
+        # counts a restore. Nothing here retains an image, so any restore is a chunk's.
+        self.assertEqual(self.get_stat(stat.dsrc.cache_scrub_restore, self.uri), 0,
+          'a chunk of the split page was instantiated from an image')
+
+        # The same property from the cache's side: a page per chunk would leave the whole tree in
+        # cache. The tree's leaf pages count the chunks the split produced.
         chunks = self.get_stat(stat.dsrc.btree_row_leaf, self.uri)
         pages = self.get_stat(stat.conn.cache_pages_inuse)
-        self.assertGreater(chunks, 100, 'the checkpoint split the page into too few chunks to tell')
+        self.assertGreater(chunks, 20, 'the checkpoint split the page into too few chunks to tell')
         self.assertLess(pages, chunks // 4,
           'a split of %d chunks left %d pages in cache' % (chunks, pages))
         self.check_values('x' * 200, nrows=2000)
