@@ -138,10 +138,8 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 
         if (!checkpoint) {
             /*
-             * The checkpoint address may point to an earlier object. If so, the object backing this
-             * block handle doesn't have valid data -- i.e., it must have been written after the
-             * checkpoint we are opening. So we discard the incorrect extent lists and reinitialize
-             * them to be empty.
+             * Discard extent lists on object-id mismatch: kept only as tiered-storage
+             * backward-compatibility defense, not a live kind of checkpoint.
              */
             if (block->objectid != ci->root_objectid)
                 __block_extlist_reset(session, ci, "live");
@@ -342,8 +340,9 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
     WT_RET(__wti_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
 
     /*
-     * Skip when the checkpoint cookie's object id does not match this handle. Extent lists for that
-     * cookie are not in this file.
+     * Skip when the cookie's object id does not match this handle: those extent lists are not in
+     * this file. Kept only as tiered-storage backward-compatibility defense, not a live kind of
+     * checkpoint.
      */
     if (ci->root_objectid != block->objectid) {
         *localp = false;
@@ -579,9 +578,10 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
 
 /*
  * __ckpt_read_deletion_extlists --
- *     Read extent lists for deleted checkpoints and the checkpoint each merges into. Skip cookies
- *     whose object id does not match this handle (those extent lists are not in this file), and set
- *     the output flag if at least one matching checkpoint is being deleted.
+ *     Read extent lists for deleted checkpoints and the checkpoint each merges into, and set the
+ *     output flag if at least one matching checkpoint is being deleted. Object-id mismatch skips
+ *     are kept only as tiered-storage backward-compatibility defense, not a live kind of
+ *     checkpoint.
  */
 static int
 __ckpt_read_deletion_extlists(
@@ -601,8 +601,8 @@ __ckpt_read_deletion_extlists(
          * not already done so. There may be more than one deleted checkpoint, so these reads may
          * have been done in a prior iteration of this loop.
          *
-         * Skip cookies whose object id does not match this handle: those extent lists are not in
-         * this file.
+         * Skip object-id mismatches: those extent lists are not in this file. Kept only as
+         * tiered-storage backward-compatibility defense, not a live kind of checkpoint.
          */
         if (ckpt->bpriv == NULL) {
             WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, ckpt, &local),
@@ -623,6 +623,11 @@ __ckpt_read_deletion_extlists(
         if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD)) {
             WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, next_ckpt, &local),
               "reading extent lists for checkpoint %s following deletion", next_ckpt->name);
+            /*
+             * An object-id mismatch on the merge target is not skippable leftover. That skip is
+             * kept only as tiered-storage backward-compatibility defense, not a live kind of
+             * checkpoint.
+             */
             WT_RET_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
               "subsequent checkpoint cookie object id does not match this handle");
         }
@@ -794,8 +799,7 @@ __ckpt_delete_and_merge(
             continue;
 
         /*
-         * Set the "from" checkpoint structure. If the cookie's object id does not match this
-         * handle, there's nothing more to do.
+         * Set the "from" checkpoint structure. Skip object-id mismatches as on the read path.
          */
         a = ckpt->bpriv;
         if (a->root_objectid != block->objectid)
