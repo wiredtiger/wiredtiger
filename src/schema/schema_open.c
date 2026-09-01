@@ -374,8 +374,7 @@ __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
 
 /*
  * __wt_schema_open_page_log --
- *     Return a page log if configured. This doesn't really belong here, but it's shared between
- *     btree and tiered handle configuration, so I could not think of somewhere better.
+ *     Return a page log if configured.
  */
 int
 __wt_schema_open_page_log(
