@@ -49,7 +49,12 @@ static const char table_config[] = "key_format=i,value_format=S";
 static const char *const uri = "table:wt15907-conn-stat-race";
 
 static WT_CONNECTION *conn;
-static volatile bool done;
+
+/*
+ * Nothing is published through this flag, so the gather thread only has to observe it eventually
+ * and a relaxed access is enough. It still has to be atomic: the store races the load.
+ */
+static bool done;
 
 /* Forward declarations. */
 static int64_t read_cache_bytes_dirty(WT_SESSION *);
@@ -89,7 +94,7 @@ thread_func_gather(void *arg)
     (void)arg;
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    while (!done)
+    while (!__wt_atomic_load_bool_relaxed(&done))
         (void)read_cache_bytes_dirty(session);
     testutil_check(session->close(session, NULL));
 
@@ -111,7 +116,7 @@ run_test(const char *home, uint64_t reads)
     int64_t value;
     char buf[VALUE_SIZE + 1];
 
-    done = false;
+    __wt_atomic_store_bool_relaxed(&done, false);
     zero_reads = 0;
 
     memset(buf, 'a', sizeof(buf) - 1);
@@ -140,7 +145,7 @@ run_test(const char *home, uint64_t reads)
         if (read_cache_bytes_dirty(session) == 0)
             ++zero_reads;
 
-    done = true;
+    __wt_atomic_store_bool_relaxed(&done, true);
     (void)pthread_join(thread_gather, NULL);
 
     if (zero_reads != 0)
