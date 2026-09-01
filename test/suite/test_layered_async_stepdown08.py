@@ -52,10 +52,19 @@ class test_layered_async_stepdown08(
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     worlds = [
-      ('epoch', dict(use_epochs=True, conn_config=base + leader)),
-      ('legacy', dict(use_epochs=False, conn_config=base + leader)),
+      ('epoch', dict(use_epochs=True)),
+      ('legacy', dict(use_epochs=False)),
     ]
-    scenarios = make_scenarios(disagg_storages, worlds)
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, worlds, write_modes)
+
+    def conn_config(self):
+        return self.base + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},' \
+            'role="leader",lose_all_my_data=true)'
 
     def uri(self, name):
         return f'layered:{self.test_name}_{name}'
@@ -177,7 +186,8 @@ class test_layered_async_stepdown08(
 
         expected = {**rows, 'window': 'window'}
         self.assertEqual(self.read_kvs_at(uri, 7), expected)
-        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 7), expected)
+        expected_stable = expected if self.stable_has_step_down_writes() else rows
+        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 7), expected_stable)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(uri), 7), {'window': 'window'})
 
         self.complete_step_down(self.cutoff_ts)
