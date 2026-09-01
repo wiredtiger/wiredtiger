@@ -323,7 +323,7 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
 {
     WT_BLOCK_CKPT *ci;
 
-    /* Default to a local file. */
+    /* Assume the cookie belongs to this handle. */
     *localp = true;
 
     /*
@@ -341,7 +341,10 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
     WT_RET(__wti_block_ckpt_init(session, ci, ckpt->name));
     WT_RET(__wti_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
 
-    /* Extent lists from non-local objects aren't useful, we're going to skip them. */
+    /*
+     * Skip when the checkpoint cookie's object id does not match this handle. Extent lists for that
+     * cookie are not in this file.
+     */
     if (ci->root_objectid != block->objectid) {
         *localp = false;
         return (0);
@@ -576,11 +579,9 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
 
 /*
  * __ckpt_read_deletion_extlists --
- *     Read extent lists from disk for each checkpoint marked for deletion, and for the subsequent
- *     checkpoint into which each deleted checkpoint will be merged. Sets the output flag to
- *     indicate whether at least one local checkpoint is being deleted. Checkpoints belonging to
- *     non-local objects are skipped because their extent lists are not relevant to the current live
- *     file.
+ *     Read extent lists for deleted checkpoints and the checkpoint each merges into. Skip cookies
+ *     whose object id does not match this handle (those extent lists are not in this file), and set
+ *     the output flag if at least one matching checkpoint is being deleted.
  */
 static int
 __ckpt_read_deletion_extlists(
@@ -600,8 +601,8 @@ __ckpt_read_deletion_extlists(
          * not already done so. There may be more than one deleted checkpoint, so these reads may
          * have been done in a prior iteration of this loop.
          *
-         * We can only delete checkpoints in the current file. Skip any checkpoints that are not
-         * local to the live object.
+         * Skip cookies whose object id does not match this handle: those extent lists are not in
+         * this file.
          */
         if (ckpt->bpriv == NULL) {
             WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, ckpt, &local),
@@ -623,7 +624,7 @@ __ckpt_read_deletion_extlists(
             WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, next_ckpt, &local),
               "reading extent lists for checkpoint %s following deletion", next_ckpt->name);
             WT_RET_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
-              "non-local checkpoint follows local checkpoint");
+              "subsequent checkpoint cookie object id does not match this handle");
         }
     }
     return (0);
@@ -793,8 +794,8 @@ __ckpt_delete_and_merge(
             continue;
 
         /*
-         * Set the "from" checkpoint structure. If it applies to a previous object, there's nothing
-         * more to do.
+         * Set the "from" checkpoint structure. If the cookie's object id does not match this
+         * handle, there's nothing more to do.
          */
         a = ckpt->bpriv;
         if (a->root_objectid != block->objectid)
