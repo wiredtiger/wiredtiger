@@ -2071,17 +2071,6 @@ __wt_ref_block_free(
     WT_ADDR_COPY addr;
     WT_DECL_RET;
 
-    /*
-     * The chain is tracked against the page id in the shared store, so obsolete it whenever the
-     * page id survives, including for a page rebuilt in memory that carries a page id but no local
-     * address.
-     */
-    if (!disagg_free_block && disagg_delta_chain_end && ref->page != NULL &&
-      ref->page->disagg_info != NULL &&
-      ref->page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
-        __wt_block_disagg_decrease_size(
-          session, ref->page->disagg_info->block_meta.cumulative_size);
-
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
@@ -2098,6 +2087,17 @@ __wt_ref_block_free(
     __wt_ref_addr_free(session, ref);
 
 err:
+    /*
+     * The chain is tracked against the page id in the shared store, so obsolete it whenever the
+     * page id survives, including for a page rebuilt in memory that carries a page id but no local
+     * address. Only adjust the accounting once nothing can fail.
+     */
+    if (ret == 0 && !disagg_free_block && disagg_delta_chain_end && ref->page != NULL &&
+      ref->page->disagg_info != NULL &&
+      ref->page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
+        __wt_block_disagg_decrease_size(
+          session, ref->page->disagg_info->block_meta.cumulative_size);
+
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (ret);
 }
