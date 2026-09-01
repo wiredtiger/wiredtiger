@@ -285,26 +285,25 @@ class test_checkpoint_scrub_evict02(wttest.WiredTigerTestCase):
           'workload did not split a leaf page during checkpoint')
         self.assertEqual(self.scrub_images(), (0, 0))
 
-        # Evict the split page: the cache must end up with fewer pages, not one per chunk. Forced
-        # eviction can return EBUSY, so retry across the key range until the split is realized;
-        # cache_eviction_split_leaf tells us it happened.
+        # Evict across the key range, then measure what the split left behind. Which thread
+        # realizes the split, and when, is not ours to choose: eviction may take the page while
+        # the checkpoint is still running, or only once the cursor forces it. So drive eviction
+        # over the whole range and check the end state rather than any single eviction.
         cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        pages_before = pages_after = 0
-        for key in range(0, 2000, 200):
-            splits_before = self.get_stat(stat.conn.cache_eviction_split_leaf)
-            pages_before = self.get_stat(stat.conn.cache_pages_inuse)
+        for key in range(2000):
             cursor.set_key(key)
             cursor.search()
             cursor.reset()
-            pages_after = self.get_stat(stat.conn.cache_pages_inuse)
-            if self.get_stat(stat.conn.cache_eviction_split_leaf) > splits_before:
-                break
-        else:
-            cursor.close()
-            self.skipTest('eviction never realized the checkpoint split')
         cursor.close()
 
-        self.assertLess(pages_after, pages_before,
-          'evicting a page split by checkpoint left %d pages in cache, was %d'
-          % (pages_after, pages_before))
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_split_leaf, self.uri), 0,
+          'eviction never realized the checkpoint split')
+
+        # A chunk that kept its image is instantiated in cache instead of being left on disk, so
+        # the cache would hold a page per chunk. The tree's leaf pages bound how many that is.
+        chunks = self.get_stat(stat.dsrc.btree_row_leaf, self.uri)
+        pages = self.get_stat(stat.conn.cache_pages_inuse)
+        self.assertGreater(chunks, 100, 'the checkpoint split the page into too few chunks to tell')
+        self.assertLess(pages, chunks // 4,
+          'a split of %d chunks left %d pages in cache' % (chunks, pages))
         self.check_values('x' * 200, nrows=2000)
