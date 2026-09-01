@@ -569,8 +569,10 @@ retry:
         dhandle_list_locked = false;
 
         /*
-         * Publish the btree if the epoch now covers its create. A declined attempt costs nothing:
-         * the eviction-disabled re-check below skips the tree while it stays unpublished.
+         * Publish the btree if the epoch now covers its create. This waits until the handle list
+         * lock is released above because publishing needs the schema lock, which is acquired before
+         * the handle list lock, never after. A declined attempt costs nothing: the
+         * eviction-disabled re-check below skips the tree while it stays unpublished.
          */
         if (try_publish) {
             WT_WITH_DHANDLE(session, dhandle,

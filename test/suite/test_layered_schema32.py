@@ -36,16 +36,12 @@ from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEp
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-@disagg_test_class
-class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
-    test_name = __qualname__
+# Eviction only publishes a table it walks, so the tests need it working for its cache.
+conn_base_config = 'cache_size=20MB,statistics=(all),debug_mode=(eviction=true),' \
+                 + 'eviction_dirty_target=1,'
 
-    def conn_config(self):
-        role = 'follower' if self._testMethodName.startswith('test_step_up') or \
-            self._testMethodName.startswith('test_follower') else 'leader'
-        return 'cache_size=20MB,statistics=(all),debug_mode=(eviction=true),' \
-             + 'eviction_dirty_target=1,' \
-             + f'disaggregated=(role="{role}",lose_all_my_data=true)'
+class publication(DisaggSchemaEpochMixin):
+    """Helpers shared by the leader and follower tests."""
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
@@ -56,7 +52,10 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         return self.get_stat(stat.conn.disagg_publish_epoch_cleared)
 
     def wait_for_published(self, uri, expected):
-        """Eviction publishes when it walks the table, so keep it busy until it gets there."""
+        """
+        Wait for eviction to publish the table. Eviction only visits a table when it wants its
+        memory, so the inserts below keep the cache under pressure until it does.
+        """
         for _ in range(600):
             if self.published_count() >= expected:
                 self.assertEqual(self.published_count(), expected)
@@ -81,6 +80,11 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             seen += 1
         cursor.close()
         self.assertEqual(seen, count)
+
+@disagg_test_class
+class test_layered_schema32(wttest.WiredTigerTestCase, publication):
+    test_name = __qualname__
+    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
 
     def test_eviction_publishes_covered_table(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
@@ -205,6 +209,32 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.verify(uri, None)
         self.check(uri, self.nitems + 100)
 
+    def test_table_above_the_epoch_keeps_waiting(self):
+        # The stable epoch never reaches the table's publish epoch, so the table keeps waiting
+        # through checkpoints, its data stays available, and the drop keeps being refused.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(5)
+
+        uri = 'layered:' + self.test_name
+        self.session.create(uri, 'key_format=S,value_format=S')
+        self.publish(uri, 20)
+
+        # A table awaiting publication may only hold data the checkpoint does not consider
+        # stable, so commit above the timestamp the checkpoint below runs at.
+        self.insert(uri, 0, 100, 50)
+
+        self.leader_checkpoint(30)
+        self.assertEqual(self.published_count(), 0)
+
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(uri, None))
+        self.check(uri, 100)
+
+@disagg_test_class
+class test_layered_schema32_follower(wttest.WiredTigerTestCase, publication):
+    test_name = __qualname__
+    conn_config = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
+
     def test_step_up_publishes(self):
         # A table created and published on a follower has no stable constituent until this
         # node steps up and rebuilds it from the queue entry. That entry is the only record of
@@ -238,24 +268,3 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(10)
         self.session.checkpoint()
         self.assertEqual(self.published_count(), 0)
-
-    def test_table_above_the_epoch_keeps_waiting(self):
-        # The stable epoch never reaches the table's publish epoch, so the table keeps waiting
-        # through checkpoints, its data stays available, and the drop keeps being refused.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.publish(uri, 20)
-
-        # A table awaiting publication may only hold data the checkpoint does not consider
-        # stable, so commit above the timestamp the checkpoint below runs at.
-        self.insert(uri, 0, 100, 50)
-
-        self.leader_checkpoint(30)
-        self.assertEqual(self.published_count(), 0)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri, None))
-        self.check(uri, 100)

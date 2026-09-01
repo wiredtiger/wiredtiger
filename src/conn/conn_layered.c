@@ -1043,6 +1043,10 @@ __disagg_queue_find_published_create(WT_SESSION_IMPL *session, const char *stabl
         if ((entry->metadata_op == WT_SHARED_METADATA_CREATE ||
               entry->metadata_op == WT_SHARED_METADATA_REMOVE) &&
           strcmp(entry->stable_uri, stable_uri) == 0) {
+            /* Publishing assigns epochs in order, and an entry with no epoch yet sorts last. */
+            WT_ASSERT(
+              session, latest_epoch == WT_SCHEMA_EPOCH_NONE || entry->schema_epoch >= latest_epoch);
+
             latest_op = entry->metadata_op;
             latest_epoch = entry->schema_epoch;
         }
