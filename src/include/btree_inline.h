@@ -2059,13 +2059,28 @@ __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGA
 
 /*
  * __wt_ref_block_free --
- *     Free the on-disk block for a reference and clear the address.
+ *     Free the on-disk block for a reference and clear the address. A disaggregated block is only
+ *     freed when asked for, the page id is otherwise reused by the next write. When the block
+ *     survives and the caller has written a full page image, the delta chain it headed is obsolete
+ *     and its cumulative size stops counting toward the tree.
  */
 static WT_INLINE int
-__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block)
+__wt_ref_block_free(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block, bool disagg_delta_chain_end)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+
+    /*
+     * The chain is tracked against the page id in the shared store, so obsolete it whenever the
+     * page id survives, including for a page rebuilt in memory that carries a page id but no local
+     * address.
+     */
+    if (!disagg_free_block && disagg_delta_chain_end && ref->page != NULL &&
+      ref->page->disagg_info != NULL &&
+      ref->page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
+        __wt_block_disagg_decrease_size(
+          session, ref->page->disagg_info->block_meta.cumulative_size);
 
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (!__wt_ref_addr_copy(session, ref, &addr))
