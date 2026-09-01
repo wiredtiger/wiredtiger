@@ -121,10 +121,6 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 
         /* Verify sets up next. */
         if (block->verify) {
-            /*
-             * FIXME: We may need to change how we setup for verify when it supports tiered tables.
-             * Until then, an attempt to verify a tiered table should return before getting here.
-             */
             WT_ASSERT(session, block->objectid == 0 && ci->root_objectid == 0);
             WT_ERR(__wti_verify_ckpt_load(session, block, ci));
         }
@@ -583,8 +579,8 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
  *     Read extent lists from disk for each checkpoint marked for deletion, and for the subsequent
  *     checkpoint into which each deleted checkpoint will be merged. Sets the output flag to
  *     indicate whether at least one local checkpoint is being deleted. Checkpoints belonging to
- *     non-local (tiered storage) objects are skipped because their extent lists are not relevant to
- *     the current live file.
+ *     non-local objects are skipped because their extent lists are not relevant to the current live
+ *     file.
  */
 static int
 __ckpt_read_deletion_extlists(
@@ -604,9 +600,8 @@ __ckpt_read_deletion_extlists(
          * not already done so. There may be more than one deleted checkpoint, so these reads may
          * have been done in a prior iteration of this loop.
          *
-         * We can only delete checkpoints in the current file. Checkpoints of tiered storage objects
-         * are checkpoints for the logical object, including files that are no longer live. Skip any
-         * checkpoints that are not local to the live object.
+         * We can only delete checkpoints in the current file. Skip any checkpoints that are not
+         * local to the live object.
          */
         if (ckpt->bpriv == NULL) {
             WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, ckpt, &local),
@@ -628,7 +623,7 @@ __ckpt_read_deletion_extlists(
             WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, next_ckpt, &local),
               "reading extent lists for checkpoint %s following deletion", next_ckpt->name);
             WT_RET_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
-              "tiered storage checkpoint follows local checkpoint");
+              "non-local checkpoint follows local checkpoint");
         }
     }
     return (0);
