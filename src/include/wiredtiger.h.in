@@ -2946,7 +2946,7 @@ struct __wt_connection {
      *
      * @param connection the connection handle
      * @param name the name of the page log service implementation
-     * @param page_log the returned page log service structure
+     * @param page_logp the returned page log service structure
      * @errors
      */
     int __F(get_page_log)(WT_CONNECTION *connection, const char *name,
