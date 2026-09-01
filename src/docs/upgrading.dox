@@ -40,10 +40,10 @@ URI is refused. The connection verbose choice \c tiered is no longer
 recognized. The \c dir_store extension is no longer provided.
 
 Connection and table or file <code>tiered_storage</code> configuration, and
-the file <code>tiered_object</code> setting, still parse so leftover keys in
-existing metadata are not an error. A non-none
-<code>tiered_storage.name</code> on connection open or on table or file create
-returns ENOTSUP.
+the file <code>tiered_object</code> setting, still parse, so leftover keys in
+existing metadata do not cause an error. A
+<code>tiered_storage.name</code> value other than \c none on connection open
+or on table or file create returns ENOTSUP.
 </dd>
 </dl> <hr>
 @section version_1131 Upgrading to Version 11.3.1
