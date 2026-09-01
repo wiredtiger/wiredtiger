@@ -30,7 +30,7 @@
 # read cached across the drop must not bind the new table to the dropped table's page log:
 # it would write its pages there, then fail to find them when it reopens.
 
-import glob, json, os, re, subprocess
+import glob, json, os, subprocess
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
@@ -52,11 +52,6 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     #
     # Helper methods
     #
-
-    def stable_id(self):
-        """Return the btree id recorded for the table's stable constituent."""
-        cfg = self.stable_config(self.conn, self.uri)
-        return int(re.search(r'(?:^|,)id=(\d+)', cfg).group(1))
 
     def write_rows(self, commit_ts, value):
         self.session.begin_transaction()
@@ -118,7 +113,7 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.create_on_follower_then_step_up(epoch=5, commit_ts=10, value='first')
         self.set_stable_epoch(6)
         self.leader_checkpoint(10)
-        first_id = self.stable_id()
+        first_id = self.stable_id(self.conn, self.uri)
         self.assert_owns_pages(first_id, 'the original table')
 
         # Read the table as a follower, then drop it with that read still cached.
@@ -128,7 +123,7 @@ class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # The recreated table must own its own page log table, not the dropped one's.
         self.create_on_follower_then_step_up(epoch=15, commit_ts=30, value='second')
-        second_id = self.stable_id()
+        second_id = self.stable_id(self.conn, self.uri)
         self.assertNotEqual(second_id, first_id)
         self.set_stable_epoch(16)
         self.leader_checkpoint(30)

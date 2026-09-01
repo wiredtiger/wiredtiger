@@ -39,7 +39,6 @@
 # create sits above the checkpoint's schema epoch, so this checkpoint predates the local
 # incarnation, and a later checkpoint that covers the create supplies the right constituent.
 
-import re
 import os
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
@@ -58,13 +57,6 @@ class test_layered_schema28(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin, s
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def stable_id(self, conn, uri):
-        """Return the btree ID of a table's stable constituent in conn's local metadata."""
-        config = self.stable_config(conn, uri)
-        match = re.search(r'\bid=(\d+)', config)
-        self.assertIsNotNone(match, f'no id in stable config: {config}')
-        return int(match.group(1))
 
     def test_recreate_skips_stale_stable_pickup(self):
         """
