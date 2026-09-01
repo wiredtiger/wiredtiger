@@ -149,7 +149,7 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
 retry:
     TAILQ_FOREACH (dhandle_cache, &session->dhhash[bucket], hashq) {
         dhandle = dhandle_cache->dhandle;
-        if ((WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) &&
+        if ((WT_DHANDLE_INACTIVE(dhandle) || F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED)) &&
           !WT_IS_METADATA(dhandle)) {
             __session_discard_dhandle(session, dhandle_cache);
             /* We deleted our entry, retry from the start. */
@@ -864,7 +864,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
 
         const uint64_t time_of_death = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
         const bool is_sweep_candidate = WT_DHANDLE_INACTIVE(dhandle) ||
-          F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
+          F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED) ||
           (time_of_death != 0 && now - time_of_death > conn->sweep.idle_time);
 
         const bool is_evictable = !WT_DHANDLE_BTREE(dhandle) ||

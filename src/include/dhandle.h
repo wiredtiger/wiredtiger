@@ -61,10 +61,9 @@ struct __wt_dhandle_clear_log {
     (F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN))
 
 /* Check if a handle could be reopened. */
-#define WT_DHANDLE_CAN_REOPEN(dhandle)                                                           \
-    (F_MASK(                                                                                     \
-       dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN | WT_DHANDLE_OUTDATED) == \
-      WT_DHANDLE_OPEN)
+#define WT_DHANDLE_CAN_REOPEN(dhandle)                                                             \
+    (F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN) == WT_DHANDLE_OPEN && \
+      !F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED))
 
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
@@ -180,10 +179,29 @@ struct __wt_data_handle {
 #define WT_DHANDLE_IS_METADATA 0x080u  /* Metadata handle */
 #define WT_DHANDLE_LOCK_ONLY 0x100u    /* Handle only used as a lock */
 #define WT_DHANDLE_OPEN 0x200u         /* Handle is open */
-#define WT_DHANDLE_OUTDATED 0x400u     /* Handle is outdated */
-#define WT_DHANDLE_SKIP_OPEN 0x800u    /* Do not open a closed handle */
+#define WT_DHANDLE_SKIP_OPEN 0x400u    /* Do not open a closed handle */
                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
     uint16_t flags;
+
+/*
+ * Atomic flags, use F_*_ATOMIC_32. Unlike the flags above, these are set without holding the
+ * dhandle exclusively.
+ *
+ * WT_DHANDLE_OUTDATED means the handle's metadata has been superseded. Once set it is never
+ * cleared, and readers take it to mean:
+ * - don't hand this handle to a new user,
+ * - let the current users finish,
+ * - never write this handle's content back,
+ * - retire the handle promptly.
+ *
+ * FIXME-WT-18542: that is what the call sites assume, not a specified invariant, and making the
+ * flag atomic may not be enough to establish it -- readers combine it with dhandle->session_inuse
+ * to conclude "no future user", which is not what that counter means.
+ */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_DHANDLE_OUTDATED 0x1u /* Handle is outdated */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    wt_shared uint32_t flags_atomic;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_TS_ASSERT_READ_ALWAYS 0x1u /* Assert read always checking. */
