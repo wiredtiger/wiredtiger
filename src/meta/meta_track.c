@@ -19,12 +19,14 @@ typedef struct __wt_meta_track {
         WT_ST_CHECKPOINT,  /* Complete a checkpoint */
         WT_ST_DROP_COMMIT, /* Drop post commit */
         WT_ST_FILEOP,      /* File operation */
+        WT_ST_HS_TRUNCATE, /* Truncate the history store post commit */
         WT_ST_LOCK,        /* Lock a handle */
         WT_ST_REMOVE,      /* Remove a metadata entry */
         WT_ST_SET          /* Reset a metadata entry */
     } op;
     char *a, *b;             /* Strings */
     WT_DATA_HANDLE *dhandle; /* Locked handle */
+    uint32_t btree_id;       /* Btree whose history store content is dropped */
     bool created;            /* Handle on newly created file */
 } WT_META_TRACK;
 
@@ -147,6 +149,16 @@ __meta_track_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
             __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
         break;
+    case WT_ST_HS_TRUNCATE:
+        /* The truncate opens its own cursors, so save our caller's handle. */
+        WT_SAVE_DHANDLE(session, ret = __wt_hs_btree_truncate(session, trk->btree_id));
+        if (ret != 0) {
+            __wt_verbose_warning(session, WT_VERB_HS,
+              "Failed to truncate history store for the file: %s, btree ID: %" PRIu32, trk->a,
+              trk->btree_id);
+            ret = 0;
+        }
+        break;
     case WT_ST_LOCK:
         WT_WITH_DHANDLE(session, trk->dhandle, ret = __wt_session_release_dhandle(session));
         break;
@@ -180,6 +192,8 @@ __meta_track_unroll(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         WT_WITH_DHANDLE(session, trk->dhandle, ret = bm->checkpoint_resolve(bm, session, true));
         break;
     case WT_ST_DROP_COMMIT:
+        break;
+    case WT_ST_HS_TRUNCATE: /* History store truncate, only done post commit */
         break;
     case WT_ST_LOCK: /* Handle lock, see above */
         if (trk->created)
@@ -485,6 +499,29 @@ __wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename)
 
     trk->op = WT_ST_DROP_COMMIT;
     WT_ERR(__wt_strdup(session, filename, &trk->a));
+    return (0);
+
+err:
+    __meta_track_err(session);
+    return (ret);
+}
+
+/*
+ * __wt_meta_track_hs_truncate --
+ *     Track a history store truncate, where the truncate is deferred until commit. The btree ID is
+ *     needed because the file's metadata entry, which holds it, is gone by then.
+ */
+int
+__wt_meta_track_hs_truncate(WT_SESSION_IMPL *session, const char *uri, uint32_t btree_id)
+{
+    WT_DECL_RET;
+    WT_META_TRACK *trk;
+
+    WT_RET(__meta_track_next(session, &trk));
+
+    trk->op = WT_ST_HS_TRUNCATE;
+    trk->btree_id = btree_id;
+    WT_ERR(__wt_strdup(session, uri, &trk->a));
     return (0);
 
 err:

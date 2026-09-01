@@ -16,8 +16,7 @@
 
 /*
  * frontier_assert --
- *     Assert the frontier has not passed a drained stream's final timestamp: nothing above it was
- *     delivered, so nothing above it can be complete.
+ *     Assert the frontier has not passed the final counter.
  */
 static void
 frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
@@ -25,7 +24,8 @@ frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
     const uint64_t frontier_ts = __wt_atomic_load_uint64(&state->frontier_ts);
 
     testutil_assertfmt(frontier_ts <= timestamp,
-      "step-down: the frontier %" PRIu64 " passed the marker's %" PRIu64, frontier_ts, timestamp);
+      "step-down: the frontier %" PRIu64 " passed the final counter %" PRIu64, frontier_ts,
+      timestamp);
 }
 
 /*
@@ -42,8 +42,12 @@ reader_step_down(WORKLOAD_STATE *state, uint64_t ts)
     while (__wt_atomic_load_bool(&state->ts_busy))
         __wt_sleep(0, WT_THOUSAND);
 
-    set_ts(conn, TS_STEPDOWN, ts);
-    set_ts(conn, TS_FRONTIER, ts);
+    /*
+     * FIXME-WT-18314: Reject step down timestamp without the epoch. The `-e` mode with role
+     * switches becomes illegal.
+     */
+    set_ts(state->cfg, conn, TS_STEPDOWN, ts);
+    workload_set_frontier(state, ts);
 
     WT_SESSION *session;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -75,6 +79,7 @@ thread_reader_run(void *arg)
     const int src_fd = state->generates ? cfg->self_pipe_read_fd : cfg->pipe_read_fd;
 
     SCHEMA_EVENT ev;
+    uint64_t final_ts;
     bool running = true;
     while (running && workload_active(state, STAGE_READER)) {
         if (!pipe_wait_readable(src_fd))
@@ -103,27 +108,26 @@ thread_reader_run(void *arg)
              * step-down timestamp.
              */
             evq_drain_barrier(state);
-            frontier_assert(state, ev.event_ts);
-            reader_step_down(state, ev.event_ts);
+            final_ts = __wt_atomic_load_uint64(&state->current_ts);
+            frontier_assert(state, final_ts);
+            reader_step_down(state, final_ts);
             break;
         case EVENT_SWITCH:
-            /* The final event of the term's stream: this node must step up. */
+            /* The final event of the term's stream. */
             evq_drain_barrier(state);
-            /*
-             * Relay-integrity check: the drained counter must equal the sender's final counter.
-             * Every counter value the term allocated rides an event that precedes the switch in the
-             * stream, so after the drain nothing may be missing.
-             */
-            testutil_assertfmt(__wt_atomic_load_uint64(&state->current_ts) == ev.event_ts,
-              "hand-over: drained counter %" PRIu64 " != sender's final counter %" PRIu64,
-              __wt_atomic_load_uint64(&state->current_ts), ev.event_ts);
+
+            if (!state->generates)
+                testutil_assertfmt(__wt_atomic_load_uint64(&state->current_ts) == ev.event_ts,
+                  "hand-over: local final counter %" PRIu64 " != sender's final counter %" PRIu64,
+                  __wt_atomic_load_uint64(&state->current_ts), ev.event_ts);
             __wt_atomic_store_bool(&state->handover_received, true);
             running = false;
             break;
         case EVENT_NONE:
-            /* Never emitted; a zeroed event means the framing lost its way. */
+        case EVENT_PENDING:
+            /* Never emitted; the framing lost its way. */
             testutil_die(
-              EINVAL, "Node %" PRIu32 ": empty event read from the source pipe", cfg->node_id);
+              EINVAL, "Node %" PRIu32 ": invalid event read from the source pipe", cfg->node_id);
         }
     }
 

@@ -888,12 +888,6 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
     if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
         return (0);
 
-    /* Setting cache_max_wait_us to 1 effectively means "disable eviction when possible" */
-    uint64_t cache_max_wait_us =
-      session->cache_max_wait_us != 0 ? session->cache_max_wait_us : conn->evict->cache_max_wait_us;
-    if (cache_max_wait_us == 1)
-        return (0);
-
     /*
      * If the current transaction is keeping the oldest ID pinned, it is in the middle of an
      * operation. This may prevent the oldest ID from moving forward, leading to deadlock, so only
@@ -1071,4 +1065,17 @@ __evict_page_updates_candidate(WT_PAGE *page)
      * updates cache pressure.
      */
     return (page->modify->bytes_updates != 0);
+}
+
+/*
+ * __wti_evict_prune_ts_unmoved --
+ *     Return whether the prune timestamp has not advanced since the page's last reconciliation.
+ */
+static WT_INLINE bool
+__wti_evict_prune_ts_unmoved(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    wt_timestamp_t prune_timestamp;
+
+    prune_timestamp = __wt_atomic_load_uint64_acquire(&S2BT(session)->prune_timestamp);
+    return (prune_timestamp != WT_TS_NONE && page->modify->rec_prune_timestamp >= prune_timestamp);
 }

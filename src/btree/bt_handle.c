@@ -607,6 +607,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
             WT_RET(
               __wt_schema_page_log_from_config(session, btree->dhandle->cfg, &btree->page_log));
+
+            if (btree->page_log == NULL)
+                WT_RET_MSG(session, EINVAL,
+                  "%s: the disaggregated block manager requires a page log, none is configured for "
+                  "this table or connection",
+                  btree->dhandle->name);
         }
     }
 

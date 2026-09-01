@@ -130,8 +130,10 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q)
-        if (WT_DHANDLE_BTREE(dhandle))
+        if (WT_DHANDLE_BTREE(dhandle)) {
+            ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session, true)));
+        }
     __wti_evict_set_saved_walk_tree(session, NULL);
     return (ret);
 }
@@ -342,7 +344,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, dhandle_list_locked;
+    bool aggressive, dhandle_list_locked, resume;
 
     WT_TRACK_OP_INIT(session);
 
@@ -396,17 +398,26 @@ retry:
             dhandle_list_locked = true;
         }
 
+        /* Pick the tree to walk. On entry, resume the tree the last pass stopped on */
+        resume = false;
         if (dhandle == NULL) {
-            /*
-             * On entry, continue from wherever we got to in the scan last time through. If we don't
-             * have a saved handle, pick one randomly from the list.
-             */
-            if ((dhandle = evict->walk_tree) != NULL)
-                __wti_evict_set_saved_walk_tree(session, NULL);
-            else
-                __evict_walk_choose_dhandle(session, &dhandle);
-        } else {
-            __wti_evict_set_saved_walk_tree(session, NULL);
+            dhandle = evict->walk_tree;
+            resume = dhandle != NULL;
+        }
+        __wti_evict_set_saved_walk_tree(session, NULL);
+        btree = dhandle != NULL && WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
+
+        /*
+         * Stop resuming once the walk has reached the end of the tree twice as the tree must have
+         * been fully traversed.
+         */
+        if (resume && btree != NULL && btree->evict_walk_ends >= WTI_EVICT_WALK_MAX_ENDS) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_walk_complete);
+            resume = false;
+        }
+        if (!resume) {
+            if (btree != NULL)
+                btree->evict_walk_ends = 0;
             __evict_walk_choose_dhandle(session, &dhandle);
         }
 
@@ -426,9 +437,12 @@ retry:
             continue;
         }
 
-        /* Skip read-only btrees if we are not looking for clean/updates pages. */
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
-          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+        /*
+         * Skip stable checkpoint handles on followers unless we are looking for clean pages.
+         * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
+         * with dedicated handling instead of matching the stable checkpoint URI.
+         */
+        if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -787,15 +801,9 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             wt_timestamp_t prune_timestamp =
               __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-            if (prune_timestamp != WT_TS_NONE) {
-                if (newest_commit_timestamp > prune_timestamp) {
-                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
-                    return (true);
-                }
-                if (page->modify->rec_prune_timestamp >= prune_timestamp) {
-                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
-                    return (true);
-                }
+            if (prune_timestamp != WT_TS_NONE && newest_commit_timestamp > prune_timestamp) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
+                return (true);
             }
         } else {
             if (newest_commit_timestamp > __wt_txn_pinned_stable_timestamp(session)) {
@@ -1246,6 +1254,16 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         }
     }
 
+    /*
+     * Skip while the prune timestamp is stalled for leaf pages, one that never advances floods the
+     * queue and pins the eviction server on this tree forever.
+     */
+    if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF) && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+      __wti_evict_prune_ts_unmoved(session, page)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
+        return;
+    }
+
     /* Evaluate dirty page candidacy, when eviction is not aggressive. */
     if (!__wt_evict_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
         return;
@@ -1369,6 +1387,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             break;
 
         if (ref == NULL) {
+            ++btree->evict_walk_ends;
             WT_STAT_CONN_INCR(session, eviction_walks_ended);
 
             if (++restarts == 2) {
