@@ -7,9 +7,8 @@
  */
 
 /*
- * The worker stage: N threads applying what the reader queued, exactly as the source stream fixed
- * each event, so both roles execute an identical history. Writes the verifier's record files, and
- * marks each completed operation in the shared frontier window.
+ * The worker stage: N threads applying what the reader queued, in the order the source stream
+ * fixed, so both roles execute an identical history.
  */
 
 #include "schema_disagg_abort.h"
@@ -44,14 +43,17 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
     case EVENT_DROP:
     case EVENT_PUBLISH_CREATE:
     case EVENT_PUBLISH_DROP:
-        /* Epoch mode records at publish; legacy mode records before executing the operation. */
+        /* Epoch mode records at publish; legacy mode records once the operation has executed. */
         ret = fprintf(fp, "%s %" PRIu64 " %s\n",
           ev->type == EVENT_CREATE || ev->type == EVENT_PUBLISH_CREATE ? "CREATE" : "DROP",
           ev->event_ts, ev->uri);
         break;
     case EVENT_INSERT:
-        ret = fprintf(fp, "INSERT %" PRIu64 " %" PRIu32 " %" PRIu32 " %s\n", ev->event_ts,
-          ev->key_min, ev->key_max, ev->uri);
+        ret = fprintf(fp, "INSERT %" PRIu64 " %s %" PRIu32 " %" PRIu32 "\n", ev->event_ts, ev->uri,
+          ev->key_min, ev->key_max);
+        break;
+    case EVENT_PENDING:
+        ret = fprintf(fp, "PENDING %" PRIu64 " %s\n", ev->event_ts, ev->uri);
         break;
     case EVENT_NONE:
     case EVENT_STEPDOWN:
@@ -60,6 +62,20 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
     }
     if (ret < 0)
         testutil_die(EIO, "fprintf event record");
+}
+
+/*
+ * record_pending_line --
+ *     Mark a legacy schema operation as begun but not yet recorded.
+ */
+static void
+record_pending_line(FILE *fp, const SCHEMA_EVENT *ev)
+{
+    SCHEMA_EVENT pending = *ev;
+
+    pending.type = EVENT_PENDING;
+    pending.event_ts = 0;
+    record_event_line(fp, &pending);
 }
 
 /*
@@ -90,17 +106,21 @@ worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
 static void
 schema_op_stall_report(WORKLOAD_STATE *state)
 {
-    println("Node %" PRIu32 ": stable %" PRIu64 ", frontier %" PRIu64, state->cfg->node_id,
-      query_ts(state->conn, TS_STABLE), __wt_atomic_load_uint64(&state->frontier_ts));
+    println("Node %" PRIu32 ": stable %" PRIu64 ", frontier %" PRIu64 ", last checkpoint %" PRIu64
+            ", step-down %" PRIu64,
+      state->cfg->node_id, query_ts(state->conn, TS_STABLE),
+      __wt_atomic_load_uint64(&state->frontier_ts), query_ts(state->conn, TS_LAST_CHECKPOINT),
+      __wt_atomic_load_uint64(&state->stepdown_ts));
     for (uint32_t t = 0; t < state->worker_count; t++)
         println("  worker %" PRIu32 ": %" PRIu64 " events queued", t, evq_depth(state, t));
 }
 
 /*
  * schema_op_execute --
- *     Execute one schema operation: create or drop the test's tables, on either role.
+ *     Execute one schema operation: create or drop the test's tables, on either role. Returns
+ *     ECANCELED when the operation was abandoned because it can no longer complete.
  */
-static void
+static int
 schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT *ev)
 {
     const bool is_create = ev->type == EVENT_CREATE;
@@ -122,9 +142,19 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
 
         struct timespec now;
         __wt_epoch(NULL, &now);
-        if (WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT) {
-            int err, sub_err;
-            const char *err_msg;
+        const bool timed_out = WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT;
+        /* Leader is gone, so no one produces checkpoints to unblock this operation. */
+        const bool abandoned = !state->generates && (!state->cfg->peer_alive || timed_out);
+        int err, sub_err;
+        const char *err_msg;
+        if (abandoned) {
+            session->get_last_error(session, &err, &sub_err, &err_msg);
+            println("Node %" PRIu32 ": abandoning follower %s %s (%s): %s", state->cfg->node_id,
+              is_create ? "CREATE" : "DROP", ev->uri,
+              timed_out ? "no checkpoint arrived" : "peer left", err_msg);
+            return (ECANCELED);
+        }
+        if (timed_out) {
             session->get_last_error(session, &err, &sub_err, &err_msg);
             schema_op_stall_report(state);
             testutil_die(ETIMEDOUT, "node%" PRIu32 " %s %s %s: EBUSY for %d seconds: %s",
@@ -144,6 +174,8 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
 
     testutil_assertfmt(ret == 0, "node%" PRIu32 " %s %s: %s", state->cfg->node_id,
       is_create ? "CREATE" : "DROP", ev->uri, wiredtiger_strerror(ret));
+
+    return (0);
 }
 
 /*
@@ -199,7 +231,6 @@ static void
 worker_complete(WORKLOAD_STATE *state, uint64_t value)
 {
     workload_counter_advance(state, value);
-    (void)__wt_atomic_add_uint64(&state->applied, 1);
 
     /* One writer per timestamp, so the mark needs no read-modify-write. */
     const uint64_t frontier_ts = __wt_atomic_load_uint64(&state->frontier_ts);
@@ -210,22 +241,33 @@ worker_complete(WORKLOAD_STATE *state, uint64_t value)
 }
 
 /*
- * apply_event --
- *     Apply one event on this node, identically for both roles and exactly as the source stream
- *     fixed it. In epoch mode a schema operation's timestamp, record and completion belong to its
- *     later publish event; in legacy mode they belong to the operation itself.
+ * worker_ts --
+ *     Take the timestamp for an event the worker is about to apply. A generating node allocates on
+ *     apply; a peer-fed follower adopts what the leader stamped.
  */
-static void
-apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const SCHEMA_EVENT *ev)
+static uint64_t
+worker_ts(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
+{
+    return (state->generates ? __wt_atomic_add_uint64(&state->current_ts, 1) : ev->event_ts);
+}
+
+/*
+ * apply_event --
+ *     Apply one event on this node. Returns ECANCELED when a schema operation was abandoned.
+ */
+static int
+apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, SCHEMA_EVENT *ev)
 {
     /* The role is fixed for the phase, step-down window included: a leader relays throughout. */
     const bool relay = state->leads;
+    int ret = 0;
 
     if (ctx->record_fp == NULL)
         ctx->record_fp = worker_record_open(state, thread_index);
 
     switch (ev->type) {
     case EVENT_INSERT:
+        ev->event_ts = worker_ts(state, ev);
         insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
         if (relay)
             (void)pipe_relay_event(state->cfg, ev);
@@ -234,33 +276,57 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
         break;
     case EVENT_CREATE:
     case EVENT_DROP:
-        /* A legacy checkpoint can make the operation durable as soon as it executes. */
         if (state->cfg->epoch_less)
-            record_event_line(ctx->record_fp, ev);
-        schema_op_execute(state, ctx->session, ev);
+            /*
+             * Epoch-less schema ops do not have corresponding PUBLISH events. Record them as
+             * pending now, so validation can check them later.
+             */
+            record_pending_line(ctx->record_fp, ev);
+
+        /* Operation failed: none of the bookkeeping below applies. */
+        if ((ret = schema_op_execute(state, ctx->session, ev)) != 0)
+            break;
+
+        if (state->cfg->epoch_less)
+            ev->event_ts = worker_ts(state, ev);
+
         if (relay)
             (void)pipe_relay_event(state->cfg, ev);
-        if (state->cfg->epoch_less)
+
+        /* In epoch mode the record and the completion belong to the later publish event. */
+        if (state->cfg->epoch_less) {
+            record_event_line(ctx->record_fp, ev);
             worker_complete(state, ev->event_ts);
-        else
-            /* No timestamp: count it applied, but the completion belongs to the publish. */
-            (void)__wt_atomic_add_uint64(&state->applied, 1);
+        }
         break;
     case EVENT_PUBLISH_CREATE:
     case EVENT_PUBLISH_DROP:
         /* Legacy mode should not see these events. */
         testutil_assert(!state->cfg->epoch_less);
+        ev->event_ts = worker_ts(state, ev);
+        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
+        if (state->generates && ev->type == EVENT_PUBLISH_DROP) {
+            testutil_assert(ev->slot < state->cfg->pool_size);
+            __wt_atomic_store_uint64(
+              &state->workers[thread_index].table[ev->slot].drop_epoch, ev->event_ts);
+        }
         if (relay)
             (void)pipe_relay_event(state->cfg, ev);
         record_event_line(ctx->record_fp, ev);
-        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
         worker_complete(state, ev->event_ts);
         break;
     case EVENT_NONE:
+    case EVENT_PENDING:
     case EVENT_STEPDOWN:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected apply event type: %d", ev->type);
     }
+
+    /* The generator paces itself on how far its emissions lead the workers. */
+    if (ret == 0)
+        (void)__wt_atomic_add_uint64(&state->applied, 1);
+
+    return (ret);
 }
 
 /*
@@ -272,14 +338,19 @@ static void
 worker_apply_loop(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index)
 {
     bool *busyp = &state->workers[thread_index].busy;
+    bool abandoned = false;
 
     while (workload_active(state, STAGE_WORKERS) || !evq_is_empty(state, thread_index)) {
         /* Publish busy before checking the queue so the drain barrier never races an apply. */
         __wt_atomic_store_bool(busyp, true);
         SCHEMA_EVENT ev;
         const bool popped = evq_dequeue(state, thread_index, &ev);
-        if (popped)
-            apply_event(state, ctx, thread_index, &ev);
+        /*
+         * Keep draining the queue even if this node is abandoned by the leader. Other workers may
+         * still be processing events.
+         */
+        if (popped && !abandoned)
+            abandoned = apply_event(state, ctx, thread_index, &ev) == ECANCELED;
         __wt_atomic_store_bool(busyp, false);
         if (!popped)
             __wt_sleep(0, WT_THOUSAND);

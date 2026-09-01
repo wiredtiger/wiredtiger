@@ -123,6 +123,7 @@ typedef enum {
     EVENT_INSERT,
     EVENT_PUBLISH_CREATE,
     EVENT_PUBLISH_DROP,
+    EVENT_PENDING,
     EVENT_STEPDOWN,
     EVENT_SWITCH
 } EVENT_TYPE;
@@ -130,11 +131,12 @@ typedef enum {
 typedef struct {
     EVENT_TYPE type;
     uint32_t thread_id;
-    /*
-     * The timestamp whose completion this event represents: a publish epoch, an insert's commit
-     * timestamp (which the rows also hold), a legacy schema operation's timestamp, or a term's
-     * final timestamp. CREATE/DROP carry none when schema epochs are in use - a schema operation
-     * then completes with its publish.
+    uint32_t slot;
+    /*-
+     * The completion timestamp for this event:
+     *   - a publish epoch,
+     *   - an insert's commit timestamp,
+     *   - a legacy schema op's timestamp (epoch-less mode).
      */
     uint64_t event_ts;
     uint32_t key_min;
@@ -152,7 +154,8 @@ typedef enum {
     TABLE_NONE = 0,  /* slot free: no local table, nothing unpublished */
     TABLE_CREATED,   /* created; the publish may be delayed */
     TABLE_PUBLISHED, /* create published; may take data, and is droppable */
-    TABLE_DROPPED    /* dropped; the publish may be delayed */
+    TABLE_DROPPED,   /* dropped; the publish may be delayed */
+    TABLE_REMOVED    /* drop published; the slot frees once the stable epoch covers it */
 } TABLE_STATE;
 
 /* Test-wide configuration, built from the command line by every role independently. */
@@ -236,7 +239,8 @@ typedef struct {
 
     /* Single monotonic value for schema operations and commit timestamps. */
     uint64_t current_ts;
-    uint64_t frontier_ts; /* every timestamp at or below it is applied; atomic access */
+    uint64_t frontier_ts;  /* every timestamp at or below it is applied; atomic access */
+    uint64_t stable_epoch; /* the stable schema epoch this node last set; atomic access */
     /* Circular buffer for completed timestamps of all workers; atomic access. */
     uint8_t completed_ts[FRONTIER_WINDOW];
     uint64_t emitted;      /* generator: how many events have been emitted */
@@ -253,9 +257,10 @@ typedef struct {
             TABLE_STATE state;
             /* Advanced by every create under -q, so a slot's table name is never reused. */
             uint32_t gen;
-            /* Slot took an insert while stepping down; not droppable until the step-down completes.
-             */
-            bool stepdown_insert;
+            /* Published drop's epoch once its publish applies, else 0; atomic access. */
+            uint64_t drop_epoch;
+            /* Inserted data is uncovered yet. Not droppable until a checkpoint. */
+            bool uncovered_insert;
         } table[MAX_POOL_SIZE];
     } workers[MAX_TH];
 
@@ -307,6 +312,7 @@ bool node_switch_request_consume(void);
 bool workload_active(WORKLOAD_STATE *state, uint32_t stage);
 bool node_stage_stopped(WORKLOAD_STATE *state, uint32_t stage);
 void workload_counter_advance(WORKLOAD_STATE *state, uint64_t v);
+void workload_set_frontier(WORKLOAD_STATE *state, uint64_t ts);
 
 /* evq.c: the per-worker event queues - the reader produces, its worker consumes. */
 void evq_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev);
