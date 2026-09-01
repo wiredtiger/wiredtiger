@@ -268,10 +268,9 @@ class test_disagg_fast_truncate03(wttest.WiredTigerTestCase):
         # Step 6 -- make the deletions globally visible and trigger checkpoint cleanup.
         # Its custom walk reads the skipped internal page and marks its obsolete leaf
         # references deleted, dirtying the internal page for reconciliation.
+        before = self.snapshot_stats()
         ts = self.timestamp_str(self.visible_ts)
         self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
-
-        before = self.snapshot_stats()
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cleanup(before["cleanup_success"])
         after = self.snapshot_stats()
@@ -291,12 +290,19 @@ class test_disagg_fast_truncate03(wttest.WiredTigerTestCase):
 
         # Step 7 -- checkpoint reconciles the dirty internal page. The deleted leaves
         # are discarded and an empty internal page is omitted from its parent.
-        before = self.snapshot_stats()
+        #
+        # The counters are measured against the step 6 baseline, taken before the deletions
+        # became globally visible: once cleanup has dirtied an internal page, eviction can
+        # reconcile it ahead of this checkpoint, so the reclamation is not confined to the
+        # checkpoint's own window. Nothing before that baseline can reclaim a deleted leaf,
+        # its truncation is not yet globally visible.
         self.session.checkpoint()
         after = self.snapshot_stats()
-        self.assertEqual(
+        # An emptied internal page still in cache reconciles to empty as well, so the
+        # count covers at least the pages the walk skipped.
+        self.assertGreaterEqual(
             after["real_deleted"] - before["real_deleted"], skipped_internal,
-            "step 7: not every skipped internal page reconciled to empty",
+            "step 7: a skipped internal page did not reconcile to empty",
         )
         self.assertGreaterEqual(
             after["block_discard"] - before["block_discard"],
