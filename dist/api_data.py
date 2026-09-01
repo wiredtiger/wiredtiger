@@ -277,29 +277,38 @@ lsm_config = [
     ]),
 ]
 
+# Common removed-option fields for table/file and wiredtiger_open.
+tiered_storage_local_retention = Config('local_retention', '300', r'''
+    removed option, preserved to allow parsing old metadata''',
+    min='0', max='10000', undoc=True)
+tiered_storage_shared = Config('shared', 'false', r'''
+    removed option, preserved to allow parsing old metadata''',
+    type='boolean', undoc=True)
+tiered_storage_configuration_common = [
+    Config('name', 'none', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('auth_token', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('bucket', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('bucket_prefix', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('cache_directory', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    tiered_storage_local_retention,
+    tiered_storage_shared,
+]
+
 tiered_config = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
-        type='category', subconfig=[
-        Config('name', 'none', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('auth_token', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('bucket', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('bucket_prefix', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('cache_directory', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('local_retention', '300', r'''
-            removed option, preserved to allow parsing old metadata''',
-            min='0', max='10000', undoc=True),
+        type='category', subconfig=
+        # object_target_size before shared so compiled key numbers keep first-seen order.
+        tiered_storage_configuration_common[:-1] + [
         Config('object_target_size', '0', r'''
             removed option, preserved to allow parsing old metadata''',
             min='0', undoc=True),
-        Config('shared', 'false', r'''
-            removed option, preserved to allow parsing old metadata''',
-            type='boolean', undoc=True),
+        tiered_storage_shared,
         ]),
 ]
 
@@ -1261,37 +1270,19 @@ wiredtiger_open_statistics_log_configuration = [
         ])
 ]
 
-tiered_storage_configuration_common = [
-    Config('local_retention', '300', r'''
-        removed option, preserved to allow parsing old metadata''',
-        min='0', max='10000', undoc=True),
-]
 connection_reconfigure_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
-        type='category', subconfig=tiered_storage_configuration_common)
+        type='category', subconfig=[tiered_storage_local_retention])
 ]
 wiredtiger_open_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
         type='category', undoc=True, subconfig=
         tiered_storage_configuration_common + [
-        Config('auth_token', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('bucket', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('bucket_prefix', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('cache_directory', '', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
         Config('interval', '60', r'''
             removed option, preserved to allow parsing old metadata''',
             min=1, max=1000, undoc=True),
-        Config('name', 'none', r'''
-            removed option, preserved to allow parsing old metadata''', undoc=True),
-        Config('shared', 'false', r'''
-            removed option, preserved to allow parsing old metadata''',
-            type='boolean', undoc=True),
     ]),
 ]
 
