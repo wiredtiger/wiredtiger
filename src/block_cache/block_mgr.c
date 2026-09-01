@@ -145,11 +145,9 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
     if (checkpoint) {
         /*
          * Read-only objects are optionally mapped into memory instead of being read into cache
-         * buffers. This isn't supported for trees that use multiple files.
+         * buffers.
          */
-        if (!bm->is_multi_handle)
-            WT_RET(
-              __wti_blkcache_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
+        WT_RET(__wti_blkcache_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
         /*
          * If this handle is for a checkpoint, that is, read-only, there isn't a lot you can do with
@@ -169,15 +167,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
 static int
 __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-    WT_DECL_RET;
-
-    /* If we have made a switch from the older file, resolve the older one instead. */
-    if (bm->prev_block != NULL) {
-        if ((ret = __wt_block_checkpoint_resolve(session, bm->prev_block, failed)) == 0)
-            bm->prev_block = NULL;
-        return (ret);
-    } else
-        return (__wt_block_checkpoint_resolve(session, bm->block, failed));
+    return (__wt_block_checkpoint_resolve(session, bm->block, failed));
 }
 
 /*
@@ -239,26 +229,11 @@ static int
 __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    u_int i;
 
     if (bm == NULL) /* Safety check */
         return (0);
 
-    if (!bm->is_multi_handle)
-        ret = __wti_bm_close_block(session, bm->block);
-    else {
-        /*
-         * Higher-level code ensures that we can only have one call to close a block manager. So we
-         * don't need to lock the block handle array here.
-         *
-         * We don't need to explicitly close the active handle; it is also in the handle array.
-         */
-        for (i = 0; i < bm->handle_array_next; ++i)
-            WT_TRET(__wti_bm_close_block(session, bm->handle_array[i]));
-
-        __wt_rwlock_destroy(session, &bm->handle_array_lock);
-        __wt_free(session, bm->handle_array);
-    }
+    ret = __wti_bm_close_block(session, bm->block);
 
     __wt_overwrite_and_free(session, bm);
     return (ret);
@@ -583,11 +558,7 @@ __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
-    /* If we have made a switch from the older file, sync the older one instead. */
-    if (bm->prev_block != NULL)
-        return (__wt_fsync(session, bm->prev_block->fh, block));
-    else
-        return (__wt_fsync(session, bm->block->fh, block));
+    return (__wt_fsync(session, bm->block->fh, block));
 }
 
 /*

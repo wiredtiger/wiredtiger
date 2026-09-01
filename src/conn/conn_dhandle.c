@@ -657,17 +657,8 @@ err:
             F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
     }
 
-    if (WT_DHANDLE_BTREE(dhandle) && session->dhandle != NULL) {
+    if (WT_DHANDLE_BTREE(dhandle) && session->dhandle != NULL)
         __wt_evict_file_exclusive_off(session);
-
-        /*
-         * We want to close the Btree for an object that lives in the local directory. It will
-         * actually be part of the corresponding tiered Btree.
-         */
-        if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_BTREE &&
-          WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
-            WT_TRET(__wt_btree_close(session));
-    }
 
     if (ret == ENOENT && F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
@@ -769,7 +760,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
               F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
-              WT_IS_ANY_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
+              WT_IS_ANY_METADATA(dhandle))
                 continue;
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -1086,7 +1077,7 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session, "Name: %s", dhandle->name));
         if (dhandle->checkpoint != NULL)
             WT_RET(__wt_msg(session, "Checkpoint: %s", dhandle->checkpoint));
-        WT_RET(__wt_msg(session, "  Handle session and tiered work references: %" PRIu32,
+        WT_RET(__wt_msg(session, "  Handle references: %" PRIu32,
           __wt_atomic_load_uint32_relaxed(&dhandle->references)));
         WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32,
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse)));

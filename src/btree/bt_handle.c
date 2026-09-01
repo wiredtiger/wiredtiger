@@ -676,28 +676,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_CLR(btree, WT_BTREE_LOGGED);
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
-    if (cval.val)
-        F_SET(btree, WT_BTREE_NO_CHECKPOINT);
-    else
-        F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
-
     /* Page sizes */
     WT_RET(__btree_page_sizes(session));
-
-    /* Get the last flush times for tiered storage, if applicable. */
-    btree->flush_most_recent_secs = 0;
-    ret = __wt_config_gets(session, cfg, "flush_time", &cval);
-    WT_RET_NOTFOUND_OK(ret);
-    if (ret == 0)
-        btree->flush_most_recent_secs = (uint64_t)cval.val;
-
-    btree->flush_most_recent_ts = WT_TS_NONE;
-    ret = __wt_config_gets(session, cfg, "flush_timestamp", &cval);
-    WT_RET_NOTFOUND_OK(ret);
-    if (ret == 0 && cval.len != 0)
-        WT_RET(__wt_txn_parse_timestamp_raw(
-          session, "flush timestamp", &btree->flush_most_recent_ts, &cval));
 
     /* Checksums */
     WT_RET(__wt_config_gets(session, cfg, "checksum", &cval));
