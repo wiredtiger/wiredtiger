@@ -621,7 +621,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 
     /* This is the top of a retry loop. */
     do {
-        ret = 0;
+        /* All code paths below overwrite the return value, but clear it here to be defensive. */
+        WT_NOT_READ(ret, 0);
 
         /*
          * Save the checkpoint generation number and the checkpoint's state to detect races.
