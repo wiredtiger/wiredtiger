@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,116 +26,101 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-from wiredtiger import stat
+import re
+import wttest
+from suite_subprocess import suite_subprocess
 
-# Truncating a range whose rows are all already deleted must not fast-delete the
-# pages: the on-disk images fully express the deletion, and page-delete
-# information would only duplicate it. The duplicate state is what a later
-# reconciliation that skips the write can discard while the parent still holds a
-# fast-truncate proxy cell that needs it.
-@wttest.skip_for_hook("tiered", "tiered truncate does not take the fast-delete path")
-class test_truncate33(wttest.WiredTigerTestCase):
+# Test that an internal page whose children are all fast-truncated records the truncate
+# stop point in its address aggregate. The aggregate written in a child's deleted-address
+# cell describes the child as it was before the truncate, so a parent built by merging
+# those cells unchanged claims its records never stop.
+class test_truncate33(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'cache_size=50MB,statistics=(all)'
     uri = 'table:test_truncate33'
-    create_cfg = 'key_format=i,value_format=S,leaf_page_max=4KB'
 
-    value = 'abcdefghijklmnopqrstuvwxyz' * 3
-    nrows = 2000
+    # Small pages give a three-level tree, roughly 200 leaves under 10 internal pages, so
+    # the truncated range covers every child of several internal pages with room to spare.
+    create_cfg = ('key_format=i,value_format=S,allocation_size=512,leaf_page_max=512,'
+                  'internal_page_max=512,memory_page_max=4096')
 
-    def get_stat(self, statname):
-        c = self.session.open_cursor('statistics:')
-        val = c[statname][2]
-        c.close()
-        return val
+    nrows = 1000
+    value = 'a' * 50
+    trunc_start = 100
+    trunc_stop = 900
+    truncate_ts = 20
 
     def evict_all(self):
-        # Read below the deletes so the search lands on every page.
-        ev = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
-        for i in range(1, self.nrows + 1):
-            ev.set_key(i)
-            ev.search()
-            ev.reset()
-        self.session.rollback_transaction()
-        ev.close()
+        with (
+            wttest.open_cursor(
+                self.session, self.uri, config='debug=(release_evict)'
+            ) as evict_cursor,
+            self.transaction(rollback=True),
+        ):
+            for key in range(1, self.nrows + 1):
+                evict_cursor.set_key(key)
+                evict_cursor.search()
+                evict_cursor.reset()
 
-    def test_truncate_already_deleted(self):
-        self.session.create(self.uri, self.create_cfg)
+    def populate(self):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        self.session.create(self.uri, self.create_cfg)
 
-        # Insert rows, then individually delete a band in the middle: the truncate
-        # below starts on a live key and walks across fully-deleted leaves to reach
-        # live ones, so it must skip the former and fast-delete the latter. (Dead
-        # keys at the range edges are never walked: the session positions the
-        # cursors on visible keys.)
-        dead_lo, dead_hi = self.nrows // 4, 3 * self.nrows // 4
-        c = self.session.open_cursor(self.uri)
-        for i in range(1, self.nrows + 1):
-            self.session.begin_transaction()
-            c[i] = self.value
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-        for i in range(dead_lo, dead_hi + 1):
-            self.session.begin_transaction()
-            c.set_key(i)
-            self.assertEqual(c.remove(), 0)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-        c.close()
+        with (
+            wttest.open_cursor(self.session, self.uri) as cursor,
+            self.transaction(commit_timestamp=10),
+        ):
+            for key in range(1, self.nrows + 1):
+                cursor[key] = self.value
 
-        # Make the per-key stops durable in the page images and push the pages to disk.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
+
+        # Fast-truncate only applies to children that are already on disk.
         self.evict_all()
 
-        # Truncate the fully-deleted range.
-        # Start at key 5 so this is a range truncate: a truncate spanning the whole
-        # table takes a different, tree-level path that never visits the pages.
-        fast_before = self.get_stat(stat.conn.rec_page_delete_fast)
-        self.session.begin_transaction()
-        start = self.session.open_cursor(self.uri)
-        start.set_key(5)
-        self.session.truncate(None, start, None, None)
-        start.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+    def fast_truncate(self):
+        with (
+            wttest.open_cursor(self.session, self.uri) as start_cursor,
+            wttest.open_cursor(self.session, self.uri) as stop_cursor,
+            self.transaction(commit_timestamp=self.truncate_ts),
+        ):
+            start_cursor.set_key(self.trunc_start)
+            stop_cursor.set_key(self.trunc_stop)
+            self.session.truncate(None, start_cursor, stop_cursor, None)
 
-        # The live leaves fast-delete; the fully-deleted leaves must be skipped.
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delete_fast), fast_before,
-                           'no live pages were fast-deleted; the walk did not run')
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delete_fast_skip_deleted), 0,
-                           'no fully-deleted pages were skipped; the case was not exercised')
+    def internal_page_timestamps(self, dumpfile):
+        """Collect stop timestamps of every internal page in a dump_address run."""
+        stops = []
+        durable_stops = []
+        for line in open(dumpfile).readlines():
+            if 'row-store internal' not in line:
+                continue
+            durable_match = re.search(r'newest_durable: \(\d+, \d+\)/\((\d+), (\d+)\)', line)
+            match = re.search(r'newest_stop: \((\d+), (\d+)\)', line)
+            if durable_match:
+                durable_stops.append((int(durable_match.group(1)) << 32) +
+                    int(durable_match.group(2)))
+            if match:
+                stops.append((int(match.group(1)) << 32) + int(match.group(2)))
+        return stops, durable_stops
 
-        # Correctness across timestamps: values before the deletes, gone after.
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
-        c = self.session.open_cursor(self.uri)
-        c.set_key(1)
-        self.assertEqual(c.search(), 0)
-        self.assertEqual(c.get_value(), self.value)
-        c.close()
-        self.session.rollback_transaction()
+    def test_truncate_internal_page_aggregate(self):
+        self.populate()
+        self.fast_truncate()
 
-        # At 25: the middle band is deleted, the edges are live. At 35: all gone.
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(25))
-        c = self.session.open_cursor(self.uri)
-        c.set_key(self.nrows // 2)
-        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        c.set_key(10)
-        self.assertEqual(c.search(), 0)
-        c.close()
-        self.session.rollback_transaction()
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
-        c = self.session.open_cursor(self.uri)
-        for i in [10, self.nrows // 2, self.nrows]:
-            c.set_key(i)
-            self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        c.close()
-        self.session.rollback_transaction()
-
-        # The pages survive a further checkpoint and eviction cycle.
+        # Leave oldest behind the truncate so the deletions are not globally visible: the
+        # children are written as deleted-address cells rather than being discarded.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.truncate_ts))
         self.session.checkpoint()
-        self.evict_all()
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
-        c = self.session.open_cursor(self.uri)
-        c.set_key(self.nrows)
-        self.assertEqual(c.search(), 0)
-        c.close()
-        self.session.rollback_transaction()
+
+        self.runWt(['verify', '-d', 'dump_address', self.uri, '-d'], outfilename='dump.out')
+
+        stops, durable_stops = self.internal_page_timestamps('dump.out')
+        self.assertGreater(len(stops), 1, 'expected a tree with more than one internal page')
+        self.assertIn(self.truncate_ts, stops,
+            'no internal page aggregate records the truncate as its stop point')
+        self.assertIn(self.truncate_ts, durable_stops,
+            'no internal page aggregate records the truncate as its durable stop point')
+
+if __name__ == '__main__':
+    wttest.run()
