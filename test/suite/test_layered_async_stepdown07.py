@@ -521,24 +521,23 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         cursor.close()
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'held'})
 
-    # A write transaction that remains open across demotion is rolled back.
+    # A transaction whose snapshot straddles the demotion cannot operate after the checkpoint
+    # adoption: its first write rolls back with the adoption reason. It holds no uncommitted
+    # modifications across the demotion — that is forbidden and enforced by a fatal assert.
     def test_write_txn_open_across_demotion(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
         self.set_step_down_ts(20)
 
-        # Open a write transaction and dirty a key, then let the demotion complete under it.
+        # Pin the snapshot with a read only, so nothing is dirty when the demotion completes.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
-        cursor['k1'] = 'held'
+        self.assertEqual(cursor['k1'], 'stable')
         self.complete_step_down(20)
 
         # The straddling snapshot cannot operate after the checkpoint adoption.
-        self.expect_rollback(lambda: cursor.__setitem__('k2', 'more'))
+        self.expect_rollback(lambda: cursor.__setitem__('k1', 'new'))
         err, _, err_msg = self.session.get_last_error()
         self.assertEqual(err, wiredtiger.WT_ROLLBACK)
         self.assertIn('A newer checkpoint was adopted', err_msg)

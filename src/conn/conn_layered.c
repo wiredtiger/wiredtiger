@@ -1580,7 +1580,6 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     return (0);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __disagg_assert_no_active_writes_callback --
  *     Session array walk callback to assert no active writes.
@@ -1596,24 +1595,6 @@ __disagg_assert_no_active_writes_callback(
       "application write transaction is active during disaggregated step-down");
     return (0);
 }
-
-/*
- * __disagg_assert_no_active_writes --
- *     Assert that application write transactions have finished before step-down.
- */
-static void
-__disagg_assert_no_active_writes(WT_SESSION_IMPL *session)
-{
-    /* TODO: Do we need to lock?
-    WT_CONNECTION_IMPL *conn;
-    conn = S2C(session);
-    __wt_spin_lock(session, &conn->api_lock);
-    */
-    WT_IGNORE_RET(
-      __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL));
-    /* __wt_spin_unlock(session, &conn->api_lock); */
-}
-#endif
 
 /*
  * __disagg_step_down_int --
@@ -1641,14 +1622,23 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
     /*
+     * Assert that application write transactions have finished before step-down.
+     *
+     * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
+     * session open/close to ensure we don't race. Step-down is rare enough, acquiring the lock
+     * shouldn't be an issue.
+     */
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    __wt_spin_lock(session, &conn->api_lock);
+    ret = __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL);
+    __wt_spin_unlock(session, &conn->api_lock);
+    WT_ERR(ret);
+
+    /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
      * eviction paths, especially parent split path, from dirtying pages during the step-down
      * window.
      */
-#ifdef HAVE_DIAGNOSTIC
-    /* TODO: Should we check for production too? */
-    __disagg_assert_no_active_writes(session);
-#endif
     WT_WITH_HANDLE_LIST_READ_LOCK(
       session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
     WT_ERR(ret);
