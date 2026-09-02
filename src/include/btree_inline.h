@@ -2079,7 +2079,7 @@ __wt_ref_block_free(
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
     else if (disagg_free_block) {
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
-        if (ref->page != NULL)
+        if (ref->page != NULL && ref->page->disagg_info != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
 
