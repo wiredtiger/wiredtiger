@@ -289,12 +289,7 @@ class test_checkpoint_scrub_evict02(wttest.WiredTigerTestCase):
         # realizes the split, and when, is not ours to choose: eviction may take the page while
         # the checkpoint is still running, or only once the cursor forces it. So drive eviction
         # over the whole range and check the end state rather than any single eviction.
-        cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        for key in range(2000):
-            cursor.set_key(key)
-            cursor.search()
-            cursor.reset()
-        cursor.close()
+        self.evict_all(2000)
 
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_split_leaf, self.uri), 0,
           'eviction never realized the checkpoint split')
