@@ -1547,7 +1547,7 @@ __wt_session_range_truncate(
     WT_TRUNCATE_INFO *trunc_info, _trunc_info;
     int cmp;
     const char *actual_uri;
-    bool local_start, local_stop, log_op, log_trunc, needs_next_prev;
+    bool local_start, local_stop, log_op, log_trunc, needs_next_prev, txn_truncate_set;
 
     actual_uri = NULL;
     local_start = local_stop = log_trunc = false;
@@ -1687,7 +1687,16 @@ __wt_session_range_truncate(
         }
     }
 
-    WT_ERR(__wt_schema_range_truncate(trunc_info));
+    /*
+     * Mark the transaction so the operations the range deletion creates can be identified at
+     * commit, whether they are individual tombstones or fast-truncate page deletions.
+     */
+    txn_truncate_set = !F_ISSET(session->txn, WT_TXN_TRUNCATE);
+    F_SET(session->txn, WT_TXN_TRUNCATE);
+    ret = __wt_schema_range_truncate(trunc_info);
+    if (txn_truncate_set)
+        F_CLR(session->txn, WT_TXN_TRUNCATE);
+    WT_ERR(ret);
 
 done:
     /*

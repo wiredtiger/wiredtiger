@@ -305,6 +305,14 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
     op->btree = btree;
 
     /*
+     * Remember that this operation came from a truncate: the timestamp usage rules are stricter for
+     * a range deletion than for an individual one, and the two are indistinguishable by commit
+     * time.
+     */
+    if (F_ISSET(txn, WT_TXN_TRUNCATE))
+        F_SET(op, WT_TXN_OP_FROM_TRUNCATE);
+
+    /*
      * Store the ID of the latest transaction that is making an update. It can be used to determine
      * if there is an active transaction on the btree. Only try to update the shared value if this
      * transaction is newer than the last transaction that updated it.
@@ -597,8 +605,8 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 /*
  * __wt_txn_timestamp_usage_check --
  *     Check if a commit will violate timestamp rules. Callers pass no_ts_ok to say whether a
- *     transaction configured with no_timestamp may skip the ordered-usage rule; a truncate may not,
- *     since it replaces the timestamped state of its whole range.
+ *     transaction configured with no_timestamp may skip the ordered-usage rule; an operation from a
+ *     truncate may not, since the deletion replaces the timestamped state of the whole range.
  */
 static WT_INLINE int
 __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t op_ts,
@@ -697,7 +705,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
             else
                 WT_RET(__wt_txn_timestamp_usage_check(session, op->btree,
                   txn->time_point.commit_timestamp, op->u.op_upd->prev_durable_ts,
-                  F_ISSET(txn, WT_TXN_TS_NOT_SET)));
+                  F_ISSET(txn, WT_TXN_TS_NOT_SET) && !F_ISSET(op, WT_TXN_OP_FROM_TRUNCATE)));
         }
         return (0);
     }
@@ -727,7 +735,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
                 WT_RET(__wt_txn_timestamp_usage_check(session, op->btree,
                   upd->upd_start_ts != WT_TS_NONE ? upd->upd_start_ts :
                                                     txn->time_point.commit_timestamp,
-                  upd->prev_durable_ts, F_ISSET(txn, WT_TXN_TS_NOT_SET)));
+                  upd->prev_durable_ts,
+                  F_ISSET(txn, WT_TXN_TS_NOT_SET) && !F_ISSET(op, WT_TXN_OP_FROM_TRUNCATE)));
             if (upd->upd_start_ts == WT_TS_NONE) {
                 /* FIXME-WT-16319: Data races reported. */
                 __wt_tsan_suppress_store_uint64(
