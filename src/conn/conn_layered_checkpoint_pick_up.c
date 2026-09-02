@@ -1818,7 +1818,7 @@ __disagg_pick_up_checkpoint(
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR_MSG_CHK(session, __wti_disagg_load_crypt_key(session, &metadata),
-      "Failed to load the encryption key for checkpoint metadata_lsn=%" PRIu64,
+      "Failed to set up encryption keys for checkpoint metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
 
     /*

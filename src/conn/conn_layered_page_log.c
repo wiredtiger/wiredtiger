@@ -260,7 +260,8 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
      */
     if (metadata->key_provider == NULL) {
         WT_ERR_MSG_CHK(session, key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt),
-          "Key provider failed to load a key with no persisted encryption key data");
+          "Key provider load_key callback failed when called without a persisted encryption key "
+          "record (the checkpoint metadata has none)");
         return (0);
     }
 
@@ -272,8 +273,8 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
 
     /* Read the encryption key data from disaggregated storage. */
     WT_ERR_MSG_CHK(session, __disagg_get_crypt_key(session, page_id, lsn, &key_item),
-      "Failed to read the encryption key data from disaggregated storage: page_id=%" PRIu64
-      ", lsn=%" PRIu64,
+      "Failed to read the persisted encryption key record from the key provider page log: "
+      "page_id=%" PRIu64 ", lsn=%" PRIu64,
       page_id, lsn);
 
     /* Validate the crypt data. */
@@ -291,7 +292,7 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
 
     /* Callback to load the encryption key data into the key provider. */
     WT_ERR_MSG_CHK(session, key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt),
-      "Key provider failed to load the persisted encryption key: lsn=%" PRIu64
+      "Key provider load_key callback failed for the persisted encryption key record: lsn=%" PRIu64
       ", timestamp=%" PRIu64,
       lsn, crypt.timestamp);
 
