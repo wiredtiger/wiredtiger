@@ -146,6 +146,8 @@ DataSet
 Decrementing
 Decrypt
 DeleteFileW
+Dequeue
+Dequeued
 Deterministically
 Dhandle
 DisAgg
@@ -967,6 +969,7 @@ demuxes
 demuxing
 dequeue
 dequeued
+dequeues
 der
 deref
 dereference
@@ -1165,8 +1168,11 @@ fwrite
 gb
 gc
 gcc
+gcda
+gcno
 gcov
 gcovr
+gcovr's
 gcp
 gdb
 gdb's
@@ -1937,6 +1943,8 @@ topologies
 totalsec
 tp
 traceapi
+tracefile
+tracefiles
 tracepat
 transactional
 transactionally
