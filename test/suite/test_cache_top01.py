@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import re, time
+import wiredtiger
 import wttest
 
 # The file constituent behind a table's name can carry a different suffix depending on the running
@@ -199,6 +200,50 @@ class test_cache_top01(wttest.WiredTigerTestCase):
             for _, name in report[ranking]['entries']:
                 self.assertNotIn('WiredTiger.wt', name)
                 self.assertNotIn('WiredTigerHS.wt', name)
+
+    # The history store stays out of the rankings even when it is the hottest tree in the cache.
+    # Its identity has to be established from the URI: the data handle flag naming it is set well
+    # after the tracking state is initialized.
+    def test_history_store_excluded_under_load(self):
+        uri = 'table:hsload'
+        self.session.create(uri, 'key_format=S,value_format=S')
+
+        rows = 2000
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
+        # Successive committed versions of every key push the older ones into the history store.
+        for ts in range(2, 12):
+            c = self.session.open_cursor(uri)
+            for i in range(rows):
+                self.session.begin_transaction()
+                c['k%08d' % i] = self.value
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+            c.close()
+        self.session.checkpoint()
+
+        # Reading at an old timestamp comes back out of the history store, so it takes read and
+        # eviction traffic as well as the writes above.
+        for ts in range(2, 6):
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+            c = self.session.open_cursor(uri)
+            for _ in c:
+                pass
+            c.close()
+            self.session.rollback_transaction()
+
+        # The guard below is only meaningful if the workload actually used the history store.
+        stat = self.session.open_cursor('statistics:')
+        hs_inserts = stat[wiredtiger.stat.conn.cache_hs_insert][2]
+        stat.close()
+        self.assertGreater(hs_inserts, 0)
+
+        report = self.report()
+        self.check_report_consistent(report)
+        for ranking in self.rankings:
+            for name in self.names(report, ranking):
+                self.assertNotIn('WiredTigerHS', name)
+                self.assertNotIn('WiredTiger.wt', name)
 
     # A table dropped while it is being reported leaves the ranking without taking the connection
     # with it.

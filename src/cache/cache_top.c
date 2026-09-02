@@ -424,7 +424,9 @@ __wt_cache_top_flow_incr(
  *     as well, rather than being discovered by the accounting path later: they already have their
  *     own connection-level statistics, are never the table an operator asking for the largest cache
  *     consumers wants named, and the history store in particular is too hot a tree to be checking
- *     its identity from that path on every byte it accounts for.
+ *     its identity from that path on every byte it accounts for. Identity comes from the URI rather
+ *     than the data handle flags, because the history store and disaggregated metadata flags are
+ *     set later in the tree open.
  */
 void
 __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -433,7 +435,8 @@ __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
     bool excluded;
 
     WT_UNUSED(session);
-    excluded = WT_IS_ANY_METADATA(btree->dhandle) || WT_IS_HS(btree->dhandle);
+    excluded = WT_IS_METADATA(btree->dhandle) || WT_IS_URI_HS(btree->dhandle->name) ||
+      strcmp(btree->dhandle->name, WT_DISAGG_METADATA_URI) == 0;
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
         btree->cache_top_slot[metric] = WT_CACHE_TOP_NOT_TRACKED;
