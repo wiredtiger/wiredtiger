@@ -1482,7 +1482,7 @@ struct __wt_session {
      * string; default empty.}
      * @config{ ),,}
      * @configend
-     * @ebusy_errors
+     * @errors
      */
     int __F(publish)(WT_SESSION *session,
         const char *name, const char *config);
