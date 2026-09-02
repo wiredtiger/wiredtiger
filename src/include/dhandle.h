@@ -108,8 +108,10 @@ enum wt_dhandle_type {
     WT_DHANDLE_TYPE_TIERED,
     WT_DHANDLE_TYPE_TIERED_TREE
 };
-/* Number of values above. */
-#define WT_DHANDLE_TYPE_NUM (1 + WT_DHANDLE_TYPE_TIERED_TREE)
+/* Number of values above, update when adding a dhandle type. */
+#define WT_DHANDLE_TYPE_NUM 5
+static_assert(WT_DHANDLE_TYPE_NUM == WT_DHANDLE_TYPE_TIERED_TREE + 1,
+  "WT_DHANDLE_TYPE_NUM does not match the number of dhandle types");
 
 /*
  * WT_DATA_HANDLE --
