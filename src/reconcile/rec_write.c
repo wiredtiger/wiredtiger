@@ -3276,6 +3276,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
+        /*
+         * Count internal pages separately from the generic counter, which does not distinguish an
+         * emptied internal page from an emptied leaf. An emptied internal page below the root is
+         * later merged into its parent when the parent reconciles, and its own block is discarded
+         * then; the root instead turns into a sync point below.
+         */
+        if (WT_PAGE_IS_INTERNAL(page))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_internal);
 
         /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has

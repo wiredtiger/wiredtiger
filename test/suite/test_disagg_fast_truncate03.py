@@ -58,6 +58,18 @@ class test_disagg_fast_truncate03(test_cc_base):
     page is on disk, cursor traversal can use that aggregate to skip the whole subtree.
     Checkpoint cleanup eventually reads the internal page, removes its obsolete leaf
     references, and lets checkpoint reconciliation propagate the removal up the tree.
+
+    Before the deletion is globally visible, checkpoint cleanup's own walk skips the
+    subtree too: reading it then would instantiate the deleted children and dirty the page
+    although nothing under it can be reclaimed yet. The skip is only a delay -- once the
+    deletion is globally visible the read happens, because reading the page is how the
+    descendant page ids become known and their blocks get discarded.
+
+    A prepared fast-truncate never reaches this state on disaggregated storage:
+    reconciliation holds a prepared page dirty rather than writing a proxy cell, and
+    precise checkpoints exclude unstable prepared updates, so a persisted fully deleted
+    aggregate cannot carry the prepared flag. The prepare check remains as a defensive
+    guard but is not reachable through the public API here.
     """
 
     uri = "table:test_disagg_fast_truncate03"
@@ -103,6 +115,7 @@ class test_disagg_fast_truncate03(test_cc_base):
         return {
             "fast_deleted": self.read_stat(stat.dsrc.rec_page_delete_fast),
             "real_deleted": self.read_stat(stat.dsrc.rec_page_delete),
+            "internal_emptied": self.read_stat(stat.dsrc.rec_page_delete_internal),
             "evict_blocked": self.read_stat(
                 stat.dsrc.cache_eviction_blocked_disagg_dirty_internal_page
             ),
@@ -110,6 +123,9 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
+            "not_visible_skip": self.read_stat(
+                stat.dsrc.checkpoint_cleanup_pages_walk_skipped_not_visible
+            ),
             "cleanup_removed": self.read_stat(stat.dsrc.checkpoint_cleanup_pages_removed),
             "block_discard": self.get_stat(stat.conn.disagg_block_page_discard),
         }
@@ -253,7 +269,43 @@ class test_disagg_fast_truncate03(test_cc_base):
             "step 5: no deleted internal page was skipped",
         )
 
-        # Step 6 -- make the deletions globally visible and trigger checkpoint cleanup.
+        # Step 6 -- while the deletion is not yet globally visible, checkpoint cleanup's walk
+        # skips the subtree as well. Two passes prove the skip is stable rather than a
+        # one-time miss, and no deleted child is reclaimed on any pass: the deletion is not
+        # visible to every reader yet, so no leaf reference can be removed and nothing
+        # reconciled away.
+        #
+        # A pass can be preempted by cache pressure before it ever reaches the subtree -- the
+        # walk skips the whole page earlier, without counting it here -- so each pass is
+        # retried until the skip is observed. A preempted pass reclaims nothing either, so
+        # the no-reclamation assertions hold across the retries as a whole.
+        #
+        # The tree-wide internal-read counter is deliberately not asserted here: an internal
+        # page whose children are only partly deleted does not qualify for the skip and is
+        # still read by the generic policy, which this change leaves alone. The
+        # connection-wide block-discard counter is excluded for the same reason: it also
+        # counts unrelated page-version replacements, such as the root rotation each
+        # checkpoint performs.
+        before = self.snapshot_stats()
+        for pass_no in (1, 2):
+            baseline = self.read_stat(stat.dsrc.checkpoint_cleanup_pages_walk_skipped_not_visible)
+            self.retry_for_stat_increase(
+                lambda: self.wait_for_cc_to_run(),
+                stat.dsrc.checkpoint_cleanup_pages_walk_skipped_not_visible,
+                baseline,
+                f"step 6 pass {pass_no}: checkpoint cleanup did not skip the not-yet-visible subtree",
+            )
+        after = self.snapshot_stats()
+        self.assertEqual(
+            after["cleanup_removed"], before["cleanup_removed"],
+            "step 6: a not-yet-visible leaf reference was removed",
+        )
+        self.assertEqual(
+            after["real_deleted"], before["real_deleted"],
+            "step 6: a not-yet-visible leaf was reconciled away",
+        )
+
+        # Step 7 -- make the deletions globally visible and trigger checkpoint cleanup.
         # Its custom walk reads the skipped internal page and marks its obsolete leaf
         # references deleted, dirtying the internal page for reconciliation.
         before = self.snapshot_stats()
@@ -263,21 +315,21 @@ class test_disagg_fast_truncate03(test_cc_base):
         after = self.snapshot_stats()
         self.assertGreater(
             after["internal_read"], before["internal_read"],
-            "step 6: checkpoint cleanup did not read the skipped internal page",
+            "step 7: checkpoint cleanup did not read the skipped internal page",
         )
         self.assertEqual(
             after["leaf_read"], before["leaf_read"],
-            "step 6: checkpoint cleanup read a fast-deleted leaf page",
+            "step 7: checkpoint cleanup read a fast-deleted leaf page",
         )
         self.assertEqual(
             after["cleanup_removed"] - before["cleanup_removed"], fast_deleted,
-            "step 6: checkpoint cleanup did not process every fast-deleted leaf reference",
+            "step 7: checkpoint cleanup did not process every fast-deleted leaf reference",
         )
 
-        # Step 7 -- checkpoint reconciles the dirty internal page. The deleted leaves
+        # Step 8 -- checkpoint reconciles the dirty internal page. The deleted leaves
         # are discarded and an empty internal page is omitted from its parent.
         #
-        # The counters are measured against the step 6 baseline, taken before the deletions
+        # The counters are measured against the step 7 baseline, taken before the deletions
         # became globally visible: once cleanup has dirtied an internal page, eviction can
         # reconcile it ahead of this checkpoint, so the reclamation is not confined to the
         # checkpoint's own window. Nothing before that baseline can reclaim a deleted leaf,
@@ -285,15 +337,21 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.session.checkpoint()
         after = self.snapshot_stats()
         # An emptied internal page still in cache reconciles to empty as well, so the
-        # count covers at least the pages the walk skipped.
+        # count covers at least the pages the walk skipped. The internal-specific counter
+        # is the direct witness: an emptied page merges into its parent and its own block
+        # is discarded when the parent reconciles.
+        self.assertGreaterEqual(
+            after["internal_emptied"] - before["internal_emptied"], skipped_internal,
+            "step 8: a skipped internal page did not reconcile to empty",
+        )
         self.assertGreaterEqual(
             after["real_deleted"] - before["real_deleted"], skipped_internal,
-            "step 7: a skipped internal page did not reconcile to empty",
+            "step 8: no page reconciled to empty",
         )
         self.assertGreaterEqual(
             after["block_discard"] - before["block_discard"],
             fast_deleted,
-            "step 7: reconciliation did not discard every fast-deleted leaf page",
+            "step 8: reconciliation did not discard every fast-deleted leaf page",
         )
 
         # Exit -- scans no longer trip the dirty-internal-page eviction guard.

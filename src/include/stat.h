@@ -826,6 +826,7 @@ struct __wt_connection_stats {
     int64_t capacity_time_read;
     int64_t checkpoint_cleanup_thread_start;
     int64_t checkpoint_cleanup_thread_stop;
+    int64_t checkpoint_cleanup_pages_walk_skipped_not_visible;
     int64_t checkpoint_cleanup_duration;
     int64_t checkpoint_cleanup_handle_processed;
     int64_t checkpoint_cleanup_inmem_pages_visited;
@@ -1289,6 +1290,7 @@ struct __wt_connection_stats {
     int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
     int64_t rec_multiblock_internal;
+    int64_t rec_page_delete_internal;
     int64_t rec_page_delta_leaf;
     int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
@@ -1709,6 +1711,7 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
+    int64_t checkpoint_cleanup_pages_walk_skipped_not_visible;
     int64_t checkpoint_cleanup_pages_evict;
     int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_read_reclaim_space;
@@ -1867,6 +1870,7 @@ struct __wt_dsrc_stats {
     int64_t rec_page_delta_internal;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
+    int64_t rec_page_delete_internal;
     int64_t rec_prefix_compression_delta;
     int64_t rec_prefix_compression_full;
     int64_t rec_page_delta_leaf;
