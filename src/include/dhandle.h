@@ -191,9 +191,14 @@ struct __wt_data_handle {
  * - never write this handle's content back,
  * - retire the handle promptly.
  *
- * FIXME-WT-18542: that is what the call sites assume, not a specified invariant, and making the
- * flag atomic may not be enough to establish it -- readers combine it with dhandle->session_inuse
- * to conclude "no future user", which is not what that counter means.
+ * FIXME-WT-18542: that is what the call sites assume, not a specified invariant, and atomics alone
+ * do not establish it. Two gaps:
+ * - readers combine the flag with dhandle->session_inuse to conclude "no future user", which is
+ *   not what that counter means;
+ * - a predicate over this flag and the lock-protected flags is two loads of two words, so holding
+ *   the dhandle lock does not make it a snapshot. That is benign only because the flag is set-only
+ *   and no writer holds the dhandle lock; clearing it, or publishing it together with an open or
+ *   dead transition, would break the readers that assume otherwise.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_OUTDATED 0x1u /* Handle is outdated */
