@@ -86,6 +86,7 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertEqual(seen, count)
 
     def test_eviction_publishes_covered_table(self):
+        """Eviction publishes a table once the stable epoch covers its create."""
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
@@ -93,25 +94,25 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(uri, 'key_format=S,value_format=S')
         self.insert(uri, 0, self.nitems, 20)
 
-        # An unpublished table has nothing to publish.
         self.assertEqual(self.published_count(), 0)
 
-        # Published, but the stable epoch does not cover the create yet.
+        # Published, but not yet covered.
         self.publish(uri, 10)
         self.assertEqual(self.published_count(), 0)
 
-        # Once the epoch covers the create, eviction publishes the table without a checkpoint.
         self.set_stable_epoch(10)
         self.wait_for_published(uri, 1)
 
-        # The table behaves normally from here: the checkpoint succeeds and the data survives.
+        # The table is an ordinary one from here.
         self.leader_checkpoint(30)
         self.check(uri, self.nitems + 100)
 
     def test_publication_lets_eviction_take_pages(self):
-        # The mirror of test_layered_schema26, which shows eviction skipping the table while it
-        # awaits publication. Once the epoch covers the create, eviction takes its pages, and does
-        # so without a checkpoint having run.
+        """
+        Publication releases the table's pages to eviction, with no checkpoint involved.
+        Complements test_layered_schema26, which asserts eviction takes none of them while the
+        table is still awaiting publication.
+        """
         self.set_stable_epoch(1)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
                                 ',stable_timestamp=' + self.timestamp_str(10))
@@ -127,11 +128,10 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
                     cursor[i] = 'v' * 2048
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
-        # The epoch does not cover the create, so the table holds its pages in memory.
+        # Uncovered, so the pages stay in memory.
         self.assertEqual(
             self.get_stat(stat.dsrc.cache_eviction_pages_seen, uri=self.stable_uri(uri)), 0)
 
-        # Covering the create releases the table to eviction, with no checkpoint in between.
         self.set_stable_epoch(20)
         self.assertStatGreaterSoon(
             stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), timeout=60)
@@ -141,6 +141,7 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             self.assertEqual(sum(1 for _ in cursor), nrows)
 
     def test_eviction_publishes_every_covered_table(self):
+        """Every table the epoch covers is published, and one published above it is not."""
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
@@ -154,7 +155,6 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(above, 'key_format=S,value_format=S')
         self.publish(above, 20)
 
-        # The table published above the new epoch keeps waiting.
         self.set_stable_epoch(10)
         self.wait_for_published(covered[0], len(covered))
 
@@ -162,8 +162,7 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.wait_for_published(above, len(covered) + 1)
 
     def test_drop_blocked_until_checkpoint(self):
-        # The published table still holds uncheckpointed data, so the drop must keep refusing
-        # until a checkpoint persists it.
+        """A published table still holds uncheckpointed data, so the drop keeps being refused."""
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
@@ -185,9 +184,10 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.dropUntilSuccess(self.session, uri)
 
     def test_verify_after_publish(self):
-        # Verify skips a table awaiting publication. Once it is published the table is an
-        # ordinary one: verifying it while it still holds dirty data reports the same busy
-        # error any dirty table reports, and it verifies once a checkpoint has run.
+        """
+        Verify skips a table awaiting publication. A published one is verified like any other:
+        busy while it holds dirty data, and verified once a checkpoint has run.
+        """
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
@@ -209,8 +209,7 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.check(uri, self.nitems + 100)
 
     def test_table_above_the_epoch_keeps_waiting(self):
-        # The stable epoch never reaches the table's publish epoch, so the table keeps waiting
-        # through checkpoints, its data stays available, and the drop keeps being refused.
+        """A table published above the stable epoch stays unpublished across checkpoints."""
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
@@ -218,8 +217,7 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(uri, 'key_format=S,value_format=S')
         self.publish(uri, 20)
 
-        # A table awaiting publication may only hold data the checkpoint does not consider
-        # stable, so commit above the timestamp the checkpoint below runs at.
+        # Such a table may only hold data the checkpoint does not consider stable.
         self.insert(uri, 0, 100, 50)
 
         self.leader_checkpoint(30)
@@ -230,10 +228,10 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.check(uri, 100)
 
     def test_step_up_publishes(self):
-        # A table created and published on a follower has no stable constituent until this
-        # node steps up and rebuilds it from the queue entry. That entry is the only record of
-        # the published epoch, as no publish call will ever run for the table again, so
-        # publishing after the step up proves the rebuilt btree finds it.
+        """
+        A table created on a follower gets its stable constituent at step up, and the queue
+        entry is the only record of the epoch it was published at.
+        """
         # Reopening in disaggregated mode reports that it removed the local history store.
         self.ignoreStdoutPattern('wiredtiger_open:.*WT_VERB_METADATA')
         self.reopen_conn(config=self.conn_config_follower)
@@ -253,8 +251,7 @@ class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.check(uri, self.nitems + 100)
 
     def test_follower_does_not_publish(self):
-        # Only a leader writes pages, so a follower has nothing to publish and must leave the
-        # table alone when the epoch advances.
+        """Only a leader writes pages, so a follower publishes nothing when the epoch advances."""
         # Reopening in disaggregated mode reports that it removed the local history store.
         self.ignoreStdoutPattern('wiredtiger_open:.*WT_VERB_METADATA')
         self.reopen_conn(config=self.conn_config_follower)
