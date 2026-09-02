@@ -26,245 +26,116 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A table awaiting publication keeps its contents in memory and cannot be evicted. Once the
-# stable schema epoch covers the table's create, eviction publishes the table itself rather
-# than leaving it in memory until the next checkpoint visits the tree.
+# Recreating a dropped layered table allocates a new table that owns its own page log. A
+# read cached across the drop must not bind the new table to the dropped table's page log:
+# it would write its pages there, then fail to find them when it reopens.
 
-import errno, time
+import glob, json, os, subprocess
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
-from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# Eviction only publishes a table it walks, so the tests need it working for its cache.
-conn_base_config = 'cache_size=20MB,statistics=(all),debug_mode=(eviction=true),' \
-                 + 'eviction_dirty_target=1,'
+@disagg_test_class
+class test_layered_schema32(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+    test_name = __qualname__
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
+    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
-class publication(DisaggSchemaEpochMixin):
-    """Helpers shared by the leader and follower tests."""
+    uri = f'layered:{test_name}'
+    table_config = 'key_format=i,value_format=S'
+    nrows = 200
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 5000
+    #
+    # Helper methods
+    #
 
-    def published_count(self):
-        return self.get_stat(stat.conn.disagg_publish_epoch_cleared)
-
-    def wait_for_published(self, uri, expected):
-        """
-        Wait for eviction to publish the table. Eviction only visits a table when it wants its
-        memory, so the inserts below keep the cache under pressure until it does.
-        """
-        for _ in range(600):
-            if self.published_count() >= expected:
-                self.assertEqual(self.published_count(), expected)
-                return
-            self.insert(uri, self.nitems, 100, 20)
-            time.sleep(0.1)
-        self.fail('eviction never published %d tables, saw %d' %
-                  (expected, self.published_count()))
-
-    def insert(self, uri, start, count, commit_ts):
-        cursor = self.session.open_cursor(uri)
-        for i in range(start, start + count):
-            self.session.begin_transaction()
-            cursor[str(i)] = 'v' * 100 + str(i)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+    def write_rows(self, commit_ts, value):
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
+            cursor[i] = value
         cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
 
-    def check(self, uri, count):
-        cursor = self.session.open_cursor(uri)
-        seen = 0
+    def read_all_rows(self):
+        """Read the whole table and close the cursor, leaving the read cached."""
+        cursor = self.session.open_cursor(self.uri)
+        count = 0
         while cursor.next() == 0:
-            seen += 1
+            count += 1
         cursor.close()
-        self.assertEqual(seen, count)
+        return count
 
-@disagg_test_class
-class test_layered_schema32(wttest.WiredTigerTestCase, publication):
-    test_name = __qualname__
-    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
-
-    def test_eviction_publishes_covered_table(self):
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.insert(uri, 0, self.nitems, 20)
-
-        # An unpublished table has nothing to publish.
-        self.assertEqual(self.published_count(), 0)
-
-        # Published, but the stable epoch does not cover the create yet.
-        self.publish(uri, 10)
-        self.assertEqual(self.published_count(), 0)
-
-        # Once the epoch covers the create, eviction publishes the table without a checkpoint.
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
-
-        # The table behaves normally from here: the checkpoint succeeds and the data survives.
-        self.leader_checkpoint(30)
-        self.check(uri, self.nitems + 100)
-
-    def test_publication_lets_eviction_take_pages(self):
-        # The mirror of test_layered_schema26, which shows eviction skipping the table while it
-        # awaits publication. Once the epoch covers the create, eviction takes its pages, and does
-        # so without a checkpoint having run.
-        self.set_stable_epoch(1)
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-                                ',stable_timestamp=' + self.timestamp_str(10))
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=i,value_format=S')
-        self.publish(uri, 20)
-
-        nrows = 300
-        with self.transaction(commit_timestamp=30):
-            with wttest.open_cursor(self.session, uri) as cursor:
-                for i in range(1, nrows + 1):
-                    cursor[i] = 'v' * 2048
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
-
-        # The epoch does not cover the create, so the table holds its pages in memory.
-        self.assertEqual(
-            self.get_stat(stat.dsrc.cache_eviction_pages_seen, uri=self.stable_uri(uri)), 0)
-
-        # Covering the create releases the table to eviction, with no checkpoint in between.
-        self.set_stable_epoch(20)
-        self.assertStatGreaterSoon(
-            stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), timeout=60)
-        self.assertGreater(self.published_count(), 0)
-
-        with wttest.open_cursor(self.session, uri) as cursor:
-            self.assertEqual(sum(1 for _ in cursor), nrows)
-
-    def test_eviction_publishes_every_covered_table(self):
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        covered = ['layered:' + self.test_name + str(i) for i in range(3)]
-        for uri in covered:
-            self.session.create(uri, 'key_format=S,value_format=S')
-            self.insert(uri, 0, 100, 20)
-            self.publish(uri, 10)
-
-        above = 'layered:' + self.test_name + '_above'
-        self.session.create(above, 'key_format=S,value_format=S')
-        self.publish(above, 20)
-
-        # The table published above the new epoch keeps waiting.
-        self.set_stable_epoch(10)
-        self.wait_for_published(covered[0], len(covered))
-
-        self.set_stable_epoch(20)
-        self.wait_for_published(above, len(covered) + 1)
-
-    def test_drop_blocked_until_checkpoint(self):
-        # The published table still holds uncheckpointed data, so the drop must keep refusing
-        # until a checkpoint persists it.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.insert(uri, 0, self.nitems, 20)
-        self.publish(uri, 10)
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri, None))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('unpublished data' in msg)
-
-        self.leader_checkpoint(30)
-        self.dropUntilSuccess(self.session, uri)
-
-    def test_verify_after_publish(self):
-        # Verify skips a table awaiting publication. Once it is published the table is an
-        # ordinary one: verifying it while it still holds dirty data reports the same busy
-        # error any dirty table reports, and it verifies once a checkpoint has run.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.insert(uri, 0, self.nitems, 20)
-        self.publish(uri, 10)
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.verify(uri, None))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-
-        self.leader_checkpoint(30)
-        self.session.verify(uri, None)
-        self.check(uri, self.nitems + 100)
-
-    def test_table_above_the_epoch_keeps_waiting(self):
-        # The stable epoch never reaches the table's publish epoch, so the table keeps waiting
-        # through checkpoints, its data stays available, and the drop keeps being refused.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.publish(uri, 20)
-
-        # A table awaiting publication may only hold data the checkpoint does not consider
-        # stable, so commit above the timestamp the checkpoint below runs at.
-        self.insert(uri, 0, 100, 50)
-
-        self.leader_checkpoint(30)
-        self.assertEqual(self.published_count(), 0)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri, None))
-        self.check(uri, 100)
-
-@disagg_test_class
-class test_layered_schema32_follower(wttest.WiredTigerTestCase, publication):
-    test_name = __qualname__
-    conn_config = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
-
-    def test_step_up_publishes(self):
-        # A table created and published on a follower has no stable constituent until this
-        # node steps up and rebuilds it from the queue entry. That entry is the only record of
-        # the published epoch, as no publish call will ever run for the table again, so
-        # publishing after the step up proves the rebuilt btree finds it.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.publish(uri, 10)
-
+    def create_on_follower_then_step_up(self, epoch, commit_ts, value):
+        """Create and populate the table as a follower, then step up to build the stable."""
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, epoch)
+        self.write_rows(commit_ts, value)
         self.step_up()
-        self.insert(uri, 0, self.nitems, 20)
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
 
+    def pages_by_table(self):
+        """Return {page log table id: page count} straight from the page log."""
+        sqlite_exe = os.path.join(os.environ.get('WT_BUILDDIR', '.'), 'sqlite3')
+        counts = {}
+        home = os.path.abspath(self.home)
+        for db in sorted(glob.glob(os.path.join(home, 'kv_home', 'pages_*.db'))):
+            result = subprocess.run(
+                [sqlite_exe, '-json', db,
+                 'SELECT table_id, COUNT(*) AS n FROM pages GROUP BY table_id;'],
+                capture_output=True, text=True)
+            if result.returncode != 0 or not result.stdout.strip():
+                continue
+            for row in json.loads(result.stdout):
+                counts[int(row['table_id'])] = counts.get(int(row['table_id']), 0) + int(row['n'])
+        return counts
+
+    def assert_owns_pages(self, table_id, label):
+        """Assert the given table wrote pages under its own page log table."""
+        counts = self.pages_by_table()
+        self.assertGreater(counts.get(table_id, 0), 0,
+            f'{label} (id {table_id}) owns no pages, page log holds {sorted(counts.items())}')
+
+    #
+    # Test cases
+    #
+
+    def test_recreate_after_cached_follower_read(self):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+
+        # Step up to build the original table, then checkpoint it so it owns pages.
+        self.step_down()
+        self.create_on_follower_then_step_up(epoch=5, commit_ts=10, value='first')
+        self.set_stable_epoch(6)
+        self.leader_checkpoint(10)
+        first_id = self.stable_id(self.conn, self.uri)
+        self.assert_owns_pages(first_id, 'the original table')
+
+        # Read the table as a follower, then drop it with that read still cached.
+        self.step_down()
+        self.assertEqual(self.read_all_rows(), self.nrows)
+        self.session.drop(self.uri)
+
+        # The recreated table must own its own page log table, not the dropped one's.
+        self.create_on_follower_then_step_up(epoch=15, commit_ts=30, value='second')
+        second_id = self.stable_id(self.conn, self.uri)
+        self.assertNotEqual(second_id, first_id)
+        self.set_stable_epoch(16)
         self.leader_checkpoint(30)
-        self.check(uri, self.nitems + 100)
+        self.assert_owns_pages(second_id, 'the recreated table')
 
-    def test_follower_does_not_publish(self):
-        # Only a leader writes pages, so a follower has nothing to publish and must leave the
-        # table alone when the epoch advances.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.publish(uri, 10)
-
-        self.set_stable_epoch(10)
-        self.session.checkpoint()
-        self.assertEqual(self.published_count(), 0)
+        # A fresh connection reads back the recreated table's own content.
+        conn_follower, session_follower = self.open_follower()
+        cursor = session_follower.open_cursor(self.uri)
+        count = 0
+        while cursor.next() == 0:
+            self.assertEqual(cursor.get_value(), 'second')
+            count += 1
+        cursor.close()
+        self.assertEqual(count, self.nrows)
+        self.close_follower(conn_follower, session_follower)
