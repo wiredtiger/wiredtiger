@@ -34,6 +34,8 @@
 #include "instruction_counter.h"
 #include "src/component/metrics_writer.h"
 
+#ifdef __linux__
+
 namespace test_harness {
 instruction_counter::instruction_counter(const std::string &id, const std::string &test_name)
     : _id(id), _test_name(test_name), _instruction_count(0)
@@ -58,3 +60,5 @@ instruction_counter::~instruction_counter()
     append_stats();
 }
 }; // namespace test_harness
+
+#endif /* __linux__ */
