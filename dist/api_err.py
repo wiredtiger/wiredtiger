@@ -132,67 +132,90 @@ errors = [
         setting.'''),
 ]
 
+# Stable registry of sub-level error name to number mappings. These numbers
+# cannot change without breaking backward compatibility.
+# DO NOT edit this dict manually. It is automatically updated by this script
+# when new entries are added to sub_errors_def below.
+_sub_error_numbers = {
+    'WT_NONE': -32000,
+    'WT_BACKGROUND_COMPACT_ALREADY_RUNNING': -32001,
+    'WT_CACHE_OVERFLOW': -32002,
+    'WT_WRITE_CONFLICT': -32003,
+    'WT_OLDEST_FOR_EVICTION': -32004,
+    'WT_CONFLICT_BACKUP': -32005,
+    'WT_CONFLICT_DHANDLE': -32006,
+    'WT_CONFLICT_SCHEMA_LOCK': -32007,
+    'WT_UNCOMMITTED_DATA': -32008,
+    'WT_DIRTY_DATA': -32009,
+    'WT_CONFLICT_TABLE_LOCK': -32010,
+    'WT_CONFLICT_CHECKPOINT_LOCK': -32011,
+    'WT_MODIFY_READ_UNCOMMITTED': -32012,
+    'WT_CONFLICT_LIVE_RESTORE': -32013,
+    'WT_CONFLICT_DISAGG': -32014,
+}
+
 # To ensure our sub-level error returns do not conflict with any other
 # package or the error returns, we use the range -32,000 to -32,199.
 #
-# These numbers cannot change without breaking backward compatibility,
-# and are listed in error value order.
-sub_errors = [
-    Error('WT_NONE', -32000,
+# To add a new sub-level error, append a new entry to this list.
+# Only name, description, and long description are needed - the number is
+# assigned automatically via _sub_error_numbers above.
+sub_errors_def = [
+    ('WT_NONE',
         'No additional context', '''
         This sub-level error code is returned by default and indicates that no
         further context exists or is necessary.'''),
-    Error('WT_BACKGROUND_COMPACT_ALREADY_RUNNING', -32001,
+    ('WT_BACKGROUND_COMPACT_ALREADY_RUNNING',
         "Background compaction is already running", '''
         This sub-level error returns when the user tries to reconfigure background
         compaction while it is already running.'''),
-    Error('WT_CACHE_OVERFLOW', -32002,
+    ('WT_CACHE_OVERFLOW',
         "Cache capacity has overflown", '''
         This sub-level error indicates that the configured cache has exceeded full
         capacity.'''),
-    Error('WT_WRITE_CONFLICT', -32003,
+    ('WT_WRITE_CONFLICT',
         "Write conflict between concurrent operations", '''
         This sub-level error indicates that there is a write conflict on the same
         page between concurrent operations.'''),
-    Error('WT_OLDEST_FOR_EVICTION', -32004,
+    ('WT_OLDEST_FOR_EVICTION',
         "Transaction has the oldest pinned transaction ID", '''
         This sub-level error indicates that a given transaction has the oldest
         transaction ID and needs to be rolled back.'''),
-    Error('WT_CONFLICT_BACKUP', -32005,
+    ('WT_CONFLICT_BACKUP',
         "Conflict performing operation due to running backup", '''
         This sub-level error indicates that there is a conflict performing the operation
         because of a running backup in the system.'''),
-    Error('WT_CONFLICT_DHANDLE', -32006,
+    ('WT_CONFLICT_DHANDLE',
         "Another thread currently holds the data handle of the table", '''
         This sub-level error indicates that a concurrent operation is holding the data
         handle of the table.'''),
-    Error('WT_CONFLICT_SCHEMA_LOCK', -32007,
+    ('WT_CONFLICT_SCHEMA_LOCK',
         "Conflict performing schema operation", '''
         This sub-level error indicates that a concurrent operation is performing a schema
         type operation or currently holds the schema lock.'''),
-    Error('WT_UNCOMMITTED_DATA', -32008,
+    ('WT_UNCOMMITTED_DATA',
         "Table has uncommitted data", '''
         This sub-level error returns when the table has uncommitted data.'''),
-    Error('WT_DIRTY_DATA', -32009,
+    ('WT_DIRTY_DATA',
         "Table has dirty data", '''
         This sub-level error returns when the table has dirty content.'''),
-    Error('WT_CONFLICT_TABLE_LOCK', -32010,
+    ('WT_CONFLICT_TABLE_LOCK',
         "Another thread currently holds the table lock", '''
         This sub-level error indicates that a concurrent operation is performing
         a table operation.'''),
-    Error('WT_CONFLICT_CHECKPOINT_LOCK', -32011,
+    ('WT_CONFLICT_CHECKPOINT_LOCK',
         "Another thread currently holds the checkpoint lock", '''
         This sub-level error indicates that a concurrent operation is performing
         a checkpoint.'''),
-    Error('WT_MODIFY_READ_UNCOMMITTED', -32012,
+    ('WT_MODIFY_READ_UNCOMMITTED',
         "Read-uncommitted readers do not support reconstructing a record with modifies", '''
         This sub-level error indicates that a reader with uncommitted isolation
         is trying to reconstruct a record with modifies. This is not supported.'''),
-    Error('WT_CONFLICT_LIVE_RESTORE', -32013,
+    ('WT_CONFLICT_LIVE_RESTORE',
         "Conflict performing operation due to an in-progress live restore", '''
         This sub-level error indicates that there is a conflict performing the operation
         because of a running live restore in the system.'''),
-    Error('WT_CONFLICT_DISAGG', -32014,
+    ('WT_CONFLICT_DISAGG',
         "Conflict with disaggregated storage", '''
         This sub-level error indicates that an operation or configuration conflicts with
         disaggregated storage.'''),
@@ -212,6 +235,38 @@ sub_errors = [
         one or more page IDs present in the btree walk but absent from the page log (or
         vice versa), meaning a page was either leaked or discarded prematurely.'''),
 ]
+
+# Build sub_errors from sub_errors_def and _sub_error_numbers.
+# Entries not yet in the registry are automatically assigned the next available number.
+# If new entries are found, _sub_error_numbers in this file is updated automatically.
+_original_registry = dict(_sub_error_numbers)
+_next_sub_error_num = min(_sub_error_numbers.values()) - 1
+sub_errors = []
+for _name, _desc, _long_desc in sub_errors_def:
+    if _name not in _sub_error_numbers:
+        _sub_error_numbers[_name] = _next_sub_error_num
+        _next_sub_error_num -= 1
+    sub_errors.append(Error(_name, _sub_error_numbers[_name], _desc, _long_desc))
+
+# Persist any newly assigned numbers back into this source file.
+if _sub_error_numbers != _original_registry:
+    _self_path = os.path.abspath(__file__)
+    _tmp_file = '__tmp_api_err_registry' + str(os.getpid())
+    with open(_tmp_file, 'w') as _tf:
+        _in_registry = False
+        for _line in open(_self_path, 'r'):
+            if _line.startswith('_sub_error_numbers = {'):
+                _in_registry = True
+                _tf.write('_sub_error_numbers = {\n')
+                for _n, _v in sorted(_sub_error_numbers.items(), key=lambda x: x[1], reverse=True):
+                    _tf.write("    '%s': %d,\n" % (_n, _v))
+                _tf.write('}\n')
+            elif _in_registry:
+                if _line.startswith('}'):
+                    _in_registry = False
+            else:
+                _tf.write(_line)
+    compare_srcfile(_tmp_file, _self_path)
 
 # Update the #defines in the wiredtiger.h.in file.
 tmp_file = '__tmp_api_err' + str(os.getpid())
