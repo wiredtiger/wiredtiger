@@ -108,10 +108,10 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
-    # A drop during a planned step-down is refused while the ingest constituent holds committed
-    # writes no checkpoint covers, even though the connection is still the leader: writes that
-    # began after the step-down timestamp route to ingest, and dropping the table would discard
-    # their only copy.
+    # A drop during a planned step-down is refused while a constituent holds committed writes no
+    # checkpoint covers, even though the connection is still the leader: writes that began after
+    # the step-down timestamp are mirrored to both constituents, and dropping the table would
+    # discard the only durable copy of the post-cutoff writes.
     def test_drop_refused_for_stepdown_ingest_data(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -133,7 +133,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         err, sub, msg = self.session.get_last_error()
         self.assertEqual(err, errno.EBUSY)
         self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('no checkpoint covers' in msg)
+        self.assertTrue('dirty data and cannot be closed yet' in msg)
 
         # The refused drop left no partial state.
         self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})

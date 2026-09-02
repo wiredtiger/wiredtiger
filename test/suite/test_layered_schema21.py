@@ -443,14 +443,14 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.close_follower(conn_follower, session_follower)
 
     def test_drop_on_leader_in_step_down_window_is_refused(self):
-        # Past the step-down boundary a leader's commits land in the ingest constituent, which the
-        # final step-down checkpoint cannot cover, so the same guard refuses the drop.
+        # Past the step-down boundary a leader's commits are mirrored to both constituents. The
+        # stable constituent is closed first and refuses the drop because it has dirty data.
         self.publish_and_checkpoint_table()
 
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(20) +
             ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(10))
         self.write_rows(commit_ts=30)
-        self.assert_drop_refused_uncovered(self.session)
+        self.assert_drop_refused('dirty data', session=self.session)
 
         # The window writes stay readable. Layered reads need an explicit snapshot while the
         # step-down boundary is set.
@@ -460,6 +460,16 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The stable constituent is dropped before the ingest one, so its metadata removal must
         # have unrolled: both constituents are back.
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
+
+        # Complete the transition so teardown can verify the checkpointed stable constituent rather
+        # than the dirty live table containing the mirrored window write. Advance both the
+        # timestamp and the schema epoch: the boundary was declared in both.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20) +
+            ',stable_disaggregated_schema_epoch=' + self.timestamp_str(10))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
     def test_refused_drop_keeps_the_history_reads_depend_on(self):
         # A refused drop must leave the table exactly as it was. The drop destroys the stable
@@ -471,12 +481,12 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.write_rows(commit_ts=20, value='new')
         self.leader_checkpoint(20)
 
-        # Past the step-down boundary the commits land in the ingest constituent, which no
-        # checkpoint covers, so the drop is refused.
+        # Past the step-down boundary the commits are mirrored to both constituents. The stable
+        # constituent is closed first and refuses the drop because it has dirty data.
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(30) +
             ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(10))
         self.write_rows(commit_ts=40, value='window')
-        self.assert_drop_refused_uncovered(self.session)
+        self.assert_drop_refused('dirty data', session=self.session)
 
         # Every snapshot still reads what it read before the drop was attempted.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(10))
@@ -488,6 +498,16 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.begin_transaction()
         self.assert_all_rows(self.session, value='window')
         self.session.rollback_transaction()
+
+        # Complete the transition so teardown can verify the checkpointed stable constituent rather
+        # than the dirty live table containing the mirrored window write. Advance both the
+        # timestamp and the schema epoch: the boundary was declared in both.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30) +
+            ',stable_disaggregated_schema_epoch=' + self.timestamp_str(10))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
     def test_drop_on_follower_of_leader_only_data_is_allowed(self):
         # Rows the follower only reads live in the picked-up checkpoint, not in its ingest tree.
