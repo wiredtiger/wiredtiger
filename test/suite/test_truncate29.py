@@ -28,7 +28,7 @@
 
 import random
 import string
-import wttest
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
@@ -81,9 +81,9 @@ class test_truncate29(wttest.WiredTigerTestCase):
         pinned_cursor.search()
 
         # Truncate everything.
-        self.session.begin_transaction('no_timestamp=true')
+        self.session.begin_transaction()
         self.session.truncate(self.uri, None, None, None)
-        self.session.commit_transaction()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(60)}')
 
         fast_truncates_pages = self.get_fast_truncated_pages()
         self.assertGreater(fast_truncates_pages, 0)
@@ -95,3 +95,34 @@ class test_truncate29(wttest.WiredTigerTestCase):
         s1.rollback_transaction()
 
         self.verifyUntilSuccess()
+
+    # A fast truncate carrying no timestamp replaces the timestamped state of the whole page, and
+    # the page delete only receives its timestamp at commit, so the usage check runs there.
+    def test_truncate_no_ts_rejected(self):
+        if wiredtiger.diagnostic_build():
+            self.skipTest('the timestamp usage check aborts in diagnostic builds')
+
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
+        ds.populate()
+        value = self.generate_random_string(12345)
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows):
+            self.session.begin_transaction()
+            cursor[ds.key(i)] = value
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(30)}')
+        cursor.close()
+
+        # Make the data globally visible so the truncate is eligible for the fast path.
+        self.conn.set_timestamp(
+            f'stable_timestamp={self.timestamp_str(30)},oldest_timestamp={self.timestamp_str(30)}')
+        self.reopen_conn()
+
+        self.session.begin_transaction('no_timestamp=true')
+        self.session.truncate(self.uri, None, None, None)
+        msg = '/configured to always use timestamps once they are first used/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
+
+        self.ignoreStdoutPatternIfExists(msg)
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
