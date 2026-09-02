@@ -1673,8 +1673,10 @@ struct __wt_session {
      * "read-committed"\, \c "snapshot"; default empty.}
      * @config{name, name of the transaction for tracing and debugging., a string; default empty.}
      * @config{no_timestamp, allow a commit without a timestamp\, creating values that have "always
-     * existed" and are visible regardless of timestamp.  See @ref timestamp_txn_api., a boolean
-     * flag; default \c false.}
+     * existed" and are visible regardless of timestamp.  This does not extend to
+     * WT_SESSION::truncate: a range deletion replaces the timestamped state of everything it
+     * covers\, so committing one without a timestamp fails on a table whose keys have already been
+     * written with timestamps.  See @ref timestamp_txn_api., a boolean flag; default \c false.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
