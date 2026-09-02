@@ -184,9 +184,6 @@ struct __wt_data_handle {
     uint16_t flags;
 
 /*
- * Atomic flags, use F_*_ATOMIC_32. Unlike the flags above, these are set without holding the
- * dhandle exclusively.
- *
  * WT_DHANDLE_OUTDATED means the handle's metadata has been superseded. Once set it is never
  * cleared, and readers take it to mean:
  * - don't hand this handle to a new user,
