@@ -157,7 +157,8 @@ err:
 
 /*
  * __verify_fix_btree_size_one --
- *     Verify a single URI with fix_btree_size=true and append a line to the report.
+ *     Append verify info to the report and run the verify command with fix_btree_size=true on given
+ *     URI.
  */
 static int
 __verify_fix_btree_size_one(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri)
@@ -170,7 +171,7 @@ __verify_fix_btree_size_one(WT_SESSION_IMPL *session, WT_ITEM *report, const cha
 /*
  * __repair_fix_btree_size --
  *     Run verify with fix_btree_size=true on the given URI (or all stable files if NULL), then
- *     checkpoint to persist the corrected metadata and recompute the database size.
+ *     checkpoint to persist the corrected metadata.
  */
 static int
 __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri)
@@ -201,10 +202,10 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
         WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     }
 
-    /* Checkpoint to persist the corrected metadata and recompute the database size. */
+    /* Checkpoint to persist the corrected metadata. */
     WT_ERR(
       __wt_buf_catfmt(session, report, "fix_btree_size: checkpointing to persist corrections\n"));
-    WT_ERR(session->iface.checkpoint(&session->iface, "debug=(database_size_fix=true)"));
+    WT_ERR(session->iface.checkpoint(&session->iface, NULL));
 
 err:
     if (cursor != NULL)
