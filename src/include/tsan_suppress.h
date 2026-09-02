@@ -172,16 +172,6 @@ __wt_tsan_suppress_add_int64(int64_t *var, int64_t value)
 }
 
 /*
- * __wt_tsan_suppress_sub_int64 --
- *     TSAN warnings suppression for int64 subtract.
- */
-static WT_INLINE void
-__wt_tsan_suppress_sub_int64(int64_t *var, int64_t value)
-{
-    *var -= value;
-}
-
-/*
  * __wt_tsan_suppress_load_bool --
  *     TSAN warnings suppression for bool load.
  */
