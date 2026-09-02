@@ -9,93 +9,57 @@
 #include <catch2/catch.hpp>
 
 #include "wt_internal.h"
-#include "../wrappers/connection_wrapper.h"
-
-namespace {
 
 /*
- * Set the cache accounting directly: the triggers are evaluated against these counters, and driving
- * them with a real workload cannot hit the exact boundaries this test needs.
+ * __wti_evict_threshold_pct is the pure arithmetic behind __wt_evict_needed's pct_full output: one
+ * hundred minus the smallest margin between a usage percentage and its trigger. Testing it
+ * directly, rather than through __wt_evict_needed, avoids needing a live connection whose
+ * eviction server would race the test over the same cache accounting the test wants to control.
  */
-void
-set_cache_usage(WT_SESSION_IMPL *session, double pct_inmem, double pct_dirty, double pct_updates)
+TEST_CASE(
+  "Eviction threshold percentage is at least one hundred once a trigger is exceeded", "[evict]")
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    uint64_t bytes_max = conn->cache_size;
+    /* Triggers as percentages of the cache size. */
+    const double clean_trigger = 95.0, dirty_trigger = 20.0, updates_trigger = 10.0;
 
-    conn->cache->overhead_pct = 0;
-    __wt_atomic_store_uint64_relaxed(
-      &conn->cache->bytes_inmem, (uint64_t)(bytes_max * pct_inmem / 100.0));
-    __wt_atomic_store_uint64_relaxed(
-      &conn->cache->bytes_dirty_leaf, (uint64_t)(bytes_max * pct_dirty / 100.0));
-    __wt_atomic_store_uint64_relaxed(
-      &conn->cache->bytes_updates, (uint64_t)(bytes_max * pct_updates / 100.0));
-}
-
-} // namespace
-
-TEST_CASE("Eviction trigger check reports a full cache whenever it fires", "[evict]")
-{
-    connection_wrapper conn_wrapper = connection_wrapper(".", "create,cache_size=100MB");
-    WT_SESSION *session;
-    WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
-    REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
-    WT_EVICT *evict = S2C(session_impl)->evict;
-
-    WT_CACHE *cache = S2C(session_impl)->cache;
-    uint64_t saved_inmem = __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem);
-    uint64_t saved_dirty = __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf);
-    uint64_t saved_updates = __wt_atomic_load_uint64_relaxed(&cache->bytes_updates);
-    u_int saved_overhead = cache->overhead_pct;
-
-    evict->eviction_trigger = 95.0;
-    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, 20.0);
-    __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, 10.0);
-    __wt_atomic_store_uint8_relaxed(
-      &S2C(session_impl)->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, 0);
-
-    /* Cache usage as a percentage of the configured size: total, dirty leaf, updates. */
+    /*
+     * Cache usage as a percentage of the cache size: clean, dirty leaf, updates. expected_pct is
+     * the value __wti_evict_threshold_pct must return; expected_over is whether at least one usage
+     * exceeds its trigger, which is exactly when the result is required to be at least one hundred.
+     */
     struct {
-        double inmem, dirty, updates;
-    } usage[] = {
-      {10.0, 1.0, 1.0},   /* Nothing over trigger. */
-      {94.0, 19.0, 9.0},  /* Everything just under trigger. */
-      {96.0, 1.0, 1.0},   /* Clean over trigger. */
-      {50.0, 25.0, 1.0},  /* Dirty over trigger. */
-      {50.0, 1.0, 15.0},  /* Updates over trigger. */
-      {96.0, 25.0, 15.0}, /* All three over trigger. */
+        double pct_clean, pct_dirty, pct_updates;
+        double expected_pct;
+        bool expected_over;
+    } cases[] = {
+      {10.0, 1.0, 1.0, 91.0, false},   /* Nothing over trigger. */
+      {94.0, 19.0, 9.0, 99.0, false},  /* Everything just under trigger. */
+      {95.0, 19.0, 9.0, 100.0, false}, /* Clean exactly at trigger: not over, but pct hits 100. */
+      {96.0, 1.0, 1.0, 101.0, true},   /* Clean over trigger only. */
+      {50.0, 25.0, 1.0, 105.0, true},  /* Dirty over trigger only. */
+      {50.0, 1.0, 15.0, 105.0, true},  /* Updates over trigger only. */
+      {96.0, 25.0, 15.0, 105.0, true}, /* All three over trigger. */
     };
 
-    int needed_count = 0;
-    for (auto &u : usage)
-        for (bool busy : {false, true})
-            for (bool readonly : {false, true}) {
-                set_cache_usage(session_impl, u.inmem, u.dirty, u.updates);
+    for (auto &c : cases) {
+        double pct_full = __wti_evict_threshold_pct(
+          c.pct_clean, c.pct_dirty, c.pct_updates, clean_trigger, dirty_trigger, updates_trigger);
 
-                double pct_full = -1.0;
-                bool needed = __wt_evict_needed(session_impl, busy, readonly, true, &pct_full);
+        INFO("pct_clean " << c.pct_clean << " pct_dirty " << c.pct_dirty << " pct_updates "
+                          << c.pct_updates);
+        REQUIRE(pct_full == Approx(c.expected_pct));
 
-                /*
-                 * The reported percentage is one hundred minus the smallest margin to a trigger, so
-                 * exceeding any trigger puts it at or above one hundred. Application threads
-                 * therefore cannot use it to distinguish degrees of cache pressure once they are
-                 * assisting with eviction.
-                 */
-                INFO("inmem " << u.inmem << " dirty " << u.dirty << " updates " << u.updates
-                              << " busy " << busy << " readonly " << readonly);
-                if (needed) {
-                    REQUIRE(pct_full >= 100.0);
-                    ++needed_count;
-                }
-            }
+        bool over = c.pct_clean > clean_trigger || c.pct_dirty > dirty_trigger ||
+          c.pct_updates > updates_trigger;
+        REQUIRE(over == c.expected_over);
 
-    /* The invariant above is only meaningful if some of these scenarios crossed a trigger. */
-    REQUIRE(needed_count > 0);
-
-    /* Closing the connection checks the accounting this test overwrote. */
-    __wt_atomic_store_uint64_relaxed(&S2C(session_impl)->cache->bytes_inmem, saved_inmem);
-    __wt_atomic_store_uint64_relaxed(&S2C(session_impl)->cache->bytes_dirty_leaf, saved_dirty);
-    __wt_atomic_store_uint64_relaxed(&S2C(session_impl)->cache->bytes_updates, saved_updates);
-    S2C(session_impl)->cache->overhead_pct = saved_overhead;
+        /*
+         * This is the invariant that made the application-thread eviction assist loop's per-call
+         * progress cap unreachable: once any trigger is exceeded, the percentage this function
+         * reports can never be below one hundred, so a caller cannot use it to distinguish degrees
+         * of cache pressure.
+         */
+        if (over)
+            REQUIRE(pct_full >= 100.0);
+    }
 }
