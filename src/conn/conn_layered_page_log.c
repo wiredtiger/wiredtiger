@@ -259,19 +259,27 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
      * key provider decide about the appropriate key.
      */
     if (metadata->key_provider == NULL) {
-        WT_ERR(key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt));
+        WT_ERR_MSG_CHK(session, key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt),
+          "Key provider failed to load a key for a checkpoint without persisted encryption key "
+          "data");
         return (0);
     }
 
     /* Parse crypt key metadata to get page ID and LSN. */
     uint64_t page_id, lsn;
-    WT_ERR(__wti_disagg_parse_crypt_meta(session, metadata, &page_id, &lsn));
+    WT_ERR_MSG_CHK(session, __wti_disagg_parse_crypt_meta(session, metadata, &page_id, &lsn),
+      "Failed to parse the key provider metadata: \"%.*s\"", (int)metadata->key_provider_len,
+      metadata->key_provider);
 
     /* Read the encryption key data from disaggregated storage. */
-    WT_ERR(__disagg_get_crypt_key(session, page_id, lsn, &key_item));
+    WT_ERR_MSG_CHK(session, __disagg_get_crypt_key(session, page_id, lsn, &key_item),
+      "Failed to read the encryption key data from disaggregated storage: page_id=%" PRIu64
+      ", lsn=%" PRIu64,
+      page_id, lsn);
 
     /* Validate the crypt data. */
-    WT_ERR(__disagg_validate_crypt(session, &key_item, &crypt_header));
+    WT_ERR_MSG_CHK(session, __disagg_validate_crypt(session, &key_item, &crypt_header),
+      "Invalid encryption key data: page_id=%" PRIu64 ", lsn=%" PRIu64, page_id, lsn);
 
     /* Prepare the crypt keys for loading. */
     crypt.keys.data = (uint8_t *)key_item.data + crypt_header->header_size;
@@ -283,7 +291,10 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
       "Loading persisted crypt key: lsn=%" PRIu64 ", timestamp=%" PRIu64, lsn, crypt.timestamp);
 
     /* Callback to load the encryption key data into the key provider. */
-    WT_ERR(key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt));
+    WT_ERR_MSG_CHK(session, key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt),
+      "Key provider failed to load the persisted encryption key: lsn=%" PRIu64
+      ", timestamp=%" PRIu64,
+      lsn, crypt.timestamp);
 
     /* Prune the in-memory list on every checkpoint pickup. */
     __disagg_prune_pending_crypt_keys(session, crypt_header->timestamp);
