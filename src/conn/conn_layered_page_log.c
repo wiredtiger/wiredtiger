@@ -260,8 +260,7 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
      */
     if (metadata->key_provider == NULL) {
         WT_ERR_MSG_CHK(session, key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt),
-          "Key provider failed to load a key for a checkpoint without persisted encryption key "
-          "data");
+          "Key provider failed to load a key with no persisted encryption key data");
         return (0);
     }
 
