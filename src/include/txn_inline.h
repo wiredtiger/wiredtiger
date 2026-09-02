@@ -305,6 +305,14 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
     op->btree = btree;
 
     /*
+     * Remember that this operation came from a truncate: the timestamp usage rules are stricter for
+     * a range deletion than for an individual one, and the two are indistinguishable by commit
+     * time.
+     */
+    if (F_ISSET(txn, WT_TXN_TRUNCATE))
+        F_SET(op, WT_TXN_OP_FROM_TRUNCATE);
+
+    /*
      * Store the ID of the latest transaction that is making an update. It can be used to determine
      * if there is an active transaction on the btree. Only try to update the shared value if this
      * transaction is newer than the last transaction that updated it.
@@ -491,11 +499,12 @@ __wt_txn_op_delete_commit(
         return (false);
 
     /*
-     * Disable timestamp validation for transactions that are explicitly configured without a
-     * timestamp.
+     * A transaction configured without a timestamp still has its truncates validated: the deletion
+     * replaces the timestamped state of everything in the range, and there is no timestamp to order
+     * it against. Only the timestamp assignment below is skipped, there being nothing to assign.
      */
     if (F_ISSET(txn, WT_TXN_TS_NOT_SET))
-        return (false);
+        assign_timestamp = false;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -532,7 +541,7 @@ __wt_txn_op_delete_commit(
                         WT_ERR(__wt_txn_timestamp_usage_check(session, op->btree,
                           (*updp)->upd_start_ts != WT_TS_NONE ? (*updp)->upd_start_ts :
                                                                 txn->time_point.commit_timestamp,
-                          (*updp)->prev_durable_ts));
+                          (*updp)->prev_durable_ts, false));
 
                     if (assign_timestamp && (*updp)->upd_start_ts == WT_TS_NONE) {
                         /* FIXME-WT-16319: Data races reported. */
@@ -558,7 +567,7 @@ __wt_txn_op_delete_commit(
             ret = __wt_txn_timestamp_usage_check(session, op->btree,
               page_del->pg_del_start_ts != WT_TS_NONE ? page_del->pg_del_start_ts :
                                                         txn->time_point.commit_timestamp,
-              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts), false);
         WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         WT_ERR(ret);
     }
@@ -595,17 +604,19 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
 /*
  * __wt_txn_timestamp_usage_check --
- *     Check if a commit will violate timestamp rules.
+ *     Check if a commit will violate timestamp rules. Callers pass no_ts_ok to say whether a
+ *     transaction configured with no_timestamp may skip the ordered-usage rule; an operation from a
+ *     truncate may not, since the deletion replaces the timestamped state of the whole range.
  */
 static WT_INLINE int
 __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t op_ts,
-  wt_timestamp_t prev_op_durable_ts)
+  wt_timestamp_t prev_op_durable_ts, bool no_ts_ok)
 {
     WT_TXN *txn;
     uint16_t flags;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *name;
-    bool no_ts_ok, txn_has_ts;
+    bool txn_has_ts;
 
     txn = session->txn;
     flags = btree->dhandle->ts_flags;
@@ -643,7 +654,6 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
      * Ordered consistency requires all updates use timestamps, once they are first used, but this
      * test can be turned off on a per-transaction basis.
      */
-    no_ts_ok = F_ISSET(txn, WT_TXN_TS_NOT_SET);
     if (!txn_has_ts && prev_op_durable_ts != WT_TS_NONE && !no_ts_ok) {
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX
@@ -694,7 +704,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
                 WT_RET(__wt_txn_op_delete_commit(session, op, validate, false));
             else
                 WT_RET(__wt_txn_timestamp_usage_check(session, op->btree,
-                  txn->time_point.commit_timestamp, op->u.op_upd->prev_durable_ts));
+                  txn->time_point.commit_timestamp, op->u.op_upd->prev_durable_ts,
+                  F_ISSET(txn, WT_TXN_TS_NOT_SET) && !F_ISSET(op, WT_TXN_OP_FROM_TRUNCATE)));
         }
         return (0);
     }
@@ -724,7 +735,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
                 WT_RET(__wt_txn_timestamp_usage_check(session, op->btree,
                   upd->upd_start_ts != WT_TS_NONE ? upd->upd_start_ts :
                                                     txn->time_point.commit_timestamp,
-                  upd->prev_durable_ts));
+                  upd->prev_durable_ts,
+                  F_ISSET(txn, WT_TXN_TS_NOT_SET) && !F_ISSET(op, WT_TXN_OP_FROM_TRUNCATE)));
             if (upd->upd_start_ts == WT_TS_NONE) {
                 /* FIXME-WT-16319: Data races reported. */
                 __wt_tsan_suppress_store_uint64(
@@ -1903,8 +1915,8 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
 
     session->txn->update_dirty_bytes += size;
 
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_count, 1);
     WT_STAT_SESSION_INCRV(session, txn_updates_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
@@ -1926,19 +1938,19 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_updates_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_truncate_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV(session, cache_truncate_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_truncate_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_count, val);
         WT_STAT_SESSION_SET(session, txn_updates, 0);
     }
 }

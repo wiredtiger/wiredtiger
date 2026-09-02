@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import errno
 import wiredtiger, wttest
 from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -106,6 +107,38 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.complete_step_down(20)
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
+
+    # A drop during a planned step-down is refused while the ingest constituent holds committed
+    # writes no checkpoint covers, even though the connection is still the leader: writes that
+    # began after the step-down timestamp route to ingest, and dropping the table would discard
+    # their only copy.
+    def test_drop_refused_for_stepdown_ingest_data(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'stable'}, 10)
+
+        # Checkpoint covering the stable write, so that only the post-cutoff ingest write is
+        # unaccounted for.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'k2': 'ingest'}, 30)
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
+
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(self.uri))
+        err, sub, msg = self.session.get_last_error()
+        self.assertEqual(err, errno.EBUSY)
+        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
+        self.assertTrue('no checkpoint covers' in msg)
+
+        # The refused drop left no partial state.
+        self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
+        self.complete_step_down(20)
+        self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
 
     # A cursor reused from the cache picks up the new routing: its writes mirror to both
     # constituents.
