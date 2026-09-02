@@ -61,6 +61,29 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.session.checkpoint()
 
+    def metadata_value(self, uri):
+        cursor = self.session.open_cursor('metadata:')
+        cursor.set_key(uri)
+        self.assertEqual(cursor.search(), 0)
+        value = cursor.get_value()
+        cursor.close()
+        return value
+
+    # The btree id lives on the file entry, which is the stable constituent of a layered table.
+    def file_uri(self, name):
+        return f'file:{name}.wt_stable' if self.is_disagg_scenario() else f'file:{name}.wt'
+
+    def btree_id_of(self, uri):
+        return int(re.search(r'(?:^|,)id=(\d+)', self.metadata_value(uri)).group(1))
+
+    def btree_id(self, name):
+        return self.btree_id_of(self.file_uri(name))
+
+    # An id in the same namespace as the given one (the low three bits), well clear of the ids
+    # handed out so far.
+    def spare_id(self, existing, distance=1000):
+        return (((existing >> 3) + distance) << 3) | (existing & 7)
+
     def reported_size(self):
         result = self.repair('fetch_database_size=(local=true)')
         return int(re.search(r': (\d+)$', result).group(1))
@@ -142,6 +165,91 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # local=false recomputes from the metadata; absent drift it matches local=true exactly.
         self.assertIn(f'fetch_database_size(recompute): {stat_size}',
             self.repair('fetch_database_size=(local=false)'))
+
+    def test_id_fix_rejects_bad_input(self):
+        self.populate()
+        uri = self.file_uri('tbl')
+        old_id = self.btree_id('tbl')
+        new_id = self.spare_id(old_id)
+
+        def fix_id(uri=uri, old_id=old_id, new_id=new_id):
+            return self.repair(f'fix_id=(uri="{uri}",old_id={old_id},new_id={new_id})')
+
+        self.assertIn('fix_id requires uri, old_id and new_id',
+            self.repair(f'fix_id=(uri="{uri}",old_id={old_id})'))
+        self.assertIn('fix_id old_id and new_id are the same', fix_id(new_id=old_id))
+        self.assertIn('fix_id ids must be between', fix_id(new_id=0))
+        self.assertIn('no metadata entry', fix_id(uri=self.file_uri('missing')))
+        self.assertIn('not the expected old_id', fix_id(old_id=old_id + 8))
+        self.assertIn('not in the same namespace', fix_id(new_id=new_id + 1))
+
+        # A second table gives us an id that is in use, and once dropped, an unused id that is
+        # still below the allocator.
+        self.session.create('layered:other' if self.is_disagg_scenario() else 'table:other',
+            'key_format=S,value_format=S')
+        self.session.checkpoint()
+        other_id = self.btree_id('other')
+        self.assertIn('is already used by', fix_id(new_id=other_id))
+        self.session.drop('layered:other' if self.is_disagg_scenario() else 'table:other')
+        self.assertIn('not above the largest id allocated so far', fix_id(new_id=other_id))
+
+        # The table is still open here, so its cached id would not pick up the change.
+        self.assertIn('is open', fix_id())
+
+    def test_id_fix(self):
+        self.populate()
+        uri = self.file_uri('tbl')
+        old_id = self.btree_id('tbl')
+        new_id = self.spare_id(old_id)
+        before = self.metadata_value(uri)
+
+        # Reopen so nothing holds the handle, and do not touch the table afterwards: in
+        # disaggregated storage its pages are no longer reachable under the new id.
+        self.reopen_conn()
+        if self.is_disagg_scenario():
+            self.ignoreStdoutPatternIfExists('Removing local file due to disagg mode')
+
+            # Only the stable file of a layered table can be fixed, and a rejected fix writes
+            # nothing, not even to the local metadata.
+            ingest_uri = 'file:tbl.wt_ingest'
+            ingest_before = self.metadata_value(ingest_uri)
+            self.assertIn('needs a "file:<name>.wt_stable" uri',
+                self.repair(f'fix_id=(uri="{ingest_uri}",old_id={self.btree_id_of(ingest_uri)},'
+                            f'new_id={self.spare_id(self.btree_id_of(ingest_uri), 2000)})'))
+            self.assertEqual(self.metadata_value(ingest_uri), ingest_before)
+
+        result = self.repair(f'fix_id=(uri="{uri}",old_id={old_id},new_id={new_id})')
+        self.assertIn('fixed, now rebuild or drop this table', result)
+        self.assertIn(f'{uri}: id={new_id}', result)
+        self.assertEqual(self.btree_id('tbl'), new_id)
+
+        # Nothing but the id changed.
+        self.assertEqual(self.metadata_value(uri).replace(f'id={new_id}', f'id={old_id}'), before)
+
+        # Reopening discards the local files and rebuilds from the page service, so the new id
+        # survives only if the fix reached the shared metadata table.
+        if self.is_disagg_scenario():
+            self.reopen_conn()
+            self.ignoreStdoutPatternIfExists('Removing local file due to disagg mode')
+            self.assertEqual(self.btree_id('tbl'), new_id)
+
+        # A table created afterwards cannot be given the id we just used.
+        self.session.create('layered:after' if self.is_disagg_scenario() else 'table:after',
+            'key_format=S,value_format=S')
+        self.assertGreater(self.btree_id('after'), new_id)
+
+    def test_id_fix_follower(self):
+        if not self.is_disagg_scenario():
+            return
+
+        self.populate()
+        uri = self.file_uri('tbl')
+        old_id = self.btree_id('tbl')
+
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.assertIn('fix_id requires a disaggregated leader connection',
+            self.repair(f'fix_id=(uri="{uri}",old_id={old_id},new_id={old_id + 8000})'))
+        self.assertEqual(self.btree_id('tbl'), old_id)
 
     def test_fix_size(self):
         self.populate()
