@@ -159,9 +159,10 @@ class test_error_info03(error_info_util):
         The first column group is dropped and then restored when the second one fails.
         """
         self.session.create(self.uri, 'key_format=S,value_format=SS,columns=(k,a,b),colgroups=(c1,c2)')
-        self.session.create('colgroup:test_error_info:c1', 'columns=(a)')
-        self.session.create('colgroup:test_error_info:c2', 'columns=(b)')
-        with open_cursor(self.session, 'colgroup:test_error_info:c2') as cursor:
+        colgroup_uri = self.uri.replace('table:', 'colgroup:')
+        self.session.create(colgroup_uri + ':c1', 'columns=(a)')
+        self.session.create(colgroup_uri + ':c2', 'columns=(b)')
+        with open_cursor(self.session, colgroup_uri + ':c2') as cursor:
             self.session.begin_transaction()
             cursor.set_key('key')
             cursor.set_value('value')

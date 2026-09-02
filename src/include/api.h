@@ -24,29 +24,28 @@
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, struct_name, func_name, dh)                                \
-    WT_TRACK_OP_DECL;                                                                  \
-    API_SESSION_PUSH(s, struct_name, func_name, dh);                                   \
-    /*                                                                                 \
-     * No code before this line, otherwise error handling won't be                     \
-     * correct.                                                                        \
-     */                                                                                \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                                 \
-    __wt_single_thread_check_start(s);                                                 \
-    WT_TRACK_OP_INIT(s);                                                               \
-    /*                                                                                 \
-     * An internal session only saves errors on behalf of the application session that \
-     * spawned it, so its API calls neither reset nor record error information.        \
-     */                                                                                \
-    if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) {              \
-        __wt_op_timer_start(s);                                                        \
-        /* Clear any error left behind by the previous API call. */                    \
-        if ((s)->err_info.err != 0)                                                    \
-            __wt_session_reset_last_error((s));                                        \
-    }                                                                                  \
-    /* Reset wait time if this isn't an API reentry. */                                \
-    if ((s)->api_call_counter == 1)                                                    \
-        (s)->cache_wait_us = 0;                                                        \
+#define API_SESSION_INIT(s, struct_name, func_name, dh)                             \
+    WT_TRACK_OP_DECL;                                                               \
+    API_SESSION_PUSH(s, struct_name, func_name, dh);                                \
+    /*                                                                              \
+     * No code before this line, otherwise error handling won't be                  \
+     * correct.                                                                     \
+     */                                                                             \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                              \
+    __wt_single_thread_check_start(s);                                              \
+    WT_TRACK_OP_INIT(s);                                                            \
+    /*                                                                              \
+     * Internal sessions save errors only on behalf of the application session that \
+     * spawned them; leave error information to that session.                       \
+     */                                                                             \
+    if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) {           \
+        __wt_op_timer_start(s);                                                     \
+        if ((s)->err_info.err != 0)                                                 \
+            __wt_session_reset_last_error((s));                                     \
+    }                                                                               \
+    /* Reset wait time if this isn't an API reentry. */                             \
+    if ((s)->api_call_counter == 1)                                                 \
+        (s)->cache_wait_us = 0;                                                     \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
 #define API_CALL_NOCONF_NOERRCLEAR(s, struct_name, func_name, dh, set_err) \
