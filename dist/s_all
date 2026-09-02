@@ -6,11 +6,10 @@
 cd_dist
 t_pfx=__s_all_tmp_
 
-CLRL=$'\e[K'     # Clear to the end of line.
 CLRS=$'\e[0J'    # Clear to the bottom of screen.
 BOL=$'\r'        # Move cursor to the beginning of line.
 # stty unfortunately uses stdin (not stdout) to locate the tty so have to check both.
-[[ -t 1 && -t 0 ]] && { ISTTY=1; CLRIFTTY="$CLRS"; }
+[[ -t 1 && -t 0 ]] && ISTTY=1
 
 status() {
     [[ -n "$ISTTY" ]] || return
@@ -80,7 +79,7 @@ while [[ "$#" -gt 0 ]]
         shift;;
     -h | --help) help 0;;
     --no-interactive)   # Force disable terminal status report
-        ISTTY="" CLRIFTTY=""
+        ISTTY=""
         shift;;
     *)
         echo "Unknown option '$1'. Use '-h' for help."
@@ -97,13 +96,13 @@ errchk()
         return
     fi
 
-    echo $CLRIFTTY'#########' s_all run of: "$name" resulted in:$'\n'"$(cat "$file")"$'\n''#########'
-
     if grep -q "$name.*skipped" "$file" || [[ "$flags" = "--warning-only" ]]; then
         : # If the test was skipped or marked warning only, ignore the failure.
     else
         errfound=1;
         echo "$name" >> "${t_pfx}_errfound"
+        # Save the output for the end-of-run summary.
+        cp "$file" "${t_pfx}_fail_${name}"
     fi
 
     rm -f "$file"
@@ -194,8 +193,24 @@ wait       # Call "wait" in any case even if the jobs are done to clear their st
 
 [[ -s "${t_pfx}_errfound" ]] && errfound=1
 
-echo "dist/s_all run finished. Error? $errfound"
-[[ $errfound -ne 0 ]] && echo Fatal errors reported by: `cat "${t_pfx}_errfound"`
+if [[ $errfound -ne 0 ]]; then
+    echo ""
+    echo "=========================================="
+    echo "dist/s_all FAILED. Summary of errors:"
+    echo "=========================================="
+    while IFS= read -r name; do
+        f="${t_pfx}_fail_${name}"
+        echo ""
+        echo "  --- $name ---"
+        [[ -f "$f" ]] && sed 's/^/  /' "$f"
+    done < "${t_pfx}_errfound"
+    echo ""
+    echo "=========================================="
+else
+    echo ""
+    echo "dist/s_all run finished successfully."
+fi
+
 if test $errmode -ne 0; then
     exit $errfound;
 fi
