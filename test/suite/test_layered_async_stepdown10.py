@@ -90,6 +90,7 @@ class test_layered_async_stepdown10(
         self.tables = {}
         self.seed_uris = set()
         self.drops_to_verify = set()
+        self.refused_drops = set()
         self.op_counts = collections.Counter()
         self.workload_errors = []
         self.step_down_ts = None
@@ -185,6 +186,7 @@ class test_layered_async_stepdown10(
                 (wiredtiger.WT_DIRTY_DATA, wiredtiger.WT_CONFLICT_DHANDLE,
                  wiredtiger.WT_CONFLICT_TABLE_LOCK), f'drop of {uri}')
             self.op_counts['busy_drops'] += 1
+            self.refused_drops.add(uri)
             return
         info = self.tables.pop(uri)
         if self.drop_removal_is_guaranteed():
@@ -407,7 +409,12 @@ class test_layered_async_stepdown10(
     def verify_step_down_checkpoint(self):
         conn_follow, session_follow = self.open_follower()
         for uri, info in self.tables.items():
-            in_checkpoint = not info['window'] and (not self.use_epochs or uri in self.seed_uris)
+            # A refused drop leaves the table live, so the checkpoint may still carry it;
+            # whether it does depends on where its create landed against the boundary.
+            in_checkpoint = not info['window'] and (
+                not self.use_epochs or uri in self.seed_uris
+                or (uri in self.refused_drops
+                    and self.uri_in_shared_metadata(conn_follow, uri)))
             if in_checkpoint:
                 self.assertEqual(
                     self.read_kvs_at(uri, self.step_down_ts, session=session_follow),
