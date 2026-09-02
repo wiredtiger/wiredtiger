@@ -193,6 +193,7 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
                 continue;
             /*
              * The shared metadata and history store files are always open and cannot be verified.
+             * FIXME-WT-18548: Investigate ways to fix HS btree size issue.
              */
             if (strcmp(key, WT_DISAGG_METADATA_URI) == 0 || strcmp(key, WT_HS_URI_SHARED) == 0)
                 continue;
