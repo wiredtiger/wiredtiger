@@ -698,7 +698,11 @@ connection_runtime_config = [
             Config('after_drop_file', 'false', r'''
                 if true, force crash in table drop after dropping the colgroup metadata entry. This
                 is intended for testing purposes only.''',
-                type='boolean')
+                type='boolean'),
+            Config('after_drop_trim', 'false', r'''
+                if true, force crash in a layered-table drop after issuing the trim but before
+                dropping the constituents. This is intended for testing purposes only.''',
+                type='boolean', undoc=True)
             ]),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
@@ -791,11 +795,6 @@ connection_runtime_config = [
             if true, act as if eviction is being run in parallel to checkpoint. We should return
             EBUSY in eviction if we detect any timestamp ordering issue.''',
             type='boolean'),
-        Config('fail_drop_after_trim', 'false', r'''
-            if true, a layered-table drop returns EBUSY after issuing the trim but before dropping
-            the constituents, simulating a transient post-trim failure. The local drop rolls back
-            via metadata tracking, but the trim is not retracted.''',
-            type='boolean', undoc=True),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),

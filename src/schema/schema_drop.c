@@ -249,9 +249,8 @@ __drop_layered(
               uri);
     }
 
-    /* Debug failpoint: simulate a transient failure after the trim is issued. */
-    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_FAIL_DROP_AFTER_TRIM))
-        WT_ERR_SUB(session, EBUSY, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+    __wti_debug_crash_if_flag_set(
+      session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_TRIM, "after issuing trim", uri);
 
     /*
      * Drop the layered table constituents. The stable table may not exist locally: a follower never

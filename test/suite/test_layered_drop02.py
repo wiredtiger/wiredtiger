@@ -38,21 +38,23 @@
 #
 # Two scenarios, both issuing a first drop (which sends the trim), hitting a
 # failure, then replaying the drop on reclaimed pages:
-#   test_replayed_drop_after_crash — the first drop completes, then a crash
-#     (close without checkpoint) rolls back the local drop. On restart from the
-#     shared checkpoint the table is restored and the drop is replayed.
-#   test_replayed_drop_after_post_trim_failure — the debug failpoint returns EBUSY
-#     after the trim is sent, rolling back the local drop. The pages are then
-#     reclaimed and the drop is retried.
+#   test_replayed_drop_after_close_conn - the first drop completes, then closing
+#     without checkpointing rolls back the local drop. The pages are reclaimed in
+#     palite, then on reopening from the shared checkpoint the table is restored
+#     and the drop is replayed.
+#   test_replayed_drop_after_post_trim_crash - the debug failpoint aborts the
+#     process after the trim is sent but before the constituents are dropped.
+#     The pages are reclaimed in palite, then the crashed home is reopened and
+#     the drop replayed.
 #
 # Palite's trim_table is a no-op, so both tests stand in for a page server that
 # has already reclaimed the pages by deleting the stable constituent's rows from
 # palite's pages table while the connection is closed. The pre-fix abort takes
-# down the process, so the bodies run in subprocesses and the parent asserts a
+# down the process, so the replay runs in a subprocess and the parent asserts a
 # zero exit.
 
-import errno, os, re
-import wiredtiger, wttest
+import os, re, signal
+import wttest
 from helper_disagg import (
     disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin, DisaggCorruptionMixin)
 from suite_subprocess import suite_subprocess
@@ -96,33 +98,46 @@ class test_layered_drop02(
         self.leader_checkpoint(2)
         return self.stable_btree_id()
 
-    def reclaim_and_replay_drop(self, btree_id):
-        """Reclaim the stable pages in palite, restart from the shared checkpoint, and replay drop."""
-        self.close_conn('debug=(skip_checkpoint=true)')
-        self._palite_mutate(btree_id, f'DELETE FROM pages WHERE table_id={btree_id};\n')
+    def replay_drop(self, home='.'):
+        """Open (or reopen) the home and replay the drop."""
         self.ignoreStdoutPattern('WT_VERB_METADATA')
-        self.open_conn()
+        self.open_conn(home)
         self.session.drop(self.uri)
 
-    def subprocess_replay_after_crash(self):
+    def subprocess_replay_after_close_conn(self):
         btree_id = self.setup_table_and_checkpoint()
 
         # First drop completes (trim is a no-op in palite); close without checkpointing simulates a
         # crash that rolls back the local drop.
         self.session.drop(self.uri)
-        self.reclaim_and_replay_drop(btree_id)
+        self.close_conn('debug=(skip_checkpoint=true)')
+        self.delete_all_table_pages(btree_id)
+        self.replay_drop()
         os._exit(0)
 
-    def subprocess_replay_after_trim_failure(self):
-        btree_id = self.setup_table_and_checkpoint()
+    def subprocess_crash_after_trim(self):
+        self.setup_table_and_checkpoint()
 
-        # The failpoint returns EBUSY after the trim, rolling back the local drop.
-        self.conn.reconfigure('debug_mode=(fail_drop_after_trim=true)')
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.uri))
-        err, _, _ = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY, 'first drop should have failed with EBUSY (failpoint)')
+        # The crash point aborts after the trim is sent, before the constituents are dropped.
+        self.conn.reconfigure('debug_mode=(crash_point=(after_drop_trim=true))')
+        self.session.drop(self.uri)
 
-        self.reclaim_and_replay_drop(btree_id)
+    def subprocess_replay_after_post_trim_crash(self):
+        # Phase 1: spawn a subprocess that sets up the table and crashes mid-drop at the crash
+        # point, after the trim is sent.
+        [returncode, home] = self.run_subprocess_function('SUBPROCESS_crash_after_trim',
+            f'{self.test_name}.{self.test_name}.subprocess_crash_after_trim', silent=True)
+        self.assert_crashed(returncode, signal.SIGABRT)
+
+        # Phase 2: reopen the crashed home to read the stable btree id from the restored local
+        # metadata, close it without checkpointing, reclaim the pages, then reopen and replay.
+        self.close_conn('debug=(skip_checkpoint=true)')
+        self.ignoreStdoutPattern('WT_VERB_METADATA')
+        self.open_conn(home)
+        btree_id = self.stable_btree_id()
+        self.close_conn('debug=(skip_checkpoint=true)')
+        self.delete_all_table_pages(btree_id, home=home)
+        self.replay_drop(home)
         os._exit(0)
 
     def run_replay_subprocess(self, name):
@@ -135,8 +150,8 @@ class test_layered_drop02(
         self.assertEqual(returncode, 0,
             'replayed drop() aborted when the stable data was already discarded')
 
-    def test_replayed_drop_after_crash(self):
-        self.run_replay_subprocess('replay_after_crash')
+    def test_replayed_drop_after_close_conn(self):
+        self.run_replay_subprocess('replay_after_close_conn')
 
-    def test_replayed_drop_after_post_trim_failure(self):
-        self.run_replay_subprocess('replay_after_trim_failure')
+    def test_replayed_drop_after_post_trim_crash(self):
+        self.run_replay_subprocess('replay_after_post_trim_crash')
