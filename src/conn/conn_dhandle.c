@@ -1152,6 +1152,8 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
         /* Sweep can concurrently update the flags of a handle we're dumping. */
         WT_RET(__wt_msg(
           session, "  Flags: 0x%08" PRIx16, __wt_atomic_load_uint16_relaxed(&dhandle->flags)));
+        WT_RET(__wt_msg(session, "  Atomic flags: 0x%08" PRIx32,
+          __wt_atomic_load_uint32_relaxed(&dhandle->flags_atomic)));
     }
     return (0);
 }
