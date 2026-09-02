@@ -40,8 +40,12 @@ from wtscenario import make_scenarios
 conn_base_config = 'cache_size=20MB,statistics=(all),debug_mode=(eviction=true),' \
                  + 'eviction_dirty_target=1,'
 
-class publication(DisaggSchemaEpochMixin):
-    """Helpers shared by the leader and follower tests."""
+@disagg_test_class
+class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+    test_name = __qualname__
+
+    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
@@ -80,11 +84,6 @@ class publication(DisaggSchemaEpochMixin):
             seen += 1
         cursor.close()
         self.assertEqual(seen, count)
-
-@disagg_test_class
-class test_layered_schema33(wttest.WiredTigerTestCase, publication):
-    test_name = __qualname__
-    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
 
     def test_eviction_publishes_covered_table(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
@@ -230,16 +229,14 @@ class test_layered_schema33(wttest.WiredTigerTestCase, publication):
             lambda: self.session.drop(uri, None))
         self.check(uri, 100)
 
-@disagg_test_class
-class test_layered_schema33_follower(wttest.WiredTigerTestCase, publication):
-    test_name = __qualname__
-    conn_config = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
-
     def test_step_up_publishes(self):
         # A table created and published on a follower has no stable constituent until this
         # node steps up and rebuilds it from the queue entry. That entry is the only record of
         # the published epoch, as no publish call will ever run for the table again, so
         # publishing after the step up proves the rebuilt btree finds it.
+        # Reopening in disaggregated mode reports that it removed the local history store.
+        self.ignoreStdoutPattern('wiredtiger_open:.*WT_VERB_METADATA')
+        self.reopen_conn(config=self.conn_config_follower)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
@@ -258,6 +255,9 @@ class test_layered_schema33_follower(wttest.WiredTigerTestCase, publication):
     def test_follower_does_not_publish(self):
         # Only a leader writes pages, so a follower has nothing to publish and must leave the
         # table alone when the epoch advances.
+        # Reopening in disaggregated mode reports that it removed the local history store.
+        self.ignoreStdoutPattern('wiredtiger_open:.*WT_VERB_METADATA')
+        self.reopen_conn(config=self.conn_config_follower)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
 
