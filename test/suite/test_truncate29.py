@@ -28,7 +28,7 @@
 
 import random
 import string
-import wttest
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
@@ -81,9 +81,9 @@ class test_truncate29(wttest.WiredTigerTestCase):
         pinned_cursor.search()
 
         # Truncate everything.
-        self.session.begin_transaction('no_timestamp=true')
+        self.session.begin_transaction()
         self.session.truncate(self.uri, None, None, None)
-        self.session.commit_transaction()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(60)}')
 
         fast_truncates_pages = self.get_fast_truncated_pages()
         self.assertGreater(fast_truncates_pages, 0)
@@ -95,3 +95,53 @@ class test_truncate29(wttest.WiredTigerTestCase):
         s1.rollback_transaction()
 
         self.verifyUntilSuccess()
+
+    # A truncate carrying no timestamp replaces the timestamped state of its whole range, so it is
+    # rejected whether the range is removed a page at a time or a key at a time. Both are reported
+    # at commit: a truncate only receives its timestamp there.
+    def truncate_no_ts_rejected(self, on_disk):
+        if wiredtiger.diagnostic_build():
+            self.skipTest('the timestamp usage check aborts in diagnostic builds')
+
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
+        ds.populate()
+
+        # A truncate only fast-deletes pages that are on disk. Writing a small dataset and never
+        # forcing it out keeps every page in cache, so the whole range is removed a key at a time.
+        nrows = self.nrows if on_disk else 100
+        value = self.generate_random_string(12345 if on_disk else 10)
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, nrows):
+            self.session.begin_transaction()
+            cursor[ds.key(i)] = value
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(30)}')
+        cursor.close()
+
+        self.conn.set_timestamp(
+            f'stable_timestamp={self.timestamp_str(30)},oldest_timestamp={self.timestamp_str(30)}')
+        if on_disk:
+            self.reopen_conn()
+
+        fast_before = self.get_fast_truncated_pages()
+        self.session.begin_transaction('no_timestamp=true')
+        self.session.truncate(self.uri, None, None, None)
+        msg = '/configured to always use timestamps once they are first used/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
+
+        # Confirm each scenario reached the path it is meant to cover.
+        fast_pages = self.get_fast_truncated_pages() - fast_before
+        if on_disk:
+            self.assertGreater(fast_pages, 0, 'nothing was fast-truncated')
+        else:
+            self.assertEqual(fast_pages, 0, 'the range was fast-truncated')
+
+        self.ignoreStdoutPatternIfExists(msg)
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
+
+    def test_truncate_no_ts_rejected_fast(self):
+        self.truncate_no_ts_rejected(True)
+
+    def test_truncate_no_ts_rejected_slow(self):
+        self.truncate_no_ts_rejected(False)
