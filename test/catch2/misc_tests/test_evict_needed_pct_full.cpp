@@ -11,8 +11,8 @@
 #include "wt_internal.h"
 
 /*
- * __wti_evict_threshold_pct is the pure arithmetic behind __wt_evict_needed's pct_full output: one
- * hundred minus the smallest margin between a usage percentage and its trigger. Testing it
+ * __wti_evict_threshold_pct is the pure arithmetic behind the pct_full output of __wt_evict_needed:
+ * one hundred minus the smallest margin between a usage percentage and its trigger. Testing it
  * directly, rather than through __wt_evict_needed, avoids needing a live connection whose
  * eviction server would race the test over the same cache accounting the test wants to control.
  */
