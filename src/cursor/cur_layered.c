@@ -1363,6 +1363,18 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
               &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
           (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
+
+        /*
+         * With no stable, the operation must route to ingest. Only a transaction begun before the
+         * step-down timestamp reading a table created after it, while the step-down is in flight,
+         * ends up with neither: the walk clears the table's step-down-created mark before it
+         * publishes the follower role, so no routing rule selects a constituent. Applications must
+         * not read a table from a transaction older than the table.
+         */
+        WT_ASSERT_ALWAYS(session,
+          clayered->stable_cursor != NULL || LF_ISSET(CLAYERED_ENTER_OPEN_INGEST),
+          "layered cursor resolved no constituent: a transaction begun before the step-down "
+          "timestamp read a table created after it during a role change");
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
         /*
