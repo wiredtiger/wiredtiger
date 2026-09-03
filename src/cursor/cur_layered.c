@@ -2417,13 +2417,22 @@ err:
 /*
  * __clayered_lookup_lazy_stable_open --
  *     Open the stable constituent an operation deferred at enter time, and hand it to the
- *     operation. The operation stays without a stable cursor if the follower has no checkpoint.
+ *     operation. The operation stays without a stable cursor if the follower has no checkpoint or
+ *     the table was created inside the step-down window.
  */
 static int
 __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
+
+    /*
+     * A leader's table created inside the step-down window deferred the open because it has no
+     * stable constituent at all, not because it is waiting on a checkpoint: opening as a follower
+     * would refuse the bind against the leader-era snapshot.
+     */
+    if (F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED))
+        return (0);
 
     WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
       __wt_atomic_load_uint64_acquire(
@@ -3823,6 +3832,8 @@ __clayered_modify_try_ingest(
     if (ret == WT_NOTFOUND) {
         if (op->stable == NULL)
             WT_RET(__clayered_lookup_lazy_stable_open(op));
+        WT_ASSERT_ALWAYS(session, op->stable != NULL,
+          "ingest modify evicted the key, but there is no stable constituent to hold it");
         WT_RET_NOTFOUND_OK(ret = __clayered_lookup_constituent(op, op->stable, value));
         WT_ASSERT_ALWAYS(
           session, ret != WT_NOTFOUND, "ingest modify evicted the key, now it should be in stable");
