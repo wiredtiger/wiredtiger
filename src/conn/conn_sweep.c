@@ -238,7 +238,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!__wt_conn_is_disagg(session) && !sweep_non_outdated_handle)
             break;
 
-        if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
+        if (!F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
             continue;
         /*
          * For outdated btrees, hold standby node checkpoint handles for a short grace period,
@@ -246,7 +246,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
          * time has elapsed since time of death.
          */
         uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
-        if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+        if (F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
             if (__wt_conn_is_disagg(session) && WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {

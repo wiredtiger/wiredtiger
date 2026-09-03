@@ -299,7 +299,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
-            if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+            if (F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED)) {
                 /*
                  * An outdated read-only stable handle is only safe to reuse in its checkpoint-view
                  * form (a "...wt_stable/WiredTigerCheckpoint.N" name): those checkpoint handles
@@ -323,7 +323,8 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
     } else
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED))
                 continue;
             if (dhandle->checkpoint != NULL && strcmp(uri, dhandle->name) == 0 &&
               strcmp(checkpoint, dhandle->checkpoint) == 0) {
@@ -355,7 +356,7 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
     if (ret == 0) {
-        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        F_SET_ATOMIC_32(session->dhandle, WT_DHANDLE_OUTDATED);
         WT_DHANDLE_RELEASE(session->dhandle);
     } else if (ret != WT_NOTFOUND)
         WT_RET(ret);
@@ -808,9 +809,9 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 return (0);
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
-              dhandle->checkpoint != NULL || strcmp(uri, dhandle->name) != 0)
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED) || dhandle->checkpoint != NULL ||
+              strcmp(uri, dhandle->name) != 0)
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
@@ -827,10 +828,10 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 goto done;
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
-              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
-              WT_IS_ANY_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED) || !WT_DHANDLE_BTREE(dhandle) ||
+              dhandle->checkpoint != NULL || WT_IS_ANY_METADATA(dhandle) ||
+              WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -1163,6 +1164,8 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
         /* Sweep can concurrently update the flags of a handle we're dumping. */
         WT_RET(__wt_msg(
           session, "  Flags: 0x%08" PRIx16, __wt_atomic_load_uint16_relaxed(&dhandle->flags)));
+        WT_RET(__wt_msg(session, "  Atomic flags: 0x%08" PRIx32,
+          __wt_atomic_load_uint32_relaxed(&dhandle->flags_atomic)));
     }
     return (0);
 }
