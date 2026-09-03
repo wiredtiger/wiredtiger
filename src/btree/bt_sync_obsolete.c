@@ -56,6 +56,14 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (WT_TIME_AGGREGATE_HAS_STOP(&ta))
         return (false);
 
+    /*
+     * Disaggregated storage reconciliation can write a delta rather than a full page, so dirtying a
+     * page to strip its obsolete time window information can grow disk usage instead of shrinking
+     * it. Leave that content in place; page-level cleanup still reclaims whole pages.
+     */
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        return (false);
+
     /* Limit the activity to reduce the load. */
     if (__sync_obsolete_limit_reached(session))
         return (false);
