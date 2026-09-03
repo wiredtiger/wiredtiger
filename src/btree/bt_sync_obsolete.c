@@ -56,14 +56,6 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (WT_TIME_AGGREGATE_HAS_STOP(&ta))
         return (false);
 
-    /*
-     * Disaggregated storage reconciliation can write a delta rather than a full page, so dirtying a
-     * page to strip its obsolete time window information can grow disk usage instead of shrinking
-     * it. Leave that content in place; page-level cleanup still reclaims whole pages.
-     */
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        return (false);
-
     /* Limit the activity to reduce the load. */
     if (__sync_obsolete_limit_reached(session))
         return (false);
@@ -174,11 +166,14 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_evict_page_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else if (__sync_obsolete_tw_check(session, newest_ta)) {
+    } else if (!WT_DELTA_LEAF_ENABLED(session) && __sync_obsolete_tw_check(session, newest_ta)) {
 
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
-         * obsolete time window information.
+         * obsolete time window information. Skip this when the page reconciles to a delta rather
+         * than a full page: rewriting it to drop the obsolete time window can grow disk usage
+         * instead of shrinking it, since the delta still has to record the change. Page-level
+         * cleanup still reclaims whole pages regardless.
          */
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
@@ -474,9 +469,14 @@ __checkpoint_cleanup_page_skip(
 
     /*
      * While we may have decided to skip the page, check if there is obsolete content that can be
-     * cleaned up.
+     * cleaned up. Always read an internal page for this: skipping it could also hide fully obsolete
+     * leaves further down that page-level cleanup would otherwise reach. A leaf page is only worth
+     * reading for its own obsolete time window when reconciliation would actually benefit from
+     * removing it: if the leaf reconciles to a delta rather than a full page, the rewrite can grow
+     * disk usage instead of shrinking it.
      */
-    if (*skipp && __sync_obsolete_tw_check(session, addr.ta)) {
+    if (*skipp && (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || !WT_DELTA_LEAF_ENABLED(session)) &&
+      __sync_obsolete_tw_check(session, addr.ta)) {
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }
