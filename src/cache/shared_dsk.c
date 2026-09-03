@@ -55,8 +55,7 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
         WT_STAT_CONN_INCR(session, cache_shared_dsk_lock_contention);
         __wt_spin_lock(session, &shared_dsk_cache->hash_locks[lock_idx]);
     }
-    LIST_FOREACH(shared_dsk_item, &shared_dsk_cache->hash[bucket], hashq)
-    {
+    LIST_FOREACH (shared_dsk_item, &shared_dsk_cache->hash[bucket], hashq) {
         if (shared_dsk_item->addr_size == addr_size && shared_dsk_item->fid == S2BT(session)->id &&
           memcmp(shared_dsk_item->addr, addr, addr_size) == 0) {
             ++shared_dsk_item->ref_count;
@@ -139,8 +138,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
         WT_STAT_CONN_INCR(session, cache_shared_dsk_lock_contention);
         __wt_spin_lock(session, &shared_dsk_cache->hash_locks[lock_idx]);
     }
-    LIST_FOREACH(shared_dsk_item, &shared_dsk_cache->hash[bucket], hashq)
-    {
+    LIST_FOREACH (shared_dsk_item, &shared_dsk_cache->hash[bucket], hashq) {
 #ifdef HAVE_DIAGNOSTIC
         ++bucket_walk;
 #endif

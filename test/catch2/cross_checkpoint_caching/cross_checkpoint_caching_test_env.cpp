@@ -128,8 +128,8 @@ cross_checkpoint_caching_test_env::bucket_size(u_int bucket)
 
     int count = 0;
     WT_SHARED_DSK_ITEM *item;
-    LIST_FOREACH(item, &cache->hash[bucket], hashq)
-    count++;
+    LIST_FOREACH (item, &cache->hash[bucket], hashq)
+        count++;
     return count;
 }
 
