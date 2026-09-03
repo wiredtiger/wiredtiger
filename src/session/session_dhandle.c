@@ -968,7 +968,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
          */
         if (FLD_ISSET(
               S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY) &&
-          WT_URI_IS_STABLE(uri) && strstr(uri, "WiredTigerShared") == NULL) {
+          WT_URI_IS_STABLE(uri) && !WT_IS_URI_HS(uri) && !WT_IS_URI_METADATA(uri)) {
             tsp.tv_sec = 3;
             tsp.tv_nsec = 0;
             __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY, &tsp);

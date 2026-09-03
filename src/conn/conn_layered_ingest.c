@@ -1096,9 +1096,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     /*
      * The pickup sets OUTDATED on superseded checkpoint dhandles, then reads session_inuse below to
-     * set the prune timestamp. The reader increases session_inuse to acquire the dhandle, then
-     * checks OUTDATED in __clayered_open_stable_follower. Both sides store first and then load; the
-     * full barrier prevents a store-load reordering that would let both miss each other and prune
+     * set the prune timestamp. A reader first increases session_inuse to acquire the dhandle, then
+     * checks OUTDATED before binding the checkpoint. Both sides store first and then load; the full
+     * barrier prevents a store-load reordering that would let both miss each other and prune
      * content a reader has already bound.
      *
      * FIXME-WT-18553: We should think whether there is a better solution for this problem.

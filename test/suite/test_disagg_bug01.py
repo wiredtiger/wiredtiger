@@ -26,10 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Regression test for WT-18532.
-#
-# Race: a follower's stable-checkpoint dhandle open races with a checkpoint pickup's ingest prune
-# walk.
+# Regression test: a follower's stable-checkpoint dhandle open races with a checkpoint pickup's
+# ingest prune walk.
 #
 # Regression: the pickup sets WT_DHANDLE_OUTDATED on the superseded dhandle, then reads
 # session_inuse to decide how far to prune the ingest table. The reader tested OUTDATED during the

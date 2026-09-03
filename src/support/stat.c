@@ -354,6 +354,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
+  "layered: Layered table cursor stable open retried after the checkpoint was superseded",
   "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
   "layered: Layered table live stable open refused on a follower",
@@ -849,6 +850,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_open_stable_refused = 0;
+    stats->layered_curs_open_stable_superseded = 0;
     stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
     stats->layered_stable_live_open_refused = 0;
@@ -1343,6 +1345,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_search_ingest += from->layered_curs_search_ingest;
     to->layered_curs_search_stable += from->layered_curs_search_stable;
     to->layered_curs_open_stable_refused += from->layered_curs_open_stable_refused;
+    to->layered_curs_open_stable_superseded += from->layered_curs_open_stable_superseded;
     to->layered_curs_open_stable_stepdown_race += from->layered_curs_open_stable_stepdown_race;
     to->layered_curs_update += from->layered_curs_update;
     to->layered_stable_live_open_refused += from->layered_stable_live_open_refused;
@@ -1889,6 +1892,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
     to->layered_curs_open_stable_refused +=
       WT_STAT_DSRC_READ(from, layered_curs_open_stable_refused);
+    to->layered_curs_open_stable_superseded +=
+      WT_STAT_DSRC_READ(from, layered_curs_open_stable_superseded);
     to->layered_curs_open_stable_stepdown_race +=
       WT_STAT_DSRC_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
@@ -2726,6 +2731,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
+  "layered: Layered table cursor stable open retried after the checkpoint was superseded",
   "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
   "layered: Layered table live stable open refused on a follower",
@@ -3855,6 +3861,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_open_stable_refused = 0;
+    stats->layered_curs_open_stable_superseded = 0;
     stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
     stats->layered_stable_live_open_refused = 0;
@@ -5119,6 +5126,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_search_stable += WT_STAT_CONN_READ(from, layered_curs_search_stable);
     to->layered_curs_open_stable_refused +=
       WT_STAT_CONN_READ(from, layered_curs_open_stable_refused);
+    to->layered_curs_open_stable_superseded +=
+      WT_STAT_CONN_READ(from, layered_curs_open_stable_superseded);
     to->layered_curs_open_stable_stepdown_race +=
       WT_STAT_CONN_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);

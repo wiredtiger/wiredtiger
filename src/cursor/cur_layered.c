@@ -849,6 +849,7 @@ retry:
         WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
         clayered->stable_cursor = NULL;
 
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_superseded);
         ++checkpoint_pickup_races_count;
         goto retry;
     }

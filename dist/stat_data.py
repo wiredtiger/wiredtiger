@@ -1476,6 +1476,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
     LayeredStat('layered_curs_open_stable_refused', 'Layered table cursor stable open refused to preserve a transaction snapshot'),
     LayeredStat('layered_curs_open_stable_stepdown_race', 'Layered table cursor stable open rolled back after racing a step-down'),
+    LayeredStat('layered_curs_open_stable_superseded', 'Layered table cursor stable open retried after the checkpoint was superseded'),
     LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from the ingest btrees'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
