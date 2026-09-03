@@ -25,13 +25,14 @@ typedef enum {
 #define WT_CACHE_TOP_METRICS (WT_CACHE_TOP_EVICT + 1)
 
 /*
- * Every metric tracked here is bounded by the cache size (bytes read and bytes evicted are decayed
- * so that this stays true for them too). That bound is what lets a fixed number of slots hold every
- * tree worth reporting, instead of just a sample of them: set the threshold to cache size divided
- * by the slot count, and at most that many trees can ever be above it, so a tree that is not in the
- * ranking is provably below the threshold. The threshold is adjusted over time to keep the ranking
- * reasonably full, so a workload where cache usage is spread thin across many tables still produces
- * a useful ranking.
+ * The level metrics (update, dirty leaf and resident bytes) sum to at most the cache size. That
+ * bound is what lets a fixed number of slots hold every tree worth reporting rather than a sample:
+ * set the threshold to cache size divided by the slot count, and at most that many trees can be
+ * above it, so a tree not in the ranking is provably below the threshold. Decay bounds the flow
+ * metrics (bytes read and evicted) by rate rather than by cache size, so their rankings hold the
+ * largest consumers seen and carry no completeness guarantee. The threshold is adjusted over time
+ * to keep a ranking reasonably full, so cache usage spread thin across many tables still produces a
+ * useful ranking.
  */
 #define WT_CACHE_TOP_SLOTS 32
 
