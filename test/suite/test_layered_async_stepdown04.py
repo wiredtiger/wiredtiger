@@ -107,7 +107,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
-    # A cursor reused from the cache picks up the new routing: its writes go to ingest.
+    # A cursor reused from the cache picks up the new routing: its writes mirror to both
+    # constituents.
     def test_cached_cursor_reuse_across_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -128,7 +129,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'k1'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'k1', 'k2'},
+            'transition-window writes must be mirrored to stable')
         self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
 
     # A cursor closed before the demotion and reopened afterwards serves the surviving content.

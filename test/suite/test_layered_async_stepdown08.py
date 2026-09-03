@@ -166,6 +166,24 @@ class test_layered_async_stepdown08(
         self.complete_step_down(self.cutoff_ts)
         assert_both_sides()
 
+    def test_existing_table_writes_are_mirrored(self):
+        """Writes to an existing table in the window reach both constituents in both epoch modes."""
+        self.setup_world()
+        uri, rows = self.create_with_rows('existing', 2)
+        self.publish_and_make_stable(uri, 20)
+
+        self.set_step_down_ts(self.cutoff_ts)
+        self.write_at(uri, {'window': 'window'}, 6)
+
+        expected = {**rows, 'window': 'window'}
+        self.assertEqual(self.read_kvs_at(uri, 7), expected)
+        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 7), expected)
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(uri), 7), {'window': 'window'})
+
+        self.complete_step_down(self.cutoff_ts)
+        self.assertEqual(self.read_kvs_at(uri, 7), expected)
+        self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(uri), 7), rows)
+
     def create_tables_with_mixed_states(self):
         """
         Create a table for each state that can be alive at a step-down, take the step-down

@@ -69,8 +69,8 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.uri, 40), before | after)
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), after)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), before,
-            'later writes must not reach the stable table')
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), before | after,
+            'transition-window writes must be mirrored to stable')
 
     # Update, modify and remove of stable keys route to ingest, like insert.
     def test_update_modify_remove_routing_after_step_down_ts(self):
@@ -105,15 +105,72 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(kv.get('k3'), 'vase')
         self.assertNotIn('k2', kv)
 
-        # All three landed in ingest, the remove as a tombstone shadowing stable.
+        # The transition-window writes are mirrored to stable; remove also records an ingest tombstone.
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2', 'k3'})
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'base', 'k2': 'base', 'k3': 'base'},
-            'these writes must not touch the stable table')
+            {'k1': 'updated', 'k3': 'vase'},
+            'transition-window writes must be mirrored to stable')
 
         # The update, modify and tombstone all survive the completed step-down.
         self.complete_step_down(20)
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'vase'})
+
+    # A size-changing modify produces the same value whether the key predates the transition or was
+    # written during it.
+    def test_size_changing_modify_while_step_down_ts_set(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'stable-only': 'abcde'}, 10)
+
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'mirrored': 'abcde'}, 30)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        for key in ('stable-only', 'mirrored'):
+            cursor.set_key(key)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('X', 1, 0)]), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
+        cursor.close()
+
+        expected = {'stable-only': 'aXbcde', 'mirrored': 'aXbcde'}
+        self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected)
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
+
+    # Removing a mirrored key during iteration must not lose the stable-only neighbor in either
+    # direction.
+    def test_remove_mirrored_key_during_iteration(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'a': 'stable', 'c': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'b': 'mirrored'}, 30)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        self.session.begin_transaction()
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'a')
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'b')
+        self.assertEqual(cursor.remove(), 0)
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'c')
+        self.session.rollback_transaction()
+
+        cursor.reset()
+        self.session.begin_transaction()
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'c')
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'b')
+        self.assertEqual(cursor.remove(), 0)
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'a')
+        self.session.rollback_transaction()
+        cursor.close()
 
     # All tables share one cutoff, so a single call routes every table's later writes to ingest.
     def test_multiple_tables_share_cutoff(self):
@@ -133,8 +190,8 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri1), 40), {'c'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri2), 40), {'d'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), {'a'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), {'a', 'c'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b', 'd'})
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'stable', 'c': 'ingest'})
         self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'stable', 'd': 'ingest'})
 
@@ -195,7 +252,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2'})
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'base', 'k2': 'base'})
+            {'k1': 'updated'})
 
         # Both writes survive the completed step-down.
         self.complete_step_down(20)
@@ -213,6 +270,19 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction()
         cursor.set_key('k1')
         self.assertEqual(cursor.reserve(), 0)
+
+        # A reserve is mirrored to the stable constituent as well as ingest. A direct stable writer
+        # must therefore conflict even though layered writes normally target ingest after the cutoff.
+        stable_session = self.conn.open_session()
+        stable_cursor = stable_session.open_cursor(self.stable_uri(self.uri),
+                                                   None, None)
+        stable_session.begin_transaction()
+        stable_cursor.set_key('k1')
+        stable_cursor.set_value('stable-writer')
+        self.expect_conflict_rollback(stable_cursor.update)
+        stable_session.rollback_transaction()
+        stable_cursor.close()
+        stable_session.close()
 
         # A concurrent writer conflicts with the reservation.
         wsession = self.conn.open_session()
