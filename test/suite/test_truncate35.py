@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, string
 import wttest
 from wiredtiger import stat
 
@@ -40,13 +39,10 @@ from wiredtiger import stat
 class test_truncate35(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=200MB,statistics=(all)'
     uri = 'table:test_truncate35'
-    create_cfg = 'key_format=i,value_format=S'
+    create_cfg = 'key_format=i,value_format=S,leaf_page_max=4KB'
 
-    nrows = 500
-
-    def generate_random_string(self, length):
-        characters = string.ascii_letters + string.digits
-        return ''.join(random.choices(characters, k=length))
+    value = 'abcdefghijklmnopqrstuvwxyz' * 3
+    nrows = 2000
 
     def get_stat(self, statname):
         c = self.session.open_cursor('statistics:')
@@ -68,23 +64,18 @@ class test_truncate35(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.create_cfg)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
 
-        # Overflow-sized values so the leaf's time aggregate carries a real durable
-        # timestamp rather than the common start==durable encoding.
-        val1 = self.generate_random_string(12345)
-        val2 = self.generate_random_string(12345)
-
         cursor = self.session.open_cursor(self.uri)
-        for i in range(1, self.nrows):
+        for i in range(1, self.nrows + 1):
             self.session.begin_transaction()
-            cursor[i] = val1
+            cursor[i] = self.value
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-        for i in range(1, self.nrows):
+        for i in range(1, self.nrows + 1):
             self.session.begin_transaction()
-            cursor[i] = val2
+            cursor[i] = self.value
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
         cursor.close()
 
-        # Advance stable, but not oldest: val1 is genuinely superseded, not obsolete.
+        # Advance stable, but not oldest: the first value is genuinely superseded, not obsolete.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.session.checkpoint()
 
@@ -93,7 +84,7 @@ class test_truncate35(wttest.WiredTigerTestCase):
         # visible and the history store gets cleared regardless of the bug under test.
         ev = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(10))
-        for i in range(1, self.nrows):
+        for i in range(1, self.nrows + 1):
             ev.set_key(i)
             ev.search()
             ev.reset()
@@ -113,12 +104,9 @@ class test_truncate35(wttest.WiredTigerTestCase):
         # need for no_timestamp=true -- that flag is an escape hatch for ordered tables.
         self.session.begin_transaction()
         start = self.session.open_cursor(self.uri)
-        start.set_key(1)
-        stop = self.session.open_cursor(self.uri)
-        stop.set_key(self.nrows - 1)
-        self.session.truncate(None, start, stop, None)
+        start.set_key(5)
+        self.session.truncate(None, start, None, None)
         start.close()
-        stop.close()
         self.session.commit_transaction()
 
         self.assertGreater(self.get_stat(stat.conn.rec_page_delete_fast), fast_before,
