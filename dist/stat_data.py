@@ -1386,7 +1386,6 @@ conn_dsrc_stats = [
     CheckpointCleanupStat('checkpoint_cleanup_pages_removed', 'pages removed'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_visited', 'pages visited'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during tree walk'),
-    CheckpointCleanupStat('checkpoint_cleanup_pages_walk_skipped_not_visible', 'internal pages skipped while fully deleted but not yet globally visible'),
 
     ##########################################
     # Checkpoint statistics
@@ -1521,7 +1520,6 @@ conn_dsrc_stats = [
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_page_delete_fast_skip_deleted', 'fast-path page deletion skipped, all entries already deleted'),
-    RecStat('rec_page_delete_internal', 'internal pages reconciled to empty'),
     RecStat('rec_page_delta_eligible', 'pages eligible for delta generation'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
     RecStat('rec_page_delta_internal_key_deleted', 'internal page delta keys deleted'),

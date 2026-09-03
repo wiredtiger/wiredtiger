@@ -443,48 +443,29 @@ __checkpoint_cleanup_page_skip(
     }
 
     /*
-     * A fully deleted internal subtree on disaggregated storage is only worth reading once its
-     * deletion is globally visible. Reading it earlier instantiates the deleted children and
-     * dirties the page for nothing, because nothing beneath it can be reclaimed until the deletion
-     * is visible to every reader. Once the stop point is globally visible the read is required
-     * rather than optional: it is how the descendant page ids become known, so their blocks can be
-     * discarded. Both outcomes are decided here, rather than by the generic policy below, which
-     * would re-skip an untimestamped subtree whose deletion is already globally visible and delay
-     * the mandatory traversal indefinitely.
+     * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if at
+     * least of one of the following conditions is met:
+     *
+     * - The page is a leaf with no overflow items because obsolete leaf pages with overflow
+     * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can be
+     * freed during reconciliation after being marked dirty.
+     *
+     * - The page does not have any deletes (checked using the aggregated stop durable timestamp)
+     * AND
+     *  - the checkpoint cleanup is not configured with the reclaim space method OR
+     *  - the table is not logged
+     *
+     * FIXME: Read internal pages from non-logged tables when the remove/truncate
+     * operation is performed using no timestamp.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && addr.type == WT_ADDR_INT &&
-      WT_TIME_AGGREGATE_ALL_DELETED(&addr.ta)) {
-        if (addr.ta.prepare ||
-          !__wt_txn_visible_all(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
-            *skipp = true;
-            WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped_not_visible);
-        }
-    } else {
-        /*
-         * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if
-         * at least of one of the following conditions is met:
-         *
-         * - The page is a leaf with no overflow items because obsolete leaf pages with overflow
-         * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can
-         * be freed during reconciliation after being marked dirty.
-         *
-         * - The page does not have any deletes (checked using the aggregated stop durable
-         * timestamp) AND
-         *  - the checkpoint cleanup is not configured with the reclaim space method OR
-         *  - the table is not logged
-         *
-         * FIXME: Read internal pages from non-logged tables when the remove/truncate
-         * operation is performed using no timestamp.
-         */
-        if (addr.type == WT_ADDR_LEAF_NO)
-            *skipp = true;
-        else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
-            /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-            *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
-              !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-            if (!*skipp)
-                WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
-        }
+    if (addr.type == WT_ADDR_LEAF_NO)
+        *skipp = true;
+    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+        /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
+        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
+          !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
+        if (!*skipp)
+            WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
     }
 
     /*
