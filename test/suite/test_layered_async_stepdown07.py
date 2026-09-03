@@ -372,8 +372,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertIn((removed, 'v'), kvs, 'the invisible tombstone must not reach this snapshot')
 
     # A layered tree never opens by checkpoint, before or after the demotion. The live stable
-    # constituent contains the mirrored transition-window writes, while its cutoff checkpoint does
-    # not contain writes committed above the cutoff.
+    # constituent may contain the mirrored transition-window writes (per write-mirroring config),
+    # while its cutoff checkpoint does not contain writes committed above the cutoff.
     def test_checkpoint_cursor_after_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')

@@ -1846,9 +1846,10 @@ __disagg_config_stepdown_write_mirroring(WT_SESSION_IMPL *session, const char **
     WT_DECL_RET;
 
     conn = S2C(session);
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.stepdown_write_mirroring", &cval));
-    if (cval.len > 0 && cval.val == 0)
-        F_SET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_INGEST);
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.stepdown_write_mirroring", &cval), true);
+    if (ret == 0 && cval.val != 0)
+        F_SET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 
 err:
     return (ret);

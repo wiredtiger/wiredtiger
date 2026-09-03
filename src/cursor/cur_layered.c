@@ -439,8 +439,9 @@ __clayered_enter_flags(
 
     /*
      * A transaction that started with the step-down timestamp set mirrors leader writes to both
-     * constituents to detect write conflicts. Reads behave like a follower: it reads the ingest
-     * constituent over the still-live stable table.
+     * constituents to detect write conflicts when write mirroring is enabled; otherwise it routes
+     * them to ingest. Reads behave like a follower: it reads the ingest constituent over the
+     * still-live stable table.
      *
      * A table created inside the step-down window has no stable constituent at all, so its cursors
      * use ingest whenever the transaction began. That covers a transaction from before the
@@ -486,10 +487,10 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
     if (CUR2S(clayered)->txn->stepdown_ts_set) {
         WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-        op->write_target =
-          F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_INGEST) ?
-          WTI_CLAYERED_WRITE_INGEST :
-          WTI_CLAYERED_WRITE_BOTH;
+        op->write_target = F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage,
+                             WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ?
+          WTI_CLAYERED_WRITE_BOTH :
+          WTI_CLAYERED_WRITE_INGEST;
         return;
     }
     WT_ASSERT(CUR2S(clayered), op->ingest == NULL);

@@ -71,7 +71,8 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-        # A retry after the timestamp is set mirrors to both constituents.
+        # A retry after the timestamp is set routes to ingest (mirrored to stable when write
+        # mirroring is enabled).
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddle'] = 'after'
