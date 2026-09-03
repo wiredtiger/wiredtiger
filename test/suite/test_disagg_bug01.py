@@ -130,7 +130,7 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
         self.assertTrue(reader_started.wait(10), 'reader thread did not start in time')
 
         # Let the reader reach the sleep inside the stable dhandle open.
-        time.sleep(1)
+        time.sleep(0.5)
 
         # Deliver and adopt checkpoint N+1 while the reader is suspended: the merge marks the
         # stable dhandle OUTDATED and the prune walk advances the ingest prune timestamp past

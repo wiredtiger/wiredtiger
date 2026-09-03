@@ -973,7 +973,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
               S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY) &&
           WT_URI_IS_STABLE(uri) && !WT_IS_URI_HS(uri) && !WT_IS_URI_METADATA(uri) &&
           strncmp(uri, WT_DISAGG_METADATA_URI, strlen(WT_DISAGG_METADATA_URI)) != 0) {
-            tsp.tv_sec = 3;
+            tsp.tv_sec = 1;
             tsp.tv_nsec = 0;
             __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY, &tsp);
         }
