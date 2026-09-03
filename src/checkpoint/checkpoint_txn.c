@@ -404,21 +404,47 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_disagg_latest_create_remove --
+ *     Return the op type and schema epoch of the latest create/remove queued for the given stable
+ *     URI, or WT_SHARED_METADATA_NONE when there is none.
+ */
+static void
+__checkpoint_disagg_latest_create_remove(WT_SESSION_IMPL *session, const char *stable_uri,
+  WT_SHARED_METADATA_OP *opp, wt_timestamp_t *epochp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+
+    conn = S2C(session);
+    *opp = WT_SHARED_METADATA_NONE;
+    *epochp = WT_SCHEMA_EPOCH_NONE;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->stable_uri, stable_uri) == 0) {
+            *opp = entry->metadata_op;
+            *epochp = entry->schema_epoch;
+        }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+}
+
+/*
  * __checkpoint_disagg_maybe_publish --
  *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
- *     schema epoch covers the table's CREATE entry. If so, clear WT_BTREE_AWAITS_PUBLISH so the
- *     btree is written out and included in this checkpoint. If not, verify the btree has no stable
- *     updates: having stable data in an unpublished table violates the API contract that a table
- *     must be published before the checkpoint that includes its data.
+ *     schema epoch covers the table's create epoch, stamped on the btree at publish time. If so,
+ *     clear WT_BTREE_AWAITS_PUBLISH so the btree is written out and included in this checkpoint. If
+ *     not, verify the btree has no stable updates: having stable data in an unpublished table
+ *     violates the API contract that a table must be published before the checkpoint that includes
+ *     its data.
  */
 static int
 __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    WT_DISAGG_METADATA_OP *entry;
     WT_SHARED_METADATA_OP latest_op;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp, latest_epoch;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp, create_epoch, latest_epoch;
     bool published;
 
     conn = S2C(session);
@@ -431,25 +457,28 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    /*
-     * Publish only when the table's latest create/remove is a CREATE at or below the checkpoint's
-     * schema epoch.
-     *
-     * FIXME-WT-18187: This walks the whole queue once per awaiting-publish btree. Caching the
-     * create schema epoch on WT_BTREE would make this an O(1) field read.
-     */
-    latest_op = WT_SHARED_METADATA_NONE;
-    latest_epoch = WT_SCHEMA_EPOCH_NONE;
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
-          strcmp(entry->stable_uri, dhandle->name) == 0) {
-            latest_op = entry->metadata_op;
-            latest_epoch = entry->schema_epoch;
-        }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    published = latest_op == WT_SHARED_METADATA_CREATE && latest_epoch <= ckpt_epoch;
+    create_epoch = btree->create_schema_epoch;
+    if (create_epoch != WT_SCHEMA_EPOCH_NONE) {
+        published = create_epoch <= ckpt_epoch;
+#ifdef HAVE_DIAGNOSTIC
+        /* The stamped epoch must agree with the queue's latest create for this table. */
+        __checkpoint_disagg_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch);
+        WT_ASSERT(session, latest_op == WT_SHARED_METADATA_CREATE && latest_epoch == create_epoch);
+#endif
+    } else {
+        /*
+         * An unset epoch means the table is unpublished. Verify that against the queue: a published
+         * create with no epoch stamped on the btree means a publish path missed the btree, and the
+         * table would silently never be checkpointed.
+         */
+        __checkpoint_disagg_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch);
+        if (latest_op == WT_SHARED_METADATA_CREATE && latest_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+            WT_RET_PANIC(session, EINVAL,
+              "table \"%s\" awaits publication but its create was published at schema epoch "
+              "%" PRIu64 " without stamping the btree",
+              dhandle->name, latest_epoch);
+        published = false;
+    }
 
     if (!published) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;

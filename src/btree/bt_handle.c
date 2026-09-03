@@ -633,6 +633,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
 
     if (awaits_publish) {
+        /* A new awaiting incarnation starts unpublished, publish stamps the epoch later. */
+        btree->create_schema_epoch = WT_SCHEMA_EPOCH_NONE;
         F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
         /*
          * Disable eviction because it can leave pages clean without a durable address, causing the

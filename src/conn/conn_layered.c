@@ -150,6 +150,35 @@ __layered_create_missing_stable_table(
 }
 
 /*
+ * __disagg_btree_stamp_create_epoch --
+ *     Record the published create epoch on the table's open stable btree so the checkpoint publish
+ *     check is a field read instead of a queue scan. A missing or closed handle is fine: a stable
+ *     btree opened later is stamped by its own publish or step-up path.
+ */
+static int
+__disagg_btree_stamp_create_epoch(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
+{
+    WT_DATA_HANDLE *dhandle, *saved_dhandle;
+    WT_DECL_RET;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    saved_dhandle = session->dhandle;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_find(session, stable_uri, NULL));
+    if (ret == 0) {
+        dhandle = session->dhandle;
+        if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
+          F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_AWAITS_PUBLISH))
+            ((WT_BTREE *)dhandle->handle)->create_schema_epoch = schema_epoch;
+    } else if (ret == WT_NOTFOUND)
+        ret = 0;
+    session->dhandle = saved_dhandle;
+
+    return (ret);
+}
+
+/*
  * __layered_create_missing_stable_tables_legacy --
  *     Create missing stable tables in cases we don't use schema epochs. Note that this is
  *     best-effort and is not able to handle all cases of operation interleaving.
@@ -323,6 +352,14 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Created missing stable table \"%s\" with schema epoch %" PRIu64 " from \"%s\"",
           entry->stable_uri, entry->schema_epoch, entry->layered_value);
+
+        /*
+         * An entry published before this node stepped up never passes through the publish call, so
+         * stamp the recreated btree here.
+         */
+        if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+            WT_ERR(
+              __disagg_btree_stamp_create_epoch(session, entry->stable_uri, entry->schema_epoch));
 
         /*
          * Populate the stable value from local metadata so the queue entry can flush it to the
@@ -1096,12 +1133,16 @@ __wt_disagg_shared_metadata_queue_publish(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *tmp;
-    wt_timestamp_t prev_schema_epoch;
+    WT_DISAGG_METADATA_OP *entry, *latest_entry, *tmp;
+    wt_timestamp_t prev_schema_epoch, stamp_epoch;
+    char *stamp_uri;
     bool found;
 
     conn = S2C(session);
+    latest_entry = NULL;
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
+    stamp_epoch = WT_SCHEMA_EPOCH_NONE;
+    stamp_uri = NULL;
     found = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -1113,6 +1154,8 @@ __wt_disagg_shared_metadata_queue_publish(
         if (strcmp(entry->table_name, table_name) != 0)
             continue;
         found = true;
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE)
+            latest_entry = entry;
 
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
@@ -1144,8 +1187,23 @@ __wt_disagg_shared_metadata_queue_publish(
         WT_ERR_MSG(
           session, EINVAL, "No pending schema operations to publish for table \"%s\"", table_name);
 
+    /*
+     * Capture the latest create for stamping the open stable btree below. The copy is needed
+     * because queue pruning only takes the queue lock, so the entry may not survive past it.
+     */
+    if (latest_entry != NULL && latest_entry->metadata_op == WT_SHARED_METADATA_CREATE) {
+        WT_ASSERT(session, latest_entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED);
+        stamp_epoch = latest_entry->schema_epoch;
+        WT_ERR(__wt_strdup(session, latest_entry->stable_uri, &stamp_uri));
+    }
+
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    if (ret == 0 && stamp_uri != NULL)
+        ret = __disagg_btree_stamp_create_epoch(session, stamp_uri, stamp_epoch);
+    __wt_free(session, stamp_uri);
+
     return (ret);
 }
 
