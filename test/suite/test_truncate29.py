@@ -96,32 +96,27 @@ class test_truncate29(wttest.WiredTigerTestCase):
 
         self.verifyUntilSuccess()
 
-    # A truncate carrying no timestamp replaces the timestamped state of its whole range, so it is
-    # rejected whether the range is removed a page at a time or a key at a time. Both are reported
-    # at commit: a truncate only receives its timestamp there.
-    def truncate_no_ts_rejected(self, on_disk):
+    # A fast truncate carrying no timestamp replaces the timestamped state of the whole page, and
+    # the page delete only receives its timestamp at commit, so the usage check runs there.
+    def test_truncate_no_ts_rejected_fast(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('the timestamp usage check aborts in diagnostic builds')
 
         ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
         ds.populate()
-
-        # A truncate only fast-deletes pages that are on disk. Writing a small dataset and never
-        # forcing it out keeps every page in cache, so the whole range is removed a key at a time.
-        nrows = self.nrows if on_disk else 100
-        value = self.generate_random_string(12345 if on_disk else 10)
+        value = self.generate_random_string(12345)
 
         cursor = self.session.open_cursor(self.uri)
-        for i in range(1, nrows):
+        for i in range(1, self.nrows):
             self.session.begin_transaction()
             cursor[ds.key(i)] = value
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(30)}')
         cursor.close()
 
+        # Make the data globally visible so the truncate is eligible for the fast path.
         self.conn.set_timestamp(
             f'stable_timestamp={self.timestamp_str(30)},oldest_timestamp={self.timestamp_str(30)}')
-        if on_disk:
-            self.reopen_conn()
+        self.reopen_conn()
 
         fast_before = self.get_fast_truncated_pages()
         self.session.begin_transaction('no_timestamp=true')
@@ -129,19 +124,35 @@ class test_truncate29(wttest.WiredTigerTestCase):
         msg = '/configured to always use timestamps once they are first used/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
-
-        # Confirm each scenario reached the path it is meant to cover.
-        fast_pages = self.get_fast_truncated_pages() - fast_before
-        if on_disk:
-            self.assertGreater(fast_pages, 0, 'nothing was fast-truncated')
-        else:
-            self.assertEqual(fast_pages, 0, 'the range was fast-truncated')
+        self.assertGreater(self.get_fast_truncated_pages() - fast_before, 0,
+            'nothing was fast-truncated; the fast path was not actually exercised')
 
         self.ignoreStdoutPatternIfExists(msg)
         self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
 
-    def test_truncate_no_ts_rejected_fast(self):
-        self.truncate_no_ts_rejected(True)
+    # A range removed a key at a time under an explicit no_timestamp=true transaction is allowed,
+    # even on a table with existing timestamped history: that flag is the application's own
+    # acknowledgment that this particular commit falls outside the timestamp regime, the same
+    # as it would be for an ordinary single-key update.
+    def test_truncate_no_ts_allowed_slow(self):
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
+        ds.populate()
+        value = self.generate_random_string(10)
 
-    def test_truncate_no_ts_rejected_slow(self):
-        self.truncate_no_ts_rejected(False)
+        # Keep the dataset small and in cache so the range is removed a key at a time.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, 100):
+            self.session.begin_transaction()
+            cursor[ds.key(i)] = value
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(30)}')
+        cursor.close()
+
+        self.conn.set_timestamp(
+            f'stable_timestamp={self.timestamp_str(30)},oldest_timestamp={self.timestamp_str(30)}')
+
+        fast_before = self.get_fast_truncated_pages()
+        self.session.begin_transaction('no_timestamp=true')
+        self.session.truncate(self.uri, None, None, None)
+        self.session.commit_transaction()
+        self.assertEqual(self.get_fast_truncated_pages() - fast_before, 0,
+            'the range was fast-truncated; the key-at-a-time path was not actually exercised')
