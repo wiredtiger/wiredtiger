@@ -150,6 +150,27 @@ __layered_create_missing_stable_table(
 }
 
 /*
+ * __disagg_btree_stamp_resident --
+ *     Record the schema epoch on a resident stable btree awaiting publication. The caller holds the
+ *     handle list lock.
+ */
+static int
+__disagg_btree_stamp_resident(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
+{
+    WT_DATA_HANDLE *dhandle;
+
+    WT_RET(__wt_conn_dhandle_find(session, stable_uri, NULL));
+
+    dhandle = session->dhandle;
+    if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
+      F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_AWAITS_PUBLISH))
+        ((WT_BTREE *)dhandle->handle)->create_schema_epoch = schema_epoch;
+
+    return (0);
+}
+
+/*
  * __disagg_btree_stamp_create_epoch --
  *     Record the published create epoch on the table's stable btree so the checkpoint publish check
  *     is a field read instead of a queue scan. Only a resident handle is inspected: the stable
@@ -160,23 +181,15 @@ static int
 __disagg_btree_stamp_create_epoch(
   WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
 {
-    WT_DATA_HANDLE *dhandle, *saved_dhandle;
     WT_DECL_RET;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
-    saved_dhandle = session->dhandle;
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_find(session, stable_uri, NULL));
-    if (ret == 0) {
-        dhandle = session->dhandle;
-        if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
-          F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_AWAITS_PUBLISH))
-            ((WT_BTREE *)dhandle->handle)->create_schema_epoch = schema_epoch;
-    } else if (ret == WT_NOTFOUND)
-        ret = 0;
-    session->dhandle = saved_dhandle;
+    WT_SAVE_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, ret = __disagg_btree_stamp_resident(session, stable_uri, schema_epoch)));
 
-    return (ret);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
