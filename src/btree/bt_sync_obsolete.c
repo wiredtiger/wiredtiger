@@ -172,8 +172,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
          * obsolete time window information. Skip this for disaggregated btrees: dirtying the page
-         * doesn't add any new update, so reconciliation's skip-write check in __rec_split_write
-         * (the !newer_updates_than_last_rec_used case) finds nothing newer than what's already
+         * doesn't add any new update, so reconciliation finds nothing newer than what's already
          * durable and skips writing the page, leaving the obsolete time window on disk regardless.
          * Page-level cleanup still reclaims whole pages.
          */

@@ -1019,10 +1019,9 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Dirtying a disaggregated leaf just to strip its obsolete time window doesn't add any new
-     * update, so reconciliation's skip-write check in __rec_split_write (the
-     * !newer_updates_than_last_rec_used case) finds nothing newer than what's already durable and
-     * skips writing the page, leaving the obsolete time window on disk regardless. Leave that
-     * content in place; page-level cleanup still reclaims whole pages.
+     * update, so reconciliation finds nothing newer than what's already durable and skips writing
+     * the page, leaving the obsolete time window on disk regardless. Leave that content in place;
+     * page-level cleanup still reclaims whole pages.
      */
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return (0);
