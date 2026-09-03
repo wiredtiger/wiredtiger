@@ -154,7 +154,8 @@ __layered_create_missing_stable_table(
  *     Record the published create epoch on the table's stable btree so the checkpoint publish check
  *     is a field read instead of a queue scan. Only a resident handle is stamped: the stable
  *     constituent is absent on a follower and while a step-down window is open, and opening one
- *     here would fail the publish rather than leave the epoch to the step-up that rebuilds it.
+ *     here would fail the publish rather than leave the epoch to the step-up that rebuilds it. An
+ *     outdated handle is skipped for the same reason the checkpoint's handle walk skips it.
  */
 static void
 __disagg_btree_stamp_create_epoch(
