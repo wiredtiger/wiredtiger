@@ -190,10 +190,10 @@ struct __wt_btree {
     wt_shared wt_timestamp_t min_unpublished_durable_ts;
 
     /*
-     * The schema epoch this table's create was published at, or WT_SCHEMA_EPOCH_NONE when it is
-     * unpublished. Protected by the schema lock, which every reader and writer holds.
+     * The schema epoch the table's create was published at, or WT_SCHEMA_EPOCH_NONE. Written under
+     * the schema lock, read without it.
      */
-    wt_timestamp_t create_schema_epoch;
+    wt_shared wt_timestamp_t create_schema_epoch;
 
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */

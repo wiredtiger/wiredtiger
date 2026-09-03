@@ -473,7 +473,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    create_epoch = btree->create_schema_epoch;
+    create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
     published = create_epoch != WT_SCHEMA_EPOCH_NONE && create_epoch <= ckpt_epoch;
 
 #ifdef HAVE_DIAGNOSTIC
