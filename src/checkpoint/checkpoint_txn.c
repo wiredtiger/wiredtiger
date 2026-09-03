@@ -403,34 +403,6 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __checkpoint_disagg_latest_create_remove --
- *     Return the op type and schema epoch of the latest create/remove queued for the given stable
- *     URI, or WT_SHARED_METADATA_NONE when there is none.
- */
-static void
-__checkpoint_disagg_latest_create_remove(WT_SESSION_IMPL *session, const char *stable_uri,
-  WT_SHARED_METADATA_OP *opp, wt_timestamp_t *epochp)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_METADATA_OP *entry;
-
-    conn = S2C(session);
-    *opp = WT_SHARED_METADATA_NONE;
-    *epochp = WT_SCHEMA_EPOCH_NONE;
-
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
-          strcmp(entry->stable_uri, stable_uri) == 0) {
-            *opp = entry->metadata_op;
-            *epochp = entry->schema_epoch;
-        }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-}
-#endif
-
 /*
  * __checkpoint_disagg_maybe_publish --
  *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
@@ -470,7 +442,8 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
      * Cross-check the stamped epoch against the queue. A btree with no epoch but a published create
      * means a publish path missed it, and the table would silently never be checkpointed.
      */
-    __checkpoint_disagg_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch);
+    WT_RET(
+      __wt_disagg_stable_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch));
     if (create_epoch != WT_SCHEMA_EPOCH_NONE)
         WT_ASSERT(session, latest_op == WT_SHARED_METADATA_CREATE && latest_epoch == create_epoch);
     else if (latest_op == WT_SHARED_METADATA_CREATE && latest_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)

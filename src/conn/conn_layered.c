@@ -649,6 +649,44 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
 }
 
 /*
+ * __wt_disagg_stable_latest_create_remove --
+ *     Return the op type and schema epoch of the latest create or remove queued for a stable
+ *     constituent, or WT_SHARED_METADATA_NONE when the queue holds none.
+ */
+int
+__wt_disagg_stable_latest_create_remove(WT_SESSION_IMPL *session, const char *stable_uri,
+  WT_SHARED_METADATA_OP *opp, wt_timestamp_t *epochp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(table_name);
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *latest;
+    const char *name, *suffix;
+
+    conn = S2C(session);
+    *opp = WT_SHARED_METADATA_NONE;
+    *epochp = WT_SCHEMA_EPOCH_NONE;
+
+    name = stable_uri;
+    if (!WT_PREFIX_SKIP(name, "file:") || (suffix = strstr(name, ".wt_stable")) == NULL)
+        return (0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &table_name));
+    WT_ERR(__wt_buf_fmt(session, table_name, "%.*s", (int)(suffix - name), name));
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    if ((latest = __wti_disagg_table_latest_create_remove(session, table_name->data)) != NULL) {
+        *opp = latest->metadata_op;
+        *epochp = latest->schema_epoch;
+    }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+err:
+    __wt_scr_free(session, &table_name);
+    return (ret);
+}
+
+/*
  * __wt_disagg_table_last_unpublished_op --
  *     Return the op type of the table's newest queued schema operation if it is unpublished, or
  *     WT_SHARED_METADATA_NONE if the newest operation is published or the queue is empty.
