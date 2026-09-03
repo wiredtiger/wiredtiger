@@ -156,21 +156,26 @@ __layered_create_missing_stable_table(
  *     constituent is absent on a follower and while a step-down window is open, and opening one
  *     here would fail the publish rather than leave the epoch to the step-up that rebuilds it.
  */
-static int
+static void
 __disagg_btree_stamp_create_epoch(
   WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
 {
+    WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_RET;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
-    WT_SAVE_DHANDLE(session, WT_WITH_HANDLE_LIST_READ_LOCK(session, {
-        if ((ret = __wt_conn_dhandle_find(session, stable_uri, NULL)) == 0 &&
-          F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
-            S2BT(session)->create_schema_epoch = schema_epoch;
-    }));
+    saved_dhandle = session->dhandle;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session,
+      if ((ret = __wt_conn_dhandle_find(session, stable_uri, NULL)) == 0)
+        WT_DHANDLE_ACQUIRE(session->dhandle));
 
-    return (ret == WT_NOTFOUND ? 0 : ret);
+    if (ret == 0) {
+        if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
+            S2BT(session)->create_schema_epoch = schema_epoch;
+        WT_DHANDLE_RELEASE(session->dhandle);
+    }
+    session->dhandle = saved_dhandle;
 }
 
 /*
@@ -353,8 +358,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
          * stamp the recreated btree here.
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
-            WT_ERR(
-              __disagg_btree_stamp_create_epoch(session, entry->stable_uri, entry->schema_epoch));
+            __disagg_btree_stamp_create_epoch(session, entry->stable_uri, entry->schema_epoch);
 
         /*
          * Populate the stable value from local metadata so the queue entry can flush it to the
@@ -1156,7 +1160,7 @@ __wt_disagg_shared_metadata_queue_publish(
             entry->schema_epoch = schema_epoch;
 
             if (entry->metadata_op == WT_SHARED_METADATA_CREATE)
-                WT_ERR(__disagg_btree_stamp_create_epoch(session, entry->stable_uri, schema_epoch));
+                __disagg_btree_stamp_create_epoch(session, entry->stable_uri, schema_epoch);
         }
 
         /* Check the ordering of schema epochs within the same table. */

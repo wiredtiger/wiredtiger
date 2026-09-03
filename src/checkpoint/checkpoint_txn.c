@@ -463,29 +463,22 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
         return (0);
 
     create_epoch = btree->create_schema_epoch;
-    if (create_epoch != WT_SCHEMA_EPOCH_NONE) {
-        published = create_epoch <= ckpt_epoch;
+    published = create_epoch != WT_SCHEMA_EPOCH_NONE && create_epoch <= ckpt_epoch;
+
 #ifdef HAVE_DIAGNOSTIC
-        /* The stamped epoch must agree with the queue's latest create for this table. */
-        __checkpoint_disagg_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch);
+    /*
+     * Cross-check the stamped epoch against the queue. A btree with no epoch but a published create
+     * means a publish path missed it, and the table would silently never be checkpointed.
+     */
+    __checkpoint_disagg_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch);
+    if (create_epoch != WT_SCHEMA_EPOCH_NONE)
         WT_ASSERT(session, latest_op == WT_SHARED_METADATA_CREATE && latest_epoch == create_epoch);
+    else if (latest_op == WT_SHARED_METADATA_CREATE && latest_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+        WT_RET_PANIC(session, EINVAL,
+          "table \"%s\" awaits publication but its create was published at schema epoch %" PRIu64
+          " without stamping the btree",
+          dhandle->name, latest_epoch);
 #endif
-    } else {
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * An unset epoch means the table is unpublished. Verify that against the queue: a published
-         * create with no epoch stamped on the btree means a publish path missed the btree, and the
-         * table would silently never be checkpointed.
-         */
-        __checkpoint_disagg_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch);
-        if (latest_op == WT_SHARED_METADATA_CREATE && latest_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
-            WT_RET_PANIC(session, EINVAL,
-              "table \"%s\" awaits publication but its create was published at schema epoch "
-              "%" PRIu64 " without stamping the btree",
-              dhandle->name, latest_epoch);
-#endif
-        published = false;
-    }
 
     if (!published) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
