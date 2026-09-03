@@ -30,8 +30,8 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# Ensure that any history store records are correctly removed when doing
-# a truncate operation with no timestamp.
+# Ensure that any history store records are correctly removed when a range is deleted with no
+# timestamp.
 
 class test_truncate25(wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -61,21 +61,16 @@ class test_truncate25(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.reopen_conn()
 
-        # Do a truncate operation with no timestamp on some portion of the key range.
+        # Remove a portion of the key range without a timestamp, one key at a time. A truncate of
+        # the same range is refused on a table that already uses timestamps; test_truncate29 covers
+        # that, and only an individual removal reaches the history store behavior tested here.
         self.session.begin_transaction('no_timestamp=true')
-
-        c1 = ds.open_cursor(self.uri, None)
-        c1.set_key(ds.key(5000))
-        c2 = ds.open_cursor(self.uri, None)
-        c2.set_key(ds.key(8000))
-        self.session.truncate(None, c1, c2, None)
-
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(5000, 8001):
+            cursor.set_key(ds.key(i))
+            self.assertEqual(cursor.remove(), 0)
+        cursor.close()
         self.session.commit_transaction()
-
-        # Ensure that fast-truncate did not happen since the data is not globally visible.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
-        self.assertEqual(fastdelete_pages, 0)
 
         # Re-insert some data at a later timestamp.
         self.session.begin_transaction()
