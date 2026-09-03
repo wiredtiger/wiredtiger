@@ -1773,7 +1773,8 @@ __disagg_pick_up_checkpoint(
      */
 
     WT_ERR(__wti_disagg_fetch_shared_meta(session, ckpt_meta, &metadata_buf));
-    WT_ERR(__wt_disagg_parse_meta(session, &metadata_buf, &metadata));
+    WT_ERR_MSG_CHK(session, __wt_disagg_parse_meta(session, &metadata_buf, &metadata),
+      "Failed to parse shared metadata for checkpoint %" PRIu64, ckpt_meta->metadata_lsn);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
@@ -1813,7 +1814,8 @@ __disagg_pick_up_checkpoint(
         conn->disaggregated_storage.base_write_gen_missing = true;
 
     /* Load crypt key data with the key provider extension, if any. */
-    WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
+    WT_ERR_MSG_CHK(session, __wti_disagg_load_crypt_key(session, &metadata),
+      "Failed to load encryption keys for checkpoint %" PRIu64, ckpt_meta->metadata_lsn);
 
     /*
      * Part 2: Merge the checkpoint's metadata into the local metadata. The merge runs under
@@ -1824,7 +1826,8 @@ __disagg_pick_up_checkpoint(
      */
     WT_WITH_SCHEMA_LOCK(
       session, ret = __disagg_adopt_checkpoint_meta(session, ckpt_meta, &metadata, is_startup));
-    WT_ERR(ret);
+    WT_ERR_MSG_CHK(session, ret, "Failed to merge checkpoint %" PRIu64 " into local metadata",
+      ckpt_meta->metadata_lsn);
 
     /*
      * A no-epoch checkpoint clears the whole queue. An epoch-world node never picks up a no-epoch
@@ -1877,8 +1880,7 @@ err:
     } else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
-          "Failed to pick up disaggregated storage checkpoint for metadata_lsn=%" PRIu64 ": ret=%d",
-          ckpt_meta->metadata_lsn, ret);
+          "Failed to pick up checkpoint %" PRIu64, ckpt_meta->metadata_lsn);
     }
 
     __wt_buf_free(session, &metadata_buf);

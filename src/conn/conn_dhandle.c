@@ -124,6 +124,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     case WT_DHANDLE_TYPE_TIERED_TREE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, tier_meta), &dhandle->cfg[0]));
         break;
+    case WT_DHANDLE_TYPE_NUM:
+        WT_ERR(__wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type)));
+        break;
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
@@ -171,6 +174,9 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
         ret = __wt_tiered_tree_close(session, (WT_TIERED_TREE *)dhandle);
+        break;
+    case WT_DHANDLE_TYPE_NUM:
+        ret = __wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type));
         break;
     }
 
@@ -358,6 +364,43 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
+ * __conn_dhandle_refuse_uncovered_ingest --
+ *     Refuse to close an ingest btree holding writes no checkpoint covers: the tree is in memory,
+ *     so the close would discard the only copy.
+ */
+static int
+__conn_dhandle_refuse_uncovered_ingest(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    /* The discard this guards runs in the same critical section. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &session->dhandle->close_lock);
+
+    /* An ingest tree is the only one a close discards rather than checkpoints. */
+    if (!WT_URI_IS_INGEST(btree->dhandle->name))
+        return (0);
+
+    /*
+     * Return EBUSY if the table has committed writes newer than the newest checkpoint. Suppose a
+     * follower drops such a table and later steps up. The drop's schema epoch can be above a
+     * checkpoint's epoch. Such a checkpoint must still include the table, with every write from
+     * before the drop. Those writes exist only in this ingest tree. Once the tree is closed they
+     * are gone, and that checkpoint cannot be written. So refuse the close until a checkpoint has
+     * covered the writes.
+     *
+     * An alternative design: allow the drop, and at step-up verify that every drop is published and
+     * the stable schema epoch is at or above all of them.
+     *
+     * Compare against the disagg checkpoint: a local one persists nothing of an in-memory tree.
+     */
+    if (__wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts) >
+      __wt_atomic_load_uint64_acquire(
+        &S2C(session)->disaggregated_storage.last_checkpoint_timestamp))
+        WT_RET_SUB(session, EBUSY, WT_DIRTY_DATA,
+          "the table has ingested data that no checkpoint covers and cannot be closed yet");
+
+    return (0);
+}
+
+/*
  * __wt_conn_dhandle_close --
  *     Sync and close the underlying btree handle.
  */
@@ -448,6 +491,10 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
             discard = true;
 
+        /* Before the mark-dead decision, so a forced drop cannot bypass it. */
+        if (!discard && !final)
+            WT_ERR(__conn_dhandle_refuse_uncovered_ingest(session, btree));
+
         /*
          * Mark the handle dead (letting the tree be discarded later) if it's not already marked
          * dead, and it's not a memory-mapped tree. (We can't mark memory-mapped tree handles dead
@@ -513,6 +560,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
         WT_TRET(__wt_tiered_tree_close(session, (WT_TIERED_TREE *)dhandle));
+        break;
+    case WT_DHANDLE_TYPE_NUM:
+        WT_TRET(__wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type)));
         break;
     }
 
@@ -680,6 +730,9 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
         WT_ERR(__wt_tiered_tree_open(session, cfg));
+        break;
+    case WT_DHANDLE_TYPE_NUM:
+        WT_ERR(__wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type)));
         break;
     }
 
