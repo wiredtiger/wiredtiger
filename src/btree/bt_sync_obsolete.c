@@ -448,9 +448,9 @@ __checkpoint_cleanup_page_skip(
      * dirties the page for nothing, because nothing beneath it can be reclaimed until the deletion
      * is visible to every reader. Once the stop point is globally visible the read is required
      * rather than optional: it is how the descendant page ids become known, so their blocks can be
-     * discarded. Both outcomes are decided here, rather than falling through to the generic policy
-     * below, which would re-skip an untimestamped subtree whose deletion is already globally
-     * visible and delay the mandatory traversal indefinitely.
+     * discarded. Both outcomes are decided here, rather than by the generic policy below, which
+     * would re-skip an untimestamped subtree whose deletion is already globally visible and delay
+     * the mandatory traversal indefinitely.
      */
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && addr.type == WT_ADDR_INT &&
       WT_TIME_AGGREGATE_ALL_DELETED(&addr.ta)) {
@@ -459,43 +459,33 @@ __checkpoint_cleanup_page_skip(
             *skipp = true;
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped_not_visible);
         }
-        goto decision_complete;
+    } else {
+        /*
+         * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if
+         * at least of one of the following conditions is met:
+         *
+         * - The page is a leaf with no overflow items because obsolete leaf pages with overflow
+         * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can
+         * be freed during reconciliation after being marked dirty.
+         *
+         * - The page does not have any deletes (checked using the aggregated stop durable
+         * timestamp) AND
+         *  - the checkpoint cleanup is not configured with the reclaim space method OR
+         *  - the table is not logged
+         *
+         * FIXME: Read internal pages from non-logged tables when the remove/truncate
+         * operation is performed using no timestamp.
+         */
+        if (addr.type == WT_ADDR_LEAF_NO)
+            *skipp = true;
+        else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+            /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
+            *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
+              !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
+            if (!*skipp)
+                WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
+        }
     }
-
-    /*
-     * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if at
-     * least of one of the following conditions is met:
-     *
-     * - The page is a leaf with no overflow items because obsolete leaf pages with overflow
-     * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can be
-     * freed during reconciliation after being marked dirty.
-     *
-     * - The page does not have any deletes (checked using the aggregated stop durable timestamp)
-     * AND
-     *  - the checkpoint cleanup is not configured with the reclaim space method OR
-     *  - the table is not logged
-     *
-     * FIXME: Read internal pages from non-logged tables when the remove/truncate
-     * operation is performed using no timestamp.
-     */
-    if (addr.type == WT_ADDR_LEAF_NO)
-        *skipp = true;
-    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
-        /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
-          !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-        if (!*skipp)
-            WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
-    }
-
-    /*
-     * The fully deleted disaggregated internal subtree decision above resumes here, past the
-     * generic address policy it replaces. The obsolete time-window override and the shared skip
-     * accounting below still run for it: the override cannot undo the skip, because a deleted
-     * aggregate always has a stop point and is excluded there by design, and the shared counter
-     * keeps counting every skip this function makes, whatever the reason.
-     */
-decision_complete:
 
     /*
      * While we may have decided to skip the page, check if there is obsolete content that can be
