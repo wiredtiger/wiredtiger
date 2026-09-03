@@ -17,6 +17,12 @@
 #define WTI_EVICT_WALK_INCR 100         /* Pages added each walk */
 
 /*
+ * The walk end is incremented each time the walk reaches the boundary of the tree. Two ends
+ * guarantee at least one full traversal from wherever the scan arrived.
+ */
+#define WTI_EVICT_WALK_MAX_ENDS 2 /* Tree walk ends before the scan moves on */
+
+/*
  * The walk period doubles on every unproductive walk of a tree, so saturation means the tree has
  * been unproductive for many consecutive walks.
  */
@@ -101,6 +107,9 @@ static WT_INLINE bool __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen
 static WT_INLINE bool __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE double __wti_evict_dirty_target(WT_EVICT *evict)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE double __wti_evict_threshold_pct(double pct_clean, double pct_dirty,
+  double pct_updates, double clean_trigger, double dirty_trigger, double updates_trigger)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
