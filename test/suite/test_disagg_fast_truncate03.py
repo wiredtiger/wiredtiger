@@ -86,14 +86,25 @@ class test_disagg_fast_truncate03(test_cc_base):
         ) as stat_cursor:
             return stat_cursor[stat_key][2]
 
-    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30):
-        """Repeat an action until a counter it drives rises above baseline."""
+    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30, guard=None):
+        """
+        Repeat an action until a counter it drives rises above baseline.
+
+        The optional guard is a (key, baseline, message) triple naming a counter that must stay
+        put: when it rises instead, fail immediately with its message rather than waiting out
+        the timeout, so the real cause is reported instead of the missing progress.
+        """
         deadline = time.time() + timeout
         while True:
             action()
             value = self.read_stat(stat_key)
             if value > baseline:
                 return value
+            if guard is not None:
+                guard_key, guard_baseline, guard_msg = guard
+                guard_value = self.read_stat(guard_key)
+                if guard_value > guard_baseline:
+                    self.fail(f"{guard_msg} (rose to {guard_value}, was {guard_baseline})")
             self.assertLess(time.time(), deadline,
                 f"{msg} (still {value} after {timeout} seconds)")
             time.sleep(0.1)
@@ -130,6 +141,11 @@ class test_disagg_fast_truncate03(test_cc_base):
             stat.dsrc.cursor_tree_walk_del_internal_page_skip,
             before["internal_skip"],
             f"step {step}: the cleanup-read internal page was not clean-evicted",
+            guard=(
+                stat.dsrc.cache_eviction_blocked_disagg_dirty_internal_page,
+                before["evict_blocked"],
+                f"step {step}: the cleanup-read internal page was dirtied on arrival",
+            ),
         )
         after = self.snapshot_stats()
         self.assertEqual(
