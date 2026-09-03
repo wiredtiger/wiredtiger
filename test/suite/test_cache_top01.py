@@ -566,3 +566,156 @@ class test_cache_top07(wttest.WiredTigerTestCase):
             if r['total'] is not None:
                 self.assertLessEqual(r['listed'], r['total'],
                     'ranking "%s" lists more bytes than the connection holds' % ranking)
+
+# A ranking's threshold can fall far below where it stood when a tree last called in. A decayed
+# value converges on a steady state rather than growing without limit, so a tree only returns to
+# the ranking if its recheck value comes down with the threshold.
+class test_cache_top08(wttest.WiredTigerTestCase):
+    conn_config = 'create,cache_size=100MB,statistics=(all)'
+
+    value = 'v' * 4096
+
+    # The "recent bytes read" threshold and its entries as (bytes, name).
+    def read_ranking(self):
+        self.cleanStdout()
+        self.conn.debug_info('cache_top')
+        out = self.readStdout(200000)
+        self.cleanStdout()
+
+        threshold = None
+        entries = []
+        ranking = None
+        for line in out.splitlines():
+            header = re.search(
+                r'cache top (?P<ranking>.+?): \d+ tables above (?P<threshold>\d+)B', line)
+            if header is not None:
+                ranking = header.group('ranking')
+                if ranking == 'recent bytes read':
+                    threshold = int(header.group('threshold'))
+                continue
+            entry = re.match(r'^\s+(?P<value>\d+)B (?P<name>\S+)$', line)
+            if entry is not None and ranking == 'recent bytes read':
+                entries.append((int(entry.group('value')), entry.group('name')))
+        self.assertIsNotNone(threshold, 'no read ranking in the report')
+        return threshold, entries
+
+    def read_rows(self, uri, lo, hi):
+        c = self.session.open_cursor(uri)
+        for i in range(lo, hi):
+            c.set_key('k%08d' % i)
+            c.search()
+        c.close()
+
+    def test_read_ranking_after_threshold_falls(self):
+        uri = 'table:cooling'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        c = self.session.open_cursor(uri)
+        for i in range(12000):
+            c['k%08d' % i] = self.value
+        c.close()
+        self.session.checkpoint()
+
+        # Reopen so the reads below come from disk rather than out of cache.
+        self.reopen_conn()
+
+        # Read well under the ranking's opening threshold, so the table cannot qualify yet.
+        self.read_rows(uri, 0, 150)
+        opening, entries = self.read_ranking()
+        self.assertEqual(entries, [],
+            'the table qualified before the threshold fell, so this proves nothing: %s' % entries)
+
+        # Nothing qualifies, so repeated reports drive the threshold down to its floor.
+        for _ in range(8):
+            fallen, _ = self.read_ranking()
+        self.assertLess(fallen, opening)
+
+        # Reading more must now put the table in the ranking.
+        self.read_rows(uri, 6000, 6150)
+        _, entries = self.read_ranking()
+        names = [name for _, name in entries]
+        self.assertTrue(any(n in names for n in table_names(self, 'cooling')),
+            'table missing from the read ranking after the threshold fell: %s' % names)
+
+        # It has to be there because its recheck value came down, not because it grew past the
+        # threshold the ranking opened with.
+        for value, name in entries:
+            if name in table_names(self, 'cooling'):
+                self.assertLess(value, opening)
+
+# The same threshold fall, for a ranking read straight from a tree's counters. Here eviction on the
+# tree is what brings its recheck value down, so the tree is admitted the next time it accounts for
+# a page.
+class test_cache_top09(wttest.WiredTigerTestCase):
+    conn_config = 'create,cache_size=100MB,statistics=(all)'
+
+    value = 'v' * 4096
+
+    # The "total cache bytes" threshold and its entries as (bytes, name).
+    def resident_ranking(self):
+        self.cleanStdout()
+        self.conn.debug_info('cache_top')
+        out = self.readStdout(200000)
+        self.cleanStdout()
+
+        threshold = None
+        entries = []
+        ranking = None
+        for line in out.splitlines():
+            header = re.search(
+                r'cache top (?P<ranking>.+?): \d+ tables above (?P<threshold>\d+)B', line)
+            if header is not None:
+                ranking = header.group('ranking')
+                if ranking == 'total cache bytes':
+                    threshold = int(header.group('threshold'))
+                continue
+            entry = re.match(r'^\s+(?P<value>\d+)B (?P<name>\S+)$', line)
+            if entry is not None and ranking == 'total cache bytes':
+                entries.append((int(entry.group('value')), entry.group('name')))
+        self.assertIsNotNone(threshold, 'no resident ranking in the report')
+        return threshold, entries
+
+    def test_resident_ranking_after_threshold_falls(self):
+        uri = 'table:cooling'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        c = self.session.open_cursor(uri)
+        # Small enough to stay under the ranking's opening threshold.
+        for i in range(300):
+            c['k%08d' % i] = self.value
+        c.close()
+        self.session.checkpoint()
+
+        opening, entries = self.resident_ranking()
+        names = [name for _, name in entries]
+        self.assertFalse(any(n in names for n in table_names(self, 'cooling')),
+            'the table qualified before the threshold fell, so this proves nothing: %s' % names)
+
+        # Nothing qualifies, so repeated reports drive the threshold down to its floor.
+        for _ in range(8):
+            fallen, _ = self.resident_ranking()
+        self.assertLess(fallen, opening)
+
+        # Shrink the cache so eviction runs on the tree, which is what lowers its recheck value.
+        self.conn.reconfigure('cache_size=1MB')
+
+        # Eviction is a background thread, so poll: read pages back in, which both accounts for
+        # them and gives the tree a chance to be admitted.
+        deadline = time.time() + 30
+        while True:
+            c = self.session.open_cursor(uri)
+            for _ in c:
+                pass
+            c.close()
+
+            _, entries = self.resident_ranking()
+            names = [name for _, name in entries]
+            if any(n in names for n in table_names(self, 'cooling')):
+                break
+            self.assertLess(time.time(), deadline,
+                'table never returned to the resident ranking after the threshold fell')
+            time.sleep(0.5)
+
+        # It has to be there because its recheck value came down, not because it grew past the
+        # threshold the ranking opened with.
+        for value, name in entries:
+            if name in table_names(self, 'cooling'):
+                self.assertLess(value, opening)

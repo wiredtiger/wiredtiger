@@ -303,39 +303,47 @@ done:
 }
 
 /*
+ * __cache_top_recheck_refresh --
+ *     Bring a tree's recheck value down to the threshold if the threshold has fallen below it.
+ *     Growth alone would never reconsider a tree whose recheck value was set while the threshold
+ *     was higher, so without this the tree stays out of the ranking however well it now qualifies.
+ */
+static void
+__cache_top_recheck_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric)
+{
+    WT_CACHE_TOP *top;
+    uint64_t recheck_at, threshold;
+
+    /* A tree already in a slot is visible; checking again would only cost a lock. */
+    if (__wt_atomic_load_uint8_relaxed(&btree->cache_top_slot[metric]) < WT_CACHE_TOP_SLOTS)
+        return;
+
+    /* The maximum value means this tree is permanently excluded, not merely overdue. */
+    recheck_at = __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[metric]);
+    if (recheck_at == UINT64_MAX)
+        return;
+
+    top = &S2C(session)->cache->cache_top;
+    threshold = __wt_atomic_load_uint64_relaxed(&top->arrays[metric].threshold);
+    if (threshold != 0 && recheck_at > threshold)
+        __wt_atomic_store_uint64_relaxed(&btree->cache_top_recheck_at[metric], threshold);
+}
+
+/*
  * __cache_top_levels_refresh --
- *     Reconsider a tree for the level rankings after a threshold drops below its recheck value.
- *     Growth alone would never look at a tree that stopped growing just before the threshold fell.
- *     Eviction on the tree is the trigger, since it proves the tree is still resident.
+ *     Reconsider a tree for the rankings read from its counters, which a tree can hold a large
+ *     value in while completely idle. Eviction on the tree is the trigger, since it proves the tree
+ *     is still resident.
  */
 static void
 __cache_top_levels_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     static const WT_CACHE_TOP_METRIC levels[] = {
       WT_CACHE_TOP_UPDATES, WT_CACHE_TOP_DIRTY, WT_CACHE_TOP_INMEM};
-    WT_CACHE_TOP *top;
-    WT_CACHE_TOP_METRIC metric;
-    uint64_t recheck_at, threshold;
     u_int i;
 
-    top = &S2C(session)->cache->cache_top;
-
-    for (i = 0; i < WT_ELEMENTS(levels); ++i) {
-        metric = levels[i];
-
-        /* A tree already in a slot is visible; checking again would only cost a lock. */
-        if (__wt_atomic_load_uint8_relaxed(&btree->cache_top_slot[metric]) < WT_CACHE_TOP_SLOTS)
-            continue;
-
-        /* The maximum value means this tree is permanently excluded, not merely overdue. */
-        recheck_at = __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[metric]);
-        if (recheck_at == UINT64_MAX)
-            continue;
-
-        threshold = __wt_atomic_load_uint64_relaxed(&top->arrays[metric].threshold);
-        if (threshold != 0 && recheck_at > threshold)
-            __wt_atomic_store_uint64_relaxed(&btree->cache_top_recheck_at[metric], threshold);
-    }
+    for (i = 0; i < WT_ELEMENTS(levels); ++i)
+        __cache_top_recheck_refresh(session, btree, levels[i]);
 }
 
 /*
@@ -370,6 +378,13 @@ __wt_cache_top_flow_incr(
       size;
     __wt_atomic_store_uint64_relaxed(valuep, value);
     __wt_atomic_store_uint64_relaxed(clockp, clock == 0 ? now : clock);
+
+    /*
+     * Lower the recheck value before testing against it. Decay caps how high a flow value can get,
+     * so a recheck value above that cap left behind by a threshold that has fallen would never be
+     * reached.
+     */
+    __cache_top_recheck_refresh(session, btree, metric);
 
     if (value >= __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[metric]))
         __wt_cache_top_track(session, btree, metric, value);
