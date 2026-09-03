@@ -150,30 +150,9 @@ __layered_create_missing_stable_table(
 }
 
 /*
- * __disagg_btree_stamp_resident --
- *     Record the schema epoch on a resident stable btree awaiting publication. The caller holds the
- *     handle list lock.
- */
-static int
-__disagg_btree_stamp_resident(
-  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
-{
-    WT_DATA_HANDLE *dhandle;
-
-    WT_RET(__wt_conn_dhandle_find(session, stable_uri, NULL));
-
-    dhandle = session->dhandle;
-    if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
-      F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_AWAITS_PUBLISH))
-        ((WT_BTREE *)dhandle->handle)->create_schema_epoch = schema_epoch;
-
-    return (0);
-}
-
-/*
  * __disagg_btree_stamp_create_epoch --
  *     Record the published create epoch on the table's stable btree so the checkpoint publish check
- *     is a field read instead of a queue scan. Only a resident handle is inspected: the stable
+ *     is a field read instead of a queue scan. Only a resident handle is stamped: the stable
  *     constituent is absent on a follower and while a step-down window is open, and opening one
  *     here would fail the publish rather than leave the epoch to the step-up that rebuilds it.
  */
@@ -185,9 +164,11 @@ __disagg_btree_stamp_create_epoch(
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
-    WT_SAVE_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, ret = __disagg_btree_stamp_resident(session, stable_uri, schema_epoch)));
+    WT_SAVE_DHANDLE(session, WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        if ((ret = __wt_conn_dhandle_find(session, stable_uri, NULL)) == 0 &&
+          F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
+            S2BT(session)->create_schema_epoch = schema_epoch;
+    }));
 
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
