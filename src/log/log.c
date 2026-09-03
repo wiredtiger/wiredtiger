@@ -2451,6 +2451,12 @@ err:
         /* Don't alter the file when the logging system is not set up. */
         if (log != NULL)
             WT_TRET(__log_truncate(session, &rd_lsn, false, true));
+        /* Salvage truncated at this LSN, so this is the end of the log. */
+        __wt_verbose_notice(session, WT_VERB_LOG,
+          "salvage: log scan truncated at %" PRIu32 "/%" PRIu32
+          ", returning end of log (flags 0x%" PRIx32 ", first record %d)",
+          rd_lsn.l.file, __wt_lsn_offset(&rd_lsn), flags, firstrecord);
+        eol = true;
         ret = 0;
     }
 
