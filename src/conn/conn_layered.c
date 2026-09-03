@@ -171,7 +171,7 @@ __disagg_btree_stamp_create_epoch(
 
     if (ret == 0) {
         if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
-            S2BT(session)->create_schema_epoch = schema_epoch;
+            __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch);
         WT_DHANDLE_RELEASE(session->dhandle);
     }
     session->dhandle = saved_dhandle;

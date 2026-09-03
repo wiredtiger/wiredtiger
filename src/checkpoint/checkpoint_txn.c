@@ -418,16 +418,17 @@ __checkpoint_disagg_verify_create_epoch(
     WT_DECL_ITEM(table_name);
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *latest;
-    const char *name, *suffix;
+    const char *name;
 
     conn = S2C(session);
 
     name = stable_uri;
-    if (!WT_PREFIX_SKIP(name, "file:") || (suffix = strstr(name, ".wt_stable")) == NULL)
+    if (!WT_PREFIX_SKIP(name, "file:") || !WT_SUFFIX_MATCH(name, ".wt_stable"))
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &table_name));
-    WT_ERR(__wt_buf_fmt(session, table_name, "%.*s", (int)(suffix - name), name));
+    WT_ERR(
+      __wt_buf_fmt(session, table_name, "%.*s", (int)(strlen(name) - strlen(".wt_stable")), name));
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     latest = __wt_disagg_table_latest_create_remove(session, table_name->data);
@@ -472,7 +473,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    create_epoch = btree->create_schema_epoch;
+    create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
     published = create_epoch != WT_SCHEMA_EPOCH_NONE && create_epoch <= ckpt_epoch;
 
 #ifdef HAVE_DIAGNOSTIC

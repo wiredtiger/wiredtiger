@@ -632,9 +632,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
       !WT_IS_URI_METADATA(btree->dhandle->name) &&
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
 
+    /* An open records no epoch: publishing the table's create is what records one. */
+    __wt_atomic_store_uint64_relaxed(&btree->create_schema_epoch, WT_SCHEMA_EPOCH_NONE);
+
     if (awaits_publish) {
-        /* The epoch is recorded later, when the table's create is published. */
-        btree->create_schema_epoch = WT_SCHEMA_EPOCH_NONE;
         F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
         /*
          * Disable eviction because it can leave pages clean without a durable address, causing the
