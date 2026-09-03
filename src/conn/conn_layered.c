@@ -1134,15 +1134,12 @@ __wt_disagg_shared_metadata_queue_publish(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *latest_entry, *tmp;
-    wt_timestamp_t prev_schema_epoch, stamp_epoch;
-    char *stamp_uri;
+    wt_timestamp_t prev_schema_epoch;
     bool found;
 
     conn = S2C(session);
     latest_entry = NULL;
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
-    stamp_epoch = WT_SCHEMA_EPOCH_NONE;
-    stamp_uri = NULL;
     found = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -1187,23 +1184,15 @@ __wt_disagg_shared_metadata_queue_publish(
         WT_ERR_MSG(
           session, EINVAL, "No pending schema operations to publish for table \"%s\"", table_name);
 
-    /*
-     * Capture the latest create for stamping the open stable btree below. The copy is needed
-     * because queue pruning only takes the queue lock, so the entry may not survive past it.
-     */
+    /* Stamp the open stable btree with the published create epoch. */
     if (latest_entry != NULL && latest_entry->metadata_op == WT_SHARED_METADATA_CREATE) {
         WT_ASSERT(session, latest_entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED);
-        stamp_epoch = latest_entry->schema_epoch;
-        WT_ERR(__wt_strdup(session, latest_entry->stable_uri, &stamp_uri));
+        WT_ERR(__disagg_btree_stamp_create_epoch(
+          session, latest_entry->stable_uri, latest_entry->schema_epoch));
     }
 
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    if (ret == 0 && stamp_uri != NULL)
-        ret = __disagg_btree_stamp_create_epoch(session, stamp_uri, stamp_epoch);
-    __wt_free(session, stamp_uri);
-
     return (ret);
 }
 

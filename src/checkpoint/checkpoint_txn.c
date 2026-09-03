@@ -403,6 +403,7 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __checkpoint_disagg_latest_create_remove --
  *     Return the op type and schema epoch of the latest create/remove queued for the given stable
@@ -428,6 +429,7 @@ __checkpoint_disagg_latest_create_remove(WT_SESSION_IMPL *session, const char *s
         }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
+#endif
 
 /*
  * __checkpoint_disagg_maybe_publish --
@@ -443,8 +445,11 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+#ifdef HAVE_DIAGNOSTIC
     WT_SHARED_METADATA_OP latest_op;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp, create_epoch, latest_epoch;
+    wt_timestamp_t latest_epoch;
+#endif
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp, create_epoch;
     bool published;
 
     conn = S2C(session);
@@ -466,6 +471,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
         WT_ASSERT(session, latest_op == WT_SHARED_METADATA_CREATE && latest_epoch == create_epoch);
 #endif
     } else {
+#ifdef HAVE_DIAGNOSTIC
         /*
          * An unset epoch means the table is unpublished. Verify that against the queue: a published
          * create with no epoch stamped on the btree means a publish path missed the btree, and the
@@ -477,6 +483,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
               "table \"%s\" awaits publication but its create was published at schema epoch "
               "%" PRIu64 " without stamping the btree",
               dhandle->name, latest_epoch);
+#endif
         published = false;
     }
 
