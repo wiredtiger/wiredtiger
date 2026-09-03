@@ -32,8 +32,9 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # Checkpoint cleanup dirties a page with obsolete time window information so reconciliation can
-# strip it out. On disaggregated btrees reconciliation may write a delta instead of a full page,
-# so that rewrite can grow disk usage instead of shrinking it. Verify checkpoint cleanup no longer
+# strip it out. On a disaggregated btree, that dirty adds no new update, so reconciliation's
+# skip-write optimization finds nothing newer than what's already durable and writes nothing at
+# all -- the obsolete time window stays on disk regardless. Verify checkpoint cleanup no longer
 # reads or dirties pages for that reason on disaggregated btrees, while page-level cleanup
 # (fast-deleting a fully obsolete page) keeps working.
 @disagg_test_class

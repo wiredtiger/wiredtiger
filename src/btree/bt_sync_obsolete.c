@@ -166,14 +166,16 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_evict_page_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else if (!WT_DELTA_LEAF_ENABLED(session) && __sync_obsolete_tw_check(session, newest_ta)) {
+    } else if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      __sync_obsolete_tw_check(session, newest_ta)) {
 
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
-         * obsolete time window information. Skip this when the page reconciles to a delta rather
-         * than a full page: rewriting it to drop the obsolete time window can grow disk usage
-         * instead of shrinking it, since the delta still has to record the change. Page-level
-         * cleanup still reclaims whole pages regardless.
+         * obsolete time window information. Skip this for disaggregated btrees: dirtying the page
+         * doesn't add any new update, so reconciliation's skip-write check in __rec_split_write
+         * (the !newer_updates_than_last_rec_used case) finds nothing newer than what's already
+         * durable and skips writing the page, leaving the obsolete time window on disk regardless.
+         * Page-level cleanup still reclaims whole pages.
          */
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
@@ -472,11 +474,12 @@ __checkpoint_cleanup_page_skip(
      * cleaned up. This only ever matters for reaching a leaf with an obsolete time window that
      * isn't otherwise fully deleted: a ref only reaches this point with *skipp set for an internal
      * page when its own aggregate has no stop time point anywhere below it, so there is no
-     * page-level reclaim being missed here. Skip forcing the read when reconciliation wouldn't
-     * benefit from removing that time window: if the leaf reconciles to a delta rather than a full
-     * page, the rewrite can grow disk usage instead of shrinking it.
+     * page-level reclaim being missed here. Don't force the read for a disaggregated btree: there
+     * is no new update for reconciliation to write, so it skips the write entirely and the obsolete
+     * time window stays on disk regardless.
      */
-    if (*skipp && !WT_DELTA_LEAF_ENABLED(session) && __sync_obsolete_tw_check(session, addr.ta)) {
+    if (*skipp && !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      __sync_obsolete_tw_check(session, addr.ta)) {
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }
