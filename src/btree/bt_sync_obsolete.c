@@ -232,6 +232,8 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+    /* Clear the copy up front: the unpack can succeed without writing every field. */
+    WT_CLEAR(addr);
     WT_TIME_AGGREGATE newest_ta;
     char time_string[WT_TIME_STRING_SIZE];
     bool obsolete;
@@ -403,6 +405,9 @@ __checkpoint_cleanup_page_skip(
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
+
+    /* Clear the copy up front: the unpack can succeed without writing every field. */
+    WT_CLEAR(addr);
 
     *skipp = false; /* Default to reading */
 
