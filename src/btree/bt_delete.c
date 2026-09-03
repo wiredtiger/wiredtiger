@@ -174,6 +174,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * store (that should have been cleared) from appearing again. Technically we don't need to
      * check the newest stop durable timestamp, but for consistency, we check for the maximum of
      * both the start and stop timestamps.
+     *
+     * This check is independent of the table's write_timestamp_usage policy: WT_SESSION::alter can
+     * relax that policy to "never" at any time without rewriting existing content, which would
+     * otherwise let a fast truncate discard real, timestamped history-store entries as if they
+     * belonged to a table that had never used timestamps (FIXME-WT-18551).
      */
     if (F_ISSET(session->txn, WT_TXN_TS_NOT_SET) &&
       !__wt_txn_visible_all(session, addr.ta.newest_txn,
