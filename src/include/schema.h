@@ -129,9 +129,15 @@ struct __wt_layered_table {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LAYERED_TABLE_OPEN 0x1u
-#define WT_LAYERED_TABLE_STEP_DOWN_CREATED 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    /* These flags are only modified while the handle is held exclusively, at open or close. */
     uint8_t flags;
+
+/* Atomic flags, use F_*_ATOMIC_8: step-down clears these while cursors read them lock-free. */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_LAYERED_TABLE_STEP_DOWN_CREATED 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    wt_shared uint8_t flags_atomic;
 };
 
 /* Holds metadata entry name and the associated config string. */

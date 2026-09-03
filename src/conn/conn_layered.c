@@ -1538,7 +1538,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 
         /* Clear the mark on tables created during the step-down window. */
         if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
-            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+            F_CLR_ATOMIC_8((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
             continue;
         }
 
