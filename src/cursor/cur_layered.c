@@ -1826,11 +1826,11 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
 
     /*
      * When both constituents are positioned on the same key, advance the alternate too so the key
-     * is not returned twice. This only arises when the current cursor is the ingest cursor, whose
-     * value shadows the stable copy; both must carry a key for the comparison to be valid.
+     * is not returned twice. Within one read context the tie always makes ingest current, but after
+     * a context change the alternate is repositioned from the current key and can land on it
+     * whichever constituent is current.
      */
-    if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT) &&
-      c_current == op->ingest) {
+    if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT)) {
         int cmp;
 
         WT_RET(__clayered_cursor_compare(op, c_alternate, c_current, &cmp));
