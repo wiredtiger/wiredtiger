@@ -499,6 +499,7 @@ class test_cache_top06(wttest.WiredTigerTestCase):
 # A table whose data handle is closed and reopened in place, which is what an alter does. The
 # rankings hold a pointer to the tree across that close, and the reopen resets the tree's record of
 # where it sits in them.
+@wttest.skip_for_hook("disagg", "session.alter is not supported for layered tables")
 class test_cache_top07(wttest.WiredTigerTestCase):
     conn_config = 'create,cache_size=100MB,statistics=(all)'
 
