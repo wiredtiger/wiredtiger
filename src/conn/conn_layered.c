@@ -151,9 +151,10 @@ __layered_create_missing_stable_table(
 
 /*
  * __disagg_btree_stamp_create_epoch --
- *     Record the published create epoch on the table's open stable btree so the checkpoint publish
- *     check is a field read instead of a queue scan. A missing or closed handle is fine: a stable
- *     btree opened later is stamped by its own publish or step-up path.
+ *     Record the published create epoch on the table's stable btree so the checkpoint publish check
+ *     is a field read instead of a queue scan. Only a resident handle is inspected: the stable
+ *     constituent is absent on a follower and while a step-down window is open, and opening one
+ *     here would fail the publish rather than leave the epoch to the step-up that rebuilds it.
  */
 static int
 __disagg_btree_stamp_create_epoch(
@@ -1133,12 +1134,11 @@ __wt_disagg_shared_metadata_queue_publish(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *latest_entry, *tmp;
+    WT_DISAGG_METADATA_OP *entry, *tmp;
     wt_timestamp_t prev_schema_epoch;
     bool found;
 
     conn = S2C(session);
-    latest_entry = NULL;
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
     found = false;
 
@@ -1151,8 +1151,6 @@ __wt_disagg_shared_metadata_queue_publish(
         if (strcmp(entry->table_name, table_name) != 0)
             continue;
         found = true;
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE)
-            latest_entry = entry;
 
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
@@ -1162,6 +1160,9 @@ __wt_disagg_shared_metadata_queue_publish(
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
               schema_epoch);
             entry->schema_epoch = schema_epoch;
+
+            if (entry->metadata_op == WT_SHARED_METADATA_CREATE)
+                WT_ERR(__disagg_btree_stamp_create_epoch(session, entry->stable_uri, schema_epoch));
         }
 
         /* Check the ordering of schema epochs within the same table. */
@@ -1183,13 +1184,6 @@ __wt_disagg_shared_metadata_queue_publish(
     if (!found)
         WT_ERR_MSG(
           session, EINVAL, "No pending schema operations to publish for table \"%s\"", table_name);
-
-    /* Stamp the open stable btree with the published create epoch. */
-    if (latest_entry != NULL && latest_entry->metadata_op == WT_SHARED_METADATA_CREATE) {
-        WT_ASSERT(session, latest_entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED);
-        WT_ERR(__disagg_btree_stamp_create_epoch(
-          session, latest_entry->stable_uri, latest_entry->schema_epoch));
-    }
 
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
