@@ -403,24 +403,62 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __checkpoint_disagg_verify_create_epoch --
+ *     Cross-check the create epoch recorded on a stable btree against the shared metadata queue. A
+ *     btree with no epoch but a published create means a publish path missed it, and the table
+ *     would silently never be checkpointed.
+ */
+static int
+__checkpoint_disagg_verify_create_epoch(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t create_epoch)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(table_name);
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *latest;
+    const char *name, *suffix;
+
+    conn = S2C(session);
+
+    name = stable_uri;
+    if (!WT_PREFIX_SKIP(name, "file:") || (suffix = strstr(name, ".wt_stable")) == NULL)
+        return (0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &table_name));
+    WT_ERR(__wt_buf_fmt(session, table_name, "%.*s", (int)(suffix - name), name));
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    latest = __wt_disagg_table_latest_create_remove(session, table_name->data);
+    if (create_epoch != WT_SCHEMA_EPOCH_NONE)
+        WT_ASSERT(session,
+          latest != NULL && latest->metadata_op == WT_SHARED_METADATA_CREATE &&
+            latest->schema_epoch == create_epoch);
+    else if (latest != NULL && latest->metadata_op == WT_SHARED_METADATA_CREATE &&
+      latest->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+        ret = __wt_panic(session, EINVAL,
+          "table \"%s\" awaits publication but its create was published at schema epoch %" PRIu64,
+          stable_uri, latest->schema_epoch);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+err:
+    __wt_scr_free(session, &table_name);
+    return (ret);
+}
+#endif
+
 /*
  * __checkpoint_disagg_maybe_publish --
- *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
- *     schema epoch covers the table's create epoch, stamped on the btree at publish time. If so,
- *     clear WT_BTREE_AWAITS_PUBLISH so the btree is written out and included in this checkpoint. If
- *     not, verify the btree has no stable updates: having stable data in an unpublished table
- *     violates the API contract that a table must be published before the checkpoint that includes
- *     its data.
+ *     Clear WT_BTREE_AWAITS_PUBLISH when this checkpoint's schema epoch covers the table's create,
+ *     so the btree joins the checkpoint. A table that stays unpublished must hold no stable data:
+ *     the API requires a table to be published before the checkpoint that includes its data.
  */
 static int
 __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-#ifdef HAVE_DIAGNOSTIC
-    WT_SHARED_METADATA_OP latest_op;
-    wt_timestamp_t latest_epoch;
-#endif
     wt_timestamp_t ckpt_epoch, ckpt_timestamp, create_epoch;
     bool published;
 
@@ -438,19 +476,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     published = create_epoch != WT_SCHEMA_EPOCH_NONE && create_epoch <= ckpt_epoch;
 
 #ifdef HAVE_DIAGNOSTIC
-    /*
-     * Cross-check the stamped epoch against the queue. A btree with no epoch but a published create
-     * means a publish path missed it, and the table would silently never be checkpointed.
-     */
-    WT_RET(
-      __wt_disagg_stable_latest_create_remove(session, dhandle->name, &latest_op, &latest_epoch));
-    if (create_epoch != WT_SCHEMA_EPOCH_NONE)
-        WT_ASSERT(session, latest_op == WT_SHARED_METADATA_CREATE && latest_epoch == create_epoch);
-    else if (latest_op == WT_SHARED_METADATA_CREATE && latest_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
-        WT_RET_PANIC(session, EINVAL,
-          "table \"%s\" awaits publication but its create was published at schema epoch %" PRIu64
-          " without stamping the btree",
-          dhandle->name, latest_epoch);
+    WT_RET(__checkpoint_disagg_verify_create_epoch(session, dhandle->name, create_epoch));
 #endif
 
     if (!published) {

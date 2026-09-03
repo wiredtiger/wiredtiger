@@ -151,11 +151,9 @@ __layered_create_missing_stable_table(
 
 /*
  * __disagg_btree_stamp_create_epoch --
- *     Record the published create epoch on the table's stable btree so the checkpoint publish check
- *     is a field read instead of a queue scan. Only a resident handle is stamped: the stable
- *     constituent is absent on a follower and while a step-down window is open, and opening one
- *     here would fail the publish rather than leave the epoch to the step-up that rebuilds it. An
- *     outdated handle is skipped for the same reason the checkpoint's handle walk skips it.
+ *     Record a table's published create epoch on its stable btree, so the checkpoint publish check
+ *     reads a field instead of scanning the queue. Only an open handle is stamped: elsewhere the
+ *     constituent does not exist yet, and the step-up that creates it records the epoch instead.
  */
 static void
 __disagg_btree_stamp_create_epoch(
@@ -624,13 +622,13 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 }
 
 /*
- * __wti_disagg_table_latest_create_remove --
+ * __wt_disagg_table_latest_create_remove --
  *     Return the latest CREATE or REMOVE entry queued for the given table, or NULL. UPDATE entries
  *     are skipped because they do not affect whether the table exists. The caller holds the queue
  *     lock.
  */
 WT_DISAGG_METADATA_OP *
-__wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
+__wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *last;
@@ -646,44 +644,6 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
             last = entry;
 
     return (last);
-}
-
-/*
- * __wt_disagg_stable_latest_create_remove --
- *     Return the op type and schema epoch of the latest create or remove queued for a stable
- *     constituent, or WT_SHARED_METADATA_NONE when the queue holds none.
- */
-int
-__wt_disagg_stable_latest_create_remove(WT_SESSION_IMPL *session, const char *stable_uri,
-  WT_SHARED_METADATA_OP *opp, wt_timestamp_t *epochp)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(table_name);
-    WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *latest;
-    const char *name, *suffix;
-
-    conn = S2C(session);
-    *opp = WT_SHARED_METADATA_NONE;
-    *epochp = WT_SCHEMA_EPOCH_NONE;
-
-    name = stable_uri;
-    if (!WT_PREFIX_SKIP(name, "file:") || (suffix = strstr(name, ".wt_stable")) == NULL)
-        return (0);
-
-    WT_RET(__wt_scr_alloc(session, 0, &table_name));
-    WT_ERR(__wt_buf_fmt(session, table_name, "%.*s", (int)(suffix - name), name));
-
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    if ((latest = __wti_disagg_table_latest_create_remove(session, table_name->data)) != NULL) {
-        *opp = latest->metadata_op;
-        *epochp = latest->schema_epoch;
-    }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-err:
-    __wt_scr_free(session, &table_name);
-    return (ret);
 }
 
 /*
@@ -706,7 +666,7 @@ __wt_disagg_table_last_unpublished_op(WT_SESSION_IMPL *session, const char *tabl
         return (WT_SHARED_METADATA_NONE);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    latest = __wti_disagg_table_latest_create_remove(session, table_name);
+    latest = __wt_disagg_table_latest_create_remove(session, table_name);
     op = (latest != NULL && latest->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) ?
       latest->metadata_op :
       WT_SHARED_METADATA_NONE;
@@ -1142,7 +1102,7 @@ __disagg_publish_check_step_down(
     if (step_down_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    latest = __wti_disagg_table_latest_create_remove(session, table_name);
+    latest = __wt_disagg_table_latest_create_remove(session, table_name);
     in_step_down_window = latest != NULL && latest->in_step_down_window;
 
     if (in_step_down_window && schema_epoch <= step_down_epoch)
@@ -1449,7 +1409,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
          * Older creates belong to dropped tables of the same name.
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL ||
-          __wti_disagg_table_latest_create_remove(session, entry->table_name) != entry)
+          __wt_disagg_table_latest_create_remove(session, entry->table_name) != entry)
             continue;
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
