@@ -1517,11 +1517,12 @@ err:
 }
 
 /*
- * __disagg_mark_btree_readonly --
- *     Drain eviction from an open disaggregated btree, then mark it readonly and outdated.
+ * __disagg_mark_btree_readonly_and_outdated --
+ *     Drain eviction from an open disaggregated btree, make it read-only and mark its dhandle
+ *     outdated. Eviction can then discard its dirty pages without reconciliation.
  */
 static int
-__disagg_mark_btree_readonly(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1580,7 +1581,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
             continue;
         }
 
-        WT_RET(__disagg_mark_btree_readonly(session, dhandle));
+        WT_RET(__disagg_mark_btree_readonly_and_outdated(session, dhandle));
     }
 
     /*
@@ -1593,7 +1594,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     if (ret == 0) {
         dhandle = session->dhandle;
         WT_DHANDLE_CLEAR(session);
-        ret = __disagg_mark_btree_readonly(session, dhandle);
+        ret = __disagg_mark_btree_readonly_and_outdated(session, dhandle);
     }
     WT_RET_NOTFOUND_OK(ret);
 
