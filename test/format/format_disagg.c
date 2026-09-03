@@ -291,7 +291,7 @@ disagg_stepdown_drain_dump_stragglers(wt_timestamp_t step_down_ts)
     if (tinfo_list == NULL)
         return;
     for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
-        WT_ACQUIRE_READ_WITH_BARRIER(commit_ts, (*tlp)->commit_ts);
+        commit_ts = __wt_atomic_load_uint64_acquire(&(*tlp)->commit_ts);
         if (commit_ts == WT_TS_NONE || commit_ts < step_down_ts)
             track_msg("[stepdown] straggler: thread %d commit_ts=%" PRIu64 " (step_down_ts=%" PRIu64
                       ")",
