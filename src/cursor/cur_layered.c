@@ -849,10 +849,12 @@ retry:
         WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
         clayered->stable_cursor = NULL;
 
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_superseded);
         ++checkpoint_pickup_races_count;
         goto retry;
     }
+
+    WT_STAT_CONN_DSRC_INCRV(
+      session, layered_curs_open_stable_ckpt_pickup_race, checkpoint_pickup_races_count);
 
     /* Diagnostic: a high count means pickups are landing faster than the bind can complete. */
     if (checkpoint_pickup_races_count > 10)

@@ -8170,16 +8170,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1628
 /*! layered: Layered table cursor search operations from the stable btrees */
 #define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1629
+/*! layered: Layered table cursor stable open raced a checkpoint pickup */
+#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE	1630
 /*!
  * layered: Layered table cursor stable open refused to preserve a
  * transaction snapshot
  */
-#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED	1630
-/*!
- * layered: Layered table cursor stable open retried after the checkpoint
- * was superseded
- */
-#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_SUPERSEDED	1631
+#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED	1631
 /*!
  * layered: Layered table cursor stable open rolled back after racing a
  * step-down
@@ -10370,16 +10367,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2327
 /*! layered: Layered table cursor search operations from the stable btrees */
 #define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2328
+/*! layered: Layered table cursor stable open raced a checkpoint pickup */
+#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE	2329
 /*!
  * layered: Layered table cursor stable open refused to preserve a
  * transaction snapshot
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED	2329
-/*!
- * layered: Layered table cursor stable open retried after the checkpoint
- * was superseded
- */
-#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_SUPERSEDED	2330
+#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED	2330
 /*!
  * layered: Layered table cursor stable open rolled back after racing a
  * step-down
