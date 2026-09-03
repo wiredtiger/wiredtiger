@@ -1434,9 +1434,11 @@ msg:
 
 /*
  * __verify_hs_chain_close --
- *     Close out one key's history-store version chain: confirm the key still has a corresponding
- *     entry in the data table, and, when precise checkpoints make the comparison trustworthy, that
- *     the chain's newest record doesn't overlap the data table's current live value.
+ *     Close out one key's history-store version chain: when precise checkpoints make the comparison
+ *     trustworthy, confirm the chain's newest record doesn't overlap the data table's current live
+ *     value. Existence of a corresponding data-table entry is __wt_hs_verify_one's job, already run
+ *     unconditionally before this function's caller --
+ *     if any entry in this btree's history store range lacked one, it would already have panicked.
  */
 static int
 __verify_hs_chain_close(WT_SESSION_IMPL *session, WT_VSTUFF *vs, WT_CURSOR_BTREE *ds_cbt,
@@ -1449,6 +1451,20 @@ __verify_hs_chain_close(WT_SESSION_IMPL *session, WT_VSTUFF *vs, WT_CURSOR_BTREE
     const uint8_t *p;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool valid;
+
+    /*
+     * A non-precise checkpoint can write a page before a later eviction moves that page's older
+     * versions into the history store, and then capture those history store records in the same
+     * checkpoint. The two files are not a snapshot of a single point in time, so comparing the
+     * chain against the data store's page image can report overlaps that never coexisted.
+     *
+     * FIXME-WT-18319: This is the connection's current setting, not the one in effect when the
+     * checkpoint was written. A checkpoint written without precise checkpoints and then verified by
+     * a connection that enables them is still exposed to the skew, until the pages involved are
+     * reconciled again or the stale history store records become obsolete.
+     */
+    if (!check_data_store)
+        return (0);
 
     btree = S2BT(session);
 
@@ -1463,37 +1479,19 @@ __verify_hs_chain_close(WT_SESSION_IMPL *session, WT_VSTUFF *vs, WT_CURSOR_BTREE
     WT_ERR(ret);
 
     valid = false;
-    if (ds_cbt->compare == 0)
-        WT_ERR(__wti_cursor_valid(ds_cbt, &valid, false));
-
-    if (!valid) {
+    if (ds_cbt->compare == 0) {
         /*
-         * Global visibility only ever advances: if the chain's newest record has since become
-         * obsolete, the data table simply moved past it before we got here, not corruption.
+         * The verify session isn't inside a normal user transaction, so it has no snapshot;
+         * resolving the value's visibility needs one unless we're explicitly read-uncommitted, same
+         * as the history store's own cursor methods (see __curhs_file_cursor_next).
          */
-        if (__wt_txn_tw_stop_visible_all(session, newest_tw))
-            goto done;
-
-        F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        WT_ERR_PANIC(session, WT_PANIC,
-          "the history store holds a version chain for key %s with no corresponding entry in "
-          "the data store %s",
-          __wt_key_string(session, chain_key->data, chain_key->size, btree->key_format, vs->tmp2),
-          session->dhandle->name);
+        WT_WITH_TXN_ISOLATION(
+          session, WT_ISO_READ_UNCOMMITTED, ret = __wti_cursor_valid(ds_cbt, &valid, false));
+        WT_ERR(ret);
     }
 
-    /*
-     * A non-precise checkpoint can write a page before a later eviction moves that page's older
-     * versions into the history store, and then capture those history store records in the same
-     * checkpoint. The two files are not a snapshot of a single point in time, so comparing the
-     * chain against the data store's page image can report overlaps that never coexisted.
-     *
-     * FIXME-WT-18319: This is the connection's current setting, not the one in effect when the
-     * checkpoint was written. A checkpoint written without precise checkpoints and then verified by
-     * a connection that enables them is still exposed to the skew, until the pages involved are
-     * reconciled again or the stale history store records become obsolete.
-     */
-    if (check_data_store) {
+    /* A key found missing here was already caught by __wt_hs_verify_one; nothing to compare. */
+    if (valid) {
         live_tw = &ds_cbt->upd_value->tw;
         if (live_tw->start_ts != WT_TS_NONE && newest_tw->start_ts < live_tw->start_ts &&
           live_tw->start_ts < newest_tw->stop_ts &&
@@ -1508,7 +1506,6 @@ __verify_hs_chain_close(WT_SESSION_IMPL *session, WT_VSTUFF *vs, WT_CURSOR_BTREE
         }
     }
 
-done:
 err:
     WT_TRET(__cursor_reset(ds_cbt));
     return (ret);
