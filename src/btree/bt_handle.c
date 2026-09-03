@@ -425,10 +425,10 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Drop the tree from the cache-consumer rankings: a re-open clears the fields recording
-     * cache ranking, and a slot left pointing here would then be orphaned. Page discard runs
-     * after this and can put the tree back in a ranking, but only for a handle already marked dead,
-     * which is discarded rather than re-opened.
+     * Drop the tree from the cache-consumer rankings: a re-open clears the fields recording cache
+     * ranking, and a slot left pointing here would then be orphaned. Page discard runs after this
+     * and can put the tree back in a ranking, but only for a handle already marked dead, which is
+     * discarded rather than re-opened.
      */
     __wt_cache_top_btree_discard(session, btree);
 

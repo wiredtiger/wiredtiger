@@ -9,48 +9,32 @@
 #include "wt_internal.h"
 
 /*
- * This file answers "which tables are holding the cache" without walking the cache or the data
- * handle list, which is what makes it usable when there are millions of open tables.
+ * Rank the tables holding the most cache, without walking the cache or the dhandle list.
  *
- * Five rankings are kept: update bytes, dirty leaf bytes, and resident bytes are levels, read
- * straight off a tree's own counters; recent bytes read and recent bytes evicted are flows, decayed
- * on every read so old activity fades out instead of accumulating forever.
+ * Five rankings, each a fixed array of slots behind one lock, plus a threshold. Update, dirty leaf
+ * and resident bytes are read from a tree's counters and sum to at most the cache size, so a
+ * threshold of cache size / slot count caps how many trees can qualify: those arrays are complete
+ * rather than a sample, and a tree missing from one is provably below the threshold. Bytes read and
+ * evicted accumulate and decay, which bounds them by rate rather than by cache size, so those two
+ * arrays hold the largest consumers seen rather than a provably complete set. The threshold starts
+ * from the average tree size, which is finer than cache size / slot count when trees outnumber
+ * slots, and is adjusted at every report.
  *
- * Each ranking is a fixed array of slots behind one lock, plus a threshold. Every metric is bounded
- * by the cache size, so a threshold of cache size / slot count guarantees at most that many trees
- * can ever qualify: the array is complete, not a sample, and a tree missing from it is provably
- * below the threshold. The threshold starts at a multiple of the average tree size, since cache
- * size / slot count alone is too coarse when there are far more trees than slots, and is adjusted
- * at every report to keep the array usefully full.
+ * Each tree records, per metric, the value it must exceed to be worth another look and the slot it
+ * occupies. Below threshold or already tracked therefore costs neither the lock nor a scan; only
+ * admitting a new tree scans, to find the entry to replace.
  *
- * Each tree remembers, per metric, the value it must grow past before it is worth another look, and
- * which slot it currently occupies, if any. That makes the common case - below threshold, or
- * already tracked - free of both the lock and any scan; only admitting a genuinely new tree needs a
- * scan, to find the smallest entry to evict.
+ * Nothing removes a tree when its value drops, because both admission and reporting re-read live
+ * values before acting on them.
  *
- * Shrinking is not actively tracked. Nothing removes a tree the moment its value drops, but nothing
- * needs to: both eviction-candidate selection and reporting always re-read live values before
- * acting on them, so a shrunk tree is dropped the next time either happens. Metadata and the
- * history store are excluded once, at open, rather than checked on every byte they account for.
- *
- * A report only runs when something will be printed - on demand, or when the verbose category for
- * this reporting is on - so a quiet connection does no work. Nothing is lost by skipping those
- * ticks: the next report reads everything live and catches up immediately. Turning the category on
- * is a live, per-connection operation, so an operator does not need to have had it on in advance;
- * turning it on at the moment of an incident is enough.
- *
- * Limitation: a tree that is never evicted from, and never grows past its own recheck value, is
- * never reconsidered and can go unseen even if large. That does not matter for cache-pressure
- * diagnosis, the case this exists for, because pressure implies eviction, which is exactly what
- * triggers reconsideration.
+ * Limitation: a tree never evicted from, that never grows past its recheck value, is never
+ * reconsidered and can go unseen. Cache pressure implies eviction, which triggers reconsideration,
+ * so this does not affect the case this exists for.
  */
 
 /*
- * One line of a report, filled in under the array lock and printed after the lock is dropped. The
- * name is copied into its own allocation, rather than referenced or copied into a fixed-size
- * buffer, for two reasons: the tree it came from may be gone by the time we print it, and there is
- * no fixed length that is both large enough for every table name and not wasteful for the common,
- * short ones.
+ * One line of a report, filled in under the array lock and printed after it is dropped. The name is
+ * copied because the tree it came from may be gone by the time the line is printed.
  */
 struct __wt_cache_top_report_entry {
     char *name; /* Freed by the caller; NULL when the slot is unused. */
@@ -60,10 +44,7 @@ typedef struct __wt_cache_top_report_entry WT_CACHE_TOP_REPORT_ENTRY;
 
 /*
  * __cache_top_entries_free --
- *     Free every name a report array currently owns, leaving it ready to reuse for the next
- *     ranking. Always covers the whole array rather than trusting a caller's count of how many
- *     entries are actually live: an unused entry's name is always NULL, and freeing NULL is a
- *     no-op, so this is exactly as correct and cannot be handed a wrong count.
+ *     Free every name a report array owns, leaving it ready to reuse for the next ranking.
  */
 static void
 __cache_top_entries_free(WT_SESSION_IMPL *session, WT_CACHE_TOP_REPORT_ENTRY *entries)
@@ -93,15 +74,10 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
         return (threshold);
 
     /*
-     * Cache size divided by the slot count is the highest threshold we can justify: it guarantees
-     * no more than that many trees can qualify. But on a deployment with far more trees than slots,
-     * even the largest tree is nowhere near that big, so start from the average resident tree size
-     * instead. Deliberately err low rather than high here: a threshold that starts too low fills
-     * the array, which corrects itself to the exact right value in one step (below, "count ==
-     * WT_CACHE_TOP_SLOTS"); one that starts too high leaves the array sparse or empty, which only
-     * approximates its way down a factor at a time and can take several reports to find any data at
-     * all. Both the tree count and the cache-in-use figure are plain counters, so computing this
-     * costs no walk.
+     * Cache size / slot count is the highest threshold that still caps how many trees can qualify,
+     * but it is far above the largest tree when trees outnumber slots, so start from the average
+     * resident size. Err low as too low fills the array and corrects in one step, while too high
+     * leaves it empty and only approximates down a factor per report.
      */
     trees = __wt_atomic_load_uint32_relaxed(&conn->open_btree_count);
     threshold = conn->cache_size / WT_CACHE_TOP_SLOTS;
@@ -109,9 +85,7 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
         threshold = WT_MIN(threshold, __wt_cache_bytes_inuse(conn->cache) / trees);
     threshold = WT_MAX(threshold, WT_CACHE_TOP_THRESHOLD_FLOOR);
 
-    /*
-     * Store it before returning. Some callers only act when a threshold is already set, so the
-     * first caller to compute one has to save it, not just use it.
+    /* Some callers act only on an already-set threshold, so the first to compute one must save it.
      */
     __wt_atomic_store_uint64_relaxed(&array->threshold, threshold);
 
@@ -120,11 +94,9 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
 
 /*
  * __cache_top_flow_storage --
- *     Return pointers to the stored value and clock backing a flow ranking (bytes read, bytes
- *     evicted), for a caller that needs to update them. The stored value is only decayed as of the
- *     clock it was last written with, not as of now; a caller that just wants the current value
- *     should decay it rather than use this raw storage directly. Only bytes read and bytes evicted
- *     are flows; asking for any other metric is a caller error, not something to handle quietly.
+ *     Return the stored value and clock backing a flow ranking, for a caller that needs to update
+ *     them. The value is decayed only as of the clock it was last written with; a caller that wants
+ *     the current value must decay it. Asking for a level metric is a caller error.
  */
 static void
 __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric,
@@ -152,16 +124,13 @@ __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP
 
 /*
  * __cache_top_decay --
- *     Apply time decay to a value that tracks a flow (bytes read, bytes evicted) rather than a
- *     level. Decay is what keeps a flow's total bounded by the cache size, which the completeness
- *     of the ranking depends on.
+ *     Apply time decay to a flow value, so that old activity fades instead of accumulating without
+ *     limit.
  *
- * Decay only advances in whole half-lives, so it can leave up to one half-life of elapsed time
- *     unaccounted for. The caller must save the clock this function returns, not the one it was
- *     given: if a caller kept using the original clock, a tree touched more often than once per
- *     half-life would never accumulate enough elapsed time to decay at all, and its value would
- *     grow forever. A caller that only wants to read the current value, and does not intend to
- *     store anything back, passes NULL and the time already recorded is left untouched.
+ * Decay advances in whole half-lives, so up to one half-life of elapsed time goes unaccounted for.
+ *     A caller storing the result back must save the returned clock, not the one it passed in;
+ *     otherwise a tree touched more often than once per half-life never decays at all. A caller
+ *     only reading the value passes NULL, leaving the recorded time untouched.
  */
 static uint64_t
 __cache_top_decay(
@@ -199,8 +168,7 @@ __cache_top_decay(
 
 /*
  * __cache_top_flow_value --
- *     Return a flow ranking's current value (bytes read, bytes evicted), decayed up to now: a plain
- *     read for a caller that only wants a number, with no need to know where the value is stored.
+ *     Return a flow ranking's current value, decayed up to now.
  */
 static uint64_t
 __cache_top_flow_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric)
@@ -236,11 +204,10 @@ __cache_top_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC
 
 /*
  * __cache_top_recheck_at_set --
- *     Set the value a tree must reach before it is considered for a ranking again. Waiting for the
- *     tree to grow by a fraction of the threshold, rather than checking on every change, bounds how
- *     many times a tree can cost a visit over its lifetime, no matter how much data moves through
- *     it. Two threads can race to set this value for the same tree; the one that loses just causes
- *     one extra, harmless visit later.
+ *     Set the value a tree's metric must reach to be reconsidered for a ranking: whichever is
+ *     higher of the threshold and one growth step above the tree's current value. The step is what
+ *     makes a busy tree call back in once per step of growth rather than on every change. A race
+ *     here costs one extra visit, so the store needs no ordering.
  */
 static void
 __cache_top_recheck_at_set(
@@ -255,9 +222,8 @@ __cache_top_recheck_at_set(
 
 /*
  * __cache_top_smallest --
- *     Return the index of an unused slot if one exists, or otherwise the index of the slot holding
- *     the smallest value. Refreshes every slot's value along the way, since this is also the one
- *     place that has to look at all of them.
+ *     Return an unused slot if one exists, otherwise the slot holding the smallest value. Refreshes
+ *     every slot's value on the way, being the one place that looks at all of them.
  */
 static uint32_t
 __cache_top_smallest(
@@ -279,10 +245,9 @@ __cache_top_smallest(
 
 /*
  * __wt_cache_top_track --
- *     Decide whether a tree belongs in a ranking now. Called from the accounting path once a tree's
- *     counter has reached the value it was told to wait for, so in the common case, where the
- *     counter has not reached that value, the only cost paid is the caller's comparison, not a call
- *     into this function at all.
+ *     Decide whether a tree belongs in a ranking now. Called from the accounting path only once a
+ *     tree's counter reaches its recheck value, so the common case costs the caller a comparison
+ *     rather than a call.
  */
 void
 __wt_cache_top_track(
@@ -292,11 +257,6 @@ __wt_cache_top_track(
     uint64_t threshold;
     uint32_t slot;
 
-    /*
-     * A tree excluded from this ranking (decided once, at open) has its recheck value pinned at
-     * UINT64_MAX, so its counter is never going to reach it and this function is never called for
-     * it in practice; there is nothing left to check here.
-     */
     array = &S2C(session)->cache->cache_top.arrays[metric];
     threshold = __cache_top_threshold(session, array);
 
@@ -343,12 +303,9 @@ done:
 
 /*
  * __cache_top_levels_refresh --
- *     Give a tree another chance at the level rankings (update bytes, dirty bytes, resident bytes)
- *     after a threshold has dropped below the value the tree was told to wait for. Normally only
- *     growth gets a tree reconsidered, so a tree that stopped growing right before its threshold
- *     fell would otherwise never be looked at again, even though it may now be large enough to
- *     qualify. Eviction happening on the tree is the signal used to trigger this: it proves the
- *     tree is still resident and worth a second look.
+ *     Reconsider a tree for the level rankings after a threshold drops below its recheck value.
+ *     Growth alone would never look at a tree that stopped growing just before the threshold fell.
+ *     Eviction on the tree is the trigger, since it proves the tree is still resident.
  */
 static void
 __cache_top_levels_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -422,10 +379,9 @@ __wt_cache_top_flow_incr(
 
 /*
  * __wt_cache_top_btree_open --
- *     Set up a tree's cache-consumer tracking state when it is opened. A slot index of 0 is valid,
- *     so a tree has to be marked as outside every ranking explicitly, rather than relying on
- *     zero-initialization. Identity comes from the URI rather than the data handle flags, because
- *     the history store and disaggregated metadata flags are set later in the tree open.
+ *     Set up a tree's ranking state at open. Slot 0 is valid, so a tree must be marked as outside
+ *     every ranking explicitly. Identity comes from the URI because the history store and
+ *     disaggregated metadata flags are not set yet.
  */
 void
 __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -526,12 +482,10 @@ __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
     }
 
     /*
-     * Adjust the threshold so it tracks the smallest table actually worth ranking. When the ranking
-     * is completely full, we know exactly where to put the bar: just above the smallest entry we
-     * kept, which also cuts down on how often trees get revisited. When nothing at all qualified,
-     * the threshold is telling us nothing useful, so drop it sharply; when only a few tables
-     * qualified, drop it more gently. Either way, the ranking only fills back up as trees grow into
-     * the new, lower threshold.
+     * Move the bar towards the smallest table worth ranking. A full ranking places it exactly, just
+     * above the smallest entry kept. Below that the bar is too high and has to come down by
+     * guesswork: an empty ranking says nothing about how far off it is, so it falls by a larger
+     * factor than a sparse one. Either way the ranking refills only as trees grow past the new bar.
      */
     if (count == WT_CACHE_TOP_SLOTS)
         threshold = smallest + 1;
@@ -566,13 +520,9 @@ err:
 
 /*
  * __cache_top_emit --
- *     Print one line of a report: to the log if the report was explicitly requested, or tagged with
- *     the verbose category otherwise. Either way, the caller has already decided to print before a
- *     report ever starts, so this always emits, deliberately bypassing the usual check for whether
- *     the verbose category is on rather than repeating a decision the caller already made. Right
- *     now the caller only ever reaches this once that check has already passed, but repeating it
- *     here anyway would invite a future caller with its own, different reason to print to silently
- *     lose its output to a check that has nothing to do with its reason.
+ *     Print one line of a report: to the log for an explicitly requested report, tagged with the
+ *     verbose category otherwise. Always emits, deliberately skipping the category check, because
+ *     callers decide whether to print before a report starts.
  */
 static int
 __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
@@ -607,12 +557,6 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
     uint32_t count, i;
     bool has_total;
 
-    /*
-     * Zero, not left uninitialized: if allocation or the very first snapshot fails before count is
-     * ever set, the error path below still needs a safe value to free entries up to.
-     */
-    count = 0;
-
     cache = S2C(session)->cache;
     WT_RET(__wt_calloc_def(session, WT_CACHE_TOP_SLOTS, &entries));
     WT_ERR(__wt_scr_alloc(session, 0, &line));
@@ -625,12 +569,9 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
             listed += entries[i].value;
 
         /*
-         * A ranking that tracks a level (update bytes, dirty bytes, resident bytes) can show the
-         * listed tables as a fraction of a connection-wide total; that is how an operator tells a
-         * real heavy hitter from usage that is just spread across many tables. The decayed rankings
-         * have no connection-wide total to compare against. Whether a ranking has a total is fixed
-         * for that ranking, not something that varies report to report, so a reader always sees the
-         * same line format for a given ranking.
+         * A level ranking shows its listed tables against a connection-wide total, so a reader can
+         * tell whether those tables hold most of it or the rest is spread across tables too small
+         * to rank. A decayed ranking has no connection-wide equivalent.
          */
         has_total = true;
         switch (metric) {
@@ -689,14 +630,8 @@ __wt_cache_top_report(WT_SESSION_IMPL *session)
 
 /*
  * __wt_cache_top_maintain --
- *     Called periodically. Does nothing unless the cache_top verbose category is on: like every
- *     other verbose category, this is an operator-enabled diagnostic, not something that decides on
- *     its own that a connection is interesting enough to report on. An operator can turn the
- *     category on live, on a running connection, at the moment they need it, the same way they
- *     would for any other verbose category; nothing here requires it to have been on in advance. A
- *     report always recomputes every ranking's thresholds and drops stale entries using live data,
- *     so nothing is lost by skipping a quiet tick; the first report generated after a quiet spell
- *     catches back up immediately, using whatever the connection looks like right then.
+ *     Called periodically, reporting only while the verbose category is on. Skipping a tick loses
+ *     nothing: a report reads live values, so the next one catches up.
  */
 int
 __wt_cache_top_maintain(WT_SESSION_IMPL *session)
