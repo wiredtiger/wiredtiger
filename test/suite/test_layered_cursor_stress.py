@@ -83,10 +83,7 @@ def write_allowed(txn):
 
 # The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
 # WORKLOAD_PROFILES and are what the suite actually runs.
-# FIXME-WT-17827: the follower layered cursor mishandles operating on a just-removed cursor -- a repeat
-# remove of an already-deleted key leaves a stale position (a later iterate then diverges) and modify on
-# a deleted slot aborts. So op_pos_remove resets the dsc cursor in that case (see there) and there is no
-# modify op; revisit both once WT-17827 lands.
+# FIXME-WT-XXXX: there is no modify op; add one, including modify on a just-removed slot.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
 @dataclass(frozen=True)
