@@ -389,14 +389,11 @@ class test_layered_async_stepdown08(
     def test_window_create_then_drop(self):
         """
         A table created and dropped entirely inside the window never existed for any checkpoint, so
-        the queued create and remove cancel out instead of tripping the violation check. It holds no
-        data: window writes reach the ingest constituent, which no checkpoint of this phase covers,
-        so a populated table stays undroppable until one is picked up.
+        the queued create and remove cancel out instead of tripping the violation check.
         """
         self.enter_window()
 
-        uri = self.uri('window_drop')
-        self.session.create(uri, self.table_config)
+        uri, _ = self.create_with_rows('window_drop', 6)
         self.publish_if_epochs(uri, 20)
         self.dropUntilSuccess(self.session, uri)
         self.publish_if_epochs(uri, 20)
