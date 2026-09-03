@@ -94,9 +94,10 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
 
 /*
  * __cache_top_flow_storage --
- *     Return the stored value and clock backing a flow ranking, for a caller that needs to update
- *     them. The value is decayed only as of the clock it was last written with; a caller that wants
- *     the current value must decay it. Asking for a level metric is a caller error.
+ *     Return pointers to where a tree keeps its decayed byte count and the clock that count was
+ *     last decayed against, for a caller that needs to update both. The count is stale until it is
+ *     decayed against the current clock. Only bytes read and bytes evicted are stored this way; any
+ *     other metric is a caller error.
  */
 static void
 __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric,
@@ -520,9 +521,8 @@ err:
 
 /*
  * __cache_top_emit --
- *     Print one line of a report: to the log for an explicitly requested report, tagged with the
- *     verbose category otherwise. Always emits, deliberately skipping the category check, because
- *     callers decide whether to print before a report starts.
+ *     Print one line of a report to the log for an explicitly requested report, tagged with the
+ *     verbose category otherwise.
  */
 static int
 __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
