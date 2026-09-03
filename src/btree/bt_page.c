@@ -1230,10 +1230,12 @@ static WT_INLINE bool
 __inmem_deleted_ref_should_dirty_parent(WT_SESSION_IMPL *session)
 {
     /*
-     * Checkpoint cleanup examines each deleted child after reading the page and dirties the parent
-     * if any child can be removed. Other readers retain the existing behavior.
+     * Checkpoint cleanup examines each deleted child after reading a disaggregated page and dirties
+     * the parent if any child can be removed. Other trees and readers retain the existing behavior.
      */
-    return (S2BT(session)->modified && session != S2C(session)->cc_cleanup.session);
+    return (S2BT(session)->modified &&
+      (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
+        session != S2C(session)->cc_cleanup.session));
 }
 
 /*
