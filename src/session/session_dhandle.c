@@ -149,7 +149,7 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
 retry:
     TAILQ_FOREACH (dhandle_cache, &session->dhhash[bucket], hashq) {
         dhandle = dhandle_cache->dhandle;
-        if ((WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) &&
+        if ((WT_DHANDLE_INACTIVE(dhandle) || F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED)) &&
           !WT_IS_METADATA(dhandle)) {
             __session_discard_dhandle(session, dhandle_cache);
             /* We deleted our entry, retry from the start. */
@@ -864,7 +864,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
 
         const uint64_t time_of_death = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
         const bool is_sweep_candidate = WT_DHANDLE_INACTIVE(dhandle) ||
-          F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
+          F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED) ||
           (time_of_death != 0 && now - time_of_death > conn->sweep.idle_time);
 
         const bool is_evictable = !WT_DHANDLE_BTREE(dhandle) ||
@@ -948,6 +948,7 @@ int
 __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint,
   const char *cfg[], uint32_t flags)
 {
+    struct timespec tsp;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     bool is_dead;
@@ -957,6 +958,21 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     for (;;) {
         WT_ERR(__session_get_dhandle(session, uri, checkpoint));
         dhandle = session->dhandle;
+
+        /*
+         * Widen the gap between finding a stable handle and locking it: a checkpoint pickup that
+         * marks the handle outdated and reads session_inuse to decide how far to prune can land
+         * entirely inside this gap. Scoped to user-table stable URIs (not the shared metadata or
+         * shared history store) so the flag does not also delay the pickup's own dhandle lookups or
+         * unrelated shared-table resolutions.
+         */
+        if (FLD_ISSET(
+              S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY) &&
+          WT_URI_IS_STABLE(uri) && strstr(uri, "WiredTigerShared") == NULL) {
+            tsp.tv_sec = 3;
+            tsp.tv_nsec = 0;
+            __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY, &tsp);
+        }
 
         /* Try to lock the handle. */
         WT_ERR(__wt_session_lock_dhandle(session, flags, &is_dead));
