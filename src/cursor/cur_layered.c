@@ -856,7 +856,7 @@ retry:
     /* Diagnostic: a high count means pickups are landing faster than the bind can complete. */
     if (checkpoint_pickup_races_count > 10)
         __wt_verbose(session, WT_VERB_LAYERED,
-          "stable checkpoint superseded %u times while binding the cursor",
+          "stable checkpoint superseded %" WT_SIZET_FMT " times while binding the cursor",
           checkpoint_pickup_races_count);
 
     /*
