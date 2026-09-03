@@ -30,11 +30,17 @@ import re, time
 import wiredtiger
 import wttest
 
-# The file constituent behind a table's name can carry a different suffix depending on the running
-# configuration (a layered table under the disagg hook uses "wt_stable" rather than "wt" for its
-# resident constituent), so any check for a specific table has to accept either.
-def table_names(base):
-    return ['file:%s.wt' % base, 'file:%s.wt_stable' % base]
+# The rankings name the data handle behind a table, and which handle that is depends on the running
+# configuration: a tiered table is named by its tiered URI, and a layered table has separate ingest
+# and stable constituents. Accept any of the handles a table can legitimately be reported under,
+# including whichever backing file the running hook says a table starts life in.
+def table_names(testcase, base):
+    names = ['file:%s.wt' % base, 'file:%s.wt_stable' % base, 'file:%s.wt_ingest' % base,
+        'tiered:%s' % base]
+    initial = testcase.initialFileName('table:' + base)
+    if initial is not None:
+        names.append('file:' + initial)
+    return names
 
 # The rankings of the tables consuming the most cache, as reported by
 # WT_CONNECTION::debug_info and by the cache_top verbose category.
@@ -117,11 +123,11 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         return [name for _, name in report[ranking]['entries']]
 
     def assertTableIn(self, base, names):
-        self.assertTrue(any(n in names for n in table_names(base)),
+        self.assertTrue(any(n in names for n in table_names(self, base)),
             '%s not found in %s' % (base, names))
 
     def assertTableNotIn(self, base, names):
-        for n in table_names(base):
+        for n in table_names(self, base):
             self.assertNotIn(n, names)
 
     # Every report is expected to hold together internally, whatever the workload.
@@ -145,10 +151,11 @@ class test_cache_top01(wttest.WiredTigerTestCase):
             values = [value for value, _ in r['entries']]
             self.assertEqual(values, sorted(values, reverse = True))
 
-            # Every entry is at or above the threshold, and every name is a table.
+            # Every entry is at or above the threshold, and every name is a data handle.
             for value, name in r['entries']:
                 self.assertGreaterEqual(value, r['threshold'])
-                self.assertTrue(name.startswith('file:'), 'unexpected name: ' + name)
+                self.assertTrue(name.startswith('file:') or name.startswith('tiered:'),
+                    'unexpected name: ' + name)
 
             # A ranking of a level can compare itself against the connection, a flow cannot.
             if ranking in self.level_rankings:
@@ -381,7 +388,7 @@ class test_cache_top03(wttest.WiredTigerTestCase):
         out = self.readStdout(200000)
         self.cleanStdout()
         self.assertIn('cache top total cache bytes', out)
-        self.assertTrue(any(n in out for n in table_names('inmemory')),
+        self.assertTrue(any(n in out for n in table_names(self, 'inmemory')),
             'inmemory table not found in report')
 
 # Turning the rankings on and off on a running connection, which is how they are reached in the
@@ -450,7 +457,7 @@ class test_cache_top06(wttest.WiredTigerTestCase):
         name = 'a_long_table_name_' + 'x' * 120
         self.populate('table:' + name, 2500)
         text = self.report_text()
-        self.assertTrue(any(n in text for n in table_names(name)), 'long table name not found')
+        self.assertTrue(any(n in text for n in table_names(self, name)), 'long table name not found')
 
     # A column store is ranked the same way a row store is.
     def test_column_store(self):
@@ -462,7 +469,7 @@ class test_cache_top06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         text = self.report_text()
-        self.assertTrue(any(n in text for n in table_names('columns')), 'columns table not found')
+        self.assertTrue(any(n in text for n in table_names(self, 'columns')), 'columns table not found')
 
     # The rankings coexist with the rest of what debug_info prints.
     def test_combined_with_other_categories(self):
@@ -479,12 +486,82 @@ class test_cache_top06(wttest.WiredTigerTestCase):
     def test_reset_on_reopen(self):
         self.populate('table:transient', 2500)
         text = self.report_text()
-        self.assertTrue(any(n in text for n in table_names('transient')),
+        self.assertTrue(any(n in text for n in table_names(self, 'transient')),
             'transient table not found')
 
         self.reopen_conn()
 
         out = self.report_text()
         self.assertIn('cache top ', out)
-        for n in table_names('transient'):
+        for n in table_names(self, 'transient'):
             self.assertNotIn(n, out)
+
+# A table whose data handle is closed and reopened in place, which is what an alter does. The
+# rankings hold a pointer to the tree across that close, and the reopen resets the tree's record of
+# where it sits in them.
+class test_cache_top07(wttest.WiredTigerTestCase):
+    conn_config = 'create,cache_size=100MB,statistics=(all)'
+
+    value = 'v' * 4096
+
+    def populate(self, uri, rows, start = 0):
+        self.session.create(uri, 'key_format=S,value_format=S')
+        c = self.session.open_cursor(uri)
+        for i in range(start, start + rows):
+            c['k%08d' % i] = self.value
+        c.close()
+
+    # Parse the report into {ranking: {listed, total, names}}.
+    def report(self):
+        self.cleanStdout()
+        self.conn.debug_info('cache_top')
+        out = self.readStdout(200000)
+        self.cleanStdout()
+
+        header_re = re.compile(r'cache top (?P<ranking>.+?): \d+ tables above \d+B '
+            r'hold (?P<listed>\d+)B(?: of (?P<total>\d+)B)?$')
+        entry_re = re.compile(r'^\s+\d+B (?P<name>\S+)$')
+
+        report = {}
+        ranking = None
+        for line in out.splitlines():
+            header = header_re.search(line)
+            if header is not None:
+                ranking = header.group('ranking')
+                report[ranking] = {
+                    'listed': int(header.group('listed')),
+                    'total': None if header.group('total') is None
+                        else int(header.group('total')),
+                    'names': [],
+                }
+                continue
+            entry = entry_re.match(line)
+            if entry is not None and ranking is not None:
+                report[ranking]['names'].append(entry.group('name'))
+        return report
+
+    # A tree must never occupy more than one slot of the same ranking, and the bytes a ranking says
+    # it lists must not exceed what the whole connection holds.
+    def test_no_duplicates_across_handle_reopen(self):
+        self.populate('table:churn', 2500)
+        self.session.checkpoint()
+
+        # The guard below is only meaningful if the table is big enough to be ranked at all.
+        before = self.report()
+        self.assertTrue(
+            any(n in before['total cache bytes']['names'] for n in table_names(self, 'churn')),
+            'the table under test never reached a ranking')
+
+        # An alter closes the data handle and reopens it in place, reusing the same tree.
+        self.session.alter('table:churn', 'access_pattern_hint=random')
+        self.populate('table:churn', 2500, start = 50000)
+        self.session.checkpoint()
+
+        after = self.report()
+        self.assertTrue(after, 'no rankings were reported')
+        for ranking, r in after.items():
+            self.assertEqual(len(r['names']), len(set(r['names'])),
+                'ranking "%s" names a table more than once: %s' % (ranking, r['names']))
+            if r['total'] is not None:
+                self.assertLessEqual(r['listed'], r['total'],
+                    'ranking "%s" lists more bytes than the connection holds' % ranking)

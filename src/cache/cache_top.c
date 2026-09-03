@@ -130,12 +130,7 @@ static void
 __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric,
   uint64_t **valuep, uint64_t **clockp)
 {
-    /*
-     * Set before the switch, not in a default label there: one compiler needs a default to prove
-     * every path sets the outputs, another warns that a default is redundant once every real metric
-     * is already listed. Setting this unconditionally satisfies both, since the switch below no
-     * longer needs to be the thing that proves the outputs are always set.
-     */
+    /* Set here rather than in a default label, so the switch below can stay free of one. */
     *valuep = *clockp = NULL;
 
     switch (metric) {
@@ -150,11 +145,6 @@ __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP
     case WT_CACHE_TOP_UPDATES:
     case WT_CACHE_TOP_DIRTY:
     case WT_CACHE_TOP_INMEM:
-        /*
-         * The assert here does not always abort - a unit-testing build lets it return so a test can
-         * confirm it fired - which is why the outputs already have a defined value above rather
-         * than depending on this path to give them one.
-         */
         WT_ASSERT_ALWAYS(session, false, "cache top: %d does not track a flow", (int)metric);
         break;
     }
@@ -182,7 +172,18 @@ __cache_top_decay(
     if (newclockp != NULL)
         *newclockp = clock;
 
-    if (value == 0 || clock == 0 || now <= clock)
+    /*
+     * A value that has already decayed away has no window left to account for, so start a new one
+     * at now. Leaving the old clock in place would decay the caller's increment against all the
+     * time the tree spent idle, and a tree resuming activity would never climb off zero.
+     */
+    if (value == 0) {
+        if (newclockp != NULL)
+            *newclockp = now;
+        return (value);
+    }
+
+    if (clock == 0 || now <= clock)
         return (value);
 
     halflife = S2C(session)->cache->cache_top.halflife_ticks;
@@ -364,8 +365,7 @@ __cache_top_levels_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree)
     for (i = 0; i < WT_ELEMENTS(levels); ++i) {
         metric = levels[i];
 
-        /* A tree already occupying a slot is already visible; checking again would only cost a
-         * lock. */
+        /* A tree already in a slot is visible; checking again would only cost a lock. */
         if (__wt_atomic_load_uint8_relaxed(&btree->cache_top_slot[metric]) < WT_CACHE_TOP_SLOTS)
             continue;
 
@@ -391,7 +391,12 @@ __wt_cache_top_flow_incr(
 {
     uint64_t clock, now, value, *clockp, *valuep;
 
-    if (btree == NULL)
+    /*
+     * An excluded tree has its recheck value pinned at the maximum. Check that before anything
+     * else.
+     */
+    if (btree == NULL ||
+      __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[metric]) == UINT64_MAX)
         return;
 
     __cache_top_flow_storage(session, btree, metric, &valuep, &clockp);
@@ -417,16 +422,10 @@ __wt_cache_top_flow_incr(
 
 /*
  * __wt_cache_top_btree_open --
- *     Set up a tree's cache-consumer tracking state when it is opened (including a re-open, since
- *     the tree's fields are cleared then too). Every tree starts out of every ranking's slots,
- *     which has to be set explicitly because a slot index of 0 is valid and zero-initialization
- *     would otherwise claim it. Metadata and the history store are excluded from every ranking here
- *     as well, rather than being discovered by the accounting path later: they already have their
- *     own connection-level statistics, are never the table an operator asking for the largest cache
- *     consumers wants named, and the history store in particular is too hot a tree to be checking
- *     its identity from that path on every byte it accounts for. Identity comes from the URI rather
- *     than the data handle flags, because the history store and disaggregated metadata flags are
- *     set later in the tree open.
+ *     Set up a tree's cache-consumer tracking state when it is opened. A slot index of 0 is valid,
+ *     so a tree has to be marked as outside every ranking explicitly, rather than relying on
+ *     zero-initialization. Identity comes from the URI rather than the data handle flags, because
+ *     the history store and disaggregated metadata flags are set later in the tree open.
  */
 void
 __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -435,8 +434,7 @@ __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
     bool excluded;
 
     WT_UNUSED(session);
-    excluded = WT_IS_METADATA(btree->dhandle) || WT_IS_URI_HS(btree->dhandle->name) ||
-      strcmp(btree->dhandle->name, WT_DISAGG_METADATA_URI) == 0;
+    excluded = WT_IS_URI_METADATA(btree->dhandle->name) || WT_IS_URI_HS(btree->dhandle->name);
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
         btree->cache_top_slot[metric] = WT_CACHE_TOP_NOT_TRACKED;

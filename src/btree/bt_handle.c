@@ -196,6 +196,14 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_CLEAR(lr_fh_meta);
 
     /*
+     * The cache-consumer rankings point at this tree, and the fields recording where it sits in
+     * them are about to be cleared. Drop it from the rankings first: the sweep server reads those
+     * slots under only its own lock, so it must not be left holding a tree whose identity fields
+     * are being reset.
+     */
+    __wt_cache_top_btree_discard(session, btree);
+
+    /*
      * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
      * across a re-open. Clear all flags other than the operation flags (which are set by the
      * connection handle software that called us).
