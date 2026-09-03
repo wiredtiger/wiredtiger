@@ -191,7 +191,7 @@ struct __wt_btree {
 
     /*
      * The schema epoch the table's create was published at, or WT_SCHEMA_EPOCH_NONE. Written under
-     * the schema lock, read without it.
+     * the schema lock, accessed atomically so a reader need not hold it.
      */
     wt_shared wt_timestamp_t create_schema_epoch;
 
