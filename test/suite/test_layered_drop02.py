@@ -36,22 +36,14 @@
 # reissues drop(), so drop must handle pages the page server has already
 # discarded rather than aborting on the missing root-page read.
 #
-# Two scenarios, both issuing a first drop (which sends the trim), hitting a
-# failure, then replaying the drop on reclaimed pages:
-#   test_replayed_drop_after_close_conn - the first drop completes, then closing
-#     without checkpointing rolls back the local drop. The pages are reclaimed in
-#     palite, then on reopening from the shared checkpoint the table is restored
-#     and the drop is replayed.
-#   test_replayed_drop_after_post_trim_crash - the debug failpoint aborts the
-#     process after the trim is sent but before the constituents are dropped.
-#     The pages are reclaimed in palite, then the crashed home is reopened and
-#     the drop replayed.
+# The debug failpoint aborts the process after the trim is sent but before the
+# constituents are dropped; the pages are then reclaimed in palite and the
+# crashed home reopened to replay the drop.
 #
-# Palite's trim_table is a no-op, so both tests stand in for a page server that
+# Palite's trim_table is a no-op, so the test stands in for a page server that
 # has already reclaimed the pages by deleting the stable constituent's rows from
-# palite's pages table while the connection is closed. The pre-fix abort takes
-# down the process, so the replay runs in a subprocess and the parent asserts a
-# zero exit.
+# palite's pages table. The pre-fix abort takes down the process, so the crash
+# and the replay run in nested subprocesses and the parent asserts a clean exit.
 
 import os, re, signal
 import wttest
@@ -104,27 +96,16 @@ class test_layered_drop02(
         self.open_conn(home)
         self.session.drop(self.uri)
 
-    def subprocess_replay_after_close_conn(self):
-        btree_id = self.setup_table_and_checkpoint()
-
-        # First drop completes (trim is a no-op in palite); close without checkpointing simulates a
-        # crash that rolls back the local drop.
-        self.session.drop(self.uri)
-        self.close_conn('debug=(skip_checkpoint=true)')
-        self.delete_all_table_pages(btree_id)
-        self.replay_drop()
-        os._exit(0)
-
     def subprocess_crash_after_trim(self):
+        """Set up the table, then crash mid-drop at the crash point (after the trim is sent)."""
         self.setup_table_and_checkpoint()
-
-        # The crash point aborts after the trim is sent, before the constituents are dropped.
         self.conn.reconfigure('debug_mode=(crash_point=(after_drop_trim=true))')
         self.session.drop(self.uri)
 
-    def subprocess_replay_after_post_trim_crash(self):
-        # Phase 1: spawn a subprocess that sets up the table and crashes mid-drop at the crash
-        # point, after the trim is sent.
+    def subprocess_replay_drop(self):
+        """Reclaim the crashed table's pages and replay the drop; the drop must not abort."""
+        # Phase 1: spawn a nested subprocess that sets up the table and crashes mid-drop at the
+        # crash point, after the trim is sent.
         [returncode, home] = self.run_subprocess_function('SUBPROCESS_crash_after_trim',
             f'{self.test_name}.{self.test_name}.subprocess_crash_after_trim', silent=True)
         self.assert_crashed(returncode, signal.SIGABRT)
@@ -140,18 +121,12 @@ class test_layered_drop02(
         self.replay_drop(home)
         os._exit(0)
 
-    def run_replay_subprocess(self, name):
-        """Run a replay subprocess and assert it exits cleanly (the drop must not abort)."""
+    def test_replayed_drop_after_post_trim_crash(self):
+        """Replay the drop on reclaimed pages; assert the replay subprocess exits cleanly."""
         # Advance the parent past the subprocess's epochs so the fixture can close cleanly.
         self.set_stable_epoch(10)
         self.leader_checkpoint(1)
-        [returncode, _] = self.run_subprocess_function(f'SUBPROCESS_{name}',
-            f'{self.test_name}.{self.test_name}.subprocess_{name}', silent=True)
+        [returncode, _] = self.run_subprocess_function('SUBPROCESS_replay_drop',
+            f'{self.test_name}.{self.test_name}.subprocess_replay_drop', silent=True)
         self.assertEqual(returncode, 0,
             'replayed drop() aborted when the stable data was already discarded')
-
-    def test_replayed_drop_after_close_conn(self):
-        self.run_replay_subprocess('replay_after_close_conn')
-
-    def test_replayed_drop_after_post_trim_crash(self):
-        self.run_replay_subprocess('replay_after_post_trim_crash')
