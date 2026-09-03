@@ -118,6 +118,11 @@ class test_disagg_fast_truncate03(test_cc_base):
             before["cleanup_removed"],
             f"step {step}: cleanup removed a child before it was globally visible",
         )
+        self.assertGreaterEqual(
+            after["no_reclaim"] - before["no_reclaim"],
+            skipped_internal,
+            f"step {step}: cleanup did not count every unreclaimable internal page",
+        )
 
         before = after
         self.retry_for_stat_increase(
@@ -159,6 +164,9 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
+            "no_reclaim": self.read_stat(
+                stat.dsrc.checkpoint_cleanup_pages_deleted_no_reclaim
+            ),
             "cleanup_removed": self.read_stat(stat.dsrc.checkpoint_cleanup_pages_removed),
             "delta_build_failed": self.read_stat(
                 stat.dsrc.rec_page_delta_rejected_build_failed
@@ -340,6 +348,10 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.assertEqual(
             after["cleanup_removed"] - before["cleanup_removed"], fast_deleted,
             "step 8: checkpoint cleanup did not process every fast-deleted leaf reference",
+        )
+        self.assertEqual(
+            after["no_reclaim"], before["no_reclaim"],
+            "step 8: cleanup counted a parent even though deleted children were reclaimable",
         )
 
         # Step 9 -- checkpoint reconciles the dirty internal page. The deleted leaves
