@@ -1179,23 +1179,20 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 static bool
 __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-
     /* Only a leader-mode open of a live constituent can miss, and only on a missing file. */
     if (role != WTI_CLAYERED_ROLE_LEADER || (ret != ENOENT && ret != WT_NOTFOUND))
         return (false);
 
     /*
-     * The resolved role is stale if the step-down timestamp is set or the role already changed.
-     * Step-down changes both values while holding the schema lock, and the failed open that led
-     * here acquired that lock, so relaxed loads see current values.
+     * A table created inside the step-down window is marked at handle open and never attempts this
+     * open, so the only legitimate miss is a stale leader role, cleared under the schema lock the
+     * failed open acquired. Any other miss is a genuinely missing constituent and must be reported.
      *
      * FIXME-WT-18359: Investigate whether this guard is reachable now that
      * WT_LAYERED_TABLE_STEP_DOWN_CREATED skips opening the stable constituent for tables created
      * during the step-down window.
      */
-    return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
-      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
+    return (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 }
 
 /*
