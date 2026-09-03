@@ -190,8 +190,8 @@ struct __wt_btree {
     wt_shared wt_timestamp_t min_unpublished_durable_ts;
 
     /*
-     * The schema epoch the table's create was published at, or WT_SCHEMA_EPOCH_NONE. Written under
-     * the schema lock, accessed atomically so a reader need not hold it.
+     * The schema epoch that published the table's create, or WT_SCHEMA_EPOCH_NONE. Writers hold the
+     * schema lock; readers need not, so access it atomically.
      */
     wt_shared wt_timestamp_t create_schema_epoch;
 
