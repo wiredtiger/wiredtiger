@@ -1564,7 +1564,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
          * prepared cell before the drain resolves it, which reconciliation cannot represent (leaked
          * prepared update).
          */
-        F_SET(dhandle, WT_DHANDLE_OUTDATED);
+        FLD_SET_ATOMIC_16(session->dhandle->flags, WT_DHANDLE_OUTDATED);
 
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
