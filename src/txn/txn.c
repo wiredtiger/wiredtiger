@@ -1700,6 +1700,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t step_down_ts;
     uint32_t prepare_count;
     bool wrote_ingest, wrote_stable;
+    bool mirroring;
 #endif
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
@@ -1714,6 +1715,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     prepare_count = 0;
     step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
     wrote_ingest = wrote_stable = false;
+    mirroring = F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     recno = WT_RECNO_OOB;
@@ -1776,10 +1778,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * strictly above the boundary. Checked per operation here to fold the boundary check into
          * the pass this loop already makes.
          *
-         * Record whether stable and ingest constituents were written above the step-down timestamp;
-         * after the loop, we check that if stable was written to, ingest was also written to, which
-         * is a weaker version of the invariant that stable content above the timestamp must be
-         * mirrored to ingest.
+         * Mirror mode writes the stable constituent above the boundary and mirrors it to ingest, so
+         * record whether stable content above the boundary was written; after the loop we verify
+         * that a stable write was mirrored. Ingest-only mode never writes a stable constituent
+         * above the boundary and never writes both constituents from one transaction.
          */
         if (step_down_ts != WT_TS_NONE && !prepare && op->type != WT_TXN_OP_NONE &&
           op->btree != NULL) {
@@ -1788,10 +1790,22 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
                     WT_ASSERT_ALWAYS(session, txn->first_commit_timestamp > step_down_ts,
                       "ingest content committing at or below the step-down timestamp");
-            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name) &&
-              F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
-              txn->time_point.commit_timestamp > step_down_ts)
-                wrote_stable = true;
+            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                if (!mirroring)
+                    wrote_stable = true;
+                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+                    if (mirroring) {
+                        if (txn->time_point.commit_timestamp > step_down_ts)
+                            wrote_stable = true;
+                    } else
+                        WT_ASSERT_ALWAYS(session, txn->time_point.commit_timestamp <= step_down_ts,
+                          "stable content committing above the step-down timestamp");
+                }
+            }
+            if (!mirroring)
+                WT_ASSERT_ALWAYS(session, !(wrote_ingest && wrote_stable),
+                  "transaction committing while the step-down timestamp is set wrote both layered "
+                  "constituents");
         }
 #endif
         switch (op->type) {
@@ -1900,10 +1914,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn->prepare_count = 0;
 
     /*
-     * While the step-down timestamp is set, a committing transaction that wrote a stable
-     * constituent above the boundary must also have written an ingest constituent.
+     * While the step-down timestamp is set, a mirror transaction that wrote a stable constituent
+     * above the boundary must also have written an ingest constituent.
      */
-    WT_ASSERT(session, step_down_ts == WT_TS_NONE || prepare || !wrote_stable || wrote_ingest);
+    if (mirroring)
+        WT_ASSERT(session, step_down_ts == WT_TS_NONE || prepare || !wrote_stable || wrote_ingest);
 #endif
 
     /* Add a 2 second wait to simulate commit transaction slowness. */

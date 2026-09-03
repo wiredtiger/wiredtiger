@@ -447,9 +447,9 @@ struct __wt_txn {
     wt_timestamp_t first_commit_timestamp;
 
     /*
-     * True if the step-down timestamp was set when this transaction began. Used to mirror the
-     * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
-     * straddlers.
+     * True if the step-down timestamp was set when this transaction began. Used to route the
+     * transaction's writes to the ingest constituent (mirrored to both stable and ingest when write
+     * mirroring is enabled), to include ingest in its reads, and to detect straddlers.
      */
     bool stepdown_ts_set;
     /*

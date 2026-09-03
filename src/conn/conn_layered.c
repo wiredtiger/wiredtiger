@@ -1835,6 +1835,27 @@ err:
 }
 
 /*
+ * __disagg_config_stepdown_write_mirroring --
+ *     Configure whether leader writes during the step-down window are mirrored.
+ */
+static int
+__disagg_config_stepdown_write_mirroring(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.stepdown_write_mirroring", &cval), true);
+    if (ret == 0 && cval.val != 0)
+        F_SET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
+
+err:
+    return (ret);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1877,6 +1898,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      */
     if (!reconfig)
         WT_ERR(__disagg_config_tombstone_encoding_break_glass(session, cfg));
+
+    if (!reconfig)
+        WT_ERR(__disagg_config_stepdown_write_mirroring(session, cfg));
 
     /* Reconfigure-only settings. */
     if (reconfig) {

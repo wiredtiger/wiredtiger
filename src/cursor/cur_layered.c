@@ -439,8 +439,9 @@ __clayered_enter_flags(
 
     /*
      * A transaction that started with the step-down timestamp set mirrors leader writes to both
-     * constituents to detect write conflicts. Reads behave like a follower: it reads the ingest
-     * constituent over the still-live stable table.
+     * constituents to detect write conflicts when write mirroring is enabled; otherwise it routes
+     * them to ingest. Reads behave like a follower: it reads the ingest constituent over the
+     * still-live stable table.
      *
      * A table created inside the step-down window has no stable constituent at all, so its cursors
      * use ingest whenever the transaction began. That covers a transaction from before the
@@ -486,7 +487,10 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
     if (CUR2S(clayered)->txn->stepdown_ts_set) {
         WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-        op->write_target = WTI_CLAYERED_WRITE_BOTH;
+        op->write_target = F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage,
+                             WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ?
+          WTI_CLAYERED_WRITE_BOTH :
+          WTI_CLAYERED_WRITE_INGEST;
         return;
     }
     WT_ASSERT(CUR2S(clayered), op->ingest == NULL);
@@ -3171,15 +3175,28 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
-    /* No read timestamp means every update is visible; nothing to probe. */
-    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
-        return (0);
+    /* A read timestamp can position reads below committed updates. */
+    bool has_read_ts = F_ISSET(session->txn, WT_TXN_SHARED_TS_READ);
+    /*
+     * On a leader with the step-down timestamp set, a transaction writing ingest can face live
+     * content about to be committed on stable, unlike a follower whose stable is untouched locally.
+     * That content may be invisible to this snapshot and shares no update chain with the write. The
+     * step-down lock does not close this window: it is acquired separately from taking the
+     * snapshot, so a stable commit can still be invisible to it, and this check remains necessary.
+     *
+     * When step-down writes are mirrored to stable there is no need to probe.
+     */
+    bool stepdown_ts_set = session->txn->stepdown_ts_set;
 
     /*
      * Only a write routed to ingest can conflict with committed history in the stable constituent:
      * a write routed to stable is covered by the stable cursor's own check.
      */
     if (op->write_target != WTI_CLAYERED_WRITE_INGEST)
+        return (0);
+
+    /* Otherwise every snapshot-visible update is current; there is nothing to check. */
+    if (!has_read_ts && !stepdown_ts_set)
         return (0);
 
     /*

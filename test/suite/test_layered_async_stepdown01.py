@@ -39,10 +39,16 @@ from wtscenario import make_scenarios
 class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, write_modes)
 
     uri = f'layered:{test_name}'
 
@@ -69,8 +75,14 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.uri, 40), before | after)
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), after)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), before | after,
-            'transition-window writes must be mirrored to stable')
+        expected_stable = before | after if self.stable_has_step_down_writes() else before
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
+
+    def test_step_down_write_mirroring_is_open_only(self):
+        with self.expectedStderrPattern('unknown configuration key'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.conn.reconfigure(
+                    'disaggregated=(stepdown_write_mirroring=false)'))
 
     # Update, modify and remove of stable keys route to ingest, like insert.
     def test_update_modify_remove_routing_after_step_down_ts(self):
@@ -105,11 +117,10 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(kv.get('k3'), 'vase')
         self.assertNotIn('k2', kv)
 
-        # The transition-window writes are mirrored to stable; remove also records an ingest tombstone.
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2', 'k3'})
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'updated', 'k3': 'vase'},
-            'transition-window writes must be mirrored to stable')
+        expected_stable = {'k1': 'updated', 'k3': 'vase'} if self.stable_has_step_down_writes() \
+            else {'k1': 'base', 'k2': 'base', 'k3': 'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
         # The update, modify and tombstone all survive the completed step-down.
         self.complete_step_down(20)
@@ -135,7 +146,8 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         expected = {'stable-only': 'aXbcde', 'mirrored': 'aXbcde'}
         self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected)
+        expected_stable = expected if self.stable_has_step_down_writes() else {'stable-only': 'abcde'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
 
     # Removing a mirrored key during iteration must not lose the stable-only neighbor in either
@@ -190,8 +202,10 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri1), 40), {'c'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri2), 40), {'d'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), {'a', 'c'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b', 'd'})
+        expected_stable1 = {'a', 'c'} if self.stable_has_step_down_writes() else {'a'}
+        expected_stable2 = {'b', 'd'} if self.stable_has_step_down_writes() else {'b'}
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), expected_stable1)
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), expected_stable2)
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'stable', 'c': 'ingest'})
         self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'stable', 'd': 'ingest'})
 
@@ -251,8 +265,9 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2'})
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'updated'})
+        expected_stable = {'k1': 'updated'} if self.stable_has_step_down_writes() \
+            else {'k1': 'base', 'k2': 'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
         # Both writes survive the completed step-down.
         self.complete_step_down(20)
@@ -271,15 +286,17 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.set_key('k1')
         self.assertEqual(cursor.reserve(), 0)
 
-        # A reserve is mirrored to the stable constituent as well as ingest. A direct stable writer
-        # must therefore conflict even though layered writes normally target ingest after the cutoff.
+        # A mirrored reserve also protects the stable constituent from a direct concurrent writer.
         stable_session = self.conn.open_session()
         stable_cursor = stable_session.open_cursor(self.stable_uri(self.uri),
                                                    None, None)
         stable_session.begin_transaction()
         stable_cursor.set_key('k1')
         stable_cursor.set_value('stable-writer')
-        self.expect_conflict_rollback(stable_cursor.update)
+        if self.stable_has_step_down_writes():
+            self.expect_conflict_rollback(stable_cursor.update)
+        else:
+            self.assertEqual(stable_cursor.update(), 0)
         stable_session.rollback_transaction()
         stable_cursor.close()
         stable_session.close()

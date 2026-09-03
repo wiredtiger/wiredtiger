@@ -39,10 +39,16 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
     # No periodic statistics-logging thread: it would race with the cursor-cache reopen checks
     # below, which read a connection-wide stat over a narrow window.
     conn_base_config = 'statistics=(all),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, write_modes)
 
     test_name = __qualname__
 
@@ -107,8 +113,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
-    # A cursor reused from the cache picks up the new routing: its writes mirror to both
-    # constituents.
+    # A cursor reused from the cache picks up the configured routing.
     def test_cached_cursor_reuse_across_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -129,8 +134,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'k1', 'k2'},
-            'transition-window writes must be mirrored to stable')
+        expected_stable = {'k1', 'k2'} if self.stable_has_step_down_writes() else {'k1'}
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
 
     # A cursor closed before the demotion and reopened afterwards serves the surviving content.

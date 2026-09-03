@@ -38,10 +38,16 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, write_modes)
 
     test_name = __qualname__
 
@@ -150,10 +156,10 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 20), {'below': 'v', 'at': 'v'})
         self.assertEqual(self.read_kvs_at(self.uri, 21), {'below': 'v', 'at': 'v', 'above': 'v'})
 
-        # Ground truth: the above-cutoff write is mirrored. A follower cannot open the live stable
-        # table, so read its checkpoint view.
+        expected_checkpoint = {'below', 'at', 'above'} if self.stable_has_step_down_writes() \
+            else {'below', 'at'}
         self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30),
-            {'below', 'at', 'above'})
+            expected_checkpoint)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
 
     # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
@@ -366,8 +372,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertIn((removed, 'v'), kvs, 'the invisible tombstone must not reach this snapshot')
 
     # A layered tree never opens by checkpoint, before or after the demotion. The live stable
-    # constituent contains the mirrored transition-window writes, while its cutoff checkpoint does
-    # not contain writes committed above the cutoff.
+    # constituent may contain the mirrored transition-window writes (per write-mirroring config),
+    # while its cutoff checkpoint does not contain writes committed above the cutoff.
     def test_checkpoint_cursor_after_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -376,8 +382,9 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_step_down_ts(20)
         self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 30)
 
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'a': 'i', 'b': 's', 'd': 's', 'z': 'i'})
+        expected_stable = {'a': 'i', 'b': 's', 'd': 's', 'z': 'i'} \
+            if self.stable_has_step_down_writes() else {'b': 's', 'd': 's'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint'),
@@ -429,10 +436,16 @@ _straddler_ops = [
 @disagg_test_class
 class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, _straddler_ops)
+    scenarios = make_scenarios(disagg_storages, _straddler_ops, write_modes)
 
     test_name = __qualname__
 
@@ -464,10 +477,16 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
 class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
                                                    wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, write_modes)
 
     test_name = __qualname__
 
@@ -588,7 +607,9 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(checkpointed, {'b': 's', 'd': 's'})
 
         self.assertEqual(self.read_kvs_at(self.uri, 50), before)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'a', 'b', 'd', 'z'})
+        expected_stable = {'a', 'b', 'd', 'z'} if self.stable_has_step_down_writes() \
+            else {'b', 'd'}
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), expected_stable)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'a', 'z'})
 
         # A write after that checkpoint still routes to ingest, and the step-down still completes.
