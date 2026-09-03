@@ -1017,6 +1017,14 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     if (WT_PAGE_IS_INTERNAL(ref->page))
         return (0);
 
+    /*
+     * Disaggregated storage reconciliation can write a delta rather than a full page, so dirtying a
+     * page to strip its obsolete time window information can grow disk usage instead of shrinking
+     * it. Leave that content in place; page-level cleanup still reclaims whole pages.
+     */
+    if (WT_DELTA_LEAF_ENABLED(session))
+        return (0);
+
     /* We are only interested in clean pages. */
     if (__wt_page_is_modified(ref->page))
         return (0);
