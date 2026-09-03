@@ -36,6 +36,7 @@ from wiredtiger import stat
 # fast truncate committed with no timestamp is no longer validated against the timestamped
 # history underneath it, and can discard a page without ever clearing the history store
 # records that page's superseded values live in.
+@wttest.skip_for_hook("disagg", "disaggregated storage rejects write_timestamp_usage=never")
 class test_truncate35(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=200MB,statistics=(all)'
     uri = 'table:test_truncate35'
