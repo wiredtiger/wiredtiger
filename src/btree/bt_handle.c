@@ -196,14 +196,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_CLEAR(lr_fh_meta);
 
     /*
-     * The cache-consumer rankings point at this tree, and the fields recording where it sits in
-     * them are about to be cleared. Drop it from the rankings first: the sweep server reads those
-     * slots under only its own lock, so it must not be left holding a tree whose identity fields
-     * are being reset.
-     */
-    __wt_cache_top_btree_discard(session, btree);
-
-    /*
      * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
      * across a re-open. Clear all flags other than the operation flags (which are set by the
      * connection handle software that called us).
@@ -431,6 +423,14 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         /* Close the underlying block manager reference. */
         WT_TRET(bm->close(bm, session));
     }
+
+    /*
+     * Drop the tree from the cache-consumer rankings: a re-open clears the fields recording
+     * cache ranking, and a slot left pointing here would then be orphaned. Page discard runs
+     * after this and can put the tree back in a ranking, but only for a handle already marked dead,
+     * which is discarded rather than re-opened.
+     */
+    __wt_cache_top_btree_discard(session, btree);
 
     return (ret);
 }
