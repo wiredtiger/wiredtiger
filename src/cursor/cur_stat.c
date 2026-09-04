@@ -483,12 +483,9 @@ retry:
     }
 
     /*
-     * A reader races the role change across a step-up or step-down, so a leader can still find the
-     * stable constituent missing here.
-     *
-     * FIXME-WT-18359: Investigate whether this guard is reachable now that
-     * WT_LAYERED_TABLE_STEP_DOWN_CREATED routes tables without a stable constituent through the
-     * follower path above.
+     * The role and the step-down mark are read above without a lock: step-down clears the mark
+     * before it publishes the follower role, and step-up publishes the leader role before it
+     * creates the stable tables a follower era left missing.
      */
     if (ret == ENOENT) {
         ret = 0;
