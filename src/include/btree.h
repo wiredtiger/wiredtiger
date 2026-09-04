@@ -189,6 +189,12 @@ struct __wt_btree {
     /* For an unpublished btree, the smallest durable timestamp of any update it holds. */
     wt_shared wt_timestamp_t min_unpublished_durable_ts;
 
+    /*
+     * The schema epoch that published the table's create, or WT_SCHEMA_EPOCH_NONE. Writers hold the
+     * schema lock; readers need not, so access it atomically.
+     */
+    wt_shared wt_timestamp_t create_schema_epoch;
+
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
@@ -341,6 +347,7 @@ struct __wt_btree {
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */
     uint32_t evict_walk_target;                /* Eviction walk target */
+    u_int evict_walk_ends;                     /* Walk end-of-tree count since the scan arrived */
     wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
     u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
     u_int evict_walk_skips;                    /* Number of walks skipped */

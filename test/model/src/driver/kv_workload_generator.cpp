@@ -611,9 +611,10 @@ kv_workload_generator::run()
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
-                *p << operation::checkpoint_crash_trigger(_random.next_float() < 0.5f ?
-                    operation::checkpoint_crash_phase::before_checkpoint_commit :
-                    operation::checkpoint_crash_phase::before_metadata_sync);
+                operation::checkpoint_crash_phase phase = _random.next_uint64(0, 1) == 0 ?
+                  operation::checkpoint_crash_phase::before_checkpoint_commit :
+                  operation::checkpoint_crash_phase::before_metadata_sync;
+                *p << operation::checkpoint_crash_trigger(phase);
                 _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)
