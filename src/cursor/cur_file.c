@@ -812,7 +812,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
         return (can_sweep ? WT_NOTFOUND : 0);
     }
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__)
     /*
      * Warm the dhandle's rwlock and btree handle: the reopen below is about to lock the former and
      * dereference the latter, and both are commonly cold after a cursor has sat in the cache. No

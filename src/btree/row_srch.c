@@ -10,10 +10,11 @@
 
 /*
  * The binary-search cache-warming pipeline below is built on __builtin_prefetch, which GCC and
- * Clang support and other compilers, notably MSVC, do not. The two functions the search loops
- * further down this file call compile to a no-op on an unsupported compiler instead.
+ * Clang support (Clang defines the same GNU compatibility macro this file checks for) and other
+ * compilers, notably MSVC, do not. The two functions the search loops further down this file call
+ * are only defined here, and only called there, on a supported compiler.
  */
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__)
 
 /*
  * Minimum remaining candidates (the binary search loops' "limit") below which warming ahead isn't
@@ -106,10 +107,10 @@ __row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, u
         uint32_t quarter, right_base, right_limit;
 
         /*
-         * Two iterations ahead, the search will have narrowed to the left half of the current
-         * range or the right half; refine each half the same way this iteration narrowed the
-         * whole range, to get two candidate slots on each side. indx_left_near is an
-         * approximation (off by at most one slot); the other three are exact.
+         * Two iterations ahead, the search will have narrowed to the left half of the current range
+         * or the right half; refine each half the same way this iteration narrowed the whole range,
+         * to get two candidate slots on each side. indx_left_near is an approximation (off by at
+         * most one slot); the other three are exact.
          */
         quarter = limit >> 2;
         right_base = indx + 1;
@@ -128,37 +129,6 @@ __row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, u
         __row_search_warm_key(page, base + (limit >> 2));
         __row_search_warm_key(page, indx + 1 + ((limit - 1) >> 2));
     }
-}
-
-#else /* !(defined(__GNUC__) || defined(__clang__)) */
-
-/*
- * __row_search_warm_int_candidates --
- *     No cache-prefetch intrinsic on this compiler; the warm is purely advisory, so skipping it
- *     costs a few avoidable cache misses, never correctness.
- */
-static WT_INLINE void
-__row_search_warm_int_candidates(
-  WT_PAGE_INDEX *pindex, uint32_t base, uint32_t indx, uint32_t limit)
-{
-    WT_UNUSED(pindex);
-    WT_UNUSED(base);
-    WT_UNUSED(indx);
-    WT_UNUSED(limit);
-}
-
-/*
- * __row_search_warm_leaf_candidates --
- *     No cache-prefetch intrinsic on this compiler; the warm is purely advisory, so skipping it
- *     costs a few avoidable cache misses, never correctness.
- */
-static WT_INLINE void
-__row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, uint32_t limit)
-{
-    WT_UNUSED(page);
-    WT_UNUSED(base);
-    WT_UNUSED(indx);
-    WT_UNUSED(limit);
 }
 
 #endif
@@ -631,7 +601,9 @@ restart:
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
 
+#if defined(__GNUC__)
                 __row_search_warm_int_candidates(pindex, base, indx, limit);
+#endif
 
                 descent = pindex->index[indx];
                 __wt_ref_key(page, descent, &item->data, &item->size);
@@ -665,7 +637,9 @@ restart:
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
 
+#if defined(__GNUC__)
                 __row_search_warm_int_candidates(pindex, base, indx, limit);
+#endif
 
                 descent = pindex->index[indx];
                 __wt_ref_key(page, descent, &item->data, &item->size);
@@ -685,7 +659,9 @@ restart:
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
 
+#if defined(__GNUC__)
                 __row_search_warm_int_candidates(pindex, base, indx, limit);
+#endif
 
                 descent = pindex->index[indx];
                 __wt_ref_key(page, descent, &item->data, &item->size);
@@ -803,7 +779,9 @@ leaf_only:
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
 
+#if defined(__GNUC__)
             __row_search_warm_leaf_candidates(page, base, indx, limit);
+#endif
 
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
@@ -837,7 +815,9 @@ leaf_only:
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
 
+#if defined(__GNUC__)
             __row_search_warm_leaf_candidates(page, base, indx, limit);
+#endif
 
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
@@ -857,7 +837,9 @@ leaf_only:
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
 
+#if defined(__GNUC__)
             __row_search_warm_leaf_candidates(page, base, indx, limit);
+#endif
 
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
