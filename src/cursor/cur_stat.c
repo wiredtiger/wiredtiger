@@ -437,7 +437,7 @@ retry:
      * constituent until a later step-up creates one, so it reports the same way a follower does.
      */
     if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) ||
-      F_ISSET(layered, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
+      F_ISSET_ATOMIC_8(layered, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
         /*
          * Neither case has the stable's pages resident in the local cache, so its non-walk stats
          * are ~0 - except the block size, which we read from the checkpoint metadata directly since
