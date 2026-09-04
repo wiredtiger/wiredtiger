@@ -625,7 +625,7 @@ typedef struct {
 
 /*
  * __disagg_stable_btree_ids_append --
- *     Append a btree ID to the set.
+ *     Append a btree ID to the array.
  */
 static int
 __disagg_stable_btree_ids_append(
