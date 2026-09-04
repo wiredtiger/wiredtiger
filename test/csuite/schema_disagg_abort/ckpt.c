@@ -195,11 +195,11 @@ thread_ts_run(void *arg)
 }
 
 /*
- * leader_checkpoint_take --
+ * ckpt_take --
  *     Take one checkpoint at the given stable timestamp and report it, returning its LSN.
  */
 static uint64_t
-leader_checkpoint_take(
+ckpt_take(
   WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt, uint64_t stable_ts, const char *kind)
 {
     /* The timestamp thread owns the frontier; just checkpoint. */
@@ -217,11 +217,11 @@ leader_checkpoint_take(
 }
 
 /*
- * leader_checkpoint_normal --
+ * ckpt_take_periodic --
  *     Produce one checkpoint on the phase's own cadence.
  */
 static void
-leader_checkpoint_normal(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
+ckpt_take_periodic(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
     struct timespec now;
     __wt_epoch(NULL, &now);
@@ -235,7 +235,7 @@ leader_checkpoint_normal(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *c
         return;
     }
 
-    (void)leader_checkpoint_take(state, session, ckpt, stable_ts, "");
+    (void)ckpt_take(state, session, ckpt, stable_ts, "");
 
     /* A stable frontier implies every worker completed an operation by now. */
     if (ckpt->produced == 1u)
@@ -247,11 +247,11 @@ leader_checkpoint_normal(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *c
 }
 
 /*
- * leader_checkpoint_stepdown --
+ * ckpt_take_stepdown --
  *     Produce the single step-down checkpoint. The next leader waits on its LSN.
  */
 static void
-leader_checkpoint_stepdown(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
+ckpt_take_stepdown(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
     if (!__wt_atomic_load_bool(&state->stepdown_ckpt_due) ||
       __wt_atomic_load_uint64(&state->stepdown_ckpt_lsn) != 0)
@@ -259,7 +259,7 @@ leader_checkpoint_stepdown(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX 
 
     /* The reader pinned stable at the step-down timestamp before releasing this thread. */
     const uint64_t stepdown_ts = __wt_atomic_load_uint64(&state->stepdown_ts);
-    const uint64_t lsn = leader_checkpoint_take(state, session, ckpt, stepdown_ts, "step-down ");
+    const uint64_t lsn = ckpt_take(state, session, ckpt, stepdown_ts, "step-down ");
 
     /* Zero would read as "not taken yet" to the generator waiting on it. */
     __wt_atomic_store_uint64(&state->stepdown_ckpt_lsn, lsn);
@@ -274,9 +274,9 @@ void
 leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
     if (__wt_atomic_load_uint64(&state->stepdown_ts) != 0)
-        leader_checkpoint_stepdown(state, session, ckpt);
+        ckpt_take_stepdown(state, session, ckpt);
     else
-        leader_checkpoint_normal(state, session, ckpt);
+        ckpt_take_periodic(state, session, ckpt);
 }
 
 /*
