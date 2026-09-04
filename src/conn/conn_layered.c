@@ -159,22 +159,13 @@ static void
 __disagg_btree_stamp_create_epoch(
   WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
 {
-    WT_DATA_HANDLE *saved_dhandle;
-    WT_DECL_RET;
-
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
-    saved_dhandle = session->dhandle;
-    WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      if ((ret = __wt_conn_dhandle_find(session, stable_uri, NULL)) == 0)
-        WT_DHANDLE_ACQUIRE(session->dhandle));
-
-    if (ret == 0) {
-        if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
-            __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch);
-        WT_DHANDLE_RELEASE(session->dhandle);
-    }
-    session->dhandle = saved_dhandle;
+    WT_SAVE_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(session,
+        if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0 &&
+          F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
+          __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch)));
 }
 
 /*
