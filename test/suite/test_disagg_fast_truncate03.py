@@ -130,9 +130,9 @@ class test_disagg_fast_truncate03(test_cc_base):
             f"step {step}: cleanup removed a child before it was globally visible",
         )
         self.assertGreaterEqual(
-            after["not_removed"] - before["not_removed"],
+            after["not_visible_all"] - before["not_visible_all"],
             skipped_internal,
-            f"step {step}: cleanup did not count every internal page with deleted children and none removed",
+            f"step {step}: cleanup did not count every internal page with deleted children and not visible all",
         )
 
         before = after
@@ -180,8 +180,8 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
-            "not_removed": self.read_stat(
-                stat.dsrc.checkpoint_cleanup_pages_deleted_not_removed
+            "not_visible_all": self.read_stat(
+                stat.dsrc.checkpoint_cleanup_pages_deleted_not_visible_all
             ),
             "cleanup_removed": self.read_stat(stat.dsrc.checkpoint_cleanup_pages_removed),
             "delta_build_failed": self.read_stat(
@@ -366,8 +366,8 @@ class test_disagg_fast_truncate03(test_cc_base):
             "step 8: checkpoint cleanup did not process every fast-deleted leaf reference",
         )
         self.assertEqual(
-            after["not_removed"], before["not_removed"],
-            "step 8: cleanup counted a parent even though deleted children were removed",
+            after["not_visible_all"], before["not_visible_all"],
+            "step 8: cleanup counted a parent even though deleted children were visible all",
         )
 
         # Step 9 -- checkpoint reconciles the dirty internal page. The deleted leaves

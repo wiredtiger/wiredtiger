@@ -204,16 +204,16 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
  *     its parent page dirty to remove it.
  */
 static int
-__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *removedp)
+__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *visible_allp)
 {
     WT_PAGE_DELETED *page_del;
 
-    *removedp = false;
+    *visible_allp = false;
     page_del = ref->page_del;
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid, page_del->pg_del_durable_ts)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
-        *removedp = true;
+        *visible_allp = true;
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
@@ -288,13 +288,14 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
  *     between operations.
  */
 static int
-__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref, bool *deletedp, bool *removedp)
+__sync_obsolete_cleanup_one(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool *deletedp, bool *visible_allp)
 {
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
     bool ref_deleted;
 
-    *deletedp = *removedp = false;
+    *deletedp = *visible_allp = false;
     ref_deleted = false;
 
     /* Ignore root pages as they can never be deleted. */
@@ -329,12 +330,12 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref, bool *deleted
         new_state = previous_state;
         if (previous_state == WT_REF_DELETED) {
             *deletedp = true;
-            ret = __sync_obsolete_deleted_cleanup(session, ref, removedp);
+            ret = __sync_obsolete_deleted_cleanup(session, ref, visible_allp);
         } else if (previous_state == WT_REF_DISK) {
             ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
             if (ref_deleted) {
                 new_state = WT_REF_DELETED;
-                *removedp = true;
+                *visible_allp = true;
             }
         }
         /*
@@ -367,7 +368,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
     uint32_t slot;
-    bool child_deleted, child_removed, deleted, removed;
+    bool child_deleted, child_visible_all, deleted, visible_all;
 
     WT_ASSERT_ALWAYS(session, WT_PAGE_IS_INTERNAL(parent->page),
       "Checkpoint obsolete cleanup requires an internal page");
@@ -377,17 +378,17 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
       (void *)parent->page);
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
-    deleted = removed = false;
+    deleted = visible_all = false;
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        WT_RET(__sync_obsolete_cleanup_one(session, ref, &child_deleted, &child_removed));
+        WT_RET(__sync_obsolete_cleanup_one(session, ref, &child_deleted, &child_visible_all));
         deleted |= child_deleted;
-        removed |= child_removed;
+        visible_all |= child_visible_all;
     }
 
-    if (deleted && !removed)
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_deleted_not_removed);
+    if (deleted && !visible_all)
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_deleted_not_visible_all);
 
     WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
 
