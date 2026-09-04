@@ -25,243 +25,122 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_layered_schema33.py
+#    Dropping a layered table whose create was never published dequeues the create, rather than
+#    leaving a create and a remove stuck in the shared metadata queue forever.
 
-# A table awaiting publication keeps its contents in memory and cannot be evicted. Once the
-# stable schema epoch covers the table's create, eviction publishes the table itself rather
-# than leaving it in memory until the next checkpoint visits the tree.
-
-import errno, time
-import wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
+import wttest
 from wiredtiger import stat
+from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
+from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
-# Eviction only publishes a table it walks, so the tests need it working for its cache.
-conn_base_config = 'cache_size=20MB,statistics=(all),debug_mode=(eviction=true),' \
-                 + 'eviction_dirty_target=1,'
-
 @disagg_test_class
-class test_layered_schema33(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+class test_layered_schema33(
+  LayeredStepdownMixin, wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
-
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
+
+    table_config = 'key_format=S,value_format=S'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 5000
+    def layered_uri(self, name):
+        """A distinct layered table URI."""
+        return f'layered:{self.test_name}_{name}'
 
-    def published_count(self):
-        return self.get_stat(stat.conn.disagg_publish_epoch_cleared)
-
-    def wait_for_published(self, uri, expected):
-        """
-        Wait for eviction to publish the table. Eviction only visits a table when it wants its
-        memory, so the inserts below keep the cache under pressure until it does.
-        """
-        for _ in range(600):
-            if self.published_count() >= expected:
-                self.assertEqual(self.published_count(), expected)
-                return
-            self.insert(uri, self.nitems, 100, 20)
-            time.sleep(0.1)
-        self.fail('eviction never published %d tables, saw %d' %
-                  (expected, self.published_count()))
-
-    def insert(self, uri, start, count, commit_ts):
-        cursor = self.session.open_cursor(uri)
-        for i in range(start, start + count):
-            self.session.begin_transaction()
-            cursor[str(i)] = 'v' * 100 + str(i)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+    def conn_stat(self, conn, stat_key):
+        """Read a connection statistic from the given connection."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('statistics:')
+        val = cursor[stat_key][2]
         cursor.close()
+        session.close()
+        return val
 
-    def check(self, uri, count):
-        cursor = self.session.open_cursor(uri)
-        seen = 0
-        while cursor.next() == 0:
-            seen += 1
-        cursor.close()
-        self.assertEqual(seen, count)
+    def assert_fully_absent(self, conn, uri):
+        """The table has no stable constituent locally and nothing in shared metadata."""
+        self.assertFalse(self.uri_stable_exists(conn, uri))
+        self.assertFalse(self.uri_in_shared_metadata(conn, uri))
 
-    def test_eviction_publishes_covered_table(self):
-        """Eviction publishes a table once the stable epoch covers its create."""
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.insert(uri, 0, self.nitems, 20)
-
-        self.assertEqual(self.published_count(), 0)
-
-        # Published, but not yet covered.
-        self.publish(uri, 10)
-        self.assertEqual(self.published_count(), 0)
-
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
-
-        # The table is an ordinary one from here.
-        self.leader_checkpoint(30)
-        self.check(uri, self.nitems + 100)
-
-    def test_publication_lets_eviction_take_pages(self):
-        """
-        Publication releases the table's pages to eviction, with no checkpoint involved.
-        Complements test_layered_schema26, which asserts eviction takes none of them while the
-        table is still awaiting publication.
-        """
+    def test_drop_unpublished_layered(self):
+        """A drop of an unpublished table empties the queue and survives role transitions."""
         self.set_stable_epoch(1)
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-                                ',stable_timestamp=' + self.timestamp_str(10))
+        uri = self.layered_uri('unpublished')
+        self.session.create(uri, self.table_config)
+        self.session.drop(uri)
 
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=i,value_format=S')
-        self.publish(uri, 20)
-
-        nrows = 300
-        with self.transaction(commit_timestamp=30):
-            with wttest.open_cursor(self.session, uri) as cursor:
-                for i in range(1, nrows + 1):
-                    cursor[i] = 'v' * 2048
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
-
-        # Uncovered, so the pages stay in memory.
+        # Nothing is stuck in the queue: the checkpoint defers no entries.
+        self.leader_checkpoint(10)
         self.assertEqual(
-            self.get_stat(stat.dsrc.cache_eviction_pages_seen, uri=self.stable_uri(uri)), 0)
+            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 0)
+        self.assert_fully_absent(self.conn, uri)
 
-        self.set_stable_epoch(20)
-        self.assertStatGreaterSoon(
-            stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), timeout=60)
-        self.assertGreater(self.published_count(), 0)
-
-        with wttest.open_cursor(self.session, uri) as cursor:
-            self.assertEqual(sum(1 for _ in cursor), nrows)
-
-    def test_eviction_publishes_every_covered_table(self):
-        """Every table the epoch covers is published, and one published above it is not."""
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        covered = ['layered:' + self.test_name + str(i) for i in range(3)]
-        for uri in covered:
-            self.session.create(uri, 'key_format=S,value_format=S')
-            self.insert(uri, 0, 100, 20)
-            self.publish(uri, 10)
-
-        above = 'layered:' + self.test_name + '_above'
-        self.session.create(above, 'key_format=S,value_format=S')
-        self.publish(above, 20)
-
-        self.set_stable_epoch(10)
-        self.wait_for_published(covered[0], len(covered))
-
-        self.set_stable_epoch(20)
-        self.wait_for_published(above, len(covered) + 1)
-
-    def test_drop_blocked_until_checkpoint(self):
-        """A published table still holds uncheckpointed data, so the drop keeps being refused."""
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.insert(uri, 0, self.nitems, 20)
-        self.publish(uri, 10)
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri, None))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('unpublished data' in msg)
-
-        self.leader_checkpoint(30)
-        self.dropUntilSuccess(self.session, uri)
-
-    def test_verify_after_publish(self):
-        """
-        Verify skips a table awaiting publication. A published one is verified like any other:
-        busy while it holds dirty data, and verified once a checkpoint has run.
-        """
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.insert(uri, 0, self.nitems, 20)
-        self.publish(uri, 10)
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.verify(uri, None))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-
-        self.leader_checkpoint(30)
-        self.session.verify(uri, None)
-        self.check(uri, self.nitems + 100)
-
-    def test_table_above_the_epoch_keeps_waiting(self):
-        """A table published above the stable epoch stays unpublished across checkpoints."""
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.publish(uri, 20)
-
-        # Such a table may only hold data the checkpoint does not consider stable.
-        self.insert(uri, 0, 100, 50)
-
-        self.leader_checkpoint(30)
-        self.assertEqual(self.published_count(), 0)
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri, None))
-        self.check(uri, 100)
-
-    def test_step_up_publishes(self):
-        """
-        A table created on a follower gets its stable constituent at step up, and the queue
-        entry is the only record of the epoch it was published at.
-        """
-        # Reopening in disaggregated mode reports that it removed the local history store.
-        self.ignoreStdoutPattern('wiredtiger_open:.*WT_VERB_METADATA')
-        self.reopen_conn(config=self.conn_config_follower)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
-
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.publish(uri, 10)
-
+        # Role transitions do not resurrect the dropped table.
+        self.step_down()
         self.step_up()
-        self.insert(uri, 0, self.nitems, 20)
-        self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
+        self.assert_fully_absent(self.conn, uri)
 
-        self.leader_checkpoint(30)
-        self.check(uri, self.nitems + 100)
+    def test_drop_unpublished_table_uri(self):
+        """The same through the table URI, which queues two creates for one table."""
+        self.set_stable_epoch(1)
+        name = f'{self.test_name}_table_uri'
+        self.session.create(f'table:{name}', self.table_config + ',type=layered')
+        self.session.drop(f'table:{name}')
 
-    def test_follower_does_not_publish(self):
-        """Only a leader writes pages, so a follower publishes nothing when the epoch advances."""
-        # Reopening in disaggregated mode reports that it removed the local history store.
-        self.ignoreStdoutPattern('wiredtiger_open:.*WT_VERB_METADATA')
-        self.reopen_conn(config=self.conn_config_follower)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
+        self.leader_checkpoint(10)
+        self.assertEqual(
+            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 0)
+        self.assert_fully_absent(self.conn, f'layered:{name}')
 
-        uri = 'layered:' + self.test_name
-        self.session.create(uri, 'key_format=S,value_format=S')
+    def test_recreate_after_publish(self):
+        """A published incarnation's queue entries survive a later unpublished create and drop."""
+        self.set_stable_epoch(1)
+        uri = self.layered_uri('recreated')
+
+        # The first incarnation is published, so its drop must reach shared metadata.
+        self.session.create(uri, self.table_config)
         self.publish(uri, 10)
+        self.session.drop(uri)
 
+        # The second incarnation is never published, so its drop dequeues its create.
+        self.session.create(uri, self.table_config)
+        self.session.drop(uri)
+
+        # The checkpoint covers the published create, and the only entry it defers is the first
+        # incarnation's still-unpublished remove: the second incarnation left nothing behind.
         self.set_stable_epoch(10)
-        self.session.checkpoint()
-        self.assertEqual(self.published_count(), 0)
+        self.leader_checkpoint(10)
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
+        self.assertEqual(
+            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), 1)
+
+        # Publishing that remove lets the next checkpoint apply it, taking the table out of shared
+        # metadata. The deferral counter stops growing because the queue is now empty.
+        deferred = self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable)
+        self.publish(uri, 20)
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(20)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
+        self.assertEqual(
+            self.conn_stat(self.conn, stat.conn.checkpoint_disagg_metadata_unstable), deferred)
+
+    def test_drop_unpublished_on_follower(self):
+        """A follower dequeues too, so its step-up does not rebuild the dropped table."""
+        self.set_stable_epoch(1)
+        self.leader_checkpoint(5)
+        conn_follow, session_follow = self.open_follower_epoch(1)
+
+        uri = self.layered_uri('on_follower')
+        session_follow.create(uri, self.table_config)
+        session_follow.drop(uri)
+
+        self.step_down()
+        self.step_up(conn_follow)
+        self.assert_fully_absent(conn_follow, uri)
+
+        self.close_follower(conn_follow, session_follow)
