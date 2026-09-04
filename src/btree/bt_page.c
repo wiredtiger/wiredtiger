@@ -1244,8 +1244,7 @@ __inmem_deleted_ref_should_dirty_parent(WT_SESSION_IMPL *session)
  */
 static int
 __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, uint32_t hint,
-  void *addr, uint64_t recno, bool internal, bool deleted, bool dirty_parent,
-  WT_PAGE_DELETED *page_del)
+  void *addr, uint64_t recno, bool internal, bool deleted, WT_PAGE_DELETED *page_del)
 {
     __wt_tsan_suppress_store_wt_page_ptr_v(&ref->home, home);
     ref->pindex_hint = hint;
@@ -1267,7 +1266,7 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-        if (dirty_parent) {
+        if (__inmem_deleted_ref_should_dirty_parent(session)) {
             WT_RET(__wt_page_modify_init(session, home));
             __wt_page_only_modify_set(session, home);
         }
@@ -1287,9 +1286,8 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
     WT_PAGE_INDEX *pindex;
     WT_REF **refp, *ref;
     uint32_t hint;
-    bool dirty_parent, first;
+    bool first;
 
-    dirty_parent = __inmem_deleted_ref_should_dirty_parent(session);
     first = true;
 
     /*
@@ -1316,7 +1314,7 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
 
             /* Fill it in. */
             WT_RET(__inmem_col_int_init_ref(
-              session, ref, page, hint++, NULL, page_recno, false, true, dirty_parent, NULL));
+              session, ref, page, hint++, NULL, page_recno, false, true, NULL));
 
             /* Get the next ref. */
             ref = *refp++;
@@ -1324,8 +1322,7 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
         first = false;
 
         WT_RET(__inmem_col_int_init_ref(session, ref, page, hint++, unpack.cell, unpack.v,
-          unpack.type == WT_CELL_ADDR_INT, unpack.type == WT_CELL_ADDR_DEL, dirty_parent,
-          &unpack.page_del));
+          unpack.type == WT_CELL_ADDR_INT, unpack.type == WT_CELL_ADDR_DEL, &unpack.page_del));
     }
     WT_CELL_FOREACH_END;
 
@@ -1436,9 +1433,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_PAGE_INDEX *pindex;
     WT_REF *ref, **refp;
     uint32_t hint;
-    bool dirty_parent, overflow_keys;
-
-    dirty_parent = __inmem_deleted_ref_should_dirty_parent(session);
+    bool overflow_keys;
 
     WT_RET(__wt_scr_alloc(session, 0, &current));
 
@@ -1498,7 +1493,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-            if (dirty_parent) {
+            if (__inmem_deleted_ref_should_dirty_parent(session)) {
                 WT_ERR(__wt_page_modify_init(session, page));
                 __wt_page_only_modify_set(session, page);
             }
