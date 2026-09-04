@@ -1517,14 +1517,49 @@ err:
 }
 
 /*
- * __disagg_mark_btrees_readonly_then_step_down --
- *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
- *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
+ * __disagg_mark_btree_readonly_and_outdated --
+ *     Drain eviction from an open disaggregated btree, make it read-only and mark its dhandle
+ *     outdated. Eviction can then discard dirty pages without reconciliation.
  */
 static int
-__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+__disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
+
+    if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+        return (0);
+
+    btree = (WT_BTREE *)dhandle->handle;
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+        return (0);
+
+    WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
+    WT_RET(ret);
+
+    /* Mark the disaggregated as readonly. */
+    F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
+
+    /*
+     * Mark the handle outdated so that if we step back up as leader in the future, we open a fresh
+     * one rather than reusing this handle's resident pages. Carrying those pages into a new leader
+     * era lets the drain dirty a page that still holds an unresolved on-disk prepared cell before
+     * the drain resolves it, which reconciliation cannot represent (leaked prepared update).
+     */
+    F_SET(dhandle, WT_DHANDLE_OUTDATED);
+
+    WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    return (0);
+}
+
+/*
+ * __disagg_mark_btrees_readonly_and_outdated_then_step_down --
+ *     Mark all disaggregated btrees read-only and outdated, then step down to follower mode. The
+ *     outdated mark makes the next leader open fresh handles instead of reusing them.
+ */
+static int
+__disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *session)
+{
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
@@ -1536,38 +1571,32 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
+        /* Keep the history store available until eviction has drained from all other btrees. */
+        if (WT_IS_HS(dhandle))
+            continue;
+
         /* Clear the mark on tables created during the step-down window. */
         if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
             F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
             continue;
         }
 
-        /* Only care about open disaggregated btree dhandles. */
-        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-            continue;
-
-        btree = (WT_BTREE *)dhandle->handle;
-
-        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
-            continue;
-
-        WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
-        WT_RET(ret);
-
-        /* Mark the disaggregated as readonly. */
-        F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
-
-        /*
-         * Mark the handle outdated so that if we step back up as leader in the future, we open a
-         * fresh one rather than reusing this handle's resident pages. Carrying those pages into a
-         * new leader era lets the drain dirty a page that still holds an unresolved on-disk
-         * prepared cell before the drain resolves it, which reconciliation cannot represent (leaked
-         * prepared update).
-         */
-        F_SET(dhandle, WT_DHANDLE_OUTDATED);
-
-        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+        WT_RET(__disagg_mark_btree_readonly_and_outdated(session, dhandle));
     }
+
+    /*
+     * Find and process the shared history store last. The handle-list read lock protects the
+     * dhandle's lifetime. The schema lock and HS sweep exclusion keep it open, so no explicit
+     * dhandle reference or session-in-use pin is needed.
+     */
+    WT_ASSERT(session, session->dhandle == NULL);
+    ret = __wt_conn_dhandle_find(session, WT_HS_URI_SHARED, NULL);
+    if (ret == 0) {
+        dhandle = session->dhandle;
+        WT_DHANDLE_CLEAR(session);
+        ret = __disagg_mark_btree_readonly_and_outdated(session, dhandle);
+    }
+    WT_RET_NOTFOUND_OK(ret);
 
     /*
      * Step down to the follower mode, ending the role era before publishing the role. The release
@@ -1611,7 +1640,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
      * window.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
+      session, ret = __disagg_mark_btrees_readonly_and_outdated_then_step_down(session));
     WT_ERR(ret);
 
     /*

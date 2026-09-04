@@ -2058,10 +2058,7 @@ methods = {
         name of the transaction for tracing and debugging'''),
     Config('no_timestamp', 'false', r'''
         allow a commit without a timestamp, creating values that have "always existed" and are
-        visible regardless of timestamp. This does not extend to WT_SESSION::truncate: a range
-        deletion replaces the timestamped state of everything it covers, so committing one without
-        a timestamp fails on a table whose keys have already been written with timestamps.
-        See @ref timestamp_txn_api''',
+        visible regardless of timestamp. See @ref timestamp_txn_api''',
         type='boolean'),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
