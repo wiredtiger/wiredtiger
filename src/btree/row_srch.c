@@ -9,6 +9,21 @@
 #include "wt_internal.h"
 
 /*
+ * The binary-search cache-warming pipeline below is built on __builtin_prefetch, which GCC and
+ * Clang support and other compilers, notably MSVC, do not. The two functions the search loops
+ * further down this file call compile to a no-op on an unsupported compiler instead.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+
+/*
+ * Minimum remaining candidates (the binary search loops' "limit") below which warming ahead isn't
+ * worth it: with this few candidates left, the "ahead" slots are too close to the one the loop is
+ * about to examine to matter.
+ */
+#define WT_ROW_SEARCH_WARM_MIN_1_AHEAD 2
+#define WT_ROW_SEARCH_WARM_MIN_2_AHEAD 6
+
+/*
  * __row_search_warm_ref --
  *     Warm the cache line for a WT_REF entry on an internal page.
  */
@@ -71,7 +86,7 @@ static WT_INLINE void
 __row_search_warm_int_candidates(
   WT_PAGE_INDEX *pindex, uint32_t base, uint32_t indx, uint32_t limit)
 {
-    if (limit > 2) {
+    if (limit > WT_ROW_SEARCH_WARM_MIN_1_AHEAD) {
         __row_search_warm_ref(pindex, base + (limit >> 2));
         __row_search_warm_ref(pindex, indx + 1 + ((limit - 1) >> 2));
     }
@@ -86,22 +101,67 @@ __row_search_warm_int_candidates(
 static WT_INLINE void
 __row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, uint32_t limit)
 {
-    if (limit > 6) {
-        uint32_t pf_lq, pf_rb, pf_rh;
+    if (limit > WT_ROW_SEARCH_WARM_MIN_2_AHEAD) {
+        uint32_t indx_left_far, indx_left_near, indx_right_far, indx_right_near;
+        uint32_t quarter, right_base, right_limit;
 
-        pf_lq = limit >> 2;
-        pf_rb = indx + 1;
-        pf_rh = (limit - 1) >> 1;
-        __row_search_warm_row_entry(page, base + (pf_lq >> 1));
-        __row_search_warm_row_entry(page, base + pf_lq + 1 + ((pf_lq - 1) >> 1));
-        __row_search_warm_row_entry(page, pf_rb + (pf_rh >> 2));
-        __row_search_warm_row_entry(page, pf_rb + (pf_rh >> 1) + 1 + ((pf_rh - 1) >> 2));
+        /*
+         * Two iterations ahead, the search will have narrowed to the left half of the current
+         * range or the right half; refine each half the same way this iteration narrowed the
+         * whole range, to get two candidate slots on each side. indx_left_near is an
+         * approximation (off by at most one slot); the other three are exact.
+         */
+        quarter = limit >> 2;
+        right_base = indx + 1;
+        right_limit = (limit - 1) >> 1;
+        indx_left_far = base + (quarter >> 1);
+        indx_left_near = base + quarter + 1 + ((quarter - 1) >> 1);
+        indx_right_near = right_base + (right_limit >> 2);
+        indx_right_far = right_base + (right_limit >> 1) + 1 + ((right_limit - 1) >> 2);
+
+        __row_search_warm_row_entry(page, indx_left_far);
+        __row_search_warm_row_entry(page, indx_left_near);
+        __row_search_warm_row_entry(page, indx_right_near);
+        __row_search_warm_row_entry(page, indx_right_far);
     }
-    if (limit > 2) {
+    if (limit > WT_ROW_SEARCH_WARM_MIN_1_AHEAD) {
         __row_search_warm_key(page, base + (limit >> 2));
         __row_search_warm_key(page, indx + 1 + ((limit - 1) >> 2));
     }
 }
+
+#else /* !(defined(__GNUC__) || defined(__clang__)) */
+
+/*
+ * __row_search_warm_int_candidates --
+ *     No cache-prefetch intrinsic on this compiler; the warm is purely advisory, so skipping it
+ *     costs a few avoidable cache misses, never correctness.
+ */
+static WT_INLINE void
+__row_search_warm_int_candidates(
+  WT_PAGE_INDEX *pindex, uint32_t base, uint32_t indx, uint32_t limit)
+{
+    WT_UNUSED(pindex);
+    WT_UNUSED(base);
+    WT_UNUSED(indx);
+    WT_UNUSED(limit);
+}
+
+/*
+ * __row_search_warm_leaf_candidates --
+ *     No cache-prefetch intrinsic on this compiler; the warm is purely advisory, so skipping it
+ *     costs a few avoidable cache misses, never correctness.
+ */
+static WT_INLINE void
+__row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, uint32_t limit)
+{
+    WT_UNUSED(page);
+    WT_UNUSED(base);
+    WT_UNUSED(indx);
+    WT_UNUSED(limit);
+}
+
+#endif
 
 static WT_INLINE int __validate_next_stack(
   WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
