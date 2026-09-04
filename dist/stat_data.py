@@ -1379,7 +1379,7 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint Cleanup statistics
     ##########################################
-    CheckpointCleanupStat('checkpoint_cleanup_pages_deleted_no_reclaim', 'internal pages with deleted children and nothing reclaimed'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_deleted_not_removed', 'internal pages with deleted children and none removed'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache due to obsolete time window'),
