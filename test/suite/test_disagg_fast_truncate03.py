@@ -86,17 +86,87 @@ class test_disagg_fast_truncate03(test_cc_base):
         ) as stat_cursor:
             return stat_cursor[stat_key][2]
 
-    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30):
-        """Repeat an action until a counter it drives rises above baseline."""
+    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30, guard=None):
+        """
+        Repeat an action until a counter it drives rises above baseline.
+
+        The optional guard is a (key, baseline, message) triple naming a counter that must stay
+        put: when it rises instead, fail immediately with its message rather than waiting out
+        the timeout, so the real cause is reported instead of the missing progress.
+        """
         deadline = time.time() + timeout
         while True:
             action()
             value = self.read_stat(stat_key)
             if value > baseline:
                 return value
+            if guard is not None:
+                guard_key, guard_baseline, guard_msg = guard
+                guard_value = self.read_stat(guard_key)
+                if guard_value > guard_baseline:
+                    self.fail(f"{guard_msg} (rose to {guard_value}, was {guard_baseline})")
             self.assertLess(time.time(), deadline,
                 f"{msg} (still {value} after {timeout} seconds)")
             time.sleep(0.1)
+
+    def assert_cleanup_pass_no_progress(self, step, expected_count, skipped_internal):
+        """Check one cleanup read, clean eviction and no-progress checkpoint cycle."""
+        before = self.snapshot_stats()
+        deadline = time.time() + 30
+        while True:
+            self.wait_for_cc_to_run()
+            after = self.snapshot_stats()
+            if after["internal_read"] - before["internal_read"] >= skipped_internal:
+                break
+            self.assertLess(
+                time.time(),
+                deadline,
+                f"step {step}: cleanup did not read every skipped internal page",
+            )
+
+        self.assertEqual(
+            after["cleanup_removed"],
+            before["cleanup_removed"],
+            f"step {step}: cleanup removed a child before it was globally visible",
+        )
+        self.assertGreaterEqual(
+            after["not_visible_all"] - before["not_visible_all"],
+            skipped_internal,
+            f"step {step}: cleanup did not count every internal page with deleted children and not visible all",
+        )
+
+        before = after
+        self.retry_for_stat_increase(
+            lambda: self.assertEqual(self.scan_table(), expected_count),
+            stat.dsrc.cursor_tree_walk_del_internal_page_skip,
+            before["internal_skip"],
+            f"step {step}: the cleanup-read internal page was not clean-evicted",
+            guard=(
+                stat.dsrc.cache_eviction_blocked_disagg_dirty_internal_page,
+                before["evict_blocked"],
+                f"step {step}: the cleanup-read internal page was dirtied on arrival",
+            ),
+        )
+        after = self.snapshot_stats()
+        self.assertEqual(
+            after["evict_blocked"],
+            before["evict_blocked"],
+            f"step {step}: cleanup left the internal page dirty",
+        )
+        self.assertEqual(
+            after["internal_read"],
+            before["internal_read"],
+            f"step {step}: cursor traversal re-read the clean-evicted internal page",
+        )
+
+        before = after
+        self.session.checkpoint()
+        after = self.snapshot_stats()
+        self.assertEqual(
+            after["delta_build_failed"],
+            before["delta_build_failed"],
+            f"step {step}: cleanup caused a full internal page rewrite",
+        )
 
     def snapshot_stats(self):
         """Snapshot the counters that witness each step of the scenario."""
@@ -110,7 +180,13 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
+            "not_visible_all": self.read_stat(
+                stat.dsrc.checkpoint_cleanup_pages_deleted_not_visible_all
+            ),
             "cleanup_removed": self.read_stat(stat.dsrc.checkpoint_cleanup_pages_removed),
+            "delta_build_failed": self.read_stat(
+                stat.dsrc.rec_page_delta_rejected_build_failed
+            ),
             "block_discard": self.get_stat(stat.conn.disagg_block_page_discard),
         }
 
@@ -253,9 +329,25 @@ class test_disagg_fast_truncate03(test_cc_base):
             "step 5: no deleted internal page was skipped",
         )
 
-        # Step 6 -- make the deletions globally visible and trigger checkpoint cleanup.
+        # Step 6 -- checkpoint cleanup reads the skipped internal page before the
+        # deletions are globally visible. It cannot remove any child, and page-in must
+        # leave the internal page clean rather than scheduling a no-progress
+        # reconciliation.
+        # Cleanup read a materialized image. It may clean-evict the page itself, or a
+        # cursor can traverse the resident page, mark it evict-soon and clean-evict it.
+        # In either case, the cursor eventually skips the on-disk subtree without
+        # hitting the dirty-internal-page guard.
+        self.assert_cleanup_pass_no_progress(6, surviving + 1, skipped_internal)
+
+        # Step 7 -- a second cleanup pass can read the clean-evicted page again, but it
+        # still cannot remove a child and must not restart the dirty/reconcile/write
+        # cycle while global visibility is unchanged.
+        self.assert_cleanup_pass_no_progress(7, surviving + 1, skipped_internal)
+
+        # Step 8 -- make the deletions globally visible and trigger checkpoint cleanup.
         # Its custom walk reads the skipped internal page and marks its obsolete leaf
-        # references deleted, dirtying the internal page for reconciliation.
+        # references deleted. Each visible child immediately dirties its parent for
+        # reconciliation.
         before = self.snapshot_stats()
         ts = self.timestamp_str(self.visible_ts)
         self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
@@ -263,21 +355,25 @@ class test_disagg_fast_truncate03(test_cc_base):
         after = self.snapshot_stats()
         self.assertGreater(
             after["internal_read"], before["internal_read"],
-            "step 6: checkpoint cleanup did not read the skipped internal page",
+            "step 8: checkpoint cleanup did not read the skipped internal page",
         )
         self.assertEqual(
             after["leaf_read"], before["leaf_read"],
-            "step 6: checkpoint cleanup read a fast-deleted leaf page",
+            "step 8: checkpoint cleanup read a fast-deleted leaf page",
         )
         self.assertEqual(
             after["cleanup_removed"] - before["cleanup_removed"], fast_deleted,
-            "step 6: checkpoint cleanup did not process every fast-deleted leaf reference",
+            "step 8: checkpoint cleanup did not process every fast-deleted leaf reference",
+        )
+        self.assertEqual(
+            after["not_visible_all"], before["not_visible_all"],
+            "step 8: cleanup counted a parent even though deleted children were all visible",
         )
 
-        # Step 7 -- checkpoint reconciles the dirty internal page. The deleted leaves
+        # Step 9 -- checkpoint reconciles the dirty internal page. The deleted leaves
         # are discarded and an empty internal page is omitted from its parent.
         #
-        # The counters are measured against the step 6 baseline, taken before the deletions
+        # The counters are measured against the step 8 baseline, taken before the deletions
         # became globally visible: once cleanup has dirtied an internal page, eviction can
         # reconcile it ahead of this checkpoint, so the reclamation is not confined to the
         # checkpoint's own window. Nothing before that baseline can reclaim a deleted leaf,
@@ -288,12 +384,12 @@ class test_disagg_fast_truncate03(test_cc_base):
         # count covers at least the pages the walk skipped.
         self.assertGreaterEqual(
             after["real_deleted"] - before["real_deleted"], skipped_internal,
-            "step 7: a skipped internal page did not reconcile to empty",
+            "step 9: a skipped internal page did not reconcile to empty",
         )
         self.assertGreaterEqual(
             after["block_discard"] - before["block_discard"],
             fast_deleted,
-            "step 7: reconciliation did not discard every fast-deleted leaf page",
+            "step 9: reconciliation did not discard every fast-deleted leaf page",
         )
 
         # Exit -- scans no longer trip the dirty-internal-page eviction guard.

@@ -233,6 +233,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache_walk: Refs skipped during cache traversal",
   "cache_walk: Size of the root page",
   "cache_walk: Total number of pages currently in cache",
+  "checkpoint-cleanup: internal pages whose deleted children were all still visible to some reader",
   "checkpoint-cleanup: pages added for eviction",
   "checkpoint-cleanup: pages dirtied due to obsolete time window",
   "checkpoint-cleanup: pages read into cache (reclaim_space)",
@@ -731,6 +732,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_state_refs_skipped */
     /* not clearing cache_state_root_size */
     /* not clearing cache_state_pages */
+    stats->checkpoint_cleanup_pages_deleted_not_visible_all = 0;
     stats->checkpoint_cleanup_pages_evict = 0;
     stats->checkpoint_cleanup_pages_obsolete_tw = 0;
     stats->checkpoint_cleanup_pages_read_reclaim_space = 0;
@@ -1223,6 +1225,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += from->cache_state_refs_skipped;
     to->cache_state_root_size += from->cache_state_root_size;
     to->cache_state_pages += from->cache_state_pages;
+    to->checkpoint_cleanup_pages_deleted_not_visible_all +=
+      from->checkpoint_cleanup_pages_deleted_not_visible_all;
     to->checkpoint_cleanup_pages_evict += from->checkpoint_cleanup_pages_evict;
     to->checkpoint_cleanup_pages_obsolete_tw += from->checkpoint_cleanup_pages_obsolete_tw;
     to->checkpoint_cleanup_pages_read_reclaim_space +=
@@ -1758,6 +1762,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += WT_STAT_DSRC_READ(from, cache_state_refs_skipped);
     to->cache_state_root_size += WT_STAT_DSRC_READ(from, cache_state_root_size);
     to->cache_state_pages += WT_STAT_DSRC_READ(from, cache_state_pages);
+    to->checkpoint_cleanup_pages_deleted_not_visible_all +=
+      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_deleted_not_visible_all);
     to->checkpoint_cleanup_pages_evict += WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_evict);
     to->checkpoint_cleanup_pages_obsolete_tw +=
       WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_obsolete_tw);
@@ -2505,6 +2511,7 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during read (usecs)",
   "checkpoint-cleanup: checkpoint cleanup thread started",
   "checkpoint-cleanup: checkpoint cleanup thread stopped",
+  "checkpoint-cleanup: internal pages whose deleted children were all still visible to some reader",
   "checkpoint-cleanup: most recent duration on all eligible files (usecs)",
   "checkpoint-cleanup: most recent handles processed",
   "checkpoint-cleanup: most recent in-memory pages visited",
@@ -3640,6 +3647,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_read = 0;
     stats->checkpoint_cleanup_thread_start = 0;
     stats->checkpoint_cleanup_thread_stop = 0;
+    stats->checkpoint_cleanup_pages_deleted_not_visible_all = 0;
     /* not clearing checkpoint_cleanup_duration */
     stats->checkpoint_cleanup_handle_processed = 0;
     stats->checkpoint_cleanup_inmem_pages_visited = 0;
@@ -4868,6 +4876,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
     to->checkpoint_cleanup_thread_start += WT_STAT_CONN_READ(from, checkpoint_cleanup_thread_start);
     to->checkpoint_cleanup_thread_stop += WT_STAT_CONN_READ(from, checkpoint_cleanup_thread_stop);
+    to->checkpoint_cleanup_pages_deleted_not_visible_all +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_deleted_not_visible_all);
     to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
     to->checkpoint_cleanup_handle_processed +=
       WT_STAT_CONN_READ(from, checkpoint_cleanup_handle_processed);

@@ -3008,6 +3008,9 @@ __wt_btcur_skip_page(
      * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
      * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
      * describes the whole subtree, and skipping it skips the subtree.
+     *
+     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
+     * evaluated through its address cell.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
         goto unlock;
