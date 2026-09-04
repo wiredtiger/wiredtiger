@@ -182,17 +182,17 @@ struct __wt_data_handle {
                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
     uint16_t flags;
 
-/*
- * Outdated means the handle's metadata has been superseded. Once set it is never cleared, and
- * readers take it to mean:
- * - don't hand this handle to a new user,
- * - let the current users finish,
- * - never write this handle's content back,
- * - retire the handle promptly.
- *
- * Checkpoint pickup and step-down set it while another thread may concurrently read it, so it must
- * be atomic.
- */
+    /*
+     * Outdated means the handle's metadata has been superseded. Once set it is never cleared, and
+     * readers take it to mean:
+     * - don't hand this handle to a new user,
+     * - let the current users finish,
+     * - never write this handle's content back,
+     * - retire the handle promptly.
+     *
+     * Checkpoint pickup and step-down set it while another thread may concurrently read it, so it
+     * must be atomic.
+     */
     wt_shared bool outdated; /* Handle's metadata has been superseded */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

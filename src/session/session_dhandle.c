@@ -959,9 +959,9 @@ __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
         return;
 
     /*
-     * The dhandle get logic re-enters itself with the schema lock held to open the handle for
-     * real; sleeping there would block the pickup, which also needs the schema lock, defeating
-     * the delay's own purpose.
+     * The dhandle get logic re-enters itself with the schema lock held to open the handle for real;
+     * sleeping there would block the pickup, which also needs the schema lock, defeating the
+     * delay's own purpose.
      */
     if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA))
         return;
