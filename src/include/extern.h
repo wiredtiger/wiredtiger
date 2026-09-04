@@ -2438,7 +2438,7 @@ static WT_INLINE int __wt_txn_search_check(WT_SESSION_IMPL *session)
 static WT_INLINE int __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree,
-  wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts, bool no_ts_ok)
+  wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
