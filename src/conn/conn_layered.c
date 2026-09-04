@@ -1519,7 +1519,8 @@ err:
 /*
  * __disagg_mark_btree_readonly_and_outdated --
  *     Drain eviction from an open disaggregated btree, make it read-only and mark its dhandle
- *     outdated. Eviction can then discard its dirty pages without reconciliation.
+ *     outdated. __wt_btree_is_outdated_disagg recognizes this state so eviction can discard dirty
+ *     pages without reconciliation.
  */
 static int
 __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
@@ -1553,12 +1554,12 @@ __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HAND
 }
 
 /*
- * __disagg_mark_btrees_readonly_then_step_down --
- *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
- *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
+ * __disagg_mark_btrees_readonly_and_outdated_then_step_down --
+ *     Mark all disaggregated btrees read-only and outdated, then step down to follower mode. The
+ *     outdated mark makes the next leader open fresh handles instead of reusing them.
  */
 static int
-__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+__disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -1640,7 +1641,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
      * window.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
+      session, ret = __disagg_mark_btrees_readonly_and_outdated_then_step_down(session));
     WT_ERR(ret);
 
     /*
