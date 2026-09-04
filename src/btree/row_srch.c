@@ -104,19 +104,19 @@ __row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, u
 {
     if (limit > WT_ROW_SEARCH_WARM_MIN_2_AHEAD) {
         uint32_t indx_left_far, indx_left_near, indx_right_far, indx_right_near;
-        uint32_t quarter, right_base, right_limit;
+        uint32_t half, quarter, right_base, right_limit;
 
         /*
          * Two iterations ahead, the search will have narrowed to the left half of the current range
          * or the right half; refine each half the same way this iteration narrowed the whole range,
-         * to get two candidate slots on each side. indx_left_near is an approximation (off by at
-         * most one slot); the other three are exact.
+         * to get two exact candidate slots on each side.
          */
+        half = limit >> 1;
         quarter = limit >> 2;
         right_base = indx + 1;
         right_limit = (limit - 1) >> 1;
         indx_left_far = base + (quarter >> 1);
-        indx_left_near = base + quarter + 1 + ((quarter - 1) >> 1);
+        indx_left_near = base + quarter + 1 + ((half - 1) >> 2);
         indx_right_near = right_base + (right_limit >> 2);
         indx_right_far = right_base + (right_limit >> 1) + 1 + ((right_limit - 1) >> 2);
 
