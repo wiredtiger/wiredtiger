@@ -45,6 +45,13 @@ typedef enum {
 #define WT_CACHE_TOP_NOT_TRACKED WT_CACHE_TOP_SLOTS
 
 /*
+ * How many tables a report names per ranking when the verbose category is on but below DEBUG_2. The
+ * rankings hold far more than an operator watching a log wants to read every time the sweep server
+ * comes around. The full ranking is still there at DEBUG_2 and on request.
+ */
+#define WT_CACHE_TOP_VERBOSE_ENTRIES 5
+
+/*
  * A tree is reconsidered for a ranking once it has grown by threshold / this value since its last
  * check. A smaller divisor means the rankings track growth more closely, but trees touch the shared
  * ranking state more often; a larger divisor means the opposite.
