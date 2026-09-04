@@ -1232,6 +1232,8 @@ __inmem_deleted_ref_should_dirty_parent(WT_SESSION_IMPL *session)
     /*
      * Checkpoint cleanup examines each deleted child after reading a disaggregated page and dirties
      * the parent if any child can be removed. Other trees and readers retain the existing behavior.
+     * FIXME-WT-18564: local block manager trees rely on this dirtying to reclaim the blocks of
+     * deleted children, so the suppression cannot extend to them until that path is covered.
      */
     return (S2BT(session)->modified &&
       (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
