@@ -3799,10 +3799,6 @@ __clayered_modify_try_ingest(
      * A tombstone is a special value in the ingest table, so it cannot be used as a base value for
      * a modify operation. Similarly, a delete-encoded value alters the original value and also
      * cannot serve as the base value for a modify. In these cases, perform a full update instead.
-     *
-     * FIXME-WT-17827: a lookup returns WT_NOTFOUND for a deleted key, so the tombstone case is only
-     * reachable if the modify skips the lookup on an already-positioned cursor. Revisit whether
-     * that can happen.
      */
     if (__wt_clayered_deleted(&c_ingest->value) ||
       __clayered_value_in_tombstone_namespace(&c_ingest->value, false /* decode */)) {
