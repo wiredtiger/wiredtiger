@@ -1580,6 +1580,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __disagg_assert_no_active_writes_callback --
  *     Session array walk callback to assert no active writes.
@@ -1595,6 +1596,7 @@ __disagg_assert_no_active_writes_callback(
       "application write transaction is active during disaggregated step-down");
     return (0);
 }
+#endif
 
 /*
  * __disagg_step_down_int --
@@ -1621,18 +1623,19 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
+#ifdef HAVE_DIAGNOSTIC
     /*
-     * Assert that application write transactions have finished before step-down.
+     * Assert that there are no concurrent or uncommitted write transactions during step-down.
      *
      * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
-     * session open/close to ensure we don't race. Step-down is rare enough, acquiring the lock
-     * shouldn't be an issue.
+     * session open/close to ensure we don't race.
      */
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     __wt_spin_lock(session, &conn->api_lock);
     ret = __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL);
     __wt_spin_unlock(session, &conn->api_lock);
     WT_ERR(ret);
+#endif
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
