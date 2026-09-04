@@ -1823,6 +1823,7 @@ extern void __wt_cache_top_btree_discard(WT_SESSION_IMPL *session, WT_BTREE *btr
 extern void __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree);
 extern void __wt_cache_top_flow_incr(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, size_t size);
+extern void __wt_cache_top_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_cache_top_track(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, uint64_t value);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);

@@ -929,6 +929,9 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.prepare.timer_end, conn->ckpt.prepare.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.prepare, msec);
+
+    /* Publish how much of the cache the largest tables hold. */
+    __wt_cache_top_stats_update(session);
 }
 
 /*

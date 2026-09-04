@@ -2444,6 +2444,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written requiring in-memory restoration due to checkpoint scrub",
   "cache: pages written requiring in-memory restoration due to invisible updates",
   "cache: pages written requiring in-memory restoration due to scrub eviction",
+  "cache: percentage of cache held by the 32 largest tables",
+  "cache: percentage of update bytes held by the 32 largest tables",
   "cache: percentage overhead",
   "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
   "remain in cache",
@@ -3579,6 +3581,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_restore_scrub_checkpoint = 0;
     stats->cache_write_restore_invisible = 0;
     stats->cache_write_restore_scrub = 0;
+    /* not clearing cache_top_inuse_pct */
+    /* not clearing cache_top_updates_pct */
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_precise_checkpoint = 0;
     stats->cache_evict_split_failed_lock = 0;
@@ -4792,6 +4796,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_write_restore_scrub_checkpoint);
     to->cache_write_restore_invisible += WT_STAT_CONN_READ(from, cache_write_restore_invisible);
     to->cache_write_restore_scrub += WT_STAT_CONN_READ(from, cache_write_restore_scrub);
+    to->cache_top_inuse_pct += WT_STAT_CONN_READ(from, cache_top_inuse_pct);
+    to->cache_top_updates_pct += WT_STAT_CONN_READ(from, cache_top_updates_pct);
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
     to->cache_eviction_blocked_precise_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_precise_checkpoint);
