@@ -43,6 +43,7 @@ import time
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
+import wiredtiger
 
 @disagg_test_class
 class test_disagg_bug01(wttest.WiredTigerTestCase):
@@ -63,6 +64,14 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
     def follower_config(self):
         return self.extensionsConfig() + self.conn_base_config + \
             'disaggregated=(role="follower")'
+
+    def get_stat(self, session, stat_key):
+        stat_cursor = session.open_cursor('statistics:' + self.uri)
+        stat_cursor.set_key(stat_key)
+        stat_cursor.search()
+        val = stat_cursor.get_value()[2]
+        stat_cursor.close()
+        return val
 
     def add_data(self, session, value, ts):
         cursor = session.open_cursor(self.uri)
@@ -92,7 +101,7 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
         # empty per-session dhandle cache, so it must resolve the handle through the shared-handle
         # path where the stress point lives.
         warm_cursor = session_follow.open_cursor(self.uri)
-        self.assertEquals(warm_cursor.next(), 0)
+        self.assertEqual(warm_cursor.next(), 0)
         warm_cursor.close()
 
         # Insert v2 at ts 20, sealed into checkpoint N+1 on the leader (but not the follower).
@@ -150,6 +159,13 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
         reader_thread.join(30)
         self.assertFalse(reader_thread.is_alive(),
             'reader thread did not finish within the timeout')
+
+        # Prove the reader actually hit the retry path: without it, a reader that reaches the
+        # sleep too late to race the pickup would resolve checkpoint N+1 directly and the test
+        # would pass without exercising the fix.
+        self.assertGreater(
+            self.get_stat(session_follow, wiredtiger.stat.dsrc.layered_curs_open_stable_ckpt_pickup_race), 0,
+            'reader did not race the checkpoint pickup')
 
         # At read_timestamp 20 the correct value is v2. v1 means the reader bound to checkpoint N
         # after the ingest content covering it had already been pruned.

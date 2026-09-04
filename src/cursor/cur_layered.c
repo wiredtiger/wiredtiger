@@ -782,7 +782,6 @@ __clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_ex
     WT_RET(__wt_scr_alloc(session, 0, &last_ckpt_uri));
 
 retry:
-    /* Clean up for retries. */
     __wt_free(session, checkpoint_name);
     checkpoint_name = NULL;
 
@@ -844,21 +843,20 @@ retry:
     WT_FULL_BARRIER();
     if (__wt_atomic_load_bool_relaxed(
           &((WT_CURSOR_BTREE *)clayered->stable_cursor)->dhandle->outdated)) {
-        WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
+        ret = clayered->stable_cursor->close(clayered->stable_cursor);
         clayered->stable_cursor = NULL;
+        WT_ERR(ret);
 
-        ++checkpoint_pickup_races_count;
+        /* A high count means pickups are landing faster than the bind can complete. */
+        if (++checkpoint_pickup_races_count % 10 == 0)
+            __wt_verbose_warning(session, WT_VERB_LAYERED,
+              "stable checkpoint superseded %" WT_SIZET_FMT " times while binding the cursor",
+              checkpoint_pickup_races_count);
         goto retry;
     }
 
     WT_STAT_CONN_DSRC_INCRV(
       session, layered_curs_open_stable_ckpt_pickup_race, checkpoint_pickup_races_count);
-
-    /* Diagnostic: a high count means pickups are landing faster than the bind can complete. */
-    if (checkpoint_pickup_races_count > 10)
-        __wt_verbose(session, WT_VERB_LAYERED,
-          "stable checkpoint superseded %" WT_SIZET_FMT " times while binding the cursor",
-          checkpoint_pickup_races_count);
 
     /*
      * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a
