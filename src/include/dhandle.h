@@ -63,7 +63,7 @@ struct __wt_dhandle_clear_log {
 /* Check if a handle could be reopened. */
 #define WT_DHANDLE_CAN_REOPEN(dhandle)                                                             \
     (F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN) == WT_DHANDLE_OPEN && \
-      !F_ISSET_ATOMIC_32(dhandle, WT_DHANDLE_OUTDATED))
+      !__wt_atomic_load_bool_relaxed(&(dhandle)->outdated))
 
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
@@ -183,26 +183,17 @@ struct __wt_data_handle {
     uint16_t flags;
 
 /*
- * WT_DHANDLE_OUTDATED means the handle's metadata has been superseded. Once set it is never
- * cleared, and readers take it to mean:
+ * Outdated means the handle's metadata has been superseded. Once set it is never cleared, and
+ * readers take it to mean:
  * - don't hand this handle to a new user,
  * - let the current users finish,
  * - never write this handle's content back,
  * - retire the handle promptly.
  *
- * FIXME-WT-18542: that is what the call sites assume, not a specified invariant, and atomics alone
- * do not establish it. Two gaps:
- * - readers combine the flag with dhandle->session_inuse to conclude "no future user", which is
- *   not what that counter means;
- * - a predicate over this flag and the lock-protected flags is two loads of two words, so holding
- *   the dhandle lock does not make it a snapshot. That is benign only because the flag is set-only
- *   and no writer holds the dhandle lock; clearing it, or publishing it together with an open or
- *   dead transition, would break the readers that assume otherwise.
+ * Checkpoint pickup and step-down set it while another thread may concurrently read it, so it must
+ * be atomic.
  */
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DHANDLE_OUTDATED 0x1u /* Handle is outdated */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    wt_shared uint32_t flags_atomic;
+    wt_shared bool outdated; /* Handle's metadata has been superseded */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_TS_ASSERT_READ_ALWAYS 0x1u /* Assert read always checking. */

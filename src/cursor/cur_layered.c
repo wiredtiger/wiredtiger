@@ -836,16 +836,14 @@ retry:
     WT_ERR(ret);
 
     /*
-     * The pickup sets OUTDATED on superseded checkpoint dhandles, then reads session_inuse to set
+     * The pickup sets outdated on superseded checkpoint dhandles, then reads session_inuse to set
      * the prune timestamp. A cursor first increases session_inuse to acquire the dhandle, then
-     * checks OUTDATED. Both sides store first and then load; the full barrier prevents a store-load
+     * checks outdated. Both sides store first and then load; the full barrier prevents a store-load
      * reordering that would let both miss each other.
-     *
-     * FIXME-WT-18553: We should think whether there is a better solution for this problem.
      */
     WT_FULL_BARRIER();
-    if (F_ISSET_ATOMIC_32(
-          ((WT_CURSOR_BTREE *)clayered->stable_cursor)->dhandle, WT_DHANDLE_OUTDATED)) {
+    if (__wt_atomic_load_bool_relaxed(
+          &((WT_CURSOR_BTREE *)clayered->stable_cursor)->dhandle->outdated)) {
         WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
         clayered->stable_cursor = NULL;
 
