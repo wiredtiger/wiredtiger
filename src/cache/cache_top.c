@@ -466,12 +466,13 @@ __cache_top_entry_cmp(const void *a, const void *b)
  * __cache_top_snapshot --
  *     Copy one ranking's current entries into a caller-supplied array, ready to print once the
  *     array lock is released. Along the way, drop any tracked tree that has fallen below the
- *     threshold, and adjust the threshold so the ranking stays usefully full. A caller that only
- *     wants the totals passes a NULL array, which skips copying names and cannot fail.
+ *     threshold, and adjust the threshold so the ranking stays usefully full. A caller that does
+ *     not need the table names asks for values alone, which allocates nothing and cannot fail.
  */
 static int
 __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
-  WT_CACHE_TOP_REPORT_ENTRY *entries, uint32_t *countp, uint64_t *thresholdp, uint64_t *listedp)
+  WT_CACHE_TOP_REPORT_ENTRY *entries, bool names, uint32_t *countp, uint64_t *thresholdp,
+  uint64_t *listedp)
 {
     WT_CACHE_TOP_ARRAY *array;
     WT_DATA_HANDLE *dhandle;
@@ -510,10 +511,9 @@ __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
         array->slots[i].value = value;
         smallest = WT_MIN(smallest, value);
 
-        if (entries != NULL) {
+        if (names)
             WT_ERR(__wt_strdup(session, dhandle->name, &entries[count].name));
-            entries[count].value = value;
-        }
+        entries[count].value = value;
         listed += value;
         ++count;
     }
@@ -536,13 +536,12 @@ err:
     __wt_spin_unlock(session, &array->lock);
     if (ret != 0) {
         /* This function owns whatever it allocated so far; it failed before telling the caller. */
-        if (entries != NULL)
+        if (names)
             __cache_top_entries_free(session, entries);
         return (ret);
     }
 
-    if (entries != NULL)
-        __wt_qsort(entries, count, sizeof(WT_CACHE_TOP_REPORT_ENTRY), __cache_top_entry_cmp);
+    __wt_qsort(entries, count, sizeof(WT_CACHE_TOP_REPORT_ENTRY), __cache_top_entry_cmp);
 
     *countp = count;
     *listedp = listed;
@@ -587,16 +586,21 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
     uint64_t listed, threshold;
     uint64_t connection_total = 0;
     u_int metric;
-    uint32_t count, i;
+    uint32_t count, i, listing;
     bool has_total;
 
     cache = S2C(session)->cache;
+
+    listing = force || WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CACHE_TOP, WT_VERBOSE_DEBUG_2) ?
+      WT_CACHE_TOP_SLOTS :
+      WT_CACHE_TOP_VERBOSE_ENTRIES;
+
     WT_RET(__wt_calloc_def(session, WT_CACHE_TOP_SLOTS, &entries));
     WT_ERR(__wt_scr_alloc(session, 0, &line));
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
         WT_ERR(__cache_top_snapshot(
-          session, (WT_CACHE_TOP_METRIC)metric, entries, &count, &threshold, &listed));
+          session, (WT_CACHE_TOP_METRIC)metric, entries, true, &count, &threshold, &listed));
 
         /*
          * A level ranking shows its listed tables against a connection-wide total, so a reader can
@@ -631,7 +635,7 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
               metric_desc[metric], count, threshold, listed));
         WT_ERR(__cache_top_emit(session, force, (const char *)line->data));
 
-        for (i = 0; i < count; ++i) {
+        for (i = 0; i < WT_MIN(count, listing); ++i) {
             WT_ERR(__wt_buf_fmt(
               session, line, "    %" PRIu64 "B %s", entries[i].value, entries[i].name));
             WT_ERR(__cache_top_emit(session, force, (const char *)line->data));
@@ -657,27 +661,43 @@ void
 __wt_cache_top_stats_update(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
-    uint64_t listed[WT_CACHE_TOP_METRICS], threshold, total;
-    uint32_t count;
+    WT_CACHE_TOP_REPORT_ENTRY entries[WT_CACHE_TOP_SLOTS];
+    uint64_t largest[WT_CACHE_TOP_METRICS], listed[WT_CACHE_TOP_METRICS], threshold, total;
+    uint32_t count, i;
     u_int metric;
 
     cache = S2C(session)->cache;
 
     /*
-     * Passing no entry array asks for the totals alone, which costs no allocation: this runs under
-     * the checkpoint lock.
+     * Asking for values without names costs no allocation, this runs under the checkpoint lock.
      */
-    for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric)
-        WT_IGNORE_RET(__cache_top_snapshot(
-          session, (WT_CACHE_TOP_METRIC)metric, NULL, &count, &threshold, &listed[metric]));
+    for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
+        WT_CLEAR(entries);
+        WT_IGNORE_RET(__cache_top_snapshot(session, (WT_CACHE_TOP_METRIC)metric, entries, false,
+          &count, &threshold, &listed[metric]));
 
+        /* Entries come back largest first, so the head of the array is the largest few. */
+        largest[metric] = 0;
+        for (i = 0; i < WT_MIN(count, WT_CACHE_TOP_VERBOSE_ENTRIES); ++i)
+            largest[metric] += entries[i].value;
+    }
+
+    /*
+     * The largest few alongside the whole ranking say how concentrated the cache is: two figures
+     * that are similar mean a handful of tables hold it, two far apart mean it is spread across
+     * many.
+     */
     total = __wt_cache_bytes_inuse(cache);
     WT_STAT_CONN_SET(
       session, cache_top_inuse_pct, total == 0 ? 0 : listed[WT_CACHE_TOP_INMEM] * 100 / total);
+    WT_STAT_CONN_SET(
+      session, cache_top5_inuse_pct, total == 0 ? 0 : largest[WT_CACHE_TOP_INMEM] * 100 / total);
 
     total = __wt_cache_bytes_updates(cache);
     WT_STAT_CONN_SET(
       session, cache_top_updates_pct, total == 0 ? 0 : listed[WT_CACHE_TOP_UPDATES] * 100 / total);
+    WT_STAT_CONN_SET(session, cache_top5_updates_pct,
+      total == 0 ? 0 : largest[WT_CACHE_TOP_UPDATES] * 100 / total);
 }
 
 /*

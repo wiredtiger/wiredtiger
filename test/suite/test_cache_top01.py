@@ -756,11 +756,19 @@ class test_cache_top10(wttest.WiredTigerTestCase):
 
         inuse = self.stat('cache_top_inuse_pct')
         updates = self.stat('cache_top_updates_pct')
+        inuse5 = self.stat('cache_top5_inuse_pct')
+        updates5 = self.stat('cache_top5_updates_pct')
 
         # A percentage is a percentage, whatever the workload.
-        for name, pct in [('cache_top_inuse_pct', inuse), ('cache_top_updates_pct', updates)]:
+        for name in ['cache_top_inuse_pct', 'cache_top_updates_pct', 'cache_top5_inuse_pct',
+            'cache_top5_updates_pct']:
+            pct = self.stat(name)
             self.assertGreaterEqual(pct, 0, name)
             self.assertLessEqual(pct, 100, name)
+
+        # The largest few are a subset of the whole ranking, so they can never account for more.
+        self.assertLessEqual(inuse5, inuse)
+        self.assertLessEqual(updates5, updates)
 
         # One table holds the cache here, so the ranked tables have to account for a real share of
         # it. Deliberately a loose bound: how much is resident depends on when eviction last ran.
