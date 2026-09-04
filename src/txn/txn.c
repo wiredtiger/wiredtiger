@@ -1772,10 +1772,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * While the step-down timestamp is set, a committing transaction's layered content must sit
-         * on one side of the boundary: ingest content strictly above the timestamp, stable content
-         * at or below it, and never both constituents from one transaction. Checked per operation
-         * here to fold the boundary check into the pass this loop already makes.
+         * While the step-down timestamp is set, a committing transaction's ingest content must sit
+         * strictly above the boundary. Checked per operation here to fold the boundary check into
+         * the pass this loop already makes.
+         *
+         * Record whether stable and ingest constituents were written above the step-down timestamp;
+         * after the loop, we check that if stable was written to, ingest was also written to, which
+         * is a weaker version of the invariant that stable content above the timestamp must be
+         * mirrored to ingest.
          */
         if (step_down_ts != WT_TS_NONE && !prepare && op->type != WT_TXN_OP_NONE &&
           op->btree != NULL) {
@@ -1784,15 +1788,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
                     WT_ASSERT_ALWAYS(session, txn->first_commit_timestamp > step_down_ts,
                       "ingest content committing at or below the step-down timestamp");
-            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name) &&
+              F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+              txn->time_point.commit_timestamp > step_down_ts)
                 wrote_stable = true;
-                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
-                    WT_ASSERT_ALWAYS(session, txn->time_point.commit_timestamp <= step_down_ts,
-                      "stable content committing above the step-down timestamp");
-            }
-            WT_ASSERT_ALWAYS(session, !(wrote_ingest && wrote_stable),
-              "transaction committing while the step-down timestamp is set wrote both layered "
-              "constituents");
         }
 #endif
         switch (op->type) {
@@ -1899,6 +1898,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, txn->prepare_count == prepare_count);
     txn->prepare_count = 0;
+
+    /*
+     * While the step-down timestamp is set, a committing transaction that wrote a stable
+     * constituent above the boundary must also have written an ingest constituent.
+     */
+    WT_ASSERT(session, step_down_ts == WT_TS_NONE || prepare || !wrote_stable || wrote_ingest);
 #endif
 
     /* Add a 2 second wait to simulate commit transaction slowness. */
