@@ -367,7 +367,7 @@ class test_disagg_fast_truncate03(test_cc_base):
         )
         self.assertEqual(
             after["not_visible_all"], before["not_visible_all"],
-            "step 8: cleanup counted a parent even though deleted children were visible all",
+            "step 8: cleanup counted a parent even though deleted children were all visible",
         )
 
         # Step 9 -- checkpoint reconciles the dirty internal page. The deleted leaves

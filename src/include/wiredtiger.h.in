@@ -7636,8 +7636,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint-cleanup: checkpoint cleanup thread stopped */
 #define	WT_STAT_CONN_CHECKPOINT_CLEANUP_THREAD_STOP	1408
 /*!
- * checkpoint-cleanup: internal pages with deleted children and not
- * visible all
+ * checkpoint-cleanup: internal pages whose deleted children were all
+ * still visible to some reader
  */
 #define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL	1409
 /*! checkpoint-cleanup: most recent duration on all eligible files (usecs) */
@@ -10039,8 +10039,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_CACHE_STATE_PAGES			2210
 /*!
- * checkpoint-cleanup: internal pages with deleted children and not
- * visible all
+ * checkpoint-cleanup: internal pages whose deleted children were all
+ * still visible to some reader
  */
 #define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL	2211
 /*! checkpoint-cleanup: pages added for eviction */
