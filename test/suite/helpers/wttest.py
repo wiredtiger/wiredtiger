@@ -1224,6 +1224,10 @@ def runsuite(suite, parallel):
         warnings.filterwarnings(
             "ignore", category=RuntimeWarning,
             message="line buffering .* isn't supported in binary mode")
+        # Python 3.12+ reports test timing to the result; the one used in the forked children lacks that method.
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning,
+            message="TestResult has no addDuration method")
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel), wrap_result=wrap_result_for_tags)
     try:
         if WiredTigerTestCase._randomseed:

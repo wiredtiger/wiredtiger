@@ -775,12 +775,16 @@ __clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_ex
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     WT_SESSION_IMPL *session = CUR2S(clayered);
+    size_t checkpoint_pickup_races_count = 0;
     const char *checkpoint_name = NULL;
     const char *stable_uri = layered->stable_uri;
 
     WT_RET(__wt_scr_alloc(session, 0, &last_ckpt_uri));
 
 retry:
+    __wt_free(session, checkpoint_name);
+    checkpoint_name = NULL;
+
     /*
      * A pickup merges the per-table checkpoint metadata before it publishes the new LSN, so a bind
      * racing the merge could resolve the new checkpoint's name while the published LSN still admits
@@ -825,11 +829,34 @@ retry:
     ret = __clayered_open_stable_int(clayered, (const char *)last_ckpt_uri->data);
     if (ret == EBUSY) {
         /* Retry to ensure we open the same checkpoint for the HS and the stable table. */
-        __wt_free(session, checkpoint_name);
         goto retry;
     }
 
     WT_ERR(ret);
+
+    /*
+     * The pickup sets outdated on superseded checkpoint dhandles, then reads session_inuse to set
+     * the prune timestamp. A cursor first increases session_inuse to acquire the dhandle, then
+     * checks outdated. Both sides store first and then load; the full barrier prevents a store-load
+     * reordering that would let both miss each other.
+     */
+    WT_FULL_BARRIER();
+    if (__wt_atomic_load_bool_relaxed(
+          &((WT_CURSOR_BTREE *)clayered->stable_cursor)->dhandle->outdated)) {
+        ret = clayered->stable_cursor->close(clayered->stable_cursor);
+        clayered->stable_cursor = NULL;
+        WT_ERR(ret);
+
+        /* A high count means pickups are landing faster than the bind can complete. */
+        if (++checkpoint_pickup_races_count % 10 == 0)
+            __wt_verbose_warning(session, WT_VERB_LAYERED,
+              "stable checkpoint superseded %" WT_SIZET_FMT " times while binding the cursor",
+              checkpoint_pickup_races_count);
+        goto retry;
+    }
+
+    WT_STAT_CONN_DSRC_INCRV(
+      session, layered_curs_open_stable_ckpt_pickup_race, checkpoint_pickup_races_count);
 
     /*
      * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a
@@ -1179,23 +1206,22 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 static bool
 __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-
-    /* Only a leader-mode open of a live constituent can miss, and only on a missing file. */
-    if (role != WTI_CLAYERED_ROLE_LEADER || (ret != ENOENT && ret != WT_NOTFOUND))
+    /* Only a missing constituent can be ignored. */
+    if (ret != ENOENT && ret != WT_NOTFOUND)
         return (false);
 
     /*
-     * The resolved role is stale if the step-down timestamp is set or the role already changed.
-     * Step-down changes both values while holding the schema lock, and the failed open that led
-     * here acquired that lock, so relaxed loads see current values.
+     * A leader-mode open misses legitimately only when a step-down ran in between: the failed open
+     * acquired the schema lock, so the follower role is published by now. A table created inside
+     * the step-down window is marked at handle open and never attempts this open, so any other miss
+     * is a genuinely missing constituent and must be reported.
      *
      * FIXME-WT-18359: Investigate whether this guard is reachable now that
      * WT_LAYERED_TABLE_STEP_DOWN_CREATED skips opening the stable constituent for tables created
      * during the step-down window.
      */
-    return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
-      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
+    return (role == WTI_CLAYERED_ROLE_LEADER &&
+      !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 }
 
 /*
@@ -2417,13 +2443,22 @@ err:
 /*
  * __clayered_lookup_lazy_stable_open --
  *     Open the stable constituent an operation deferred at enter time, and hand it to the
- *     operation. The operation stays without a stable cursor if the follower has no checkpoint.
+ *     operation. The operation stays without a stable cursor if the follower has no checkpoint or
+ *     the table was created inside the step-down window.
  */
 static int
 __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
+
+    /*
+     * A leader's table created inside the step-down window deferred the open because it has no
+     * stable constituent at all, not because it is waiting on a checkpoint: opening as a follower
+     * would refuse the bind against the leader-era snapshot.
+     */
+    if (F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED))
+        return (0);
 
     WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
       __wt_atomic_load_uint64_acquire(
@@ -3823,6 +3858,8 @@ __clayered_modify_try_ingest(
     if (ret == WT_NOTFOUND) {
         if (op->stable == NULL)
             WT_RET(__clayered_lookup_lazy_stable_open(op));
+        WT_ASSERT_ALWAYS(session, op->stable != NULL,
+          "ingest modify evicted the key, but there is no stable constituent to hold it");
         WT_RET_NOTFOUND_OK(ret = __clayered_lookup_constituent(op, op->stable, value));
         WT_ASSERT_ALWAYS(
           session, ret != WT_NOTFOUND, "ingest modify evicted the key, now it should be in stable");

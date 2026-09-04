@@ -359,6 +359,8 @@ CONFIG configuration_list[] = {
 
 {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0}
 
+{"stress.disagg_stable_dhandle_delay", "stress disagg stable dhandle delay", C_BOOL, 2, 0, 0}
+
 {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
 
 {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0}
