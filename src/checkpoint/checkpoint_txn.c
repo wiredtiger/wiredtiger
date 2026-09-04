@@ -418,17 +418,17 @@ __checkpoint_disagg_verify_create_epoch(
     WT_DECL_ITEM(table_name);
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *latest;
-    const char *name;
+    const char *name, *suffix;
 
     conn = S2C(session);
 
     name = stable_uri;
-    if (!WT_PREFIX_SKIP(name, "file:") || !WT_SUFFIX_MATCH(name, ".wt_stable"))
+    if (!WT_PREFIX_SKIP(name, "file:") || !WT_URI_IS_STABLE(name))
         return (0);
 
+    suffix = strstr(name, ".wt_stable");
     WT_RET(__wt_scr_alloc(session, 0, &table_name));
-    WT_ERR(
-      __wt_buf_fmt(session, table_name, "%.*s", (int)(strlen(name) - strlen(".wt_stable")), name));
+    WT_ERR(__wt_buf_fmt(session, table_name, "%.*s", (int)(suffix - name), name));
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     latest = __wt_disagg_table_latest_create_remove(session, table_name->data);
