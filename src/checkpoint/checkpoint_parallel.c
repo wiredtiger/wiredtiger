@@ -33,8 +33,7 @@ __checkpoint_parallel_free(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECON
  *     Push a work unit to the queue.
  */
 int
-__wt_checkpoint_parallel_push_work(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
+__wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
 {
     WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -50,7 +49,6 @@ __wt_checkpoint_parallel_push_work(
     entry->snapshot = &ckpt_threads->checkpoint_snapshot;
     entry->ref = ref;
     entry->reconcile_flags = reconcile_flags;
-    entry->release_flags = release_flags;
 
     __wt_spin_lock(session, &ckpt_threads->work_lock);
     TAILQ_INSERT_TAIL(&ckpt_threads->work_qh, entry, q);
@@ -181,6 +179,36 @@ __checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
 }
 
 /*
+ * __checkpoint_parallel_reconcile --
+ *     Reconcile a queued page, holding a hazard pointer across the write.
+ */
+static int
+__checkpoint_parallel_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
+{
+    WT_DECL_RET;
+    bool busy;
+
+    /*
+     * Eviction leaves the page alone while it is dirty and the tree is syncing, but reconciliation
+     * marks it clean before it is finished, so from that point only a hazard pointer stops eviction
+     * discarding a page still being written. Taking it here rather than where the page was queued
+     * also leaves one hazard pointer per worker instead of one for every page in the queue. A
+     * locked reference is eviction, which is about to fail its own hazard pointer check.
+     */
+    for (;;) {
+        WT_RET(__wt_hazard_set(session, ref, &busy));
+        if (!busy)
+            break;
+        __wt_yield();
+    }
+
+    ret = __wt_reconcile(session, ref, NULL, reconcile_flags, NULL);
+
+    WT_TRET(__wt_hazard_clear(session, ref));
+    return (ret);
+}
+
+/*
  * __checkpoint_parallel_thread_run --
  *     Entry function for a checkpoint page reconciliation thread. This is called repeatedly from
  *     the thread group code, with that in mind the internal loop may seem redundant but working on
@@ -233,7 +261,7 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         time_rec_start = __wt_clock(session);
         WT_WITH_DHANDLE(session, entry->dhandle,
-          ret = __wt_reconcile(session, entry->ref, NULL, reconcile_flags, NULL));
+          ret = __checkpoint_parallel_reconcile(session, entry->ref, reconcile_flags));
 
         /* Update the reconciliation time and the statistics. */
         entry->reconcile_time = __wt_clock(session) - time_rec_start;
@@ -398,6 +426,21 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_checkpoint_parallel_idle --
+ *     Check whether any reconciliation the checkpoint queued is still outstanding.
+ */
+bool
+__wt_checkpoint_parallel_idle(WT_SESSION_IMPL *session)
+{
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return (true);
+
+    /* A drain resets the count, so a non-zero value is work pushed and not yet waited for. */
+    return (
+      __wt_atomic_load_uint64_acquire(&S2C(session)->ckpt_reconcile_threads->work_pushed) == 0);
+}
+
+/*
  * __wt_checkpoint_parallel_finish --
  *     Wait for the checkpoint page reconciliation workers to finish and release the acquired
  *     resources.
@@ -434,7 +477,6 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_ti
         done_popped++;
 
         WT_TRET(entry->result);
-        WT_TRET(__wt_page_release(session, entry->ref, entry->release_flags));
         reconcile_time += entry->reconcile_time;
         __checkpoint_parallel_free(session, entry);
     }
