@@ -3437,18 +3437,31 @@ __clayered_remove(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__clayered_remove_int(&op, &cursor->key, positioned));
+    ret = __clayered_remove_int(&op, &cursor->key, positioned);
 
-    /*
-     * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
-     * no position, key or value. This isn't just cosmetic, without a reset, iteration on this
-     * cursor won't start at the beginning/end of the table.
-     */
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if (positioned)
-        F_SET(cursor, WT_CURSTD_KEY_INT);
-    else
+    if (ret == 0) {
+        /*
+         * If the cursor was positioned, it stays positioned with a key but no value, otherwise,
+         * there's no position, key or value. This isn't just cosmetic, without a reset, iteration
+         * on this cursor won't start at the beginning/end of the table.
+         */
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        if (positioned)
+            F_SET(cursor, WT_CURSTD_KEY_INT);
+        else
+            WT_TRET(__clayered_reset_cursors(clayered, false));
+    } else {
+        /*
+         * A failed remove loses the position but keeps an application key, as a file cursor does,
+         * so a following traversal starts from the beginning/end of the table. A positioned
+         * cursor's key was localized above only for the remove and goes with the position.
+         */
+        if (positioned)
+            F_CLR(cursor, WT_CURSTD_KEY_SET);
+        F_CLR(cursor, WT_CURSTD_VALUE_SET);
         WT_TRET(__clayered_reset_cursors(clayered, false));
+    }
+    WT_ERR(ret);
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
 
 err:
@@ -3821,10 +3834,6 @@ __clayered_modify_try_ingest(
      * A tombstone is a special value in the ingest table, so it cannot be used as a base value for
      * a modify operation. Similarly, a delete-encoded value alters the original value and also
      * cannot serve as the base value for a modify. In these cases, perform a full update instead.
-     *
-     * FIXME-WT-17827: a lookup returns WT_NOTFOUND for a deleted key, so the tombstone case is only
-     * reachable if the modify skips the lookup on an already-positioned cursor. Revisit whether
-     * that can happen.
      */
     if (__wt_clayered_deleted(&c_ingest->value) ||
       __clayered_value_in_tombstone_namespace(&c_ingest->value, false /* decode */)) {
