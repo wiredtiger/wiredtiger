@@ -341,6 +341,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
+    wt_timestamp_t create_epoch;
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
@@ -438,9 +439,13 @@ retry:
         if (btree->evict_disabled > 0) {
             /*
              * A disaggregated btree is held out of eviction until it is published, so try
-             * publishing it below instead of skipping it here.
+             * publishing it below instead of skipping it here. Deciding costs a few reads and no
+             * lock, which keeps the walk clear of the trees that cannot be published yet.
              */
+            create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
             try_publish = F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+              create_epoch != WT_SCHEMA_EPOCH_NONE &&
+              create_epoch <= __wt_get_stable_disaggregated_schema_epoch(session) &&
               __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
             if (!try_publish) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
