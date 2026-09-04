@@ -249,9 +249,6 @@ __drop_layered(
               uri);
     }
 
-    __wti_debug_crash_if_flag_set(
-      session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_TRIM, "after issuing trim", uri);
-
     /*
      * Drop the layered table constituents. The stable table may not exist locally: a follower never
      * creates one, and neither does a leader for a table created after the step-down timestamp was

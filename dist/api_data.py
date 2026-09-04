@@ -698,11 +698,7 @@ connection_runtime_config = [
             Config('after_drop_file', 'false', r'''
                 if true, force crash in table drop after dropping the colgroup metadata entry. This
                 is intended for testing purposes only.''',
-                type='boolean'),
-            Config('after_drop_trim', 'false', r'''
-                if true, force crash in a layered-table drop after issuing the trim but before
-                dropping the constituents. This is intended for testing purposes only.''',
-                type='boolean', undoc=True)
+                type='boolean')
             ]),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',

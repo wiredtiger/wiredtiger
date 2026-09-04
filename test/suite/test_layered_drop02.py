@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # Dropping a layered table must tolerate its stable data having already been
-# reclaimed by the page server.
+# reclaimed by the page server. [WT-18101, fixed by WT-17996]
 #
 # Trimming a layered table's stable pages before the drop becomes durable is by
 # design: it prevents leaking the table's data if the leader crashes after the
@@ -36,25 +36,23 @@
 # reissues drop(), so drop must handle pages the page server has already
 # discarded rather than aborting on the missing root-page read.
 #
-# The debug failpoint aborts the process after the trim is sent but before the
-# constituents are dropped; the pages are then reclaimed in palite and the
-# crashed home reopened to replay the drop.
-#
-# Palite's trim_table is a no-op, so the test stands in for a page server that
-# has already reclaimed the pages by deleting the stable constituent's rows from
-# palite's pages table. The pre-fix abort takes down the process, so the crash
-# and the replay run in nested subprocesses and the parent asserts a clean exit.
+# The first drop completes (trim is a no-op in palite); closing the connection
+# without a final checkpoint rolls the local drop back, so the table is restored
+# from the shared checkpoint on reopen. Palite's trim_table is a no-op, so this
+# test stands in for a page server that has already reclaimed the pages: it
+# deletes the stable constituent's rows from palite's pages table while the
+# connection is closed, then reopens and replays drop(). Pre-fix the replayed
+# drop aborts on the missing root page; the fix makes it tolerate it.
 
-import os, re, signal
+import re
 import wttest
 from helper_disagg import (
     disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin, DisaggCorruptionMixin)
-from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_drop02(
-  wttest.WiredTigerTestCase, suite_subprocess, DisaggSchemaEpochMixin, DisaggCorruptionMixin):
+  wttest.WiredTigerTestCase, DisaggSchemaEpochMixin, DisaggCorruptionMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
@@ -78,8 +76,9 @@ class test_layered_drop02(
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.create(self.uri, self.table_config)
+
         self.set_stable_epoch(1)
+        self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 2)
         self.set_stable_epoch(2)
         cursor = self.session.open_cursor(self.uri)
@@ -96,37 +95,22 @@ class test_layered_drop02(
         self.open_conn(home)
         self.session.drop(self.uri)
 
-    def subprocess_crash_after_trim(self):
-        """Set up the table, then crash mid-drop at the crash point (after the trim is sent)."""
-        self.setup_table_and_checkpoint()
-        self.conn.reconfigure('debug_mode=(crash_point=(after_drop_trim=true))')
+    def test_replayed_drop_after_close_conn(self):
+        """Replay a drop on a table whose stable pages were reclaimed; it must not abort."""
+        btree_id = self.setup_table_and_checkpoint()
+
+        # The first drop completes (trim is a no-op in palite). Closing without a final checkpoint
+        # rolls the local drop back, so on reopen the table is restored from the shared checkpoint.
         self.session.drop(self.uri)
-
-    def subprocess_replay_drop(self):
-        """Reclaim the crashed table's pages and replay the drop; the drop must not abort."""
-        # Phase 1: spawn a nested subprocess that sets up the table and crashes mid-drop at the
-        # crash point, after the trim is sent.
-        [returncode, home] = self.run_subprocess_function('SUBPROCESS_crash_after_trim',
-            f'{self.test_name}.{self.test_name}.subprocess_crash_after_trim', silent=True)
-        self.assert_crashed(returncode, signal.SIGABRT)
-
-        # Phase 2: reopen the crashed home to read the stable btree id from the restored local
-        # metadata, close it without checkpointing, reclaim the pages, then reopen and replay.
         self.close_conn('debug=(skip_checkpoint=true)')
-        self.ignoreStdoutPattern('WT_VERB_METADATA')
-        self.open_conn(home)
-        btree_id = self.stable_btree_id()
-        self.close_conn('debug=(skip_checkpoint=true)')
-        self.delete_all_table_pages(btree_id, home=home)
-        self.replay_drop(home)
-        os._exit(0)
 
-    def test_replayed_drop_after_post_trim_crash(self):
-        """Replay the drop on reclaimed pages; assert the replay subprocess exits cleanly."""
-        # Advance the parent past the subprocess's epochs so the fixture can close cleanly.
-        self.set_stable_epoch(10)
-        self.leader_checkpoint(1)
-        [returncode, _] = self.run_subprocess_function('SUBPROCESS_replay_drop',
-            f'{self.test_name}.{self.test_name}.subprocess_replay_drop', silent=True)
-        self.assertEqual(returncode, 0,
-            'replayed drop() aborted when the stable data was already discarded')
+        # Stand in for a page server that has already reclaimed the table's pages.
+        self.delete_all_table_pages(btree_id)
+
+        # Reopen and replay the drop; it must tolerate the reclaimed root page rather than abort.
+        self.replay_drop()
+
+        # The closing checkpoint is precise and so needs a stable timestamp newer than the last
+        # checkpoint's; the reopened connection has none set. Set one.
+        self.conn.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(3) + ',oldest_timestamp=' + self.timestamp_str(1))

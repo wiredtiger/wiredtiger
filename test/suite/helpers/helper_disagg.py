@@ -759,6 +759,8 @@ class DisaggCorruptionMixin:
         """Delete every page image for a table from the palite pages table,
         standing in for a page server that has already reclaimed the table's
         data."""
+        # FIXME-WT-18561: do this within Palite (a real trim/delete debug hook) instead of editing
+        # its SQLite pages table directly.
         self.close_conn()
         self._palite_mutate(table_id, f'DELETE FROM pages WHERE table_id={table_id};\n',
             home=home)
