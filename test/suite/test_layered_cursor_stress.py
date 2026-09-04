@@ -83,7 +83,7 @@ def write_allowed(txn):
 
 # The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
 # WORKLOAD_PROFILES and are what the suite actually runs.
-# FIXME-WT-XXXX: there is no modify op; add one, including modify on a just-removed slot.
+# FIXME-WT-18563: there is no modify op; add one, including modify on a just-removed slot.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
 @dataclass(frozen=True)
@@ -114,7 +114,7 @@ class RemoveKeyWeights:
 @dataclass(frozen=True)
 class BulkRemoveWeights:
     # scen_bulk_remove deletes a contiguous 40/80/100% range either by per-key remove or range truncate.
-    # FIXME-WT-XXXX: truncate over-truncates on the follower layered table -- a key re-inserted inside a
+    # FIXME-WT-17841: truncate over-truncates on the follower layered table -- a key re-inserted inside a
     # prior truncate range is lost once it drains to stable. Disabled (weight 0) until fixed; raise it then.
     remove: float = 100
     truncate: float = 0
