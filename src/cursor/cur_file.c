@@ -816,8 +816,8 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
      * Warm the dhandle's rwlock and btree handle: the reopen below is about to lock the former and
      * dereference the latter, and both are commonly cold after a cursor has sat in the cache.
      */
-    __builtin_prefetch(&dhandle->rwlock, 1, 3);
-    __builtin_prefetch(dhandle->handle, 0, 3);
+    __builtin_prefetch(&dhandle->rwlock, WT_WARM_WRITE, WT_WARM_LOCALITY_HIGH);
+    __builtin_prefetch(dhandle->handle, WT_WARM_READ, WT_WARM_LOCALITY_HIGH);
 
     /*
      * Temporarily set the session's data handle to the data handle in the cursor. Reopen may be
