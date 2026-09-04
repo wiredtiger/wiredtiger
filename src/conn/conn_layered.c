@@ -150,6 +150,17 @@ __layered_create_missing_stable_table(
 }
 
 /*
+ * __disagg_btree_store_create_epoch --
+ *     Record the epoch on the handle the caller just found, if it is open.
+ */
+static void
+__disagg_btree_store_create_epoch(WT_SESSION_IMPL *session, wt_timestamp_t schema_epoch)
+{
+    if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
+        __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch);
+}
+
+/*
  * __disagg_btree_stamp_create_epoch --
  *     Record a table's published create epoch on its stable btree, so the checkpoint publish check
  *     reads a field instead of scanning the queue. Only an open handle is stamped: elsewhere the
@@ -163,9 +174,8 @@ __disagg_btree_stamp_create_epoch(
 
     WT_SAVE_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(session,
-        if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0 &&
-          F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
-          __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch)));
+        if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0)
+          __disagg_btree_store_create_epoch(session, schema_epoch)));
 }
 
 /*
