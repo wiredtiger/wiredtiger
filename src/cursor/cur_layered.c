@@ -775,12 +775,16 @@ __clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_ex
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     WT_SESSION_IMPL *session = CUR2S(clayered);
+    size_t checkpoint_pickup_races_count = 0;
     const char *checkpoint_name = NULL;
     const char *stable_uri = layered->stable_uri;
 
     WT_RET(__wt_scr_alloc(session, 0, &last_ckpt_uri));
 
 retry:
+    __wt_free(session, checkpoint_name);
+    checkpoint_name = NULL;
+
     /*
      * A pickup merges the per-table checkpoint metadata before it publishes the new LSN, so a bind
      * racing the merge could resolve the new checkpoint's name while the published LSN still admits
@@ -825,11 +829,34 @@ retry:
     ret = __clayered_open_stable_int(clayered, (const char *)last_ckpt_uri->data);
     if (ret == EBUSY) {
         /* Retry to ensure we open the same checkpoint for the HS and the stable table. */
-        __wt_free(session, checkpoint_name);
         goto retry;
     }
 
     WT_ERR(ret);
+
+    /*
+     * The pickup sets outdated on superseded checkpoint dhandles, then reads session_inuse to set
+     * the prune timestamp. A cursor first increases session_inuse to acquire the dhandle, then
+     * checks outdated. Both sides store first and then load; the full barrier prevents a store-load
+     * reordering that would let both miss each other.
+     */
+    WT_FULL_BARRIER();
+    if (__wt_atomic_load_bool_relaxed(
+          &((WT_CURSOR_BTREE *)clayered->stable_cursor)->dhandle->outdated)) {
+        ret = clayered->stable_cursor->close(clayered->stable_cursor);
+        clayered->stable_cursor = NULL;
+        WT_ERR(ret);
+
+        /* A high count means pickups are landing faster than the bind can complete. */
+        if (++checkpoint_pickup_races_count % 10 == 0)
+            __wt_verbose_warning(session, WT_VERB_LAYERED,
+              "stable checkpoint superseded %" WT_SIZET_FMT " times while binding the cursor",
+              checkpoint_pickup_races_count);
+        goto retry;
+    }
+
+    WT_STAT_CONN_DSRC_INCRV(
+      session, layered_curs_open_stable_ckpt_pickup_race, checkpoint_pickup_races_count);
 
     /*
      * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a

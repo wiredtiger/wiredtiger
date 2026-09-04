@@ -550,7 +550,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
           !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
             return (0);
         /* Skip checkpointing outdated trees. */
-        if (F_ISSET(btree->dhandle, WT_DHANDLE_OUTDATED))
+        if (__wt_atomic_load_bool_relaxed(&btree->dhandle->outdated))
             return (0);
     }
 

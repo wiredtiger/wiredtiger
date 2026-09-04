@@ -45,7 +45,7 @@ __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 {
     return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
       F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
-      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+      __wt_atomic_load_bool_relaxed(&session->dhandle->outdated));
 }
 
 /*
