@@ -282,7 +282,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
     if (F_ISSET(session, WT_SESSION_SCHEMA_TXN)) {
         F_CLR(session, WT_SESSION_SCHEMA_TXN);
 #ifdef WT_ENABLE_SCHEMA_TXN
-        WT_ERR(__wt_txn_commit(session, NULL));
+        WT_ERR(__wt_txn_commit(session, NULL, WT_TS_NONE));
         __wt_errx(session, "TRACK: Commit internal schema txn");
 #endif
     }
@@ -349,7 +349,7 @@ err:
         WT_ASSERT(session, unroll || saved_ret != 0 || session->txn->mod_count == 0);
 #ifdef WT_ENABLE_SCHEMA_TXN
         __wt_err(session, saved_ret, "TRACK: Abort internal schema txn");
-        WT_TRET(__wt_txn_rollback(session, NULL, false));
+        WT_TRET(__wt_txn_rollback(session, NULL, false, WT_TS_NONE));
 #endif
     }
 

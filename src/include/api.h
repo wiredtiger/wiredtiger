@@ -147,35 +147,35 @@
             F_SET((s)->txn, WT_TXN_UPDATE);
 
 /* End a transactional API call, optional retry on rollback. */
-#define TXN_API_END(s, ret, retry)                                  \
-    API_END(s, ret);                                                \
-    if (__update)                                                   \
-        F_CLR((s)->txn, WT_TXN_UPDATE);                             \
-    if (__autotxn) {                                                \
-        if (F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT)) {                 \
-            F_CLR((s)->txn, WT_TXN_AUTOCOMMIT);                     \
-            if ((retry) && (ret) == WT_ROLLBACK) {                  \
-                (ret) = 0;                                          \
-                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \
-                continue;                                           \
-            }                                                       \
-        } else if ((ret) == 0)                                      \
-            (ret) = __wt_txn_commit((s), NULL);                     \
-        else {                                                      \
-            if (retry)                                              \
-                WT_TRET(__wt_session_copy_values(s));               \
-            WT_TRET(__wt_txn_rollback((s), NULL, false));           \
-            if ((retry) && (ret) == WT_ROLLBACK) {                  \
-                (ret) = 0;                                          \
-                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \
-                continue;                                           \
-            }                                                       \
-            WT_TRET(__wt_session_reset_cursors(s, false));          \
-        }                                                           \
-    }                                                               \
-    break;                                                          \
-    }                                                               \
-    /* !!!! This is a while(1) loop. !!!! */                        \
+#define TXN_API_END(s, ret, retry)                                    \
+    API_END(s, ret);                                                  \
+    if (__update)                                                     \
+        F_CLR((s)->txn, WT_TXN_UPDATE);                               \
+    if (__autotxn) {                                                  \
+        if (F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT)) {                   \
+            F_CLR((s)->txn, WT_TXN_AUTOCOMMIT);                       \
+            if ((retry) && (ret) == WT_ROLLBACK) {                    \
+                (ret) = 0;                                            \
+                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry);   \
+                continue;                                             \
+            }                                                         \
+        } else if ((ret) == 0)                                        \
+            (ret) = __wt_txn_commit((s), NULL, WT_TS_NONE);           \
+        else {                                                        \
+            if (retry)                                                \
+                WT_TRET(__wt_session_copy_values(s));                 \
+            WT_TRET(__wt_txn_rollback((s), NULL, false, WT_TS_NONE)); \
+            if ((retry) && (ret) == WT_ROLLBACK) {                    \
+                (ret) = 0;                                            \
+                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry);   \
+                continue;                                             \
+            }                                                         \
+            WT_TRET(__wt_session_reset_cursors(s, false));            \
+        }                                                             \
+    }                                                                 \
+    break;                                                            \
+    }                                                                 \
+    /* !!!! This is a while(1) loop. !!!! */                          \
     while (1)
 
 /*
