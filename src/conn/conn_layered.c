@@ -150,12 +150,12 @@ __layered_create_missing_stable_table(
 }
 
 /*
- * __disagg_btree_store_create_epoch --
- *     Helper for __disagg_btree_stamp_create_epoch. Record the epoch on the table's stable btree
- *     when it is resident and open. The caller holds the handle list lock.
+ * __disagg_btree_stamp_create_epoch_internal --
+ *     Record the epoch on the table's stable btree when it is resident and open. The caller holds
+ *     the handle list lock.
  */
 static void
-__disagg_btree_store_create_epoch(
+__disagg_btree_stamp_create_epoch_internal(
   WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
 {
     if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0 &&
@@ -177,7 +177,7 @@ __disagg_btree_stamp_create_epoch(
 
     WT_SAVE_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, __disagg_btree_store_create_epoch(session, stable_uri, schema_epoch)));
+        session, __disagg_btree_stamp_create_epoch_internal(session, stable_uri, schema_epoch)));
 }
 
 /*
