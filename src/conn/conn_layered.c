@@ -1519,8 +1519,7 @@ err:
 /*
  * __disagg_mark_btree_readonly_and_outdated --
  *     Drain eviction from an open disaggregated btree, make it read-only and mark its dhandle
- *     outdated. __wt_btree_is_outdated_disagg recognizes this state so eviction can discard dirty
- *     pages without reconciliation.
+ *     outdated. Eviction can then discard dirty pages without reconciliation.
  */
 static int
 __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
