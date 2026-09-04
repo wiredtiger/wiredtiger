@@ -1530,11 +1530,11 @@ __verify_hs_keys(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
     uint32_t hs_btree_id;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool chain_open, check_data_store, ds_cbt_open;
+    bool chain_open, check_data_store;
 
     btree = S2BT(session);
     hs_cursor = NULL;
-    ds_cbt_open = chain_open = false;
+    chain_open = false;
     check_data_store = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT);
 
     WT_RET(__wt_hs_verify_cursor_open(session, btree->id, &hs_cursor));
@@ -1547,7 +1547,6 @@ __verify_hs_keys(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 
     __wt_btcur_init(session, &ds_cbt);
     __wt_btcur_open(&ds_cbt);
-    ds_cbt_open = true;
     /* We need to see the data table's current tombstone, if any, not have it hidden from us. */
     F_SET(&ds_cbt.iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
@@ -1612,10 +1611,9 @@ __verify_hs_keys(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 
 done:
 err:
-    if (ds_cbt_open) {
-        F_CLR(&ds_cbt.iface, WT_CURSTD_IGNORE_TOMBSTONE);
-        WT_TRET(__wt_btcur_close(&ds_cbt, false));
-    }
+    F_CLR(&ds_cbt.iface, WT_CURSTD_IGNORE_TOMBSTONE);
+    WT_TRET(__wt_btcur_close(&ds_cbt, false));
+
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
