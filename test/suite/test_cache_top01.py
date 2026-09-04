@@ -196,9 +196,8 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         self.assertTableIn('first', resident)
         self.assertTableIn('second', resident)
 
-    # The tables WiredTiger keeps for itself are the connection statistics' business, not the
-    # operator's, and are never named.
-    def test_internal_tables_excluded(self):
+    # The metadata is never named: it is the connection statistics' business, not the operator's.
+    def test_metadata_excluded(self):
         self.populate('table:visible', 2000)
         self.session.checkpoint()
 
@@ -206,12 +205,11 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         for ranking in self.rankings:
             for _, name in report[ranking]['entries']:
                 self.assertNotIn('WiredTiger.wt', name)
-                self.assertNotIn('WiredTigerHS.wt', name)
 
-    # The history store stays out of the rankings even when it is the hottest tree in the cache.
-    # Its identity has to be established from the URI: the data handle flag naming it is set well
-    # after the tracking state is initialized.
-    def test_history_store_excluded_under_load(self):
+    # The history store is ranked like any other tree. It counts towards the connection totals a
+    # ranking is measured against, so an operator looking at a report where it holds the cache has
+    # to be able to see that.
+    def test_history_store_ranked_under_load(self):
         uri = 'table:hsload'
         self.session.create(uri, 'key_format=S,value_format=S')
 
@@ -247,9 +245,15 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
         report = self.report()
         self.check_report_consistent(report)
+
+        # The workload above drove enough history store traffic that it has to show up somewhere.
+        self.assertTrue(
+            any('WiredTigerHS' in name
+                for ranking in self.rankings for name in self.names(report, ranking)),
+            'the history store held the cache but was not ranked')
+
         for ranking in self.rankings:
             for name in self.names(report, ranking):
-                self.assertNotIn('WiredTigerHS', name)
                 self.assertNotIn('WiredTiger.wt', name)
 
     # A table dropped while it is being reported leaves the ranking without taking the connection
@@ -571,7 +575,10 @@ class test_cache_top07(wttest.WiredTigerTestCase):
 # value converges on a steady state rather than growing without limit, so a tree only returns to
 # the ranking if its recheck value comes down with the threshold.
 class test_cache_top08(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,statistics=(all)'
+    # A large cache so the ranking opens with a threshold well above what this test reads. A
+    # checkpoint adjusts thresholds, and one runs at startup, so the opening bar is already a
+    # fraction of cache size by the time the test begins.
+    conn_config = 'create,cache_size=1GB,statistics=(all)'
 
     value = 'v' * 4096
 
@@ -646,7 +653,9 @@ class test_cache_top08(wttest.WiredTigerTestCase):
 # tree is what brings its recheck value down, so the tree is admitted the next time it accounts for
 # a page.
 class test_cache_top09(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,statistics=(all)'
+    # See test_cache_top08: enough headroom that the checkpoint below cannot lift the table over
+    # the bar before the test has driven the threshold down itself.
+    conn_config = 'create,cache_size=1GB,statistics=(all)'
 
     value = 'v' * 4096
 
@@ -719,3 +728,64 @@ class test_cache_top09(wttest.WiredTigerTestCase):
         for value, name in entries:
             if name in table_names(self, 'cooling'):
                 self.assertLess(value, opening)
+
+# The same rankings as a connection statistic, which is reachable without verbose logging or an
+# explicit request. Recomputed at the end of every checkpoint.
+class test_cache_top10(wttest.WiredTigerTestCase):
+    conn_config = 'create,cache_size=100MB,statistics=(all)'
+
+    value = 'v' * 4096
+
+    def stat(self, name):
+        c = self.session.open_cursor('statistics:', None, None)
+        v = c[getattr(wiredtiger.stat.conn, name)][2]
+        c.close()
+        return v
+
+    def populate(self, uri, rows):
+        self.session.create(uri, 'key_format=S,value_format=S')
+        c = self.session.open_cursor(uri)
+        for i in range(rows):
+            c['k%08d' % i] = self.value
+        c.close()
+
+    # A table holding most of the cache is reported as holding most of the cache.
+    def test_concentration_published(self):
+        self.populate('table:hog', 4000)
+        self.session.checkpoint()
+
+        inuse = self.stat('cache_top_inuse_pct')
+        updates = self.stat('cache_top_updates_pct')
+
+        # A percentage is a percentage, whatever the workload.
+        for name, pct in [('cache_top_inuse_pct', inuse), ('cache_top_updates_pct', updates)]:
+            self.assertGreaterEqual(pct, 0, name)
+            self.assertLessEqual(pct, 100, name)
+
+        # One table holds the cache here, so the ranked tables have to account for a real share of
+        # it. Deliberately a loose bound: how much is resident depends on when eviction last ran.
+        self.assertGreater(inuse, 0, 'no cache attributed to the ranked tables')
+
+    # The statistic agrees with the report built from the same rankings.
+    def test_agrees_with_report(self):
+        self.populate('table:hog', 4000)
+        self.session.checkpoint()
+
+        self.cleanStdout()
+        self.conn.debug_info('cache_top')
+        out = self.readStdout(200000)
+        self.cleanStdout()
+
+        header = re.search(r'cache top total cache bytes: \d+ tables above \d+B '
+            r'hold (?P<listed>\d+)B of (?P<total>\d+)B', out)
+        self.assertIsNotNone(header, 'no resident ranking header in the report')
+        listed = int(header.group('listed'))
+        total = int(header.group('total'))
+        self.assertGreater(total, 0)
+
+        # The report and the statistic are separate observations of a moving cache, so compare
+        # loosely: both must agree on whether the cache is concentrated.
+        from_report = listed * 100 // total
+        self.assertLess(abs(self.stat('cache_top_inuse_pct') - from_report), 25,
+            'statistic and report disagree: %d vs %d' % (
+                self.stat('cache_top_inuse_pct'), from_report))
