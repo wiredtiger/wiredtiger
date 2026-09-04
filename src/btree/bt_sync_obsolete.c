@@ -382,8 +382,8 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
         ref = pindex->index[slot];
 
         WT_RET(__sync_obsolete_cleanup_one(session, ref, &child_deleted, &child_reclaimed));
-        deleted = deleted || child_deleted;
-        reclaimed = reclaimed || child_reclaimed;
+        deleted |= child_deleted;
+        reclaimed |= child_reclaimed;
     }
 
     if (deleted && !reclaimed)
