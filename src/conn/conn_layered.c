@@ -1127,8 +1127,7 @@ __disagg_publish_check_step_down(
 /*
  * __wt_disagg_btree_publish_if_covered --
  *     Publish the btree if the given schema epoch covers the epoch its create was published at,
- *     returning whether it was. Recovery replays a covered create, so the btree is safe to write
- *     before any checkpoint includes it. The caller holds the schema lock.
+ *     returning whether it was. The caller holds the schema lock.
  */
 bool
 __wt_disagg_btree_publish_if_covered(
@@ -1138,7 +1137,10 @@ __wt_disagg_btree_publish_if_covered(
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
-    /* The btree may have been published since the caller last looked. */
+    /*
+     * Re-check the awaiting-publication state: the eviction walk contends with the checkpoint, and
+     * the btree may already be published.
+     */
     if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         return (false);
 
@@ -1155,9 +1157,7 @@ __wt_disagg_btree_publish_if_covered(
 /*
  * __wt_disagg_btree_publish_for_eviction --
  *     Publish the current btree so eviction can write it out rather than hold it in memory until
- *     the next checkpoint. Only a leader writes pages, and a leader that has declared a step-down
- *     boundary is on its way to becoming a follower, so it leaves the table for the next leader.
- *     The caller holds the schema lock.
+ *     the next checkpoint. The caller holds the schema lock.
  */
 void
 __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
@@ -1170,15 +1170,7 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    /* The btree may have been published since the eviction walk chose it. */
-    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
-        return;
-
-    /*
-     * Publish only for a settled leader. A step up publishes the leader role before it rebuilds the
-     * tables the new era needs, and a leader that has declared a step-down boundary is on its way
-     * to becoming a follower, so both leave the table for a later pass.
-     */
+    /* Only the leader publishes, and only outside a role transition. */
     if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
       F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)

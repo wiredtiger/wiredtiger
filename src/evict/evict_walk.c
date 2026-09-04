@@ -345,7 +345,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, dhandle_list_locked, resume, try_publish;
+    bool aggressive, covered, dhandle_list_locked, resume, try_publish;
 
     WT_TRACK_OP_INIT(session);
 
@@ -438,14 +438,15 @@ retry:
         try_publish = false;
         if (btree->evict_disabled > 0) {
             /*
-             * A disaggregated btree is held out of eviction until it is published, so try
-             * publishing it below instead of skipping it here. Deciding costs a few reads and no
-             * lock, which keeps the walk clear of the trees that cannot be published yet.
+             * A disaggregated btree is held out of eviction until it is published. Compare the
+             * epochs, which takes no lock, and try publishing the btree below instead of skipping
+             * it here.
              */
             create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
-            try_publish = F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
-              create_epoch != WT_SCHEMA_EPOCH_NONE &&
-              create_epoch <= __wt_get_stable_disaggregated_schema_epoch(session) &&
+            covered = create_epoch != WT_SCHEMA_EPOCH_NONE &&
+              create_epoch <= __wt_get_stable_disaggregated_schema_epoch(session);
+
+            try_publish = covered && F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
               __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
             if (!try_publish) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
@@ -587,10 +588,10 @@ retry:
         dhandle_list_locked = false;
 
         /*
-         * Publish the btree if the epoch now covers its create. This waits until the handle list
-         * lock is released above because publishing needs the schema lock, which is acquired before
-         * the handle list lock, never after. A declined attempt costs nothing: the
-         * eviction-disabled re-check below skips the tree while it stays unpublished.
+         * Publish the btree so eviction can write its pages. The schema lock orders publication
+         * against the checkpoint, which selects the btrees to write under that same lock, and
+         * against the role transitions. The lock order puts the schema lock before the handle list
+         * lock, so this waits for the release above.
          */
         if (try_publish) {
             WT_WITH_DHANDLE(session, dhandle,
