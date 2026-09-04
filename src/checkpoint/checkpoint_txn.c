@@ -548,13 +548,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         /* Skip checkpointing outdated trees. */
         if (F_ISSET(btree->dhandle, WT_DHANDLE_OUTDATED))
             return (0);
-
-        /*
-         * The checkpoint persists any data committed while the tree awaited publication, so retire
-         * the bound the drop path checks.
-         */
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            __wt_atomic_store_uint64_relaxed(&btree->min_unpublished_durable_ts, WT_TS_NONE);
     }
 
     /*
@@ -3425,6 +3418,13 @@ fake:
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR_MSG_CHK(session, __wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL),
           "checkpoint failed during logging completion");
+
+    /*
+     * This checkpoint holds whatever the tree committed while it awaited publication, so the drop
+     * path no longer has to refuse on that bound.
+     */
+    if (is_checkpoint && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        __wt_atomic_store_uint64_relaxed(&btree->min_unpublished_durable_ts, WT_TS_NONE);
 
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
