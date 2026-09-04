@@ -1199,6 +1199,17 @@ dsrc_stats = [
     CompressStat('compress_write_ratio_hist_32', 'pages written to disk with compression ratio smaller than 32'),
     CompressStat('compress_write_ratio_hist_64', 'pages written to disk with compression ratio smaller than 64'),
     CompressStat('compress_write_ratio_hist_max', 'pages written to disk with compression ratio greater than 64'),
+    # dist/stat.py sorts stats by their descriptions and not their names. The following stat descriptions insert an extra
+    # space before the shorter byte sizes so stats will be sorted numerically (128, 256, 512, ...) instead of
+    # alphabetically.
+    CompressStat('compress_write_skip_hist_128', 'page and delta writes skipped compression, buffer size at most  128 bytes'),
+    CompressStat('compress_write_skip_hist_256', 'page and delta writes skipped compression, buffer size at most  256 bytes'),
+    CompressStat('compress_write_skip_hist_512', 'page and delta writes skipped compression, buffer size at most  512 bytes'),
+    CompressStat('compress_write_skip_hist_768', 'page and delta writes skipped compression, buffer size at most  768 bytes'),
+    CompressStat('compress_write_skip_hist_1024', 'page and delta writes skipped compression, buffer size at most 1024 bytes'),
+    CompressStat('compress_write_skip_hist_2048', 'page and delta writes skipped compression, buffer size at most 2048 bytes'),
+    CompressStat('compress_write_skip_hist_4096', 'page and delta writes skipped compression, buffer size at most 4096 bytes'),
+    CompressStat('compress_write_skip_hist_max', 'page and delta writes skipped compression, buffer size greater than 4096 bytes'),
     CompressStat('compress_write_too_small', 'page written to disk was too small to compress'),
 
     ##########################################

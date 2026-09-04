@@ -14,6 +14,7 @@
  */
 WT_STAT_COMPR_RATIO_READ_HIST_INCR_FUNC(ratio)
 WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC(ratio)
+WT_STAT_COMPR_WRITE_SKIP_HIST_INCR_FUNC(size)
 
 /*
  * __blkcache_read_corrupt --
@@ -693,6 +694,7 @@ __wt_blkcache_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_comp
 
     if (buf->size <= btree->allocsize) {
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
+        __wt_stat_compr_write_skip_hist_incr(session, buf->size);
         return (0);
     }
 
@@ -734,6 +736,7 @@ __wt_blkcache_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_comp
     if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
         __wt_scr_free(session, &ctmp);
         WT_STAT_DSRC_INCR(session, compress_write_fail);
+        __wt_stat_compr_write_skip_hist_incr(session, buf->size);
         return (0);
     }
 

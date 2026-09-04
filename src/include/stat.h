@@ -408,6 +408,34 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
     }
 
 /*
+ * Construct a histogram increment function to bucket a page or delta write that skipped compression
+ * (either because it was too small to attempt, or because compression didn't save a full allocation
+ * unit) by its uncompressed size. This is independent of the compression-ratio histograms above,
+ * which only cover writes that were actually compressed.
+ */
+#define WT_STAT_COMPR_WRITE_SKIP_HIST_INCR_FUNC(size)                  \
+    static WT_INLINE void __wt_stat_compr_write_skip_hist_incr(        \
+      WT_SESSION_IMPL *session, size_t size)                           \
+    {                                                                  \
+        if (size <= 128)                                               \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_128);  \
+        else if (size <= 256)                                          \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_256);  \
+        else if (size <= 512)                                          \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_512);  \
+        else if (size <= 768)                                          \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_768);  \
+        else if (size <= 1024)                                         \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_1024); \
+        else if (size <= 2048)                                         \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_2048); \
+        else if (size <= 4096)                                         \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_4096); \
+        else                                                           \
+            WT_STAT_DSRC_INCR(session, compress_write_skip_hist_max);  \
+    }
+
+/*
  * DO NOT EDIT: automatically built by dist/stat.py.
  */
 /* Statistics section: BEGIN */
@@ -1718,6 +1746,14 @@ struct __wt_dsrc_stats {
     int64_t checkpoint_snapshot_acquired;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
+    int64_t compress_write_skip_hist_128;
+    int64_t compress_write_skip_hist_256;
+    int64_t compress_write_skip_hist_512;
+    int64_t compress_write_skip_hist_768;
+    int64_t compress_write_skip_hist_1024;
+    int64_t compress_write_skip_hist_2048;
+    int64_t compress_write_skip_hist_4096;
+    int64_t compress_write_skip_hist_max;
     int64_t compress_write_fail;
     int64_t compress_write_too_small;
     int64_t compress_read;
