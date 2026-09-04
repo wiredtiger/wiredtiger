@@ -151,12 +151,15 @@ __layered_create_missing_stable_table(
 
 /*
  * __disagg_btree_store_create_epoch --
- *     Record the epoch on the handle the caller just found, if it is open.
+ *     Helper for __disagg_btree_stamp_create_epoch. Record the epoch on the table's stable btree
+ *     when it is resident and open. The caller holds the handle list lock.
  */
 static void
-__disagg_btree_store_create_epoch(WT_SESSION_IMPL *session, wt_timestamp_t schema_epoch)
+__disagg_btree_store_create_epoch(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
 {
-    if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
+    if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0 &&
+      F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
         __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch);
 }
 
@@ -173,9 +176,8 @@ __disagg_btree_stamp_create_epoch(
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
     WT_SAVE_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(session,
-        if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0)
-          __disagg_btree_store_create_epoch(session, schema_epoch)));
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, __disagg_btree_store_create_epoch(session, stable_uri, schema_epoch)));
 }
 
 /*
