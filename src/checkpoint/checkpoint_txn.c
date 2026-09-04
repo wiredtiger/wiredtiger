@@ -460,7 +460,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp, create_epoch;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
     bool published;
 
     conn = S2C(session);
@@ -473,10 +473,9 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
-
 #ifdef HAVE_DIAGNOSTIC
-    WT_RET(__checkpoint_disagg_verify_create_epoch(session, dhandle->name, create_epoch));
+    WT_RET(__checkpoint_disagg_verify_create_epoch(
+      session, dhandle->name, __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch)));
 #endif
 
     published = __wt_disagg_btree_publish_if_covered(session, btree, ckpt_epoch);
@@ -3419,10 +3418,7 @@ fake:
         WT_ERR_MSG_CHK(session, __wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL),
           "checkpoint failed during logging completion");
 
-    /*
-     * This checkpoint holds whatever the tree committed while it awaited publication, so the drop
-     * path no longer has to refuse on that bound.
-     */
+    /* This checkpoint persists the data the unpublished minimum tracks. Clear it now. */
     if (is_checkpoint && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         __wt_atomic_store_uint64_relaxed(&btree->min_unpublished_durable_ts, WT_TS_NONE);
 
