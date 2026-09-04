@@ -813,6 +813,13 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
     }
 
     /*
+     * Warm the dhandle's rwlock and btree handle: the reopen below is about to lock the former and
+     * dereference the latter, and both are commonly cold after a cursor has sat in the cache.
+     */
+    __builtin_prefetch(&dhandle->rwlock, 1, 3);
+    __builtin_prefetch(dhandle->handle, 0, 3);
+
+    /*
      * Temporarily set the session's data handle to the data handle in the cursor. Reopen may be
      * called either as part of an open API call, or during cursor sweep as part of a different API
      * call, so we need to restore the original data handle that was in our session after the reopen

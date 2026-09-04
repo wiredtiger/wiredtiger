@@ -8,6 +8,109 @@
 
 #include "wt_internal.h"
 
+/*
+ * Depth of the leaf-page binary-search cache-warming pipeline. Level 1 warms a candidate's key
+ * data one iteration ahead; level 2 also warms pg_row entries two iterations ahead, so the level-1
+ * warm has time to land before it's needed.
+ */
+#define WT_ROW_SEARCH_WARM_DEPTH 2
+
+/*
+ * __row_search_warm_ref --
+ *     Warm the cache line for a WT_REF entry on an internal page.
+ */
+static WT_INLINE void
+__row_search_warm_ref(WT_PAGE_INDEX *pindex, uint32_t slot)
+{
+    if (slot < pindex->entries)
+        __builtin_prefetch(pindex->index[slot], 0, 3);
+}
+
+/*
+ * __row_search_warm_row_entry --
+ *     Warm the cache line for a pg_row struct entry on a leaf page.
+ */
+static WT_INLINE void
+__row_search_warm_row_entry(WT_PAGE *page, uint32_t slot)
+{
+    if (slot < page->entries)
+        __builtin_prefetch(&page->pg_row[slot], 0, 3);
+}
+
+/*
+ * __row_search_warm_key --
+ *     Warm the cache line for an encoded key's data for a leaf page's pg_row entry.
+ */
+static WT_INLINE void
+__row_search_warm_key(WT_PAGE *page, uint32_t slot)
+{
+    WT_ROW *rip;
+    uintptr_t v;
+
+    if (slot >= page->entries)
+        return;
+
+    rip = page->pg_row + slot;
+    v = (uintptr_t)WT_ROW_KEY_COPY(rip);
+    switch (v & WT_KEY_FLAG_BITS) {
+    case WT_K_FLAG:
+        __builtin_prefetch(
+          WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_CELL_OFFSET(v) + WT_K_DECODE_KEY_OFFSET(v)), 0,
+          3);
+        break;
+    case WT_KV_FLAG:
+        __builtin_prefetch(
+          WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_CELL_OFFSET(v) + WT_KV_DECODE_KEY_OFFSET(v)), 0,
+          3);
+        break;
+    default:
+        /* On-page cells and instantiated keys need unpacking; not worth warming. */
+        break;
+    }
+}
+
+/*
+ * __row_search_warm_int_candidates --
+ *     Warm the WT_REF entries a binary search on an internal page is likely to visit one
+ *     iteration ahead.
+ */
+static WT_INLINE void
+__row_search_warm_int_candidates(
+  WT_PAGE_INDEX *pindex, uint32_t base, uint32_t indx, uint32_t limit)
+{
+    if (limit > 2) {
+        __row_search_warm_ref(pindex, base + (limit >> 2));
+        __row_search_warm_ref(pindex, indx + 1 + ((limit - 1) >> 2));
+    }
+}
+
+/*
+ * __row_search_warm_leaf_candidates --
+ *     Warm the pg_row entries and key data a binary search on a leaf page is likely to visit one
+ *     and two iterations ahead.
+ */
+static WT_INLINE void
+__row_search_warm_leaf_candidates(WT_PAGE *page, uint32_t base, uint32_t indx, uint32_t limit)
+{
+#if WT_ROW_SEARCH_WARM_DEPTH >= 2
+    if (limit > 6) {
+        uint32_t pf_lq, pf_rb, pf_rh;
+
+        pf_lq = limit >> 2;
+        pf_rb = indx + 1;
+        pf_rh = (limit - 1) >> 1;
+        __row_search_warm_row_entry(page, base + (pf_lq >> 1));
+        __row_search_warm_row_entry(page, base + pf_lq + 1 + ((pf_lq - 1) >> 1));
+        __row_search_warm_row_entry(page, pf_rb + (pf_rh >> 2));
+        __row_search_warm_row_entry(page, pf_rb + (pf_rh >> 1) + 1 + ((pf_rh - 1) >> 2));
+    }
+#endif
+    if (limit > 2) {
+        __row_search_warm_key(page, base + (limit >> 2));
+        __row_search_warm_key(page, indx + 1 + ((limit - 1) >> 2));
+    }
+}
+
 static WT_INLINE int __validate_next_stack(
   WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
 
@@ -475,6 +578,9 @@ restart:
         if (collator == NULL && srch_key->size <= WT_COMPARE_SHORT_MAXLEN)
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
+
+                __row_search_warm_int_candidates(pindex, base, indx, limit);
+
                 descent = pindex->index[indx];
                 __wt_ref_key(page, descent, &item->data, &item->size);
 
@@ -506,6 +612,9 @@ restart:
 
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
+
+                __row_search_warm_int_candidates(pindex, base, indx, limit);
+
                 descent = pindex->index[indx];
                 __wt_ref_key(page, descent, &item->data, &item->size);
 
@@ -523,6 +632,9 @@ restart:
         } else
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
+
+                __row_search_warm_int_candidates(pindex, base, indx, limit);
+
                 descent = pindex->index[indx];
                 __wt_ref_key(page, descent, &item->data, &item->size);
 
@@ -638,6 +750,9 @@ leaf_only:
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
+
+            __row_search_warm_leaf_candidates(page, base, indx, limit);
+
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
             cmp = __wt_lex_compare_short(srch_key, item);
@@ -669,6 +784,9 @@ leaf_only:
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
+
+            __row_search_warm_leaf_candidates(page, base, indx, limit);
+
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
             match = WT_MIN(skiplow, skiphigh);
@@ -686,6 +804,9 @@ leaf_only:
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
+
+            __row_search_warm_leaf_candidates(page, base, indx, limit);
+
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
             WT_ERR(__wt_compare(session, collator, srch_key, item, &cmp));
