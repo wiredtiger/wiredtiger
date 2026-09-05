@@ -127,4 +127,3 @@ class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
 
 if __name__ == "__main__":
     wttest.run()
-

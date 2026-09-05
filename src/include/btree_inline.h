@@ -2965,7 +2965,7 @@ __wt_btcur_skip_page(
     WT_REF_STATE child_state, previous_state;
     WT_TIME_AGGREGATE *ta;
     uint64_t sleep_usecs, yield_count;
-    bool clean_page;
+    bool check_internal_children, clean_page, internal_children_validated;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2974,7 +2974,7 @@ __wt_btcur_skip_page(
 
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
     ta = NULL;
-    clean_page = false;
+    check_internal_children = clean_page = internal_children_validated = false;
 
     /*
      * Trees on the local block manager never skip an internal page. Reading one in is what marks it
@@ -3005,20 +3005,13 @@ __wt_btcur_skip_page(
         ++walk_skip_stats->total_skip_lock_contended;
 
     /*
-     * An internal page still on disk has no resident descendants, so the aggregate in its address
-     * cell describes the whole subtree. A clean in-memory internal is equivalent only if every
-     * child is still on disk or deleted: a dirty leaf does not immediately dirty its parent. A
-     * dirty internal must be walked.
+     * A dirty internal page must be walked. Delay checking the children of a clean internal page
+     * until its aggregate shows that the subtree could be skipped.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
         if (previous_state != WT_REF_MEM || __wt_page_is_modified(ref->page))
             goto unlock;
-        WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-            child_state = WT_REF_GET_STATE(child);
-            if (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)
-                goto unlock;
-        }
-        WT_INTL_FOREACH_END;
+        check_internal_children = true;
     }
 
     /*
@@ -3045,6 +3038,7 @@ __wt_btcur_skip_page(
     if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
         clean_page = true;
 
+check_aggregate:
     /*
      * A clean in-memory page's reconciliation aggregate supersedes its reference address, which the
      * reconciliation cleared. The pointer is read once because a checkpoint reconciling the page
@@ -3061,6 +3055,8 @@ __wt_btcur_skip_page(
                 if (__wt_txn_snap_min_visible(session, ta->newest_stop_txn, ta->newest_stop_ts,
                       ta->newest_stop_durable_ts)) {
                     *skipp = true;
+                    if (check_internal_children && !internal_children_validated)
+                        goto validate_internal;
                     __wt_btcur_skip_page_inc(ref, walk_skip_stats);
                 }
             } else if (__wt_txn_snap_range_visible(session, ta->oldest_stop_txn,
@@ -3077,6 +3073,8 @@ __wt_btcur_skip_page(
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
+            if (check_internal_children && !internal_children_validated)
+                goto validate_internal;
             __wt_btcur_skip_page_inc(ref, walk_skip_stats);
             goto unlock;
         }
@@ -3090,9 +3088,44 @@ __wt_btcur_skip_page(
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
+            if (check_internal_children && !internal_children_validated)
+                goto validate_internal;
             __wt_btcur_skip_page_inc(ref, walk_skip_stats);
         }
     }
+    goto unlock;
+
+validate_internal:
+    /*
+     * A resident internal page's aggregate represents the complete subtree only while every child
+     * remains on disk or deleted. A child eviction dirties the parent before publishing the child
+     * as on disk. Order the child-state reads before the final parent dirty check so that observing
+     * the published child state also observes the parent transition on weakly ordered systems.
+     */
+    WT_ASSERT(session, check_internal_children && *skipp);
+    WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
+        child_state = WT_REF_GET_STATE(child);
+        if (child_state != WT_REF_DISK && child_state != WT_REF_DELETED) {
+            *skipp = false;
+            goto unlock;
+        }
+    }
+    WT_INTL_FOREACH_END;
+    WT_ACQUIRE_BARRIER();
+    if (__wt_page_is_modified(ref->page)) {
+        *skipp = false;
+        goto unlock;
+    }
+
+    /*
+     * The parent may have been dirtied, reconciled and marked clean while its children were being
+     * checked. Re-read the aggregate after validating the children so the skip decision belongs to
+     * the clean state observed above.
+     */
+    internal_children_validated = true;
+    *skipp = false;
+    ta = NULL;
+    goto check_aggregate;
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);
