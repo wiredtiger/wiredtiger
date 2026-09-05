@@ -294,18 +294,16 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
         self.session.checkpoint()
 
-        # Step 4 -- the page is clean and still marked for eviction, so the walk queues it for
-        # urgent eviction. An attempt the walk's own hazard pointer blocks drops the queue entry
-        # rather than re-queueing it, so the walk has to be repeated until an eviction lands.
-        # The reference and the on-disk page survive as WT_REF_DISK.
+        # Step 4 -- the page is clean, so the walk can use its reconciliation aggregate to skip it
+        # while it is still resident rather than waiting for eviction.
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), surviving),
-            stat.dsrc.cache_eviction_internal, before["internal_evicted"],
-            "step 4: the clean emptied internal page was not evicted",
+            stat.dsrc.cursor_tree_walk_del_internal_page_skip, before["internal_skip"],
+            "step 4: the clean emptied internal page was not skipped",
         )
 
-        # Step 5 -- the reference survives, but its address aggregate shows that the subtree is
-        # deleted. A subsequent walk skips the subtree without reading and re-dirtying the page.
+        # Step 5 -- whether the page remains resident or is later evicted, a subsequent walk skips
+        # the subtree without reading or re-dirtying it.
         with (
             wttest.open_cursor(self.session, self.uri) as cursor,
             self.transaction(commit_timestamp=self.read_ts - 1),
@@ -318,11 +316,11 @@ class test_disagg_fast_truncate03(test_cc_base):
         skipped_internal = after["internal_skip"] - before["internal_skip"]
         self.assertEqual(
             after["internal_read"], before["internal_read"],
-            "step 5: the evicted internal page was read back",
+            "step 5: the skipped internal page was read",
         )
         self.assertEqual(
             after["evict_blocked"], before["evict_blocked"],
-            "step 5: the evicted internal page was re-dirtied",
+            "step 5: the skipped internal page was re-dirtied",
         )
         self.assertGreater(
             skipped_internal, 0,
