@@ -3046,18 +3046,28 @@ __wt_btcur_skip_page(
         clean_page = true;
 
     /*
-     * A clean in-memory page's reconciliation aggregate is newer than its reference address and
-     * carries both ends of the stop transaction range.
+     * A clean in-memory page's reconciliation aggregate supersedes its reference address, which the
+     * reconciliation cleared. The pointer is read once because a checkpoint reconciling the page
+     * can release it concurrently.
+     *
+     * A leaf aggregate carries both ends of its stop transaction range, so the range check applies.
+     * An internal aggregate merges its children's address cells, and a cell unpacked from disk does
+     * not record the oldest stop transaction, so the range can omit a child's older stops; only the
+     * newest stop is trustworthy there.
      */
     if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta)) {
-        if (!ta->prepare &&
-          __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
-            ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
-            *skipp = true;
-            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-                __wt_btcur_skip_page_inc(ref, walk_skip_stats);
-            else
+        if (!ta->prepare) {
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+                if (__wt_txn_snap_min_visible(session, ta->newest_stop_txn, ta->newest_stop_ts,
+                      ta->newest_stop_durable_ts)) {
+                    *skipp = true;
+                    __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+                }
+            } else if (__wt_txn_snap_range_visible(session, ta->oldest_stop_txn,
+                         ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+                *skipp = true;
                 walk_skip_stats->total_inmem_del_pages_skipped++;
+            }
         }
         goto unlock;
     }
