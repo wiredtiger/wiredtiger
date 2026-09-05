@@ -107,9 +107,9 @@ class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.assertEqual(self.read_stat(stat.dsrc.cache_eviction_internal), 0)
 
-        before = self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip)
+        before = self.read_stat(stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip)
         self.assertEqual(len(self.scan(25)), surviving)
-        after = self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip)
+        after = self.read_stat(stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip)
         self.assertGreater(after, before, "clean resident internal page was not skipped")
 
         # A new update makes one child resident and dirty without dirtying its internal parent. The

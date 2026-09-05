@@ -2942,11 +2942,15 @@ __wt_btcur_bounds_early_exit(
  *     Count a skipped deleted page as internal or leaf.
  */
 static WT_INLINE void
-__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats)
+__wt_btcur_skip_page_inc(
+  WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, bool resident_internal)
 {
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        walk_skip_stats->total_del_internal_pages_skipped++;
-    else
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        if (resident_internal)
+            walk_skip_stats->total_resident_del_internal_pages_skipped++;
+        else
+            walk_skip_stats->total_del_internal_pages_skipped++;
+    } else
         walk_skip_stats->total_del_leaf_pages_skipped++;
 }
 
@@ -3031,7 +3035,7 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
-        __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
         goto unlock;
     }
 
@@ -3040,42 +3044,16 @@ __wt_btcur_skip_page(
 
 check_aggregate:
     /*
-     * A clean in-memory page's reconciliation aggregate supersedes its reference address, which the
-     * reconciliation cleared. The pointer is read once because a checkpoint reconciling the page
-     * can release it concurrently.
-     *
-     * A leaf aggregate carries both ends of its stop transaction range, so the range check applies.
-     * An internal aggregate merges its children's address cells, and a cell unpacked from disk does
-     * not record the oldest stop transaction, so the range can omit a child's older stops; only the
-     * newest stop is trustworthy there.
+     * Prefer the reference address when it exists. A disaggregated skip-write can retain the
+     * current address while publishing an empty page-modify aggregate.
      */
-    if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta)) {
-        if (!ta->prepare) {
-            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-                if (__wt_txn_snap_min_visible(session, ta->newest_stop_txn, ta->newest_stop_ts,
-                      ta->newest_stop_durable_ts)) {
-                    *skipp = true;
-                    if (check_internal_children && !internal_children_validated)
-                        goto validate_internal;
-                    __wt_btcur_skip_page_inc(ref, walk_skip_stats);
-                }
-            } else if (__wt_txn_snap_range_visible(session, ta->oldest_stop_txn,
-                         ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
-                *skipp = true;
-                walk_skip_stats->total_inmem_del_pages_skipped++;
-            }
-        }
-        goto unlock;
-    }
-
-    /* Look at the disk address, if it exists. */
     if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
             if (check_internal_children && !internal_children_validated)
                 goto validate_internal;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
             goto unlock;
         }
 
@@ -3090,27 +3068,55 @@ check_aggregate:
             *skipp = true;
             if (check_internal_children && !internal_children_validated)
                 goto validate_internal;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
+        }
+    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare) {
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            if (__wt_txn_snap_min_visible(
+                  session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+                *skipp = true;
+                if (check_internal_children && !internal_children_validated)
+                    goto validate_internal;
+                __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
+            }
+        } else if (__wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+                     ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+            *skipp = true;
+            walk_skip_stats->total_inmem_del_pages_skipped++;
         }
     }
     goto unlock;
 
 validate_internal:
     /*
-     * A resident internal page's aggregate represents the complete subtree only while every child
-     * remains on disk or deleted. A child eviction dirties the parent before publishing the child
-     * as on disk. Order the child-state reads before the final parent dirty check so that observing
-     * the published child state also observes the parent transition on weakly ordered systems.
+     * Locking the parent blocks new readers from entering its children, but an existing reader may
+     * hazard-couple between them. Scan in both directions so such a reader cannot move past the
+     * check, and reject queued pre-fetch work that may instantiate a child.
      */
     WT_ASSERT(session, check_internal_children && *skipp);
     WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
         child_state = WT_REF_GET_STATE(child);
-        if (child_state != WT_REF_DISK && child_state != WT_REF_DELETED) {
+        if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
+          __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
+          (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)) {
             *skipp = false;
             goto unlock;
         }
     }
     WT_INTL_FOREACH_END;
+
+    WT_INTL_FOREACH_REVERSE_BEGIN (session, ref->page, child) {
+        child_state = WT_REF_GET_STATE(child);
+        if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
+          __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
+          (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)) {
+            *skipp = false;
+            goto unlock;
+        }
+    }
+    WT_INTL_FOREACH_END;
+
+    /* Observe a dirty transition ordered before a child was published as on disk. */
     WT_ACQUIRE_BARRIER();
     if (__wt_page_is_modified(ref->page)) {
         *skipp = false;
