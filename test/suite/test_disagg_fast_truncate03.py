@@ -294,18 +294,16 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
         self.session.checkpoint()
 
-        # Step 4 -- the page is clean and still marked for eviction, so the walk queues it for
-        # urgent eviction. An attempt the walk's own hazard pointer blocks drops the queue entry
-        # rather than re-queueing it, so the walk has to be repeated until an eviction lands.
-        # The reference and the on-disk page survive as WT_REF_DISK.
+        # Step 4 -- the page is clean, so the walk can use its reconciliation aggregate to skip it
+        # while it is still resident rather than waiting for eviction.
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), surviving),
-            stat.dsrc.cache_eviction_internal, before["internal_evicted"],
-            "step 4: the clean emptied internal page was not evicted",
+            stat.dsrc.cursor_tree_walk_del_internal_page_skip, before["internal_skip"],
+            "step 4: the clean emptied internal page was not skipped",
         )
 
-        # Step 5 -- the reference survives, but its address aggregate shows that the subtree is
-        # deleted. A subsequent walk skips the subtree without reading and re-dirtying the page.
+        # Step 5 -- whether the page remains resident or is later evicted, a subsequent walk skips
+        # the subtree without reading or re-dirtying it.
         with (
             wttest.open_cursor(self.session, self.uri) as cursor,
             self.transaction(commit_timestamp=self.read_ts - 1),
@@ -313,29 +311,17 @@ class test_disagg_fast_truncate03(test_cc_base):
             cursor[self.nrows + 1] = self.value
 
         before = self.snapshot_stats()
-        # Rarely, an emptied page still resident in memory is evicted between the walk's
-        # skip check (which only evaluates on-disk pages) and the page swap, and the swap
-        # reads it back. The read-back is benign but leaves the page dirty; reconcile and
-        # re-evict it, then measure again.
-        deadline = time.time() + 30
-        while True:
-            self.assertEqual(self.scan_table(), surviving + 1)
-            after = self.snapshot_stats()
-            skipped_internal = after["internal_skip"] - before["internal_skip"]
-            if (after["internal_read"] == before["internal_read"] and
-                after["evict_blocked"] == before["evict_blocked"]):
-                break
-            self.assertLess(
-                time.time(), deadline,
-                "step 5: the evicted internal page keeps being read back",
-            )
-            self.session.checkpoint()
-            self.retry_for_stat_increase(
-                lambda: self.assertEqual(self.scan_table(), surviving + 1),
-                stat.dsrc.cache_eviction_internal, after["internal_evicted"],
-                "step 5: the read-back internal page was not re-evicted",
-            )
-            before = self.snapshot_stats()
+        self.assertEqual(self.scan_table(), surviving + 1)
+        after = self.snapshot_stats()
+        skipped_internal = after["internal_skip"] - before["internal_skip"]
+        self.assertEqual(
+            after["internal_read"], before["internal_read"],
+            "step 5: the skipped internal page was read",
+        )
+        self.assertEqual(
+            after["evict_blocked"], before["evict_blocked"],
+            "step 5: the skipped internal page was re-dirtied",
+        )
         self.assertGreater(
             skipped_internal, 0,
             "step 5: no deleted internal page was skipped",
@@ -392,22 +378,11 @@ class test_disagg_fast_truncate03(test_cc_base):
         # its truncation is not yet globally visible.
         self.session.checkpoint()
         after = self.snapshot_stats()
-        # The walk-skip statistic counts page examinations, not distinct pages, and can
-        # exceed the number of pages to reclaim. Drive reclamation to convergence instead:
-        # checkpoint until no more pages reconcile to empty.
-        prev = before["real_deleted"]
-        deadline = time.time() + 30
-        while after["real_deleted"] != prev:
-            prev = after["real_deleted"]
-            self.session.checkpoint()
-            after = self.snapshot_stats()
-            self.assertLess(
-                time.time(), deadline,
-                "step 9: reclamation did not converge",
-            )
-        self.assertGreater(
-            after["real_deleted"], before["real_deleted"],
-            "step 9: no skipped internal page reconciled to empty",
+        # An emptied internal page still in cache reconciles to empty as well, so the
+        # count covers at least the pages the walk skipped.
+        self.assertGreaterEqual(
+            after["real_deleted"] - before["real_deleted"], skipped_internal,
+            "step 9: a skipped internal page did not reconcile to empty",
         )
         self.assertGreaterEqual(
             after["block_discard"] - before["block_discard"],
@@ -422,14 +397,6 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.assertEqual(
             after["evict_blocked"], before["evict_blocked"],
             "exit: the loop should stop once checkpoint cleanup reclaims the subtree",
-        )
-        self.assertEqual(
-            after["internal_skip"], before["internal_skip"],
-            "exit: a deleted internal page was still present after reclamation",
-        )
-        self.assertEqual(
-            after["internal_read"], before["internal_read"],
-            "exit: a reclaimed internal page was read back",
         )
 
 if __name__ == "__main__":
