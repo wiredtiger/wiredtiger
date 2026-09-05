@@ -404,13 +404,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             commit_cfg = 'commit_timestamp=' + self.timestamp_str(self.state.ts)
         for n in nodes:
             n.session.commit_transaction(commit_cfg)
-
-        # FIXME-WT-17830: a follower layered cursor held across an as-of-past txn commit
-        # fails to advance (stays on its key instead of moving). Reset works around it; remove once fixed.
-        if self.state.txn_read_ts is not None:
-            for n in nodes:
-                n.reset_all()
-            self.state.cur_pos = None
         self._reset_txn_state()
 
     def rollback_txn(self, nodes):
