@@ -2961,7 +2961,8 @@ __wt_btcur_skip_page(
 {
     WT_ADDR_COPY addr;
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
-    WT_REF_STATE previous_state;
+    WT_REF *child;
+    WT_REF_STATE child_state, previous_state;
     WT_TIME_AGGREGATE *ta;
     uint64_t sleep_usecs, yield_count;
     bool clean_page;
@@ -3004,16 +3005,21 @@ __wt_btcur_skip_page(
         ++walk_skip_stats->total_skip_lock_contended;
 
     /*
-     * An internal page resident in memory cannot be judged by its aggregate: a descendant may be
-     * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
-     * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
-     * describes the whole subtree, and skipping it skips the subtree.
-     *
-     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
-     * evaluated through its address cell.
+     * An internal page still on disk has no resident descendants, so the aggregate in its address
+     * cell describes the whole subtree. A clean in-memory internal is equivalent only if every
+     * child is still on disk or deleted: a dirty leaf does not immediately dirty its parent. A
+     * dirty internal must be walked.
      */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
-        goto unlock;
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
+        if (previous_state != WT_REF_MEM || __wt_page_is_modified(ref->page))
+            goto unlock;
+        WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
+            child_state = WT_REF_GET_STATE(child);
+            if (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)
+                goto unlock;
+        }
+        WT_INTL_FOREACH_END;
+    }
 
     /*
      * Check the fast-truncate information; there are 3 cases:
@@ -3039,6 +3045,23 @@ __wt_btcur_skip_page(
     if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
         clean_page = true;
 
+    /*
+     * A clean in-memory page's reconciliation aggregate is newer than its reference address and
+     * carries both ends of the stop transaction range.
+     */
+    if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta)) {
+        if (!ta->prepare &&
+          __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+            ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+            *skipp = true;
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+                __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            else
+                walk_skip_stats->total_inmem_del_pages_skipped++;
+        }
+        goto unlock;
+    }
+
     /* Look at the disk address, if it exists. */
     if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
@@ -3059,21 +3082,6 @@ __wt_btcur_skip_page(
             *skipp = true;
             __wt_btcur_skip_page_inc(ref, walk_skip_stats);
         }
-    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
-        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
-        /*
-         * If the reader can see all of the deleted content, they can skip a deleted clean page.
-         * Before determining whether the deleted page is visible, copy the stop time aggregate
-         * information pointer because as part of the checkpoint operation, this pointer can be
-         * released in parallel.
-         *
-         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
-         * use the range visibility check; it skips more pages than the snap_min bound used on the
-         * disk-address path, which only has the newest stop transaction.
-         */
-        *skipp = true;
-        walk_skip_stats->total_inmem_del_pages_skipped++;
     }
 
 unlock:
