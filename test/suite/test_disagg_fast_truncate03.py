@@ -86,7 +86,9 @@ class test_disagg_fast_truncate03(test_cc_base):
         ) as stat_cursor:
             return stat_cursor[stat_key][2]
 
-    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30, guard=None):
+    def retry_for_stat_increase(
+        self, action, stat_key, baseline, msg, timeout=30, guard=None, additional_stat_key=None
+    ):
         """
         Repeat an action until a counter it drives rises above baseline.
 
@@ -98,6 +100,8 @@ class test_disagg_fast_truncate03(test_cc_base):
         while True:
             action()
             value = self.read_stat(stat_key)
+            if additional_stat_key is not None:
+                value += self.read_stat(additional_stat_key)
             if value > baseline:
                 return value
             if guard is not None:
@@ -180,6 +184,9 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
+            "resident_internal_skip": self.read_stat(
+                stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip
+            ),
             "not_visible_all": self.read_stat(
                 stat.dsrc.checkpoint_cleanup_pages_deleted_not_visible_all
             ),
@@ -298,8 +305,10 @@ class test_disagg_fast_truncate03(test_cc_base):
         # while it is still resident rather than waiting for eviction.
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), surviving),
-            stat.dsrc.cursor_tree_walk_del_internal_page_skip, before["internal_skip"],
+            stat.dsrc.cursor_tree_walk_del_internal_page_skip,
+            before["internal_skip"] + before["resident_internal_skip"],
             "step 4: the clean emptied internal page was not skipped",
+            additional_stat_key=stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip,
         )
 
         # Step 5 -- whether the page remains resident or is later evicted, a subsequent walk skips
@@ -313,7 +322,10 @@ class test_disagg_fast_truncate03(test_cc_base):
         before = self.snapshot_stats()
         self.assertEqual(self.scan_table(), surviving + 1)
         after = self.snapshot_stats()
-        skipped_internal = after["internal_skip"] - before["internal_skip"]
+        skipped_internal = (
+            after["internal_skip"] - before["internal_skip"]
+            + after["resident_internal_skip"] - before["resident_internal_skip"]
+        )
         self.assertEqual(
             after["internal_read"], before["internal_read"],
             "step 5: the skipped internal page was read",
