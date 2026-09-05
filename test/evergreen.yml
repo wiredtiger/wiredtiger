@@ -1167,6 +1167,20 @@ functions:
         ${PREPARE_TEST_ENV}
 
         ../../../../test/evergreen/schema_abort_predictable.sh ${times} ${truncated_log_args|}
+  "timestamp abort disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
+        for i in $(seq ${times|1}); do
+          echo Iteration $i/${times}
+          ./test_timestamp_abort -G -s
+        done
   "upload artifact":
     - command: archive.targz_pack
       type: setup
@@ -1877,6 +1891,15 @@ variables:
           # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.rows=20000 runs.ops=100000 ops.truncate=0
           times: 10
+
+  - &timestamp-abort-test-disagg
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "timestamp abort disagg"
+        vars:
+          times: 50
 
 #######################################
 #               Tasks                 #
@@ -5399,6 +5422,13 @@ tasks:
   - <<: *format-stress-test-disagg-multi-pull-request
     name: format-stress-test-disagg-multi-pull-request
     tags: ["pull_request"]
+
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-1
+    tags: ["stress-test-disagg"]
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-2
+    tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]

@@ -1379,6 +1379,7 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint Cleanup statistics
     ##########################################
+    CheckpointCleanupStat('checkpoint_cleanup_pages_deleted_not_visible_all', 'internal pages whose deleted children were all still visible to some reader'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache due to obsolete time window'),
@@ -1474,6 +1475,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
     LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
+    LayeredStat('layered_curs_open_stable_ckpt_pickup_race', 'Layered table cursor stable open raced a checkpoint pickup'),
     LayeredStat('layered_curs_open_stable_refused', 'Layered table cursor stable open refused to preserve a transaction snapshot'),
     LayeredStat('layered_curs_open_stable_stepdown_race', 'Layered table cursor stable open rolled back after racing a step-down'),
     LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),

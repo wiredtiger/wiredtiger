@@ -1075,6 +1075,7 @@ connection_runtime_config = [
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
+        'disagg_stable_dhandle_delay',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',

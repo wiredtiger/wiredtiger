@@ -149,7 +149,7 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
 retry:
     TAILQ_FOREACH (dhandle_cache, &session->dhhash[bucket], hashq) {
         dhandle = dhandle_cache->dhandle;
-        if ((WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) &&
+        if ((WT_DHANDLE_INACTIVE(dhandle) || __wt_atomic_load_bool_relaxed(&dhandle->outdated)) &&
           !WT_IS_METADATA(dhandle)) {
             __session_discard_dhandle(session, dhandle_cache);
             /* We deleted our entry, retry from the start. */
@@ -864,7 +864,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
 
         const uint64_t time_of_death = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
         const bool is_sweep_candidate = WT_DHANDLE_INACTIVE(dhandle) ||
-          F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
+          __wt_atomic_load_bool_relaxed(&dhandle->outdated) ||
           (time_of_death != 0 && now - time_of_death > conn->sweep.idle_time);
 
         const bool is_evictable = !WT_DHANDLE_BTREE(dhandle) ||
@@ -940,6 +940,54 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
 }
 
 /*
+ * __session_dhandle_stable_delay_stress --
+ *     Widen the gap between finding a stable handle and locking it: a checkpoint pickup marks the
+ *     handle outdated and reads session_inuse to decide how far to prune, and this delay provokes
+ *     races against that window.
+ */
+static void
+__session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
+{
+    struct timespec tsp;
+
+    /* The stress point is off outside tests. */
+    if (!FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY))
+        return;
+
+    /* Only followers race a checkpoint pickup. */
+    if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+        return;
+
+    /*
+     * The dhandle get logic re-enters itself with the schema lock held to open the handle for real;
+     * sleeping there would block the pickup, which also needs the schema lock, defeating the
+     * delay's own purpose.
+     */
+    if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA))
+        return;
+
+    /* Only a stable-table open can land in the pickup's prune window. */
+    if (!WT_URI_IS_STABLE(uri))
+        return;
+
+    /* The history store has its own dhandle lifecycle, not the pickup's outdated/prune pairing. */
+    if (WT_IS_URI_HS(uri))
+        return;
+
+    /* WT_IS_URI_METADATA only matches the shared metadata table's unsuffixed name. */
+    if (WT_IS_URI_METADATA(uri))
+        return;
+
+    /* Checkpoint pickup opens a checkpointed version of metadata; exclude it by prefix instead. */
+    if (strncmp(uri, WT_DISAGG_METADATA_URI, strlen(WT_DISAGG_METADATA_URI)) == 0)
+        return;
+
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY, &tsp);
+}
+
+/*
  * __wt_session_get_dhandle --
  *     Get a data handle for the given name, set session->dhandle. Optionally if we opened a
  *     checkpoint return its checkpoint order number.
@@ -957,6 +1005,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     for (;;) {
         WT_ERR(__session_get_dhandle(session, uri, checkpoint));
         dhandle = session->dhandle;
+
+        __session_dhandle_stable_delay_stress(session, uri);
 
         /* Try to lock the handle. */
         WT_ERR(__wt_session_lock_dhandle(session, flags, &is_dead));
