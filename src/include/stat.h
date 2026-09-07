@@ -916,6 +916,7 @@ struct __wt_connection_stats {
     int64_t cursor_skip_hs_cur_position;
     int64_t cursor_tree_walk_inmem_del_page_skip;
     int64_t cursor_tree_walk_ondisk_del_page_skip;
+    int64_t cursor_tree_walk_resident_del_internal_page_skip;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_tree_walk_skip_lock_contended;
     int64_t cursor_reposition_failed;
@@ -1746,6 +1747,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_skip_hs_cur_position;
     int64_t cursor_tree_walk_inmem_del_page_skip;
     int64_t cursor_tree_walk_ondisk_del_page_skip;
+    int64_t cursor_tree_walk_resident_del_internal_page_skip;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_tree_walk_skip_lock_contended;
     int64_t cursor_reposition_failed;

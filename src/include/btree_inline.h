@@ -2942,11 +2942,15 @@ __wt_btcur_bounds_early_exit(
  *     Count a skipped deleted page as internal or leaf.
  */
 static WT_INLINE void
-__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats)
+__wt_btcur_skip_page_inc(
+  WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, bool resident_internal)
 {
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        walk_skip_stats->total_del_internal_pages_skipped++;
-    else
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        if (resident_internal)
+            walk_skip_stats->total_resident_del_internal_pages_skipped++;
+        else
+            walk_skip_stats->total_del_internal_pages_skipped++;
+    } else
         walk_skip_stats->total_del_leaf_pages_skipped++;
 }
 
@@ -2961,10 +2965,11 @@ __wt_btcur_skip_page(
 {
     WT_ADDR_COPY addr;
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
-    WT_REF_STATE previous_state;
+    WT_REF *child;
+    WT_REF_STATE child_state, previous_state;
     WT_TIME_AGGREGATE *ta;
     uint64_t sleep_usecs, yield_count;
-    bool clean_page;
+    bool check_internal_children, clean_page, internal_children_validated;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2973,7 +2978,7 @@ __wt_btcur_skip_page(
 
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
     ta = NULL;
-    clean_page = false;
+    check_internal_children = clean_page = internal_children_validated = false;
 
     /*
      * Trees on the local block manager never skip an internal page. Reading one in is what marks it
@@ -3004,16 +3009,14 @@ __wt_btcur_skip_page(
         ++walk_skip_stats->total_skip_lock_contended;
 
     /*
-     * An internal page resident in memory cannot be judged by its aggregate: a descendant may be
-     * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
-     * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
-     * describes the whole subtree, and skipping it skips the subtree.
-     *
-     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
-     * evaluated through its address cell.
+     * A dirty internal page must be walked. Delay checking the children of a clean internal page
+     * until its aggregate shows that the subtree could be skipped.
      */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
-        goto unlock;
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
+        if (previous_state != WT_REF_MEM || __wt_page_is_modified(ref->page))
+            goto unlock;
+        check_internal_children = true;
+    }
 
     /*
      * Check the fast-truncate information; there are 3 cases:
@@ -3032,19 +3035,25 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
-        __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
         goto unlock;
     }
 
     if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
         clean_page = true;
 
-    /* Look at the disk address, if it exists. */
+check_aggregate:
+    /*
+     * Prefer the reference address when it exists. A disaggregated skip-write can retain the
+     * current address while publishing an empty page-modify aggregate.
+     */
     if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            if (check_internal_children && !internal_children_validated)
+                goto validate_internal;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
             goto unlock;
         }
 
@@ -3057,24 +3066,72 @@ __wt_btcur_skip_page(
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            if (check_internal_children && !internal_children_validated)
+                goto validate_internal;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
         }
-    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
-        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
-        /*
-         * If the reader can see all of the deleted content, they can skip a deleted clean page.
-         * Before determining whether the deleted page is visible, copy the stop time aggregate
-         * information pointer because as part of the checkpoint operation, this pointer can be
-         * released in parallel.
-         *
-         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
-         * use the range visibility check; it skips more pages than the snap_min bound used on the
-         * disk-address path, which only has the newest stop transaction.
-         */
-        *skipp = true;
-        walk_skip_stats->total_inmem_del_pages_skipped++;
+    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare) {
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            if (__wt_txn_snap_min_visible(
+                  session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+                *skipp = true;
+                if (check_internal_children && !internal_children_validated)
+                    goto validate_internal;
+                __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
+            }
+        } else if (__wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+                     ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+            *skipp = true;
+            walk_skip_stats->total_inmem_del_pages_skipped++;
+        }
     }
+    goto unlock;
+
+validate_internal:
+    /*
+     * Locking the parent blocks new readers from entering its children, but an existing reader may
+     * hazard-couple between them. Scan in both directions so such a reader cannot move past the
+     * check, and reject queued pre-fetch work that may instantiate a child.
+     */
+    WT_ASSERT(session, check_internal_children && *skipp);
+    WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
+        child_state = WT_REF_GET_STATE(child);
+        if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
+          __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
+          (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)) {
+            *skipp = false;
+            goto unlock;
+        }
+    }
+    WT_INTL_FOREACH_END;
+
+    WT_INTL_FOREACH_REVERSE_BEGIN (session, ref->page, child) {
+        child_state = WT_REF_GET_STATE(child);
+        if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
+          __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
+          (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)) {
+            *skipp = false;
+            goto unlock;
+        }
+    }
+    WT_INTL_FOREACH_END;
+
+    /* Observe a dirty transition ordered before a child was published as on disk. */
+    WT_ACQUIRE_BARRIER();
+    if (__wt_page_is_modified(ref->page)) {
+        *skipp = false;
+        goto unlock;
+    }
+
+    /*
+     * The parent may have been dirtied, reconciled and marked clean while its children were being
+     * checked. Re-read the aggregate after validating the children so the skip decision belongs to
+     * the clean state observed above.
+     */
+    internal_children_validated = true;
+    *skipp = false;
+    ta = NULL;
+    goto check_aggregate;
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);

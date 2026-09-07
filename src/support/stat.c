@@ -269,6 +269,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of entries skipped to position the history store cursor",
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
+  "cursor: Total number of resident deleted internal pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
   "cursor: Total number of times cursor fails to temporarily release pinned page to encourage "
@@ -768,6 +769,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_skip_hs_cur_position = 0;
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
+    stats->cursor_tree_walk_resident_del_internal_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_tree_walk_skip_lock_contended = 0;
     stats->cursor_reposition_failed = 0;
@@ -1264,6 +1266,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
     to->cursor_tree_walk_inmem_del_page_skip += from->cursor_tree_walk_inmem_del_page_skip;
     to->cursor_tree_walk_ondisk_del_page_skip += from->cursor_tree_walk_ondisk_del_page_skip;
+    to->cursor_tree_walk_resident_del_internal_page_skip +=
+      from->cursor_tree_walk_resident_del_internal_page_skip;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
     to->cursor_tree_walk_skip_lock_contended += from->cursor_tree_walk_skip_lock_contended;
     to->cursor_reposition_failed += from->cursor_reposition_failed;
@@ -1811,6 +1815,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cursor_tree_walk_inmem_del_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_page_skip);
+    to->cursor_tree_walk_resident_del_internal_page_skip +=
+      WT_STAT_DSRC_READ(from, cursor_tree_walk_resident_del_internal_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_DSRC_READ(from, cursor_search_near_prefix_fast_paths);
     to->cursor_tree_walk_skip_lock_contended +=
@@ -2603,6 +2609,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of entries skipped to position the history store cursor",
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
+  "cursor: Total number of resident deleted internal pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
   "cursor: Total number of times cursor fails to temporarily release pinned page to encourage "
@@ -3737,6 +3744,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_skip_hs_cur_position = 0;
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
+    stats->cursor_tree_walk_resident_del_internal_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_tree_walk_skip_lock_contended = 0;
     stats->cursor_reposition_failed = 0;
@@ -4987,6 +4995,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cursor_tree_walk_inmem_del_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_ondisk_del_page_skip);
+    to->cursor_tree_walk_resident_del_internal_page_skip +=
+      WT_STAT_CONN_READ(from, cursor_tree_walk_resident_del_internal_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_CONN_READ(from, cursor_search_near_prefix_fast_paths);
     to->cursor_tree_walk_skip_lock_contended +=

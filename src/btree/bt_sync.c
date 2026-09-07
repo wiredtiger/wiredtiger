@@ -258,6 +258,37 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
+ * __sync_reclaim_deleted_children --
+ *     Mark a clean internal page dirty if it has a globally visible deleted child.
+ */
+static int
+__sync_reclaim_deleted_children(WT_SESSION_IMPL *session, WT_PAGE *page, bool *dirtiedp)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *child;
+    uint32_t slot;
+
+    WT_ASSERT(session, WT_PAGE_IS_INTERNAL(page));
+
+    *dirtiedp = false;
+    WT_INTL_INDEX_GET(session, page, pindex);
+    for (slot = 0; slot < pindex->entries; ++slot) {
+        child = pindex->index[slot];
+        if (WT_REF_GET_STATE(child) != WT_REF_DELETED ||
+          !__wti_delete_page_skip(session, child, true))
+            continue;
+
+        /* Reconciliation checks every child, so finding one removable child is sufficient. */
+        WT_RET(__wt_page_modify_init(session, page));
+        __wt_page_only_modify_set(session, page);
+        *dirtiedp = true;
+        break;
+    }
+
+    return (0);
+}
+
+/*
  * __sync_check_for_multiblock_rec --
  *     If a page has a pending multiblock split as a result of checkpoint reconciliation, flag it
  *     for eviction. Writing out that split is more efficient than allowing the page to go through
@@ -468,6 +499,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             dirty = __wt_page_is_modified(page);
             WT_ACQUIRE_BARRIER();
 
+            if (!dirty && is_internal && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+              !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY)) {
+                WT_WITH_PAGE_INDEX(
+                  session, ret = __sync_reclaim_deleted_children(session, page, &dirty));
+                WT_ERR(ret);
+            }
+
             /* Skip clean pages, but always update the maximum transaction ID and timestamp. */
             if (!dirty) {
                 mod = page->modify;
@@ -562,6 +600,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * can still realize the split and avoid checkpoint splitting the page again.
              */
             __sync_check_for_multiblock_rec(session, walk, is_internal);
+
+            if (is_internal && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !__wt_ref_is_root(walk) &&
+              !__wt_page_is_modified(page) && __wt_page_is_empty(page))
+                __wt_evict_page_soon(session, walk);
 
             /*
              * Update checkpoint IO tracking data for the session running the checkpoint. Other

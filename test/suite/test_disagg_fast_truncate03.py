@@ -86,7 +86,9 @@ class test_disagg_fast_truncate03(test_cc_base):
         ) as stat_cursor:
             return stat_cursor[stat_key][2]
 
-    def retry_for_stat_increase(self, action, stat_key, baseline, msg, timeout=30, guard=None):
+    def retry_for_stat_increase(
+        self, action, stat_key, baseline, msg, timeout=30, guard=None, additional_stat_key=None
+    ):
         """
         Repeat an action until a counter it drives rises above baseline.
 
@@ -98,6 +100,8 @@ class test_disagg_fast_truncate03(test_cc_base):
         while True:
             action()
             value = self.read_stat(stat_key)
+            if additional_stat_key is not None:
+                value += self.read_stat(additional_stat_key)
             if value > baseline:
                 return value
             if guard is not None:
@@ -180,6 +184,9 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
+            "resident_internal_skip": self.read_stat(
+                stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip
+            ),
             "not_visible_all": self.read_stat(
                 stat.dsrc.checkpoint_cleanup_pages_deleted_not_visible_all
             ),
@@ -256,6 +263,46 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.session.rollback_transaction()
         return count
 
+    def test_checkpoint_reclaims_visible_deleted_children(self):
+        self.populate()
+        surviving = self.nrows - (self.trunc_stop - self.trunc_start + 1)
+
+        self.fast_truncate()
+        self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
+        self.session.checkpoint()
+
+        resident_before = self.read_stat(
+            stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip
+        )
+        self.assertEqual(self.scan_table(), surviving)
+        self.assertGreater(
+            self.read_stat(stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip),
+            resident_before,
+            "no resident internal page covered only visible deleted children",
+        )
+
+        before = self.snapshot_stats()
+        ts = self.timestamp_str(self.visible_ts)
+        with (
+            wttest.open_cursor(self.session, self.uri) as cursor,
+            self.transaction(commit_timestamp=self.visible_ts),
+        ):
+            cursor[1] = self.value + "b"
+        self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
+        self.session.checkpoint()
+        after = self.snapshot_stats()
+
+        self.assertEqual(
+            after["cleanup_removed"],
+            before["cleanup_removed"],
+            "checkpoint cleanup unexpectedly reclaimed the deleted children",
+        )
+        self.assertGreater(
+            after["real_deleted"],
+            before["real_deleted"],
+            "checkpoint did not reclaim globally visible deleted children",
+        )
+
     def test_skip_emptied_internal_page(self):
         self.populate()
         surviving = self.nrows - (self.trunc_stop - self.trunc_start + 1)
@@ -294,18 +341,18 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
         self.session.checkpoint()
 
-        # Step 4 -- the page is clean and still marked for eviction, so the walk queues it for
-        # urgent eviction. An attempt the walk's own hazard pointer blocks drops the queue entry
-        # rather than re-queueing it, so the walk has to be repeated until an eviction lands.
-        # The reference and the on-disk page survive as WT_REF_DISK.
+        # Step 4 -- the page is clean, so the walk can use its reconciliation aggregate to skip it
+        # while it is still resident rather than waiting for eviction.
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), surviving),
-            stat.dsrc.cache_eviction_internal, before["internal_evicted"],
-            "step 4: the clean emptied internal page was not evicted",
+            stat.dsrc.cursor_tree_walk_del_internal_page_skip,
+            before["internal_skip"] + before["resident_internal_skip"],
+            "step 4: the clean emptied internal page was not skipped",
+            additional_stat_key=stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip,
         )
 
-        # Step 5 -- the reference survives, but its address aggregate shows that the subtree is
-        # deleted. A subsequent walk skips the subtree without reading and re-dirtying the page.
+        # Step 5 -- whether the page remains resident or is later evicted, a subsequent walk skips
+        # the subtree without reading or re-dirtying it.
         with (
             wttest.open_cursor(self.session, self.uri) as cursor,
             self.transaction(commit_timestamp=self.read_ts - 1),
@@ -315,14 +362,17 @@ class test_disagg_fast_truncate03(test_cc_base):
         before = self.snapshot_stats()
         self.assertEqual(self.scan_table(), surviving + 1)
         after = self.snapshot_stats()
-        skipped_internal = after["internal_skip"] - before["internal_skip"]
+        skipped_internal = (
+            after["internal_skip"] - before["internal_skip"]
+            + after["resident_internal_skip"] - before["resident_internal_skip"]
+        )
         self.assertEqual(
             after["internal_read"], before["internal_read"],
-            "step 5: the evicted internal page was read back",
+            "step 5: the skipped internal page was read",
         )
         self.assertEqual(
             after["evict_blocked"], before["evict_blocked"],
-            "step 5: the evicted internal page was re-dirtied",
+            "step 5: the skipped internal page was re-dirtied",
         )
         self.assertGreater(
             skipped_internal, 0,
