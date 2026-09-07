@@ -931,8 +931,8 @@ __conn_dhandle_close_locked(
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
 
     /*
-     * Turn eviction back on before releasing the dhandle: releasing can clear session->dhandle,
-     * and disabling eviction needs it to resolve the btree it was disabled for.
+     * Turn eviction back on before releasing the dhandle: releasing can clear session->dhandle, and
+     * disabling eviction needs it to resolve the btree it was disabled for.
      */
     if (evict_off)
         __wt_evict_file_exclusive_off(session);
