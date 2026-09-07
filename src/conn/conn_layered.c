@@ -1126,32 +1126,37 @@ __disagg_publish_check_step_down(
 
 /*
  * __wt_disagg_btree_publish_if_covered --
- *     Publish the btree if the given schema epoch covers the epoch its create was published at,
- *     returning whether it was. The caller holds the schema lock.
+ *     Publish the btree if the given schema epoch covers the epoch its create was published at.
+ *     Reports through publishedp, which may be NULL, whether this call published the btree. The
+ *     caller holds the schema lock.
  */
-bool
+void
 __wt_disagg_btree_publish_if_covered(
-  WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t schema_epoch)
+  WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t schema_epoch, bool *publishedp)
 {
     wt_timestamp_t create_epoch;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    if (publishedp != NULL)
+        *publishedp = false;
 
     /*
      * Re-check the awaiting-publication state: the eviction walk contends with the checkpoint, and
      * the btree may already be published.
      */
     if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
-        return (false);
+        return;
 
     create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
     if (create_epoch == WT_SCHEMA_EPOCH_NONE || create_epoch > schema_epoch)
-        return (false);
+        return;
 
     F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
     __wt_evict_file_exclusive_off(session);
 
-    return (true);
+    if (publishedp != NULL)
+        *publishedp = true;
 }
 
 /*
@@ -1164,6 +1169,7 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
+    bool published;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -1176,8 +1182,9 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
         return;
 
-    if (__wt_disagg_btree_publish_if_covered(
-          session, btree, __wt_get_stable_disaggregated_schema_epoch(session)))
+    __wt_disagg_btree_publish_if_covered(
+      session, btree, __wt_get_stable_disaggregated_schema_epoch(session), &published);
+    if (published)
         WT_STAT_CONN_INCR(session, disagg_publish_epoch_cleared);
 }
 

@@ -461,7 +461,6 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     wt_timestamp_t ckpt_epoch, ckpt_timestamp;
-    bool published;
 
     conn = S2C(session);
     dhandle = session->dhandle;
@@ -478,9 +477,10 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
       session, dhandle->name, __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch)));
 #endif
 
-    published = __wt_disagg_btree_publish_if_covered(session, btree, ckpt_epoch);
+    __wt_disagg_btree_publish_if_covered(session, btree, ckpt_epoch, NULL);
 
-    if (!published) {
+    /* A btree this checkpoint skips must hold no data the checkpoint considers stable. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH)) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
         if (btree->min_unpublished_durable_ts != WT_TS_NONE &&
           btree->min_unpublished_durable_ts <= ckpt_timestamp)

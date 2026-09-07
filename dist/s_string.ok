@@ -1665,6 +1665,7 @@ psp
 pthread
 ptr
 ptrdiff
+publishedp
 pv
 pval
 pwrite
