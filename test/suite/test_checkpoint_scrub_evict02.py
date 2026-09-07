@@ -37,6 +37,7 @@
 # underflow, and the cache reports non-zero counters when it is destroyed.
 
 import threading
+import time
 
 import wttest
 from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
@@ -136,14 +137,25 @@ class test_checkpoint_scrub_evict02(wttest.WiredTigerTestCase):
         self.check_values('y' * 100)
 
     def test_images_released_when_page_discarded(self):
-        """Dropping the table frees pages that still hold a retained image."""
+        """Dropping the table frees pages that still hold a retained image.
+
+        A clean tree's handle is marked dead by the drop and its pages are freed later by the
+        sweep server, not synchronously as part of the drop call, so this polls rather than
+        checking right away. Speed up the sweep scan so the poll resolves quickly instead of
+        waiting on the default interval."""
         self.settle()
         self.write('y' * 100)
         self.session.checkpoint()
         self.assertGreater(self.scrub_images()[0], 0)
 
+        self.conn.reconfigure('file_manager=(close_scan_interval=1)')
         self.session.drop(self.uri)
-        self.assertEqual(self.scrub_images(), (0, 0))
+
+        deadline = time.time() + 10
+        while self.scrub_images() != (0, 0):
+            self.assertLess(time.time(), deadline,
+                'scrub images were not released within the deadline')
+            time.sleep(0.5)
 
     def test_images_released_by_later_reconciliation(self):
         """A page dirtied and reconciled again releases the image its last checkpoint retained.
