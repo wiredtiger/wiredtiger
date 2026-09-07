@@ -855,9 +855,9 @@ err:
 
 /*
  * __conn_dhandle_lock_one --
- *     Lock a single data handle without closing it. If this is part of a schema-changing
- *     operation (indicated by metadata tracking being enabled), register the lock so it is held
- *     for the duration of the operation, exactly as a close would have registered it.
+ *     Lock a single data handle without closing it. If this is part of a schema-changing operation
+ *     (indicated by metadata tracking being enabled), register the lock so it is held for the
+ *     duration of the operation, exactly as a close would have registered it.
  */
 static int
 __conn_dhandle_lock_one(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
@@ -890,17 +890,17 @@ __conn_dhandle_close_locked(
      * A clean tree is already durable, so there is nothing to lose by marking it dead and
      * deferring its cache discard to sweep instead of walking and freeing every page here and now
      * -- regardless of what the caller asked for. A dirty tree is untouched: it still goes through
-     * __wt_checkpoint_close below and gets EBUSY there exactly as it does today, so a drop can
-     * never silently discard data that was never made durable.
+     * the checkpoint-or-EBUSY path below exactly as it does today, so a drop can never silently
+     * discard data that was never made durable.
      *
-     * A dirty reading is trustworthy without any synchronization: nothing makes a dirty tree clean
-     * again, so an unsynchronized dirty result can be acted on immediately, leaving mark_dead alone
-     * and falling through to the checkpoint-or-EBUSY path exactly as if this check didn't exist. A
-     * clean reading is not trustworthy on its own, though: a concurrent eviction pass (which can
-     * dirty pages itself, for example obsolete time-window cleanup) could flip it right after. Only
-     * pay for quiescing eviction -- and hold it quiesced through the close below, rather than
-     * relying on the close call to engage it -- to get an authoritative second read when the cheap
-     * first read looked clean.
+     * A dirty reading needs no synchronization to trust: nothing makes a dirty tree clean again, so
+     * an unlocked dirty result can be acted on immediately, leaving mark_dead alone and falling
+     * through to the checkpoint-or-EBUSY path exactly as if this check didn't exist. A clean
+     * reading is not trustworthy on its own, though: a concurrent eviction pass (which can dirty
+     * pages itself, for example obsolete time-window cleanup) could flip it right after. Only pay
+     * to disable eviction -- and hold it disabled through the close below, rather than relying on
+     * the close call to do that -- to get an authoritative second read when the cheap first read
+     * looked clean.
      */
     if (!mark_dead && WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
         btree = dhandle->handle;
@@ -969,8 +969,8 @@ __wt_conn_dhandle_close_all(
      * Lock every handle matching this URI -- the live handle first, then any checkpoint handles --
      * before closing any of them. A close can mark a handle dead, and unlike an ordinary close,
      * that can never be undone: a dead handle can never be reopened. Confirming the whole set can
-     * be locked before closing any of them means a handle that turns out to be busy fails the
-     * whole call before anything irreversible has happened to any handle in the set.
+     * be locked before closing any of them means a handle that turns out to be busy fails the whole
+     * call before anything irreversible has happened to any handle in the set.
      */
     WT_ERR(__conn_dhandle_lock_one(session, uri, NULL));
     WT_ERR(__wt_realloc_def(session, &handles_allocated, nhandles + 1, &handles));
@@ -990,8 +990,8 @@ __wt_conn_dhandle_close_all(
     }
 
     /*
-     * Every handle for this URI is confirmed available. Close the live handle first: of the set,
-     * it is the only one whose close can fail for content reasons (uncommitted or dirty data), and
+     * Every handle for this URI is confirmed available. Close the live handle first: of the set, it
+     * is the only one whose close can fail for content reasons (uncommitted or dirty data), and
      * that failure happens before anything is touched, so the set ends up either closed in full or
      * not at all.
      */
