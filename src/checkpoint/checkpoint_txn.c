@@ -1394,6 +1394,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * even without new committed data. A node with no live stable epoch carries the last written
      * epoch forward, so the epoch cannot have changed.
      */
+    /* Relaxed loads: the checkpoint lock held here also serializes every store. */
     last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
     stable_disagg_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
     if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
@@ -2149,6 +2150,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * schema epoch, otherwise clear them. We clear the timestamp for a couple of reasons:
      * applications can query it and we don't want to lie, and we use it to decide if
      * WT_CONNECTION.rollback_to_stable is an allowed operation.
+     *
+     * The stores are release to pair with the acquire loads in sweep and query_timestamp; nothing
+     * in this process depends on the ordering, it keeps the two fields published consistently.
      */
     if (ckpt_cfg.use_timestamp) {
         __wt_atomic_store_uint64_release(
@@ -2160,8 +2164,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp. This should never be a problem, as checkpoint timestamp should never be less
          * than recovery timestamp. This could potentially avoid MongoDB making two calls to
          * determine last stable recovery timestamp.
-         *
-         * The store is release to pair with the acquire load in sweep.
          */
         if (ckpt_tmp_ts == WT_TS_NONE)
             ckpt_tmp_ts = conn->txn_global.recovery_timestamp;
