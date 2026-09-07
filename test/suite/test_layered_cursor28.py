@@ -53,76 +53,74 @@ class OpResult:
         return ('OpResult(op_return_code=%r, op_key=%r, follow_return_code=%r, follow_key=%r)'
                 % (self.op_return_code, self.op_key, self.follow_return_code, self.follow_key))
 
-def _seed_layered(t, uri):
-    c = t.session.open_cursor(uri)
-    for i, k in enumerate(KEYS, 1):
-        t.session.begin_transaction()
-        c[k] = 'orig%d' % k
-        t.session.commit_transaction('commit_timestamp=' + t.timestamp_str(i))
-    c.close()
-
-# Open a transaction, position on K and remove it; return the cursor on the deleted slot.
-def _deleted_cursor(t, sess, uri):
-    sess.begin_transaction()
-    c = sess.open_cursor(uri)
-    c.set_key(K)
-    t.assertEqual(c.search(), 0)
-    t.assertEqual(c.remove(), 0)
-    return c
-
-# Each setup creates and populates the table once and returns the session to operate through.
-def setup_plain(t):
-    uri = 'table:test_layered_cursor28'
-    t.session.create(uri, 'key_format=i,value_format=S')
-    c = t.session.open_cursor(uri)
-    for k in KEYS:
-        c[k] = 'orig%d' % k
-    c.close()
-    return t.session, uri
-
-def setup_leader(t):
-    uri = 'layered:test_layered_cursor28'
-    t.session.create(uri, 'key_format=i,value_format=S')
-    _seed_layered(t, uri)
-    return t.session, uri
-
-def setup_follower(t):
-    uri = 'layered:test_layered_cursor28'
-    t.session.create(uri, 'key_format=i,value_format=S')
-    # Leader writes land in the stable table; the follower's remove writes an ingest tombstone.
-    _seed_layered(t, uri)
-    t.session.checkpoint()
-    t.conn_follow = t.wiredtiger_open('follower',
-        t.extensionsConfig() + t.conn_base_config + 'disaggregated=(role="follower")')
-    t.session_follow = t.conn_follow.open_session('')
-    t.ignoreStdoutPattern('Picking up the same checkpoint again')
-    t.disagg_advance_checkpoint(t.conn_follow)
-    return t.session_follow, uri
-
-_variants = [
-    ('plain',    dict(setup=setup_plain)),
-    ('leader',   dict(setup=setup_leader)),
-    ('follower', dict(setup=setup_follower)),
-]
-
 @disagg_test_class
 class test_layered_cursor28(wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    plain_uri = f'table:{test_name}'
+    layered_uri = f'layered:{test_name}'
+
     conn_base_config = ',create,cache_size=1GB,statistics=(all),'
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, _variants)
+    variants = [
+        ('plain', dict(variant='plain')),
+        ('leader', dict(variant='leader')),
+        ('follower', dict(variant='follower')),
+    ]
+    scenarios = make_scenarios(disagg_storages, variants)
 
     conn_follow = None
-    active = None
-    uri = None
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+
+    # Create and populate the table, and pick the session the test operates through. Every op runs
+    # in a transaction that is rolled back, so the table stays as seeded here.
+    def setUp(self):
+        super().setUp()
+        if self.variant == 'plain':
+            self.uri = self.plain_uri
+            self.active = self.session
+            self.session.create(self.uri, 'key_format=i,value_format=S')
+            self.seed()
+        elif self.variant == 'leader':
+            self.uri = self.layered_uri
+            self.active = self.session
+            self.session.create(self.uri, 'key_format=i,value_format=S')
+            self.seed()
+        else:
+            # Leader writes land in the stable table; the follower's remove writes an ingest tombstone.
+            self.uri = self.layered_uri
+            self.session.create(self.uri, 'key_format=i,value_format=S')
+            self.seed()
+            self.session.checkpoint()
+            self.conn_follow = self.wiredtiger_open('follower',
+                self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+            self.active = self.conn_follow.open_session('')
+            self.ignoreStdoutPattern('Picking up the same checkpoint again')
+            self.disagg_advance_checkpoint(self.conn_follow)
 
     def tearDown(self):
         if self.conn_follow is not None:
             self.conn_follow.close()
             self.conn_follow = None
         super().tearDown()
+
+    def seed(self):
+        c = self.session.open_cursor(self.uri)
+        for i, k in enumerate(KEYS, 1):
+            self.session.begin_transaction()
+            c[k] = 'orig%d' % k
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i))
+        c.close()
+
+    # Open a transaction, position on K and remove it; return the cursor on the deleted slot.
+    def deleted_cursor(self):
+        self.active.begin_transaction()
+        c = self.active.open_cursor(self.uri)
+        c.set_key(K)
+        self.assertEqual(c.search(), 0)
+        self.assertEqual(c.remove(), 0)
+        return c
 
     def return_code(self, fn):
         try:
@@ -145,15 +143,10 @@ class test_layered_cursor28(wttest.WiredTigerTestCase):
             return None
 
     def run_op(self, op, follow='next', unpositioned=False):
-        # These ops legitimately log to stderr off a deleted or unpositioned slot.
-        self.captureerr.setIgnorePattern(re.compile(
-            'requires key be set|requires value be set'
-            '|only permitted in a running transaction|not supported in implicit transactions'))
+        # get_value() and update() legitimately log to stderr off a deleted slot.
+        self.captureerr.setIgnorePattern(re.compile('requires key be set|requires value be set'))
 
-        # Every run works in a transaction that is rolled back, so one setup serves a whole test.
-        if self.active is None:
-            self.active, self.uri = self.setup(self)
-        c = _deleted_cursor(self, self.active, self.uri)
+        c = self.deleted_cursor()
         if unpositioned:
             c.reset()
 

@@ -588,16 +588,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def op_pos_remove(self, nodes, rnd, trace):
         # The long-lived position can be stale, so it cannot satisfy the blind-remove guarantee.
-        # Use the stable-aware remove cursors and reset the shared positioned cursors afterward.
+        # Use the stable-aware remove cursors; the shared cursors stay positioned on the removed key.
         key = self.state.cur_pos
         if key not in self.state.py_table:
             return
         trace.log('pos_remove %r' % key)
         self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'pos_remove')
         self.state.py_table.pop(key, None)
-        for n in nodes:
-            n.reset_all()
-        self.state.cur_pos = None
 
     def op_txn_begin(self, nodes, rnd, trace):
         # No txn open -> begin one (flavor by the txn_mode weights); a txn open -> end it.
