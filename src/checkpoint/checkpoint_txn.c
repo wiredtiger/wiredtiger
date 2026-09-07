@@ -3782,7 +3782,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 
     btree = S2BT(session);
     bulk = F_ISSET(btree, WT_BTREE_BULK);
-    metadata = WT_IS_METADATA(session->dhandle);
+    metadata = WT_IS_ANY_METADATA(session->dhandle);
 
     /*
      * We've done the final checkpoint before the final close, subsequent writes to normal objects
