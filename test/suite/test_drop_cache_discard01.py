@@ -41,11 +41,10 @@ from wiredtiger import stat
 # property that does tell them apart is whether the file's own dhandle is torn down as part of the
 # drop call. Dropping a simple table closes two dhandles: the table-layer one (always closed
 # synchronously, its type isn't subject to the clean/dirty distinction the fix makes) and the
-# underlying file/btree one (the one the fix defers to sweep when the tree is clean). So
-# stat.conn.btree_open (conn->open_btree_count) drops by 1 across a clean-tree drop with the fix
-# applied, and by 2 without it. Checking it immediately after drop() returns needs no sleep or
-# polling: the call has already completed, so whatever it was going to do to that counter has
-# already happened.
+# underlying file/btree one (the one the fix defers to sweep when the tree is clean). So the
+# "btrees currently open" statistic drops by 1 across a clean-tree drop with the fix applied, and
+# by 2 without it. Checking it immediately after drop() returns needs no sleep or polling: the call
+# has already completed, so whatever it was going to do to that counter has already happened.
 class test_drop_cache_discard01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=1G,statistics=(all)'
 
@@ -91,10 +90,10 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
 
     def test_busy_checkpoint_handle_leaves_live_handle_usable(self):
         """
-        __wt_conn_dhandle_close_all locks the live handle before any checkpoint handles for the
-        same URI, then closes the whole set only once every handle in it is confirmed lockable. If
-        a checkpoint handle turns out to be busy, the live handle -- already locked by that point
-        -- must not have been closed or marked dead: that step is irreversible, so committing it
+        Dropping a table locks the live handle before any checkpoint handles for the same URI,
+        then closes the whole set only once every handle in it is confirmed lockable. If a
+        checkpoint handle turns out to be busy, the live handle -- already locked by that point --
+        must not have been closed or marked dead: that step is irreversible, so committing it
         before the rest of the set is confirmed available would strand a dead handle behind a drop
         that reports failure. Check this directly: drop must fail EBUSY while a checkpoint cursor
         is open, and the table must still be fully open and usable afterward.
