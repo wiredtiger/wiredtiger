@@ -38,13 +38,14 @@ from wiredtiger import stat
 #
 # A clean tree has nothing dirty to flush either way, so comparing the backing file's bytes before
 # and after the drop cannot tell the two behaviors apart: neither path writes to the file. The
-# property that does tell them apart is whether the file's own dhandle is torn down as part of the
-# drop call. Dropping a simple table closes two dhandles: the table-layer one (always closed
-# synchronously, its type isn't subject to the clean/dirty distinction the fix makes) and the
-# underlying file/btree one (the one the fix defers to sweep when the tree is clean). So the
-# "btrees currently open" statistic drops by 1 across a clean-tree drop with the fix applied, and
-# by 2 without it. Checking it immediately after drop() returns needs no sleep or polling: the call
-# has already completed, so whatever it was going to do to that counter has already happened.
+# property that does tell them apart is whether the discard happens through the sweep server at
+# all, not how soon: committing a drop wakes the sweep server so it can reclaim the handle
+# promptly, so the deferred discard usually runs within a moment of drop() returning rather than on
+# some later scan, and disabling the scan interval doesn't prevent that wake-up. So the statistic
+# that counts handles the sweep server closed is the property to poll for, not a stat read
+# immediately after drop() returns: with the fix, a clean-tree drop's handle is closed through that
+# path and the counter goes up; without it, the drop closes the handle itself before the sweep
+# server ever sees it, and the counter does not move.
 class test_drop_cache_discard01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=1G,statistics=(all)'
 
@@ -57,17 +58,16 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
             cursor[i] = self.value
         cursor.close()
 
-    def btree_open(self):
+    def get_stat(self, statistic):
         cursor = self.session.open_cursor('statistics:', None, None)
-        value = cursor[stat.conn.btree_open][2]
+        value = cursor[statistic][2]
         cursor.close()
         return value
 
     def test_clean_drop_defers_handle_close(self):
         """
         A non-forced drop of an already-clean table must not tear down its file/btree handle as
-        part of the drop call: that handle is marked dead and left for sweep, so btree_open drops
-        by exactly 1 (the table-layer handle only) immediately after the drop returns, not by 2.
+        part of the drop call: that handle is marked dead and left for the sweep server to close.
         """
         uri = 'table:test_drop_cache_discard01_clean'
         self.populate(uri, 10_000)
@@ -78,18 +78,14 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
         time.sleep(1)
         self.session.checkpoint()
 
-        btree_open_before = self.btree_open()
+        dead_close_before = self.get_stat(stat.conn.dh_sweep_dead_close)
         self.session.drop(uri, None)
-        btree_open_after = self.btree_open()
 
-        # In disaggregated mode a table drop tears down both its stable and ingest files, so the
-        # deferred handle is one of two rather than the only one.
-        expected_delta = -2 if self.runningHook('disagg') else -1
-        self.assertEqual(btree_open_after, btree_open_before + expected_delta,
-            f'btree_open changed by {btree_open_after - btree_open_before} across a clean-tree '
-            f'drop ({btree_open_before} before, {btree_open_after} after) -- expected exactly '
-            f'{expected_delta}: the file/btree handle should have been marked dead and deferred '
-            'to sweep, not closed synchronously')
+        deadline = time.time() + 10
+        while self.get_stat(stat.conn.dh_sweep_dead_close) == dead_close_before:
+            self.assertLess(time.time(), deadline,
+                'the sweep server never closed the handle deferred by a clean-tree drop')
+            time.sleep(0.1)
 
     def test_busy_checkpoint_handle_leaves_live_handle_usable(self):
         """
