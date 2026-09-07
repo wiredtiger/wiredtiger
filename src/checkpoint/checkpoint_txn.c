@@ -545,7 +545,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
           !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
             return (0);
         /* Skip checkpointing outdated trees. */
-        if (F_ISSET(btree->dhandle, WT_DHANDLE_OUTDATED))
+        if (__wt_atomic_load_bool_relaxed(&btree->dhandle->outdated))
             return (0);
     }
 
@@ -3678,7 +3678,9 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_RET(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
-            WT_RET(__wt_checkpoint_file(session, cfg));
+            ret = __wt_checkpoint_file(session, cfg);
+        WT_TRET(__wt_session_release_dhandle(session));
+        WT_RET(ret);
     }
 
     /* Disable metadata tracking during the metadata checkpoint. */
