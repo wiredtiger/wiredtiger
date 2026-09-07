@@ -893,6 +893,12 @@ __conn_dhandle_close_locked(
      * the checkpoint-or-EBUSY path below exactly as it does today, so a drop can never silently
      * discard data that was never made durable.
      *
+     * Only do this when the handle is actually being removed. The same close path also runs for a
+     * transient close-then-immediately-reopen (verify and alter close every handle for a URI to
+     * force a fresh exclusive open, then open it again in the same call): marking that handle dead
+     * would leave the reopen finding a handle that can never again satisfy a lookup by name, since
+     * nothing but sweep clears a dead handle and sweep may not even be running yet.
+     *
      * A dirty reading needs no synchronization to trust: nothing makes a dirty tree clean again, so
      * an unlocked dirty result can be acted on immediately, leaving mark_dead alone and falling
      * through to the checkpoint-or-EBUSY path exactly as if this check didn't exist. A clean
@@ -902,7 +908,7 @@ __conn_dhandle_close_locked(
      * the close call to do that -- to get an authoritative second read when the cheap first read
      * looked clean.
      */
-    if (!mark_dead && WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+    if (removed && !mark_dead && WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
         btree = dhandle->handle;
         if (!btree->modified) {
             WT_RET(__wt_evict_file_exclusive_on(session));
