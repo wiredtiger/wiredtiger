@@ -826,6 +826,7 @@ struct __wt_connection_stats {
     int64_t capacity_time_read;
     int64_t checkpoint_cleanup_thread_start;
     int64_t checkpoint_cleanup_thread_stop;
+    int64_t checkpoint_cleanup_pages_deleted_not_visible_all;
     int64_t checkpoint_cleanup_duration;
     int64_t checkpoint_cleanup_handle_processed;
     int64_t checkpoint_cleanup_inmem_pages_visited;
@@ -1047,6 +1048,7 @@ struct __wt_connection_stats {
     int64_t layered_curs_search;
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
+    int64_t layered_curs_open_stable_ckpt_pickup_race;
     int64_t layered_curs_open_stable_refused;
     int64_t layered_curs_open_stable_stepdown_race;
     int64_t layered_curs_update;
@@ -1708,6 +1710,7 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
+    int64_t checkpoint_cleanup_pages_deleted_not_visible_all;
     int64_t checkpoint_cleanup_pages_evict;
     int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_read_reclaim_space;
@@ -1826,6 +1829,7 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search;
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
+    int64_t layered_curs_open_stable_ckpt_pickup_race;
     int64_t layered_curs_open_stable_refused;
     int64_t layered_curs_open_stable_stepdown_race;
     int64_t layered_curs_update;

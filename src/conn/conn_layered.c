@@ -1587,7 +1587,7 @@ __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HAND
      * era lets the drain dirty a page that still holds an unresolved on-disk prepared cell before
      * the drain resolves it, which reconciliation cannot represent (leaked prepared update).
      */
-    F_SET(dhandle, WT_DHANDLE_OUTDATED);
+    __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     return (0);
