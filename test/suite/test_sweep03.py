@@ -158,7 +158,7 @@ class test_sweep03(sweep_util, suite_subprocess):
         stat_cursor.close()
 
         # A drop of a clean tree marks its handle dead and defers the close to sweep, the same as
-        # a forced drop already does (see test_disable_idle_timeout_drop_force).
+        # a forced drop of a clean tree already does.
         self.assertEqual(close2, close1 + 1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
