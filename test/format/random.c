@@ -71,8 +71,14 @@ random_kv(void *arg)
         config = simple ? "next_random=true" : "next_random=true,next_random_sample_size=37";
         simple = !simple;
 
-        /* Select a table and open a cursor. */
+        /* Select a table. */
         table = table_select_type(ROW, false);
+
+        /*
+         * Read inside a snapshot transaction so the reads observe a single consistent state, even
+         * when racing a disaggregated leader step-down.
+         */
+        wt_wrap_begin_transaction(session, "isolation=snapshot");
         wt_wrap_open_cursor(session, table->uri, config, &cursor);
 
         /* This is just a smoke-test, get some key/value pairs. */
@@ -81,9 +87,12 @@ random_kv(void *arg)
             case 0:
                 break;
             case WT_NOTFOUND:
-            case WT_ROLLBACK:
             case WT_CACHE_FULL:
             case WT_PREPARE_CONFLICT:
+                continue;
+            case WT_ROLLBACK:
+                /* A rollback ends the transaction; abandon this round and start a new one. */
+                i = 1;
                 continue;
             default:
                 testutil_check(ret);
@@ -93,6 +102,9 @@ random_kv(void *arg)
         }
 
         testutil_check(cursor->close(cursor));
+
+        /* Release the snapshot; a no-op if the round ended in a rollback. */
+        testutil_check(session->rollback_transaction(session, NULL));
 
         /* Sleep for some number of seconds. */
         period = mmrand(&g.extra_rnd, 1, 10);
