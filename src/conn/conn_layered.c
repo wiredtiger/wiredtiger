@@ -1185,7 +1185,7 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
     __wt_disagg_btree_publish_if_covered(
       session, btree, __wt_get_stable_disaggregated_schema_epoch(session), &published);
     if (published)
-        WT_STAT_CONN_INCR(session, disagg_publish_epoch_cleared);
+        WT_STAT_CONN_INCR(session, eviction_disagg_publish_cleared);
 }
 
 /*

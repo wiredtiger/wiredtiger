@@ -62,14 +62,14 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(scratch, 'key_format=S,value_format=S')
 
         for i in range(600):
-            published = self.get_stat(stat.conn.disagg_publish_epoch_cleared)
+            published = self.get_stat(stat.conn.eviction_disagg_publish_cleared)
             if published >= expected:
                 self.assertEqual(published, expected)
                 return
             self.insert(scratch, i * 100, 100, 20)
             time.sleep(0.1)
         self.fail('eviction never published %d tables, saw %d' %
-                  (expected, self.get_stat(stat.conn.disagg_publish_epoch_cleared)))
+                  (expected, self.get_stat(stat.conn.eviction_disagg_publish_cleared)))
 
     def insert(self, uri, start, count, commit_ts):
         cursor = self.session.open_cursor(uri)
@@ -96,11 +96,11 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(uri, 'key_format=S,value_format=S')
         self.insert(uri, 0, self.nitems, 20)
 
-        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
+        self.assertEqual(self.get_stat(stat.conn.eviction_disagg_publish_cleared), 0)
 
         # Published, but not yet covered.
         self.publish(uri, 10)
-        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
+        self.assertEqual(self.get_stat(stat.conn.eviction_disagg_publish_cleared), 0)
 
         self.set_stable_epoch(10)
         self.wait_for_published(1)
@@ -137,7 +137,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(20)
         self.assertStatGreaterSoon(
             stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), timeout=60)
-        self.assertGreater(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
+        self.assertGreater(self.get_stat(stat.conn.eviction_disagg_publish_cleared), 0)
 
         with wttest.open_cursor(self.session, uri) as cursor:
             self.assertEqual(sum(1 for _ in cursor), nrows)
@@ -223,7 +223,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.insert(uri, 0, 100, 50)
 
         self.leader_checkpoint(30)
-        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
+        self.assertEqual(self.get_stat(stat.conn.eviction_disagg_publish_cleared), 0)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.drop(uri, None))
@@ -266,4 +266,4 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.set_stable_epoch(10)
         self.session.checkpoint()
-        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
+        self.assertEqual(self.get_stat(stat.conn.eviction_disagg_publish_cleared), 0)
