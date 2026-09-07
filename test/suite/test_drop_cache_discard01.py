@@ -82,11 +82,14 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
         self.session.drop(uri, None)
         btree_open_after = self.btree_open()
 
-        self.assertEqual(btree_open_after, btree_open_before - 1,
+        # In disaggregated mode a table drop tears down both its stable and ingest files, so the
+        # deferred handle is one of two rather than the only one.
+        expected_delta = -2 if self.runningHook('disagg') else -1
+        self.assertEqual(btree_open_after, btree_open_before + expected_delta,
             f'btree_open changed by {btree_open_after - btree_open_before} across a clean-tree '
-            f'drop ({btree_open_before} before, {btree_open_after} after) -- expected exactly -1: '
-            'the file/btree handle should have been marked dead and deferred to sweep, not closed '
-            'synchronously')
+            f'drop ({btree_open_before} before, {btree_open_after} after) -- expected exactly '
+            f'{expected_delta}: the file/btree handle should have been marked dead and deferred '
+            'to sweep, not closed synchronously')
 
     def test_busy_checkpoint_handle_leaves_live_handle_usable(self):
         """

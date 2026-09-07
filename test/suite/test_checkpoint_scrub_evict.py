@@ -44,6 +44,8 @@
 #      path: off disables it, auto matches today's precise-checkpoint behavior,
 #      and on activates it regardless of precise checkpoint.
 
+import time
+
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -347,9 +349,27 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
             # Under precise_checkpoint the drop's close-checkpoint refuses dirty
             # data (WT_DIRTY_DATA). Checkpoint first so the drop closes cleanly.
             self.session.checkpoint()
+
+            # A clean tree's drop marks its handle dead and defers the page discard to sweep, so
+            # wait for the gauges to stop moving before checking them rather than reading them
+            # right away, while sweep may still be draining them. Speed up the scan so this
+            # settles quickly instead of waiting on the default interval.
+            self.conn.reconfigure('file_manager=(close_scan_interval=1)')
             self.session.drop(self.uri)
-            pages = self.get_stat(stat.conn.cache_scrub_image_pages)
-            nbytes = self.get_stat(stat.conn.cache_scrub_image_bytes)
+
+            deadline = time.time() + 10
+            previous = None
+            while True:
+                current = (self.get_stat(stat.conn.cache_scrub_image_pages),
+                    self.get_stat(stat.conn.cache_scrub_image_bytes))
+                if current == previous:
+                    break
+                previous = current
+                self.assertLess(time.time(), deadline,
+                    'scrub image gauges never settled: last seen %s' % (current,))
+                time.sleep(0.5)
+            pages, nbytes = current
+
             self.assertGreaterEqual(pages, 0, 'scrub image page gauge underflowed')
             self.assertGreaterEqual(nbytes, 0, 'scrub image byte gauge underflowed')
             self.assertEqual(pages == 0, nbytes == 0,
