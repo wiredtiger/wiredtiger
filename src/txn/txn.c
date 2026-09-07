@@ -861,9 +861,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
         txn->txn_log.txn_logsync = 0;
 
     /*
-     * Exempt this transaction from the cache size. Track that we set the session flag so it is
-     * cleared on release, unless the session was already configured to ignore the cache size. A
-     * false setting is not an override of the session-level setting.
+     * Exempt this transaction from the cache size, recording ownership of the session flag so that
+     * __wt_txn_config_clear drops it again, unless the session was already configured to ignore the
+     * cache size. A false setting is not an override of the session-level setting.
      */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_cache_size, 0, &cval));
     if (cval.val && !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
@@ -908,6 +908,12 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
 err:
+    /*
+     * A rejected configuration must leave nothing behind for the next transaction, including the
+     * session flag this function may have set.
+     */
+    if (ret != 0)
+        __wt_txn_config_clear(session);
     return (ret);
 }
 
@@ -1003,14 +1009,8 @@ __txn_release(WT_SESSION_IMPL *session)
      * Purposely do NOT clear the commit and durable timestamps on release. Other readers may still
      * find these transactions in the durable queue and will need to see those timestamps.
      */
-    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
-        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
-    txn->flags = 0;
-    txn->time_point.flags = 0;
+    __wt_txn_config_clear(session);
     txn->time_point.prepare_timestamp = WT_TS_NONE;
-
-    /* Clear operation timer. */
-    txn->operation_timeout_us = 0;
 
     /* Reset the dirty footprint tracking */
     __txn_clear_bytes_dirty(session);

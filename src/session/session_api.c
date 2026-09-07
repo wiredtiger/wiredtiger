@@ -517,8 +517,8 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
         else
             F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
         /*
-         * The session now owns this flag, so a running transaction that had claimed it must no
-         * longer undo it on release.
+         * The session now owns this flag, so drop any ownership a running transaction recorded in
+         * txn config; it must no longer undo the setting when it is released.
          */
         F_CLR(session->txn, WT_TXN_IGNORE_CACHE_SIZE);
     }
