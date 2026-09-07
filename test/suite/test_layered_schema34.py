@@ -188,7 +188,8 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     def test_verify_after_publish(self):
         """
         Verify skips a table awaiting publication. A published one is verified like any other:
-        busy while it holds dirty data, and verified once a checkpoint has run.
+        busy while it holds dirty data, and verified once a checkpoint has run. The retry covers
+        the ingest constituent, which stays dirty until its contents drain into the stable one.
         """
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(5)
@@ -207,7 +208,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
 
         self.leader_checkpoint(30)
-        self.session.verify(uri, None)
+        self.verifyUntilSuccess(self.session, uri, config=None)
         self.check(uri, self.nitems)
 
     def test_table_above_the_epoch_keeps_waiting(self):
