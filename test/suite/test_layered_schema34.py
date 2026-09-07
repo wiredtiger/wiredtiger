@@ -52,22 +52,24 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     nitems = 5000
 
-    def published_count(self):
-        return self.get_stat(stat.conn.disagg_publish_epoch_cleared)
+    def wait_for_published(self, expected):
+        """
+        Wait for eviction to publish the tables under test. Eviction runs a pass when it wants
+        memory, so write to a scratch table to keep the cache under pressure. The tables under
+        test are left alone, so their contents stay exactly what each test wrote.
+        """
+        scratch = 'table:' + self.test_name + '_pressure'
+        self.session.create(scratch, 'key_format=S,value_format=S')
 
-    def wait_for_published(self, uri, expected):
-        """
-        Wait for eviction to publish the table. Eviction only visits a table when it wants its
-        memory, so the inserts below keep the cache under pressure until it does.
-        """
-        for _ in range(600):
-            if self.published_count() >= expected:
-                self.assertEqual(self.published_count(), expected)
+        for i in range(600):
+            published = self.get_stat(stat.conn.disagg_publish_epoch_cleared)
+            if published >= expected:
+                self.assertEqual(published, expected)
                 return
-            self.insert(uri, self.nitems, 100, 20)
+            self.insert(scratch, i * 100, 100, 20)
             time.sleep(0.1)
         self.fail('eviction never published %d tables, saw %d' %
-                  (expected, self.published_count()))
+                  (expected, self.get_stat(stat.conn.disagg_publish_epoch_cleared)))
 
     def insert(self, uri, start, count, commit_ts):
         cursor = self.session.open_cursor(uri)
@@ -94,18 +96,18 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(uri, 'key_format=S,value_format=S')
         self.insert(uri, 0, self.nitems, 20)
 
-        self.assertEqual(self.published_count(), 0)
+        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
 
         # Published, but not yet covered.
         self.publish(uri, 10)
-        self.assertEqual(self.published_count(), 0)
+        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
 
         self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
+        self.wait_for_published(1)
 
         # The table is an ordinary one from here.
         self.leader_checkpoint(30)
-        self.check(uri, self.nitems + 100)
+        self.check(uri, self.nitems)
 
     def test_publication_lets_eviction_take_pages(self):
         """
@@ -135,7 +137,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(20)
         self.assertStatGreaterSoon(
             stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), timeout=60)
-        self.assertGreater(self.published_count(), 0)
+        self.assertGreater(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
 
         with wttest.open_cursor(self.session, uri) as cursor:
             self.assertEqual(sum(1 for _ in cursor), nrows)
@@ -156,10 +158,10 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.publish(above, 20)
 
         self.set_stable_epoch(10)
-        self.wait_for_published(covered[0], len(covered))
+        self.wait_for_published(len(covered))
 
         self.set_stable_epoch(20)
-        self.wait_for_published(above, len(covered) + 1)
+        self.wait_for_published(len(covered) + 1)
 
     def test_drop_blocked_until_checkpoint(self):
         """A published table still holds uncheckpointed data, so the drop keeps being refused."""
@@ -171,7 +173,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.insert(uri, 0, self.nitems, 20)
         self.publish(uri, 10)
         self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
+        self.wait_for_published(1)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.drop(uri, None))
@@ -196,7 +198,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.insert(uri, 0, self.nitems, 20)
         self.publish(uri, 10)
         self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
+        self.wait_for_published(1)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.verify(uri, None))
@@ -206,7 +208,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.leader_checkpoint(30)
         self.session.verify(uri, None)
-        self.check(uri, self.nitems + 100)
+        self.check(uri, self.nitems)
 
     def test_table_above_the_epoch_keeps_waiting(self):
         """A table published above the stable epoch stays unpublished across checkpoints."""
@@ -221,7 +223,7 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.insert(uri, 0, 100, 50)
 
         self.leader_checkpoint(30)
-        self.assertEqual(self.published_count(), 0)
+        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.drop(uri, None))
@@ -245,10 +247,10 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.step_up()
         self.insert(uri, 0, self.nitems, 20)
         self.set_stable_epoch(10)
-        self.wait_for_published(uri, 1)
+        self.wait_for_published(1)
 
         self.leader_checkpoint(30)
-        self.check(uri, self.nitems + 100)
+        self.check(uri, self.nitems)
 
     def test_follower_does_not_publish(self):
         """Only a leader writes pages, so a follower publishes nothing when the epoch advances."""
@@ -264,4 +266,4 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.set_stable_epoch(10)
         self.session.checkpoint()
-        self.assertEqual(self.published_count(), 0)
+        self.assertEqual(self.get_stat(stat.conn.disagg_publish_epoch_cleared), 0)
