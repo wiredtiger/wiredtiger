@@ -2694,10 +2694,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                  * Nothing survives onto the page: every update was restored to the in-memory chain.
                  * If a previous reconciliation left a block behind, treat this like any other
                  * disagg skip-write so the page keeps pointing at it instead of losing track of it.
-                 * There's nothing to copy forward when no such block exists.
+                 * There's nothing to copy forward when no such block exists. Copy the block meta
+                 * directly rather than going through the address cookie machinery that the normal
+                 * skip-write path uses: a page reached through this restore path may never have had
+                 * ref->addr set (for example, one instantiated from a delta chain), which that code
+                 * assumes.
                  */
                 if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID) {
-                    WT_RET(__rec_copy_prev_addr(session, r));
+                    *multi->block_meta = page->disagg_info->block_meta;
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
                 }
