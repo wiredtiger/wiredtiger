@@ -134,17 +134,21 @@ handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
     char buf[256];
+    const char *msg;
+    int nw;
+    WT_DECL_RET;
 
     (void)handler;
 
     if (session->app_private != NULL) {
         testutil_snprintf(buf, sizeof(buf), "%s %s", (char *)session->app_private, operation);
-        track(buf, progress);
-        return (0);
-    }
+        msg = buf;
+    } else
+        msg = operation;
 
-    track(operation, progress);
-    return (0);
+    nw = progress == 0 ? printf("%s\n", msg) : printf("%s: %" PRIu64 "\n", msg, progress);
+    ret = fflush(stdout);
+    return (nw < 0 ? EIO : (ret == EOF ? errno : 0));
 }
 
 static WT_EVENT_HANDLER event_handler = {NULL, handle_message, handle_progress, NULL, NULL};
