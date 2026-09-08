@@ -467,8 +467,14 @@ resolve()
 
             msg "job in $dir killed"
 
-            # Remove jobs we killed, they count as neither success or failure.
-            rm -rf $dir $log $rec_dir
+            # Jobs we killed count as neither success nor failure. Leave the run's directory and log
+            # in place instead of discarding them.
+            if [[ -d "$dir" ]]; then
+                echo "$name: job killed, run retained" > "$dir/$status"
+            else
+                rm -f $log
+            fi
+            rm -rf $rec_dir
             continue
         }
         wait_for_process $pid
