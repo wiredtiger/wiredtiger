@@ -125,7 +125,6 @@ err:
     return (ret);
 }
 
-/* A clear makes forward progress between conflicts, so many attempts means something is stuck. */
 #define WT_CLEAR_INGEST_TABLE_MAX_ATTEMPTS 100
 
 /*
@@ -154,10 +153,8 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     /*
-     * The truncate can conflict with its own globally visible tombstones: the scan restarts, and
-     * the re-search of a key the truncate already removed surfaces as a spurious WT_ROLLBACK. Each
-     * attempt is safe to repeat and resumes from the first surviving key, so retry: a bounded
-     * number of attempts either empties the table or surfaces a genuine error.
+     * The truncate conflicts with its own globally visible tombstones: a restarted scan
+     * re-searching a just-removed key surfaces a spurious WT_ROLLBACK, so retry.
      */
     for (attempts = 0; attempts < WT_CLEAR_INGEST_TABLE_MAX_ATTEMPTS; ++attempts) {
         ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
