@@ -791,11 +791,16 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
+    WT_DATA_HANDLE **deferred, *dhandle;
     WT_DECL_RET;
+    size_t deferred_allocated;
     uint64_t bucket, time_diff, time_start, time_stop;
+    u_int deferred_next, i;
 
     conn = S2C(session);
+    deferred = NULL;
+    deferred_allocated = 0;
+    deferred_next = 0;
     /*
      * If we're given a URI, then we walk only the hash list for that name. If we don't have a URI
      * we walk the entire dhandle list.
@@ -834,9 +839,36 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
 
+            /*
+             * A dhandle mid-transition (a concurrent open or a sweep close) holds its rwlock
+             * exclusively for the duration, which can be slow -- a sweep close pays for a
+             * connection-wide eviction handshake while holding it. Rather than block the whole
+             * gather on each such handle in list order, probe first and defer a busy handle to a
+             * second pass at the end of this walk. By the time we return to it, the transition has
+             * often already finished, turning what would have been an inline wait into an immediate
+             * success; a handle still busy on the second pass falls back to the normal wait, so this
+             * changes nothing about correctness or which handles are ultimately applied or skipped.
+             */
+            if (WT_SESSION_IS_CHECKPOINT(session) &&
+              (ret = __wt_try_readlock(session, &dhandle->rwlock)) == EBUSY) {
+                WT_DHANDLE_ACQUIRE(dhandle);
+                WT_ERR(__wt_realloc_def(session, &deferred_allocated, deferred_next + 1, &deferred));
+                deferred[deferred_next++] = dhandle;
+                continue;
+            }
+            WT_ERR(ret);
+            if (WT_SESSION_IS_CHECKPOINT(session))
+                __wt_readunlock(session, &dhandle->rwlock);
+
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
 done:
+        for (i = 0; i < deferred_next; i++) {
+            WT_TRET(__conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg));
+            WT_DHANDLE_RELEASE(deferred[i]);
+        }
+        __wt_free(session, deferred);
+
         if (time_start != 0) {
             F_CLR_ATOMIC_32(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
@@ -844,12 +876,15 @@ done:
             __wt_checkpoint_handle_stats(session, time_diff);
             WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
         }
-        return (0);
+        return (ret);
     }
 
 err:
     F_CLR_ATOMIC_32(conn, WT_CONN_CKPT_GATHER);
     WT_DHANDLE_RELEASE(dhandle);
+    for (i = 0; i < deferred_next; i++)
+        WT_DHANDLE_RELEASE(deferred[i]);
+    __wt_free(session, deferred);
     return (ret);
 }
 
