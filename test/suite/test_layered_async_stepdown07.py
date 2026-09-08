@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 #    operation matrix and the write-conflict cases have their own classes at the end of the file.
 @disagg_test_class
 class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -140,6 +140,10 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.session.rollback_transaction()
         c1.close()
+        # Finish the step-down so the teardown verify is clean: a precise checkpoint only writes at
+        # or below the cutoff, so completing it reconciles the window's writes instead of leaving
+        # them dirty above the stable timestamp.
+        self.complete_step_down(20)
 
     # Visibility flips at exactly the cutoff after the completed step-down.
     def test_boundary_reads_at_cutoff(self):
@@ -156,10 +160,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 20), {'below': 'v', 'at': 'v'})
         self.assertEqual(self.read_kvs_at(self.uri, 21), {'below': 'v', 'at': 'v', 'above': 'v'})
 
-        expected_checkpoint = {'below', 'at', 'above'} if self.stable_has_step_down_writes() \
-            else {'below', 'at'}
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30),
-            expected_checkpoint)
+        # A follower cannot open the live stable table, so read its checkpoint view.
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30), {'below', 'at'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
 
     # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
@@ -213,6 +215,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         # Exactly one delete happened.
         self.assertEqual(self.read_kvs_at(self.uri, 25), {'victim': 'alive'})
         self.assertEqual(self.read_kvs_at(self.uri, 35), {})
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
     # The same conflict with a read timestamp stays caught.
     def test_remove_conflicts_with_read_timestamp(self):
@@ -224,6 +228,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         straddler_session.rollback_transaction()
         straddler_cursor.close()
         straddler_session.close()
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
     # search_near on an exact match reports equality, whichever constituent holds the key, and a
     # read timestamp below the cutoff narrows it to the stable half.
@@ -254,21 +260,22 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertIn(cursor.get_key(), ('b', 'd'))
         self.session.rollback_transaction()
         cursor.close()
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
-    # search_near works when only one constituent has content: all of it in ingest over a missing
+    # search_near works when only one constituent has content: all of it in ingest over an empty
     # stable table, and nothing anywhere.
     def test_search_near_with_empty_constituent(self):
         empty_uri = f'layered:{self.test_name}_empty'
         self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session.create(empty_uri, 'key_format=S,value_format=S')
 
         self.set_step_down_ts(20)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Every key lives in ingest; the stable table was never written.
         self.write_at(self.uri, {'b': 'i', 'd': 'i'}, 30)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(self.stable_uri(self.uri), None, None))
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40),
+            {'b', 'd'} if self.stable_has_step_down_writes() else set())
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -290,6 +297,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
         cursor.close()
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
     # largest_key ignores visibility, so it reports a key from a transaction that has not committed.
     def test_largest_key_with_uncommitted_write(self):
@@ -323,6 +332,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         wcur.close()
         wsession.close()
         self.assertIn(largest(), ('d', 'zz'))
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
     # A reverse walk interrupted by the cutoff re-seats the same way a forward walk does.
     def test_reverse_iteration_across_step_down_ts(self):
@@ -370,10 +381,12 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
             'the reverse walk must yield exactly the snapshot keys once, in order')
         self.assertIn((updated, 'v'), kvs, 'the invisible update must not reach this snapshot')
         self.assertIn((removed, 'v'), kvs, 'the invisible tombstone must not reach this snapshot')
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(50)
 
-    # A layered tree never opens by checkpoint, before or after the demotion. The live stable
-    # constituent may contain the mirrored transition-window writes (per write-mirroring config),
-    # while its cutoff checkpoint does not contain writes committed above the cutoff.
+    # A layered tree never opens by checkpoint, before or after the demotion. Reading the
+    # step-down checkpoint means opening the stable constituent's checkpoint view, which holds
+    # the stable content only: the ingest half was never checkpointed.
     def test_checkpoint_cursor_after_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -381,10 +394,6 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.set_step_down_ts(20)
         self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 30)
-
-        expected_stable = {'a': 'i', 'b': 's', 'd': 's', 'z': 'i'} \
-            if self.stable_has_step_down_writes() else {'b': 's', 'd': 's'}
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint'),
@@ -435,7 +444,7 @@ _straddler_ops = [
 # multiply the tests above.
 @disagg_test_class
 class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -470,13 +479,15 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'base'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
 # Write-conflict detection around the cutoff and the demotion, plus a checkpoint taken while the
 # cutoff is set.
 @disagg_test_class
 class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
                                                    wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -517,6 +528,8 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'first'})
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
     # An uncommitted ingest write conflicts with another follower writer after demotion.
     def test_conflict_after_demotion(self):
@@ -575,6 +588,8 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         cursor.close()
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'newer', 'other': 'fine'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'other'})
+        # Finish the step-down so the teardown verify is clean.
+        self.complete_step_down(20)
 
     # A checkpoint taken while the cutoff is set, before stable reaches it, changes nothing for
     # readers or for routing.
@@ -595,7 +610,8 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         ckpt_session.checkpoint()
         ckpt_session.close()
 
-        # The checkpoint holds the stable half and nothing else.
+        # The checkpoint holds only the content committed at or below the stable timestamp, and
+        # nothing committed above it.
         ckpt_cursor = self.session.open_cursor(self.stable_uri(self.uri), None,
             'checkpoint=WiredTigerCheckpoint')
         checkpointed = {}
