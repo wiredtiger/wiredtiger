@@ -128,31 +128,6 @@ __wti_block_disagg_addr_pack(
 }
 
 /*
- * __wt_block_disagg_addr_pack_from_meta --
- *     Pack the address cookie for a page's current, already-durable content, from its block meta.
- *     This doesn't represent a write in progress: it reconstructs the cookie for content a prior
- *     write already made durable, for a caller that needs the address again without writing
- *     anything new.
- */
-int
-__wt_block_disagg_addr_pack_from_meta(
-  WT_SESSION_IMPL *session, uint8_t **pp, const WT_PAGE_BLOCK_META *block_meta)
-{
-    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-
-    WT_CLEAR(cookie);
-    cookie.page_id = block_meta->page_id;
-    cookie.lsn = block_meta->disagg_lsn;
-    cookie.base_lsn = block_meta->base_lsn;
-    cookie.checksum = block_meta->checksum;
-    cookie.size = block_meta->cumulative_size;
-    if (block_meta->delta_count > 0)
-        cookie.flags |= WT_BLOCK_DISAGG_ADDR_FLAG_DELTA;
-
-    return (__wti_block_disagg_addr_pack(session, pp, &cookie));
-}
-
-/*
  * __wt_block_disagg_addr_unpack --
  *     Convert a disaggregated address cookie into its components UPDATING the caller's buffer
  *     reference.

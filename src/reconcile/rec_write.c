@@ -2508,24 +2508,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     switch (mod->rec_result) {
     case 0:
-        /*
-         * This incarnation of the page has never been reconciled, so ordinarily whatever address
-         * the parent already has for it (ref->addr) is still correct and needs no help from here.
-         * But a page rewritten in place by update-restore eviction gets a fresh page/modify each
-         * cycle without ever necessarily getting a fresh ref->addr (that only happens on a write
-         * that produces a new block cookie), so it's possible to land here with real, durable
-         * content and no address to show for it. Rebuild the cookie from the block meta just copied
-         * above rather than silently leaving the parent with nothing to record.
-         */
-        if (r->ref->addr == NULL) {
-            uint8_t cookie_buf[WT_ADDR_MAX_COOKIE], *endp;
-
-            endp = cookie_buf;
-            WT_RET(__wt_block_disagg_addr_pack_from_meta(session, &endp, multi->block_meta));
-            WT_RET(__wt_memdup(
-              session, cookie_buf, WT_PTRDIFF(endp, cookie_buf), &multi->addr.block_cookie));
-            multi->addr.block_cookie_size = (uint8_t)WT_PTRDIFF(endp, cookie_buf);
-        }
+        WT_ASSERT(session, r->ref->addr != NULL);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");

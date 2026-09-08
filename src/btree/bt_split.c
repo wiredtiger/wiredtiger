@@ -2596,34 +2596,13 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
       F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
 
-    /*
-     * If there's an address, copy it. A disaggregated page that was skip-written wrote nothing this
-     * cycle, so there's no fresh cookie to copy; rebuild one from the page's own block meta, which
-     * already records where its content actually lives. Without this, the ref keeps whatever
-     * address it had before the rewrite -- stale or, for a page whose address was never anything
-     * but its block meta, none at all -- and the parent silently drops the child the next time it
-     * reconciles, even though the block meta shows the page's content is still there.
-     */
+    /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(
           session, multi->addr.block_cookie, multi->addr.block_cookie_size, &addr->block_cookie));
         addr->block_cookie_size = multi->addr.block_cookie_size;
-        addr->type = multi->addr.type;
-        __wt_ref_addr_free(session, ref);
-        ref->addr = addr;
-    } else if (multi->block_meta != NULL &&
-      multi->block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
-        uint8_t cookie_buf[WT_ADDR_MAX_COOKIE], *endp;
-
-        endp = cookie_buf;
-        WT_ERR(__wt_block_disagg_addr_pack_from_meta(session, &endp, multi->block_meta));
-
-        WT_ERR(__wt_calloc_one(session, &addr));
-        WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
-        WT_ERR(__wt_memdup(session, cookie_buf, WT_PTRDIFF(endp, cookie_buf), &addr->block_cookie));
-        addr->block_cookie_size = (uint8_t)WT_PTRDIFF(endp, cookie_buf);
         addr->type = multi->addr.type;
         __wt_ref_addr_free(session, ref);
         ref->addr = addr;
