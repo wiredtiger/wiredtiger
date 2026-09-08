@@ -581,7 +581,6 @@ __ckpt_compare_order(const void *a, const void *b)
 static int
 __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
 {
-    struct timespec tsp;
     WT_BLKINCR *blk;
     WT_CKPT_BLOCK_MODS *blk_mod;
     uint64_t i;
@@ -609,13 +608,11 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
             setup = false;
         } else {
             /*
-             * Wait 100 milliseconds between observing the global entry as valid and reading its id
-             * string, widening the window in which a concurrent force stop of incremental backup
-             * can free that string.
+             * Wait between observing the global entry as valid and reading its id string, widening
+             * the window in which a concurrent force stop of incremental backup can free that
+             * string.
              */
-            tsp.tv_sec = 0;
-            tsp.tv_nsec = 100 * WT_MILLION;
-            __wt_timing_stress(session, WT_TIMING_STRESS_BACKUP_BLKMOD_DELAY, &tsp);
+            __wt_timing_stress(session, WT_TIMING_STRESS_BACKUP_BLKMOD_DELAY, NULL);
 
             if (F_ISSET(blk_mod, WT_CKPT_BLOCK_MODS_VALID) &&
               WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
