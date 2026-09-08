@@ -1382,6 +1382,7 @@ logfile
 logmgr
 lognum
 logop
+logp
 logpath
 logread
 logrec

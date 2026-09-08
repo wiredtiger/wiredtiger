@@ -243,8 +243,6 @@ def session_alter_replace(orig_session_alter, session_self, uri, config):
     return orig_session_alter(session_self, uri, config)
 
 # Called to replace Session.checkpoint.
-# We add a call to flush_tier during every checkpoint to make sure we are exercising disagg
-# functionality.
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     # We cannot do named checkpoints with disagg storage objects.
     # We can't really continue the test without the name, as the name will certainly be used.
