@@ -592,7 +592,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.complete_step_down(20)
 
     # A checkpoint taken while the cutoff is set, before stable reaches it, changes nothing for
-    # readers or for routing.
+    # readers or for ingest writes.
     def test_extra_checkpoint_while_cutoff_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
