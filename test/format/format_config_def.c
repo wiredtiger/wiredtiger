@@ -347,7 +347,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
 
-  {"runs.ops", "operations per run", 0x0, 0, M(2), M(100), V_GLOBAL_RUNS_OPS},
+  {"runs.ops", "operations per run", 0x0, 0, M(2), UINT_MAX, V_GLOBAL_RUNS_OPS},
 
   {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0,
     V_GLOBAL_RUNS_PREDICTABLE_REPLAY},
@@ -390,6 +390,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
 
   {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_COMPACT_SLOW},
+
+  {"stress.disagg_stable_dhandle_delay", "stress disagg stable dhandle delay", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_DISAGG_STABLE_DHANDLE_DELAY},
 
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},

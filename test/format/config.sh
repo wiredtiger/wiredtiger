@@ -325,7 +325,7 @@ CONFIG configuration_list[] = {
 
 {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0}
 
-{"runs.ops", "operations per run", 0x0, 0, M(2), M(100)}
+{"runs.ops", "operations per run", 0x0, 0, M(2), UINT_MAX}
 
 {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0}
 
@@ -358,6 +358,8 @@ CONFIG configuration_list[] = {
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
 {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0}
+
+{"stress.disagg_stable_dhandle_delay", "stress disagg stable dhandle delay", C_BOOL, 2, 0, 0}
 
 {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
 

@@ -172,14 +172,10 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
         WT_ASSERT(session, btree_id == btree->id && page_log == btree->page_log);
 
         /*
-         * A table awaiting publication has never been checkpointed, so closing its handle loses any
-         * committed data it holds. Refuse the drop until a checkpoint has persisted the data, so
-         * this table behaves like a regular table, which returns EBUSY when it holds uncheckpointed
-         * data. Only an open handle can be awaiting publication: uncheckpointed data keeps sweep
-         * from closing it and does not survive a restart.
+         * Closing the handle of a table that was never checkpointed loses the data it holds, so
+         * refuse the drop as a regular table holding uncheckpointed data would.
          */
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
-          __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+        if (__wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
             WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
               "the table has unpublished data and must be checkpointed before it can be dropped");
     }
@@ -274,14 +270,19 @@ __drop_layered(
      */
 
     /*
-     * Remove all the associated metadata from the shared metadata table. The queue entry is outside
-     * metadata tracking, so enqueue it only after the local drop can no longer fail. Should the
-     * enqueue itself fail, metadata tracking unrolls the local drop, keeping both sides consistent.
+     * Remove the associated entries from the shared metadata table. A create that was never
+     * published left nothing there, so dequeue it instead. The queue entry is outside metadata
+     * tracking, so enqueue it only after the local drop can no longer fail. Should the enqueue
+     * itself fail, metadata tracking unrolls the local drop, keeping both sides consistent.
      */
-    WT_SAVE_DHANDLE(session,
-      ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL, NULL));
-    WT_ERR(ret);
+    if (__wt_disagg_table_last_unpublished_op(session, tablename) == WT_SHARED_METADATA_CREATE)
+        __wt_disagg_cancel_unpublished_op(session, tablename, WT_SHARED_METADATA_CREATE);
+    else {
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
+            WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL, NULL));
+        WT_ERR(ret);
+    }
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);

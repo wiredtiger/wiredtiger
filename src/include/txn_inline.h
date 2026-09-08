@@ -1903,8 +1903,8 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
 
     session->txn->update_dirty_bytes += size;
 
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_count, 1);
     WT_STAT_SESSION_INCRV(session, txn_updates_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
@@ -1926,19 +1926,19 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_updates_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_truncate_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV(session, cache_truncate_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_truncate_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_count, val);
         WT_STAT_SESSION_SET(session, txn_updates, 0);
     }
 }
@@ -2069,6 +2069,26 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
 }
 
 /*
+ * __wt_txn_config_clear --
+ *     Discard a transaction's configuration. The cache-size exemption is the only setting stored
+ *     outside the transaction, so it is dropped here, and only when the transaction claimed it
+ *     rather than the session. Clearing twice is harmless, so error paths may nest.
+ */
+static WT_INLINE void
+__wt_txn_config_clear(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    txn->flags = 0;
+    txn->time_point.flags = 0;
+    txn->operation_timeout_us = 0;
+}
+
+/*
  * __wt_txn_begin --
  *     Begin a transaction.
  */
@@ -2090,6 +2110,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
+
+    /* A stale exemption means an earlier transaction was abandoned without clearing its config. */
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE));
 
     WT_ERR(__wt_txn_config(session, conf));
 
@@ -2161,11 +2184,7 @@ err:
      * WT_TXN_HAS_SNAPSHOT to know it must give the snapshot back.
      */
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
-    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
-        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
-    txn->flags = 0;
-    txn->time_point.flags = 0;
-    txn->operation_timeout_us = 0;
+    __wt_txn_config_clear(session);
     return (ret);
 }
 
