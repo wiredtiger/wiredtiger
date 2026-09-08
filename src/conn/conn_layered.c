@@ -150,6 +150,37 @@ __layered_create_missing_stable_table(
 }
 
 /*
+ * __disagg_btree_stamp_create_epoch_internal --
+ *     Record the epoch on the table's stable btree when it is resident and open. The caller holds
+ *     the handle list lock.
+ */
+static void
+__disagg_btree_stamp_create_epoch_internal(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
+{
+    if (__wt_conn_dhandle_find(session, stable_uri, NULL) == 0 &&
+      F_ISSET(session->dhandle, WT_DHANDLE_OPEN))
+        __wt_atomic_store_uint64_relaxed(&S2BT(session)->create_schema_epoch, schema_epoch);
+}
+
+/*
+ * __disagg_btree_stamp_create_epoch --
+ *     Record a table's published create epoch on its stable btree, so the checkpoint publish check
+ *     reads a field instead of scanning the queue. Only an open handle is stamped: elsewhere the
+ *     constituent does not exist yet, and the step-up that creates it records the epoch instead.
+ */
+static void
+__disagg_btree_stamp_create_epoch(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    WT_SAVE_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, __disagg_btree_stamp_create_epoch_internal(session, stable_uri, schema_epoch)));
+}
+
+/*
  * __layered_create_missing_stable_tables_legacy --
  *     Create missing stable tables in cases we don't use schema epochs. Note that this is
  *     best-effort and is not able to handle all cases of operation interleaving.
@@ -323,6 +354,13 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Created missing stable table \"%s\" with schema epoch %" PRIu64 " from \"%s\"",
           entry->stable_uri, entry->schema_epoch, entry->layered_value);
+
+        /*
+         * An entry published before this node stepped up never passes through the publish call, so
+         * stamp the recreated btree here.
+         */
+        if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+            __disagg_btree_stamp_create_epoch(session, entry->stable_uri, entry->schema_epoch);
 
         /*
          * Populate the stable value from local metadata so the queue entry can flush it to the
@@ -587,13 +625,13 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 }
 
 /*
- * __wti_disagg_table_latest_create_remove --
+ * __wt_disagg_table_latest_create_remove --
  *     Return the latest CREATE or REMOVE entry queued for the given table, or NULL. UPDATE entries
  *     are skipped because they do not affect whether the table exists. The caller holds the queue
  *     lock.
  */
 WT_DISAGG_METADATA_OP *
-__wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
+__wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *last;
@@ -631,7 +669,7 @@ __wt_disagg_table_last_unpublished_op(WT_SESSION_IMPL *session, const char *tabl
         return (WT_SHARED_METADATA_NONE);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    latest = __wti_disagg_table_latest_create_remove(session, table_name);
+    latest = __wt_disagg_table_latest_create_remove(session, table_name);
     op = (latest != NULL && latest->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) ?
       latest->metadata_op :
       WT_SHARED_METADATA_NONE;
@@ -1067,7 +1105,7 @@ __disagg_publish_check_step_down(
     if (step_down_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    latest = __wti_disagg_table_latest_create_remove(session, table_name);
+    latest = __wt_disagg_table_latest_create_remove(session, table_name);
     in_step_down_window = latest != NULL && latest->in_step_down_window;
 
     if (in_step_down_window && schema_epoch <= step_down_epoch)
@@ -1084,6 +1122,70 @@ __disagg_publish_check_step_down(
           table_name, schema_epoch, step_down_epoch);
 
     return (0);
+}
+
+/*
+ * __wt_disagg_btree_publish_if_covered --
+ *     Publish the btree if the given schema epoch covers the epoch its create was published at.
+ *     Reports through publishedp, which may be NULL, whether this call published the btree. The
+ *     caller holds the schema lock.
+ */
+void
+__wt_disagg_btree_publish_if_covered(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t schema_epoch, bool *publishedp)
+{
+    wt_timestamp_t create_epoch;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    if (publishedp != NULL)
+        *publishedp = false;
+
+    /*
+     * Re-check the awaiting-publication state: the eviction walk contends with the checkpoint, and
+     * the btree may already be published.
+     */
+    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return;
+
+    create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
+    if (create_epoch == WT_SCHEMA_EPOCH_NONE || create_epoch > schema_epoch)
+        return;
+
+    F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    __wt_evict_file_exclusive_off(session);
+
+    if (publishedp != NULL)
+        *publishedp = true;
+}
+
+/*
+ * __wt_disagg_btree_publish_for_eviction --
+ *     Publish the current btree so eviction can write it out rather than hold it in memory until
+ *     the next checkpoint. The caller holds the schema lock.
+ */
+void
+__wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    bool published;
+
+    btree = S2BT(session);
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /* Only the leader publishes, and only outside a role transition. */
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
+      F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+        return;
+
+    __wt_disagg_btree_publish_if_covered(
+      session, btree, __wt_get_stable_disaggregated_schema_epoch(session), &published);
+    if (published)
+        WT_STAT_CONN_INCR(session, eviction_disagg_publish_cleared);
 }
 
 /*
@@ -1122,6 +1224,9 @@ __wt_disagg_shared_metadata_queue_publish(
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
               schema_epoch);
             entry->schema_epoch = schema_epoch;
+
+            if (entry->metadata_op == WT_SHARED_METADATA_CREATE)
+                __disagg_btree_stamp_create_epoch(session, entry->stable_uri, schema_epoch);
         }
 
         /* Check the ordering of schema epochs within the same table. */
@@ -1371,7 +1476,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
          * Older creates belong to dropped tables of the same name.
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL ||
-          __wti_disagg_table_latest_create_remove(session, entry->table_name) != entry)
+          __wt_disagg_table_latest_create_remove(session, entry->table_name) != entry)
             continue;
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
@@ -1517,14 +1622,49 @@ err:
 }
 
 /*
- * __disagg_mark_btrees_readonly_then_step_down --
- *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
- *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
+ * __disagg_mark_btree_readonly_and_outdated --
+ *     Drain eviction from an open disaggregated btree, make it read-only and mark its dhandle
+ *     outdated. Eviction can then discard dirty pages without reconciliation.
  */
 static int
-__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+__disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
+
+    if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+        return (0);
+
+    btree = (WT_BTREE *)dhandle->handle;
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+        return (0);
+
+    WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
+    WT_RET(ret);
+
+    /* Mark the disaggregated as readonly. */
+    F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
+
+    /*
+     * Mark the handle outdated so that if we step back up as leader in the future, we open a fresh
+     * one rather than reusing this handle's resident pages. Carrying those pages into a new leader
+     * era lets the drain dirty a page that still holds an unresolved on-disk prepared cell before
+     * the drain resolves it, which reconciliation cannot represent (leaked prepared update).
+     */
+    __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
+
+    WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    return (0);
+}
+
+/*
+ * __disagg_mark_btrees_readonly_and_outdated_then_step_down --
+ *     Mark all disaggregated btrees read-only and outdated, then step down to follower mode. The
+ *     outdated mark makes the next leader open fresh handles instead of reusing them.
+ */
+static int
+__disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *session)
+{
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
@@ -1536,38 +1676,32 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
+        /* Keep the history store available until eviction has drained from all other btrees. */
+        if (WT_IS_HS(dhandle))
+            continue;
+
         /* Clear the mark on tables created during the step-down window. */
         if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
             F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
             continue;
         }
 
-        /* Only care about open disaggregated btree dhandles. */
-        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-            continue;
-
-        btree = (WT_BTREE *)dhandle->handle;
-
-        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
-            continue;
-
-        WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
-        WT_RET(ret);
-
-        /* Mark the disaggregated as readonly. */
-        F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
-
-        /*
-         * Mark the handle outdated so that if we step back up as leader in the future, we open a
-         * fresh one rather than reusing this handle's resident pages. Carrying those pages into a
-         * new leader era lets the drain dirty a page that still holds an unresolved on-disk
-         * prepared cell before the drain resolves it, which reconciliation cannot represent (leaked
-         * prepared update).
-         */
-        F_SET(dhandle, WT_DHANDLE_OUTDATED);
-
-        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+        WT_RET(__disagg_mark_btree_readonly_and_outdated(session, dhandle));
     }
+
+    /*
+     * Find and process the shared history store last. The handle-list read lock protects the
+     * dhandle's lifetime. The schema lock and HS sweep exclusion keep it open, so no explicit
+     * dhandle reference or session-in-use pin is needed.
+     */
+    WT_ASSERT(session, session->dhandle == NULL);
+    ret = __wt_conn_dhandle_find(session, WT_HS_URI_SHARED, NULL);
+    if (ret == 0) {
+        dhandle = session->dhandle;
+        WT_DHANDLE_CLEAR(session);
+        ret = __disagg_mark_btree_readonly_and_outdated(session, dhandle);
+    }
+    WT_RET_NOTFOUND_OK(ret);
 
     /*
      * Step down to the follower mode, ending the role era before publishing the role. The release
@@ -1579,6 +1713,24 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
     return (0);
 }
+
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __disagg_assert_no_active_writes_callback --
+ *     Session array walk callback to assert no active writes.
+ */
+static int
+__disagg_assert_no_active_writes_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, bool *exit_walkp, void *cookiep)
+{
+    WT_UNUSED(exit_walkp);
+    WT_UNUSED(cookiep);
+
+    WT_ASSERT_ALWAYS(session, txn_session->txn->mod_count == 0,
+      "application write transaction is active during disaggregated step-down");
+    return (0);
+}
+#endif
 
 /*
  * __disagg_step_down_int --
@@ -1605,13 +1757,27 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Assert that there are no concurrent or uncommitted write transactions during step-down.
+     *
+     * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
+     * session open/close to ensure we don't race.
+     */
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    __wt_spin_lock(session, &conn->api_lock);
+    ret = __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL);
+    __wt_spin_unlock(session, &conn->api_lock);
+    WT_ERR(ret);
+#endif
+
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
      * eviction paths, especially parent split path, from dirtying pages during the step-down
      * window.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
+      session, ret = __disagg_mark_btrees_readonly_and_outdated_then_step_down(session));
     WT_ERR(ret);
 
     /*

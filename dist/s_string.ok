@@ -409,6 +409,7 @@ PTR
 PTRDIFF
 PYTHONMALLOC
 Palite
+Palite's
 Palites
 Pe
 PlatformSDK
@@ -1592,6 +1593,7 @@ packv
 pagesize
 pali
 palite
+palite's
 param
 params
 parens
@@ -1663,6 +1665,7 @@ psp
 pthread
 ptr
 ptrdiff
+publishedp
 pv
 pval
 pwrite
@@ -1763,6 +1766,7 @@ sanitizer
 sanitizers
 scalable
 scen
+scheckpoint
 schemas
 sclose
 scr
@@ -1874,6 +1878,7 @@ sublist
 suboptimal
 subproc
 subprocess
+subprocess's
 subprocesses
 substring
 substrings
@@ -2031,6 +2036,7 @@ unreferenced
 unsetting
 unsized
 unspawned
+unsuffixed
 unsynchronised
 unterminated
 untimestamped

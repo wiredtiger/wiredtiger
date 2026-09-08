@@ -511,6 +511,19 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
 
+    if ((ret = __wt_conf_getones(session, conf, ignore_cache_size, &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        else
+            F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        /*
+         * The session now owns this flag, so drop any ownership a running transaction recorded in
+         * txn config; it must no longer undo the setting when it is released.
+         */
+        F_CLR(session->txn, WT_TXN_IGNORE_CACHE_SIZE);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
     if ((ret = __wt_conf_getones(session, conf, cache_cursors, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_CACHE_CURSORS);
@@ -1533,7 +1546,7 @@ __wt_session_range_truncate(
     WT_TRUNCATE_INFO *trunc_info, _trunc_info;
     int cmp;
     const char *actual_uri;
-    bool local_start, local_stop, log_op, log_trunc, needs_next_prev, txn_truncate_set;
+    bool local_start, local_stop, log_op, log_trunc, needs_next_prev;
 
     actual_uri = NULL;
     local_start = local_stop = log_trunc = false;
@@ -1673,16 +1686,7 @@ __wt_session_range_truncate(
         }
     }
 
-    /*
-     * Mark the transaction so the operations the range deletion creates can be identified at
-     * commit, whether they are individual tombstones or fast-truncate page deletions.
-     */
-    txn_truncate_set = !F_ISSET(session->txn, WT_TXN_TRUNCATE);
-    F_SET(session->txn, WT_TXN_TRUNCATE);
-    ret = __wt_schema_range_truncate(trunc_info);
-    if (txn_truncate_set)
-        F_CLR(session->txn, WT_TXN_TRUNCATE);
-    WT_ERR(ret);
+    WT_ERR(__wt_schema_range_truncate(trunc_info));
 
 done:
     /*
