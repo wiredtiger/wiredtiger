@@ -565,8 +565,7 @@ __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
 /*
  * __cache_top_totals --
  *     Snapshot a ranking for its totals alone: what every tracked table holds, and what the largest
- *     few of them hold. Naming nothing means this allocates nothing, which is what lets it run
- *     under the checkpoint lock.
+ *     few of them hold. Naming nothing means this allocates nothing, so it cannot fail.
  */
 static void
 __cache_top_totals(
