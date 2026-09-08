@@ -698,6 +698,12 @@ __wt_cache_top_stats_update(WT_SESSION_IMPL *session)
       session, cache_top_updates_pct, total == 0 ? 0 : listed[WT_CACHE_TOP_UPDATES] * 100 / total);
     WT_STAT_CONN_SET(session, cache_top5_updates_pct,
       total == 0 ? 0 : largest[WT_CACHE_TOP_UPDATES] * 100 / total);
+
+    total = __wt_cache_dirty_leaf_inuse(cache);
+    WT_STAT_CONN_SET(
+      session, cache_top_dirty_pct, total == 0 ? 0 : listed[WT_CACHE_TOP_DIRTY] * 100 / total);
+    WT_STAT_CONN_SET(
+      session, cache_top5_dirty_pct, total == 0 ? 0 : largest[WT_CACHE_TOP_DIRTY] * 100 / total);
 }
 
 /*

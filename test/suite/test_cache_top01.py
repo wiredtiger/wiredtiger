@@ -209,16 +209,17 @@ class test_cache_top01(wttest.WiredTigerTestCase):
     # The history store is ranked like any other tree. It counts towards the connection totals a
     # ranking is measured against, so an operator looking at a report where it holds the cache has
     # to be able to see that.
-    def test_history_store_ranked_under_load(self):
-        uri = 'table:hsload'
-        self.session.create(uri, 'key_format=S,value_format=S')
+    # A connection names its history store one of two ways.
+    hs_names = ['WiredTigerHS.wt', 'WiredTigerSharedHS.wt_stable']
 
-        rows = 2000
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-            ',stable_timestamp=' + self.timestamp_str(1))
+    def history_store_ranked(self, report):
+        return any(h in name
+            for ranking in self.rankings for name in self.names(report, ranking)
+            for h in self.hs_names)
 
-        # Successive committed versions of every key push the older ones into the history store.
-        for ts in range(2, 12):
+    # Successive committed versions of every key push the older ones into the history store.
+    def push_versions(self, uri, rows, timestamps):
+        for ts in timestamps:
             c = self.session.open_cursor(uri)
             for i in range(rows):
                 self.session.begin_transaction()
@@ -229,7 +230,7 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
         # Reading at an old timestamp comes back out of the history store, so it takes read and
         # eviction traffic as well as the writes above.
-        for ts in range(2, 6):
+        for ts in timestamps[:4]:
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
             c = self.session.open_cursor(uri)
             for _ in c:
@@ -237,20 +238,36 @@ class test_cache_top01(wttest.WiredTigerTestCase):
             c.close()
             self.session.rollback_transaction()
 
+    def test_history_store_ranked_under_load(self):
+        uri = 'table:hsload'
+        self.session.create(uri, 'key_format=S,value_format=S')
+
+        rows = 2000
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
+        ts = 2
+        self.push_versions(uri, rows, range(ts, ts + 10))
+        ts += 10
+
         # The guard below is only meaningful if the workload actually used the history store.
         stat = self.session.open_cursor('statistics:')
         hs_inserts = stat[wiredtiger.stat.conn.cache_hs_insert][2]
         stat.close()
         self.assertGreater(hs_inserts, 0)
 
-        report = self.report()
-        self.check_report_consistent(report)
-
-        # The workload above drove enough history store traffic that it has to show up somewhere.
-        self.assertTrue(
-            any('WiredTigerHS' in name
-                for ranking in self.rankings for name in self.names(report, ranking)),
-            'the history store held the cache but was not ranked')
+        # How much of the cache the history store holds depends on how hard eviction has been
+        # working, so keep giving it more to hold until it is large enough to rank.
+        deadline = time.time() + 60
+        while True:
+            report = self.report()
+            self.check_report_consistent(report)
+            if self.history_store_ranked(report):
+                break
+            self.assertLess(time.time(), deadline,
+                'the history store held the cache but was never ranked')
+            self.push_versions(uri, rows, range(ts, ts + 5))
+            ts += 5
 
         for ranking in self.rankings:
             for name in self.names(report, ranking):

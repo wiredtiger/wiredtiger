@@ -771,6 +771,8 @@ struct __wt_connection_stats {
     int64_t cache_write_restore_scrub;
     int64_t cache_top_inuse_pct;
     int64_t cache_top5_inuse_pct;
+    int64_t cache_top_dirty_pct;
+    int64_t cache_top5_dirty_pct;
     int64_t cache_top_updates_pct;
     int64_t cache_top5_updates_pct;
     int64_t cache_overhead;
