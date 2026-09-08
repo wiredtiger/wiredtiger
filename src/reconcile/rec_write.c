@@ -2693,9 +2693,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 /*
                  * Nothing survives onto the page: every update was restored to the in-memory chain.
                  * If a previous reconciliation left a block behind, treat this like any other
-                 * disagg skip-write so the page keeps pointing at it instead of losing track of it;
-                 * __rec_copy_prev_addr requires a block to copy forward, so only call it when one
-                 * exists.
+                 * disagg skip-write so the page keeps pointing at it instead of losing track of it.
+                 * There's nothing to copy forward when no such block exists.
                  */
                 if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID) {
                     WT_RET(__rec_copy_prev_addr(session, r));
