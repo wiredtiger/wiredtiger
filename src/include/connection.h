@@ -1292,7 +1292,6 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_RTS 0x0400u
 #define WT_CONN_SERVER_STATISTICS 0x0800u
 #define WT_CONN_SERVER_SWEEP 0x1000u
-#define WT_CONN_SERVER_TIERED 0x2000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 
