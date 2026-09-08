@@ -2508,7 +2508,24 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     switch (mod->rec_result) {
     case 0:
-        WT_ASSERT(session, r->ref->addr != NULL);
+        /*
+         * This incarnation of the page has never been reconciled, so ordinarily whatever address
+         * the parent already has for it (ref->addr) is still correct and needs no help from here.
+         * But a page rewritten in place by update-restore eviction gets a fresh page/modify each
+         * cycle without ever necessarily getting a fresh ref->addr (that only happens on a write
+         * that produces a new block cookie), so it's possible to land here with real, durable
+         * content and no address to show for it. Rebuild the cookie from the block meta just copied
+         * above rather than silently leaving the parent with nothing to record.
+         */
+        if (r->ref->addr == NULL) {
+            uint8_t cookie_buf[WT_ADDR_MAX_COOKIE], *endp;
+
+            endp = cookie_buf;
+            WT_RET(__wt_block_disagg_addr_pack_from_meta(session, &endp, multi->block_meta));
+            WT_RET(__wt_memdup(
+              session, cookie_buf, WT_PTRDIFF(endp, cookie_buf), &multi->addr.block_cookie));
+            multi->addr.block_cookie_size = (uint8_t)WT_PTRDIFF(endp, cookie_buf);
+        }
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
@@ -2693,15 +2710,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 /*
                  * Nothing survives onto the page: every update was restored to the in-memory chain.
                  * If a previous reconciliation left a block behind, treat this like any other
-                 * disagg skip-write so the page keeps pointing at it instead of losing track of it.
-                 * There's nothing to copy forward when no such block exists. Copy the block meta
-                 * directly rather than going through the address cookie machinery that the normal
-                 * skip-write path uses: a page reached through this restore path may never have had
-                 * ref->addr set (for example, one instantiated from a delta chain), which that code
-                 * assumes.
+                 * disagg skip-write so the page keeps pointing at it instead of losing track of it:
+                 * otherwise the address a follower would need to find it is never recorded, and the
+                 * block itself can be freed out from under still-live content. There's nothing to
+                 * copy forward when no such block exists. This can only apply to the one-chunk
+                 * case: a split produces more than one chunk precisely because the old single page
+                 * is becoming multiple new ones, so no single chunk can claim to still be "the"
+                 * previous page and inherit its address.
                  */
-                if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID) {
-                    *multi->block_meta = page->disagg_info->block_meta;
+                if (last_block && r->multi_next == 1 &&
+                  page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                  WT_REC_RESULT_SINGLE_PAGE(session, r)) {
+                    WT_RET(__rec_copy_prev_addr(session, r));
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
                 }
