@@ -1128,6 +1128,35 @@ err:
 }
 
 /*
+ * __layered_metadata_insert --
+ *     Collapse and insert layered metadata, stripping runtime-only configuration options.
+ */
+static int
+__layered_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char **config)
+{
+    WT_DECL_RET;
+    char *tablecfg;
+    const char *collapsed_cfg[2];
+    const char *metadata;
+
+    tablecfg = NULL;
+    metadata = NULL;
+
+    WT_ERR(__wt_config_collapse(session, config, &tablecfg));
+    collapsed_cfg[0] = tablecfg;
+    collapsed_cfg[1] = NULL;
+    WT_ERR(__wt_config_merge(
+      session, collapsed_cfg, "disaggregated=(stepdown_write_mirroring=),", &metadata));
+    ret = __wt_metadata_insert(session, uri, metadata);
+
+err:
+    __wt_free(session, metadata);
+    __wt_free(session, tablecfg);
+
+    return (ret);
+}
+
+/*
  * __create_layered --
  *     Create a layered tree - such a tree is a pair of underlying btrees, one that holds recently
  *     ingested data, the other a full set of stable data.
@@ -1144,7 +1173,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_DECL_RET;
     wt_timestamp_t step_down_ts;
     char *meta_value;
-    char *tablecfg;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
@@ -1156,7 +1184,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     conn = S2C(session);
 
     constituent_cfg = NULL;
-    tablecfg = NULL;
     meta_value = NULL;
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
@@ -1207,8 +1234,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * FIXME-WT-18475: the table-level disaggregated category replaces the connection-level
      * category, so storage_tier removes page_log from the layered metadata.
      */
-    WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
-    WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+    WT_ERR(__layered_metadata_insert(session, uri, layered_cfg));
 
     /*
      * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
@@ -1270,7 +1296,6 @@ err:
     __wt_scr_free(session, &stable_uri_buf);
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
-    __wt_free(session, tablecfg);
     __wt_free(session, constituent_cfg);
 
     return (ret);
