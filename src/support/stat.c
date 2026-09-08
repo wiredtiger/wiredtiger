@@ -2757,6 +2757,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
+  "layered: the number of times an ingest table clear truncate failed with a conflict",
   "layered: the number of times the truncate list was searched",
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
@@ -3886,6 +3887,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_skip_lsn = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
+    stats->layered_table_manager_clear_ingest_fail = 0;
     stats->layered_truncate_list_search_calls = 0;
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
@@ -5166,6 +5168,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
+    to->layered_table_manager_clear_ingest_fail +=
+      WT_STAT_CONN_READ(from, layered_table_manager_clear_ingest_fail);
     to->layered_truncate_list_search_calls +=
       WT_STAT_CONN_READ(from, layered_truncate_list_search_calls);
     to->layered_truncate_list_gc_runs += WT_STAT_CONN_READ(from, layered_truncate_list_gc_runs);

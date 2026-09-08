@@ -125,6 +125,9 @@ err:
     return (ret);
 }
 
+/* A clear makes forward progress between conflicts, so many attempts means something is stuck. */
+#define WT_CLEAR_INGEST_TABLE_MAX_ATTEMPTS 100
+
 /*
  * __layered_clear_ingest_table --
  *     After ingest content has been drained to the stable table, clear out the ingest table.
@@ -134,6 +137,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_RET;
     uint32_t orig_flags;
+    u_int attempts;
 
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
@@ -149,7 +153,18 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     orig_flags = F_MASK(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
-    ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
+    /*
+     * The truncate can conflict with its own globally visible tombstones: the scan restarts, and
+     * the re-search of a key the truncate already removed surfaces as a spurious WT_ROLLBACK. Each
+     * attempt is safe to repeat and resumes from the first surviving key, so retry: a bounded
+     * number of attempts either empties the table or surfaces a genuine error.
+     */
+    for (attempts = 0; attempts < WT_CLEAR_INGEST_TABLE_MAX_ATTEMPTS; ++attempts) {
+        ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
+        if (ret != WT_ROLLBACK)
+            break;
+        WT_STAT_CONN_INCR(session, layered_table_manager_clear_ingest_fail);
+    }
     F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, orig_flags);

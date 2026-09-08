@@ -654,6 +654,8 @@ const char __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain[] =
 const char __WT_CONFIG_CHOICE_failpoint_eviction_split[] = "failpoint_eviction_split";
 const char __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts[] =
   "failpoint_history_store_delete_key_from_ts";
+const char __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart[] =
+  "failpoint_non_transactional_truncate_restart";
 const char __WT_CONFIG_CHOICE_failpoint_page_log_handle_put[] = "failpoint_page_log_handle_put";
 const char __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup[] = "failpoint_rec_before_wrapup";
 const char __WT_CONFIG_CHOICE_failpoint_rec_split_write[] = "failpoint_rec_split_write";
@@ -694,6 +696,7 @@ static const char *confchk_timing_stress_for_test_choices[] = {
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart,
   __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
@@ -892,6 +895,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"failpoint_disagg_checkpoint_queue_drain\","
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_non_transactional_truncate_restart\","
     "\"failpoint_page_log_handle_put\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
@@ -3075,6 +3079,7 @@ static const char *confchk_timing_stress_for_test2_choices[] = {
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart,
   __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
@@ -3312,6 +3317,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"failpoint_disagg_checkpoint_queue_drain\","
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_non_transactional_truncate_restart\","
     "\"failpoint_page_log_handle_put\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
@@ -3388,6 +3394,7 @@ static const char *confchk_timing_stress_for_test3_choices[] = {
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart,
   __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
@@ -3606,6 +3613,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"failpoint_disagg_checkpoint_queue_drain\","
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_non_transactional_truncate_restart\","
     "\"failpoint_page_log_handle_put\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
@@ -3685,6 +3693,7 @@ static const char *confchk_timing_stress_for_test4_choices[] = {
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart,
   __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
@@ -3893,6 +3902,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"failpoint_disagg_checkpoint_queue_drain\","
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_non_transactional_truncate_restart\","
     "\"failpoint_page_log_handle_put\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
@@ -3968,6 +3978,7 @@ static const char *confchk_timing_stress_for_test5_choices[] = {
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart,
   __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
@@ -4176,6 +4187,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"failpoint_disagg_checkpoint_queue_drain\","
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_non_transactional_truncate_restart\","
     "\"failpoint_page_log_handle_put\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","

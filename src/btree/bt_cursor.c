@@ -2053,6 +2053,12 @@ retry:
             return (0);
         }
 
+        /* Fail point: force the restart a split or eviction would cause on the just-removed key. */
+        if (F_ISSET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE) &&
+          __wt_failpoint(
+            session, WT_TIMING_STRESS_FAILPOINT_NON_TRANSACTIONAL_TRUNCATE_RESTART, 100))
+            WT_ERR(WT_RESTART);
+
         if ((ret = __wt_btcur_next(start, fast_truncate)) == WT_NOTFOUND) {
             WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);
