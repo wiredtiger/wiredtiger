@@ -8,8 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __schema_metadata_insert(
-  WT_SESSION_IMPL *session, const char *uri, const char **config);
+static int __schema_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char **config);
 
 /*
  * __check_imported_ts --
@@ -1146,8 +1145,8 @@ __schema_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char *
 
     metadata = NULL;
 
-    WT_ERR(__wt_config_merge(
-      session, config, "disaggregated=(stepdown_write_mirroring=),", &metadata));
+    WT_ERR(
+      __wt_config_merge(session, config, "disaggregated=(stepdown_write_mirroring=),", &metadata));
     ret = __wt_metadata_insert(session, uri, metadata);
 
 err:
