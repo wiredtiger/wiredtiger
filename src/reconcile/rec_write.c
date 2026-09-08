@@ -2689,8 +2689,21 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * disk. In local mode, if restoring saved update chains, we can skip the disk written.
          */
         if (r->page->disagg_info != NULL) {
-            if (chunk->entries == 0)
+            if (chunk->entries == 0) {
+                /*
+                 * Nothing survives onto the page: every update was restored to the in-memory chain.
+                 * If a previous reconciliation left a block behind, treat this like any other
+                 * disagg skip-write so the page keeps pointing at it instead of losing track of it;
+                 * __rec_copy_prev_addr requires a block to copy forward, so only call it when one
+                 * exists.
+                 */
+                if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID) {
+                    WT_RET(__rec_copy_prev_addr(session, r));
+                    F_SET(multi, WT_MULTI_SKIP_WRITE);
+                    WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
+                }
                 goto copy_image;
+            }
         } else if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
             goto copy_image;
 
