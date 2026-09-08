@@ -117,7 +117,9 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(kv.get('k3'), 'vase')
         self.assertNotIn('k2', kv)
 
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2', 'k3'})
+        # All three landed in ingest, the remove as a tombstone shadowing stable.
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40),
+            {'k1': 'updated', 'k2': '\x14', 'k3': 'vase'})
         expected_stable = {'k1': 'updated', 'k3': 'vase'} if self.stable_has_step_down_writes() \
             else {'k1': 'base', 'k2': 'base', 'k3': 'base'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
@@ -131,34 +133,37 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
     def test_size_changing_modify_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
+        # This key predates the transition and exists in stable only, so the modify below builds
+        # the new value on the stable base and lands it in ingest, a path ordinary leader
+        # modify tests (no stepdown) never exercise.
         self.write_at(self.uri, {'stable-only': 'abcde'}, 10)
 
         self.set_step_down_ts(20)
-        self.write_at(self.uri, {'mirrored': 'abcde'}, 30)
+        self.write_at(self.uri, {'in_stepdown': 'abcde'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
-        for key in ('stable-only', 'mirrored'):
+        for key in ('stable-only', 'in_stepdown'):
             cursor.set_key(key)
             self.assertEqual(cursor.modify([wiredtiger.Modify('X', 1, 0)]), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
         cursor.close()
 
-        expected = {'stable-only': 'aXbcde', 'mirrored': 'aXbcde'}
+        expected = {'stable-only': 'aXbcde', 'in_stepdown': 'aXbcde'}
         self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
         expected_stable = expected if self.stable_has_step_down_writes() else {'stable-only': 'abcde'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
 
-    # Removing a mirrored key during iteration must not lose the stable-only neighbor in either
+    # Removing an ingest key during iteration must not lose the stable-only neighbor in either
     # direction.
-    def test_remove_mirrored_key_during_iteration(self):
+    def test_remove_ingest_key_during_iteration(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'a': 'stable', 'c': 'stable'}, 10)
 
         self.set_step_down_ts(20)
-        self.write_at(self.uri, {'b': 'mirrored'}, 30)
+        self.write_at(self.uri, {'b': 'ingest'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -273,6 +278,22 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.complete_step_down(20)
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
 
+    # Open a private session/cursor over uri, write key=value and expect the update to conflict
+    # (or to succeed cleanly when conflict=False), then tear the session down.
+    def write_conflict_checked(self, uri, key, value, conflict=True):
+        session = self.conn.open_session()
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
+        cursor.set_key(key)
+        cursor.set_value(value)
+        if conflict:
+            self.expect_conflict_rollback(cursor.update)
+        else:
+            self.assertEqual(cursor.update(), 0)
+        session.rollback_transaction()
+        cursor.close()
+        session.close()
+
     # A reserve conflicts with concurrent writers and leaves no content behind.
     def test_reserve_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
@@ -287,30 +308,11 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.reserve(), 0)
 
         # A mirrored reserve also protects the stable constituent from a direct concurrent writer.
-        stable_session = self.conn.open_session()
-        stable_cursor = stable_session.open_cursor(self.stable_uri(self.uri),
-                                                   None, None)
-        stable_session.begin_transaction()
-        stable_cursor.set_key('k1')
-        stable_cursor.set_value('stable-writer')
-        if self.stable_has_step_down_writes():
-            self.expect_conflict_rollback(stable_cursor.update)
-        else:
-            self.assertEqual(stable_cursor.update(), 0)
-        stable_session.rollback_transaction()
-        stable_cursor.close()
-        stable_session.close()
+        self.write_conflict_checked(self.stable_uri(self.uri), 'k1', 'stable-writer',
+            conflict=self.stable_has_step_down_writes())
 
         # A concurrent writer conflicts with the reservation.
-        wsession = self.conn.open_session()
-        wcur = wsession.open_cursor(self.uri, None, None)
-        wsession.begin_transaction()
-        wcur.set_key('k1')
-        wcur.set_value('other')
-        self.expect_conflict_rollback(wcur.update)
-        wsession.rollback_transaction()
-        wcur.close()
-        wsession.close()
+        self.write_conflict_checked(self.uri, 'k1', 'other')
 
         # The reserve-only commit leaves no content behind in either constituent.
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
