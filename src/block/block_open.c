@@ -206,8 +206,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     if (fixed)
         LF_SET(WT_FS_OPEN_FIXED);
     /*
-     * Tiered storage sets file permissions to readonly, but nobody else does. This flag means the
-     * underlying file is read-only, and NOT that the handle access pattern is read-only.
+     * This flag means the underlying file is read-only, and NOT that the handle access pattern is
+     * read-only.
      */
     if (readonly) {
         LF_SET(WT_FS_OPEN_READONLY);
