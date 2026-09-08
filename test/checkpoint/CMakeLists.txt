@@ -71,6 +71,7 @@ define_test_variants(test_checkpoint
         "disagg_leader_row_hs_checkpoint_timing_stress|-G -e -p -t r -W 3 -r 2 -s 3 -x -n 100000 -k 100000"
         "disagg_leader_row_checkpoint_slow_timing_stress|-G -e -p -t r -W 3 -r 2 -s 5 -x -n 100000 -k 100000"
         "disagg_leader_row_evict_reposition_timing_stress|-G -e -p -t r -W 3 -r 2 -s 6 -x -n 100000 -k 100000"
+        "disagg_leader_row_disagg_stable_dhandle_delay|-G -e -p -t r -W 3 -r 2 -s 4 -x -n 100000 -k 100000"
         "disagg_leader_row_failpoint_eviction_split|-G -e -p -t r -W 3 -r 2 -s 7 -x -n 100000 -k 100000"
         "disagg_leader_row_failpoint_rec_before_wrapup|-G -e -p -t r -W 3 -r 2 -s 8 -x -n 100000 -k 100000"
 

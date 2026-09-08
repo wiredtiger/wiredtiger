@@ -115,6 +115,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
         break;
+    case WT_DHANDLE_TYPE_NUM:
+        WT_ERR(__wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type)));
+        break;
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
@@ -155,6 +158,9 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
         break;
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
+        break;
+    case WT_DHANDLE_TYPE_NUM:
+        ret = __wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type));
         break;
     }
 
@@ -269,7 +275,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
-            if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+            if (__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
                 /*
                  * An outdated read-only stable handle is only safe to reuse in its checkpoint-view
                  * form (a "...wt_stable/WiredTigerCheckpoint.N" name): those checkpoint handles
@@ -293,7 +299,8 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
     } else
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              __wt_atomic_load_bool_relaxed(&dhandle->outdated))
                 continue;
             if (dhandle->checkpoint != NULL && strcmp(uri, dhandle->name) == 0 &&
               strcmp(checkpoint, dhandle->checkpoint) == 0) {
@@ -325,7 +332,7 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
     if (ret == 0) {
-        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        __wt_atomic_store_bool_relaxed(&session->dhandle->outdated, true);
         WT_DHANDLE_RELEASE(session->dhandle);
     } else if (ret != WT_NOTFOUND)
         WT_RET(ret);
@@ -483,6 +490,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     case WT_DHANDLE_TYPE_TABLE:
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
+    case WT_DHANDLE_TYPE_NUM:
+        WT_TRET(__wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type)));
+        break;
     }
 
     /*
@@ -632,6 +642,9 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_schema_open_table(session));
         break;
+    case WT_DHANDLE_TYPE_NUM:
+        WT_ERR(__wt_illegal_value(session, __wt_atomic_load_enum_relaxed(&dhandle->type)));
+        break;
     }
 
     /*
@@ -738,9 +751,9 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 return (0);
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
-              dhandle->checkpoint != NULL || strcmp(uri, dhandle->name) != 0)
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              __wt_atomic_load_bool_relaxed(&dhandle->outdated) || dhandle->checkpoint != NULL ||
+              strcmp(uri, dhandle->name) != 0)
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
@@ -757,10 +770,9 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 goto done;
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
-              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
-              WT_IS_ANY_METADATA(dhandle))
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              __wt_atomic_load_bool_relaxed(&dhandle->outdated) || !WT_DHANDLE_BTREE(dhandle) ||
+              dhandle->checkpoint != NULL || WT_IS_ANY_METADATA(dhandle))
                 continue;
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -783,23 +795,69 @@ err:
 }
 
 /*
- * __conn_dhandle_close_one --
- *     Lock and, if necessary, close a data handle.
+ * __conn_dhandle_lock_one --
+ *     Lock a single data handle without closing it. If this is part of a schema-changing operation
+ *     (indicated by metadata tracking being enabled), register the lock so it is held for the
+ *     duration of the operation, exactly as a close would have registered it.
  */
 static int
-__conn_dhandle_close_one(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint,
-  bool removed, bool mark_dead, bool check_visibility)
+__conn_dhandle_lock_one(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
-    WT_DECL_RET;
-
-    /*
-     * Lock the handle exclusively. If this is part of schema-changing operation (indicated by
-     * metadata tracking being enabled), hold the lock for the duration of the operation.
-     */
     WT_RET(__wt_session_get_dhandle(
       session, uri, checkpoint, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY));
     if (WT_META_TRACKING(session))
         WT_RET(__wt_meta_track_handle_lock(session, false));
+
+    return (0);
+}
+
+/*
+ * __conn_dhandle_close_locked --
+ *     Close a single data handle the caller already holds exclusively locked.
+ */
+static int
+__conn_dhandle_close_locked(
+  WT_SESSION_IMPL *session, bool removed, bool mark_dead, bool check_visibility)
+{
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    bool evict_off;
+
+    dhandle = session->dhandle;
+    evict_off = false;
+
+    /*
+     * A clean tree is already durable, so there is nothing to lose by marking it dead and
+     * deferring its cache discard to sweep instead of walking and freeing every page here and now
+     * -- regardless of what the caller asked for. A dirty tree is untouched: it still goes through
+     * the checkpoint-or-EBUSY path below exactly as it does today, so a drop can never silently
+     * discard data that was never made durable.
+     *
+     * Only do this when the handle is actually being removed. The same close path also runs for a
+     * transient close-then-immediately-reopen (verify and alter close every handle for a URI to
+     * force a fresh exclusive open, then open it again in the same call): marking that handle dead
+     * would leave the reopen finding a handle that can never again satisfy a lookup by name, since
+     * nothing but sweep clears a dead handle and sweep may not even be running yet.
+     *
+     * A dirty reading needs no synchronization to trust: nothing makes a dirty tree clean again, so
+     * an unlocked dirty result can be acted on immediately, leaving mark_dead alone and falling
+     * through to the checkpoint-or-EBUSY path exactly as if this check didn't exist. A clean
+     * reading is not trustworthy on its own, though: a concurrent eviction pass (which can dirty
+     * pages itself, for example obsolete time-window cleanup) could flip it right after. Only pay
+     * to disable eviction -- and hold it disabled through the close below, rather than relying on
+     * the close call to do that -- to get an authoritative second read when the cheap first read
+     * looked clean.
+     */
+    if (removed && !mark_dead && WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+        btree = dhandle->handle;
+        if (!btree->modified) {
+            WT_RET(__wt_evict_file_exclusive_on(session));
+            evict_off = true;
+            if (!btree->modified)
+                mark_dead = true;
+        }
+    }
 
     /*
      * We have an exclusive lock, which means there are no cursors open at this point. Close the
@@ -819,6 +877,13 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session, const char *uri, const char *
     if (removed)
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
 
+    /*
+     * Turn eviction back on before releasing the dhandle: releasing can clear session->dhandle, and
+     * disabling eviction needs it to resolve the btree it was disabled for.
+     */
+    if (evict_off)
+        __wt_evict_file_exclusive_off(session);
+
     if (!WT_META_TRACKING(session))
         WT_TRET(__wt_session_release_dhandle(session));
 
@@ -834,20 +899,39 @@ __wt_conn_dhandle_close_all(
   WT_SESSION_IMPL *session, const char *uri, bool removed, bool mark_dead, bool check_visibility)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
+    WT_DATA_HANDLE *dhandle, **handles;
     WT_DECL_RET;
+    size_t handles_allocated;
     uint64_t bucket;
+    u_int i, nhandles;
+    bool tracked;
 
     conn = S2C(session);
+    handles = NULL;
+    handles_allocated = 0;
+    nhandles = 0;
+    i = 0;
+    tracked = WT_META_TRACKING(session);
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
     WT_ASSERT(session, session->dhandle == NULL);
 
     /*
-     * Lock the live handle first. This ordering is important: we rely on locking the live handle to
-     * fail fast if the tree is busy (e.g., with cursors open or in a checkpoint).
+     * Lock every handle matching this URI -- the live handle first, then any checkpoint handles --
+     * before closing any of them. A close can mark a handle dead, and unlike an ordinary close,
+     * that can never be undone: a dead handle can never be reopened. Confirming the whole set can
+     * be locked before closing any of them means a handle that turns out to be busy fails the whole
+     * call before anything irreversible has happened to any handle in the set.
+     *
+     * Grow the array before taking each lock, never after. The error path releases the handles the
+     * array holds, so a handle locked while the array is still too short to record it would be left
+     * locked for good. Reserving the slot first cannot strand anything: a failure to grow happens
+     * before the lock is taken, and a failure to lock leaves the extra capacity unused.
      */
-    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead, check_visibility));
+    WT_ERR(__wt_realloc_def(session, &handles_allocated, nhandles + 1, &handles));
+    WT_ERR(__conn_dhandle_lock_one(session, uri, NULL));
+    handles[nhandles++] = session->dhandle;
+    WT_DHANDLE_CLEAR(session);
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
@@ -855,11 +939,39 @@ __wt_conn_dhandle_close_all(
           F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
 
-        WT_ERR(__conn_dhandle_close_one(
-          session, dhandle->name, dhandle->checkpoint, removed, mark_dead, false));
+        WT_ERR(__wt_realloc_def(session, &handles_allocated, nhandles + 1, &handles));
+        WT_ERR(__conn_dhandle_lock_one(session, dhandle->name, dhandle->checkpoint));
+        handles[nhandles++] = session->dhandle;
+        WT_DHANDLE_CLEAR(session);
+    }
+
+    /*
+     * Every handle for this URI is confirmed available. Close the live handle first: of the set, it
+     * is the only one whose close can fail for content reasons (uncommitted or dirty data), and
+     * that failure happens before anything is touched, so the set ends up either closed in full or
+     * not at all.
+     */
+    for (; i < nhandles; i++) {
+        WT_WITH_DHANDLE(session, handles[i],
+          ret = __conn_dhandle_close_locked(
+            session, removed, mark_dead, i == 0 ? check_visibility : false));
+        if (ret != 0) {
+            ++i;
+            break;
+        }
     }
 
 err:
+    /*
+     * Release whatever we locked but never reached closing. A handle that itself failed to close
+     * already disposed of its own lock; only the handles after it are still outstanding. Under
+     * metadata tracking, every lock was registered as it was taken, so the surrounding operation's
+     * own unroll releases them instead.
+     */
+    if (ret != 0 && !tracked)
+        for (; i < nhandles; i++)
+            WT_WITH_DHANDLE(session, handles[i], WT_TRET(__wt_session_release_dhandle(session)));
+    __wt_free(session, handles);
     WT_DHANDLE_CLEAR(session);
     return (ret);
 }
@@ -1093,6 +1205,8 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
         /* Sweep can concurrently update the flags of a handle we're dumping. */
         WT_RET(__wt_msg(
           session, "  Flags: 0x%08" PRIx16, __wt_atomic_load_uint16_relaxed(&dhandle->flags)));
+        WT_RET(__wt_msg(session, "  Outdated: %s",
+          __wt_atomic_load_bool_relaxed(&dhandle->outdated) ? "true" : "false"));
     }
     return (0);
 }
