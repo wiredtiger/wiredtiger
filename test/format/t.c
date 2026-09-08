@@ -306,7 +306,7 @@ main(int argc, char *argv[])
      * Let the command line -q flag override values configured from other sources. Multi-node runs
      * retain configured verbosity for their separate leader and follower logs.
      */
-    if (quiet_flag && !disagg_is_multi_node())
+    if ((quiet_flag || !isatty(1)) && !disagg_is_multi_node())
         GV(QUIET) = 1;
 
     /* Configure the random number generators. */
