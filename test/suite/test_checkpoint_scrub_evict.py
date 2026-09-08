@@ -338,43 +338,34 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
             self.assertGreaterEqual(nbytes, pages,
                 msg='retained bytes should be at least one per retained page')
 
-            # Dropping the table discards its pages through the image-discard
-            # path. The gauge is a live connection-wide count and a checkpoint
-            # retains fresh images, so its absolute value after the drop is not
-            # predictable; all we require is that the decrement runs cleanly and
-            # the two gauges stay consistent with each other.
-
             # Eviction restores the scrubbed pages as dirty in-memory images,
             # so the table can hold dirty data by the time we drop it.
             # Under precise_checkpoint the drop's close-checkpoint refuses dirty
             # data (WT_DIRTY_DATA). Checkpoint first so the drop closes cleanly.
             self.session.checkpoint()
 
-            # A clean tree's drop marks its handle dead and defers the page discard to sweep, so
-            # wait for the gauges to stop moving before checking them rather than reading them
-            # right away, while sweep may still be draining them. Speed up the scan so this
-            # settles quickly instead of waiting on the default interval.
+            # Dropping the table discards its pages through the image-discard path. This table is
+            # the only thing holding retained images, so both gauges must end at exactly zero once
+            # its pages are gone -- and landing on zero is itself the check that the decrement ran
+            # cleanly: an underflow of an unsigned count reads as a huge value, never as zero, and
+            # both reaching zero is what it means for the two to drain together.
+            #
+            # A clean tree's drop marks the handle dead and leaves the discard to the sweep server,
+            # so the drain completes shortly after the drop call rather than inside it. Speed up the
+            # scan so it resolves promptly instead of on the default interval.
             self.conn.reconfigure('file_manager=(close_scan_interval=1)')
             self.session.drop(self.uri)
 
-            deadline = time.time() + 10
-            previous = None
+            deadline = time.time() + 30
             while True:
-                current = (self.get_stat(stat.conn.cache_scrub_image_pages),
-                    self.get_stat(stat.conn.cache_scrub_image_bytes))
-                if current == previous:
+                pages = self.get_stat(stat.conn.cache_scrub_image_pages)
+                nbytes = self.get_stat(stat.conn.cache_scrub_image_bytes)
+                if (pages, nbytes) == (0, 0):
                     break
-                previous = current
                 self.assertLess(time.time(), deadline,
-                    'scrub image gauges never settled: last seen %s' % (current,))
-                time.sleep(0.5)
-            pages, nbytes = current
-
-            self.assertGreaterEqual(pages, 0, 'scrub image page gauge underflowed')
-            self.assertGreaterEqual(nbytes, 0, 'scrub image byte gauge underflowed')
-            self.assertEqual(pages == 0, nbytes == 0,
-                msg='scrub image page and byte gauges must drain together: '
+                    'scrub image gauges never drained to zero: '
                     'pages={}, bytes={}'.format(pages, nbytes))
+                time.sleep(0.1)
         else:
             # Fuzzy checkpoint never retains a scrub image.
             self.assertEqual(pages, 0, 'fuzzy checkpoint must not retain scrub images')
