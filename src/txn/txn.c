@@ -1761,9 +1761,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * While the step-down timestamp is set, a committing transaction's layered content must sit
          * on one side of the boundary: ingest content strictly above the timestamp, stable content
-         * at or below it, and never both constituents from one transaction. The commit timestamp is
-         * known to be present here: the check above rejects untimestamped layered commits on the
-         * same operation. Metadata tables commit untimestamped and are not layered content.
+         * at or below it, and never both constituents from one transaction.
          */
         if (step_down_ts != WT_TS_NONE && !prepare && op->type != WT_TXN_OP_NONE &&
           op->btree != NULL) {
