@@ -2069,6 +2069,34 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
 }
 
 /*
+ * __wt_txn_stepdown_commit_ts_check --
+ *     Transactions committing layered content during step-down must carry a commit timestamp.
+ */
+static WT_INLINE int
+__wt_txn_stepdown_commit_ts_check(
+  WT_SESSION_IMPL *session, WT_TXN *txn, WT_TXN_OP *op, wt_timestamp_t step_down_ts)
+{
+    if (step_down_ts == WT_TS_NONE)
+        return (0);
+    if (op->type == WT_TXN_OP_NONE || op->btree == NULL)
+        return (0);
+
+    /*
+     * Only layered constituents are ordered against the boundary: ingest (WT_BTREE_GARBAGE_COLLECT)
+     * strictly above it, stable (WT_BTREE_DISAGGREGATED) at or below it. Metadata commits
+     * untimestamped in the window by design and its transactions cannot be rolled back.
+     */
+    if (!F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT) &&
+      !(F_ISSET(op->btree, WT_BTREE_DISAGGREGATED) && !WT_IS_ANY_METADATA(op->btree->dhandle)))
+        return (0);
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+        return (0);
+
+    WT_RET_MSG(
+      session, EINVAL, "commit timestamp is required while the step down timestamp is set");
+}
+
+/*
  * __wt_txn_config_clear --
  *     Discard a transaction's configuration. The cache-size exemption is the only setting stored
  *     outside the transaction, so it is dropped here, and only when the transaction claimed it
