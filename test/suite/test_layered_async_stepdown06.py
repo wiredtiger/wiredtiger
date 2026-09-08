@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 #    demotion, and the step-up leg that proves the node is reusable.
 @disagg_test_class
 class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -79,21 +79,19 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         # A follower cannot open the live stable table, so read the checkpoint view.
         self.assertEqual(self.read_keys_at(self.ingest_uri(t_pre), 40), set())
         if self.stable_is_checkpointed(self.conn, t_post):
-            expected_post = {'b'} if self.stable_has_step_down_writes() else set()
-            self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_post), 40), expected_post)
+            self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_post), 40), set())
         self.assertEqual(self.read_keys_at(self.ingest_uri(t_both), 40), {'b'})
-        expected_both = {'a', 'b'} if self.stable_has_step_down_writes() else {'a'}
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 40), expected_both)
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 40), {'a'})
 
         # A follower write commits fine and routes to ingest.
         self.write_at(t_both, {'c': 'follower'}, 50)
         self.assertEqual(self.read_keys_at(self.ingest_uri(t_both), 60), {'b', 'c'})
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 60), expected_both)
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(t_both), 60), {'a'})
         self.assertEqual(self.read_kvs_at(t_both, 60),
             {'a': 'stable', 'b': 'ingest', 'c': 'follower'})
 
     # A restart without local files serves exactly the step-down checkpoint: the stable content
-    # (including mirrored writes) survives and the ingest content, being local-only, is gone.
+    # committed at or below the cutoff survives, and the post-cutoff writes are gone.
     def test_step_down_checkpoint_survives_restart(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -111,9 +109,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.restart_without_local_files(
             config=self.conn_base_config + 'disaggregated=(role="follower")')
 
-        expected_restart = {**{k: 'stable' for k in pre},
-            **({k: 'ingest' for k in post} if self.stable_has_step_down_writes() else {})}
-        self.assertEqual(self.read_kvs_at(self.uri, 40), expected_restart,
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {k: 'stable' for k in pre},
             'the restarted node must serve exactly the checkpointed content')
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
 
@@ -483,5 +479,9 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # A second step-up drains the second cycle's ingest content as well.
         self.conn.reconfigure('disaggregated=(role="leader")')
+        # With a precise checkpoint, a commit above the stable timestamp stays dirty and cannot be
+        # verified: advance stable over this cycle's write and checkpoint, as cycle 1 does.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(70))
+        self.session.checkpoint()
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 80), {'a', 'b', 'c', 'd'})
         self.assertEqual(self.read_kvs_at(self.uri, 80), expected)
