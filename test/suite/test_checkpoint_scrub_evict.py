@@ -346,9 +346,12 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
 
             # Dropping the table discards its pages through the image-discard path. This table is
             # the only thing holding retained images, so both gauges must end at exactly zero once
-            # its pages are gone -- and landing on zero is itself the check that the decrement ran
-            # cleanly: an underflow of an unsigned count reads as a huge value, never as zero, and
-            # both reaching zero is what it means for the two to drain together.
+            # its pages are gone, and requiring both to reach zero is what checks that they drain
+            # together rather than one outrunning the other.
+            #
+            # Nothing here needs to inspect the gauge for an underflow: the accounting clamps a
+            # decrement that would go negative back to zero and reports it, which aborts a
+            # diagnostic build and otherwise fails the test through the unexpected-stderr check.
             #
             # A clean tree's drop marks the handle dead and leaves the discard to the sweep server,
             # so the drain completes shortly after the drop call rather than inside it. Speed up the
