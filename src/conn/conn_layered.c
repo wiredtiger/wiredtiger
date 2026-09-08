@@ -1125,6 +1125,70 @@ __disagg_publish_check_step_down(
 }
 
 /*
+ * __wt_disagg_btree_publish_if_covered --
+ *     Publish the btree if the given schema epoch covers the epoch its create was published at.
+ *     Reports through publishedp, which may be NULL, whether this call published the btree. The
+ *     caller holds the schema lock.
+ */
+void
+__wt_disagg_btree_publish_if_covered(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t schema_epoch, bool *publishedp)
+{
+    wt_timestamp_t create_epoch;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    if (publishedp != NULL)
+        *publishedp = false;
+
+    /*
+     * Re-check the awaiting-publication state: the eviction walk contends with the checkpoint, and
+     * the btree may already be published.
+     */
+    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return;
+
+    create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
+    if (create_epoch == WT_SCHEMA_EPOCH_NONE || create_epoch > schema_epoch)
+        return;
+
+    F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    __wt_evict_file_exclusive_off(session);
+
+    if (publishedp != NULL)
+        *publishedp = true;
+}
+
+/*
+ * __wt_disagg_btree_publish_for_eviction --
+ *     Publish the current btree so eviction can write it out rather than hold it in memory until
+ *     the next checkpoint. The caller holds the schema lock.
+ */
+void
+__wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    bool published;
+
+    btree = S2BT(session);
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /* Only the leader publishes, and only outside a role transition. */
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
+      F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+        return;
+
+    __wt_disagg_btree_publish_if_covered(
+      session, btree, __wt_get_stable_disaggregated_schema_epoch(session), &published);
+    if (published)
+        WT_STAT_CONN_INCR(session, eviction_disagg_publish_cleared);
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_publish --
  *     Publish schema operations in the shared metadata queue for the given object.
  */
@@ -1650,6 +1714,24 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __disagg_assert_no_active_writes_callback --
+ *     Session array walk callback to assert no active writes.
+ */
+static int
+__disagg_assert_no_active_writes_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, bool *exit_walkp, void *cookiep)
+{
+    WT_UNUSED(exit_walkp);
+    WT_UNUSED(cookiep);
+
+    WT_ASSERT_ALWAYS(session, txn_session->txn->mod_count == 0,
+      "application write transaction is active during disaggregated step-down");
+    return (0);
+}
+#endif
+
 /*
  * __disagg_step_down_int --
  *     Step down to the follower mode. The session must hold the checkpoint and schema locks.
@@ -1674,6 +1756,20 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Assert that there are no concurrent or uncommitted write transactions during step-down.
+     *
+     * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
+     * session open/close to ensure we don't race.
+     */
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    __wt_spin_lock(session, &conn->api_lock);
+    ret = __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL);
+    __wt_spin_unlock(session, &conn->api_lock);
+    WT_ERR(ret);
+#endif
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
