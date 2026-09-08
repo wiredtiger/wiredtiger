@@ -981,9 +981,14 @@ __wt_conn_dhandle_close_all(
      * that can never be undone: a dead handle can never be reopened. Confirming the whole set can
      * be locked before closing any of them means a handle that turns out to be busy fails the whole
      * call before anything irreversible has happened to any handle in the set.
+     *
+     * Grow the array before taking each lock, never after. The error path releases the handles the
+     * array holds, so a handle locked while the array is still too short to record it would be left
+     * locked for good. Reserving the slot first cannot strand anything: a failure to grow happens
+     * before the lock is taken, and a failure to lock leaves the extra capacity unused.
      */
-    WT_ERR(__conn_dhandle_lock_one(session, uri, NULL));
     WT_ERR(__wt_realloc_def(session, &handles_allocated, nhandles + 1, &handles));
+    WT_ERR(__conn_dhandle_lock_one(session, uri, NULL));
     handles[nhandles++] = session->dhandle;
     WT_DHANDLE_CLEAR(session);
 
@@ -993,8 +998,8 @@ __wt_conn_dhandle_close_all(
           F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
 
-        WT_ERR(__conn_dhandle_lock_one(session, dhandle->name, dhandle->checkpoint));
         WT_ERR(__wt_realloc_def(session, &handles_allocated, nhandles + 1, &handles));
+        WT_ERR(__conn_dhandle_lock_one(session, dhandle->name, dhandle->checkpoint));
         handles[nhandles++] = session->dhandle;
         WT_DHANDLE_CLEAR(session);
     }

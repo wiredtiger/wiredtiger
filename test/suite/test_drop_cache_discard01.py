@@ -72,10 +72,10 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
         uri = 'table:test_drop_cache_discard01_clean'
         self.populate(uri, 10_000)
 
-        # Give the oldest id time to catch up: otherwise checkpoint's own reconciliation can find
-        # the last insert not yet globally visible, skip it, and leave the tree modified again
-        # right after marking it clean.
-        time.sleep(1)
+        # The checkpoint leaves the tree clean without any wait here: the rows were written with
+        # auto-commit and no transaction is open, and a checkpoint advances the oldest id before it
+        # reconciles anything, so nothing it writes can be skipped as not yet globally visible and
+        # left dirtying the tree behind it.
         self.session.checkpoint()
 
         dead_close_before = self.get_stat(stat.conn.dh_sweep_dead_close)
@@ -99,7 +99,6 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
         """
         uri = 'table:test_drop_cache_discard01_busy_checkpoint'
         self.populate(uri, 100)
-        time.sleep(1)
         self.session.checkpoint('name=wt18427ckpt')
 
         # Open a checkpoint cursor from a second session so it stays open across the drop attempt.
