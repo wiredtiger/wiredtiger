@@ -133,10 +133,10 @@ static int
 handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
+    WT_DECL_RET;
+    int nw;
     char buf[256];
     const char *msg;
-    int nw;
-    WT_DECL_RET;
 
     (void)handler;
 
