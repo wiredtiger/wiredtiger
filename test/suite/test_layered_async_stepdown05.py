@@ -149,7 +149,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
         self.assertEqual(self.read_kvs_at(self.uri, 25), {})
 
-    # A commit with no timestamp succeeds and lands in ingest; this pins current behavior.
+    # A commit with no timestamp is rejected while the cutoff is set.
     def test_untimestamped_commit_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -158,10 +158,14 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['k1'] = 'v'
-        self.session.commit_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(),
+            '/commit timestamp is required while the step down timestamp is set/')
         cursor.close()
 
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), {'k1'})
+        # The rejected commit left nothing behind in either constituent.
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
+        self.assertEqual(self.read_kvs_at(self.uri, 25), {})
 
     # The cutoff does not change all_durable behavior: an in-flight txn still clamps it, and it
     # moves normally once that txn resolves and later commits land.
