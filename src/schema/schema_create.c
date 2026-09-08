@@ -1174,8 +1174,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     char *meta_value;
     char *tablecfg;
     char ts_string[WT_TS_INT_STRING_SIZE];
-    const char *constituent_cfg;
     const char *collapsed_cfg[2];
+    const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
     const char *layered_cfg[5] = {
