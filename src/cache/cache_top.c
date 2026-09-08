@@ -689,7 +689,7 @@ err:
  * __cache_top_pct --
  *     Calculate the percentage of part relative to whole. Returns 0 if whole is zero.
  */
-static int64_t
+static WT_INLINE int64_t
 __cache_top_pct(uint64_t part, uint64_t whole)
 {
     if (whole == 0)
