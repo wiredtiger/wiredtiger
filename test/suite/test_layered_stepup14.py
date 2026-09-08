@@ -32,8 +32,8 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_layered_stepup14.py
-# Step-up must clear the ingest table even when the clearing truncate conflicts
-# with the tree changing underneath it and has to retry.
+# Step-up must clear the ingest table even when the clearing truncate conflicts with the tree
+# changing underneath it and has to retry.
 @disagg_test_class
 class test_layered_stepup14(wttest.WiredTigerTestCase):
     nitems = 2000
@@ -69,8 +69,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
         cursor.close()
 
-        # Step up. Draining clears the ingest table while the fail point forces
-        # the clearing truncate to restart and conflict with itself.
+        # Step up.
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # The clear must have recovered from at least one conflict.
@@ -80,9 +79,6 @@ class test_layered_stepup14(wttest.WiredTigerTestCase):
         # All content must survive the step-up.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         cursor = self.session.open_cursor(self.uri)
-        count = 0
         for i in range(self.nitems):
             self.assertEqual(cursor[f'key-{i:010d}'], f'value-{i}')
-            count += 1
         cursor.close()
-        self.assertEqual(count, self.nitems)
