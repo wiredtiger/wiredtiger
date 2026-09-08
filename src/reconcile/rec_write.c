@@ -2700,6 +2700,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                  * case: a split produces more than one chunk precisely because the old single page
                  * is becoming multiple new ones, so no single chunk can claim to still be "the"
                  * previous page and inherit its address.
+                 *
+                 * This is the second cause of a skip-write, and deliberately counts against the
+                 * same statistic as the one below: both mean the page kept the block it already
+                 * had.
                  */
                 if (last_block && r->multi_next == 1 &&
                   page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
