@@ -82,8 +82,8 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'straddle'})
         self.assertEqual(self.read_keys_at(self.uri, 40), {'straddle'})
 
-        expected_stable = {'straddle'} if self.stable_has_step_down_writes() else set()
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
+        expected_stable = {'straddle': 'after'} if self.stable_has_step_down_writes() else {}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
     # Straddler rollback applies to any write; remove rolls back like insert.
     def test_straddler_rollback_remove(self):
