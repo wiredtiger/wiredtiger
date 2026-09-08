@@ -276,6 +276,26 @@ running=0
 timeouts=0
 status="format.sh-status"
 
+# Bytes of each running job's log already surfaced to our own stdout, so a long job's
+# progress is visible in Evergreen's console (which only captures our stdout, not the
+# per-job log files) instead of looking indistinguishable from a hang.
+declare -A log_tail_offset
+
+# tail_new_log_output
+# Print any bytes appended to a running job's log since the last time we checked.
+# $1 log
+tail_new_log_output()
+{
+    log=$1
+
+    size=$(wc -c < "$log" 2>/dev/null) || return 0
+    last=${log_tail_offset[$log]:-0}
+    [[ $size -gt $last ]] && {
+        tail -c +$((last + 1)) "$log"
+        log_tail_offset[$log]=$size
+    }
+}
+
 # skip_known_errors
 # return 0 - Error found and skip
 # return 1 - skip_errors flag not set or no (known error) match found
@@ -451,6 +471,7 @@ resolve()
         kill -s 0 $pid > /dev/null 2>&1 && {
             [[ $force_quit -eq 0 ]] && {
                 running=$((running + 1))
+                tail_new_log_output "$log"
                 continue
             }
 
@@ -633,7 +654,7 @@ format()
         fi
     fi
 
-    cmd="$live_record_command $format_binary -c "$config" -h "$dir" $trace $args quiet=1"
+    cmd="$live_record_command $format_binary -c "$config" -h "$dir" $trace $args"
     msg "$cmd"
 
     # Disassociate the command from the shell script so we can exit and let the command
