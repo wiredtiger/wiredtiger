@@ -276,26 +276,6 @@ running=0
 timeouts=0
 status="format.sh-status"
 
-# Bytes of each running job's log already surfaced to our own stdout, so a long job's
-# progress is visible in Evergreen's console (which only captures our stdout, not the
-# per-job log files) instead of looking indistinguishable from a hang.
-declare -A log_tail_offset
-
-# tail_new_log_output
-# Print any bytes appended to a running job's log since the last time we checked.
-# $1 log
-tail_new_log_output()
-{
-    log=$1
-
-    size=$(wc -c < "$log" 2>/dev/null) || return 0
-    last=${log_tail_offset[$log]:-0}
-    [[ $size -gt $last ]] && {
-        tail -c +$((last + 1)) "$log"
-        log_tail_offset[$log]=$size
-    }
-}
-
 # skip_known_errors
 # return 0 - Error found and skip
 # return 1 - skip_errors flag not set or no (known error) match found
@@ -471,7 +451,6 @@ resolve()
         kill -s 0 $pid > /dev/null 2>&1 && {
             [[ $force_quit -eq 0 ]] && {
                 running=$((running + 1))
-                tail_new_log_output "$log"
                 continue
             }
 
@@ -488,14 +467,8 @@ resolve()
 
             msg "job in $dir killed"
 
-            # Jobs we killed count as neither success nor failure. Leave the run's directory and log
-            # in place instead of discarding them.
-            if [[ -d "$dir" ]]; then
-                echo "$name: job killed, run retained" > "$dir/$status"
-            else
-                rm -f $log
-            fi
-            rm -rf $rec_dir
+            # Remove jobs we killed, they count as neither success or failure.
+            rm -rf $dir $log $rec_dir
             continue
         }
         wait_for_process $pid
