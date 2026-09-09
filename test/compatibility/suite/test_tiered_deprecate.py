@@ -31,34 +31,26 @@ import os, shutil, compatibility_test, compatibility_version, wiredtiger
 
 class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
     '''
-    Test leftover tiered storage configuration across a database upgrade.
+    Create a real tiered table on an older branch, then open that database
+    on a branch where tiered storage is removed.
 
-    A database created on a branch that still has tiered storage may persist
-    tiered_storage settings in WiredTiger.basecfg. When that database is later
-    opened on a branch where the feature is removed:
-      - If tiered_storage.name is none, the open should succeed and existing
-        tables should be readable (the keys are kept as parse stubs).
-      - If tiered_storage.name is a real source, the open should fail with
-        ENOTSUP.
-
-    This is leftover connection configuration, not a leftover tiered: table.
-    An enabled name fails at wiredtiger_open, so those tables are never opened.
+    The leftover home has both an enabled connection name in WiredTiger.basecfg
+    and tiered: metadata. wiredtiger_open should fail with ENOTSUP because of
+    the leftover name. The metadata URIs are never opened.
     '''
 
     build_config = {'standalone': 'true'}
     conn_config = ''
     create_config = 'key_format=i,value_format=S'
     uri = 'table:test_tiered_deprecate'
+    bucket = 'bucket1'
+    bucket_prefix = 'pfx_'
     nrows = 100
-
-    # Non-default local_retention so the subgroup is written to the basecfg.
-    # name=none avoids loading a storage source on the older branch.
-    older_create_config = 'tiered_storage=(name=none,local_retention=1)'
 
     def test_tiered_deprecate(self):
 
         # Removal currently lives on develop (and this branch once merged).
-        # Update the boundary if it is backported to a release branch.
+        # Change the boundary if a release branch also has the removal.
         removed_version = compatibility_version.WTVersion("develop")
 
         if self.older_branch >= removed_version:
@@ -67,19 +59,11 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
 
         if self.older_branch < removed_version and self.newer_branch >= removed_version:
             self.run_method_on_branch(self.older_branch, 'on_older_branch')
-            self.run_method_on_branch(self.newer_branch, 'on_newer_branch_name_none')
-            self._set_basecfg_tiered_name('dir_store')
-            self.run_method_on_branch(self.newer_branch, 'on_newer_branch_name_enabled')
+            self.run_method_on_branch(self.newer_branch, 'on_newer_branch')
 
-    def _set_basecfg_tiered_name(self, name):
-        basecfg_path = 'WiredTiger.basecfg'
-        with open(basecfg_path, 'r') as f:
-            contents = f.read()
-        assert 'tiered_storage=(name=none' in contents, \
-            f'tiered_storage=(name=none not found in {basecfg_path}:\n{contents}'
-        with open(basecfg_path, 'w') as f:
-            f.write(contents.replace('tiered_storage=(name=none',
-              'tiered_storage=(name=' + name, 1))
+    def _dir_store_path(self):
+        return os.path.join(self.branch_build_path(self.older_branch),
+          'ext', 'storage_sources', 'dir_store', 'libwiredtiger_dir_store.so')
 
     def _newer_rejects_enabled_tiered(self):
         '''
@@ -108,35 +92,37 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
             assert 'tiered storage is not supported' in str(e)
 
     def on_older_branch(self):
-        conn = wiredtiger.wiredtiger_open('.', 'create,' + self.older_create_config)
+        ext = self._dir_store_path()
+        assert os.path.exists(ext), f'dir_store extension not found: {ext}'
+        os.mkdir(self.bucket)
+
+        conn_config = (
+          'create,tiered_storage=(name=dir_store,bucket=%s,bucket_prefix=%s),'
+          'extensions=(%s)' % (self.bucket, self.bucket_prefix, ext))
+        conn = wiredtiger.wiredtiger_open('.', conn_config)
         session = conn.open_session()
 
         session.create(self.uri, self.create_config)
-
         c = session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             c[i] = str(i)
         c.close()
+        session.checkpoint('flush_tier=(enabled)')
+
+        meta = session.open_cursor('metadata:')
+        found = any(k.startswith('tiered:') for k, _v in meta)
+        meta.close()
+        assert found, 'older branch did not create a tiered: metadata entry'
+
         session.close()
         conn.close()
 
-    def on_newer_branch_name_none(self):
-        conn = wiredtiger.wiredtiger_open('.', self.conn_config)
-        session = conn.open_session()
-
-        c = session.open_cursor(self.uri)
-        for i in range(1, self.nrows + 1):
-            assert c[i] == str(i), f'data mismatch on key {i}'
-        c.close()
-        session.close()
-        conn.close()
-
-    def on_newer_branch_name_enabled(self):
+    def on_newer_branch(self):
         if not self._newer_rejects_enabled_tiered():
             return
         try:
             wiredtiger.wiredtiger_open('.', self.conn_config)
-            assert False, 'wiredtiger_open should fail when basecfg has an enabled tiered name'
+            assert False, 'wiredtiger_open of a leftover tiered database should fail'
         except wiredtiger.WiredTigerError as e:
             assert 'tiered storage is not supported' in str(e)
 
