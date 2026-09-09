@@ -152,24 +152,30 @@ class cache_top_base(wttest.WiredTigerTestCase):
             self.assertNotIn(n, names)
 
     # A connection names its history store one of two ways.
-    hs_names = ['WiredTigerHS.wt', 'WiredTigerSharedHS.wt_stable']
+    internal_names = ['WiredTiger.wt', 'WiredTigerHS.wt', 'WiredTigerSharedHS.wt_stable']
 
     # The tables WiredTiger keeps for itself are the connection statistics' business, not the
     # operator's, and are never named.
     def assertInternalTablesNotIn(self, report):
         for ranking in self.rankings:
             for name in self.names(report, ranking):
-                self.assertNotIn('WiredTiger.wt', name)
-                for h in self.hs_names:
-                    self.assertNotIn(h, name)
+                for internal in self.internal_names:
+                    self.assertNotIn(internal, name)
 
     # Every report is expected to hold together internally, whatever the workload. A report that
     # printed only the first few entries of each ranking cannot be checked against the totals on
     # its header lines, which cover the whole ranking.
     def check_report_consistent(self, report, truncated = False):
+        self.assertInternalTablesNotIn(report)
+
         for ranking in self.rankings:
             self.assertIn(ranking, report, 'ranking missing from the report: ' + ranking)
             r = report[ranking]
+
+            # A tree occupies at most one slot of a ranking, so a table is named at most once.
+            names = self.names(report, ranking)
+            self.assertEqual(len(names), len(set(names)),
+                'ranking "%s" names a table more than once: %s' % (ranking, names))
 
             # A ranking can hold no more than it has slots for, and prints no more than it is
             # allowed to.
@@ -207,10 +213,8 @@ class cache_top_base(wttest.WiredTigerTestCase):
                 self.assertIsNone(r['total'])
                 self.assertIsNone(r['configured'])
 
-    # Reporting is what brings a threshold down: a ranking nothing qualifies for lowers its bar
-    # every time it is asked. Note that this alone admits nothing — a tree is only reconsidered
-    # when it next accounts for cache, so a table that was too small when it was written stays out
-    # until it is written to again.
+    # Asking for a ranking nothing qualifies for lowers its bar. This alone admits nothing: a
+    # table that was too small when it was written stays out until it is written to again.
     def lower_threshold(self, ranking, reports = 8):
         for _ in range(reports):
             threshold, _ = self.ranking(ranking)
@@ -280,8 +284,7 @@ class test_cache_top01(cache_top_base):
             self.session.rollback_transaction()
 
     # The history store and the metadata stay out of the rankings even when the history store is
-    # the hottest tree in the cache. Its identity has to be established from the URI: the data
-    # handle flag naming it is set well after the tracking state is initialized.
+    # the hottest tree in the cache.
     def test_internal_tables_excluded_under_load(self):
         uri = 'table:hsload'
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -294,9 +297,7 @@ class test_cache_top01(cache_top_base):
         for _ in range(3):
             self.push_versions(uri, 400, range(ts, ts + 8))
             ts += 8
-            report = self.report()
-            self.check_report_consistent(report)
-            self.assertInternalTablesNotIn(report)
+            self.check_report_consistent(self.report())
 
         # The checks above are only meaningful if the workload used the history store.
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.cache_hs_insert), 0)
@@ -314,9 +315,8 @@ class test_cache_top01(cache_top_base):
         for ranking in self.rankings:
             self.assertTableNotIn('doomed', self.names(report, ranking))
 
-    # A table whose data handle is closed and reopened in place, which is what an alter does. The
-    # rankings hold a pointer to the tree across that close and the reopen resets the tree's record
-    # of where it sits in them, so the tree must not come back into a ranking it already occupies.
+    # Altering a table closes and reopens it underneath the rankings. A table must still be named
+    # at most once afterwards.
     @wttest.skip_for_hook("disagg", "session.alter is not supported for layered tables")
     def test_no_duplicates_across_handle_reopen(self):
         self.populate('table:churn', 2500, checkpoint = True)
@@ -327,20 +327,15 @@ class test_cache_top01(cache_top_base):
         self.session.alter('table:churn', 'access_pattern_hint=random')
         self.populate('table:churn', 2500, start = 50000, checkpoint = True)
 
-        report = self.report()
-        self.check_report_consistent(report)
-        for ranking in self.rankings:
-            names = self.names(report, ranking)
-            self.assertEqual(len(names), len(set(names)),
-                'ranking "%s" names a table more than once: %s' % (ranking, names))
+        self.check_report_consistent(self.report())
 
     # More tables hold cache than a ranking has slots for. The report stays bounded, and the slots
     # go to the tables that hold the cache rather than to whichever called in first.
     def test_many_tables_ranks_largest(self):
         bulk, tiny = 34, 6
 
-        # Nothing here is large enough to clear the threshold a ranking opens with, which is a
-        # fixed fraction of the cache.
+        # None of these tables is large enough to be ranked yet: a fresh ranking starts with a bar
+        # high enough that nothing here clears it.
         for i in range(bulk):
             self.populate('table:bulk%02d' % i, 200)
         for i in range(tiny):
@@ -454,12 +449,21 @@ class test_cache_top02(cache_top_base):
     conn_config = ('create,cache_size=100MB,statistics=(all),'
         'file_manager=(close_scan_interval=1)')
 
+    # The server can emit a report at any point once the category is on, including while the
+    # connection is closing, which is after the last chance a test has to consume it. Turning the
+    # category off is not a barrier either. Ignore the asynchronous reports for the whole test
+    # instead: only they carry the category tag, so a report asked for directly is still checked.
+    def setUp(self):
+        super().setUp()
+        self.ignoreStdoutPattern('WT_VERB_CACHE_TOP')
+
     # The category named in the configuration the connection was opened with.
     def test_verbose_from_connection_config(self):
         self.reopen_conn(config = self.conn_config + ',verbose=[cache_top]')
         self.populate('table:verbose', 2000, checkpoint = True)
 
         self.wait_for_report('no cache_top verbose report within the deadline')
+        self.conn.reconfigure('verbose=[]')
 
     # Turning the category on and off on a running connection, which is how it is reached in the
     # field.

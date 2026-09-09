@@ -546,16 +546,12 @@ struct __wt_connection_stats {
     int64_t cache_scrub_image_bytes;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
-    int64_t cache_top_inuse_pct;
-    int64_t cache_top5_inuse_pct;
     int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t cache_bytes_hs_dirty;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
-    int64_t cache_top_dirty_pct;
-    int64_t cache_top5_dirty_pct;
     int64_t eviction_disagg_publish_cleared;
     int64_t eviction_server_evict_attempt;
     int64_t eviction_worker_evict_attempt;
@@ -773,6 +769,12 @@ struct __wt_connection_stats {
     int64_t cache_write_restore_scrub_checkpoint;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
+    int64_t cache_top_dirty_pct;
+    int64_t cache_top5_dirty_pct;
+    int64_t cache_top_updates_pct;
+    int64_t cache_top5_updates_pct;
+    int64_t cache_top_inuse_pct;
+    int64_t cache_top5_inuse_pct;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
@@ -813,8 +815,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_bytes_hs_updates;
-    int64_t cache_top_updates_pct;
-    int64_t cache_top5_updates_pct;
     int64_t cache_updates_txn_uncommitted_bytes;
     int64_t cache_updates_txn_uncommitted_count;
     int64_t fsync_all_fh_total;

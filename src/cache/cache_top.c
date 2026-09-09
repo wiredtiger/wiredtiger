@@ -467,7 +467,8 @@ __cache_top_entry_cmp(const void *a, const void *b)
  *     Copy one ranking's current entries into a caller-supplied array, largest first. Along the
  *     way, drop any tracked tree that has fallen below the threshold, and adjust the threshold so
  *     the ranking stays usefully full. Naming the tables is what makes this allocate, and the only
- *     thing that can make it fail.
+ *     thing that can make it fail. The names are copied under the lock because a tree's name is
+ *     only guaranteed to be there while the lock keeps the tree in its slot.
  */
 static int
 __cache_top_scan(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
@@ -492,13 +493,12 @@ __cache_top_scan(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
             continue;
 
         /*
-         * A dropped or closed table's handle is not cleaned up right away; sweep does that later.
-         * Report it as holding nothing rather than naming a table that no longer exists or no
-         * longer holds any cache.
+         * A dropped or closed handle is not cleaned up right away, and neither is a superseded
+         * disaggregated generation. Report either as holding nothing rather than naming a table
+         * that is gone, or the same table once per generation.
          */
         dhandle = array->slots[i].btree->dhandle;
-        value = !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-            F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED) ?
+        value = !WT_DHANDLE_CAN_REOPEN(dhandle) ?
           0 :
           __cache_top_value(session, array->slots[i].btree, metric);
         if (value < threshold) {
@@ -641,10 +641,12 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
          * A level ranking shows its listed tables against both what the connection currently holds
          * and the configured cache size: the first tells a reader whether the rest is spread across
          * tables too small to rank, the second whether any of it is worth worrying about. A decayed
-         * ranking has no connection-wide equivalent.
+         * ranking has no connection-wide equivalent. The listed bytes come from the trees and the
+         * totals include the cache overhead percentage, so the two disagree slightly: these
+         * rankings name tables, they do not reconcile byte counts.
          */
         has_total = true;
-        switch (metric) {
+        switch ((WT_CACHE_TOP_METRIC)metric) {
         case WT_CACHE_TOP_UPDATES:
             connection_total = __wt_cache_bytes_updates(cache);
             break;
@@ -723,6 +725,8 @@ __wt_cache_top_stats_update(WT_SESSION_IMPL *session)
      * across many.
      */
     cache_size = S2C(session)->cache_size;
+
+    /* WT_STAT_CONN_SET publishes into one bucket and empties the rest: a gauge, not a sum. */
 
     WT_STAT_CONN_SET(
       session, cache_top_inuse_pct, __cache_top_pct(listed[WT_CACHE_TOP_INMEM], cache_size));

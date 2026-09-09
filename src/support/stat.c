@@ -2206,16 +2206,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes of clean re-instantiation images retained by checkpoint scrub",
   "cache: bytes read into cache",
   "cache: bytes written from cache",
-  "cache: cache held by the top 32 tables",
-  "cache: cache held by the top 5 tables",
   "cache: cache tolerance configured",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: checkpoint scrub skipped because the page will be left dirty",
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
-  "cache: dirty leaf bytes held by the top 32 tables",
-  "cache: dirty leaf bytes held by the top 5 tables",
   "cache: disaggregated tables the eviction server published",
   "cache: evict page attempts by eviction server",
   "cache: evict page attempts by eviction worker threads",
@@ -2462,6 +2458,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written requiring in-memory restoration due to checkpoint scrub",
   "cache: pages written requiring in-memory restoration due to invisible updates",
   "cache: pages written requiring in-memory restoration due to scrub eviction",
+  "cache: percentage of cache held as dirty leaf bytes by the top 32 tables",
+  "cache: percentage of cache held as dirty leaf bytes by the top 5 tables",
+  "cache: percentage of cache held as update bytes by the top 32 tables",
+  "cache: percentage of cache held as update bytes by the top 5 tables",
+  "cache: percentage of cache held by the top 32 tables",
+  "cache: percentage of cache held by the top 5 tables",
   "cache: percentage overhead",
   "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
   "remain in cache",
@@ -2503,8 +2505,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
   "cache: update bytes belonging to the history store table in the cache",
-  "cache: update bytes held by the top 32 tables",
-  "cache: update bytes held by the top 5 tables",
   "cache: updates in uncommitted txn - bytes",
   "cache: updates in uncommitted txn - count",
   "capacity: background fsync file handles considered",
@@ -3380,16 +3380,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_scrub_image_bytes */
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
-    /* not clearing cache_top_inuse_pct */
-    /* not clearing cache_top5_inuse_pct */
     /* not clearing cache_tolerance_level */
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_write_restore_scrub_skipped_dirty = 0;
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
-    /* not clearing cache_top_dirty_pct */
-    /* not clearing cache_top5_dirty_pct */
     stats->eviction_disagg_publish_cleared = 0;
     stats->eviction_server_evict_attempt = 0;
     stats->eviction_worker_evict_attempt = 0;
@@ -3607,6 +3603,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_restore_scrub_checkpoint = 0;
     stats->cache_write_restore_invisible = 0;
     stats->cache_write_restore_scrub = 0;
+    /* not clearing cache_top_dirty_pct */
+    /* not clearing cache_top5_dirty_pct */
+    /* not clearing cache_top_updates_pct */
+    /* not clearing cache_top5_updates_pct */
+    /* not clearing cache_top_inuse_pct */
+    /* not clearing cache_top5_inuse_pct */
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_precise_checkpoint = 0;
     stats->cache_evict_split_failed_lock = 0;
@@ -3647,8 +3649,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
     /* not clearing cache_bytes_hs_updates */
-    /* not clearing cache_top_updates_pct */
-    /* not clearing cache_top5_updates_pct */
     /* not clearing cache_updates_txn_uncommitted_bytes */
     /* not clearing cache_updates_txn_uncommitted_count */
     stats->fsync_all_fh_total = 0;
@@ -4511,8 +4511,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_scrub_image_bytes += WT_STAT_CONN_READ(from, cache_scrub_image_bytes);
     to->cache_bytes_read += WT_STAT_CONN_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_CONN_READ(from, cache_bytes_write);
-    to->cache_top_inuse_pct += WT_STAT_CONN_READ(from, cache_top_inuse_pct);
-    to->cache_top5_inuse_pct += WT_STAT_CONN_READ(from, cache_top5_inuse_pct);
     to->cache_tolerance_level += WT_STAT_CONN_READ(from, cache_tolerance_level);
     to->cache_eviction_blocked_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
@@ -4523,8 +4521,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
-    to->cache_top_dirty_pct += WT_STAT_CONN_READ(from, cache_top_dirty_pct);
-    to->cache_top5_dirty_pct += WT_STAT_CONN_READ(from, cache_top5_dirty_pct);
     to->eviction_disagg_publish_cleared += WT_STAT_CONN_READ(from, eviction_disagg_publish_cleared);
     to->eviction_server_evict_attempt += WT_STAT_CONN_READ(from, eviction_server_evict_attempt);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
@@ -4831,6 +4827,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_write_restore_scrub_checkpoint);
     to->cache_write_restore_invisible += WT_STAT_CONN_READ(from, cache_write_restore_invisible);
     to->cache_write_restore_scrub += WT_STAT_CONN_READ(from, cache_write_restore_scrub);
+    to->cache_top_dirty_pct += WT_STAT_CONN_READ(from, cache_top_dirty_pct);
+    to->cache_top5_dirty_pct += WT_STAT_CONN_READ(from, cache_top5_dirty_pct);
+    to->cache_top_updates_pct += WT_STAT_CONN_READ(from, cache_top_updates_pct);
+    to->cache_top5_updates_pct += WT_STAT_CONN_READ(from, cache_top5_updates_pct);
+    to->cache_top_inuse_pct += WT_STAT_CONN_READ(from, cache_top_inuse_pct);
+    to->cache_top5_inuse_pct += WT_STAT_CONN_READ(from, cache_top5_inuse_pct);
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
     to->cache_eviction_blocked_precise_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_precise_checkpoint);
@@ -4882,8 +4884,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
     to->cache_bytes_hs_updates += WT_STAT_CONN_READ(from, cache_bytes_hs_updates);
-    to->cache_top_updates_pct += WT_STAT_CONN_READ(from, cache_top_updates_pct);
-    to->cache_top5_updates_pct += WT_STAT_CONN_READ(from, cache_top5_updates_pct);
     to->cache_updates_txn_uncommitted_bytes +=
       WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_bytes);
     to->cache_updates_txn_uncommitted_count +=
