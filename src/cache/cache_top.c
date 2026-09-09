@@ -614,6 +614,7 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
 
     WT_CACHE *cache;
     WT_CACHE_TOP_REPORT_ENTRY *entries;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_ITEM *line;
     uint64_t listed, threshold;
@@ -622,7 +623,8 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
     uint32_t count, i, listing;
     bool has_total;
 
-    cache = S2C(session)->cache;
+    conn = S2C(session);
+    cache = conn->cache;
 
     listing = force || WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CACHE_TOP, WT_VERBOSE_DEBUG_2) ?
       WT_CACHE_TOP_SLOTS :
@@ -636,9 +638,10 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
           session, (WT_CACHE_TOP_METRIC)metric, entries, &count, &threshold, &listed));
 
         /*
-         * A level ranking shows its listed tables against a connection-wide total, so a reader can
-         * tell whether those tables hold most of it or the rest is spread across tables too small
-         * to rank. A decayed ranking has no connection-wide equivalent.
+         * A level ranking shows its listed tables against both what the connection currently holds
+         * and the configured cache size: the first tells a reader whether the rest is spread across
+         * tables too small to rank, the second whether any of it is worth worrying about. A decayed
+         * ranking has no connection-wide equivalent.
          */
         has_total = true;
         switch (metric) {
@@ -660,8 +663,8 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
         if (has_total)
             WT_ERR(__wt_buf_fmt(session, line,
               "cache top %s: %" PRIu32 " tables above %" PRIu64 "B hold %" PRIu64 "B of %" PRIu64
-              "B",
-              metric_desc[metric], count, threshold, listed, connection_total));
+              "B in use, %" PRIu64 "B configured",
+              metric_desc[metric], count, threshold, listed, connection_total, conn->cache_size));
         else
             WT_ERR(__wt_buf_fmt(session, line,
               "cache top %s: %" PRIu32 " tables above %" PRIu64 "B hold %" PRIu64 "B",
@@ -706,37 +709,35 @@ __cache_top_pct(uint64_t part, uint64_t whole)
 void
 __wt_cache_top_stats_update(WT_SESSION_IMPL *session)
 {
-    WT_CACHE *cache;
-    uint64_t largest[WT_CACHE_TOP_METRICS], listed[WT_CACHE_TOP_METRICS], total;
+    uint64_t cache_size, largest[WT_CACHE_TOP_METRICS], listed[WT_CACHE_TOP_METRICS];
     u_int metric;
-
-    cache = S2C(session)->cache;
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric)
         __cache_top_totals(session, (WT_CACHE_TOP_METRIC)metric, &listed[metric], &largest[metric]);
 
     /*
-     * The largest few alongside the whole ranking say how concentrated the cache is: two figures
-     * that are similar mean a handful of tables hold it, two far apart mean it is spread across
-     * many.
+     * Every share is measured against the configured cache size rather than against what the cache
+     * currently holds, which would make any table in an almost empty cache look like it held all of
+     * it. The largest few alongside the whole ranking then say how concentrated the cache is: two
+     * figures that are similar mean a handful of tables hold it, two far apart mean it is spread
+     * across many.
      */
-    total = __wt_cache_bytes_inuse(cache);
-    WT_STAT_CONN_SET(
-      session, cache_top_inuse_pct, __cache_top_pct(listed[WT_CACHE_TOP_INMEM], total));
-    WT_STAT_CONN_SET(
-      session, cache_top5_inuse_pct, __cache_top_pct(largest[WT_CACHE_TOP_INMEM], total));
+    cache_size = S2C(session)->cache_size;
 
-    total = __wt_cache_bytes_updates(cache);
     WT_STAT_CONN_SET(
-      session, cache_top_updates_pct, __cache_top_pct(listed[WT_CACHE_TOP_UPDATES], total));
+      session, cache_top_inuse_pct, __cache_top_pct(listed[WT_CACHE_TOP_INMEM], cache_size));
     WT_STAT_CONN_SET(
-      session, cache_top5_updates_pct, __cache_top_pct(largest[WT_CACHE_TOP_UPDATES], total));
+      session, cache_top5_inuse_pct, __cache_top_pct(largest[WT_CACHE_TOP_INMEM], cache_size));
 
-    total = __wt_cache_dirty_leaf_inuse(cache);
     WT_STAT_CONN_SET(
-      session, cache_top_dirty_pct, __cache_top_pct(listed[WT_CACHE_TOP_DIRTY], total));
+      session, cache_top_updates_pct, __cache_top_pct(listed[WT_CACHE_TOP_UPDATES], cache_size));
     WT_STAT_CONN_SET(
-      session, cache_top5_dirty_pct, __cache_top_pct(largest[WT_CACHE_TOP_DIRTY], total));
+      session, cache_top5_updates_pct, __cache_top_pct(largest[WT_CACHE_TOP_UPDATES], cache_size));
+
+    WT_STAT_CONN_SET(
+      session, cache_top_dirty_pct, __cache_top_pct(listed[WT_CACHE_TOP_DIRTY], cache_size));
+    WT_STAT_CONN_SET(
+      session, cache_top5_dirty_pct, __cache_top_pct(largest[WT_CACHE_TOP_DIRTY], cache_size));
 }
 
 /*

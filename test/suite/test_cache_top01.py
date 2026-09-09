@@ -63,7 +63,8 @@ class cache_top_base(wttest.WiredTigerTestCase):
     value = 'v' * 4096
 
     header_re = re.compile(r'cache top (?P<ranking>.+?): (?P<count>\d+) tables above '
-        r'(?P<threshold>\d+)B hold (?P<listed>\d+)B(?: of (?P<total>\d+)B)?$')
+        r'(?P<threshold>\d+)B hold (?P<listed>\d+)B'
+        r'(?: of (?P<total>\d+)B in use, (?P<configured>\d+)B configured)?$')
     # A verbose report prefixes every line with a timestamp and category, so an entry is found by
     # the report's own indentation rather than at the start of the line.
     entry_re = re.compile(r'\s{4,}(?P<value>\d+)B (?P<name>\S+)$')
@@ -119,6 +120,8 @@ class cache_top_base(wttest.WiredTigerTestCase):
                     'listed': int(header.group('listed')),
                     'total': None if header.group('total') is None
                         else int(header.group('total')),
+                    'configured': None if header.group('configured') is None
+                        else int(header.group('configured')),
                     'entries': [],
                 }
                 continue
@@ -192,14 +195,17 @@ class cache_top_base(wttest.WiredTigerTestCase):
                 self.assertTrue(name.startswith('file:') or name.startswith('tiered:'),
                     'unexpected name: ' + name)
 
-            # A ranking of a level measures itself against the connection, and can never list more
-            # than the whole connection holds. A flow has no connection-wide equivalent.
+            # A ranking of a level measures itself against what the connection holds, which it can
+            # never list more of, and against the configured cache size. A flow has no
+            # connection-wide equivalent, so it reports neither.
             if ranking in self.level_rankings:
                 self.assertIsNotNone(r['total'])
                 self.assertLessEqual(r['listed'], r['total'],
                     'ranking "%s" lists more bytes than the connection holds' % ranking)
+                self.assertGreater(r['configured'], 0)
             else:
                 self.assertIsNone(r['total'])
+                self.assertIsNone(r['configured'])
 
     # Reporting is what brings a threshold down: a ranking nothing qualifies for lowers its bar
     # every time it is asked. Note that this alone admits nothing — a tree is only reconsidered
@@ -407,16 +413,16 @@ class test_cache_top01(cache_top_base):
         self.assertTableIn('updates', self.names(report, 'update bytes'))
 
     # The report survives the cache being resized underneath it, which is where the threshold
-    # comes from.
+    # comes from, and names the size it was last told about.
     def test_cache_resize(self):
         self.populate('table:resized', 2000)
         self.check_report_consistent(self.report())
 
-        self.conn.reconfigure('cache_size=500MB')
-        self.check_report_consistent(self.report())
-
-        self.conn.reconfigure('cache_size=20MB')
-        self.check_report_consistent(self.report())
+        for mb in [500, 20]:
+            self.conn.reconfigure('cache_size=%dMB' % mb)
+            report = self.report()
+            self.check_report_consistent(report)
+            self.assertEqual(report['total cache bytes']['configured'], mb * 1024 * 1024)
 
     # The rankings coexist with the rest of what debug_info prints.
     def test_combined_with_other_categories(self):
@@ -463,45 +469,15 @@ class test_cache_top02(cache_top_base):
         # Nothing has asked for the rankings yet.
         self.cleanStdout()
         self.conn.reconfigure('verbose=[cache_top]')
-        self.wait_for_report('no report after enabling the category at runtime')
+        text = self.wait_for_report('no report after enabling the category at runtime')
+
+        # A report the server emitted holds together the same way a requested one does, except
+        # that it prints only the first few entries of each ranking.
+        self.check_report_consistent(self.parse_report(text), truncated = True)
 
         # Turning it back off is accepted, and asking directly still works.
         self.conn.reconfigure('verbose=[]')
         self.assertIn('cache top ', self.report_text())
-
-    # Below DEBUG_2 a ranking prints only its first few entries, while the same ranking asked for
-    # directly is printed whole.
-    def test_verbose_listing_capped(self):
-        tables = 16
-        for i in range(tables):
-            self.populate('table:capped%d' % i, 400)
-        self.session.checkpoint()
-
-        # Bring the bar down, then write again so the tables are reconsidered against it.
-        self.lower_threshold('total cache bytes')
-        for i in range(tables):
-            self.populate('table:capped%d' % i, 400, start = 400)
-        self.session.checkpoint()
-
-        # More tables qualify than a verbose report is allowed to print.
-        self.assertGreater(self.report()['total cache bytes']['count'], self.verbose_entries)
-
-        self.cleanStdout()
-        self.conn.reconfigure('verbose=[cache_top]')
-        text = self.wait_for_report('no verbose report within the deadline')
-        self.conn.reconfigure('verbose=[]')
-
-        capped = self.parse_report(text)
-        self.check_report_consistent(capped, truncated = True)
-
-        # More tables qualified than were printed, and the printing stopped at the cap.
-        resident = capped['total cache bytes']
-        self.assertGreater(resident['count'], self.verbose_entries)
-        self.assertEqual(len(resident['entries']), self.verbose_entries)
-
-        # The same ranking asked for directly is printed whole.
-        self.assertGreater(len(self.names(self.report(), 'total cache bytes')),
-            self.verbose_entries)
 
 # The rankings on a connection that has no disk behind it.
 class test_cache_top03(cache_top_base):
@@ -583,7 +559,8 @@ class test_cache_top04(cache_top_base):
 # The same rankings as a connection statistic, which is reachable without verbose logging or an
 # explicit request. Recomputed at the end of every checkpoint.
 class test_cache_top05(cache_top_base):
-    conn_config = 'create,cache_size=100MB,statistics=(all)'
+    cache_size_mb = 100
+    conn_config = 'create,cache_size=%dMB,statistics=(all)' % cache_size_mb
 
     # Each ranking that publishes a share of the cache, as (whole ranking, largest few).
     pct_stats = [
@@ -592,8 +569,8 @@ class test_cache_top05(cache_top_base):
         ('cache_top_dirty_pct', 'cache_top5_dirty_pct'),
     ]
 
-    # A table holding most of the cache is published as holding most of the cache, and the
-    # statistic agrees with the report built from the same rankings.
+    # The share of the configured cache the ranked tables hold is published, and agrees with the
+    # report built from the same rankings.
     def test_concentration_published(self):
         self.populate('table:hog', 4000, checkpoint = True)
 
@@ -609,15 +586,24 @@ class test_cache_top05(cache_top_base):
         for whole, top5 in self.pct_stats:
             self.assertLessEqual(pcts[top5], pcts[whole], top5)
 
-        # One table holds the cache here, so the ranked tables have to account for a real share of
-        # it. Deliberately a loose bound: how much is resident depends on when eviction last ran.
+        # One table holds what is in the cache here, so the ranked tables have to account for a
+        # real share of it. Deliberately a loose bound: how much is resident depends on when
+        # eviction last ran.
         self.assertGreater(pcts['cache_top_inuse_pct'],
             0, 'no cache attributed to the ranked tables')
 
+        # The share is measured against the configured cache size, not against the bytes the cache
+        # happens to hold: one table of this size cannot be most of a cache this large, however
+        # little else is in it.
+        cache_bytes = self.cache_size_mb * 1024 * 1024
+        self.assertLess(pcts['cache_top_inuse_pct'], 50,
+            'the ranked tables hold more of the cache than the workload put in it')
+
         # The statistic and the report are separate observations of a moving cache, so compare them
-        # loosely: both have to agree that the cache is concentrated.
+        # loosely: both have to agree on how much of the cache the same ranking holds.
         r = self.report()['total cache bytes']
-        self.assertGreater(r['total'], 0)
-        from_report = r['listed'] * 100 // r['total']
-        self.assertLess(abs(pcts['cache_top_inuse_pct'] - from_report), 25,
+        self.assertEqual(r['configured'], cache_bytes,
+            'the report does not name the configured cache size')
+        from_report = r['listed'] * 100 // r['configured']
+        self.assertLess(abs(pcts['cache_top_inuse_pct'] - from_report), 10,
             'statistic and report disagree: %d vs %d' % (pcts['cache_top_inuse_pct'], from_report))
