@@ -118,6 +118,12 @@ class test_tiered_unsupported_file_meta(wttest.WiredTigerTestCase):
         'cache_directory=,local_retention=300,name=none,'
         'object_target_size=0,shared=false)')
 
+    def setUp(self):
+        if self.runningHook('disagg') and self.uri.startswith('table:'):
+            self.skipTest(
+                'Disagg rewrites table: creates; this test assumes ordinary file metadata')
+        super().setUp()
+
     def _file_metadata(self):
         md = self.session.open_cursor('metadata:')
         value = md[self.file_uri]
