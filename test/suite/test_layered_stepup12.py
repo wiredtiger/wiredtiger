@@ -86,8 +86,10 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri,
                             'key_format=i,value_format=S,block_manager=disagg,type=layered')
         c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
         for i in range(self.num_rows):
             c[i] = 'value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
         c.close()
         self.close_conn()
 
