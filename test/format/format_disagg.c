@@ -156,11 +156,15 @@ disagg_multi_sync_point(WT_SESSION *session)
 
     track("Reached sync point. Waiting for other process...", 0ULL);
 
-    /* Wait for synchronization signal from the other process, with a 2-minute bound. */
+    /*
+     * Wait for synchronization signal from the other process, with a 10-minute bound. The bound
+     * must be generous: on sanitizer builds the follower's end-of-run validation walk legitimately
+     * lags the leader by minutes.
+     */
     pfd.fd = g.disagg_multi_sync_socket;
     pfd.events = POLLIN;
     do {
-        ret = poll(&pfd, 1, 120 * WT_THOUSAND);
+        ret = poll(&pfd, 1, 600 * WT_THOUSAND);
     } while (ret == -1 && errno == EINTR);
 
     if (ret == 1) {
@@ -172,7 +176,7 @@ disagg_multi_sync_point(WT_SESSION *session)
         testutil_die(errno, "disagg_multi_sync_point: poll failure");
 
     abort_with_state_dump(
-      session->connection, "multi-node sync point not reached within 2 minutes");
+      session->connection, "multi-node sync point not reached within 10 minutes");
 }
 
 /*
