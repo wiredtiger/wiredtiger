@@ -162,7 +162,7 @@ TOMBSTONE_ALLOWED = {
     "__clayered_value_in_tombstone_namespace",
     "__clayered_deleted_encode",
     "__clayered_deleted_decode",
-    "__clayered_remove_mirror",
+    "__clayered_ingest_tombstone",
     "__wt_clayered_stable_value_stat",
     "__wt_clayered_ingest_to_stable_value",
 }
@@ -243,7 +243,7 @@ CALLGRAPH_GOLDEN_CALLERS = {
     # Not a conversion helper: it stores bytes its callers already encoded, so it is exempt from
     # rule D4 and its caller set is pinned here instead.
     "__clayered_put_constituent": frozenset({
-        "__clayered_put", "__clayered_put_both", "__clayered_remove_mirror"}),
+        "__clayered_put", "__clayered_put_both"}),
 }
 
 # Rules D3/D4 anchor on behavior rather than names, using the tool's ///content-regex form: every
@@ -268,7 +268,7 @@ CALLGRAPH_DECODE_EXEMPT = {}
 CALLGRAPH_ENCODE_EXEMPT = {
     "__clayered_put_constituent": "stores bytes its callers already encoded; the callers are pinned"
                                   " in CALLGRAPH_GOLDEN_CALLERS",
-    "__clayered_remove_from_ingest": "records a delete by storing the raw tombstone marker",
+    "__clayered_ingest_tombstone": "records a delete by storing the raw tombstone marker",
     "__clayered_remove_from_stable": "removes the stable row and stores no value",
 }
 

@@ -476,7 +476,8 @@ __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op
 
     if (mode != WTI_CLAYERED_MODE_WRITE)
         return (WTI_CLAYERED_WRITE_NONE);
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER ||
+      __wt_atomic_load_bool_relaxed(&table->step_down_created)) {
         WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
         return (WTI_CLAYERED_WRITE_INGEST);
     }
@@ -3259,6 +3260,26 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 }
 
 /*
+ * __clayered_ingest_tombstone --
+ *     Record the tombstone in the ingest table.
+ */
+static WT_INLINE int
+__clayered_ingest_tombstone(WTI_CLAYERED_OP *op, const WT_ITEM *key)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_CURSOR *const c_ingest = op->ingest;
+
+    /* If we are positioned on the stable table, we need to set the key. */
+    if (clayered->current_cursor != c_ingest)
+        c_ingest->set_key(c_ingest, key);
+    c_ingest->set_value(c_ingest, &__wt_tombstone);
+    WT_RET(c_ingest->update(c_ingest));
+    clayered->current_cursor = c_ingest;
+
+    return (0);
+}
+
+/*
  * __clayered_remove_from_ingest --
  *     Remove an entry from the ingest table.
  */
@@ -3295,10 +3316,6 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             return (WT_NOTFOUND);
     }
 
-    /* If we are positioned on the stable table, we need to set the key. */
-    if (clayered->current_cursor != c_ingest)
-        c_ingest->set_key(c_ingest, key);
-
     /*
      * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
      * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
@@ -3312,9 +3329,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
      */
     WT_RET(__wt_layered_table_truncate_detect_write_conflict(
       session, op->truncate_list, op->collator, key));
-    c_ingest->set_value(c_ingest, &__wt_tombstone);
-    WT_ERR(c_ingest->update(c_ingest));
-    clayered->current_cursor = c_ingest;
+
+    WT_ERR(__clayered_ingest_tombstone(op, key));
 
 err:
     if (ret != 0)
@@ -3353,10 +3369,9 @@ static WT_INLINE int
 __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 {
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
-    WT_CURSOR *c_ingest = op->ingest;
     WT_DECL_RET;
 
-    ret = __clayered_put_constituent(op, c_ingest, key, &__wt_tombstone, WTI_CLAYERED_PUT_UPDATE);
+    ret = __clayered_ingest_tombstone(op, key);
     WT_ASSERT(
       session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
     return (ret);
