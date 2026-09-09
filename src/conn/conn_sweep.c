@@ -229,7 +229,13 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 
     conn = S2C(session);
 
-    TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+    /*
+     * Walk the handle list backwards, opposite the direction taken by the connection-wide walks
+     * that read-lock each handle. Two walks moving the same direction at similar rates travel
+     * together, so a reader repeatedly meets handles this loop is mid-close on; crossing once per
+     * pass instead bounds the collisions.
+     */
+    TAILQ_FOREACH_REVERSE (dhandle, &conn->dhqh, __wt_dhandle_qh, q) {
         bool sweep_non_outdated_handle =
           __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep.handles_min;
         /*
