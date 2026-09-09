@@ -460,8 +460,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp, create_epoch;
-    bool published;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
 
     conn = S2C(session);
     dhandle = session->dhandle;
@@ -473,24 +472,20 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
-    published = create_epoch != WT_SCHEMA_EPOCH_NONE && create_epoch <= ckpt_epoch;
-
 #ifdef HAVE_DIAGNOSTIC
-    WT_RET(__checkpoint_disagg_verify_create_epoch(session, dhandle->name, create_epoch));
+    WT_RET(__checkpoint_disagg_verify_create_epoch(
+      session, dhandle->name, __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch)));
 #endif
 
-    if (!published) {
+    __wt_disagg_btree_publish_if_covered(session, btree, ckpt_epoch, NULL);
+
+    /* A btree this checkpoint skips must hold no data the checkpoint considers stable. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH)) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
         if (btree->min_unpublished_durable_ts != WT_TS_NONE &&
           btree->min_unpublished_durable_ts <= ckpt_timestamp)
             WT_RET_MSG(session, EINVAL, "stable data checkpointed for unpublished table \"%s\"",
               dhandle->name);
-    }
-
-    if (published) {
-        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
-        __wt_evict_file_exclusive_off(session);
     }
 
     return (0);
@@ -3423,6 +3418,10 @@ fake:
         WT_ERR_MSG_CHK(session, __wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL),
           "checkpoint failed during logging completion");
 
+    /* This checkpoint persists the data the unpublished minimum tracks. Clear it now. */
+    if (is_checkpoint && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        __wt_atomic_store_uint64_relaxed(&btree->min_unpublished_durable_ts, WT_TS_NONE);
+
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm) {
@@ -3679,7 +3678,9 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_RET(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
-            WT_RET(__wt_checkpoint_file(session, cfg));
+            ret = __wt_checkpoint_file(session, cfg);
+        WT_TRET(__wt_session_release_dhandle(session));
+        WT_RET(ret);
     }
 
     /* Disable metadata tracking during the metadata checkpoint. */
