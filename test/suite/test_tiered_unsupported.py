@@ -105,6 +105,68 @@ class test_tiered_unsupported_api(wttest.WiredTigerTestCase):
             lambda: self.session.create('file:ts_name.wt', 'tiered_storage=(name=dir_store)'),
             '/' + re.escape(msg) + '/')
 
+class test_tiered_unsupported_file_meta(wttest.WiredTigerTestCase):
+    uri_types = [
+        ('table', dict(uri='table:ts_meta', file_uri='file:ts_meta.wt')),
+        ('file', dict(uri='file:ts_meta.wt', file_uri='file:ts_meta.wt')),
+    ]
+    scenarios = make_scenarios(uri_types)
+
+    leftover = (
+        'tiered_object=false,'
+        'tiered_storage=(auth_token=,bucket=,bucket_prefix=,'
+        'cache_directory=,local_retention=300,name=none,'
+        'object_target_size=0,shared=false)')
+
+    def _file_metadata(self):
+        md = self.session.open_cursor('metadata:')
+        value = md[self.file_uri]
+        md.close()
+        return value
+
+    def _assert_keys_absent(self):
+        value = self._file_metadata()
+        self.assertNotIn('tiered_storage=', value)
+        self.assertNotIn('tiered_object=', value)
+
+    def _inject_leftover_keys(self):
+        md = self.session.open_cursor('metadata:', None, 'readonly=0')
+        md.set_key(self.file_uri)
+        self.assertEqual(md.search(), 0)
+        md.set_value(md.get_value() + ',' + self.leftover)
+        md.update()
+        md.close()
+
+    def test_create_does_not_persist(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self._assert_keys_absent()
+        self.session.checkpoint()
+        self._assert_keys_absent()
+        self.reopen_conn()
+        self._assert_keys_absent()
+        self.session.alter(self.uri, 'access_pattern_hint=random')
+        self._assert_keys_absent()
+
+    def test_create_name_none_does_not_persist(self):
+        self.session.create(
+            self.uri, 'key_format=S,value_format=S,tiered_storage=(name=none)')
+        self._assert_keys_absent()
+
+    def test_leftover_keys_still_open(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.reopen_conn()
+        self._inject_leftover_keys()
+        self.reopen_conn()
+        c = self.session.open_cursor(self.uri)
+        c['a'] = 'b'
+        self.assertEqual(c['a'], 'b')
+        c.close()
+        value = self._file_metadata()
+        self.assertIn('tiered_storage=', value)
+        self.assertIn('tiered_object=', value)
+        self.session.alter(self.uri, 'access_pattern_hint=random')
+        self._assert_keys_absent()
+
 class test_tiered_unsupported_truncate(_tiered_uri_unsupported, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),

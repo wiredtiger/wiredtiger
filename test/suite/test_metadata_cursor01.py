@@ -131,6 +131,6 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
 
         md = self.session.open_cursor('metadata:')
         file_value = md['file:' + self.table_name1 + '.wt']
-        self.assertIn('tiered_storage=', file_value)
-        self.assertNotIn('shared=', file_value)
+        self.assertNotIn('tiered_storage=', file_value)
+        self.assertNotIn('tiered_object=', file_value)
         md.close()
