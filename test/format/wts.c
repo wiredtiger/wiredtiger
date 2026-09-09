@@ -134,7 +134,7 @@ handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
     WT_DECL_RET;
-    int nw;
+    int bytes_written;
     char buf[256];
     const char *msg;
 
@@ -146,9 +146,10 @@ handle_progress(
     } else
         msg = operation;
 
-    nw = progress == 0 ? printf("%s\n", msg) : printf("%s: %" PRIu64 "\n", msg, progress);
+    bytes_written =
+      progress == 0 ? printf("%s\n", msg) : printf("%s: %" PRIu64 "\n", msg, progress);
     ret = fflush(stdout);
-    return (nw < 0 ? EIO : (ret == EOF ? errno : 0));
+    return (bytes_written < 0 ? EIO : (ret == EOF ? errno : 0));
 }
 
 static WT_EVENT_HANDLER event_handler = {NULL, handle_message, handle_progress, NULL, NULL};
