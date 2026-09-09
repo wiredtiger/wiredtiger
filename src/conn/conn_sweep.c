@@ -230,10 +230,10 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     conn = S2C(session);
 
     /*
-     * Walk the handle list backwards, opposite the direction taken by the connection-wide walks
-     * that read-lock each handle. Two walks moving the same direction at similar rates travel
-     * together, so a reader repeatedly meets handles this loop is mid-close on; crossing once per
-     * pass instead bounds the collisions.
+     * Walk backwards. Checkpoint and statistics logging walk this list forwards and read-lock each
+     * handle in turn, while closing a handle holds its write lock for a long time. Two walks going
+     * the same way at similar speeds stay alongside each other, so the forward walk waits behind
+     * one closing handle after another. Walking the other way, the two cross once per pass.
      */
     TAILQ_FOREACH_REVERSE (dhandle, &conn->dhqh, __wt_dhandle_qh, q) {
         bool sweep_non_outdated_handle =
