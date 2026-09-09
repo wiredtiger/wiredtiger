@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __schema_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char **config);
-
 /*
  * __check_imported_ts --
  *     Check the aggregated timestamps for each checkpoint in a file that we've imported. By
@@ -212,14 +210,13 @@ __create_file(
     WT_DECL_RET;
     const char *filename, **p,
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL},
-      *filestripped, *metadata, *metadata_cfg[2];
+      *filestripped;
     char *fileconf, *filemeta;
     uint32_t allocsize, fileid;
     bool against_stable, exists, import, import_repair, is_metadata, is_shared;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
-    metadata = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
 
     import_repair = false;
@@ -366,9 +363,7 @@ __create_file(
         filecfg[1] = fileconf;
         filecfg[2] = NULL;
         WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
-        metadata_cfg[0] = filestripped;
-        metadata_cfg[1] = NULL;
-        WT_ERR(__schema_metadata_insert(session, uri, metadata_cfg));
+        WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*
          * Ensure that the timestamps in the imported data file are not in the future relative to
@@ -417,7 +412,6 @@ err:
     __wt_free(session, fileconf);
     __wt_free(session, filemeta);
     __wt_free(session, filestripped);
-    __wt_free(session, metadata);
     return (ret);
 }
 
@@ -1134,23 +1128,30 @@ err:
 }
 
 /*
- * __schema_metadata_insert --
- *     Strip runtime-only configuration and insert normalized schema metadata.
+ * __layered_metadata_insert --
+ *     Collapse and insert layered metadata, stripping runtime-only configuration options.
  */
 static int
-__schema_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char **config)
+__layered_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char **config)
 {
     WT_DECL_RET;
+    char *tablecfg;
+    const char *collapsed_cfg[2];
     const char *metadata;
 
+    tablecfg = NULL;
     metadata = NULL;
 
-    WT_ERR(
-      __wt_config_merge(session, config, "disaggregated=(stepdown_write_mirroring=),", &metadata));
+    WT_ERR(__wt_config_collapse(session, config, &tablecfg));
+    collapsed_cfg[0] = tablecfg;
+    collapsed_cfg[1] = NULL;
+    WT_ERR(__wt_config_merge(
+      session, collapsed_cfg, "disaggregated=(stepdown_write_mirroring=),", &metadata));
     ret = __wt_metadata_insert(session, uri, metadata);
 
 err:
     __wt_free(session, metadata);
+    __wt_free(session, tablecfg);
 
     return (ret);
 }
@@ -1172,9 +1173,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_DECL_RET;
     wt_timestamp_t step_down_ts;
     char *meta_value;
-    char *tablecfg;
     char ts_string[WT_TS_INT_STRING_SIZE];
-    const char *collapsed_cfg[2];
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
@@ -1185,7 +1184,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     conn = S2C(session);
 
     constituent_cfg = NULL;
-    tablecfg = NULL;
     meta_value = NULL;
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
@@ -1236,10 +1234,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * FIXME-WT-18475: the table-level disaggregated category replaces the connection-level
      * category, so storage_tier removes page_log from the layered metadata.
      */
-    WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
-    collapsed_cfg[0] = tablecfg;
-    collapsed_cfg[1] = NULL;
-    WT_ERR(__schema_metadata_insert(session, uri, collapsed_cfg));
+    WT_ERR(__layered_metadata_insert(session, uri, layered_cfg));
 
     /*
      * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
@@ -1301,7 +1296,6 @@ err:
     __wt_scr_free(session, &stable_uri_buf);
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
-    __wt_free(session, tablecfg);
     __wt_free(session, constituent_cfg);
 
     return (ret);
