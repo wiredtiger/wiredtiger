@@ -134,7 +134,7 @@ class test_tiered_unsupported_file_meta(wttest.WiredTigerTestCase):
         md.set_key(self.file_uri)
         self.assertEqual(md.search(), 0)
         md.set_value(md.get_value() + ',' + self.leftover)
-        md.update()
+        self.assertEqual(md.update(), 0)
         md.close()
 
     def test_create_does_not_persist(self):
