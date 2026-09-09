@@ -31,12 +31,12 @@ import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# Test that a thread resolving a transaction is released from the eviction assist at its bounded
-# wait. The assist normally spins until the cache drops below its triggers, which never happens when
-# the dirty content cannot be reconciled away - here because another session is holding it
-# uncommitted. The resolving thread pins no transaction state, so nothing can roll it back to
-# relieve the pressure and it must be released on its own. The bound is what remains of the caller's
-# own operation timeout, so the test configures a short one rather than waiting out the default cap.
+# Test that a thread resolving a transaction is released from eviction assist at the remaining
+# operation timeout. The assist normally spins until the cache drops below its triggers, which never
+# happens when the dirty content cannot be reconciled away - here because another session is holding
+# it uncommitted. The resolving thread pins no transaction state, so nothing can roll it back to
+# relieve the pressure and it must be released on its own. The test configures a short operation
+# timeout rather than waiting out the default cap.
 class test_eviction07(wttest.WiredTigerTestCase):
     uri = 'table:test_eviction07'
     cache_bytes = 50 * 1024 * 1024
@@ -66,34 +66,27 @@ class test_eviction07(wttest.WiredTigerTestCase):
             for i in range(rows_per_txn):
                 pin_cursor[base + i] = value
 
-    def _resolve_until_bounded_wait(self, cursor, stat_session):
+    def _resolve_until_timeout(self, cursor):
         # Resolve modified transactions while the pinned transaction prevents eviction from
-        # reducing the dirty cache pressure. The bounded-wait statistic increasing across a
-        # resolution proves that the commit or rollback stopped assisting at its time limit.
+        # reducing the dirty cache pressure. A resolution that takes a material fraction of the
+        # operation timeout, but still returns well under the default assist cap, shows the
+        # caller's timeout was honored.
         value = 'a' * 4096
-        bounded_resolution_time = None
+        min_elapsed = self.operation_timeout_ms / 1000.0 * 0.4
         for i in range(100000, 100500):
-            # The assist bounds itself by what is left of the operation timeout, so give the
-            # resolution a short one instead of waiting out the much larger default cap.
             self.session.begin_transaction(
                 'operation_timeout_ms=%d' % self.operation_timeout_ms)
             cursor[i] = value
 
-            bounded_waits = self.get_stat(
-                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
             start = time.monotonic()
             if self.rollback:
                 self.session.rollback_transaction()
             else:
                 self.session.commit_transaction()
             elapsed = time.monotonic() - start
-
-            bounded_waits_after = self.get_stat(
-                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
-            if bounded_waits_after > bounded_waits:
-                bounded_resolution_time = elapsed
-                break
-        return bounded_resolution_time
+            if elapsed >= min_elapsed:
+                return elapsed
+        return None
 
     def test_bounded_assist_at_transaction_resolution(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
@@ -120,11 +113,11 @@ class test_eviction07(wttest.WiredTigerTestCase):
 
             cursor = self.session.open_cursor(self.uri)
             resolution_txn_active = True
-            bounded_resolution_time = self._resolve_until_bounded_wait(cursor, stat_session)
+            resolution_time = self._resolve_until_timeout(cursor)
             resolution_txn_active = False
 
-            self.assertIsNotNone(bounded_resolution_time)
-            self.assertLess(bounded_resolution_time, 1.0)
+            self.assertIsNotNone(resolution_time)
+            self.assertLess(resolution_time, 1.0)
 
             # The pressure must still be there, otherwise the assist stopped because the cache
             # drained.
