@@ -271,7 +271,7 @@ __verify_unique_internal(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 
     uint32_t dup_id;
     if (__wt_metadata_btree_ids_find_duplicate(ids, count, &dup_id)) {
-        WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
+        WT_ERR(__wt_metadata_stable_uris_for_id(session, cursor, dup_id, &first_uri, &second_uri));
         __wt_verbose_error(session, WT_VERB_VERIFY,
           "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", dup_id, first_uri,
           second_uri);
@@ -642,12 +642,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * Check that no two stable constituent files share the same btree ID. Only run for stable files
      * the verify session's exclusive lock is on the stable file, not the metadata file, so a shared
      * metadata cursor can be opened directly on the verify session.
+     *
+     * FIXME-WT-18582: Having these per-URI means we do a metadata scan for each verified URI.
      */
     if (WT_URI_IS_STABLE(name)) {
-        /* FIXME-WT-18582: Having these per-URI means we do a metadata scan for each verified URI.
-         */
         WT_ERR(__verify_unique_btree_ids(session));
-        WT_ERR(__verify_unique_shared_ids(session));
+
+        if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+            WT_ERR(__verify_unique_shared_ids(session));
     }
 
     /*
