@@ -272,6 +272,7 @@ struct __wt_session_impl {
 
     /* Sync support. */
     bool syncing;
+    bool split_stash_batch; /* Batch split stashes during tree discard. */
 
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_conn_bucket;     /* Statistics connection bucket offset */

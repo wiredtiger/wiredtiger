@@ -292,7 +292,9 @@ __wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
      */
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, len));
-    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
+    /* Leave the generation unchanged until the discard completes. */
+    if (!session->split_stash_batch)
+        __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during ref address free"));

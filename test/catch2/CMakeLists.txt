@@ -39,6 +39,7 @@ else()
         misc_tests/test_layered_snapshot_stress.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
+        misc_tests/test_stash_batch.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
         misc_tests/test_txn_config.cpp

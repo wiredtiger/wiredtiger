@@ -35,6 +35,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     dhandle = session->dhandle;
     btree = dhandle->handle;
+    WT_ASSERT(session, !session->split_stash_batch);
 
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
@@ -59,6 +60,13 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         walk_flags |= WT_READ_VISIBLE_ALL;
+
+    /*
+     * Discard would otherwise stash, bump the split generation, and scan the session array once per
+     * address. Defer generation bumps and reclamation until the end.
+     */
+    if (syncop == WT_SYNC_DISCARD)
+        session->split_stash_batch = true;
 
     next_ref = NULL;
     WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
@@ -135,6 +143,13 @@ err:
         /* On error, clear any left-over tree walk. */
         if (next_ref != NULL)
             WT_TRET(__wt_page_release(session, next_ref, walk_flags));
+    }
+
+    if (syncop == WT_SYNC_DISCARD) {
+        WT_ASSERT(session, session->split_stash_batch);
+        session->split_stash_batch = false;
+        __wt_gen_next(session, WT_GEN_SPLIT, NULL);
+        __wt_stash_discard(session);
     }
 #ifdef HAVE_DIAGNOSTIC
     WT_CONN_CLOSE_ABORT(session, ret);

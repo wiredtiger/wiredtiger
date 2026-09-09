@@ -424,7 +424,7 @@ __wt_stash_discard(WT_SESSION_IMPL *session)
 
     for (which = 0; which < WT_GENERATIONS; ++which) {
         session_stash = &session->stash[which];
-        if (session_stash->cnt >= 1)
+        if (session_stash->cnt >= 1 && !(session->split_stash_batch && which == WT_GEN_SPLIT))
             __stash_discard(session, which);
     }
 }
@@ -460,8 +460,8 @@ __wt_stash_add(WT_SESSION_IMPL *session, int which, uint64_t generation, void *p
     (void)__wt_atomic_add_uint64(&conn->stashed_bytes, len);
     (void)__wt_atomic_add_uint64(&conn->stashed_objects, 1);
 
-    /* See if we can free any previous entries. */
-    if (session_stash->cnt > 1)
+    /* See if we can free any previous entries. A batched split stash reclaims once at the end. */
+    if (session_stash->cnt > 1 && !(session->split_stash_batch && which == WT_GEN_SPLIT))
         __stash_discard(session, which);
 
     return (0);
