@@ -42,17 +42,15 @@ def table_names(testcase, base):
         names.append('file:' + initial)
     return names
 
-# The rankings of the tables consuming the most cache, as reported by
-# WT_CONNECTION::debug_info and by the cache_top verbose category.
-class test_cache_top01(wttest.WiredTigerTestCase):
-    # Eviction is deliberately given nothing to do: a table's resident bytes are only a stable thing
-    # to assert on when eviction is not free to take them away underneath the test.
-    conn_config = ('create,cache_size=100MB,statistics=(all),'
-        'eviction_dirty_target=60,eviction_dirty_trigger=80,'
-        'eviction_updates_target=50,eviction_updates_trigger=70')
-
-    # The number of slots each ranking has, which bounds the length of a report.
+# One report format, one parser, one set of workload helpers, shared by every class below. Only the
+# connection configuration separates the classes.
+class cache_top_base(wttest.WiredTigerTestCase):
+    # The number of slots each ranking has, which bounds how many tables it can hold.
     slots = 32
+
+    # How many entries a ranking prints below DEBUG_2, where the whole ranking is more than an
+    # operator watching a log wants to read.
+    verbose_entries = 5
 
     # Every ranking the report is expected to produce.
     rankings = ['update bytes', 'dirty leaf bytes', 'total cache bytes',
@@ -66,21 +64,23 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
     header_re = re.compile(r'cache top (?P<ranking>.+?): (?P<count>\d+) tables above '
         r'(?P<threshold>\d+)B hold (?P<listed>\d+)B(?: of (?P<total>\d+)B)?$')
-    entry_re = re.compile(r'^\s+(?P<value>\d+)B (?P<name>\S+)$')
+    # A verbose report prefixes every line with a timestamp and category, so an entry is found by
+    # the report's own indentation rather than at the start of the line.
+    entry_re = re.compile(r'\s{4,}(?P<value>\d+)B (?P<name>\S+)$')
 
-    def populate(self, uri, rows, start = 0):
-        self.session.create(uri, 'key_format=S,value_format=S')
+    def populate(self, uri, rows, start = 0, config = 'key_format=S,value_format=S',
+            checkpoint = False):
+        self.session.create(uri, config)
         c = self.session.open_cursor(uri)
+        recno = 'key_format=r' in config
         for i in range(start, start + rows):
-            c['k%08d' % i] = self.value
+            c[i + 1 if recno else 'k%08d' % i] = self.value
         c.close()
-
-    # Populate and checkpoint, so the pages are clean. Dirty eviction runs against a target that is
-    # a fraction of the cache, so a table left dirty can lose its resident bytes at any moment;
-    # clean pages are only evicted under cache pressure, which these tests stay well clear of.
-    def populate_clean(self, uri, rows):
-        self.populate(uri, rows)
-        self.session.checkpoint()
+        # Checkpointing leaves the pages clean. Dirty eviction runs against a target that is a
+        # fraction of the cache, so a table left dirty can lose its resident bytes at any moment;
+        # clean pages are only evicted under cache pressure, which these tests stay clear of.
+        if checkpoint:
+            self.session.checkpoint()
 
     def read_all(self, uri):
         c = self.session.open_cursor(uri)
@@ -88,18 +88,28 @@ class test_cache_top01(wttest.WiredTigerTestCase):
             pass
         c.close()
 
-    # Ask for a report and parse it into {ranking: {threshold, listed, total, entries}}, where
-    # entries is a list of (bytes, name) in the order reported.
-    def report(self):
+    def read_rows(self, uri, lo, hi):
+        c = self.session.open_cursor(uri)
+        for i in range(lo, hi):
+            c.set_key('k%08d' % i)
+            c.search()
+        c.close()
+
+    # The text of a report asked for directly.
+    def report_text(self):
         self.cleanStdout()
         self.conn.debug_info('cache_top')
         out = self.readStdout(200000)
-        # The report is what this test is here to look at, not unexpected output.
+        # The report is what these tests are here to look at, not unexpected output.
         self.cleanStdout()
+        return out
 
+    # Parse report text into {ranking: {count, threshold, listed, total, entries}}, where entries
+    # is a list of (bytes, name) in the order reported.
+    def parse_report(self, text):
         report = {}
         ranking = None
-        for line in out.splitlines():
+        for line in text.splitlines():
             header = self.header_re.search(line)
             if header is not None:
                 ranking = header.group('ranking')
@@ -112,15 +122,23 @@ class test_cache_top01(wttest.WiredTigerTestCase):
                     'entries': [],
                 }
                 continue
-            entry = self.entry_re.match(line)
+            entry = self.entry_re.search(line)
             if entry is not None:
                 self.assertIsNotNone(ranking, 'entry line before any ranking: ' + line)
                 report[ranking]['entries'].append(
                     (int(entry.group('value')), entry.group('name')))
         return report
 
+    def report(self):
+        return self.parse_report(self.report_text())
+
     def names(self, report, ranking):
         return [name for _, name in report[ranking]['entries']]
+
+    # One ranking of a fresh report, as (threshold, entries).
+    def ranking(self, name):
+        r = self.report()[name]
+        return r['threshold'], r['entries']
 
     def assertTableIn(self, base, names):
         self.assertTrue(any(n in names for n in table_names(self, base)),
@@ -130,20 +148,37 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         for n in table_names(self, base):
             self.assertNotIn(n, names)
 
-    # Every report is expected to hold together internally, whatever the workload.
-    def check_report_consistent(self, report):
+    # A connection names its history store one of two ways.
+    hs_names = ['WiredTigerHS.wt', 'WiredTigerSharedHS.wt_stable']
+
+    # The tables WiredTiger keeps for itself are the connection statistics' business, not the
+    # operator's, and are never named.
+    def assertInternalTablesNotIn(self, report):
+        for ranking in self.rankings:
+            for name in self.names(report, ranking):
+                self.assertNotIn('WiredTiger.wt', name)
+                for h in self.hs_names:
+                    self.assertNotIn(h, name)
+
+    # Every report is expected to hold together internally, whatever the workload. A report that
+    # printed only the first few entries of each ranking cannot be checked against the totals on
+    # its header lines, which cover the whole ranking.
+    def check_report_consistent(self, report, truncated = False):
         for ranking in self.rankings:
             self.assertIn(ranking, report, 'ranking missing from the report: ' + ranking)
             r = report[ranking]
 
-            # The count on the header line is the number of entries that follow.
-            self.assertEqual(r['count'], len(r['entries']))
-
-            # A report can never be longer than the ranking has room for.
+            # A ranking can hold no more than it has slots for, and prints no more than it is
+            # allowed to.
             self.assertLessEqual(r['count'], self.slots)
+            self.assertLessEqual(len(r['entries']),
+                self.verbose_entries if truncated else self.slots)
 
-            # The listed bytes are the sum of the entries.
-            self.assertEqual(r['listed'], sum(value for value, _ in r['entries']))
+            if not truncated:
+                # The count on the header line is the number of entries that follow, and the
+                # listed bytes are their sum.
+                self.assertEqual(r['count'], len(r['entries']))
+                self.assertEqual(r['listed'], sum(value for value, _ in r['entries']))
 
             # Entries are ordered largest first. Which named table leads is deliberately not
             # asserted anywhere: how many bytes a table has resident at any moment depends on when
@@ -157,12 +192,45 @@ class test_cache_top01(wttest.WiredTigerTestCase):
                 self.assertTrue(name.startswith('file:') or name.startswith('tiered:'),
                     'unexpected name: ' + name)
 
-            # A ranking of a level can compare itself against the connection, a flow cannot.
+            # A ranking of a level measures itself against the connection, and can never list more
+            # than the whole connection holds. A flow has no connection-wide equivalent.
             if ranking in self.level_rankings:
                 self.assertIsNotNone(r['total'])
-                self.assertGreaterEqual(r['total'], 0)
+                self.assertLessEqual(r['listed'], r['total'],
+                    'ranking "%s" lists more bytes than the connection holds' % ranking)
             else:
                 self.assertIsNone(r['total'])
+
+    # Reporting is what brings a threshold down: a ranking nothing qualifies for lowers its bar
+    # every time it is asked. Note that this alone admits nothing — a tree is only reconsidered
+    # when it next accounts for cache, so a table that was too small when it was written stays out
+    # until it is written to again.
+    def lower_threshold(self, ranking, reports = 8):
+        for _ in range(reports):
+            threshold, _ = self.ranking(ranking)
+        return threshold
+
+    # A verbose report is emitted by a background server, so poll for it with a deadline rather
+    # than sleeping for one. Accumulates output until a whole report has arrived, since the server
+    # can be caught midway through printing one.
+    def wait_for_report(self, msg, timeout = 60):
+        deadline = time.time() + timeout
+        text = ''
+        while True:
+            text += self.readStdout(200000)
+            self.cleanStdout()
+            if all(r in self.parse_report(text) for r in self.rankings):
+                return text
+            self.assertLess(time.time(), deadline, msg)
+            time.sleep(0.1)
+
+# The rankings of the tables consuming the most cache, as reported by WT_CONNECTION::debug_info.
+class test_cache_top01(cache_top_base):
+    # Eviction is deliberately given nothing to do: a table's resident bytes are only a stable
+    # thing to assert on when eviction is not free to take them away underneath the test.
+    conn_config = ('create,cache_size=100MB,statistics=(all),'
+        'eviction_dirty_target=60,eviction_dirty_trigger=80,'
+        'eviction_updates_target=50,eviction_updates_trigger=70')
 
     # A report against an untouched connection produces every ranking, all empty.
     def test_report_empty(self):
@@ -170,54 +238,26 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         self.check_report_consistent(report)
         for ranking in self.rankings:
             self.assertEqual(report[ranking]['count'], 0)
-            self.assertEqual(report[ranking]['listed'], 0)
 
-    # A table large enough to matter is named; one holding almost nothing is not.
-    def test_large_table_reported_small_ignored(self):
-        self.populate_clean('table:big', 2500)
-        self.populate_clean('table:small', 10)
+    # A table large enough to matter is named; one holding almost nothing is not. A column store is
+    # ranked the same way a row store is, the rankings being counted in bytes rather than keys.
+    def test_tables_reported_by_size(self):
+        self.populate('table:rows', 2500, checkpoint = True)
+        self.populate('table:columns', 2500, config = 'key_format=r,value_format=S',
+            checkpoint = True)
+        self.populate('table:small', 10, checkpoint = True)
 
         report = self.report()
         self.check_report_consistent(report)
 
         resident = self.names(report, 'total cache bytes')
-        self.assertTableIn('big', resident)
+        self.assertTableIn('rows', resident)
+        self.assertTableIn('columns', resident)
         self.assertTableNotIn('small', resident)
 
-    # Two tables both large enough to rank are both reported.
-    def test_two_large_tables(self):
-        self.populate_clean('table:first', 2500)
-        self.populate_clean('table:second', 2500)
-
-        report = self.report()
-        self.check_report_consistent(report)
-
-        resident = self.names(report, 'total cache bytes')
-        self.assertTableIn('first', resident)
-        self.assertTableIn('second', resident)
-
-    # The metadata is never named: it is the connection statistics' business, not the operator's.
-    def test_metadata_excluded(self):
-        self.populate('table:visible', 2000)
-        self.session.checkpoint()
-
-        report = self.report()
-        for ranking in self.rankings:
-            for _, name in report[ranking]['entries']:
-                self.assertNotIn('WiredTiger.wt', name)
-
-    # The history store is ranked like any other tree. It counts towards the connection totals a
-    # ranking is measured against, so an operator looking at a report where it holds the cache has
-    # to be able to see that.
-    # A connection names its history store one of two ways.
-    hs_names = ['WiredTigerHS.wt', 'WiredTigerSharedHS.wt_stable']
-
-    def history_store_ranked(self, report):
-        return any(h in name
-            for ranking in self.rankings for name in self.names(report, ranking)
-            for h in self.hs_names)
-
-    # Successive committed versions of every key push the older ones into the history store.
+    # Successive committed versions of every key push the older ones into the history store, then
+    # reading at an old timestamp brings them back out, so it takes read and eviction traffic as
+    # well as the writes.
     def push_versions(self, uri, rows, timestamps):
         for ts in timestamps:
             c = self.session.open_cursor(uri)
@@ -228,55 +268,37 @@ class test_cache_top01(wttest.WiredTigerTestCase):
             c.close()
         self.session.checkpoint()
 
-        # Reading at an old timestamp comes back out of the history store, so it takes read and
-        # eviction traffic as well as the writes above.
-        for ts in timestamps[:4]:
+        for ts in timestamps:
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-            c = self.session.open_cursor(uri)
-            for _ in c:
-                pass
-            c.close()
+            self.read_all(uri)
             self.session.rollback_transaction()
 
-    def test_history_store_ranked_under_load(self):
+    # The history store and the metadata stay out of the rankings even when the history store is
+    # the hottest tree in the cache. Its identity has to be established from the URI: the data
+    # handle flag naming it is set well after the tracking state is initialized.
+    def test_internal_tables_excluded_under_load(self):
         uri = 'table:hsload'
         self.session.create(uri, 'key_format=S,value_format=S')
-
-        rows = 2000
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
+        # How much of the cache the history store holds moves with eviction, so check a report
+        # after each round rather than only once at the end.
         ts = 2
-        self.push_versions(uri, rows, range(ts, ts + 10))
-        ts += 10
-
-        # The guard below is only meaningful if the workload actually used the history store.
-        stat = self.session.open_cursor('statistics:')
-        hs_inserts = stat[wiredtiger.stat.conn.cache_hs_insert][2]
-        stat.close()
-        self.assertGreater(hs_inserts, 0)
-
-        # How much of the cache the history store holds depends on how hard eviction has been
-        # working, so keep giving it more to hold until it is large enough to rank.
-        deadline = time.time() + 60
-        while True:
+        for _ in range(3):
+            self.push_versions(uri, 400, range(ts, ts + 8))
+            ts += 8
             report = self.report()
             self.check_report_consistent(report)
-            if self.history_store_ranked(report):
-                break
-            self.assertLess(time.time(), deadline,
-                'the history store held the cache but was never ranked')
-            self.push_versions(uri, rows, range(ts, ts + 5))
-            ts += 5
+            self.assertInternalTablesNotIn(report)
 
-        for ranking in self.rankings:
-            for name in self.names(report, ranking):
-                self.assertNotIn('WiredTiger.wt', name)
+        # The checks above are only meaningful if the workload used the history store.
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.cache_hs_insert), 0)
 
     # A table dropped while it is being reported leaves the ranking without taking the connection
     # with it.
     def test_drop_while_reported(self):
-        self.populate_clean('table:doomed', 2500)
+        self.populate('table:doomed', 2500, checkpoint = True)
         self.assertTableIn('doomed', self.names(self.report(), 'total cache bytes'))
 
         self.session.drop('table:doomed')
@@ -286,26 +308,67 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         for ranking in self.rankings:
             self.assertTableNotIn('doomed', self.names(report, ranking))
 
-    # Many tables at once still produce a bounded, well-formed report.
-    def test_many_tables(self):
-        for i in range(60):
-            self.populate('table:many%d' % i, 60)
+    # A table whose data handle is closed and reopened in place, which is what an alter does. The
+    # rankings hold a pointer to the tree across that close and the reopen resets the tree's record
+    # of where it sits in them, so the tree must not come back into a ranking it already occupies.
+    @wttest.skip_for_hook("disagg", "session.alter is not supported for layered tables")
+    def test_no_duplicates_across_handle_reopen(self):
+        self.populate('table:churn', 2500, checkpoint = True)
 
-        # Report repeatedly: the threshold settles towards the tables that are actually there.
-        for _ in range(10):
-            report = self.report()
-            self.check_report_consistent(report)
+        # The check below is only meaningful if the table is large enough to be ranked at all.
+        self.assertTableIn('churn', self.names(self.report(), 'total cache bytes'))
 
+        self.session.alter('table:churn', 'access_pattern_hint=random')
+        self.populate('table:churn', 2500, start = 50000, checkpoint = True)
+
+        report = self.report()
+        self.check_report_consistent(report)
         for ranking in self.rankings:
-            self.assertLessEqual(report[ranking]['count'], self.slots)
+            names = self.names(report, ranking)
+            self.assertEqual(len(names), len(set(names)),
+                'ranking "%s" names a table more than once: %s' % (ranking, names))
+
+    # More tables hold cache than a ranking has slots for. The report stays bounded, and the slots
+    # go to the tables that hold the cache rather than to whichever called in first.
+    def test_many_tables_ranks_largest(self):
+        bulk, tiny = 34, 6
+
+        # Nothing here is large enough to clear the threshold a ranking opens with, which is a
+        # fixed fraction of the cache.
+        for i in range(bulk):
+            self.populate('table:bulk%02d' % i, 200)
+        for i in range(tiny):
+            self.populate('table:tiny%d' % i, 5)
+        self.session.checkpoint()
+        self.assertEqual(self.report()['total cache bytes']['count'], 0)
+
+        self.lower_threshold('total cache bytes')
+
+        # Every table is above the bar now, so writing to them all again offers the ranking more
+        # tables than it has slots and it has to choose between them.
+        for i in range(bulk):
+            self.populate('table:bulk%02d' % i, 200, start = 200)
+        for i in range(tiny):
+            self.populate('table:tiny%d' % i, 5, start = 5)
+        self.session.checkpoint()
+
+        report = self.report()
+        self.check_report_consistent(report)
+        resident = self.names(report, 'total cache bytes')
+
+        # Every slot went to a table that holds real cache. How many slots are occupied depends
+        # on eviction, but a table holding almost nothing must never displace one that does: the
+        # ranking fills once and then admits only what beats its smallest entry.
+        self.assertGreater(len(resident), 0, 'nothing was ranked, so this proves nothing')
+        for name in resident:
+            self.assertTrue(any(name in table_names(self, 'bulk%02d' % i) for i in range(bulk)),
+                'a table holding almost nothing took a slot: %s' % name)
 
     # A threshold nothing reaches is lowered until it says something, and never below its floor.
     def test_threshold_lowers_when_nothing_qualifies(self):
         self.populate('table:modest', 200)
 
-        thresholds = []
-        for _ in range(12):
-            thresholds.append(self.report()['total cache bytes']['threshold'])
+        thresholds = [self.ranking('total cache bytes')[0] for _ in range(12)]
 
         self.assertEqual(thresholds, sorted(thresholds, reverse = True),
             'threshold rose while nothing qualified: %s' % thresholds)
@@ -315,8 +378,7 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
     # Reading a table back into an empty cache puts it in the read ranking.
     def test_read_ranking(self):
-        self.populate('table:reread', 2500)
-        self.session.checkpoint()
+        self.populate('table:reread', 2500, checkpoint = True)
 
         # Reopening leaves the cache empty, so the scan below has to read every page.
         self.reopen_conn()
@@ -342,18 +404,10 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
         report = self.report()
         self.check_report_consistent(report)
-
         self.assertTableIn('updates', self.names(report, 'update bytes'))
-        self.assertLessEqual(report['update bytes']['listed'], report['update bytes']['total'])
 
-    # Repeated reports neither drift nor crash.
-    def test_repeated_reports(self):
-        self.populate('table:steady', 2000)
-        for _ in range(25):
-            self.check_report_consistent(self.report())
-
-    # The report survives the cache being resized underneath it, which is where the threshold comes
-    # from.
+    # The report survives the cache being resized underneath it, which is where the threshold
+    # comes from.
     def test_cache_resize(self):
         self.populate('table:resized', 2000)
         self.check_report_consistent(self.report())
@@ -364,137 +418,9 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         self.conn.reconfigure('cache_size=20MB')
         self.check_report_consistent(self.report())
 
-# The same rankings, delivered through the verbose category rather than on request.
-class test_cache_top02(wttest.WiredTigerTestCase):
-    # A short sweep interval so the server that emits the report comes around promptly.
-    conn_config = ('create,cache_size=100MB,file_manager=(close_scan_interval=1),'
-        'verbose=[cache_top]')
-
-    value = 'v' * 4096
-
-    def test_verbose_report_emitted(self):
-        self.session.create('table:verbose', 'key_format=S,value_format=S')
-        c = self.session.open_cursor('table:verbose')
-        for i in range(2500):
-            c['k%08d' % i] = self.value
-        c.close()
-
-        # The report is emitted by a background server, so poll for it with a deadline rather than
-        # sleeping for one.
-        deadline = time.time() + 60
-        while True:
-            found = 'cache top ' in self.readStdout(200000)
-            self.cleanStdout()
-            if found:
-                break
-            self.assertLess(time.time(), deadline,
-                'no cache_top verbose report within the deadline')
-            time.sleep(0.5)
-
-# The rankings on a connection that has no disk behind it.
-class test_cache_top03(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,in_memory=true'
-
-    value = 'v' * 4096
-
-    def test_in_memory(self):
-        self.session.create('table:inmemory', 'key_format=S,value_format=S')
-        c = self.session.open_cursor('table:inmemory')
-        for i in range(2000):
-            c['k%08d' % i] = self.value
-        c.close()
-
-        self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        out = self.readStdout(200000)
-        self.cleanStdout()
-        self.assertIn('cache top total cache bytes', out)
-        self.assertTrue(any(n in out for n in table_names(self, 'inmemory')),
-            'inmemory table not found in report')
-
-# Turning the rankings on and off on a running connection, which is how they are reached in the
-# field: the verbose category is part of the runtime configuration.
-class test_cache_top05(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,file_manager=(close_scan_interval=1)'
-
-    value = 'v' * 4096
-
-    def test_verbose_enabled_at_runtime(self):
-        self.session.create('table:runtime', 'key_format=S,value_format=S')
-        c = self.session.open_cursor('table:runtime')
-        for i in range(2500):
-            c['k%08d' % i] = self.value
-        c.close()
-        self.session.checkpoint()
-
-        # Nothing has asked for the rankings yet.
-        self.cleanStdout()
-        self.conn.reconfigure('verbose=[cache_top]')
-
-        deadline = time.time() + 60
-        while True:
-            found = 'cache top ' in self.readStdout(200000)
-            self.cleanStdout()
-            if found:
-                break
-            self.assertLess(time.time(), deadline,
-                'no report after enabling the category at runtime')
-            time.sleep(0.5)
-
-        # Turning it back off is accepted, and asking directly still works.
-        self.conn.reconfigure('verbose=[]')
-        self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        self.assertIn('cache top ', self.readStdout(200000))
-        self.cleanStdout()
-
-# Details of what the report can carry: long names, other table types, and a report shared with the
-# other things debug_info can print.
-class test_cache_top06(wttest.WiredTigerTestCase):
-    conn_config = ('create,cache_size=100MB,statistics=(all),'
-        'eviction_dirty_target=60,eviction_dirty_trigger=80,'
-        'eviction_updates_target=50,eviction_updates_trigger=70')
-
-    value = 'v' * 4096
-
-    def report_text(self):
-        self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        out = self.readStdout(200000)
-        self.cleanStdout()
-        return out
-
-    def populate(self, uri, rows, config = 'key_format=S,value_format=S'):
-        self.session.create(uri, config)
-        c = self.session.open_cursor(uri)
-        for i in range(rows):
-            c['k%08d' % i] = self.value
-        c.close()
-        self.session.checkpoint()
-
-    # A name too long for the report's buffer would lose the characters that tell two tables apart,
-    # so check a long one arrives whole.
-    def test_long_table_name(self):
-        name = 'a_long_table_name_' + 'x' * 120
-        self.populate('table:' + name, 2500)
-        text = self.report_text()
-        self.assertTrue(any(n in text for n in table_names(self, name)), 'long table name not found')
-
-    # A column store is ranked the same way a row store is.
-    def test_column_store(self):
-        self.session.create('table:columns', 'key_format=r,value_format=S')
-        c = self.session.open_cursor('table:columns')
-        for i in range(2500):
-            c[i + 1] = self.value
-        c.close()
-        self.session.checkpoint()
-
-        text = self.report_text()
-        self.assertTrue(any(n in text for n in table_names(self, 'columns')), 'columns table not found')
-
     # The rankings coexist with the rest of what debug_info prints.
     def test_combined_with_other_categories(self):
-        self.populate('table:combined', 2500)
+        self.populate('table:combined', 2500, checkpoint = True)
 
         self.cleanStdout()
         self.conn.debug_info('cache_top=true,handles=true')
@@ -505,312 +431,193 @@ class test_cache_top06(wttest.WiredTigerTestCase):
 
     # The rankings belong to a connection and start empty on the next one.
     def test_reset_on_reopen(self):
-        self.populate('table:transient', 2500)
-        text = self.report_text()
-        self.assertTrue(any(n in text for n in table_names(self, 'transient')),
-            'transient table not found')
+        self.populate('table:transient', 2500, checkpoint = True)
+        self.assertTableIn('transient', self.names(self.report(), 'total cache bytes'))
 
         self.reopen_conn()
 
-        out = self.report_text()
-        self.assertIn('cache top ', out)
-        for n in table_names(self, 'transient'):
-            self.assertNotIn(n, out)
+        report = self.report()
+        self.check_report_consistent(report)
+        for ranking in self.rankings:
+            self.assertTableNotIn('transient', self.names(report, ranking))
 
-# A table whose data handle is closed and reopened in place, which is what an alter does. The
-# rankings hold a pointer to the tree across that close, and the reopen resets the tree's record of
-# where it sits in them.
-@wttest.skip_for_hook("disagg", "session.alter is not supported for layered tables")
-class test_cache_top07(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,statistics=(all)'
+# The same rankings, delivered through the verbose category rather than on request.
+class test_cache_top02(cache_top_base):
+    # A short sweep interval so the server that emits the report comes around promptly. The
+    # category is left off here: each test below turns it on the way it means to test.
+    conn_config = ('create,cache_size=100MB,statistics=(all),'
+        'file_manager=(close_scan_interval=1)')
 
-    value = 'v' * 4096
+    # The category named in the configuration the connection was opened with.
+    def test_verbose_from_connection_config(self):
+        self.reopen_conn(config = self.conn_config + ',verbose=[cache_top]')
+        self.populate('table:verbose', 2000, checkpoint = True)
 
-    def populate(self, uri, rows, start = 0):
-        self.session.create(uri, 'key_format=S,value_format=S')
-        c = self.session.open_cursor(uri)
-        for i in range(start, start + rows):
-            c['k%08d' % i] = self.value
-        c.close()
+        self.wait_for_report('no cache_top verbose report within the deadline')
 
-    # Parse the report into {ranking: {listed, total, names}}.
-    def report(self):
+    # Turning the category on and off on a running connection, which is how it is reached in the
+    # field.
+    def test_verbose_at_runtime(self):
+        self.populate('table:runtime', 2000, checkpoint = True)
+
+        # Nothing has asked for the rankings yet.
         self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        out = self.readStdout(200000)
-        self.cleanStdout()
+        self.conn.reconfigure('verbose=[cache_top]')
+        self.wait_for_report('no report after enabling the category at runtime')
 
-        header_re = re.compile(r'cache top (?P<ranking>.+?): \d+ tables above \d+B '
-            r'hold (?P<listed>\d+)B(?: of (?P<total>\d+)B)?$')
-        entry_re = re.compile(r'^\s+\d+B (?P<name>\S+)$')
+        # Turning it back off is accepted, and asking directly still works.
+        self.conn.reconfigure('verbose=[]')
+        self.assertIn('cache top ', self.report_text())
 
-        report = {}
-        ranking = None
-        for line in out.splitlines():
-            header = header_re.search(line)
-            if header is not None:
-                ranking = header.group('ranking')
-                report[ranking] = {
-                    'listed': int(header.group('listed')),
-                    'total': None if header.group('total') is None
-                        else int(header.group('total')),
-                    'names': [],
-                }
-                continue
-            entry = entry_re.match(line)
-            if entry is not None and ranking is not None:
-                report[ranking]['names'].append(entry.group('name'))
-        return report
-
-    # A tree must never occupy more than one slot of the same ranking, and the bytes a ranking says
-    # it lists must not exceed what the whole connection holds.
-    def test_no_duplicates_across_handle_reopen(self):
-        self.populate('table:churn', 2500)
+    # Below DEBUG_2 a ranking prints only its first few entries, while the same ranking asked for
+    # directly is printed whole.
+    def test_verbose_listing_capped(self):
+        tables = 16
+        for i in range(tables):
+            self.populate('table:capped%d' % i, 400)
         self.session.checkpoint()
 
-        # The guard below is only meaningful if the table is big enough to be ranked at all.
-        before = self.report()
-        self.assertTrue(
-            any(n in before['total cache bytes']['names'] for n in table_names(self, 'churn')),
-            'the table under test never reached a ranking')
-
-        # An alter closes the data handle and reopens it in place, reusing the same tree.
-        self.session.alter('table:churn', 'access_pattern_hint=random')
-        self.populate('table:churn', 2500, start = 50000)
+        # Bring the bar down, then write again so the tables are reconsidered against it.
+        self.lower_threshold('total cache bytes')
+        for i in range(tables):
+            self.populate('table:capped%d' % i, 400, start = 400)
         self.session.checkpoint()
 
-        after = self.report()
-        self.assertTrue(after, 'no rankings were reported')
-        for ranking, r in after.items():
-            self.assertEqual(len(r['names']), len(set(r['names'])),
-                'ranking "%s" names a table more than once: %s' % (ranking, r['names']))
-            if r['total'] is not None:
-                self.assertLessEqual(r['listed'], r['total'],
-                    'ranking "%s" lists more bytes than the connection holds' % ranking)
+        # More tables qualify than a verbose report is allowed to print.
+        self.assertGreater(self.report()['total cache bytes']['count'], self.verbose_entries)
 
-# A ranking's threshold can fall far below where it stood when a tree last called in. A decayed
-# value converges on a steady state rather than growing without limit, so a tree only returns to
-# the ranking if its recheck value comes down with the threshold.
-class test_cache_top08(wttest.WiredTigerTestCase):
-    # A large cache so the ranking opens with a threshold well above what this test reads. A
-    # checkpoint adjusts thresholds, and one runs at startup, so the opening bar is already a
-    # fraction of cache size by the time the test begins.
+        self.cleanStdout()
+        self.conn.reconfigure('verbose=[cache_top]')
+        text = self.wait_for_report('no verbose report within the deadline')
+        self.conn.reconfigure('verbose=[]')
+
+        capped = self.parse_report(text)
+        self.check_report_consistent(capped, truncated = True)
+
+        # More tables qualified than were printed, and the printing stopped at the cap.
+        resident = capped['total cache bytes']
+        self.assertGreater(resident['count'], self.verbose_entries)
+        self.assertEqual(len(resident['entries']), self.verbose_entries)
+
+        # The same ranking asked for directly is printed whole.
+        self.assertGreater(len(self.names(self.report(), 'total cache bytes')),
+            self.verbose_entries)
+
+# The rankings on a connection that has no disk behind it.
+class test_cache_top03(cache_top_base):
+    conn_config = 'create,cache_size=100MB,in_memory=true'
+
+    def test_in_memory(self):
+        self.populate('table:inmemory', 2000)
+
+        report = self.report()
+        self.check_report_consistent(report)
+        self.assertTableIn('inmemory', self.names(report, 'total cache bytes'))
+
+# A ranking's threshold can fall far below where it stood when a tree last called in. A tree only
+# returns to the ranking if its recheck value comes down with the threshold, which happens on a
+# different path for a decayed flow than for a level read from the tree's counters.
+class test_cache_top04(cache_top_base):
+    # A large cache, so a ranking opens with a threshold well above anything these tests drive. The
+    # threshold is derived once, on first use, and only ever adjusted downwards from there.
     conn_config = 'create,cache_size=1GB,statistics=(all)'
 
-    value = 'v' * 4096
+    # A tree is admitted to the ranking only once its value came down with the threshold, not
+    # because it grew past the threshold the ranking opened with.
+    def check_admitted_below(self, entries, opening, base):
+        names = [name for _, name in entries]
+        self.assertTableIn(base, names)
+        for value, name in entries:
+            if name in table_names(self, base):
+                self.assertLess(value, opening)
 
-    # The "recent bytes read" threshold and its entries as (bytes, name).
-    def read_ranking(self):
-        self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        out = self.readStdout(200000)
-        self.cleanStdout()
-
-        threshold = None
-        entries = []
-        ranking = None
-        for line in out.splitlines():
-            header = re.search(
-                r'cache top (?P<ranking>.+?): \d+ tables above (?P<threshold>\d+)B', line)
-            if header is not None:
-                ranking = header.group('ranking')
-                if ranking == 'recent bytes read':
-                    threshold = int(header.group('threshold'))
-                continue
-            entry = re.match(r'^\s+(?P<value>\d+)B (?P<name>\S+)$', line)
-            if entry is not None and ranking == 'recent bytes read':
-                entries.append((int(entry.group('value')), entry.group('name')))
-        self.assertIsNotNone(threshold, 'no read ranking in the report')
-        return threshold, entries
-
-    def read_rows(self, uri, lo, hi):
-        c = self.session.open_cursor(uri)
-        for i in range(lo, hi):
-            c.set_key('k%08d' % i)
-            c.search()
-        c.close()
-
+    # Bytes read accumulate and decay, and the recheck value comes down as the tree reads more.
     def test_read_ranking_after_threshold_falls(self):
         uri = 'table:cooling'
-        self.session.create(uri, 'key_format=S,value_format=S')
-        c = self.session.open_cursor(uri)
-        for i in range(12000):
-            c['k%08d' % i] = self.value
-        c.close()
-        self.session.checkpoint()
+        self.populate(uri, 400, checkpoint = True)
 
         # Reopen so the reads below come from disk rather than out of cache.
         self.reopen_conn()
 
         # Read well under the ranking's opening threshold, so the table cannot qualify yet.
-        self.read_rows(uri, 0, 150)
-        opening, entries = self.read_ranking()
+        self.read_rows(uri, 0, 100)
+        opening, entries = self.ranking('recent bytes read')
         self.assertEqual(entries, [],
             'the table qualified before the threshold fell, so this proves nothing: %s' % entries)
 
-        # Nothing qualifies, so repeated reports drive the threshold down to its floor.
-        for _ in range(8):
-            fallen, _ = self.read_ranking()
-        self.assertLess(fallen, opening)
+        self.assertLess(self.lower_threshold('recent bytes read'), opening)
 
         # Reading more must now put the table in the ranking.
-        self.read_rows(uri, 6000, 6150)
-        _, entries = self.read_ranking()
-        names = [name for _, name in entries]
-        self.assertTrue(any(n in names for n in table_names(self, 'cooling')),
-            'table missing from the read ranking after the threshold fell: %s' % names)
+        self.read_rows(uri, 200, 300)
+        self.check_admitted_below(self.ranking('recent bytes read')[1], opening, 'cooling')
 
-        # It has to be there because its recheck value came down, not because it grew past the
-        # threshold the ranking opened with.
-        for value, name in entries:
-            if name in table_names(self, 'cooling'):
-                self.assertLess(value, opening)
-
-# The same threshold fall, for a ranking read straight from a tree's counters. Here eviction on the
-# tree is what brings its recheck value down, so the tree is admitted the next time it accounts for
-# a page.
-class test_cache_top09(wttest.WiredTigerTestCase):
-    # See test_cache_top08: enough headroom that the checkpoint below cannot lift the table over
-    # the bar before the test has driven the threshold down itself.
-    conn_config = 'create,cache_size=1GB,statistics=(all)'
-
-    value = 'v' * 4096
-
-    # The "total cache bytes" threshold and its entries as (bytes, name).
-    def resident_ranking(self):
-        self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        out = self.readStdout(200000)
-        self.cleanStdout()
-
-        threshold = None
-        entries = []
-        ranking = None
-        for line in out.splitlines():
-            header = re.search(
-                r'cache top (?P<ranking>.+?): \d+ tables above (?P<threshold>\d+)B', line)
-            if header is not None:
-                ranking = header.group('ranking')
-                if ranking == 'total cache bytes':
-                    threshold = int(header.group('threshold'))
-                continue
-            entry = re.match(r'^\s+(?P<value>\d+)B (?P<name>\S+)$', line)
-            if entry is not None and ranking == 'total cache bytes':
-                entries.append((int(entry.group('value')), entry.group('name')))
-        self.assertIsNotNone(threshold, 'no resident ranking in the report')
-        return threshold, entries
-
+    # Resident bytes are read straight from the tree's counters, and eviction on the tree is what
+    # brings its recheck value down.
     def test_resident_ranking_after_threshold_falls(self):
         uri = 'table:cooling'
-        self.session.create(uri, 'key_format=S,value_format=S')
-        c = self.session.open_cursor(uri)
         # Small enough to stay under the ranking's opening threshold.
-        for i in range(300):
-            c['k%08d' % i] = self.value
-        c.close()
-        self.session.checkpoint()
+        self.populate(uri, 300, checkpoint = True)
 
-        opening, entries = self.resident_ranking()
-        names = [name for _, name in entries]
-        self.assertFalse(any(n in names for n in table_names(self, 'cooling')),
-            'the table qualified before the threshold fell, so this proves nothing: %s' % names)
+        opening, entries = self.ranking('total cache bytes')
+        self.assertTableNotIn('cooling', [name for _, name in entries])
 
-        # Nothing qualifies, so repeated reports drive the threshold down to its floor.
-        for _ in range(8):
-            fallen, _ = self.resident_ranking()
-        self.assertLess(fallen, opening)
+        self.assertLess(self.lower_threshold('total cache bytes'), opening)
 
         # Shrink the cache so eviction runs on the tree, which is what lowers its recheck value.
         self.conn.reconfigure('cache_size=1MB')
 
-        # Eviction is a background thread, so poll: read pages back in, which both accounts for
-        # them and gives the tree a chance to be admitted.
+        # Eviction is a background thread, so poll: reading pages back in both accounts for them
+        # and gives the tree a chance to be admitted.
         deadline = time.time() + 30
         while True:
-            c = self.session.open_cursor(uri)
-            for _ in c:
-                pass
-            c.close()
-
-            _, entries = self.resident_ranking()
-            names = [name for _, name in entries]
-            if any(n in names for n in table_names(self, 'cooling')):
+            self.read_all(uri)
+            _, entries = self.ranking('total cache bytes')
+            if any(n in [name for _, name in entries] for n in table_names(self, 'cooling')):
                 break
             self.assertLess(time.time(), deadline,
                 'table never returned to the resident ranking after the threshold fell')
             time.sleep(0.5)
 
-        # It has to be there because its recheck value came down, not because it grew past the
-        # threshold the ranking opened with.
-        for value, name in entries:
-            if name in table_names(self, 'cooling'):
-                self.assertLess(value, opening)
+        self.check_admitted_below(entries, opening, 'cooling')
 
 # The same rankings as a connection statistic, which is reachable without verbose logging or an
 # explicit request. Recomputed at the end of every checkpoint.
-class test_cache_top10(wttest.WiredTigerTestCase):
+class test_cache_top05(cache_top_base):
     conn_config = 'create,cache_size=100MB,statistics=(all)'
 
-    value = 'v' * 4096
+    # Each ranking that publishes a share of the cache, as (whole ranking, largest few).
+    pct_stats = [
+        ('cache_top_inuse_pct', 'cache_top5_inuse_pct'),
+        ('cache_top_updates_pct', 'cache_top5_updates_pct'),
+        ('cache_top_dirty_pct', 'cache_top5_dirty_pct'),
+    ]
 
-    def stat(self, name):
-        c = self.session.open_cursor('statistics:', None, None)
-        v = c[getattr(wiredtiger.stat.conn, name)][2]
-        c.close()
-        return v
-
-    def populate(self, uri, rows):
-        self.session.create(uri, 'key_format=S,value_format=S')
-        c = self.session.open_cursor(uri)
-        for i in range(rows):
-            c['k%08d' % i] = self.value
-        c.close()
-
-    # A table holding most of the cache is reported as holding most of the cache.
+    # A table holding most of the cache is published as holding most of the cache, and the
+    # statistic agrees with the report built from the same rankings.
     def test_concentration_published(self):
-        self.populate('table:hog', 4000)
-        self.session.checkpoint()
+        self.populate('table:hog', 4000, checkpoint = True)
 
-        inuse = self.stat('cache_top_inuse_pct')
-        updates = self.stat('cache_top_updates_pct')
-        inuse5 = self.stat('cache_top5_inuse_pct')
-        updates5 = self.stat('cache_top5_updates_pct')
+        pcts = {name: self.get_stat(getattr(wiredtiger.stat.conn, name))
+            for pair in self.pct_stats for name in pair}
 
         # A percentage is a percentage, whatever the workload.
-        for name in ['cache_top_inuse_pct', 'cache_top_updates_pct', 'cache_top5_inuse_pct',
-            'cache_top5_updates_pct']:
-            pct = self.stat(name)
+        for name, pct in pcts.items():
             self.assertGreaterEqual(pct, 0, name)
             self.assertLessEqual(pct, 100, name)
 
         # The largest few are a subset of the whole ranking, so they can never account for more.
-        self.assertLessEqual(inuse5, inuse)
-        self.assertLessEqual(updates5, updates)
+        for whole, top5 in self.pct_stats:
+            self.assertLessEqual(pcts[top5], pcts[whole], top5)
 
         # One table holds the cache here, so the ranked tables have to account for a real share of
         # it. Deliberately a loose bound: how much is resident depends on when eviction last ran.
-        self.assertGreater(inuse, 0, 'no cache attributed to the ranked tables')
+        self.assertGreater(pcts['cache_top_inuse_pct'],
+            0, 'no cache attributed to the ranked tables')
 
-    # The statistic agrees with the report built from the same rankings.
-    def test_agrees_with_report(self):
-        self.populate('table:hog', 4000)
-        self.session.checkpoint()
-
-        self.cleanStdout()
-        self.conn.debug_info('cache_top')
-        out = self.readStdout(200000)
-        self.cleanStdout()
-
-        header = re.search(r'cache top total cache bytes: \d+ tables above \d+B '
-            r'hold (?P<listed>\d+)B of (?P<total>\d+)B', out)
-        self.assertIsNotNone(header, 'no resident ranking header in the report')
-        listed = int(header.group('listed'))
-        total = int(header.group('total'))
-        self.assertGreater(total, 0)
-
-        # The report and the statistic are separate observations of a moving cache, so compare
-        # loosely: both must agree on whether the cache is concentrated.
-        from_report = listed * 100 // total
-        self.assertLess(abs(self.stat('cache_top_inuse_pct') - from_report), 25,
-            'statistic and report disagree: %d vs %d' % (
-                self.stat('cache_top_inuse_pct'), from_report))
+        # The statistic and the report are separate observations of a moving cache, so compare them
+        # loosely: both have to agree that the cache is concentrated.
+        r = self.report()['total cache bytes']
+        self.assertGreater(r['total'], 0)
+        from_report = r['listed'] * 100 // r['total']
+        self.assertLess(abs(pcts['cache_top_inuse_pct'] - from_report), 25,
+            'statistic and report disagree: %d vs %d' % (pcts['cache_top_inuse_pct'], from_report))

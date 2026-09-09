@@ -396,8 +396,8 @@ __wt_cache_top_flow_incr(
 /*
  * __wt_cache_top_btree_open --
  *     Set up a tree's ranking state at open. Slot 0 is valid, so a tree must be marked as outside
- *     every ranking explicitly. Only the metadata is excluded, and by URI rather than by data
- *     handle flag, because the disaggregated metadata flag is not set yet.
+ *     every ranking explicitly. Identity comes from the URI because the history store and
+ *     disaggregated metadata flags are not set yet.
  */
 void
 __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -406,7 +406,7 @@ __wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
     bool excluded;
 
     WT_UNUSED(session);
-    excluded = WT_IS_URI_METADATA(btree->dhandle->name);
+    excluded = WT_IS_URI_METADATA(btree->dhandle->name) || WT_IS_URI_HS(btree->dhandle->name);
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
         btree->cache_top_slot[metric] = WT_CACHE_TOP_NOT_TRACKED;
