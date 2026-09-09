@@ -832,7 +832,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             WT_WITH_HANDLE_LIST_READ_LOCK(
               session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
             if (dhandle == NULL)
-                goto done;
+                goto second_pass;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || !WT_DHANDLE_BTREE(dhandle) ||
@@ -869,7 +869,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 __wt_readunlock(session, &dhandle->rwlock);
             WT_ERR(ret);
         }
-done:
+second_pass:
         /* Handles that were busy on the first pass wait for the transition to finish here. */
         for (i = 0; i < deferred_next; i++) {
             WT_TRET(__conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg));
