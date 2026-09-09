@@ -1678,10 +1678,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
-    wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp,
-      step_down_ts;
+    wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
     uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t step_down_ts;
     uint32_t prepare_count;
     bool wrote_ingest, wrote_stable;
 #endif
@@ -1694,9 +1694,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     key = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
     wrote_ingest = wrote_stable = false;
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
@@ -1755,7 +1755,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         /* A failure here rolls the whole transaction back. */
-        WT_ERR(__wt_txn_stepdown_commit_ts_check(session, txn, op, step_down_ts));
+        WT_ERR(__wt_txn_disagg_commit_ts_check(session, txn, op));
 
 #ifdef HAVE_DIAGNOSTIC
         /*
