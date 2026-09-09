@@ -27,6 +27,7 @@
  */
 
 #include "format.h"
+#include <poll.h>
 #include <sys/mman.h>
 
 /*
@@ -137,11 +138,15 @@ disagg_setup_multi_node(void)
 
 /*
  * disagg_multi_sync_point --
- *     Synchronization point in disagg multi-node setup for leader-follower.
+ *     Synchronization point in disagg multi-node setup for leader-follower. The wait is bounded: if
+ *     the other process never arrives (its workers are stalled), waiting forever would surface only
+ *     as a silent CI idle-timeout with no diagnostics, so dump state and abort instead.
  */
 static void
-disagg_multi_sync_point(void)
+disagg_multi_sync_point(WT_SESSION *session)
 {
+    struct pollfd pfd;
+    u_int seconds;
     char send = 'S'; /* S for sync */
     char recv;
 
@@ -152,8 +157,36 @@ disagg_multi_sync_point(void)
     track("Reached sync point. Waiting for other process...", 0ULL);
 
     /* Wait for synchronization signal from the other process. */
-    if (read(g.disagg_multi_sync_socket, &recv, 1) != 1)
-        testutil_die(errno, "disagg_multi_sync_point: read");
+    pfd.fd = g.disagg_multi_sync_socket;
+    pfd.events = POLLIN;
+    for (seconds = 0;;) {
+        switch (poll(&pfd, 1, WT_THOUSAND)) {
+        case 1:
+            if (read(g.disagg_multi_sync_socket, &recv, 1) != 1)
+                testutil_die(errno, "disagg_multi_sync_point: read");
+            return;
+        case 0:
+            break;
+        default:
+            testutil_die(errno, "disagg_multi_sync_point: poll");
+        }
+        if (++seconds < 120)
+            continue;
+
+        fprintf(stderr, "%s\n", "multi-node sync point not reached within 2 minutes");
+        fprintf(stderr, "%s\n", "dumping cache and transaction state, then aborting the process");
+
+        /*
+         * If the library is deadlocked, we might just join the mess, set a two-minute timer to
+         * limit our exposure.
+         */
+        set_alarm(120);
+
+        (void)session->connection->debug_info(session->connection, "txn");
+        (void)session->connection->debug_info(session->connection, "cache");
+
+        __wt_abort(NULL);
+    }
 }
 
 /*
@@ -176,7 +209,7 @@ disagg_sync_multi_node(WT_SESSION *session)
     }
 
     /* Initial synchronization between leader and follower processes. */
-    disagg_multi_sync_point();
+    disagg_multi_sync_point(session);
 
     if (GV(DISAGG_MULTI_VALIDATION)) {
         /*
@@ -190,7 +223,7 @@ disagg_sync_multi_node(WT_SESSION *session)
             testutil_disagg_preserve(session->connection, "preserve", g.stable_timestamp);
 
         /* Exit synchronization between leader and follower processes. */
-        disagg_multi_sync_point();
+        disagg_multi_sync_point(session);
 
         /* Assert after sync point to ensure both nodes have preserved the data. */
         testutil_assert(hash_match);
