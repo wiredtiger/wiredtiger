@@ -74,10 +74,7 @@ random_kv(void *arg)
         /* Select a table. */
         table = table_select_type(ROW, false);
 
-        /*
-         * Read inside a snapshot transaction so the reads observe a single consistent state, even
-         * when racing a disaggregated leader step-down.
-         */
+        /* Read inside a snapshot transaction so the reads observe a single consistent state. */
         wt_wrap_begin_transaction(session, "isolation=snapshot");
         wt_wrap_open_cursor(session, table->uri, config, &cursor);
 
