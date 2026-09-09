@@ -746,11 +746,11 @@ err:
 static int
 __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], bool already_locked)
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], bool *read_lockedp)
 {
     WT_DECL_RET;
     uint64_t time_diff, time_start, time_stop;
-    uint32_t get_flags;
+    uint32_t flags;
     bool skip;
 
     /* Always apply the name function, if supplied. */
@@ -758,24 +758,26 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     if (name_func != NULL)
         WT_RET(name_func(session, dhandle->name, &skip));
 
-    /* If there is no file function, don't bother locking the handle */
-    if (file_func == NULL || skip) {
-        if (already_locked)
-            __wt_readunlock(session, &dhandle->rwlock);
+    /*
+     * If there is no file function, don't bother locking the handle. Leave the caller's locked flag
+     * untouched, since the caller is the one that acquired it and needs to know to release it.
+     */
+    if (file_func == NULL || skip)
         return (0);
-    }
 
     /*
      * We need to pull the handle into the session handle cache and make sure it's referenced to
      * stop other internal code dropping the handle. If the caller already holds the read lock (from
      * a successful non-blocking probe), say so, so the lookup below can use that lock directly
-     * instead of acquiring it again.
+     * instead of acquiring it again; either way, the lookup fully consumes it from here.
      */
-    get_flags = WT_DHANDLE_SKIP_OPEN;
-    if (already_locked)
-        get_flags |= WT_DHANDLE_ALREADY_LOCKED;
+    flags = WT_DHANDLE_SKIP_OPEN;
+    if (*read_lockedp) {
+        flags |= WT_DHANDLE_READ_LOCKED;
+        *read_lockedp = false;
+    }
     if ((ret = __wt_session_get_dhandle(
-           session, dhandle->name, dhandle->checkpoint, NULL, get_flags)) != 0)
+           session, dhandle->name, dhandle->checkpoint, NULL, flags)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
     time_start = WT_SESSION_IS_CHECKPOINT(session) ? __wt_clock(session) : 0;
@@ -828,7 +830,9 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || dhandle->checkpoint != NULL ||
               strcmp(uri, dhandle->name) != 0)
                 continue;
-            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, false));
+            locked = false;
+            WT_ERR(
+              __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, &locked));
         }
     } else {
         time_start = 0;
@@ -876,15 +880,20 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 
             /*
              * Pass the lock straight through: the lookup below would otherwise reacquire it from
-             * scratch a moment after we release it here.
+             * scratch a moment after we release it here. If it's still held on return, it was never
+             * consumed (the handle was skipped before reaching the lookup, or that lookup failed),
+             * so release it ourselves -- we're the one that acquired it.
              */
-            WT_ERR(
-              __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, locked));
+            ret = __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, &locked);
+            if (locked)
+                __wt_readunlock(session, &dhandle->rwlock);
+            WT_ERR(ret);
         }
 done:
         for (i = 0; i < deferred_next; i++) {
-            WT_TRET(
-              __conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg, false));
+            locked = false;
+            WT_TRET(__conn_btree_apply_internal(
+              session, deferred[i], file_func, name_func, cfg, &locked));
             WT_DHANDLE_RELEASE(deferred[i]);
         }
         __wt_free(session, deferred);

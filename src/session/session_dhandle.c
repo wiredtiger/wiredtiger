@@ -204,9 +204,11 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
      * was open. That can't change while any reader holds the lock, except that DEAD may have
      * already been set just before the probe succeeded -- checkpoint's gather walk relies on
      * exactly this to skip a handle mid-close without waiting for it. Confirm that once, under the
-     * lock already held, instead of acquiring it again.
+     * lock already held, instead of acquiring it again. A read lock can never satisfy a request for
+     * exclusive access, so callers must not combine the two.
      */
-    if (LF_ISSET(WT_DHANDLE_ALREADY_LOCKED)) {
+    if (LF_ISSET(WT_DHANDLE_READ_LOCKED)) {
+        WT_ASSERT(session, !want_exclusive);
         if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
             *is_deadp = true;
             __wt_readunlock(session, &dhandle->rwlock);
