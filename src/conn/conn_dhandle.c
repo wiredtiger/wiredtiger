@@ -796,7 +796,6 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     size_t deferred_allocated;
     uint64_t bucket, time_diff, time_start, time_stop;
     u_int deferred_next, i;
-    bool locked;
 
     conn = S2C(session);
     deferred = NULL;
@@ -843,34 +842,33 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             /*
              * A handle mid-transition holds its lock exclusively for the duration, and a sweep
              * close holds it across a connection-wide eviction handshake, which is slow. Rather
-             * than block the gather on each such handle in list order, take the lock without
-             * waiting and set a busy one aside for a second pass at the end of the walk, by which
-             * time the transition has usually finished. Holding the lock across the call below
-             * keeps it from being taken away in between: a writer cannot queue behind a reader
-             * here, since every writer of this lock takes it without waiting and gives up while any
-             * reader is active.
+             * than block the walk on each such handle in list order, take the lock without waiting
+             * and set a busy one aside for a second pass at the end, by which time the transition
+             * has usually finished. Holding the lock across the call below keeps it from being
+             * taken away in between: a writer cannot queue behind a reader here, since every writer
+             * of this lock takes it without waiting and gives up while any reader is active.
              */
-            locked = false;
-            if (WT_SESSION_IS_CHECKPOINT(session)) {
-                ret = __wt_try_readlock(session, &dhandle->rwlock);
-                if (ret == EBUSY) {
-                    WT_ERR(
-                      __wt_realloc_def(session, &deferred_allocated, deferred_next + 1, &deferred));
-                    WT_DHANDLE_ACQUIRE(dhandle);
-                    deferred[deferred_next++] = dhandle;
-                    continue;
-                }
-                WT_ERR(ret);
-                locked = true;
+            ret = __wt_try_readlock(session, &dhandle->rwlock);
+            if (ret == EBUSY) {
+                WT_ERR(
+                  __wt_realloc_def(session, &deferred_allocated, deferred_next + 1, &deferred));
+                WT_DHANDLE_ACQUIRE(dhandle);
+                deferred[deferred_next++] = dhandle;
+                continue;
             }
+            WT_ERR(ret);
 
             ret = __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg);
-            if (locked)
-                __wt_readunlock(session, &dhandle->rwlock);
+            __wt_readunlock(session, &dhandle->rwlock);
             WT_ERR(ret);
         }
 second_pass:
-        /* Handles that were busy on the first pass wait for the transition to finish here. */
+        /*
+         * Handles that were busy on the first pass wait for the transition to finish here.
+         * Accumulate any error rather than jumping to the error label: the handle pointer is NULL
+         * by now, and that label releases every deferred handle, including the ones this loop has
+         * already released.
+         */
         for (i = 0; i < deferred_next; i++) {
             WT_TRET(__conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg));
             WT_DHANDLE_RELEASE(deferred[i]);
