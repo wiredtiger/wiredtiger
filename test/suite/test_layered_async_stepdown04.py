@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     # No periodic statistics-logging thread: it would race with the cursor-cache reopen checks
     # below, which read a connection-wide stat over a narrow window.
-    conn_base_config = 'statistics=(all),'
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -103,6 +103,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
         self.set_step_down_ts(20)
+        # Keep the cutoff armed while allowing the drop retry to checkpoint the stable content.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.dropUntilSuccess(self.session, self.uri)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -137,6 +139,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         expected_stable = {'k1', 'k2'} if self.stable_has_step_down_writes() else {'k1'}
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
+        self.complete_step_down(20)
 
     # A cursor closed before the demotion and reopened afterwards serves the surviving content.
     def test_cached_cursor_reuse_across_step_down(self):
@@ -320,6 +323,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
         cursor.close()
+        self.complete_step_down(20)
 
     # The demotion happens with the table still holding an ingest/stable mix, so sampling afterwards
     # is bound by the same contract: only visible merged keys come back.

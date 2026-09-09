@@ -36,7 +36,8 @@ from wtscenario import make_scenarios
 #    back.
 @disagg_test_class
 class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = \
+        'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -84,6 +85,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         expected_stable = {'straddle': 'after'} if self.stable_has_step_down_writes() else {}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
 
     # Straddler rollback applies to any write; remove rolls back like insert.
     def test_straddler_rollback_remove(self):
@@ -101,6 +103,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assert_step_down_rollback(lambda: cursor.remove())
         self.session.rollback_transaction()
         cursor.close()
+        self.complete_step_down(20)
 
     # A transaction that wrote beforehand rolls back at commit; the retry lands in ingest.
     def test_straddler_commit_rolls_back(self):
@@ -132,6 +135,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
         expected_stable = {'k1'} if self.stable_has_step_down_writes() else set()
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
 
     # A straddler rolls back even when committing at or below the cutoff.
     def test_straddler_commit_below_cutoff_also_rolls_back(self):
@@ -179,6 +183,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         # Committing a read-only transaction must succeed (no WT_ROLLBACK).
         self.session.commit_transaction()
         rcur.close()
+        self.complete_step_down(20)
 
     # Shared body: begin a stable write, set the cutoff, advance stable to it, checkpoint.
     def stable_writer_through_checkpoint(self):

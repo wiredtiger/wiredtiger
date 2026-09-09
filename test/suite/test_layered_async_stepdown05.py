@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 #    Validation of the step-down timestamp itself and the timestamp guards it imposes.
 @disagg_test_class
 class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = \
+        'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -78,6 +79,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_step_down_ts(9),
             '/must not be older than the newest durable timestamp/')
         self.set_step_down_ts(10)
+        self.complete_step_down(10)
 
     # Stable may reach the cutoff exactly but never pass it.
     def test_stable_cannot_pass_cutoff(self):
@@ -108,6 +110,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
         expected_stable = {'k1'} if self.stable_has_step_down_writes() else set()
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
 
     # A cutoff below the current stable must be rejected: stable may never sit past it.
     def test_step_down_ts_below_stable_rejected(self):
@@ -134,6 +137,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
             {'post0': 'v30', 'post1': 'v40', 'post2': 'v50'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 60),
             {'post0', 'post1', 'post2'})
+        self.complete_step_down(20)
 
     # Later commits at or below the cutoff are rejected.
     def test_commit_at_or_below_cutoff_rejected(self):
@@ -199,3 +203,4 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         # A commit above the cutoff carries all_durable past it: drained.
         self.write_at(self.uri, {'k3': 'v'}, 25)
         self.assertEqual(self.all_durable(), 25)
+        self.complete_step_down(20)

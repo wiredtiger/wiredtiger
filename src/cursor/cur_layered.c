@@ -1277,8 +1277,10 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
      * the step-down window is marked at handle open and never attempts this open, so any other miss
      * is a genuinely missing constituent and must be reported.
      *
-     * FIXME-WT-18359: Investigate whether this guard is reachable now that step_down_created skips
-     * opening the stable constituent for tables created during the step-down window.
+     * The step-down mark does not close this window: step-down clears it before publishing the
+     * follower role, so a cursor that read the mark as clear can still resolve the leader role and
+     * attempt the open.
+
      */
     return (role == WTI_CLAYERED_ROLE_LEADER &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));

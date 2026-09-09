@@ -38,7 +38,8 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = \
+        'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
         ('ingest_only', dict(write_mirroring=False)),
@@ -77,8 +78,10 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), after)
         expected_stable = before | after if self.stable_has_step_down_writes() else before
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
 
     def test_step_down_write_mirroring_is_open_only(self):
+        self.set_global_ts(1, 1)
         with self.expectedStderrPattern('unknown configuration key'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.conn.reconfigure(
@@ -154,6 +157,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         expected_stable = expected if self.stable_has_step_down_writes() else {'stable-only': 'abcde'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
+        self.complete_step_down(20)
 
     # Removing an ingest key during iteration must not lose the stable-only neighbor in either
     # direction.
@@ -188,6 +192,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.get_key(), 'a')
         self.session.rollback_transaction()
         cursor.close()
+        self.complete_step_down(20)
 
     # All tables share one cutoff, so a single call routes every table's later writes to ingest.
     def test_multiple_tables_share_cutoff(self):
@@ -213,6 +218,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), expected_stable2)
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'stable', 'c': 'ingest'})
         self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'stable', 'd': 'ingest'})
+        self.complete_step_down(20)
 
     # A non-overwrite insert of a stable key conflicts even though the write targets ingest.
     def test_duplicate_key_detection_while_step_down_ts_set(self):
@@ -234,6 +240,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         # The rejected insert left the stable value alone and nothing in ingest.
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'dup': 'stable'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+        self.complete_step_down(20)
 
     # overwrite=false update and remove consult the merged view; the writes land in ingest.
     def test_overwrite_false_ops_while_step_down_ts_set(self):
@@ -319,3 +326,4 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'stable'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+        self.complete_step_down(20)
