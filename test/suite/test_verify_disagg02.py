@@ -118,8 +118,3 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         with self.expectedStderrPattern('metadata corruption.*dup_entry'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.verify(self.uri), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('stable table verification failed')
-
-        sh_cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, 'overwrite')
-        sh_cursor.set_key('file:dup_entry.wt_stable')
-        sh_cursor.remove()
-        sh_cursor.close()
