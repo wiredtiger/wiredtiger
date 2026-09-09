@@ -48,6 +48,13 @@ class KeyProviderBase(wttest.WiredTigerTestCase):
     turtle_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_TURTLE_FILE_ID):02d}.db'
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
+    def next_commit_ts(self):
+        """Return the next commit timestamp, above stable and the last commit."""
+        stable = int(self.conn.query_timestamp('get=stable_timestamp'), 16)
+        ts = max(getattr(self, '_next_commit_ts_val', 0) + 1, stable + 1)
+        self._next_commit_ts_val = ts
+        return ts
+
     def setUp(self):
         # The tests inspect the persisted pages, which only PALite exposes.
         if self.ds_name != "palite":
