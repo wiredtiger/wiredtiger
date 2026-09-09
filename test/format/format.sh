@@ -654,7 +654,7 @@ format()
         fi
     fi
 
-    cmd="$live_record_command $format_binary -c "$config" -h "$dir" $trace $args"
+    cmd="$live_record_command $format_binary -c "$config" -h "$dir" $trace $args quiet=1"
     msg "$cmd"
 
     # Disassociate the command from the shell script so we can exit and let the command
