@@ -471,6 +471,9 @@ __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op
 {
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
 
+    /* Only the diagnostic assertions consume op. */
+    WT_UNUSED(op);
+
     if (mode != WTI_CLAYERED_MODE_WRITE)
         return (WTI_CLAYERED_WRITE_NONE);
     if (role == WTI_CLAYERED_ROLE_FOLLOWER || F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
@@ -3089,8 +3092,7 @@ __clayered_put_both(
     }
 
     /*
-     * Write to stable first to detect conflict and exit early, also leaving ingest clean of aborted
-     * transaction markers had we written to ingest first.
+     * Write to stable first to detect conflict and exit early.
      */
     WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
 
@@ -3419,7 +3421,7 @@ __clayered_needs_pre_lookup(WTI_CLAYERED_OP *op)
      * covers the cases that need both constituents consulted, currently a subset of having an
      * ingest cursor.
      */
-    return (op->write_target != WTI_CLAYERED_WRITE_STABLE &&
+    return (op->write_target == WTI_CLAYERED_WRITE_INGEST &&
       !F_ISSET(&op->clayered->iface, WT_CURSTD_OVERWRITE));
 }
 
@@ -3469,10 +3471,7 @@ __clayered_insert(WT_CURSOR *cursor)
 
     ret = __clayered_put(&op, &cursor->key, &cursor->value, WTI_CLAYERED_PUT_INSERT);
     if (ret == WT_DUPLICATE_KEY) {
-        WT_ASSERT(session,
-          (op.write_target == WTI_CLAYERED_WRITE_STABLE ||
-            op.write_target == WTI_CLAYERED_WRITE_BOTH) &&
-            op.stable != NULL);
+        WT_ASSERT(session, op.write_target != WTI_CLAYERED_WRITE_INGEST);
         /*
          * The btree cursor already holds a local copy of the existing value from duplicate
          * detection. Copy it directly without a second search.
