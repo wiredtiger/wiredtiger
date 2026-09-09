@@ -436,3 +436,11 @@ define_c_test(
 if(TARGET test_wt16990_disagg_checkpoint_panic)
     set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
 endif()
+
+define_c_test(
+    TARGET test_wt17597_backup_force_stop_race
+    SOURCES wt17597_backup_force_stop_race/main.c
+    DIR_NAME wt17597_backup_force_stop_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)

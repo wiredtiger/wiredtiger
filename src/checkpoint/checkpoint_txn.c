@@ -1235,12 +1235,14 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * even without new committed data. A node with no live stable epoch carries the last written
      * epoch forward, so the epoch cannot have changed.
      */
+    /* Relaxed loads: the checkpoint lock held here also serializes every store. */
     last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
     stable_disagg_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
     if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
       last_ckpt_ts == __wt_get_stable_timestamp(session) &&
       (stable_disagg_epoch == WT_SCHEMA_EPOCH_NONE ||
-        txn_global->last_ckpt_disaggregated_schema_epoch == stable_disagg_epoch)) {
+        __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_disaggregated_schema_epoch) ==
+          stable_disagg_epoch)) {
         ckpt_cfg->can_skip = true;
         return (0);
     }
@@ -1978,7 +1980,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * WT_CONNECTION.rollback_to_stable is an allowed operation.
      */
     if (ckpt_cfg.use_timestamp) {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_write_epoch;
+        __wt_atomic_store_uint64_relaxed(
+          &conn->txn_global.last_ckpt_disaggregated_schema_epoch, ckpt_disagg_write_epoch);
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -1993,7 +1996,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
             ckpt_tmp_ts = conn->txn_global.recovery_timestamp;
         __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, ckpt_tmp_ts);
     } else {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = WT_TS_NONE;
+        __wt_atomic_store_uint64_relaxed(
+          &conn->txn_global.last_ckpt_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
         __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, WT_TS_NONE);
     }
 

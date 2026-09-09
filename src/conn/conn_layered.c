@@ -314,7 +314,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
         return (__layered_create_missing_stable_tables_legacy(session));
 
     last_ckpt_epoch =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
     WT_UNUSED(last_ckpt_epoch); /* Only read by the assertion below. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
@@ -1680,9 +1680,15 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
         if (WT_IS_HS(dhandle))
             continue;
 
-        /* Clear the mark on tables created during the step-down window. */
+        /*
+         * Tables created during the step-down window get a stable constituent on step-up, so clear
+         * the mark that makes cursors skip the stable open. Must stay ahead of the release store of
+         * the follower role below: readers resolve the role first, so observing the follower role
+         * guarantees they observe this store.
+         */
         if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
-            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+            __wt_atomic_store_bool_relaxed(
+              &((WT_LAYERED_TABLE *)dhandle)->step_down_created, false);
             continue;
         }
 
