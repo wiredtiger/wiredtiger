@@ -74,7 +74,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase):
 
         # The clear must have recovered from at least one conflict.
         self.assertGreater(
-            self.get_stat(stat.conn.layered_table_manager_clear_ingest_fail), 0)
+            self.get_stat(stat.conn.disagg_step_up_clear_ingest_fail), 0)
 
         # All content must survive the step-up.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')

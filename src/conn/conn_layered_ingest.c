@@ -160,7 +160,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
         ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
         if (ret != WT_ROLLBACK)
             break;
-        WT_STAT_CONN_INCR(session, layered_table_manager_clear_ingest_fail);
+        WT_STAT_CONN_INCR(session, disagg_step_up_clear_ingest_fail);
     }
     F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);

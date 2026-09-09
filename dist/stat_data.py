@@ -653,6 +653,7 @@ conn_stats = [
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_down_window_creates', 'tables created without a stable constituent while the step-down timestamp is set'),
+    DisaggStat('disagg_step_up_clear_ingest_fail', 'step up ingest table clear truncates that failed with a conflict'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 
@@ -684,7 +685,6 @@ conn_stats = [
     # Layered table statistics
     ##########################################
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
-    LayeredStat('layered_table_manager_clear_ingest_fail', 'the number of times an ingest table clear truncate failed with a conflict'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
     LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),
     LayeredStat('layered_truncate_list_gc_runs', 'the number of times truncate list garbage collection ran with a valid prune timestamp'),

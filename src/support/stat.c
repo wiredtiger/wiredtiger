@@ -2725,6 +2725,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
   "disagg: step up in progress",
+  "disagg: step up ingest table clear truncates that failed with a conflict",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
   "layered: Layered table cursor insert operations",
@@ -2763,7 +2764,6 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
-  "layered: the number of times an ingest table clear truncate failed with a conflict",
   "layered: the number of times the truncate list was searched",
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
@@ -3859,6 +3859,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
     /* not clearing disagg_step_up_in_progress */
+    stats->disagg_step_up_clear_ingest_fail = 0;
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
     stats->layered_curs_insert = 0;
@@ -3895,7 +3896,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_skip_lsn = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
-    stats->layered_table_manager_clear_ingest_fail = 0;
     stats->layered_truncate_list_search_calls = 0;
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
@@ -5128,6 +5128,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
+    to->disagg_step_up_clear_ingest_fail +=
+      WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_fail);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
@@ -5178,8 +5180,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
-    to->layered_table_manager_clear_ingest_fail +=
-      WT_STAT_CONN_READ(from, layered_table_manager_clear_ingest_fail);
     to->layered_truncate_list_search_calls +=
       WT_STAT_CONN_READ(from, layered_truncate_list_search_calls);
     to->layered_truncate_list_gc_runs += WT_STAT_CONN_READ(from, layered_truncate_list_gc_runs);

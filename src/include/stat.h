@@ -1030,6 +1030,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_in_progress;
+    int64_t disagg_step_up_clear_ingest_fail;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
     int64_t layered_curs_insert;
@@ -1066,7 +1067,6 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_skip_lsn;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
-    int64_t layered_table_manager_clear_ingest_fail;
     int64_t layered_truncate_list_search_calls;
     int64_t layered_truncate_list_gc_runs;
     int64_t layered_truncate_list_gc_entries_removed;

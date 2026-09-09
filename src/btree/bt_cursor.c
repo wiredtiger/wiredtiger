@@ -2053,7 +2053,10 @@ retry:
             return (0);
         }
 
-        /* Fail point: force the restart a split or eviction would cause on the just-removed key. */
+        /*
+         * Fail point: force the restart a split or eviction would cause on the just-removed key.
+         * The only non-transactional truncate is the ingest table clear during step-up.
+         */
         if (F_ISSET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE) &&
           __wt_failpoint(
             session, WT_TIMING_STRESS_FAILPOINT_NON_TRANSACTIONAL_TRUNCATE_RESTART, 100))
