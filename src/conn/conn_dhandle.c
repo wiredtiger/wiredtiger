@@ -746,20 +746,11 @@ err:
 static int
 __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], bool read_locked)
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
     WT_DECL_RET;
     uint64_t time_diff, time_start, time_stop;
-    uint32_t flags;
     bool skip;
-
-    /*
-     * A caller that probed the handle hands its read lock to the lookup below, which adopts it; the
-     * matching release at the end of this function drops it. Only the connection-wide walk probes,
-     * and every caller of that walk supplies a file function and no name function, so the early
-     * return below cannot strand a lock we were handed.
-     */
-    WT_ASSERT(session, !read_locked || (file_func != NULL && name_func == NULL));
 
     /* Always apply the name function, if supplied. */
     skip = false;
@@ -772,15 +763,10 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 
     /*
      * We need to pull the handle into the session handle cache and make sure it's referenced to
-     * stop other internal code dropping the handle. Adopting a probed lock avoids reacquiring what
-     * the caller just released, and closes the window a writer could use to take the handle in
-     * between.
+     * stop other internal code dropping the handle.
      */
-    flags = WT_DHANDLE_SKIP_OPEN;
-    if (read_locked)
-        flags |= WT_DHANDLE_READ_LOCKED;
     if ((ret = __wt_session_get_dhandle(
-           session, dhandle->name, dhandle->checkpoint, NULL, flags)) != 0)
+           session, dhandle->name, dhandle->checkpoint, NULL, WT_DHANDLE_SKIP_OPEN)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
     time_start = WT_SESSION_IS_CHECKPOINT(session) ? __wt_clock(session) : 0;
@@ -833,7 +819,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || dhandle->checkpoint != NULL ||
               strcmp(uri, dhandle->name) != 0)
                 continue;
-            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, false));
+            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
     } else {
         time_start = 0;
@@ -855,15 +841,14 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 continue;
 
             /*
-             * A dhandle mid-transition (a concurrent open or a sweep close) holds its rwlock
-             * exclusively for the duration, which can be slow -- a sweep close pays for a
-             * connection-wide eviction handshake while holding it. Rather than block the whole
-             * gather on each such handle in list order, probe first and defer a busy handle to a
-             * second pass at the end of this walk. By the time we return to it, the transition has
-             * often already finished, turning what would have been an inline wait into an immediate
-             * success; a handle still busy on the second pass falls back to the normal wait, so
-             * this changes nothing about correctness or which handles are ultimately applied or
-             * skipped.
+             * A handle mid-transition holds its lock exclusively for the duration, and a sweep
+             * close holds it across a connection-wide eviction handshake, which is slow. Rather
+             * than block the gather on each such handle in list order, take the lock without
+             * waiting and set a busy one aside for a second pass at the end of the walk, by which
+             * time the transition has usually finished. Holding the lock across the call below
+             * keeps it from being taken away in between: a writer cannot queue behind a reader
+             * here, since every writer of this lock takes it without waiting and gives up while any
+             * reader is active.
              */
             locked = false;
             if (WT_SESSION_IS_CHECKPOINT(session)) {
@@ -879,13 +864,15 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 locked = true;
             }
 
-            WT_ERR(
-              __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, locked));
+            ret = __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg);
+            if (locked)
+                __wt_readunlock(session, &dhandle->rwlock);
+            WT_ERR(ret);
         }
 done:
+        /* Handles that were busy on the first pass wait for the transition to finish here. */
         for (i = 0; i < deferred_next; i++) {
-            WT_TRET(
-              __conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg, false));
+            WT_TRET(__conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg));
             WT_DHANDLE_RELEASE(deferred[i]);
         }
         __wt_free(session, deferred);
