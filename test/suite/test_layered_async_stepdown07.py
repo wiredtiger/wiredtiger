@@ -623,3 +623,78 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.complete_step_down(30)
         self.assertEqual(self.read_kvs_at(self.uri, 50),
             {'b': 's', 'd': 's', 'a': 'i', 'z': 'i', 'y': 'i'})
+
+    # Two writers that both began after the cutoff collide trying to modify the same ingest key.
+    def test_mirrored_modify_conflict_leaves_ingest_alone(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'base'}, 10)
+
+        self.set_step_down_ts(20)
+
+        # Writer A holds an uncommitted mirrored modify on k1.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        self.assertEqual(cursor.modify([wiredtiger.Modify('X', 0, 1)]), 0)
+
+        # Writer B's modify of the same key conflicts and is discarded. B wrote nothing else, so the
+        # transaction still commits (empty).
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur.set_key('k1')
+        self.expect_conflict_rollback(lambda: wcur.modify([wiredtiger.Modify('Z', 0, 1)]))
+        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        wcur.close()
+        wsession.close()
+
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+
+        # A's modified value survives.
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'Xase'})
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': 'Xase'})
+        expected_stable = {'k1': 'Xase'} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
+
+    # A step-down writer that writes a key cleanly, then conflicts on another, cannot commit: the
+    # conflict drops that write and the transaction must roll back, losing the clean write too.
+    def test_mirrored_conflict_then_cannot_commit(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'base'}, 10)
+
+        self.set_step_down_ts(20)
+
+        # Writer A holds an uncommitted mirrored write on k1.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'a'
+
+        # Writer B writes k2 cleanly, then conflicts with A on k1.
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur['k2'] = 'b'
+        wcur.set_key('k1')
+        wcur.set_value('b')
+        self.expect_conflict_rollback(wcur.update)
+
+        # B wrote k2 before the conflict, so the transaction has work to commit; the engine still
+        # refuses, so B must roll back and k2 is lost with the rest of the transaction.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30)),
+            '/transaction requires rollback/')
+        wsession.close()
+
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+
+        # B's k2 was discarded with the rolled-back transaction; A's k1 alone persists.
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'a'})
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': 'a'})
+        expected_stable = {'k1': 'a'} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)

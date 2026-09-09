@@ -3094,9 +3094,7 @@ __clayered_put_both(
         WT_ERR(__clayered_deleted_encode(session, value, false, &ingest_value, &ingest_buf));
     }
 
-    /*
-     * Write to stable first to detect conflict and exit early.
-     */
+    /* Write to stable first to detect conflict and exit early. */
     WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
 
     /*
