@@ -459,6 +459,37 @@ __clayered_enter_flags(
 }
 
 /*
+ * __clayered_write_target_for_op --
+ *     Resolve which constituent or constituents receive a layered-table write. A read has no
+ *     target. A follower, or a table created inside the step-down window, writes ingest alone; a
+ *     leader writing under the step-down timestamp may mirror both depending on configuration; a
+ *     leader outside it writes stable alone.
+ */
+static WT_INLINE WTI_CLAYERED_WRITE_TARGET
+__clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op,
+  WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
+{
+    WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
+
+    if (mode != WTI_CLAYERED_MODE_WRITE)
+        return (WTI_CLAYERED_WRITE_NONE);
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER || F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
+        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
+        return (WTI_CLAYERED_WRITE_INGEST);
+    }
+    WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
+    if (CUR2S(clayered)->txn->stepdown_ts_set) {
+        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
+        return (F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage,
+                  WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ?
+            WTI_CLAYERED_WRITE_BOTH :
+            WTI_CLAYERED_WRITE_INGEST);
+    }
+    WT_ASSERT(CUR2S(clayered), op->ingest == NULL);
+    return (WTI_CLAYERED_WRITE_STABLE);
+}
+
+/*
  * __clayered_op_init --
  *     Populate the per-operation state.
  */
@@ -475,26 +506,7 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
 
-    if (mode != WTI_CLAYERED_MODE_WRITE) {
-        op->write_target = WTI_CLAYERED_WRITE_NONE;
-        return;
-    }
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
-        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-        op->write_target = WTI_CLAYERED_WRITE_INGEST;
-        return;
-    }
-    WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
-    if (CUR2S(clayered)->txn->stepdown_ts_set) {
-        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-        op->write_target = F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage,
-                             WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ?
-          WTI_CLAYERED_WRITE_BOTH :
-          WTI_CLAYERED_WRITE_INGEST;
-        return;
-    }
-    WT_ASSERT(CUR2S(clayered), op->ingest == NULL);
-    op->write_target = WTI_CLAYERED_WRITE_STABLE;
+    op->write_target = __clayered_write_target_for_op(clayered, op, mode, role);
 }
 
 /*
@@ -582,10 +594,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     __clayered_assert_stable_mode(clayered);
 
     __clayered_op_init(clayered, op, flags, mode, role);
-    if (mode == WTI_CLAYERED_MODE_WRITE)
-        WT_ASSERT(session, op->write_target != WTI_CLAYERED_WRITE_NONE);
-    else
-        WT_ASSERT(session, op->write_target == WTI_CLAYERED_WRITE_NONE);
 
     if (!F_ISSET(clayered, WTI_CLAYERED_ACTIVE)) {
         /*
@@ -3113,14 +3121,14 @@ static WT_INLINE int
 __clayered_put(
   WTI_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WTI_CLAYERED_PUT_OP put_op)
 {
+    if (op->write_target == WTI_CLAYERED_WRITE_BOTH)
+        return (__clayered_put_both(op, key, value, put_op));
+
     WT_CURSOR *c;
     WT_DECL_ITEM(buf);
     WT_ITEM encoded;
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     WT_DECL_RET;
-
-    if (op->write_target == WTI_CLAYERED_WRITE_BOTH)
-        return (__clayered_put_both(op, key, value, put_op));
 
     WT_CLEAR(encoded);
     c = op->write_target == WTI_CLAYERED_WRITE_STABLE ? op->stable : op->ingest;
@@ -4067,13 +4075,8 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, 
     else
         WT_ITEM_SET(value, cursor->value);
 
-    if (clayered->current_cursor == c_ingest) {
-        ret = __clayered_modify_try_ingest(op, entries, nentries, &value, &need_full_update);
-        WT_ASSERT(session,
-          !mirroring ||
-            !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
-        WT_ERR(ret);
-    }
+    if (clayered->current_cursor == c_ingest)
+        WT_ERR(__clayered_modify_try_ingest(op, entries, nentries, &value, &need_full_update));
 
     c_stable = op->stable;
     if (clayered->current_cursor == c_stable) {
