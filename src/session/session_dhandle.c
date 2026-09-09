@@ -1124,6 +1124,7 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
 {
     WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_RET;
+    bool evict_off;
 
     WT_ASSERT(session, WT_META_TRACKING(session));
     saved_dhandle = session->dhandle;
@@ -1144,10 +1145,19 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
      * (we are about to re-write the checkpoint which will mean cached pages no longer have valid
      * contents). This is especially noticeable with memory mapped files, since changes to the
      * underlying file are visible to the in-memory pages.
+     *
+     * Locking a handle does not open it, so there is usually nothing in the cache to flush. Turning
+     * eviction off is a connection-wide handshake -- it interrupts the eviction server and scans
+     * every eviction queue -- and paying for it once per tree gathered, to bracket a call that
+     * returns immediately, is what makes gathering expensive. Only turn eviction off for a handle
+     * that is open, which is the same condition the flush itself asserts.
      */
-    WT_ERR(__wt_evict_file_exclusive_on(session));
+    evict_off = F_ISSET(session->dhandle, WT_DHANDLE_OPEN);
+    if (evict_off)
+        WT_ERR(__wt_evict_file_exclusive_on(session));
     ret = __wt_evict_file(session, WT_SYNC_DISCARD);
-    __wt_evict_file_exclusive_off(session);
+    if (evict_off)
+        __wt_evict_file_exclusive_off(session);
     WT_ERR(ret);
 
     /*
