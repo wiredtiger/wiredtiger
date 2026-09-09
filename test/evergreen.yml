@@ -1065,6 +1065,7 @@ functions:
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
       shell: bash
+      add_expansions_to_env: true
       script: |
         export WEBHOOK_PAYLOAD=$( \
           jq -n \
