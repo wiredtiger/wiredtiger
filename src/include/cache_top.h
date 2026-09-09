@@ -10,19 +10,20 @@
 
 /* The rankings this file maintains, one metric per ranking. */
 typedef enum {
-    WT_CACHE_TOP_UPDATES = 0, /* Update bytes held by the tree. */
-    WT_CACHE_TOP_DIRTY,       /* Dirty leaf bytes held by the tree. */
-    WT_CACHE_TOP_INMEM,       /* Total resident bytes held by the tree. */
-    WT_CACHE_TOP_READ,        /* Recent bytes read into cache by the tree. */
-    WT_CACHE_TOP_EVICT        /* Recent bytes evicted from the tree. */
+    WT_CACHE_TOP_DIRTY = 0, /* Dirty leaf bytes held by the tree. */
+    WT_CACHE_TOP_EVICT,     /* Recent bytes evicted from the tree. */
+    WT_CACHE_TOP_INMEM,     /* Total resident bytes held by the tree. */
+    WT_CACHE_TOP_READ,      /* Recent bytes read into cache by the tree. */
+    WT_CACHE_TOP_UPDATES    /* Update bytes held by the tree. */
 } WT_CACHE_TOP_METRIC;
 
 /*
- * The number of rankings above. Kept as a plain constant rather than a trailing enumerator, so that
- * a switch over WT_CACHE_TOP_METRIC only ever has to list values that can actually occur, instead
- * of also handling a sentinel that -Wswitch-enum would otherwise require every such switch to name.
+ * The number of rankings above, which has to name the last of them. Kept as a plain constant rather
+ * than a trailing enumerator, so that a switch over WT_CACHE_TOP_METRIC only ever has to list
+ * values that can actually occur, instead of also handling a sentinel that -Wswitch-enum would
+ * otherwise require every such switch to name.
  */
-#define WT_CACHE_TOP_METRICS (WT_CACHE_TOP_EVICT + 1)
+#define WT_CACHE_TOP_METRICS (WT_CACHE_TOP_UPDATES + 1)
 
 /*
  * The level metrics (update, dirty leaf and resident bytes) sum to at most the cache size. That

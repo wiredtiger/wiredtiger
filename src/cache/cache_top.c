@@ -607,8 +607,9 @@ __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
 static int
 __cache_top_report(WT_SESSION_IMPL *session, bool force)
 {
-    static const char *metric_desc[] = {"update bytes", "dirty leaf bytes", "total cache bytes",
-      "recent bytes read", "recent bytes evicted"};
+    /* In WT_CACHE_TOP_METRIC order. */
+    static const char *metric_desc[] = {"dirty leaf bytes", "recent bytes evicted",
+      "total cache bytes", "recent bytes read", "update bytes"};
     static_assert(WT_ELEMENTS(metric_desc) == WT_CACHE_TOP_METRICS,
       "every cache-consumer ranking needs a description");
 

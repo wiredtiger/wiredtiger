@@ -52,13 +52,13 @@ class cache_top_base(wttest.WiredTigerTestCase):
     # operator watching a log wants to read.
     verbose_entries = 5
 
-    # Every ranking the report is expected to produce.
-    rankings = ['update bytes', 'dirty leaf bytes', 'total cache bytes',
-        'recent bytes read', 'recent bytes evicted']
+    # Every ranking the report is expected to produce, in the order it reports them.
+    rankings = ['dirty leaf bytes', 'recent bytes evicted', 'total cache bytes',
+        'recent bytes read', 'update bytes']
 
     # Rankings of a level, which can also report a connection-wide total. The rest track a decayed
     # flow, which has no connection-wide equivalent.
-    level_rankings = ['update bytes', 'dirty leaf bytes', 'total cache bytes']
+    level_rankings = ['dirty leaf bytes', 'total cache bytes', 'update bytes']
 
     value = 'v' * 4096
 
