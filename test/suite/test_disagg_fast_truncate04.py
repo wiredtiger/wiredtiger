@@ -35,22 +35,19 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 
+# Stress the two race windows that made the scan-based statistics in
+# test_disagg_fast_truncate03 unreliable, and assert scan correctness throughout:
+#
+#   - a walk restarted by a concurrent split re-examines pages already skipped.
+#   - an emptied internal page still resident in memory can be evicted between
+#     the walk's skip check and the page swap, and read back.
+#
+# Both races are benign, so no statistic is stable under them. What must hold is
+# the data: every scan returns exactly the records that survive the truncate.
+# Drive the races hard with concurrent splits and let cache pressure cycle the
+# emptied internal pages through eviction while scans run.
 @disagg_test_class
 class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
-    """
-    Stress the two race windows that made the scan-based statistics in
-    test_disagg_fast_truncate03 unreliable, and assert scan correctness throughout:
-
-      - a walk restarted by a concurrent split re-examines pages already skipped.
-      - an emptied internal page still resident in memory can be evicted between
-        the walk's skip check and the page swap, and read back.
-
-    Both races are benign, so no statistic is stable under them. What must hold is
-    the data: every scan returns exactly the records that survive the truncate.
-    Drive the races hard with concurrent splits and let cache pressure cycle the
-    emptied internal pages through eviction while scans run.
-    """
-
     uri = "table:test_disagg_fast_truncate04"
     nrows = 2000
     ninserts = 400
@@ -80,7 +77,7 @@ class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
             return stat_cursor[stat_key][2]
 
     def evict_keys(self, keys):
-        """Force-evict the pages holding the given keys."""
+        # Force-evict the pages holding the given keys.
         with (
             wttest.open_cursor(
                 self.session, self.uri, config="debug=(release_evict)"
@@ -93,7 +90,7 @@ class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
                 evict_cursor.reset()
 
     def scan_keys(self):
-        """Return every key visible at read_ts, walked left to right."""
+        # Return every key visible at read_ts, walked left to right.
         keys = []
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(self.read_ts))
         with wttest.open_cursor(self.session, self.uri) as cursor:
@@ -103,7 +100,7 @@ class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
         return keys
 
     def insert_worker(self, errors):
-        """Append past the truncated range, splitting the tree the scans walk."""
+        # Append past the truncated range, splitting the tree the scans walk.
         session = self.conn.open_session()
         try:
             with wttest.open_cursor(session, self.uri) as cursor:
