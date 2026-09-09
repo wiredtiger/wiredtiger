@@ -26,163 +26,173 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, shutil, compatibility_test, compatibility_version, wiredtiger
+import os, compatibility_test, wiredtiger
 
 
 class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
     '''
-    Upgrade: a leftover enabled-tiered home from an older branch must fail
-    wiredtiger_open on a branch where tiered storage is removed (connection
-    name in WiredTiger.basecfg).
+    Cross-version coverage for tiered-storage removal, using this checkout as
+    the newer binary.
 
-    Downgrade: a file created without persisted tiered_storage / tiered_object
-    keys must still open on an older branch that lists those keys in file_meta.
+    Plain upgrade is the MongoDB shape: older writes a normal table (legacy
+    file_meta keys, no enabled storage source), newer opens with
+    config_base=false and reads the data.
+
+    Plain downgrade: this checkout creates a table without those keys; older
+    fills defaults from file_meta, reads, alters, and checkpoints.
+
+    Enabled leftover is a second scenario: older dir_store + flush_tier.
+    Opening with basecfg fails on the leftover connection name. Opening with
+    config_base=false ignores basecfg; the table URI then fails as unsupported.
     '''
 
+    # 'this' is this checkout. Keep it off SUITE_RELEASE_BRANCHES so other
+    # tests do not pair against it.
+    older = ['mongodb-8.0', 'mongodb-9.0']
+    newer = 'this'
+
     build_config = {'standalone': 'true'}
-    conn_config = ''
     create_config = 'key_format=i,value_format=S'
     uri = 'table:test_tiered_deprecate'
     file_uri = 'file:test_tiered_deprecate.wt'
+    meta_file_uri = 'file:WiredTiger.wt'
     bucket = 'bucket1'
     bucket_prefix = 'pfx_'
     nrows = 100
-    upgrade_home = 'upgrade'
-    downgrade_home = 'downgrade'
 
-    def test_tiered_deprecate(self):
+    # config_base=false so leftover WiredTiger.basecfg is ignored; logging off
+    # so log version is not in play.
+    open_config = 'create,config_base=false,log=(enabled=false)'
 
-        # Removal currently lives on develop (and this branch once merged).
-        # Change the boundary if a release branch also has the removal.
-        removed_version = compatibility_version.WTVersion("develop")
+    plain_upgrade_home = 'plain_upgrade'
+    plain_downgrade_home = 'plain_downgrade'
+    enabled_home = 'enabled'
 
-        if self.older_branch >= removed_version:
-            self.run_method_on_branch(self.newer_branch, 'tiered_enabled_unsupported')
-            return
+    def test_plain_upgrade_downgrade(self):
+        self.run_method_on_branch(self.older_branch, 'on_older_plain')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_plain_upgrade')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_plain_create')
+        self.run_method_on_branch(self.older_branch, 'on_older_plain_downgrade')
 
-        if self.older_branch < removed_version and self.newer_branch >= removed_version:
-            self.run_method_on_branch(self.older_branch, 'on_older_upgrade')
-            self.run_method_on_branch(self.newer_branch, 'on_newer_upgrade')
-            self.run_method_on_branch(self.newer_branch, 'on_newer_downgrade')
-            self.run_method_on_branch(self.older_branch, 'on_older_downgrade')
+    def test_enabled_leftover(self):
+        self.run_method_on_branch(self.older_branch, 'on_older_enabled')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_enabled_basecfg')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_enabled_no_basecfg')
 
     def _dir_store_path(self):
         return os.path.join(self.branch_build_path(self.older_branch),
           'ext', 'storage_sources', 'dir_store', 'libwiredtiger_dir_store.so')
 
-    def _newer_rejects_enabled_tiered(self):
-        '''
-        True if this binary treats an enabled leftover name as unsupported.
-        Skip the fail assertions when the newer binary still implements the
-        feature (origin/develop until the removal lands).
-        '''
-        probe = 'probe_tiered_removed'
-        os.mkdir(probe)
-        try:
-            conn = wiredtiger.wiredtiger_open(probe, 'create,tiered_storage=(name=dir_store)')
-            conn.close()
-            return False
-        except wiredtiger.WiredTigerError as e:
-            return 'tiered storage is not supported' in str(e)
-        finally:
-            shutil.rmtree(probe, ignore_errors=True)
-
-    def _newer_omits_tiered_keys(self):
-        '''
-        True if this binary does not persist tiered_storage / tiered_object on
-        a new file. Skip the omit asserts when the newer binary still writes
-        the keys (origin/develop until that change lands).
-        '''
-        probe = 'probe_tiered_omit'
-        os.mkdir(probe)
-        try:
-            conn = wiredtiger.wiredtiger_open(probe, 'create,log=(enabled=false)')
-            session = conn.open_session()
-            session.create('table:probe', 'key_format=i,value_format=S')
-            meta = session.open_cursor('metadata:')
-            value = meta['file:probe.wt']
-            meta.close()
-            session.close()
-            conn.close()
-            return 'tiered_storage=' not in value and 'tiered_object=' not in value
-        finally:
-            shutil.rmtree(probe, ignore_errors=True)
-
-    def tiered_enabled_unsupported(self):
-        if not self._newer_rejects_enabled_tiered():
-            return
-        try:
-            wiredtiger.wiredtiger_open('.', 'create,tiered_storage=(name=dir_store)')
-            assert False, 'wiredtiger_open with tiered_storage=(name=dir_store) should fail'
-        except wiredtiger.WiredTigerError as e:
-            assert 'tiered storage is not supported' in str(e)
-
-    def on_older_upgrade(self):
-        ext = self._dir_store_path()
-        assert os.path.exists(ext), f'dir_store extension not found: {ext}'
-        os.mkdir(self.upgrade_home)
-        os.mkdir(os.path.join(self.upgrade_home, self.bucket))
-
-        conn_config = (
-          'create,tiered_storage=(name=dir_store,bucket=%s,bucket_prefix=%s),'
-          'extensions=(%s)' % (self.bucket, self.bucket_prefix, ext))
-        conn = wiredtiger.wiredtiger_open(self.upgrade_home, conn_config)
-        session = conn.open_session()
-
-        session.create(self.uri, self.create_config)
+    def _write_rows(self, session):
         c = session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             c[i] = str(i)
         c.close()
-        session.checkpoint('flush_tier=(enabled)')
 
-        meta = session.open_cursor('metadata:')
-        found = any(k.startswith('tiered:') for k, _v in meta)
-        meta.close()
-        assert found, 'older branch did not create a tiered: metadata entry'
-
-        session.close()
-        conn.close()
-
-    def on_newer_upgrade(self):
-        if not self._newer_rejects_enabled_tiered():
-            return
-        try:
-            wiredtiger.wiredtiger_open(self.upgrade_home, self.conn_config)
-            assert False, 'wiredtiger_open of a leftover tiered database should fail'
-        except wiredtiger.WiredTigerError as e:
-            assert 'tiered storage is not supported' in str(e)
-
-    def on_newer_downgrade(self):
-        os.mkdir(self.downgrade_home)
-        conn = wiredtiger.wiredtiger_open(
-          self.downgrade_home, 'create,log=(enabled=false)')
-        session = conn.open_session()
-        session.create(self.uri, self.create_config)
-        c = session.open_cursor(self.uri)
-        for i in range(1, self.nrows + 1):
-            c[i] = str(i)
-        c.close()
-        session.checkpoint()
-
-        if self._newer_omits_tiered_keys():
-            meta = session.open_cursor('metadata:')
-            value = meta[self.file_uri]
-            meta.close()
-            assert 'tiered_storage=' not in value, value
-            assert 'tiered_object=' not in value, value
-
-        session.close()
-        conn.close()
-
-    def on_older_downgrade(self):
-        conn = wiredtiger.wiredtiger_open(
-          self.downgrade_home, 'log=(enabled=false)')
-        session = conn.open_session()
+    def _check_rows(self, session):
         c = session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             assert c[i] == str(i)
         c.close()
+
+    def _file_meta(self, session, uri):
+        meta = session.open_cursor('metadata:')
+        value = meta[uri]
+        meta.close()
+        return value
+
+    def _assert_keys_absent(self, session, uri):
+        value = self._file_meta(session, uri)
+        assert 'tiered_storage=' not in value, value
+        assert 'tiered_object=' not in value, value
+
+    def _assert_keys_present(self, session, uri):
+        value = self._file_meta(session, uri)
+        assert 'tiered_storage=' in value, value
+
+    def on_older_plain(self):
+        os.mkdir(self.plain_upgrade_home)
+        conn = wiredtiger.wiredtiger_open(self.plain_upgrade_home, self.open_config)
+        session = conn.open_session()
+        session.create(self.uri, self.create_config)
+        self._write_rows(session)
+        session.checkpoint()
+        self._assert_keys_present(session, self.file_uri)
+        session.close()
+        conn.close()
+
+    def on_newer_plain_upgrade(self):
+        conn = wiredtiger.wiredtiger_open(self.plain_upgrade_home, self.open_config)
+        session = conn.open_session()
+        self._check_rows(session)
+        self._assert_keys_present(session, self.file_uri)
+        session.close()
+        conn.close()
+
+    def on_newer_plain_create(self):
+        os.mkdir(self.plain_downgrade_home)
+        conn = wiredtiger.wiredtiger_open(self.plain_downgrade_home, self.open_config)
+        session = conn.open_session()
+        session.create(self.uri, self.create_config)
+        self._write_rows(session)
+        session.checkpoint()
+        self._assert_keys_absent(session, self.file_uri)
+        self._assert_keys_absent(session, self.meta_file_uri)
+        session.close()
+        conn.close()
+
+    def on_older_plain_downgrade(self):
+        conn = wiredtiger.wiredtiger_open(self.plain_downgrade_home, self.open_config)
+        session = conn.open_session()
+        self._check_rows(session)
+        session.alter(self.uri, 'access_pattern_hint=random')
+        session.checkpoint()
+        session.close()
+        conn.close()
+
+        conn = wiredtiger.wiredtiger_open(self.plain_downgrade_home, self.open_config)
+        session = conn.open_session()
+        self._check_rows(session)
+        session.close()
+        conn.close()
+
+    def on_older_enabled(self):
+        ext = self._dir_store_path()
+        assert os.path.exists(ext), f'dir_store extension not found: {ext}'
+        os.mkdir(self.enabled_home)
+        os.mkdir(os.path.join(self.enabled_home, self.bucket))
+
+        conn_config = (
+          'create,tiered_storage=(name=dir_store,bucket=%s,bucket_prefix=%s),'
+          'extensions=(%s)' % (self.bucket, self.bucket_prefix, ext))
+        conn = wiredtiger.wiredtiger_open(self.enabled_home, conn_config)
+        session = conn.open_session()
+        session.create(self.uri, self.create_config)
+        self._write_rows(session)
+        session.checkpoint('flush_tier=(enabled)')
+        meta = session.open_cursor('metadata:')
+        found = any(k.startswith('tiered:') for k, _v in meta)
+        meta.close()
+        assert found, 'older branch did not create a tiered: metadata entry'
+        session.close()
+        conn.close()
+
+    def on_newer_enabled_basecfg(self):
+        try:
+            wiredtiger.wiredtiger_open(self.enabled_home, 'log=(enabled=false)')
+            assert False, 'wiredtiger_open of a leftover enabled-tiered home should fail'
+        except wiredtiger.WiredTigerError as e:
+            assert 'tiered storage is not supported' in str(e)
+
+    def on_newer_enabled_no_basecfg(self):
+        conn = wiredtiger.wiredtiger_open(self.enabled_home, self.open_config)
+        session = conn.open_session()
+        try:
+            session.open_cursor(self.uri)
+            assert False, 'opening a leftover tiered table should fail'
+        except wiredtiger.WiredTigerError as e:
+            msg = str(e)
+            assert 'unsupported object operation' in msg or 'unknown object type' in msg, msg
         session.close()
         conn.close()
 

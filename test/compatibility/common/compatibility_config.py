@@ -35,8 +35,8 @@ from compatibility_version import WTVersion
 from typing import List
 
 # The branches we use for testing. We support special branch name 'this' that refers to the
-# current branch. This is useful when debugging a compatibility issue on the current branch, but it
-# should not be enabled when testing on Evergreen.
+# current branch. It is valid on a per-test older/newer list (see test_tiered_deprecate) but
+# should not be added to SUITE_RELEASE_BRANCHES, or every suite test would pair against it.
 
 # To make this branches compatible with existing "compatibility_test_for_releases.sh", the
 # version is imported from the bash file of "meta/versions.sh"
