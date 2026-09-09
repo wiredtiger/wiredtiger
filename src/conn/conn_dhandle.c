@@ -746,10 +746,11 @@ err:
 static int
 __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], bool already_locked)
 {
     WT_DECL_RET;
     uint64_t time_diff, time_start, time_stop;
+    uint32_t get_flags;
     bool skip;
 
     /* Always apply the name function, if supplied. */
@@ -758,15 +759,23 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
         WT_RET(name_func(session, dhandle->name, &skip));
 
     /* If there is no file function, don't bother locking the handle */
-    if (file_func == NULL || skip)
+    if (file_func == NULL || skip) {
+        if (already_locked)
+            __wt_readunlock(session, &dhandle->rwlock);
         return (0);
+    }
 
     /*
      * We need to pull the handle into the session handle cache and make sure it's referenced to
-     * stop other internal code dropping the handle.
+     * stop other internal code dropping the handle. If the caller already holds the read lock (from
+     * a successful non-blocking probe), say so, so the lookup below can use that lock directly
+     * instead of acquiring it again.
      */
+    get_flags = WT_DHANDLE_SKIP_OPEN;
+    if (already_locked)
+        get_flags |= WT_DHANDLE_ALREADY_LOCKED;
     if ((ret = __wt_session_get_dhandle(
-           session, dhandle->name, dhandle->checkpoint, NULL, WT_DHANDLE_SKIP_OPEN)) != 0)
+           session, dhandle->name, dhandle->checkpoint, NULL, get_flags)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
     time_start = WT_SESSION_IS_CHECKPOINT(session) ? __wt_clock(session) : 0;
@@ -796,6 +805,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     size_t deferred_allocated;
     uint64_t bucket, time_diff, time_start, time_stop;
     u_int deferred_next, i;
+    bool locked;
 
     conn = S2C(session);
     deferred = NULL;
@@ -818,7 +828,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || dhandle->checkpoint != NULL ||
               strcmp(uri, dhandle->name) != 0)
                 continue;
-            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
+            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, false));
         }
     } else {
         time_start = 0;
@@ -846,25 +856,35 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
              * gather on each such handle in list order, probe first and defer a busy handle to a
              * second pass at the end of this walk. By the time we return to it, the transition has
              * often already finished, turning what would have been an inline wait into an immediate
-             * success; a handle still busy on the second pass falls back to the normal wait, so this
-             * changes nothing about correctness or which handles are ultimately applied or skipped.
+             * success; a handle still busy on the second pass falls back to the normal wait, so
+             * this changes nothing about correctness or which handles are ultimately applied or
+             * skipped.
              */
-            if (WT_SESSION_IS_CHECKPOINT(session) &&
-              (ret = __wt_try_readlock(session, &dhandle->rwlock)) == EBUSY) {
-                WT_DHANDLE_ACQUIRE(dhandle);
-                WT_ERR(__wt_realloc_def(session, &deferred_allocated, deferred_next + 1, &deferred));
-                deferred[deferred_next++] = dhandle;
-                continue;
+            locked = false;
+            if (WT_SESSION_IS_CHECKPOINT(session)) {
+                ret = __wt_try_readlock(session, &dhandle->rwlock);
+                if (ret == EBUSY) {
+                    WT_ERR(
+                      __wt_realloc_def(session, &deferred_allocated, deferred_next + 1, &deferred));
+                    WT_DHANDLE_ACQUIRE(dhandle);
+                    deferred[deferred_next++] = dhandle;
+                    continue;
+                }
+                WT_ERR(ret);
+                locked = true;
             }
-            WT_ERR(ret);
-            if (WT_SESSION_IS_CHECKPOINT(session))
-                __wt_readunlock(session, &dhandle->rwlock);
 
-            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
+            /*
+             * Pass the lock straight through: the lookup below would otherwise reacquire it from
+             * scratch a moment after we release it here.
+             */
+            WT_ERR(
+              __conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg, locked));
         }
 done:
         for (i = 0; i < deferred_next; i++) {
-            WT_TRET(__conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg));
+            WT_TRET(
+              __conn_btree_apply_internal(session, deferred[i], file_func, name_func, cfg, false));
             WT_DHANDLE_RELEASE(deferred[i]);
         }
         __wt_free(session, deferred);
