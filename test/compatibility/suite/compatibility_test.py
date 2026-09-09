@@ -236,33 +236,30 @@ def make_branch_scenarios(older:List[WTVersion], newer:List[WTVersion]):
         lambda scenario: scenario[1]['older_branch'] < scenario[1]['newer_branch'],
         wtscenario.make_scenarios(older_branches, newer_branches)))
 
-def extract_versions(t, key:str):
-    '''
-    Resolve a test's older/newer branch list. 'this' is the checkout under test
-    and does not need to be in SUITE_RELEASE_BRANCHES.
-    '''
-    versions = getattr(t, key, None)
-    if versions:
-        if type(versions) is not list:
-            versions = [versions]
-        return [WTVersion(version) for version in versions]
-    return compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES
-
-def _branch_allowed(branch:WTVersion):
-    return branch.name == 'this' or branch in compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES
-
 def add_branch_pair_scenarios(suite):
     '''
     Add branch names to the test scenarios.
     '''
     for test in testtools.iterate_tests(suite):
+        # Get the older and newer branches, allowing tests to specify their own.
+        def extract_versions(t, key:str):
+            versions = getattr(t, key, None)
+            if versions:
+                if type(versions) is not list:
+                    versions = [versions]
+                # need to build the version object from the string list
+                return [WTVersion(version) for version in versions]
+            else:
+                return compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES
         older = extract_versions(test, 'older')
         newer = extract_versions(test, 'newer')
 
+        # Validate that the test is using only supported branches. Otherwise they may not be ready.
+        # support means branch name appeared in the branch list
         unsupported_branches = list([
             branch
-            for branch in [*older, *newer]
-            if not _branch_allowed(branch)
+            for branch in set([*older, *newer])
+            if branch not in compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES
         ])
 
         if len(unsupported_branches) > 0:
@@ -311,18 +308,10 @@ def prepare_tests(suites):
             if config is not None and config not in all_build_configs:
                 all_build_configs.append(config)
 
-    # Check out and build only the branches the tests will run. 'this' is the
-    # current tree and is allowed without being listed in SUITE_RELEASE_BRANCHES.
-    needed = set()
-    for test in testtools.iterate_tests(suites):
-        for branch in extract_versions(test, 'older') + extract_versions(test, 'newer'):
-            if not _branch_allowed(branch):
-                raise Exception('Test \'%s\' specifies unsupported branches: %s'
-                                % (test, branch.name))
-            needed.add(branch.name)
-    for name in sorted(needed):
+    # Check out and build all relevant branches.
+    for branch in compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES:
         for config in all_build_configs:
-            compatibility_common.prepare_branch(name, config)
+            compatibility_common.prepare_branch(branch.name, config)
 
     # Add branch arguments to the tests' scenarios.
     add_branch_pair_scenarios(suites)

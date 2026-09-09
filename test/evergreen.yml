@@ -3981,20 +3981,6 @@ tasks:
             ${PREPARE_TEST_ENV}
             ${python_binary|python3} test/compatibility/suite/compatibility_test.py ${compat_suite_args|-v 2} 2>&1
 
-  - name: compatibility-test-tiered-deprecate
-    depends_on: *s-all-dep
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ${python_binary|python3} test/compatibility/suite/test_tiered_deprecate.py ${compat_suite_args|-v 2} 2>&1
-
   - name: compatibility-test-against-develop
     depends_on:
     - name: compile
@@ -7027,8 +7013,6 @@ buildvariants:
     - name: compile
     - name: compile-develop
     - name: compatibility-test-against-develop
-    - name: compatibility-test-tiered-deprecate
-      distros: ubuntu2004-large
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
