@@ -29,9 +29,9 @@
 import errno, os, re, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-class _tiered_uri_deprecate:
+class _tiered_uri_unsupported:
     def _uri(self):
-        return self.prefix + 'test_tiered_deprecate'
+        return self.prefix + 'test_tiered_unsupported'
 
     def _assert_unsupported(self, expr):
         uri = self._uri()
@@ -41,8 +41,8 @@ class _tiered_uri_deprecate:
         self.assertEqual(err, errno.ENOTSUP)
         self.assertEqual(last_msg, msg)
 
-# Test that deprecated tiered storage URIs are refused.
-class test_tiered_deprecate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
+# Test that removed tiered storage URIs are refused.
+class test_tiered_unsupported(_tiered_uri_unsupported, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
         ('tier', dict(prefix='tier:', err_prefix='unknown object type')),
@@ -82,7 +82,7 @@ class test_tiered_deprecate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
         self.assertEqual(err, errno.ENOTSUP)
         self.assertEqual(last_msg, msg)
 
-class test_tiered_deprecate_api(wttest.WiredTigerTestCase):
+class test_tiered_unsupported_api(wttest.WiredTigerTestCase):
     def test_flush_tier(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint('flush_tier=(enabled)'),
@@ -105,7 +105,7 @@ class test_tiered_deprecate_api(wttest.WiredTigerTestCase):
             lambda: self.session.create('file:ts_name.wt', 'tiered_storage=(name=dir_store)'),
             '/' + re.escape(msg) + '/')
 
-class test_tiered_deprecate_truncate(_tiered_uri_deprecate, wttest.WiredTigerTestCase):
+class test_tiered_unsupported_truncate(_tiered_uri_unsupported, wttest.WiredTigerTestCase):
     uri_types = [
         ('object', dict(prefix='object:', err_prefix='unsupported object operation')),
         ('tier', dict(prefix='tier:', err_prefix='unknown object type')),
