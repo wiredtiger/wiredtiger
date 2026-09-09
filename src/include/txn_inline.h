@@ -2078,6 +2078,8 @@ __wt_txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_TXN_OP
 {
     if (!__wt_conn_is_disagg(session))
         return (0);
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
+        return (0);
     if (op->type == WT_TXN_OP_NONE || op->btree == NULL)
         return (0);
 

@@ -730,6 +730,10 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
+        Config('disagg_commit_ts_optional', 'false', r'''
+            if true, transactions writing to disaggregated tables are not required to carry a
+            commit timestamp. Intended for test tooling that predates the requirement''',
+            type='boolean', undoc=True),
         Config('disagg_slow_truncate_follower', 'false', r'''
             if true, follower-side layered-table truncate uses the slow per-record delete path
             instead of the optimized range delete. Intended for debugging the disaggregated
