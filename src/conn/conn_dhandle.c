@@ -831,7 +831,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             WT_WITH_HANDLE_LIST_READ_LOCK(
               session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
             if (dhandle == NULL)
-                goto second_pass;
+                break;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || !WT_DHANDLE_BTREE(dhandle) ||
@@ -862,7 +862,6 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             __wt_readunlock(session, &dhandle->rwlock);
             WT_ERR(ret);
         }
-second_pass:
         /*
          * Handles that were busy on the first pass wait for the transition to finish here.
          * Accumulate any error rather than jumping to the error label: the handle pointer is NULL
