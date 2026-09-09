@@ -1146,12 +1146,13 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
      * contents). This is especially noticeable with memory mapped files, since changes to the
      * underlying file are visible to the in-memory pages.
      *
-     * Locking a handle does not open it, so usually there are no cached pages and the flush does
-     * nothing. Turning eviction off is expensive: it interrupts the eviction server and scans every
-     * eviction queue. Paying that for every handle a checkpoint gathers, only to wrap a flush that
-     * does nothing, slows the checkpoint down and holds off every other thread waiting on the same
-     * eviction lock, the sweep server most of all. Only turn eviction off when the handle is open,
-     * which is all the flush needs.
+     * Nothing here opens the tree: the handle above is taken only to lock the checkpoint against
+     * other writers, so there is no root page and the flush below returns straight away. Turning
+     * eviction off to wrap it is not free. It holds a connection-wide eviction walk lock while it
+     * interrupts the eviction server and scans every eviction queue, so paying it once for every
+     * handle a checkpoint gathers delays the checkpoint and makes every other thread that needs
+     * eviction off wait its turn, the sweep server included, once per handle it closes. Turn
+     * eviction off only when the handle really is open, the flush's other precondition.
      */
     evict_off = F_ISSET(session->dhandle, WT_DHANDLE_OPEN);
     if (evict_off)
