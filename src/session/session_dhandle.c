@@ -1150,9 +1150,9 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
      * is no root page and the flush below does nothing. Turning eviction off is expensive. It holds
      * the connection-wide eviction walk lock, interrupts the eviction server, and scans every
      * eviction queue. A checkpoint pays that for every handle it gathers. That slows the checkpoint
-     * and starves every other thread that needs eviction off, the sweep server above all. So turn
-     * eviction off only when the handle is open. The flush asserts the same thing: only an open
-     * handle needs it.
+     * and starves other threads that need eviction off. The sweep server needs the lock most often,
+     * so it waits most. Only turn eviction off when the handle is open. The flush asserts the same
+     * thing: only an open handle needs it.
      */
     evict_off = F_ISSET(session->dhandle, WT_DHANDLE_OPEN);
     if (evict_off)
