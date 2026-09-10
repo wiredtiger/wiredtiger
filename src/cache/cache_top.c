@@ -600,6 +600,29 @@ __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
 }
 
 /*
+ * __cache_top_metric_desc --
+ *     Return the name of a ranking, for the report.
+ */
+static const char *
+__cache_top_metric_desc(WT_CACHE_TOP_METRIC metric)
+{
+    switch (metric) {
+    case WT_CACHE_TOP_DIRTY:
+        return ("dirty leaf bytes");
+    case WT_CACHE_TOP_EVICT:
+        return ("recent bytes evicted");
+    case WT_CACHE_TOP_INMEM:
+        return ("total cache bytes");
+    case WT_CACHE_TOP_READ:
+        return ("recent bytes read");
+    case WT_CACHE_TOP_UPDATES:
+        return ("update bytes");
+    }
+
+    return ("unknown");
+}
+
+/*
  * __cache_top_report --
  *     Build and print all of the rankings. Callers only reach this when they already intend to
  *     print something, so it always does both.
@@ -607,12 +630,6 @@ __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
 static int
 __cache_top_report(WT_SESSION_IMPL *session, bool force)
 {
-    /* In WT_CACHE_TOP_METRIC order. */
-    static const char *metric_desc[] = {"dirty leaf bytes", "recent bytes evicted",
-      "total cache bytes", "recent bytes read", "update bytes"};
-    static_assert(WT_ELEMENTS(metric_desc) == WT_CACHE_TOP_METRICS,
-      "every cache-consumer ranking needs a description");
-
     WT_CACHE *cache;
     WT_CACHE_TOP_REPORT_ENTRY *entries;
     WT_CONNECTION_IMPL *conn;
@@ -667,11 +684,12 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
             WT_ERR(__wt_buf_fmt(session, line,
               "cache top %s: %" PRIu32 " tables above %" PRIu64 "B hold %" PRIu64 "B of %" PRIu64
               "B in use, %" PRIu64 "B configured",
-              metric_desc[metric], count, threshold, listed, connection_total, conn->cache_size));
+              __cache_top_metric_desc((WT_CACHE_TOP_METRIC)metric), count, threshold, listed,
+              connection_total, conn->cache_size));
         else
             WT_ERR(__wt_buf_fmt(session, line,
               "cache top %s: %" PRIu32 " tables above %" PRIu64 "B hold %" PRIu64 "B",
-              metric_desc[metric], count, threshold, listed));
+              __cache_top_metric_desc((WT_CACHE_TOP_METRIC)metric), count, threshold, listed));
         WT_ERR(__cache_top_emit(session, force, (const char *)line->data));
 
         for (i = 0; i < WT_MIN(count, listing); ++i) {
