@@ -1075,7 +1075,8 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
+        'aggressive_stash_free', 'aggressive_sweep', 'backup_blkmod_delay', 'backup_rename',
+        'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
@@ -1103,6 +1104,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'block_cache',
+            'cache_top',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
@@ -2313,6 +2315,8 @@ methods = {
         print incremental backup information''', type='boolean'),
     Config('cache', 'false', r'''
         print cache information''', type='boolean'),
+    Config('cache_top', 'false', r'''
+        print the tables consuming the most cache''', type='boolean'),
     Config('cursors', 'false', r'''
         print all open cursor information''', type='boolean'),
     Config('handles', 'false', r'''
