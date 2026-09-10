@@ -584,7 +584,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
 
-    } else
+    } else if (!__wt_conn_is_disagg(session) ||
+      bytes_inuse >= (uint64_t)(trigger * bytes_max) / 100)
         LF_SET(WT_EVICT_CACHE_NOKEEP);
 
     if (FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT)) {
