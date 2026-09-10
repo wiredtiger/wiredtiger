@@ -1316,6 +1316,10 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_cache(session));
 
+    WT_ERR(__wt_config_gets(session, cfg, "cache_top", &cval));
+    if (cval.val != 0)
+        WT_ERR(__wt_cache_top_report(session));
+
     WT_ERR(__wt_config_gets(session, cfg, "cursors", &cval));
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_sessions(session, true));
@@ -2361,6 +2365,13 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
+    /* Internal testing only: lets the test suite bypass the disaggregated commit-ts rule. */
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_commit_ts_optional", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_slow_truncate_follower", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
@@ -2500,7 +2511,8 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
       {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
-      {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
+      {"cache_top", WT_VERB_CACHE_TOP}, {"checkpoint", WT_VERB_CHECKPOINT},
+      {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
       {"cross_checkpoint_cache", WT_VERB_CROSS_CHECKPOINT_CACHE},
