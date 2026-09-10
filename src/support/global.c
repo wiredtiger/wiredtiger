@@ -44,8 +44,6 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
-  {"failpoint_non_transactional_truncate_restart",
-    WT_TIMING_STRESS_FAILPOINT_NON_TRANSACTIONAL_TRUNCATE_RESTART},
   {"failpoint_page_log_handle_put", WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT},
   {"failpoint_rec_before_wrapup", WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP},
   {"failpoint_rec_split_write", WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE},

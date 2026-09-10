@@ -253,7 +253,6 @@ extern const char __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply[];
 extern const char __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain[];
 extern const char __WT_CONFIG_CHOICE_failpoint_eviction_split[];
 extern const char __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts[];
-extern const char __WT_CONFIG_CHOICE_failpoint_non_transactional_truncate_restart[];
 extern const char __WT_CONFIG_CHOICE_failpoint_page_log_handle_put[];
 extern const char __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup[];
 extern const char __WT_CONFIG_CHOICE_failpoint_rec_split_write[];
