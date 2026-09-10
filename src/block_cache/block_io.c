@@ -274,6 +274,22 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             WT_ERR(ret == 0 ? WT_ERROR : ret);
         }
 
+        /*
+         * The in-memory size in the page header hasn't been verified yet (salvage calls this
+         * function on speculative blocks before verify runs). Bound it before trusting it to size
+         * the decompression buffer and call: too small underflows the compress-skip subtraction
+         * below into a huge length, too large is an unreasonable allocation either way.
+         */
+        if (dsk->mem_size <= WT_BLOCK_COMPRESS_SKIP || dsk->mem_size > WT_BTREE_PAGE_SIZE_MAX) {
+            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+                __wt_errx(session,
+                  "%s: compressed block has an invalid in-memory size of %" PRIu32 "B",
+                  btree->dhandle->name, dsk->mem_size);
+            ret = __blkcache_read_corrupt(
+              session, WT_ERROR, addr, addr_size, "compressed block has an invalid in-memory size");
+            WT_ERR(ret == 0 ? WT_ERROR : ret);
+        }
+
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
         WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
 
