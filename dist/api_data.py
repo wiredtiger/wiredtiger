@@ -731,8 +731,8 @@ connection_runtime_config = [
             field protected by a new flag.''',
             type='boolean', undoc=True),
         Config('disagg_commit_ts_optional', 'false', r'''
-            if true, transactions writing to disaggregated tables are not required to carry a
-            commit timestamp. Intended for test tooling that predates the requirement''',
+            !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated
+            tables are not required to carry a commit timestamp.''',
             type='boolean', undoc=True),
         Config('disagg_slow_truncate_follower', 'false', r'''
             if true, follower-side layered-table truncate uses the slow per-record delete path

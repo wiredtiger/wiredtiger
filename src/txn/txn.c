@@ -1756,6 +1756,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 #ifdef HAVE_DIAGNOSTIC
         /*
+         * FIXME-WT-18606: Consider moving these assertions to the setting timestamp path.
+         *
          * While the step-down timestamp is set, a committing transaction's layered content must sit
          * on one side of the boundary: ingest content strictly above the timestamp, stable content
          * at or below it, and never both constituents from one transaction.
@@ -1769,6 +1771,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             } else if (F_ISSET(op->btree, WT_BTREE_DISAGGREGATED) &&
               !WT_IS_ANY_METADATA(op->btree->dhandle)) {
                 wrote_stable = true;
+                /* FIXME-WT-18606: Compare durable timestamp instead of commit for stable. */
                 WT_ASSERT_ALWAYS(session, txn->time_point.commit_timestamp <= step_down_ts,
                   "stable content committing above the step-down timestamp");
             }

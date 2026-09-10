@@ -2489,6 +2489,7 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
+    /* Internal testing only: lets the test suite bypass the disaggregated commit-ts rule. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_commit_ts_optional", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL);
