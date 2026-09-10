@@ -296,22 +296,19 @@ check(WT_SESSION *session, const char *uri, char *value, int read_ts)
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     for (i = 0; i < NUM_RECORDS; i++) {
-        retry_attempts = 0;
-        cursor->set_key(cursor, i + 1);
-
         /*
          * A long read transaction can race with eviction and be forced to roll back. Retry a
          * bounded number of times before giving up.
          */
-        while (((ret = cursor->search(cursor)) == WT_ROLLBACK) && retry_attempts < MAX_RETRIES) {
+        for (retry_attempts = 0; retry_attempts < MAX_RETRIES; retry_attempts++) {
+            cursor->set_key(cursor, i + 1);
+            ret = cursor->search(cursor);
+            if (ret != WT_ROLLBACK)
+                break;
             printf("Rollback search for key %d\n", i + 1);
             testutil_check(session->rollback_transaction(session, NULL));
             testutil_check(session->begin_transaction(session, tscfg));
-            ++retry_attempts;
-            cursor->set_key(cursor, i + 1);
         }
-        testutil_assertfmt(
-          ret != WT_ROLLBACK, "Cursor search returned WT_ROLLBACK for %d times", retry_attempts);
         testutil_check(ret);
 
         testutil_check(cursor->get_value(cursor, &val1, &val2, &val3, &str_val));
