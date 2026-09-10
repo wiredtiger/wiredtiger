@@ -6014,6 +6014,8 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
+/*! bypass any block cache when serving the read */
+#define WT_PAGE_LOG_CACHE_BYPASS 0x40u
 
 /*!
  * WT_PAGE_LOG::pl_complete_checkpoint interface.
