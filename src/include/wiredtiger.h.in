@@ -8125,11 +8125,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_STEP_DOWN_TIME		1611
 /*! disagg: step up in progress */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS		1612
-/*!
- * disagg: step up ingest table clear truncates that failed with a
- * conflict
- */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_FAIL	1613
+/*! disagg: step up ingest table clear truncates retried after a conflict */
+#define	WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY	1613
 /*! disagg: step up most recent time (msecs) */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_TIME		1614
 /*!

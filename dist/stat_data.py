@@ -653,7 +653,7 @@ conn_stats = [
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_down_window_creates', 'tables created without a stable constituent while the step-down timestamp is set'),
-    DisaggStat('disagg_step_up_clear_ingest_fail', 'step up ingest table clear truncates that failed with a conflict'),
+    DisaggStat('disagg_step_up_clear_ingest_retry', 'step up ingest table clear truncates retried after a conflict'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 

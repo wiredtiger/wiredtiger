@@ -125,7 +125,7 @@ err:
     return (ret);
 }
 
-#define WT_CLEAR_INGEST_TABLE_MAX_ATTEMPTS 100
+#define WT_CLEAR_INGEST_TABLE_MAX_RETRIES 10
 
 /*
  * __layered_clear_ingest_table --
@@ -136,7 +136,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_RET;
     uint32_t orig_flags;
-    u_int attempts;
+    u_int retries;
 
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
@@ -156,11 +156,11 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
      * The truncate conflicts with its own globally visible tombstones: a restarted scan
      * re-searching a just-removed key surfaces a spurious WT_ROLLBACK, so retry.
      */
-    for (attempts = 0; attempts < WT_CLEAR_INGEST_TABLE_MAX_ATTEMPTS; ++attempts) {
+    for (retries = 0;; ++retries) {
         ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
-        if (ret != WT_ROLLBACK)
+        if (ret != WT_ROLLBACK || retries >= WT_CLEAR_INGEST_TABLE_MAX_RETRIES)
             break;
-        WT_STAT_CONN_INCR(session, disagg_step_up_clear_ingest_fail);
+        WT_STAT_CONN_INCR(session, disagg_step_up_clear_ingest_retry);
     }
     F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
