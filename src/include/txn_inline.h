@@ -604,10 +604,13 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
     /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return (0);
+
     if (!__wt_conn_is_disagg(session))
         return (0);
+
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
         return (0);
+
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         return (0);
 

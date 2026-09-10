@@ -730,7 +730,8 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
-        Config('disagg_commit_ts_optional', 'false', r'''
+        # FIXME-WT-18608: Set default to false once we fix all the issues on the MongoDB side.
+        Config('disagg_commit_ts_optional', 'true', r'''
             !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated
             tables are not required to carry a commit timestamp.''',
             type='boolean', undoc=True),
