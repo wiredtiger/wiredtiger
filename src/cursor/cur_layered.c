@@ -26,6 +26,19 @@ typedef enum {
 } WTI_CLAYERED_PUT_OP;
 
 /*
+ * __clayered_assert_mirrored_write --
+ *     Transaction rollback marks writes aborted sequentially. The stable leg can succeed upon
+ *     observing another transaction's write as aborted while the ingest leg still sees the
+ *     corresponding write as a conflict and rolls back.
+ */
+static WT_INLINE void
+__clayered_assert_mirrored_write(WT_SESSION_IMPL *session, int ret)
+{
+    WT_ASSERT_ALWAYS(session, ret == 0 || ret == WT_ROLLBACK,
+      "mirrored write must succeed after stable write succeeds");
+}
+
+/*
  * Increment the ingest or stable variant of a read statistic according to which constituent cursor
  * holds the result. Call only on the success path of a read, once the operation has positioned the
  * cursor; the assert enforces that.
@@ -3108,7 +3121,7 @@ __clayered_put_both(
     /* Write to stable first to detect conflict and exit early. */
     WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
     ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
-    WT_ASSERT_ALWAYS(session, ret == 0, "mirrored write must succeed after stable write succeeds");
+    __clayered_assert_mirrored_write(session, ret);
 
 err:
     __wt_scr_free(session, &ingest_buf);
@@ -3378,7 +3391,7 @@ __clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positi
     WT_RET(__clayered_remove_from_stable(
       op, key, positioned && op->clayered->current_cursor == op->stable));
     ret = __clayered_ingest_tombstone(op, key);
-    WT_ASSERT_ALWAYS(session, ret == 0, "mirrored write must succeed after stable write succeeds");
+    __clayered_assert_mirrored_write(session, ret);
     return (ret);
 }
 
@@ -4156,8 +4169,7 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     /* Write to stable first to detect conflict and exit early. */
     WT_RET(__clayered_modify_stable(op, entries, nentries));
     ret = __clayered_modify_ingest(op, entries, nentries);
-    WT_ASSERT_ALWAYS(
-      CUR2S(clayered), ret == 0, "mirrored write must succeed after stable write succeeds");
+    __clayered_assert_mirrored_write(CUR2S(clayered), ret);
     return (ret);
 }
 
