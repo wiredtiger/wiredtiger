@@ -3105,9 +3105,6 @@ __clayered_put_both(
     WT_CLEAR(ingest_value);
     WT_CLEAR(stable_value);
 
-    /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
-    F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-
     /*
      * Build both table-specific encodings before writing either table. The stable write may consume
      * the input value, so the ingest encoding must already be available. A reserve has no value to
@@ -3285,6 +3282,14 @@ __clayered_ingest_tombstone(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     /* If we are positioned on the stable table, we need to set the key. */
     if (clayered->current_cursor != c_ingest)
         c_ingest->set_key(c_ingest, key);
+
+    /*
+     * Clear the stable cursor position. Keep the cursor position if we are in the middle of a
+     * cursor traversal.
+     */
+    if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
+        WT_RET(__clayered_reset_cursors(clayered, true));
+
     c_ingest->set_value(c_ingest, &__wt_tombstone);
     WT_RET(c_ingest->update(c_ingest));
     clayered->current_cursor = c_ingest;
@@ -3328,13 +3333,6 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         if (__wt_clayered_deleted(&value))
             return (WT_NOTFOUND);
     }
-
-    /*
-     * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-     * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
-     */
-    if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
-        WT_RET(__clayered_reset_cursors(clayered, true));
 
     /*
      * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer. Doing
@@ -3384,7 +3382,7 @@ __clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positi
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     WT_DECL_RET;
 
-    /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
+    /* Ensure the stable cursor position is not reused incorrectly after a mirrored remove. */
     F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     /* Write to stable first to detect conflict and exit early. */
@@ -4162,9 +4160,6 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_DECL_RET;
-
-    /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     /* Write to stable first to detect conflict and exit early. */
     WT_RET(__clayered_modify_stable(op, entries, nentries));
