@@ -3231,6 +3231,13 @@ __clayered_constituent_check(
 static int
 __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 {
+    /*
+     * Only a write routed to ingest can conflict with committed history in the stable constituent:
+     * a write routed to stable is covered by the stable cursor's own check.
+     */
+    if (op->write_target != WTI_CLAYERED_WRITE_INGEST)
+        return (0);
+
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
@@ -3246,13 +3253,6 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
      * When step-down writes are mirrored to stable there is no need to probe.
      */
     bool stepdown_ts_set = session->txn->stepdown_ts_set;
-
-    /*
-     * Only a write routed to ingest can conflict with committed history in the stable constituent:
-     * a write routed to stable is covered by the stable cursor's own check.
-     */
-    if (op->write_target != WTI_CLAYERED_WRITE_INGEST)
-        return (0);
 
     /* Otherwise every snapshot-visible update is current; there is nothing to check. */
     if (!has_read_ts && !stepdown_ts_set)
