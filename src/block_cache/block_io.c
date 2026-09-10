@@ -275,10 +275,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         }
 
         /*
-         * The in-memory size in the page header hasn't been verified yet (salvage calls this
-         * function on speculative blocks before verify runs). Bound it before trusting it to size
-         * the decompression buffer and call: too small underflows the compress-skip subtraction
-         * below into a huge length, too large is an unreasonable allocation either way.
+         * Salvage reads unverified blocks, so bound the header's in-memory size before trusting it
+         * to size the decompression buffer: too small underflows the subtraction below.
          */
         if (dsk->mem_size <= WT_BLOCK_COMPRESS_SKIP || dsk->mem_size > WT_BTREE_PAGE_SIZE_MAX) {
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
