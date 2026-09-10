@@ -594,6 +594,32 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
+ * __txn_disagg_commit_ts_check --
+ *     Transactions committing layered content on a disaggregated connection must carry a commit
+ *     timestamp.
+ */
+static WT_INLINE int
+__txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
+{
+    if (!__wt_conn_is_disagg(session))
+        return (0);
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
+        return (0);
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+        return (0);
+
+    /* Metadata commits untimestamped by design and its transactions cannot be rolled back. */
+    if (WT_IS_ANY_METADATA(btree->dhandle))
+        return (0);
+
+    /* Only layered constituents need ordering. */
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+}
+
+/*
  * __wt_txn_timestamp_usage_check --
  *     Check if a commit will violate timestamp rules.
  */
@@ -623,6 +649,8 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
+
+    WT_RET(__txn_disagg_commit_ts_check(session, txn, btree));
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
@@ -2066,34 +2094,6 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
     __wt_session_set_last_error(
       session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
     return (WT_ROLLBACK);
-}
-
-/*
- * __wt_txn_disagg_commit_ts_check --
- *     Transactions committing layered content on a disaggregated connection must carry a commit
- *     timestamp.
- */
-static WT_INLINE int
-__wt_txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_TXN_OP *op)
-{
-    if (!__wt_conn_is_disagg(session))
-        return (0);
-    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
-        return (0);
-    if (op->type == WT_TXN_OP_NONE || op->btree == NULL)
-        return (0);
-
-    /*
-     * Only layered constituents need ordering, metadata commits untimestamped by design and its
-     * transactions cannot be rolled back.
-     */
-    if (!F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT) &&
-      !(F_ISSET(op->btree, WT_BTREE_DISAGGREGATED) && !WT_IS_ANY_METADATA(op->btree->dhandle)))
-        return (0);
-    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
-        return (0);
-
-    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
 }
 
 /*

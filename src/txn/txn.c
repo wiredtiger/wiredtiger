@@ -1754,9 +1754,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        /* A failure here rolls the whole transaction back. */
-        WT_ERR(__wt_txn_disagg_commit_ts_check(session, txn, op));
-
 #ifdef HAVE_DIAGNOSTIC
         /*
          * While the step-down timestamp is set, a committing transaction's layered content must sit

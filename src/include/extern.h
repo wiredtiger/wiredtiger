@@ -2412,8 +2412,6 @@ static WT_INLINE int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requi
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn,
-  WT_TXN_OP *op) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_id_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
