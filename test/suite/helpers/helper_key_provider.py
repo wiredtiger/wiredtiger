@@ -32,6 +32,7 @@ from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, get_shard_id
 
 # Shared base for the key-provider tests.
+@wttest.prevent(["timestamp"])  # these tests choose their own commit timestamps
 class KeyProviderBase(wttest.WiredTigerTestCase):
     # Per-test knobs.
     key_provider_version = 1   # 0 = pull (get_key), 1 = push (set_key)
