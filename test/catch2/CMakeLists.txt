@@ -35,6 +35,7 @@ else()
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
+        misc_tests/test_layered_prepare_stepdown.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
         misc_tests/test_semaphore.cpp

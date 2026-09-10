@@ -236,7 +236,8 @@ CALLGRAPH_GOLDEN_CALLERS = {
         "__clayered_modify_ingest", "__clayered_next_random", "__clayered_search",
         "__clayered_search_near", "__clayered_update"}),
     INGEST_TO_STABLE_FN: frozenset({"__layered_copy_ingest_table"}),
-    STABLE_TO_INGEST_FN: frozenset({"__prepare_discover_alloc_upd"}),
+    STABLE_TO_INGEST_FN: frozenset(
+        {"__prepare_discover_alloc_upd", "__txn_stepdown_clone_update"}),
     # Not a conversion helper: it stores bytes its callers already encoded, so it is exempt from
     # rule D4 and its caller set is pinned here instead.
     "__clayered_put": frozenset({
