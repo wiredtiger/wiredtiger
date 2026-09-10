@@ -4074,7 +4074,7 @@ __clayered_modify_try_ingest(
  *     modifications twice.
  */
 static int
-__clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, bool mirroring)
+__clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -4082,6 +4082,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, 
     WT_CURSOR *c_ingest = op->ingest;
     WT_CURSOR *c_stable;
     bool need_full_update = false;
+    bool mirroring = op->write_target == WTI_CLAYERED_WRITE_BOTH;
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
@@ -4158,7 +4159,7 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     /* Write to stable first to detect conflict and exit early. */
     WT_RET(__clayered_modify_stable(op, entries, nentries));
-    return (__clayered_modify_ingest(op, entries, nentries, true));
+    return (__clayered_modify_ingest(op, entries, nentries));
 }
 
 /*
@@ -4172,7 +4173,7 @@ __clayered_modify_int(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     case WTI_CLAYERED_WRITE_STABLE:
         return (__clayered_modify_stable(op, entries, nentries));
     case WTI_CLAYERED_WRITE_INGEST:
-        return (__clayered_modify_ingest(op, entries, nentries, false));
+        return (__clayered_modify_ingest(op, entries, nentries));
     case WTI_CLAYERED_WRITE_BOTH:
         return (__clayered_modify_both(op, entries, nentries));
     case WTI_CLAYERED_WRITE_NONE:
