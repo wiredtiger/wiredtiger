@@ -3594,7 +3594,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /*
      * On upgrade, WiredTiger.basecfg can still list the dir_store extension. Loading it would crash
      * the library. The leftover extension and leftover tiered_storage configuration are dependent,
-     * so a non-none name catches that case before the load.
+     * so looking for the tiered storage config catches that case before the load.
      */
     WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.name", &cval));
     if (cval.len != 0)
