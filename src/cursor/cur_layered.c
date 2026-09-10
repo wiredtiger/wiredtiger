@@ -3107,15 +3107,8 @@ __clayered_put_both(
 
     /* Write to stable first to detect conflict and exit early. */
     WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
-
-    /*
-     * Once stable is written the mirror is mandatory: stable content above the cutover survives
-     * only through its ingest copy, so a failed mirror must abort the transaction.
-     */
     ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
-    WT_ASSERT(
-      session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
-    WT_ERR(ret);
+    WT_ASSERT_ALWAYS(session, ret == 0, "mirrored write must succeed after stable write succeeds");
 
 err:
     __wt_scr_free(session, &ingest_buf);
@@ -3369,18 +3362,23 @@ __clayered_remove_from_stable(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 }
 
 /*
- * __clayered_remove_mirror --
- *     Record the ingest tombstone after removing the stable copy.
+ * __clayered_remove_from_both --
+ *     Remove an entry from the stable table and mirror the tombstone to the ingest table.
  */
 static WT_INLINE int
-__clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
+__clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     WT_DECL_RET;
 
+    /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
+    F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+
+    /* Write to stable first to detect conflict and exit early. */
+    WT_RET(__clayered_remove_from_stable(
+      op, key, positioned && op->clayered->current_cursor == op->stable));
     ret = __clayered_ingest_tombstone(op, key);
-    WT_ASSERT(
-      session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
+    WT_ASSERT_ALWAYS(session, ret == 0, "mirrored write must succeed after stable write succeeds");
     return (ret);
 }
 
@@ -3391,17 +3389,17 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 static WT_INLINE int
 __clayered_remove_int(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
-    if (op->write_target == WTI_CLAYERED_WRITE_BOTH) {
-        /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
-        F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-        /* Write to stable first to detect conflict and exit early. */
-        WT_RET(__clayered_remove_from_stable(
-          op, key, positioned && op->clayered->current_cursor == op->stable));
-        return (__clayered_remove_mirror(op, key));
+    switch (op->write_target) {
+    case WTI_CLAYERED_WRITE_STABLE:
+        return (__clayered_remove_from_stable(op, key, positioned));
+    case WTI_CLAYERED_WRITE_INGEST:
+        return (__clayered_remove_from_ingest(op, key, positioned));
+    case WTI_CLAYERED_WRITE_BOTH:
+        return (__clayered_remove_from_both(op, key, positioned));
+    case WTI_CLAYERED_WRITE_NONE:
+        break;
     }
-    return (op->write_target == WTI_CLAYERED_WRITE_STABLE ?
-        __clayered_remove_from_stable(op, key, positioned) :
-        __clayered_remove_from_ingest(op, key, positioned));
+    return (__wt_illegal_value(CUR2S(op->clayered), op->write_target));
 }
 
 /*
@@ -4119,9 +4117,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, false, &c_ingest->value, &buf));
         F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
         ret = c_ingest->update(c_ingest);
-        WT_ASSERT(session,
-          !mirroring ||
-            !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
         WT_ERR(ret);
     }
 
@@ -4153,13 +4148,17 @@ static int
 __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_DECL_RET;
 
     /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     /* Write to stable first to detect conflict and exit early. */
     WT_RET(__clayered_modify_stable(op, entries, nentries));
-    return (__clayered_modify_ingest(op, entries, nentries));
+    ret = __clayered_modify_ingest(op, entries, nentries);
+    WT_ASSERT_ALWAYS(
+      CUR2S(clayered), ret == 0, "mirrored write must succeed after stable write succeeds");
+    return (ret);
 }
 
 /*
