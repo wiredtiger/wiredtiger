@@ -620,7 +620,7 @@ typedef struct {
     uint32_t *ids;
     size_t allocated;
     size_t count;
-    bool have_new; /* At least one id was adopted from the shared metadata. */
+    bool have_new_stable_id; /* At least one id was adopted from the shared metadata. */
 } WT_DISAGG_STABLE_BTREE_IDS;
 
 /*
@@ -680,7 +680,7 @@ __disagg_insert_meta(
     /* Track from here so that every path that adopts a leader-assigned ID is covered. */
     prev_count = stable_btree_ids->count;
     WT_ERR(__disagg_stable_btree_ids_add(session, stable_btree_ids, key, value));
-    stable_btree_ids->have_new |= (stable_btree_ids->count > prev_count);
+    stable_btree_ids->have_new_stable_id |= (stable_btree_ids->count > prev_count);
 
 err:
     return (ret);
@@ -1246,7 +1246,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * id, so an update-only pickup keeps the previously validated set and skips the check. Startup
      * pickups always check, covering ids that predate this process.
      */
-    if ((is_startup || stable_btree_ids.have_new) &&
+    if ((is_startup || stable_btree_ids.have_new_stable_id) &&
       __wt_metadata_btree_ids_find_duplicate(
         stable_btree_ids.ids, stable_btree_ids.count, &dup_id)) {
         WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
