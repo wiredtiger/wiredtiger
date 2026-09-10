@@ -3020,20 +3020,13 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_ASSERT(session, c != NULL);
 
-    if (c == op->ingest) {
+    if (op->write_target == WTI_CLAYERED_WRITE_INGEST) {
         /*
          * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
          * Doing so would remove the cursor write operation dependency on the truncate list.
          */
         WT_RET(__wt_layered_table_truncate_detect_write_conflict(
           session, op->truncate_list, op->collator, key));
-
-        /*
-         * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
-         */
-        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
-            WT_RET(__clayered_reset_cursors(clayered, true));
     }
 
     c->set_key(c, key);
@@ -3055,6 +3048,24 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
     case WTI_CLAYERED_PUT_RESERVE:
         WT_RET(__clayered_reserve_constituent(op, c));
         break;
+    }
+
+    if (c == op->ingest) {
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * A mirrored write must leave the same logical value in both trees. Check before resetting
+         * the stable cursor.
+         */
+        if (op->write_target == WTI_CLAYERED_WRITE_BOTH && put_op != WTI_CLAYERED_PUT_RESERVE)
+            __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
+#endif
+
+        /*
+         * Clear the stable cursor position. Keep the cursor position if we are in the middle of a
+         * cursor traversal.
+         */
+        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
+            WT_RET(__clayered_reset_cursors(clayered, true));
     }
 
     /* If necessary, set the position for future scans. */
@@ -3105,10 +3116,6 @@ __clayered_put_both(
     WT_ASSERT(
       session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
     WT_ERR(ret);
-#ifdef HAVE_DIAGNOSTIC
-    if (put_op != WTI_CLAYERED_PUT_RESERVE)
-        __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
-#endif
 
 err:
     __wt_scr_free(session, &ingest_buf);
