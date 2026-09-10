@@ -2708,6 +2708,17 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 if (last_block && r->multi_next == 1 &&
                   page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   WT_REC_RESULT_SINGLE_PAGE(session, r)) {
+                    /*
+                     * The previous block is only safe to reuse if the page's current content still
+                     * matches what it represents. An in-memory split has already moved some of the
+                     * page's rows to a new sibling ref, and a selected update newer than anything
+                     * the last reconciliation captured means the page now holds content that block
+                     * never saw either way: give up on this reconciliation attempt rather than
+                     * publish an address for the wrong content.
+                     */
+                    if (r->newer_updates_than_last_rec_used ||
+                      F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
+                        return (__wt_set_return(session, EBUSY));
                     WT_RET(__rec_copy_prev_addr(session, r));
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
