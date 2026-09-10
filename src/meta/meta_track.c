@@ -28,6 +28,7 @@ typedef struct __wt_meta_track {
     char *a, *b;                 /* Strings */
     WT_BUCKET_STORAGE *bstorage; /* Bucket */
     WT_DATA_HANDLE *dhandle;     /* Locked handle */
+    WT_DROP_PENDING *dp;         /* Removal queued at commit */
     uint32_t btree_id;           /* Btree whose history store content is dropped */
     bool created;                /* Handle on newly created file */
 } WT_META_TRACK;
@@ -76,6 +77,8 @@ __meta_track_clear(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
 {
     __wt_free(session, trk->a);
     __wt_free(session, trk->b);
+    if (trk->dp != NULL)
+        __wt_drop_pending_free(session, trk->dp);
     memset(trk, 0, sizeof(WT_META_TRACK));
 }
 
@@ -129,6 +132,27 @@ __wt_meta_track_on(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __meta_track_drop_apply --
+ *     Commit a file drop. The removal entry was allocated when the drop was tracked, so a renamed
+ *     file is always queued and the apply allocates nothing after the metadata is durable.
+ */
+static int
+__meta_track_drop_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
+{
+    WT_DECL_RET;
+
+    if (trk->dp != NULL && (ret = __wt_fs_rename(session, trk->a, trk->dp->name, false)) == 0) {
+        __wt_drop_pending_link(session, trk->dp);
+        trk->dp = NULL;
+        return (0);
+    }
+
+    if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
+        __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
+    return (ret);
+}
+
+/*
  * __meta_track_apply --
  *     Apply the changes in a metadata tracking record.
  */
@@ -148,12 +172,11 @@ __meta_track_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         WT_WITH_DHANDLE(session, trk->dhandle, ret = bm->checkpoint_resolve(bm, session, false));
         break;
     case WT_ST_DROP_COMMIT:
-        if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
-            __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
+        ret = __meta_track_drop_apply(session, trk);
         break;
     case WT_ST_DROP_OBJECT_COMMIT:
-        if ((ret = __wt_block_manager_drop_object(session, trk->bstorage, trk->a, false)) != 0)
-            __wt_err(session, ret, "metadata remove dropped object file %s", trk->a);
+        __wt_drop_pending_link(session, trk->dp);
+        trk->dp = NULL;
         break;
     case WT_ST_HS_TRUNCATE:
         /* The truncate opens its own cursors, so save our caller's handle. */
@@ -495,10 +518,10 @@ err:
 
 /*
  * __wt_meta_track_drop --
- *     Track a file drop, where the remove is deferred until commit.
+ *     Track a file drop, optionally renaming the file at commit and deferring its removal.
  */
 int
-__wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename)
+__wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename, const char *renamed)
 {
     WT_DECL_RET;
     WT_META_TRACK *trk;
@@ -507,6 +530,8 @@ __wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename)
 
     trk->op = WT_ST_DROP_COMMIT;
     WT_ERR(__wt_strdup(session, filename, &trk->a));
+    if (renamed != NULL)
+        WT_ERR(__wt_drop_pending_alloc(session, WT_DROP_PENDING_FILE, renamed, NULL, &trk->dp));
     return (0);
 
 err:
@@ -528,8 +553,7 @@ __wt_meta_track_drop_object(
     WT_RET(__meta_track_next(session, &trk));
 
     trk->op = WT_ST_DROP_OBJECT_COMMIT;
-    trk->bstorage = bstorage;
-    WT_ERR(__wt_strdup(session, filename, &trk->a));
+    WT_ERR(__wt_drop_pending_alloc(session, WT_DROP_PENDING_OBJECT, filename, bstorage, &trk->dp));
     return (0);
 
 err:

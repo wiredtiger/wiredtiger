@@ -3079,6 +3079,8 @@ static const char *const __stats_connection_desc[] = {
   "session: table create with import failed calls",
   "session: table create with import repair calls",
   "session: table create with import successful calls",
+  "session: table drop deferred operations applied",
+  "session: table drop deferred operations pending",
   "session: table drop failed calls",
   "session: table drop successful calls",
   "session: table publish failed calls",
@@ -4212,6 +4214,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_import_fail */
     /* not clearing session_table_create_import_repair */
     /* not clearing session_table_create_import_success */
+    /* not clearing session_table_drop_deferred_applied */
+    /* not clearing session_table_drop_deferred */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
     /* not clearing session_table_publish_fail */
@@ -5607,6 +5611,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, session_table_create_import_repair);
     to->session_table_create_import_success +=
       WT_STAT_CONN_READ(from, session_table_create_import_success);
+    to->session_table_drop_deferred_applied +=
+      WT_STAT_CONN_READ(from, session_table_drop_deferred_applied);
+    to->session_table_drop_deferred += WT_STAT_CONN_READ(from, session_table_drop_deferred);
     to->session_table_drop_fail += WT_STAT_CONN_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_CONN_READ(from, session_table_drop_success);
     to->session_table_publish_fail += WT_STAT_CONN_READ(from, session_table_publish_fail);

@@ -162,6 +162,9 @@ struct __wt_session_impl {
      */
     /* Session handle reference list */
     TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
+
+    /* Files a committed drop on this session leaves to remove after its locks are released. */
+    TAILQ_HEAD(__wt_drop_pending_qh, __wt_drop_pending) drop_pending;
     wt_shared uint64_t last_sweep; /* Last sweep for dead handles */
     struct timespec last_epoch;    /* Last epoch time returned */
 

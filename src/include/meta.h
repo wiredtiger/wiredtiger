@@ -175,3 +175,20 @@ typedef struct __wt_disagg_metadata {
     int version;            /* Metadata version */
     int compatible_version; /* Minimum compatible reader version */
 } WT_DISAGG_METADATA;
+
+typedef enum {
+    WT_DROP_PENDING_FILE,  /* Remove a renamed data file */
+    WT_DROP_PENDING_OBJECT /* Remove a tiered shared object */
+} WT_DROP_PENDING_TYPE;
+
+/*
+ * WT_DROP_PENDING --
+ *	File removal a committed drop leaves for after its locks are released.
+ */
+struct __wt_drop_pending {
+    WT_DROP_PENDING_TYPE type;
+    char *name;                  /* File or object name */
+    WT_BUCKET_STORAGE *bstorage; /* Shared object bucket */
+
+    TAILQ_ENTRY(__wt_drop_pending) q;
+};

@@ -12,6 +12,44 @@
 #define WT_CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
 
 /*
+ * __drop_rename_target --
+ *     Choose a free name to rename a dropped file to before it is removed outside the schema lock.
+ *     Only drops create these names and they are serialized by the schema lock, so the name stays
+ *     free until the rename; any failure falls back to removing the file in place.
+ */
+static void
+__drop_rename_target(
+  WT_SESSION_IMPL *session, const char *filename, uint32_t id, WT_ITEM *buf, bool *renamep)
+{
+    WT_DECL_RET;
+    int suffix;
+    bool exist;
+
+    *renamep = false;
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_LIVE_RESTORE_FS))
+        return;
+    if ((ret = __wt_fs_exist(session, filename, &exist)) != 0)
+        goto err;
+    if (!exist)
+        return;
+
+    if ((ret = __wt_buf_fmt(session, buf, "%s.%" PRIu32 ".wtdrop", filename, id)) != 0)
+        goto err;
+    for (suffix = 1; (ret = __wt_fs_exist(session, buf->data, &exist)) == 0 && exist; ++suffix)
+        if ((ret = __wt_buf_fmt(session, buf, "%s.%" PRIu32 ".wtdrop.%d", filename, id, suffix)) !=
+          0)
+            goto err;
+    if (ret == 0) {
+        *renamep = true;
+        return;
+    }
+
+err:
+    __wt_verbose_notice(session, WT_VERB_FILEOPS, "%s: could not defer file removal: %s", filename,
+      __wt_strerror(session, ret, NULL, 0));
+}
+
+/*
  * __drop_file --
  *     Drop a file.
  */
@@ -21,10 +59,11 @@ __drop_file(
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(renamed);
     WT_DECL_RET;
     const char *filename;
     char *metadata_cfg = NULL;
-    bool id_found, remove_files;
+    bool id_found, remove_files, rename;
     uint32_t id = 0;
 
     conn = S2C(session);
@@ -52,13 +91,18 @@ __drop_file(
     if (id_found)
         id = (uint32_t)cval.val;
 
+    rename = false;
+    WT_ERR(__wt_scr_alloc(session, 0, &renamed));
+    if (remove_files && id_found)
+        __drop_rename_target(session, filename, id, renamed, &rename);
+
     /* Remove the metadata entry (ignore missing items). */
     WT_TRET(__wt_metadata_remove(session, uri));
     if (remove_files)
         /*
          * Schedule the remove of the underlying physical file when the drop completes.
          */
-        WT_TRET(__wt_meta_track_drop(session, filename));
+        WT_TRET(__wt_meta_track_drop(session, filename, rename ? renamed->data : NULL));
 
     __wti_debug_crash_if_flag_set(
       session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, "after dropping file entry", uri);
@@ -77,6 +121,7 @@ __drop_file(
         !WT_BTREE_ID_SHARED(id)))
         WT_ERR(__wt_meta_track_hs_truncate(session, uri, id));
 err:
+    __wt_scr_free(session, &renamed);
     __wt_free(session, metadata_cfg);
     return (ret);
 }
@@ -410,11 +455,12 @@ __drop_tiered(
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *tier;
+    WT_DECL_ITEM(renamed);
     WT_DECL_RET;
     WT_TIERED *tiered, tiered_tmp;
     u_int i, localid;
     const char *filename, *name;
-    bool exist, got_dhandle, remove_files, remove_shared;
+    bool exist, got_dhandle, remove_files, remove_shared, rename;
 
     conn = S2C(session);
     WT_NOT_READ(got_dhandle, false);
@@ -473,6 +519,7 @@ __drop_tiered(
      * Remove the current local file object, the tiered entry and all bucket objects from the
      * metadata only.
      */
+    WT_ERR(__wt_scr_alloc(session, 0, &renamed));
     tier = tiered_tmp.tiers[WT_TIERED_INDEX_LOCAL].tier;
     localid = tiered_tmp.current_id;
     if (tier != NULL) {
@@ -488,7 +535,8 @@ __drop_tiered(
         if (remove_files) {
             filename = tier->name;
             WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
-            WT_ERR(__wt_meta_track_drop(session, filename));
+            __drop_rename_target(session, filename, localid, renamed, &rename);
+            WT_ERR(__wt_meta_track_drop(session, filename, rename ? renamed->data : NULL));
         }
     }
 
@@ -526,8 +574,10 @@ __drop_tiered(
             filename = name;
             WT_PREFIX_SKIP_REQUIRED(session, filename, "object:");
             WT_ERR(__wt_fs_exist(session, filename, &exist));
-            if (exist)
-                WT_ERR(__wt_meta_track_drop(session, filename));
+            if (exist) {
+                __drop_rename_target(session, filename, i, renamed, &rename);
+                WT_ERR(__wt_meta_track_drop(session, filename, rename ? renamed->data : NULL));
+            }
 
             /*
              * If a drop operation on tiered storage is configured to force removal of shared
@@ -553,6 +603,7 @@ __drop_tiered(
 err:
     if (got_dhandle)
         WT_TRET(__wt_session_release_dhandle(session));
+    __wt_scr_free(session, &renamed);
     __wt_free(session, name);
     __wt_spin_unlock_if_owned(session, &conn->tiered.tiered_lock);
     return (ret);
@@ -637,6 +688,89 @@ __wt_schema_drop(
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);
+    /* Take ownership of any deferred removals before the internal session is released. */
+    if (int_session != session)
+        TAILQ_CONCAT(&session->drop_pending, &int_session->drop_pending, q);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
+}
+
+/*
+ * __wt_drop_pending_alloc --
+ *     Allocate a pending removal before renaming the file.
+ */
+int
+__wt_drop_pending_alloc(WT_SESSION_IMPL *session, WT_DROP_PENDING_TYPE type, const char *name,
+  WT_BUCKET_STORAGE *bstorage, WT_DROP_PENDING **dpp)
+{
+    WT_DECL_RET;
+    WT_DROP_PENDING *dp;
+
+    WT_RET(__wt_calloc_one(session, &dp));
+    dp->type = type;
+    dp->bstorage = bstorage;
+    WT_ERR(__wt_strdup(session, name, &dp->name));
+
+    *dpp = dp;
+    return (0);
+
+err:
+    __wt_free(session, dp);
+    return (ret);
+}
+
+/*
+ * __wt_drop_pending_free --
+ *     Free a pending drop entry.
+ */
+void
+__wt_drop_pending_free(WT_SESSION_IMPL *session, WT_DROP_PENDING *dp)
+{
+    __wt_free(session, dp->name);
+    __wt_free(session, dp);
+}
+
+/*
+ * __wt_drop_pending_link --
+ *     Queue an allocated entry on the session that owns the drop.
+ */
+void
+__wt_drop_pending_link(WT_SESSION_IMPL *session, WT_DROP_PENDING *dp)
+{
+    TAILQ_INSERT_TAIL(&session->drop_pending, dp, q);
+    WT_STAT_CONN_INCR(session, session_table_drop_deferred);
+}
+
+/*
+ * __wt_drop_pending_apply --
+ *     Remove all files this session's committed drops left queued. The metadata is already durable,
+ *     so failures are logged rather than returned.
+ */
+void
+__wt_drop_pending_apply(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_DROP_PENDING *dp;
+
+    while ((dp = TAILQ_FIRST(&session->drop_pending)) != NULL) {
+        TAILQ_REMOVE(&session->drop_pending, dp, q);
+
+        while (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DROP_DEFERRED_HOLD))
+            __wt_sleep(0, 10 * WT_THOUSAND);
+
+        switch (dp->type) {
+        case WT_DROP_PENDING_FILE:
+            if ((ret = __wt_fs_remove(session, dp->name, false, false)) != 0)
+                __wt_err(session, ret, "remove dropped file %s", dp->name);
+            break;
+        case WT_DROP_PENDING_OBJECT:
+            if ((ret = __wt_block_manager_drop_object(session, dp->bstorage, dp->name, false)) != 0)
+                __wt_err(session, ret, "remove dropped object file %s", dp->name);
+            break;
+        }
+
+        WT_STAT_CONN_DECR(session, session_table_drop_deferred);
+        WT_STAT_CONN_INCR(session, session_table_drop_deferred_applied);
+        __wt_drop_pending_free(session, dp);
+    }
 }

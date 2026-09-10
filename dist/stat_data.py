@@ -956,6 +956,8 @@ conn_stats = [
     SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_deferred', 'table drop deferred operations pending', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_deferred_applied', 'table drop deferred operations applied', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_publish_fail', 'table publish failed calls', 'no_clear,no_scale'),
