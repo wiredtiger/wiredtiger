@@ -3592,15 +3592,20 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
 
     /*
+     * On upgrade, WiredTiger.basecfg can still list the dir_store extension. Loading it would crash
+     * the library. The leftover extension and leftover tiered_storage configuration are dependent,
+     * so looking for the tiered storage config catches that case before the load.
+     */
+    WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.name", &cval));
+    if (cval.len != 0)
+        WT_ERR_MSG(session, ENOTSUP, "tiered storage is not supported");
+
+    /*
      * Load the extensions after initialization completes; extensions expect everything else to be
      * in place, and the extensions call back into the library.
      */
     WT_ERR(__conn_builtin_extensions(conn, cfg));
     WT_ERR(__conn_load_extensions(session, cfg, false));
-
-    WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.name", &cval));
-    if (cval.len != 0)
-        WT_ERR_MSG(session, ENOTSUP, "tiered storage is not supported");
 
     /*
      * The metadata/log encryptor is configured after extensions, since extensions may load

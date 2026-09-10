@@ -359,7 +359,7 @@ file_runtime_config = common_runtime_config + log_runtime_config + [
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + tiered_config + file_disaggregated_config + [
+file_config = format_meta + file_runtime_config + file_disaggregated_config + [
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "best" or \c "first"; the \c "best"
         configuration uses a best-fit algorithm, the \c "first" configuration uses a
@@ -512,9 +512,6 @@ file_meta = file_config + [
         the file is read-only. All methods that modify a file are disabled. See @ref
         readonly for more information''',
         type='boolean'),
-    Config('tiered_object', 'false', r'''
-        removed option, preserved to allow parsing old metadata''',
-        type='boolean', undoc=True),
     Config('version', '(major=0,minor=0)', r'''
         the file version'''),
 ]
