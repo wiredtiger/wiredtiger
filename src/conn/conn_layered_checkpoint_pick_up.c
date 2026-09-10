@@ -806,7 +806,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
   wt_timestamp_t ckpt_schema_epoch, bool is_startup)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
+    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_read_cursor, *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(metadata_uri_buf);
@@ -829,6 +829,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
+    md_read_cursor = NULL;
     md_write_cursor = NULL;
     WT_CLEAR(prefetch_scan);
     WT_CLEAR(stable_btree_ids);
@@ -1228,7 +1229,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      */
     if (__wt_metadata_btree_ids_find_duplicate(
           stable_btree_ids.ids, stable_btree_ids.count, &dup_id)) {
-        WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
+        WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_read_cursor));
+        WT_ERR(__wt_metadata_stable_uris_for_id(
+          session, md_read_cursor, dup_id, &first_uri, &second_uri));
         WT_ERR_PANIC(session, EINVAL,
           "checkpoint pickup would leave btree ID %" PRIu32
           " shared by \"%s\" and \"%s\" in the local metadata",
@@ -1261,6 +1264,8 @@ err:
 
     if (md_write_cursor != NULL)
         WT_TRET(md_write_cursor->close(md_write_cursor));
+    if (md_read_cursor != NULL)
+        WT_TRET(md_read_cursor->close(md_read_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         if (md_cursors[i] != NULL)
             WT_TRET(md_cursors[i]->close(md_cursors[i]));
