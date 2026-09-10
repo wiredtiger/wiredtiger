@@ -1036,6 +1036,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_in_progress;
+    int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
     int64_t layered_curs_insert;
