@@ -1758,6 +1758,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 #ifdef HAVE_DIAGNOSTIC
         /*
+         * FIXME-WT-18606: Consider moving these assertions to the setting timestamp path.
+         *
          * While the step-down timestamp is set, a committing transaction's ingest content must sit
          * strictly above the boundary. Checked per operation here to fold the boundary check into
          * the pass this loop already makes.
@@ -1777,6 +1779,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
                 if (!mirroring)
                     wrote_stable = true;
+                /* FIXME-WT-18606: Compare durable timestamp instead of commit for stable. */
                 if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
                     if (mirroring) {
                         if (txn->time_point.commit_timestamp > step_down_ts)
