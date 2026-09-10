@@ -443,6 +443,19 @@ configure_obsolete_cleanup(char **p, size_t max)
     CONFIG_APPEND(*p, "]");
 }
 
+/*
+ * configure_verbose --
+ *     Configure verbose messaging.
+ */
+static void
+configure_verbose(char **p, size_t max)
+{
+    /*
+     * WT_VERBOSE_INFO adds the lifecycle markers that identify which phase the run had reached.
+     */
+    CONFIG_APPEND(*p, ",verbose=[all:0]");
+}
+
 #define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
 /*
@@ -582,6 +595,9 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     /* Extensions. */
     configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
+
+    /* Verbose messaging. */
+    configure_verbose(&p, max);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -819,6 +835,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Extensions. */
     configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
+
+    /* Verbose messaging. */
+    configure_verbose(&p, max);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
