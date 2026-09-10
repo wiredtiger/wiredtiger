@@ -72,6 +72,9 @@ Layered tables support all the regular tables operations, with exceptions listed
 __Note:__ This section is closely tied to the source code and may become outdated if not
 maintained in sync with implementation changes.
 
+For detailed behavioral and correctness rules for stable and ingest tables, see
+@ref arch-disagg-ingest-stable-contracts.
+
 @subsection layered-leader-follower Leader vs Follower
 - Leader (Primary):
     - All operations (including writes) go directly to the stable table
