@@ -209,6 +209,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* Set the data handle first, our called functions reasonably use it. */
     btree->dhandle = dhandle;
 
+    __wt_cache_top_btree_open(session, btree);
+
     /* Checkpoint and verify files are readonly. */
     if (WT_DHANDLE_IS_CHECKPOINT(dhandle) || F_ISSET(btree, WT_BTREE_VERIFY) ||
       F_ISSET(S2C(session), WT_CONN_READONLY))
@@ -422,6 +424,14 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         WT_TRET(bm->close(bm, session));
     }
 
+    /*
+     * Drop the tree from the cache-consumer rankings: a re-open clears the fields recording cache
+     * ranking, and a slot left pointing here would then be orphaned. Page discard runs after this
+     * and can put the tree back in a ranking, but only for a handle already marked dead, which is
+     * discarded rather than re-opened.
+     */
+    __wt_cache_top_btree_discard(session, btree);
+
     return (ret);
 }
 
@@ -438,6 +448,7 @@ __wt_btree_discard(WT_SESSION_IMPL *session)
     ret = __btree_clear(session);
 
     btree = S2BT(session);
+    __wt_cache_top_btree_discard(session, btree);
     __wt_overwrite_and_free(session, btree);
     session->dhandle->handle = NULL;
 
@@ -631,6 +642,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
       F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_IS_URI_HS(btree->dhandle->name) &&
       !WT_IS_URI_METADATA(btree->dhandle->name) &&
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
+
+    /* Publishing the create records the epoch. */
+    __wt_atomic_store_uint64_relaxed(&btree->create_schema_epoch, WT_SCHEMA_EPOCH_NONE);
 
     if (awaits_publish) {
         F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);

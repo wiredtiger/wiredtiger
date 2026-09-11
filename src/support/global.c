@@ -26,6 +26,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
    */
   {"aggressive_stash_free", WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE},
   {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
+  {"backup_blkmod_delay", WT_TIMING_STRESS_BACKUP_BLKMOD_DELAY},
   {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
   {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
@@ -34,6 +35,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
+  {"disagg_stable_dhandle_delay", WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY},
   {"disagg_role_transition", WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
   {"failpoint_disagg_checkpoint_apply", WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY},

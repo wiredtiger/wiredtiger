@@ -359,6 +359,12 @@ conn_stats = [
     CacheStat('cache_shared_dsk_lock_contention', 'shared disk bucket lock contention count'),
     CacheStat('cache_shared_dsk_miss', 'shared disk miss'),
     CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
+    CacheStat('cache_top5_dirty_pct', 'percentage of cache held as dirty leaf bytes by the top 5 tables', 'no_clear,no_scale'),
+    CacheStat('cache_top5_inuse_pct', 'percentage of cache held by the top 5 tables', 'no_clear,no_scale'),
+    CacheStat('cache_top5_updates_pct', 'percentage of cache held as update bytes by the top 5 tables', 'no_clear,no_scale'),
+    CacheStat('cache_top_dirty_pct', 'percentage of cache held as dirty leaf bytes by the top 32 tables', 'no_clear,no_scale'),
+    CacheStat('cache_top_inuse_pct', 'percentage of cache held by the top 32 tables', 'no_clear,no_scale'),
+    CacheStat('cache_top_updates_pct', 'percentage of cache held as update bytes by the top 32 tables', 'no_clear,no_scale'),
     CacheStat('cache_truncate_txn_uncommitted_bytes', 'pages dirtied by fast-truncate in uncommitted txn - bytes', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
@@ -382,6 +388,7 @@ conn_stats = [
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
+    EvictStat('eviction_disagg_publish_cleared', 'disaggregated tables the eviction server published'),
     EvictStat('eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -1379,6 +1386,7 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint Cleanup statistics
     ##########################################
+    CheckpointCleanupStat('checkpoint_cleanup_pages_deleted_not_visible_all', 'internal pages whose deleted children were all still visible to some reader'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache due to obsolete time window'),
@@ -1474,6 +1482,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
     LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
+    LayeredStat('layered_curs_open_stable_ckpt_pickup_race', 'Layered table cursor stable open raced a checkpoint pickup'),
     LayeredStat('layered_curs_open_stable_refused', 'Layered table cursor stable open refused to preserve a transaction snapshot'),
     LayeredStat('layered_curs_open_stable_stepdown_race', 'Layered table cursor stable open rolled back after racing a step-down'),
     LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),

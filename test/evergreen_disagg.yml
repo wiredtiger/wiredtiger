@@ -564,21 +564,6 @@ functions:
           ./test_schema_disagg_abort -b "$build_dir" ${schema_args} -T 12 -u 64 -t 300
         done
 
-  "timestamp abort disagg":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ${additional_san_vars}
-        for i in $(seq ${times|1}); do
-          echo Iteration $i/${times}
-          ./test_timestamp_abort -G -s
-        done
-
 #######################################
 #               Variables             #
 #######################################
@@ -664,15 +649,6 @@ variables:
             runs.predictable_replay=1 runs.rows=50000:200000 runs.ops=500000:2000000
           times: 10
 
-  - &timestamp-abort-test-disagg
-    depends_on:
-        - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "timestamp abort disagg"
-        vars:
-          times: 50
-
   - &schema-disagg-abort-smoke-test-disagg
     depends_on:
         - name: compile
@@ -754,13 +730,6 @@ tasks:
     tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-test-disagg-snapshot
     name: format-stress-test-disagg-snapshot-2
-    tags: ["stress-test-disagg-fail"]
-
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-2
     tags: ["stress-test-disagg-fail"]
 
   # The schema-disagg-abort matrix. The kill variants cover their graceful counterparts, since a

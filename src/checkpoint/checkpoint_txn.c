@@ -403,23 +403,64 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __checkpoint_disagg_verify_create_epoch --
+ *     Cross-check the create epoch recorded on a stable btree against the shared metadata queue. A
+ *     btree with no epoch but a published create means a publish path missed it, and the table
+ *     would silently never be checkpointed.
+ */
+static int
+__checkpoint_disagg_verify_create_epoch(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t create_epoch)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(table_name);
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *latest;
+    const char *name, *suffix;
+
+    conn = S2C(session);
+
+    name = stable_uri;
+    if (!WT_PREFIX_SKIP(name, "file:") || !WT_URI_IS_STABLE(name))
+        return (0);
+
+    suffix = strstr(name, ".wt_stable");
+    WT_RET(__wt_scr_alloc(session, 0, &table_name));
+    WT_ERR(__wt_buf_fmt(session, table_name, "%.*s", (int)(suffix - name), name));
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    latest = __wt_disagg_table_latest_create_remove(session, table_name->data);
+    if (create_epoch != WT_SCHEMA_EPOCH_NONE)
+        WT_ASSERT(session,
+          latest != NULL && latest->metadata_op == WT_SHARED_METADATA_CREATE &&
+            latest->schema_epoch == create_epoch);
+    else if (latest != NULL && latest->metadata_op == WT_SHARED_METADATA_CREATE &&
+      latest->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+        ret = __wt_panic(session, EINVAL,
+          "table \"%s\" awaits publication but its create was published at schema epoch %" PRIu64,
+          stable_uri, latest->schema_epoch);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+err:
+    __wt_scr_free(session, &table_name);
+    return (ret);
+}
+#endif
+
 /*
  * __checkpoint_disagg_maybe_publish --
- *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
- *     schema epoch covers the table's CREATE entry. If so, clear WT_BTREE_AWAITS_PUBLISH so the
- *     btree is written out and included in this checkpoint. If not, verify the btree has no stable
- *     updates: having stable data in an unpublished table violates the API contract that a table
- *     must be published before the checkpoint that includes its data.
+ *     Clear WT_BTREE_AWAITS_PUBLISH when this checkpoint's schema epoch covers the table's create,
+ *     so the btree joins the checkpoint. A table that stays unpublished must hold no stable data:
+ *     the API requires a table to be published before the checkpoint that includes its data.
  */
 static int
 __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    WT_DISAGG_METADATA_OP *entry;
-    WT_SHARED_METADATA_OP latest_op;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp, latest_epoch;
-    bool published;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
 
     conn = S2C(session);
     dhandle = session->dhandle;
@@ -431,37 +472,20 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    /*
-     * Publish only when the table's latest create/remove is a CREATE at or below the checkpoint's
-     * schema epoch.
-     *
-     * FIXME-WT-18187: This walks the whole queue once per awaiting-publish btree. Caching the
-     * create schema epoch on WT_BTREE would make this an O(1) field read.
-     */
-    latest_op = WT_SHARED_METADATA_NONE;
-    latest_epoch = WT_SCHEMA_EPOCH_NONE;
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
-          strcmp(entry->stable_uri, dhandle->name) == 0) {
-            latest_op = entry->metadata_op;
-            latest_epoch = entry->schema_epoch;
-        }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+#ifdef HAVE_DIAGNOSTIC
+    WT_RET(__checkpoint_disagg_verify_create_epoch(
+      session, dhandle->name, __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch)));
+#endif
 
-    published = latest_op == WT_SHARED_METADATA_CREATE && latest_epoch <= ckpt_epoch;
+    __wt_disagg_btree_publish_if_covered(session, btree, ckpt_epoch, NULL);
 
-    if (!published) {
+    /* A btree this checkpoint skips must hold no data the checkpoint considers stable. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH)) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
         if (btree->min_unpublished_durable_ts != WT_TS_NONE &&
           btree->min_unpublished_durable_ts <= ckpt_timestamp)
             WT_RET_MSG(session, EINVAL, "stable data checkpointed for unpublished table \"%s\"",
               dhandle->name);
-    }
-
-    if (published) {
-        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
-        __wt_evict_file_exclusive_off(session);
     }
 
     return (0);
@@ -521,7 +545,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
           !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
             return (0);
         /* Skip checkpointing outdated trees. */
-        if (F_ISSET(btree->dhandle, WT_DHANDLE_OUTDATED))
+        if (__wt_atomic_load_bool_relaxed(&btree->dhandle->outdated))
             return (0);
     }
 
@@ -1394,12 +1418,14 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * even without new committed data. A node with no live stable epoch carries the last written
      * epoch forward, so the epoch cannot have changed.
      */
+    /* Relaxed loads: the checkpoint lock held here also serializes every store. */
     last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
     stable_disagg_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
     if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
       last_ckpt_ts == __wt_get_stable_timestamp(session) &&
       (stable_disagg_epoch == WT_SCHEMA_EPOCH_NONE ||
-        txn_global->last_ckpt_disaggregated_schema_epoch == stable_disagg_epoch)) {
+        __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_disaggregated_schema_epoch) ==
+          stable_disagg_epoch)) {
         ckpt_cfg->can_skip = true;
         return (0);
     }
@@ -2150,7 +2176,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * WT_CONNECTION.rollback_to_stable is an allowed operation.
      */
     if (ckpt_cfg.use_timestamp) {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_write_epoch;
+        __wt_atomic_store_uint64_relaxed(
+          &conn->txn_global.last_ckpt_disaggregated_schema_epoch, ckpt_disagg_write_epoch);
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -2165,7 +2192,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
             ckpt_tmp_ts = conn->txn_global.recovery_timestamp;
         __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, ckpt_tmp_ts);
     } else {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = WT_TS_NONE;
+        __wt_atomic_store_uint64_relaxed(
+          &conn->txn_global.last_ckpt_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
         __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, WT_TS_NONE);
     }
 
@@ -2395,6 +2423,12 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
         WT_ERR_PANIC(
           session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption");
     WT_ERR(ret);
+
+    /*
+     * Publish how much of the cache the largest tables hold. Nothing here needs the checkpoint
+     * lock, and it is held exclusively, so this waits until it has been dropped.
+     */
+    __wt_cache_top_stats_update(session);
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
     if (checkpoint_cleanup)
@@ -3394,6 +3428,10 @@ fake:
         WT_ERR_MSG_CHK(session, __wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL),
           "checkpoint failed during logging completion");
 
+    /* This checkpoint persists the data the unpublished minimum tracks. Clear it now. */
+    if (is_checkpoint && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        __wt_atomic_store_uint64_relaxed(&btree->min_unpublished_durable_ts, WT_TS_NONE);
+
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm) {
@@ -3650,7 +3688,9 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_RET(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
-            WT_RET(__wt_checkpoint_file(session, cfg));
+            ret = __wt_checkpoint_file(session, cfg);
+        WT_TRET(__wt_session_release_dhandle(session));
+        WT_RET(ret);
     }
 
     /* Disable metadata tracking during the metadata checkpoint. */

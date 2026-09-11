@@ -1444,6 +1444,10 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_cache(session));
 
+    WT_ERR(__wt_config_gets(session, cfg, "cache_top", &cval));
+    if (cval.val != 0)
+        WT_ERR(__wt_cache_top_report(session));
+
     WT_ERR(__wt_config_gets(session, cfg, "cursors", &cval));
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_sessions(session, true));
@@ -1705,6 +1709,11 @@ __conn_startup_cleanup_and_verify(WT_CONNECTION_IMPL *conn, bool verify_meta)
     if (verify_meta) {
         /* Database verification must happen as the first step before any potential changes. */
         WT_ERR(__wt_verify_disagg_database_size(session));
+
+        if (__wt_conn_is_disagg(session)) {
+            WT_SESSION *wt_session = &session->iface;
+            WT_ERR(wt_session->verify(wt_session, WT_DISAGG_METADATA_URI, NULL));
+        }
 
         /*
          * If the user wants to verify WiredTiger metadata, verify the history store now that the
@@ -2629,7 +2638,8 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
       {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
-      {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
+      {"cache_top", WT_VERB_CACHE_TOP}, {"checkpoint", WT_VERB_CHECKPOINT},
+      {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
       {"cross_checkpoint_cache", WT_VERB_CROSS_CHECKPOINT_CACHE},
@@ -3783,8 +3793,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (verify_meta) {
         __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata verify");
         wt_session = &session->iface;
-        ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
-        WT_ERR(ret);
+        WT_ERR(wt_session->verify(wt_session, WT_METAFILE_URI, NULL));
     }
 
     /*

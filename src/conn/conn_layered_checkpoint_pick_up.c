@@ -1043,7 +1043,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  */
                 __wt_spin_lock(
                   session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
-                latest_entry = __wti_disagg_table_latest_create_remove(session, current);
+                latest_entry = __wt_disagg_table_latest_create_remove(session, current);
                 latest_op =
                   latest_entry == NULL ? WT_SHARED_METADATA_NONE : latest_entry->metadata_op;
                 latest_epoch =
@@ -1069,7 +1069,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              */
             __wt_spin_lock(
               session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
-            latest_entry = __wti_disagg_table_latest_create_remove(session, current);
+            latest_entry = __wt_disagg_table_latest_create_remove(session, current);
             latest_op = latest_entry == NULL ? WT_SHARED_METADATA_NONE : latest_entry->metadata_op;
             latest_epoch = latest_entry == NULL ? WT_SCHEMA_EPOCH_NONE : latest_entry->schema_epoch;
             __wt_spin_unlock(
@@ -1138,7 +1138,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              */
             __wt_spin_lock(
               session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
-            latest_entry = __wti_disagg_table_latest_create_remove(session, current);
+            latest_entry = __wt_disagg_table_latest_create_remove(session, current);
             latest_op = latest_entry == NULL ? WT_SHARED_METADATA_NONE : latest_entry->metadata_op;
             latest_epoch = latest_entry == NULL ? WT_SCHEMA_EPOCH_NONE : latest_entry->schema_epoch;
             __wt_spin_unlock(
@@ -1669,7 +1669,8 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
-    conn->txn_global.last_ckpt_disaggregated_schema_epoch = metadata->schema_epoch;
+    __wt_atomic_store_uint64_relaxed(
+      &conn->txn_global.last_ckpt_disaggregated_schema_epoch, metadata->schema_epoch);
     /* Release store to pair with the acquire load in sweep. */
     __wt_atomic_store_uint64_release(
       &conn->txn_global.last_ckpt_timestamp, metadata->checkpoint_timestamp);

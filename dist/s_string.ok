@@ -246,6 +246,7 @@ Getters
 Gh
 Github
 Golomb
+HALFLIFE
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -409,6 +410,7 @@ PTR
 PTRDIFF
 PYTHONMALLOC
 Palite
+Palite's
 Palites
 Pe
 PlatformSDK
@@ -483,11 +485,13 @@ SIGKILLs
 SIGPIPE
 SIGSEGV
 SIMD
+SLIST
 SLS
 SLVG
 SMT
 SPINLOCK
 SSq
+STAILQ
 STATP
 STR
 STRUCT
@@ -641,6 +645,7 @@ WiredTigerTimestamp
 WiredTigerTmplog
 WithSeeds
 WriteFile
+Wswitch
 Wundef
 Wuninitialized
 Wunused
@@ -1203,6 +1208,7 @@ goto
 goutf
 groupd
 gte
+halvings
 handleops
 handlep
 handoff
@@ -1434,6 +1440,7 @@ memsize
 metaconf
 metadata's
 metafile
+metric's
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
@@ -1590,6 +1597,7 @@ packv
 pagesize
 pali
 palite
+palite's
 param
 params
 parens
@@ -1661,6 +1669,7 @@ psp
 pthread
 ptr
 ptrdiff
+publishedp
 pv
 pval
 pwrite
@@ -1761,6 +1770,7 @@ sanitizer
 sanitizers
 scalable
 scen
+scheckpoint
 schemas
 sclose
 scr
@@ -1851,6 +1861,7 @@ strtoll
 strtoull
 strtouq
 struct
+struct's
 structs
 su
 subcommand
@@ -1872,6 +1883,7 @@ sublist
 suboptimal
 subproc
 subprocess
+subprocess's
 subprocesses
 substring
 substrings
@@ -2029,6 +2041,7 @@ unreferenced
 unsetting
 unsized
 unspawned
+unsuffixed
 unsynchronised
 unterminated
 untimestamped

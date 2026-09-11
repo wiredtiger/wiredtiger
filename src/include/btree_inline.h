@@ -43,9 +43,9 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 {
-    return ((F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
-              F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY)) &&
-      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
+      __wt_atomic_load_bool_relaxed(&session->dhandle->outdated));
 }
 
 /*
@@ -394,7 +394,10 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     bool is_disagg = __wt_conn_is_disagg(session);
 
     WT_CACHE_INCR(is_disagg, btree, cache, bytes_inmem, size);
-    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    uint64_t tree_inmem = __wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    if (tree_inmem >=
+      __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_INMEM]))
+        __wt_cache_top_track(session, btree, WT_CACHE_TOP_INMEM, tree_inmem);
     if (WT_PAGE_IS_INTERNAL(page)) {
         WT_CACHE_INCR(is_disagg, btree, cache, bytes_internal, size);
         (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_internal, size);
@@ -405,7 +408,10 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
         __txn_incr_bytes_dirty(session, size, new_update);
         if (!WT_PAGE_IS_INTERNAL(page)) {
             WT_CACHE_INCR(is_disagg, btree, cache, bytes_updates, size);
-            (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            uint64_t tree_updates = __wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            if (tree_updates >=
+              __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_UPDATES]))
+                __wt_cache_top_track(session, btree, WT_CACHE_TOP_UPDATES, tree_updates);
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_updates, size);
         }
         if (__wt_page_is_modified(page)) {
@@ -414,7 +420,11 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                 (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_intl, size);
             } else {
                 WT_CACHE_INCR(is_disagg, btree, cache, bytes_dirty_leaf, size);
-                (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                uint64_t tree_dirty =
+                  __wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                if (tree_dirty >=
+                  __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_DIRTY]))
+                    __wt_cache_top_track(session, btree, WT_CACHE_TOP_DIRTY, tree_dirty);
             }
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
         }
@@ -3008,6 +3018,9 @@ __wt_btcur_skip_page(
      * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
      * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
      * describes the whole subtree, and skipping it skips the subtree.
+     *
+     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
+     * evaluated through its address cell.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
         goto unlock;

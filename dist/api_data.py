@@ -1070,11 +1070,13 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
+        'aggressive_stash_free', 'aggressive_sweep', 'backup_blkmod_delay', 'backup_rename',
+        'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
+        'disagg_stable_dhandle_delay',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -1097,6 +1099,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'block_cache',
+            'cache_top',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
@@ -1398,11 +1401,10 @@ session_config = [
         min=0),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size and are not blocked
-        when the cache is full. WT_SESSION::reconfigure returns \c EINVAL if this setting is
-        specified while a transaction is running; use the \c ignore_cache_size setting of
-        WT_SESSION::begin_transaction to configure a single transaction. Note that use of this
-        option for operations that create cache pressure can starve ordinary sessions that obey
-        the cache size.''',
+        when the cache is full. This setting may be reconfigured while a transaction is running,
+        in which case it takes precedence over the \c ignore_cache_size setting of
+        WT_SESSION::begin_transaction. Note that use of this option for operations that create
+        cache pressure can starve ordinary sessions that obey the cache size.''',
         type='boolean'),
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
@@ -2040,10 +2042,12 @@ methods = {
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this transaction ignore the cache size and are not
-        blocked when the cache is full. The setting applies until the transaction is resolved.
-        Setting it to \c false has no effect: it does not override a session configured with
-        \c ignore_cache_size. Note that use of this option for operations that create cache
-        pressure can starve ordinary transactions that obey the cache size.''',
+        blocked when the cache is full. The setting applies until the transaction is resolved,
+        unless WT_SESSION::reconfigure sets \c ignore_cache_size while the transaction is
+        running, which makes it session-wide. Setting it to \c false has no effect: it does not
+        override a session configured with \c ignore_cache_size. Note that use of this option
+        for operations that create cache pressure can starve ordinary transactions that obey the
+        cache size.''',
         type='boolean'),
     Config('ignore_prepare', 'false', r'''
         whether to ignore updates by other prepared transactions when doing of read operations
@@ -2058,10 +2062,7 @@ methods = {
         name of the transaction for tracing and debugging'''),
     Config('no_timestamp', 'false', r'''
         allow a commit without a timestamp, creating values that have "always existed" and are
-        visible regardless of timestamp. This does not extend to WT_SESSION::truncate: a range
-        deletion replaces the timestamped state of everything it covers, so committing one without
-        a timestamp fails on a table whose keys have already been written with timestamps.
-        See @ref timestamp_txn_api''',
+        visible regardless of timestamp. See @ref timestamp_txn_api''',
         type='boolean'),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
@@ -2309,6 +2310,8 @@ methods = {
         print incremental backup information''', type='boolean'),
     Config('cache', 'false', r'''
         print cache information''', type='boolean'),
+    Config('cache_top', 'false', r'''
+        print the tables consuming the most cache''', type='boolean'),
     Config('cursors', 'false', r'''
         print all open cursor information''', type='boolean'),
     Config('handles', 'false', r'''

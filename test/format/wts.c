@@ -179,6 +179,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
     if (GV(STRESS_COMPACT_SLOW))
         CONFIG_APPEND(*p, ",compact_slow");
+    if (GV(STRESS_DISAGG_STABLE_DHANDLE_DELAY))
+        CONFIG_APPEND(*p, ",disagg_stable_dhandle_delay");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
     if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
