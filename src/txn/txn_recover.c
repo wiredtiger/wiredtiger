@@ -746,11 +746,16 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
           "metadata corruption: files %s and %s have the same file ID %u", uri,
           r->files[fileid].uri, fileid);
     WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
-    if ((ret = __wt_config_getones(r->session, config, "checkpoint_lsn", &cval)) != 0)
+    ret = __wt_config_getones(r->session, config, "checkpoint_lsn", &cval);
+    if (ret == WT_NOTFOUND) {
+        /* No LSN stored: apply everything, same as an empty checkpoint_lsn= value. */
+        WT_INIT_LSN(&lsn);
+        ret = 0;
+    } else if (ret != 0)
         WT_RET_MSG(
           r->session, ret, "Failed recovery setup for %s: cannot parse config '%s'", uri, config);
     /* If there is no checkpoint logged for the file, apply everything. */
-    if (cval.type != WT_CONFIG_ITEM_STRUCT)
+    else if (cval.type != WT_CONFIG_ITEM_STRUCT)
         WT_INIT_LSN(&lsn);
     /* NOLINTNEXTLINE(cert-err34-c) */
     else if (sscanf(cval.str, "(%" SCNu32 ",%" SCNu32 ")", &lsnfile, &lsnoffset) == 2)

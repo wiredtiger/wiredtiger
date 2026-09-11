@@ -61,8 +61,8 @@ __metadata_init(WT_SESSION_IMPL *session)
      * that it is appropriately synchronized.
      */
     WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, WT_METAFILE_URI, NULL));
-
-    return (ret);
+    WT_RET(ret);
+    return (__wt_metadata_insert_abbrev_dict(session));
 }
 
 /*

@@ -38,6 +38,380 @@ __metadata_turtle(const char *key)
     return (false);
 }
 
+typedef struct {
+    const char *full;
+    const char *abbr;
+    uint8_t flen;
+    uint8_t alen;
+} WT_METADATA_ABBREV;
+
+#define WT_METADATA_ABBREV_ENTRY(f, a) \
+    {f, a, (uint8_t)(sizeof(f) - 1), (uint8_t)(sizeof(a) - 1)}
+
+/*
+ * Stored metadata values use 1-2 byte aliases for repeated key names. The mapping is also written
+ * as an abbrev: row so a dump of WiredTiger.wt shows the namesake of each alias.
+ */
+static const WT_METADATA_ABBREV wt_metadata_abbrev[] = {
+  WT_METADATA_ABBREV_ENTRY("addr", "ad"),
+  WT_METADATA_ABBREV_ENTRY("approx_leaf_pages", "ap"),
+  WT_METADATA_ABBREV_ENTRY("auth_token", "at"),
+  WT_METADATA_ABBREV_ENTRY("block_manager", "bm"),
+  WT_METADATA_ABBREV_ENTRY("bucket", "bu"),
+  WT_METADATA_ABBREV_ENTRY("bucket_prefix", "bp"),
+  WT_METADATA_ABBREV_ENTRY("cache_directory", "cd"),
+  WT_METADATA_ABBREV_ENTRY("checkpoint", "ch"),
+  WT_METADATA_ABBREV_ENTRY("checkpoint_backup_info", "cb"),
+  WT_METADATA_ABBREV_ENTRY("checkpoint_lsn", "cl"),
+  WT_METADATA_ABBREV_ENTRY("columns", "cn"),
+  WT_METADATA_ABBREV_ENTRY("disaggregated", "dg"),
+  WT_METADATA_ABBREV_ENTRY("enabled", "en"),
+  WT_METADATA_ABBREV_ENTRY("in_memory", "im"),
+  WT_METADATA_ABBREV_ENTRY("ingest", "ig"),
+  WT_METADATA_ABBREV_ENTRY("key_format", "kf"),
+  WT_METADATA_ABBREV_ENTRY("leaf_entry_ewma", "le"),
+  WT_METADATA_ABBREV_ENTRY("local_retention", "lt"),
+  WT_METADATA_ABBREV_ENTRY("log", "lg"),
+  WT_METADATA_ABBREV_ENTRY("major", "mj"),
+  WT_METADATA_ABBREV_ENTRY("minor", "mn"),
+  WT_METADATA_ABBREV_ENTRY("name", "nm"),
+  WT_METADATA_ABBREV_ENTRY("newest_start_durable_ts", "nd"),
+  WT_METADATA_ABBREV_ENTRY("newest_stop_durable_ts", "sd"),
+  WT_METADATA_ABBREV_ENTRY("newest_stop_ts", "ns"),
+  WT_METADATA_ABBREV_ENTRY("newest_stop_txn", "nq"),
+  WT_METADATA_ABBREV_ENTRY("newest_txn", "nx"),
+  WT_METADATA_ABBREV_ENTRY("next_page_id", "np"),
+  WT_METADATA_ABBREV_ENTRY("object_target_size", "ot"),
+  WT_METADATA_ABBREV_ENTRY("oldest_start_ts", "os"),
+  WT_METADATA_ABBREV_ENTRY("order", "or"),
+  WT_METADATA_ABBREV_ENTRY("page_log", "pl"),
+  WT_METADATA_ABBREV_ENTRY("prepare", "pr"),
+  WT_METADATA_ABBREV_ENTRY("run_write_gen", "rw"),
+  WT_METADATA_ABBREV_ENTRY("shared", "sh"),
+  WT_METADATA_ABBREV_ENTRY("size", "sz"),
+  WT_METADATA_ABBREV_ENTRY("source", "so"),
+  WT_METADATA_ABBREV_ENTRY("stable", "sb"),
+  WT_METADATA_ABBREV_ENTRY("storage_source", "ss"),
+  WT_METADATA_ABBREV_ENTRY("time", "tm"),
+  WT_METADATA_ABBREV_ENTRY("tiered_storage", "ts"),
+  WT_METADATA_ABBREV_ENTRY("type", "ty"),
+  WT_METADATA_ABBREV_ENTRY("value_format", "vf"),
+  WT_METADATA_ABBREV_ENTRY("version", "vr"),
+  WT_METADATA_ABBREV_ENTRY("write_gen", "wg"),
+  {NULL, NULL, 0, 0},
+};
+
+static const char *
+__metadata_abbrev_of(const char *name, size_t len)
+{
+    const WT_METADATA_ABBREV *p;
+
+    for (p = wt_metadata_abbrev; p->full != NULL; ++p)
+        if (p->flen == len && memcmp(p->full, name, len) == 0)
+            return (p->abbr);
+    return (NULL);
+}
+
+static const char *
+__metadata_unabbrev_of(const char *name, size_t len)
+{
+    const WT_METADATA_ABBREV *p;
+
+    for (p = wt_metadata_abbrev; p->full != NULL; ++p)
+        if (p->alen == len && memcmp(p->abbr, name, len) == 0)
+            return (p->full);
+    return (NULL);
+}
+
+/*
+ * __wt_metadata_key_match_abbrev --
+ *     True if the stored key is the abbreviation of the lookup name.
+ */
+bool
+__wt_metadata_key_match_abbrev(const WT_CONFIG_ITEM *k, const char *sought, size_t slen)
+{
+    const char *abbr;
+
+    abbr = __metadata_abbrev_of(sought, slen);
+    return (abbr != NULL && k->len == strlen(abbr) && memcmp(k->str, abbr, k->len) == 0);
+}
+
+/*
+ * __metadata_defaults --
+ *     Default configuration for a metadata URI, or NULL to store the value unchanged.
+ */
+static const char *
+__metadata_defaults(WT_SESSION_IMPL *session, const char *key)
+{
+    if (WT_PREFIX_MATCH(key, "file:"))
+        return (WT_CONFIG_BASE(session, file_meta));
+    if (WT_PREFIX_MATCH(key, "table:"))
+        return (WT_CONFIG_BASE(session, table_meta));
+    if (WT_PREFIX_MATCH(key, "colgroup:"))
+        return (WT_CONFIG_BASE(session, colgroup_meta));
+    if (WT_PREFIX_MATCH(key, "layered:"))
+        return (WT_CONFIG_BASE(session, layered_meta));
+    return (NULL);
+}
+
+/*
+ * __metadata_value_is_default --
+ *     True if the stored value matches the default, including empty vs "none".
+ */
+static bool
+__metadata_value_is_default(const WT_CONFIG_ITEM *v, const WT_CONFIG_ITEM *dv)
+{
+    if (__wt_string_slice_cmp(v->str, v->len, dv->str, dv->len) == 0)
+        return (true);
+    if (v->len == 0 && dv->len == 4 && strncmp(dv->str, "none", 4) == 0)
+        return (true);
+    if (dv->len == 0 && v->len == 4 && strncmp(v->str, "none", 4) == 0)
+        return (true);
+    return (false);
+}
+
+/*
+ * __metadata_strip_against --
+ *     Drop keys whose values match defaults. Nested structs are compared key-by-key so a category
+ *     still drops when it differs only by omitted keys (tiered_storage without shared).
+ */
+static int
+__metadata_strip_against(WT_SESSION_IMPL *session, const char *value, size_t vlen,
+  const char *defaults, size_t dlen, char **strippedp)
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM defitem, dv, k, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    char *nested;
+    bool dropped;
+
+    *strippedp = NULL;
+    nested = NULL;
+    dropped = false;
+
+    WT_CLEAR(defitem);
+    defitem.str = defaults;
+    defitem.len = dlen;
+
+    WT_RET(__wt_scr_alloc(session, 1024, &tmp));
+    __wt_config_initn(session, &cparser, value, vlen);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        ret = __wt_config_subgetraw(session, &defitem, &k, &dv);
+        if (ret == 0 && __metadata_value_is_default(&v, &dv)) {
+            dropped = true;
+            continue;
+        }
+        if (ret == 0 && v.type == WT_CONFIG_ITEM_STRUCT && dv.type == WT_CONFIG_ITEM_STRUCT &&
+          memchr(v.str, '=', v.len) != NULL && memchr(dv.str, '=', dv.len) != NULL) {
+            WT_ERR(__metadata_strip_against(session, v.str, v.len, dv.str, dv.len, &nested));
+            if (nested != NULL) {
+                dropped = true;
+                if (nested[0] != '\0') {
+                    if (k.type == WT_CONFIG_ITEM_STRING)
+                        WT_CONFIG_PRESERVE_QUOTES(session, &k);
+                    WT_ERR(
+                      __wt_buf_catfmt(session, tmp, "%.*s=(%s),", (int)k.len, k.str, nested));
+                }
+                __wt_free(session, nested);
+                nested = NULL;
+                continue;
+            }
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        if (k.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &k);
+        if (v.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &v);
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (dropped) {
+        if (tmp->size != 0)
+            --tmp->size;
+        WT_ERR(__wt_strndup(session, tmp->data, tmp->size, strippedp));
+    }
+
+err:
+    __wt_free(session, nested);
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __metadata_strip_defaults --
+ *     Drop keys whose values match the URI type's defaults, including nested category fields.
+ *     Callers must strip after collapse/merge: those rebuild from the full base string, so a
+ *     create-time strip is undone on the next update.
+ */
+static int
+__metadata_strip_defaults(
+  WT_SESSION_IMPL *session, const char *key, const char *value, char **strippedp)
+{
+    const char *defaults;
+
+    *strippedp = NULL;
+    defaults = __metadata_defaults(session, key);
+    if (defaults == NULL)
+        return (0);
+
+    return (__metadata_strip_against(
+      session, value, strlen(value), defaults, strlen(defaults), strippedp));
+}
+
+/*
+ * __metadata_rewrite_confign --
+ *     Replace configuration key names using the metadata abbreviation table. Nested structs that
+ *     contain field names are rewritten; checkpoint names such as WiredTigerCheckpoint.N are
+ *     left unchanged.
+ */
+static int
+__metadata_rewrite_confign(
+  WT_SESSION_IMPL *session, const char *value, size_t len, bool to_short, char **outp)
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    char *nested;
+    const char *ok;
+    size_t olen;
+    bool changed;
+
+    *outp = NULL;
+    nested = NULL;
+    changed = false;
+
+    WT_RET(__wt_scr_alloc(session, 512, &tmp));
+    __wt_config_initn(session, &cparser, value, len);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        ok = k.str;
+        olen = k.len;
+        if (to_short) {
+            const char *abbr = __metadata_abbrev_of(k.str, k.len);
+            if (abbr != NULL) {
+                ok = abbr;
+                olen = strlen(abbr);
+                changed = true;
+            }
+        } else {
+            const char *full = __metadata_unabbrev_of(k.str, k.len);
+            if (full != NULL) {
+                ok = full;
+                olen = strlen(full);
+                changed = true;
+            }
+        }
+
+        if (v.type == WT_CONFIG_ITEM_STRUCT && memchr(v.str, '=', v.len) != NULL) {
+            WT_ERR(__metadata_rewrite_confign(session, v.str, v.len, to_short, &nested));
+            if (nested != NULL) {
+                WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=(%s),", (int)olen, ok, nested));
+                __wt_free(session, nested);
+                nested = NULL;
+                changed = true;
+                continue;
+            }
+        }
+
+        if (ok == k.str && k.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &k);
+        if (v.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &v);
+        if (ok == k.str) {
+            ok = k.str;
+            olen = k.len;
+        }
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)olen, ok, (int)v.len, v.str));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (changed) {
+        if (tmp->size != 0)
+            --tmp->size;
+        WT_ERR(__wt_strndup(session, tmp->data, tmp->size, outp));
+    }
+
+err:
+    __wt_free(session, nested);
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __metadata_compact --
+ *     Strip default keys, then abbreviate remaining names. Either step may be a no-op.
+ */
+static int
+__metadata_compact(WT_SESSION_IMPL *session, const char *key, const char *value, char **storedp)
+{
+    WT_DECL_RET;
+    char *rewritten, *stripped;
+    const char *src;
+
+    *storedp = NULL;
+    rewritten = stripped = NULL;
+
+    if (strcmp(key, WT_METADATA_ABBREV_URI) == 0)
+        return (0);
+
+    WT_RET(__metadata_strip_defaults(session, key, value, &stripped));
+    src = stripped != NULL ? stripped : value;
+    if (__metadata_defaults(session, key) != NULL)
+        WT_ERR(__metadata_rewrite_confign(session, src, strlen(src), true, &rewritten));
+
+    if (rewritten != NULL) {
+        *storedp = rewritten;
+        rewritten = NULL;
+        __wt_free(session, stripped);
+    } else
+        *storedp = stripped;
+
+    if (0) {
+err:
+        __wt_free(session, rewritten);
+        __wt_free(session, stripped);
+    }
+    return (ret);
+}
+
+/*
+ * __metadata_expand --
+ *     Expand abbreviated key names for callers of metadata search. The metadata: cursor is left
+ *     compact so size measurements see the stored form.
+ */
+static int
+__metadata_expand(WT_SESSION_IMPL *session, const char *key, const char *value, char **outp)
+{
+    *outp = NULL;
+    if (strcmp(key, WT_METADATA_ABBREV_URI) == 0 || __metadata_defaults(session, key) == NULL)
+        return (0);
+    return (__metadata_rewrite_confign(session, value, strlen(value), false, outp));
+}
+
+/*
+ * __wt_metadata_insert_abbrev_dict --
+ *     Write the long-to-short key mapping as the first metadata row.
+ */
+int
+__wt_metadata_insert_abbrev_dict(WT_SESSION_IMPL *session)
+{
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    const WT_METADATA_ABBREV *p;
+
+    WT_RET(__wt_scr_alloc(session, 512, &buf));
+    for (p = wt_metadata_abbrev; p->full != NULL; ++p)
+        WT_ERR(__wt_buf_catfmt(
+          session, buf, "%s%s=%s", buf->size == 0 ? "" : ",", p->full, p->abbr));
+    ret = __wt_metadata_insert(session, WT_METADATA_ABBREV_URI, buf->data);
+err:
+    __wt_scr_free(session, &buf);
+    return (ret);
+}
+
 /*
  * __wt_metadata_turtle_rewrite --
  *     Rewrite the turtle file. We wrap this because the lower functions expect a URI key and config
@@ -193,23 +567,39 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    char *stored_buf;
+    const char *stored;
+
+    cursor = NULL;
+    stored_buf = NULL;
+    stored = value;
+
+    if (__metadata_turtle(key)) {
+        __wt_verbose_debug3(session, WT_VERB_METADATA,
+          "Insert: key: %s, value: %s, tracking: %s, %s"
+          "turtle",
+          key, value, WT_META_TRACKING(session) ? "true" : "false", "");
+        WT_RET_MSG(session, EINVAL, "%s: insert not supported on the turtle file", key);
+    }
+
+    WT_ERR(__metadata_compact(session, key, value, &stored_buf));
+    if (stored_buf != NULL)
+        stored = stored_buf;
 
     __wt_verbose_debug3(session, WT_VERB_METADATA,
       "Insert: key: %s, value: %s, tracking: %s, %s"
       "turtle",
-      key, value, WT_META_TRACKING(session) ? "true" : "false",
+      key, stored, WT_META_TRACKING(session) ? "true" : "false",
       __metadata_turtle(key) ? "" : "not ");
 
-    if (__metadata_turtle(key))
-        WT_RET_MSG(session, EINVAL, "%s: insert not supported on the turtle file", key);
-
-    WT_RET(__wt_metadata_cursor(session, &cursor));
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, key);
-    cursor->set_value(cursor, value);
+    cursor->set_value(cursor, stored);
     WT_ERR(cursor->insert(cursor));
     if (WT_META_TRACKING(session))
         WT_ERR(__wti_meta_track_insert(session, key));
 err:
+    __wt_free(session, stored_buf);
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
@@ -223,14 +613,18 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    char *stored_buf;
+    const char *stored;
 
-    __wt_verbose_debug3(session, WT_VERB_METADATA,
-      "Update: key: %s, value: %s, tracking: %s, %s"
-      "turtle",
-      key, value, WT_META_TRACKING(session) ? "true" : "false",
-      __metadata_turtle(key) ? "" : "not ");
+    cursor = NULL;
+    stored_buf = NULL;
+    stored = value;
 
     if (__metadata_turtle(key)) {
+        __wt_verbose_debug3(session, WT_VERB_METADATA,
+          "Update: key: %s, value: %s, tracking: %s, %s"
+          "turtle",
+          key, value, WT_META_TRACKING(session) ? "true" : "false", "");
         if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
             ret = __wt_live_restore_turtle_update(session, key, value, true);
         else
@@ -238,17 +632,28 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
         return (ret);
     }
 
-    if (WT_META_TRACKING(session))
-        WT_RET(__wti_meta_track_update(session, key));
+    WT_ERR(__metadata_compact(session, key, value, &stored_buf));
+    if (stored_buf != NULL)
+        stored = stored_buf;
 
-    WT_RET(__wt_metadata_cursor(session, &cursor));
+    __wt_verbose_debug3(session, WT_VERB_METADATA,
+      "Update: key: %s, value: %s, tracking: %s, %s"
+      "turtle",
+      key, stored, WT_META_TRACKING(session) ? "true" : "false",
+      __metadata_turtle(key) ? "" : "not ");
+
+    if (WT_META_TRACKING(session))
+        WT_ERR(__wti_meta_track_update(session, key));
+
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
     /* This cursor needs to have overwrite semantics. */
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_OVERWRITE));
 
     cursor->set_key(cursor, key);
-    cursor->set_value(cursor, value);
+    cursor->set_value(cursor, stored);
     WT_ERR(cursor->insert(cursor));
 err:
+    __wt_free(session, stored_buf);
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
@@ -341,7 +746,9 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
     WT_ERR(ret);
 
     WT_ERR(cursor->get_value(cursor, &value));
-    WT_ERR(__wt_strdup(session, value, valuep));
+    WT_ERR(__metadata_expand(session, key, value, valuep));
+    if (*valuep == NULL)
+        WT_ERR(__wt_strdup(session, value, valuep));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));

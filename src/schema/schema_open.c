@@ -53,6 +53,7 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
     WT_DECL_RET;
     u_int i;
     char *cgconfig;
+    const char *cg_cfg[3];
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
@@ -96,7 +97,10 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
         WT_ERR(__wt_strndup(session, buf->data, buf->size, &colgroup->name));
         colgroup->config = cgconfig;
         cgconfig = NULL;
-        WT_ERR(__wt_config_getones(session, colgroup->config, "columns", &colgroup->colconf));
+        cg_cfg[0] = WT_CONFIG_BASE(session, colgroup_meta);
+        cg_cfg[1] = colgroup->config;
+        cg_cfg[2] = NULL;
+        WT_ERR(__wt_config_gets(session, cg_cfg, "columns", &colgroup->colconf));
         WT_ERR(__wt_config_getones(session, colgroup->config, "source", &cval));
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &colgroup->source));
         table->cgroups[i] = colgroup;

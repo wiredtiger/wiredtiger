@@ -987,12 +987,14 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
      */
     WT_ERR(__wt_strndup(session, k->str, k->len, &ckpt->name));
 
-    WT_ERR(__wt_config_subgets(session, v, "addr", &a));
-    WT_ERR(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
-    if (a.len == 0)
+    ret = __wt_config_subgets(session, v, "addr", &a);
+    WT_ERR_NOTFOUND_OK(ret, true);
+    if (ret == WT_NOTFOUND || a.len == 0)
         F_SET(ckpt, WT_CKPT_FAKE);
-    else
+    else {
+        WT_ERR(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
         WT_ERR(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw));
+    }
 
     WT_ERR(__wt_config_subgets(session, v, "order", &a));
     if (a.len == 0)
@@ -1004,8 +1006,11 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != 0)
         WT_ERR_MSG(session, WT_ERROR, "corrupted time value in checkpoint config");
 
-    WT_ERR(__wt_config_subgets(session, v, "size", &a));
-    ckpt->size = (uint64_t)a.val;
+    ckpt->size = 0;
+    ret = __wt_config_subgets(session, v, "size", &a);
+    WT_ERR_NOTFOUND_OK(ret, true);
+    if (ret != WT_NOTFOUND && a.len != 0)
+        ckpt->size = (uint64_t)a.val;
 
     /* Default to durability. */
     WT_TIME_AGGREGATE_INIT(&ckpt->ta);
@@ -1238,20 +1243,50 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
             WT_RET(__wt_buf_catfmt(session, buf, ".%" PRId64, ckpt->order));
 
-        /* Use PRId64 formats: WiredTiger's configuration code handles signed 8B values. */
-        WT_RET(__wt_buf_catfmt(session, buf,
-          "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
-          ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
-          ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
-          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64
-          ",leaf_entry_ewma=%" PRId64 ",approx_leaf_pages=%" PRId64 ")",
-          (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
-          (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
-          (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
-          (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
-          (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
-          (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id, (int64_t)ckpt->leaf_entry_ewma,
-          (int64_t)ckpt->approx_leaf_pages));
+        /*
+         * Omit fields that __ckpt_load already defaults. order/time/write_gen are required to
+         * identify the checkpoint.
+         */
+        WT_RET(__wt_buf_catfmt(session, buf, "=(order=%" PRId64 ",time=%" PRIu64 ",write_gen=%" PRId64,
+          ckpt->order, ckpt->sec, (int64_t)ckpt->write_gen));
+        if (ckpt->addr.size != 0)
+            WT_RET(__wt_buf_catfmt(
+              session, buf, ",addr=\"%.*s\"", (int)ckpt->addr.size, (char *)ckpt->addr.data));
+        if (ckpt->size != 0)
+            WT_RET(__wt_buf_catfmt(session, buf, ",size=%" PRId64, (int64_t)ckpt->size));
+        if (ckpt->ta.newest_start_durable_ts != WT_TS_NONE)
+            WT_RET(__wt_buf_catfmt(session, buf, ",newest_start_durable_ts=%" PRId64,
+              (int64_t)ckpt->ta.newest_start_durable_ts));
+        if (ckpt->ta.oldest_start_ts != WT_TS_NONE)
+            WT_RET(__wt_buf_catfmt(
+              session, buf, ",oldest_start_ts=%" PRId64, (int64_t)ckpt->ta.oldest_start_ts));
+        if (ckpt->ta.newest_txn != WT_TXN_NONE)
+            WT_RET(
+              __wt_buf_catfmt(session, buf, ",newest_txn=%" PRId64, (int64_t)ckpt->ta.newest_txn));
+        if (ckpt->ta.newest_stop_durable_ts != WT_TS_NONE)
+            WT_RET(__wt_buf_catfmt(session, buf, ",newest_stop_durable_ts=%" PRId64,
+              (int64_t)ckpt->ta.newest_stop_durable_ts));
+        if (ckpt->ta.newest_stop_ts != WT_TS_MAX)
+            WT_RET(__wt_buf_catfmt(
+              session, buf, ",newest_stop_ts=%" PRId64, (int64_t)ckpt->ta.newest_stop_ts));
+        if (ckpt->ta.newest_stop_txn != WT_TXN_MAX)
+            WT_RET(__wt_buf_catfmt(
+              session, buf, ",newest_stop_txn=%" PRId64, (int64_t)ckpt->ta.newest_stop_txn));
+        if (ckpt->ta.prepare != 0)
+            WT_RET(__wt_buf_catfmt(session, buf, ",prepare=%d", (int)ckpt->ta.prepare));
+        if (ckpt->run_write_gen != 0)
+            WT_RET(
+              __wt_buf_catfmt(session, buf, ",run_write_gen=%" PRId64, (int64_t)ckpt->run_write_gen));
+        if (ckpt->next_page_id != 0 && ckpt->next_page_id != WT_BLOCK_MIN_PAGE_ID)
+            WT_RET(
+              __wt_buf_catfmt(session, buf, ",next_page_id=%" PRId64, (int64_t)ckpt->next_page_id));
+        if (ckpt->leaf_entry_ewma != 0 && ckpt->leaf_entry_ewma != WT_LEAF_STATS_UNKNOWN)
+            WT_RET(__wt_buf_catfmt(
+              session, buf, ",leaf_entry_ewma=%" PRId64, (int64_t)ckpt->leaf_entry_ewma));
+        if (ckpt->approx_leaf_pages != 0 && ckpt->approx_leaf_pages != WT_LEAF_STATS_UNKNOWN)
+            WT_RET(__wt_buf_catfmt(
+              session, buf, ",approx_leaf_pages=%" PRId64, (int64_t)ckpt->approx_leaf_pages));
+        WT_RET(__wt_buf_catfmt(session, buf, ")"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 
@@ -1392,9 +1427,11 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    WT_LSN max_lsn;
     uint64_t prev_ckpt_size;
+    char max_lsn_str[WT_MAX_LSN_STRING];
     const char *fname;
-    bool has_lsn;
+    bool use_base;
 
     btree = S2BT(session);
     fname = dhandle->name;
@@ -1433,16 +1470,21 @@ __wt_meta_ckptlist_set(
         if (F_ISSET(ckpt, WT_CKPT_ADD))
             WT_ERR(__ckpt_blkmod_to_meta(session, buf, ckpt));
 
-    /* "If provided, the metadata needs the LSN of this checkpoint for recovery. */
-    has_lsn = ckptlsn_str != NULL;
-
-    if (ckptlsn_str != NULL)
-        WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%s)", ckptlsn_str));
+    /* If provided, the metadata needs the LSN of this checkpoint for recovery. */
+    use_base = false;
+    if (ckptlsn_str != NULL) {
+        /* Use meta_base even when the LSN itself is omitted; collapse drops keys absent from cfg[0]. */
+        use_base = true;
+        WT_MAX_LSN(&max_lsn);
+        WT_ERR(__wt_lsn_string(&max_lsn, sizeof(max_lsn_str), max_lsn_str));
+        if (strcmp(ckptlsn_str, max_lsn_str) != 0)
+            WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%s)", ckptlsn_str));
+    }
 
     if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
-    WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
+    WT_ERR(__ckpt_set(session, fname, buf->mem, use_base));
 
 err:
     __wt_scr_free(session, &buf);

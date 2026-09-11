@@ -26,9 +26,10 @@ __layered_create_missing_ingest_table(
     WT_CONFIG_ITEM key_format, value_format;
     WT_DECL_ITEM(ingest_config);
     WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, layered_meta), layered_cfg, NULL};
 
-    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
+    WT_ERR(__wt_config_gets(session, cfg, "key_format", &key_format));
+    WT_ERR(__wt_config_gets(session, cfg, "value_format", &value_format));
 
     /* FIXME-WT-14728: Refactor this with __create_layered? */
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
@@ -136,7 +137,7 @@ __disagg_replace_checkpoint(
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             WT_RET_MSG(
               session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
-        if (WT_CONFIG_LIT_MATCH("checkpoint", k))
+        if (__wt_metadata_key_match(&k, "checkpoint", strlen("checkpoint")))
             last_ckpt_key = k;
     }
     WT_RET_NOTFOUND_OK(ret);
@@ -164,6 +165,32 @@ __disagg_replace_checkpoint(
 
     /* Each entry was emitted with a trailing comma; drop the final one. */
     --tmp->size;
+    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __disagg_apply_checkpoint --
+ *     Substitute the last checkpoint= key, or append one when compact metadata omitted an empty
+ *     checkpoint.
+ */
+static int
+__disagg_apply_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+
+    ret = __disagg_replace_checkpoint(session, base, new_ckpt, config_ret);
+    if (ret != WT_NOTFOUND)
+        return (ret);
+
+    WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 32, &tmp));
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s%scheckpoint=%.*s", base,
+      (base == NULL || base[0] == '\0') ? "" : ",", (int)new_ckpt->len, new_ckpt->str));
     WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
 
 err:
@@ -206,7 +233,7 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     /* Copy the value since we don't own the memory after calling get_value(). */
     WT_ERR(__wt_strdup(session, cfg_current, &cfg_current_copy));
 
-    WT_ERR(__disagg_replace_checkpoint(session, cfg_current_copy, &new_ckpt, &cfg_new));
+    WT_ERR(__disagg_apply_checkpoint(session, cfg_current_copy, &new_ckpt, &cfg_new));
 
     /* Put in our new config: a tracked update, so a failed merge unrolls it. */
     WT_ERR(__wt_metadata_update(session, metadata_key, cfg_new));
@@ -393,7 +420,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
  * __disagg_meta_skip_field --
  *     Return true if the configuration field is excluded from the metadata comparison: it either
  *     legitimately changes across checkpoints, holds node-local state, or can be changed at runtime
- *     via WT_SESSION::alter. The list holds top-level field names only, sorted alphabetically.
+ *     via WT_SESSION::alter. The list holds top-level field names only.
  */
 static bool
 __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
@@ -402,16 +429,10 @@ __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
       "cache_resident", "checkpoint", "checkpoint_backup_info", "checkpoint_lsn", "live_restore",
       "log", "os_cache_dirty_max", "os_cache_max", "verbose", "write_timestamp_usage", NULL};
     u_int i;
-    int cmp;
 
-    for (i = 0; skip[i] != NULL; i++) {
-        cmp = __wt_string_slice_cmp(key->str, key->len, skip[i], strlen(skip[i]));
-        if (cmp == 0)
+    for (i = 0; skip[i] != NULL; i++)
+        if (__wt_metadata_key_match(key, skip[i], strlen(skip[i])))
             return (true);
-        /* The list is sorted: no later entry can match a key that sorts before this one. */
-        if (cmp < 0)
-            return (false);
-    }
     return (false);
 }
 
@@ -688,12 +709,17 @@ __disagg_update_file_meta(
     WT_ERR(md_file_cursor->get_value(md_file_cursor, &current_value));
     /* Copy before further cursor ops; also used as discard-check input. */
     WT_ERR(__wt_strdup(session, current_value, &current_value_copy));
-    WT_ERR(__wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur));
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur), true);
+    if (ret == WT_NOTFOUND) {
+        WT_CLEAR(cval_cur);
+        cval_cur.str = "";
+    }
     /* Nothing to do if the local checkpoint already matches the shared one. */
     if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
         goto err;
 
-    WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &cval, &cfg_ret));
+    WT_ERR(__disagg_apply_checkpoint(session, current_value_copy, &cval, &cfg_ret));
 
     /* A tracked update, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_update(session, sh_file_key, cfg_ret),

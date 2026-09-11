@@ -27,6 +27,7 @@
 #define WT_METADATA_TURTLE_SET "WiredTiger.turtle.set" /* Turtle temp file */
 
 #define WT_METADATA_URI "metadata:"           /* Metadata alias */
+#define WT_METADATA_ABBREV_URI "abbrev:"    /* Key-name dictionary row */
 #define WT_METAFILE "WiredTiger.wt"           /* Metadata table */
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
@@ -175,3 +176,21 @@ typedef struct __wt_disagg_metadata {
     int version;            /* Metadata version */
     int compatible_version; /* Minimum compatible reader version */
 } WT_DISAGG_METADATA;
+
+int __wt_metadata_insert_abbrev_dict(WT_SESSION_IMPL *session);
+bool __wt_metadata_key_match_abbrev(const WT_CONFIG_ITEM *k, const char *sought, size_t slen);
+
+/*
+ * Match a stored metadata key against a lookup name. The stored key may be the full name or its
+ * abbreviation; lookups of the full name must succeed in either case.
+ */
+static WT_INLINE bool
+__wt_metadata_key_match(const WT_CONFIG_ITEM *k, const char *sought, size_t slen)
+{
+    if (k->len == slen && memcmp(k->str, sought, slen) == 0)
+        return (true);
+    /* Abbreviations are 1-2 bytes; skip the table on ordinary config keys. */
+    if (k->len > 2)
+        return (false);
+    return (__wt_metadata_key_match_abbrev(k, sought, slen));
+}

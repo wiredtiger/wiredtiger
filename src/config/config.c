@@ -627,23 +627,36 @@ __config_getraw(WT_CONFIG *cparser, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, 
     WT_CONFIG sparser;
     WT_CONFIG_ITEM k, v, subk;
     WT_DECL_RET;
+    const char *dot;
+    size_t seglen;
     bool found;
 
     found = false;
     while ((ret = __config_next(cparser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             continue;
-        if (k.len == key->len && strncmp(key->str, k.str, k.len) == 0) {
+        if (__wt_metadata_key_match(&k, key->str, key->len)) {
             *value = v;
             found = true;
-        } else if (k.len < key->len && key->str[k.len] == '.' &&
-          strncmp(key->str, k.str, k.len) == 0) {
-            subk.str = key->str + k.len + 1;
-            subk.len = (key->len - k.len) - 1;
-            __wt_config_initn(cparser->session, &sparser, v.str, v.len);
-            if ((ret = __config_getraw(&sparser, &subk, value, false)) == 0)
-                found = true;
-            WT_RET_NOTFOUND_OK(ret);
+        } else {
+            /*
+             * Dotted lookups (log.enabled) must match a stored abbreviation of the first
+             * component (lg=(en=false)) as well as the full name.
+             */
+            dot = NULL;
+            for (seglen = 0; seglen < key->len; ++seglen)
+                if (key->str[seglen] == '.') {
+                    dot = key->str + seglen;
+                    break;
+                }
+            if (dot != NULL && __wt_metadata_key_match(&k, key->str, seglen)) {
+                subk.str = dot + 1;
+                subk.len = (key->len - seglen) - 1;
+                __wt_config_initn(cparser->session, &sparser, v.str, v.len);
+                if ((ret = __config_getraw(&sparser, &subk, value, false)) == 0)
+                    found = true;
+                WT_RET_NOTFOUND_OK(ret);
+            }
         }
     }
     WT_RET_NOTFOUND_OK(ret);
