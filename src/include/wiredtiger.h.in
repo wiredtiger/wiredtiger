@@ -5800,6 +5800,8 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
+/*! bypass any block cache when serving the read */
+#define WT_PAGE_LOG_CACHE_BYPASS 0x40u
 
 /*!
  * WT_PAGE_LOG::pl_complete_checkpoint interface.
@@ -10618,6 +10620,7 @@ typedef enum {
     WT_VERB_BACKUP,                 /*!< Backup messages. */
     WT_VERB_BLKCACHE,
     WT_VERB_BLOCK,                  /*!< Block manager messages. */
+    WT_VERB_CACHE_TOP,              /*!< Largest cache consumer messages. */
     WT_VERB_CHECKPOINT,             /*!< Checkpoint messages. */
     WT_VERB_CHECKPOINT_CLEANUP,
     WT_VERB_CHECKPOINT_PROGRESS,    /*!< Checkpoint progress messages. */
