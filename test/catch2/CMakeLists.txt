@@ -180,9 +180,5 @@ if(ENABLE_LZ4)
     add_dependencies(catch2-unittests wiredtiger_lz4)
 endif()
 
-if(WT_POSIX)
-    add_dependencies(catch2-unittests wiredtiger_dir_store)
-endif()
-
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
