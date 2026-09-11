@@ -359,10 +359,23 @@ __create_file(
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
-        /* Strip any configuration settings that should not be persisted. */
-        filecfg[1] = fileconf;
-        filecfg[2] = NULL;
-        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        /*
+         * Strip any configuration settings that should not be persisted. Only tiered storage
+         * settings are stripped. In disaggregated storage, tiered storage is never used and the
+         * config merge performed by the strip is expensive, so skip it; the persisted metadata
+         * resolves to the same values through the config API.
+         */
+        if (__wt_conn_is_disagg(session)) {
+            WT_ASSERT(session, !WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)));
+            filestripped = fileconf;
+            fileconf = NULL;
+        } else {
+            filecfg[1] = fileconf;
+            filecfg[2] = NULL;
+            WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        }
+
+        /* Insert the stripped configuration into the metadata. */
         WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*
