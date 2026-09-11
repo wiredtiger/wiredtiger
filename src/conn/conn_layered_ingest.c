@@ -972,13 +972,11 @@ __layered_queue_ingest_dhandles(WT_SESSION_IMPL *session)
 }
 
 /*
- * __layered_drain_ingest_tables_int --
- *     Moving all the data from the ingest tables to the stable tables. Called with the schema lock
- *     held, so a concurrent drop cannot remove a table between this queueing its ingest btree for
- *     drain and a worker thread processing it.
+ * __wti_layered_drain_ingest_tables --
+ *     Moving all the data from the ingest tables to the stable tables
  */
-static int
-__layered_drain_ingest_tables_int(WT_SESSION_IMPL *session)
+int
+__wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1042,19 +1040,6 @@ err:
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    return (ret);
-}
-
-/*
- * __wti_layered_drain_ingest_tables --
- *     Moving all the data from the ingest tables to the stable tables.
- */
-int
-__wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    WT_WITH_SCHEMA_LOCK(session, ret = __layered_drain_ingest_tables_int(session));
     return (ret);
 }
 
