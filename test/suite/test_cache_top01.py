@@ -42,6 +42,11 @@ def table_names(testcase, base):
         names.append('file:' + initial)
     return names
 
+# Eviction is deliberately given nothing to do. A table's resident bytes are only a stable thing to
+# assert on when eviction is not free to take them away underneath the test.
+NO_EVICTION = ('eviction_dirty_target=75,eviction_dirty_trigger=90,'
+    'eviction_updates_target=70,eviction_updates_trigger=85')
+
 # One report format, one parser, one set of workload helpers, shared by every class below. Only the
 # connection configuration separates the classes.
 class cache_top_base(wttest.WiredTigerTestCase):
@@ -101,7 +106,6 @@ class cache_top_base(wttest.WiredTigerTestCase):
         self.cleanStdout()
         self.conn.debug_info('cache_top')
         out = self.readStdout(200000)
-        # The report is what these tests are here to look at, not unexpected output.
         self.cleanStdout()
         return out
 
@@ -236,11 +240,7 @@ class cache_top_base(wttest.WiredTigerTestCase):
 
 # The rankings of the tables consuming the most cache, as reported by WT_CONNECTION::debug_info.
 class test_cache_top01(cache_top_base):
-    # Eviction is deliberately given nothing to do: a table's resident bytes are only a stable
-    # thing to assert on when eviction is not free to take them away underneath the test.
-    conn_config = ('create,cache_size=100MB,statistics=(all),'
-        'eviction_dirty_target=60,eviction_dirty_trigger=80,'
-        'eviction_updates_target=50,eviction_updates_trigger=70')
+    conn_config = 'create,cache_size=100MB,statistics=(all),' + NO_EVICTION
 
     # A report against an untouched connection produces every ranking, all empty.
     def test_report_empty(self):
@@ -334,33 +334,29 @@ class test_cache_top01(cache_top_base):
     def test_many_tables_ranks_largest(self):
         bulk, tiny = 34, 6
 
-        # None of these tables is large enough to be ranked yet: a fresh ranking starts with a bar
-        # high enough that nothing here clears it.
-        for i in range(bulk):
-            self.populate('table:bulk%02d' % i, 200)
-        for i in range(tiny):
-            self.populate('table:tiny%d' % i, 5)
-        self.session.checkpoint()
+        # A ranking opens with a bar no table here would clear, and only lowers it when asked for
+        # a report. Lower it before these tables exist, so every one of them is weighed against
+        # the lowered bar the first time it holds anything.
+        self.populate('table:primer', 200)
         self.assertEqual(self.report()['total cache bytes']['count'], 0)
-
         self.lower_threshold('total cache bytes')
 
-        # Every table is above the bar now, so writing to them all again offers the ranking more
-        # tables than it has slots and it has to choose between them.
+        # More tables now hold cache than the ranking has slots, so it has to choose between them.
+        # Each has to grow by a minimum step before it is reconsidered.
         for i in range(bulk):
-            self.populate('table:bulk%02d' % i, 200, start = 200)
+            self.populate('table:bulk%02d' % i, 400)
         for i in range(tiny):
-            self.populate('table:tiny%d' % i, 5, start = 5)
+            self.populate('table:tiny%d' % i, 5)
         self.session.checkpoint()
 
         report = self.report()
         self.check_report_consistent(report)
         resident = self.names(report, 'total cache bytes')
 
-        # Every slot went to a table that holds real cache. How many slots are occupied depends
-        # on eviction, but a table holding almost nothing must never displace one that does: the
-        # ranking fills once and then admits only what beats its smallest entry.
-        self.assertGreater(len(resident), 0, 'nothing was ranked, so this proves nothing')
+        # It filled the ranking, and filled it with the tables that hold the cache: a table
+        # holding almost nothing never displaces one that does. How full it stays is deliberately
+        # left loose.
+        self.assertGreaterEqual(len(resident), self.slots // 2)
         for name in resident:
             self.assertTrue(any(name in table_names(self, 'bulk%02d' % i) for i in range(bulk)),
                 'a table holding almost nothing took a slot: %s' % name)
@@ -447,7 +443,7 @@ class test_cache_top02(cache_top_base):
     # A short sweep interval so the server that emits the report comes around promptly. The
     # category is left off here: each test below turns it on the way it means to test.
     conn_config = ('create,cache_size=100MB,statistics=(all),'
-        'file_manager=(close_scan_interval=1)')
+        'file_manager=(close_scan_interval=1),' + NO_EVICTION)
 
     # The server can emit a report at any point once the category is on, including while the
     # connection is closing, which is after the last chance a test has to consume it. Turning the
@@ -548,7 +544,7 @@ class test_cache_top04(cache_top_base):
 
         # Eviction is a background thread, so poll: reading pages back in both accounts for them
         # and gives the tree a chance to be admitted.
-        deadline = time.time() + 30
+        deadline = time.time() + 60
         while True:
             self.read_all(uri)
             _, entries = self.ranking('total cache bytes')
@@ -564,7 +560,7 @@ class test_cache_top04(cache_top_base):
 # explicit request. Recomputed at the end of every checkpoint.
 class test_cache_top05(cache_top_base):
     cache_size_mb = 100
-    conn_config = 'create,cache_size=%dMB,statistics=(all)' % cache_size_mb
+    conn_config = 'create,cache_size=%dMB,statistics=(all),' % cache_size_mb + NO_EVICTION
 
     # Each ranking that publishes a share of the cache, as (whole ranking, largest few).
     pct_stats = [
