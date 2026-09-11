@@ -303,12 +303,10 @@ tiered_config = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
         type='category', subconfig=
-        # object_target_size before shared so compiled key numbers keep first-seen order.
-        tiered_storage_configuration_common[:-1] + [
+        tiered_storage_configuration_common + [
         Config('object_target_size', '0', r'''
             removed option, preserved to allow parsing old metadata''',
             min='0', undoc=True),
-        tiered_storage_shared,
         ]),
 ]
 

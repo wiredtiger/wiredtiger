@@ -273,7 +273,7 @@
 #define WT_CONF_ID_next_random_seed 152ULL
 #define WT_CONF_ID_no_timestamp 178ULL
 #define WT_CONF_ID_nvram_path 212ULL
-#define WT_CONF_ID_object_target_size 85ULL
+#define WT_CONF_ID_object_target_size 86ULL
 #define WT_CONF_ID_obsolete_tw_btree_max 285ULL
 #define WT_CONF_ID_oldest 81ULL
 #define WT_CONF_ID_oldest_timestamp 329ULL
@@ -334,7 +334,7 @@
 #define WT_CONF_ID_session_scratch_max 372ULL
 #define WT_CONF_ID_session_table_cache 373ULL
 #define WT_CONF_ID_sessions 202ULL
-#define WT_CONF_ID_shared 86ULL
+#define WT_CONF_ID_shared 85ULL
 #define WT_CONF_ID_show_prepared_rollback 139ULL
 #define WT_CONF_ID_size 209ULL
 #define WT_CONF_ID_size_stats 141ULL
