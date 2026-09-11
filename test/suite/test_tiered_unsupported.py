@@ -88,6 +88,14 @@ class test_tiered_unsupported_api(wttest.WiredTigerTestCase):
             lambda: self.session.checkpoint('flush_tier=(enabled)'),
             '/unknown configuration key/')
 
+    def test_reconfigure_tiered_storage(self):
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure('tiered_storage=(local_retention=300)'),
+            '/unknown configuration key/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure('tiered_storage=(name=dir_store)'),
+            '/unknown configuration key/')
+
     def test_conn_tiered_storage(self):
         msg = 'tiered storage is not supported'
         os.mkdir('ts_home')

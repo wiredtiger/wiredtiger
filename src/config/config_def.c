@@ -622,18 +622,6 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5};
-
-static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs[] = {
-  {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    84, 0, 10000, NULL},
-  {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
-
-static const uint8_t
-  confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 const char __WT_CONFIG_CHOICE_aggressive_stash_free[] = "aggressive_stash_free";
 const char __WT_CONFIG_CHOICE_aggressive_sweep[] = "aggressive_sweep";
 const char __WT_CONFIG_CHOICE_backup_blkmod_delay[] = "backup_blkmod_delay";
@@ -875,10 +863,6 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5,
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN, INT64_MAX, NULL},
-  {"tiered_storage", "category", NULL, NULL,
-    confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 1,
-    confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 82, INT64_MIN, INT64_MAX, NULL},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
     "\"backup_blkmod_delay\",\"backup_rename\","
@@ -925,8 +909,8 @@ static const uint8_t confchk_WT_CONNECTION_reconfigure_jump[WT_CONFIG_JUMP_TABLE
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 8,
-  10, 20, 21, 22, 24, 25, 26, 26, 28, 28, 28, 30, 31, 31, 32, 35, 37, 37, 38, 38, 38, 38, 38, 38,
-  38, 38, 38};
+  10, 20, 21, 22, 24, 25, 26, 26, 28, 28, 28, 30, 31, 31, 32, 35, 36, 36, 37, 37, 37, 37, 37, 37,
+  37, 37, 37};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_rollback_to_stable[] = {
   {"dryrun", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 96, INT64_MIN,
@@ -4257,9 +4241,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"
     "sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
-    "tiered_storage=(local_retention=300),timing_stress_for_test=,"
-    "verbose=[]",
-    confchk_WT_CONNECTION_reconfigure, 38, confchk_WT_CONNECTION_reconfigure_jump, 10,
+    "timing_stress_for_test=,verbose=[]",
+    confchk_WT_CONNECTION_reconfigure, 37, confchk_WT_CONNECTION_reconfigure_jump, 10,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.rollback_to_stable", "dryrun=false,threads=4",
     confchk_WT_CONNECTION_rollback_to_stable, 2, confchk_WT_CONNECTION_rollback_to_stable_jump, 11,

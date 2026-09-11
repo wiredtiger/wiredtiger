@@ -2531,9 +2531,6 @@ struct __wt_connection {
      * setting this value above 0 configures statistics logging., an integer between \c 0 and \c
      * 100000; default \c 0.}
      * @config{ ),,}
-     * @config{tiered_storage = (, Removed options\, preserved to allow parsing old metadata., a set
-     * of related configuration options defined as follows.}
-     * @config{ ),,}
      * @config{verbose, enable messages for various subsystems and operations.  Options are given as
      * a list\, where each message type can optionally define an associated verbosity level\, such
      * as <code>"verbose=[eviction\,read:1\,rts:0]"</code>. Verbosity levels that can be provided

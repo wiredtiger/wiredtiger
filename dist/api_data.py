@@ -1278,11 +1278,6 @@ wiredtiger_open_statistics_log_configuration = [
         ])
 ]
 
-connection_reconfigure_tiered_storage_configuration = [
-    Config('tiered_storage', '', r'''
-        Removed options, preserved to allow parsing old metadata''',
-        type='category', subconfig=[tiered_storage_local_retention])
-]
 wiredtiger_open_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
@@ -2273,7 +2268,6 @@ methods = {
     connection_reconfigure_page_delta_configuration +\
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
-    connection_reconfigure_tiered_storage_configuration +\
     connection_runtime_config
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
