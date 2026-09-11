@@ -36,11 +36,12 @@ from wiredtiger import stat
 # signaling it causes a null-pointer dereference. This test exercises the shutdown path with the
 # offending configuration.
 class test_bug036(wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     conn_config = 'log=(enabled=true,file_max=102400),checkpoint=(log_size=100,wait=0)'
 
     def test_bug036_checkpoint_log_size_close(self):
-        uri = 'table:test_bug036'
-        self.session.create(uri, 'key_format=S,value_format=S')
+        self.session.create(self.uri, 'key_format=S,value_format=S')
 
         stat_cursor = self.session.open_cursor('statistics:')
         initial_ckpts = stat_cursor[stat.conn.checkpoints_total_succeed][2]
@@ -48,7 +49,7 @@ class test_bug036(wttest.WiredTigerTestCase):
 
         # Write enough log to trigger a checkpoint from the server thread, which resets the
         # log-size counter.
-        c = self.session.open_cursor(uri)
+        c = self.session.open_cursor(self.uri)
         for i in range(250):
             c['k%04d' % i] = 'v' + 'x' * 900
         c.close()
@@ -69,7 +70,7 @@ class test_bug036(wttest.WiredTigerTestCase):
         # the resulting logs; with the bug this could attempt to signal the already-destroyed
         # checkpoint condition variable and crash.
         for t in range(40):
-            extra = 'table:extra_%d' % t
+            extra = 'table:%s_extra_%d' % (self.test_name, t)
             self.session.create(extra, 'key_format=S,value_format=S')
             c = self.session.open_cursor(extra)
             c['a'] = 'b' * 100
