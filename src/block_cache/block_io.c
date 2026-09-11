@@ -280,7 +280,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
          */
         if (dsk->mem_size <= WT_BLOCK_COMPRESS_SKIP) {
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __wt_errx_id(session, 1538002,
+                __wt_errx(session,
                   "%s: compressed block has an invalid in-memory size of %" PRIu32 "B",
                   btree->dhandle->name, dsk->mem_size);
             WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
