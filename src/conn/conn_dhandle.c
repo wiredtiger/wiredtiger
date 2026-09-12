@@ -911,7 +911,7 @@ __conn_dhandle_close_locked(
     if (removed && !mark_dead && WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
         btree = dhandle->handle;
         if (!btree->modified) {
-            WT_RET(__wt_evict_file_exclusive_on(session));
+            WT_ERR(__wt_evict_file_exclusive_on(session));
             evict_off = true;
             if (!btree->modified)
                 mark_dead = true;
@@ -936,6 +936,7 @@ __conn_dhandle_close_locked(
     if (removed)
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
 
+err:
     /*
      * Turn eviction back on before releasing the dhandle: releasing can clear session->dhandle, and
      * disabling eviction needs it to resolve the btree it was disabled for.
