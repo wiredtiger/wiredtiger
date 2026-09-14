@@ -241,6 +241,9 @@ static WT_INLINE void __wt_evict_touch_page(
 #ifdef HAVE_UNITTEST
 extern const WT_PAGE_HEADER *__ut_evict_page_disagg_image(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __ut_evict_page_victim_cache_eligible(
+  WT_SESSION_IMPL *session, WT_REF *ref, const WT_PAGE_HEADER **diskp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #endif
 

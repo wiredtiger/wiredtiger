@@ -1654,4 +1654,11 @@ __ut_evict_page_disagg_image(WT_PAGE *page)
 {
     return (__evict_page_disagg_image(page));
 }
+
+bool
+__ut_evict_page_victim_cache_eligible(
+  WT_SESSION_IMPL *session, WT_REF *ref, const WT_PAGE_HEADER **diskp)
+{
+    return (__evict_page_victim_cache_eligible(session, ref, diskp));
+}
 #endif
