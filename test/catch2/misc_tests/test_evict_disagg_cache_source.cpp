@@ -182,6 +182,27 @@ TEST_CASE(
 }
 
 TEST_CASE(
+  "Victim cache source: a single-block replacement with a retained image is used even when the "
+  "page has no image of its own",
+  "[evict][disagg_cache]")
+{
+    /*
+     * A page with no on-disk image of its own: created purely in memory, never instantiated from a
+     * read. The retained replacement image is the only image this page has ever had.
+     */
+    WT_PAGE_HEADER *new_dsk = make_dsk(6144);
+
+    WT_PAGE_DISAGG_INFO info = make_disagg_info(14606, 200, 100, 0x1234, 1);
+    WT_PAGE_MODIFY mod;
+    WT_PAGE page = make_replaced_page(nullptr, &info, &mod, new_dsk);
+
+    REQUIRE(
+      __ut_evict_page_disagg_image(&page) == reinterpret_cast<const WT_PAGE_HEADER *>(new_dsk));
+
+    free(new_dsk);
+}
+
+TEST_CASE(
   "Victim cache source: a single-block replacement without a retained image is not "
   "cacheable",
   "[evict][disagg_cache]")
