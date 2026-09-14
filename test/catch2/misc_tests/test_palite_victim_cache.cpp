@@ -1,0 +1,134 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#ifndef _WIN32
+
+#include <cstdlib>
+#include <cstring>
+#include <string>
+
+#include <catch2/catch.hpp>
+
+#include "wiredtiger.h"
+#include "../utils.h"
+#include "../wrappers/connection_wrapper.h"
+
+static std::string
+palite_conn_cfg(const char *palite_opts)
+{
+    std::string cfg = "create,statistics=(all),";
+    cfg += "extensions=[./ext/page_log/palite/libwiredtiger_palite.so";
+    if (palite_opts != nullptr && palite_opts[0] != '\0') {
+        cfg += "=(config=\"(";
+        cfg += palite_opts;
+        cfg += ")\")";
+    }
+    cfg += "],disaggregated=(role=leader,page_log=palite,lose_all_my_data=true)";
+    return cfg;
+}
+
+static void
+free_results(WT_ITEM *results, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; ++i) {
+        std::free(results[i].mem);
+        results[i] = {};
+    }
+}
+
+static WT_ITEM
+item_from_string(const char *s)
+{
+    WT_ITEM buf{};
+    buf.data = s;
+    buf.size = std::strlen(s);
+    return buf;
+}
+
+TEST_CASE("Palite victim cache is off by default", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+    REQUIRE(handle->plh_cache_available != nullptr);
+    REQUIRE_FALSE(handle->plh_cache_available(handle, session));
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
+TEST_CASE("Palite victim cache consume-on-get and erase-on-put", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=16").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+    REQUIRE(handle->plh_cache_available(handle, session));
+
+    const uint64_t page_id = 20;
+    const char *store_bytes = "sqlite-page";
+    const char *cache_bytes = "cached-page";
+    WT_ITEM store_buf = item_from_string(store_bytes);
+    WT_ITEM cache_buf = item_from_string(cache_bytes);
+
+    WT_PAGE_LOG_PUT_ARGS put_args{};
+    REQUIRE(handle->plh_put(handle, session, page_id, 0, &put_args, &store_buf) == 0);
+    const uint64_t lsn = put_args.lsn;
+    REQUIRE(lsn > 0);
+
+    WT_PAGE_LOG_PUT_ARGS cache_args{};
+    cache_args.lsn = lsn;
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+
+    WT_ITEM results[4]{};
+    uint32_t n = 4;
+    WT_PAGE_LOG_GET_ARGS get_args{};
+    get_args.lsn = lsn;
+    REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
+    REQUIRE(n == 1);
+    REQUIRE(results[0].size == std::strlen(cache_bytes));
+    REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
+    free_results(results, n);
+
+    /* Consume-on-get removed the entry; the store still has the original page. */
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == -1);
+
+    n = 4;
+    get_args = {};
+    get_args.lsn = lsn;
+    REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
+    REQUIRE(n == 1);
+    REQUIRE(results[0].size == std::strlen(store_bytes));
+    REQUIRE(std::memcmp(results[0].data, store_bytes, results[0].size) == 0);
+    free_results(results, n);
+
+    /* A later put of the same LSN drops any re-cached copy. */
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+    WT_PAGE_LOG_PUT_ARGS erase_args{};
+    erase_args.lsn = lsn;
+    REQUIRE(handle->plh_put(handle, session, page_id, 0, &erase_args, &store_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == -1);
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
+#endif
