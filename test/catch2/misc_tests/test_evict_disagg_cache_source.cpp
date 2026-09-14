@@ -12,15 +12,15 @@
 #include "wt_internal.h"
 
 /*
- * These tests exercise the resolution of the on-disk-format image a page's block metadata should
- * be cached with. A page's own image and its block metadata can independently describe different
- * versions of a page once reconciliation has run: WT-18626 was exactly this, a page force-cleaned
- * on an outdated disaggregated btree reaching the victim cache with its own image still the
- * pre-reconciliation one while the metadata already described the reconciled one.
+ * These tests exercise the resolution of the on-disk-format image a page's block metadata should be
+ * cached with. A page's own image and its block metadata can independently describe different
+ * versions of a page once reconciliation has run: a page force-cleaned on an outdated disaggregated
+ * btree can reach the victim cache with its own image still the pre-reconciliation one while the
+ * metadata already describes the reconciled one.
  *
- * A page's reconciliation result uses a union keyed by which kind of result it is (no
- * replacement, multiple blocks, or a single block); these helpers build only the union arm each
- * result implies, matching what reconciliation itself would have populated.
+ * A page's reconciliation result uses a union keyed by which kind of result it is (no replacement,
+ * multiple blocks, or a single block); these helpers build only the union arm each result implies,
+ * matching what reconciliation itself would have populated.
  */
 
 namespace {
@@ -29,8 +29,10 @@ WT_PAGE_HEADER *
 make_dsk(uint32_t mem_size)
 {
     WT_PAGE_HEADER *dsk;
-    /* A real page header, sized like the real image buffers this stands in for; content beyond
-     * mem_size is never inspected by the code under test. */
+    /*
+     * A real page header, sized like the real image buffers this stands in for; content beyond
+     * mem_size is never inspected by the code under test.
+     */
     dsk = static_cast<WT_PAGE_HEADER *>(calloc(1, sizeof(WT_PAGE_HEADER)));
     REQUIRE(dsk != nullptr);
     dsk->mem_size = mem_size;
@@ -49,11 +51,13 @@ make_unmodified_page(WT_PAGE_HEADER *dsk, WT_PAGE_DISAGG_INFO *disagg_info)
     return page;
 }
 
-/* A page whose modify structure exists but has not been reconciled: the state a page is in
- * before its first reconciliation, still described entirely by its own image. */
+/*
+ * A page whose modify structure exists but has not been reconciled: the state a page is in before
+ * its first reconciliation, still described entirely by its own image.
+ */
 WT_PAGE
-make_dirty_unreconciled_page(WT_PAGE_HEADER *dsk, WT_PAGE_DISAGG_INFO *disagg_info,
-  WT_PAGE_MODIFY *mod)
+make_dirty_unreconciled_page(
+  WT_PAGE_HEADER *dsk, WT_PAGE_DISAGG_INFO *disagg_info, WT_PAGE_MODIFY *mod)
 {
     memset(mod, 0, sizeof(*mod));
     mod->rec_result = 0;
@@ -66,8 +70,10 @@ make_dirty_unreconciled_page(WT_PAGE_HEADER *dsk, WT_PAGE_DISAGG_INFO *disagg_in
     return page;
 }
 
-/* A page reconciled into a single replacement block. disk_image may be null to model the case
- * where the block was written but no in-memory copy was retained. */
+/*
+ * A page reconciled into a single replacement block. disk_image may be null to model the case where
+ * the block was written but no in-memory copy was retained.
+ */
 WT_PAGE
 make_replaced_page(
   WT_PAGE_HEADER *dsk, WT_PAGE_DISAGG_INFO *disagg_info, WT_PAGE_MODIFY *mod, void *disk_image)
@@ -84,8 +90,10 @@ make_replaced_page(
     return page;
 }
 
-/* A page reconciled into a split or a deletion. Neither populates the union arm a retained
- * replacement image would occupy. */
+/*
+ * A page reconciled into a split or a deletion. Neither populates the union arm a retained
+ * replacement image would occupy.
+ */
 WT_PAGE
 make_non_replace_page(
   WT_PAGE_HEADER *dsk, WT_PAGE_DISAGG_INFO *disagg_info, WT_PAGE_MODIFY *mod, uint8_t rec_result)
@@ -104,8 +112,8 @@ make_non_replace_page(
 }
 
 WT_PAGE_DISAGG_INFO
-make_disagg_info(uint64_t page_id, uint64_t disagg_lsn, uint64_t base_lsn, uint32_t checksum,
-  uint8_t delta_count)
+make_disagg_info(
+  uint64_t page_id, uint64_t disagg_lsn, uint64_t base_lsn, uint32_t checksum, uint8_t delta_count)
 {
     WT_PAGE_DISAGG_INFO info;
     memset(&info, 0, sizeof(info));
@@ -119,8 +127,7 @@ make_disagg_info(uint64_t page_id, uint64_t disagg_lsn, uint64_t base_lsn, uint3
 
 } // namespace
 
-TEST_CASE(
-  "Victim cache source: an unmodified page's own image is used", "[evict][disagg_cache]")
+TEST_CASE("Victim cache source: an unmodified page's own image is used", "[evict][disagg_cache]")
 {
     WT_PAGE_HEADER *dsk = make_dsk(4096);
     WT_PAGE_DISAGG_INFO info = make_disagg_info(14606, 100, 50, 0xabcd, 0);
@@ -131,8 +138,8 @@ TEST_CASE(
     free(dsk);
 }
 
-TEST_CASE("Victim cache source: a dirty page never reconciled uses its own image",
-  "[evict][disagg_cache]")
+TEST_CASE(
+  "Victim cache source: a dirty page never reconciled uses its own image", "[evict][disagg_cache]")
 {
     WT_PAGE_HEADER *dsk = make_dsk(4096);
     WT_PAGE_DISAGG_INFO info = make_disagg_info(14606, 100, 50, 0xabcd, 0);
@@ -151,26 +158,32 @@ TEST_CASE(
 {
     /* The pre-reconciliation image: what the page's own image field still points at. */
     WT_PAGE_HEADER *old_dsk = make_dsk(4096);
-    /* The post-reconciliation image, retained for exactly this purpose. The page's block
-     * metadata (checked separately, at the call site, not here) has already been advanced to
-     * describe this one. */
+    /*
+     * The post-reconciliation image, retained for exactly this purpose. The page's block metadata
+     * (checked separately, at the call site, not here) has already been advanced to describe this
+     * one.
+     */
     WT_PAGE_HEADER *new_dsk = make_dsk(6144);
 
     WT_PAGE_DISAGG_INFO info = make_disagg_info(14606, 200, 100, 0x1234, 1);
     WT_PAGE_MODIFY mod;
     WT_PAGE page = make_replaced_page(old_dsk, &info, &mod, new_dsk);
 
-    /* This is the assertion WT-18626 violated: using the page's own image here would publish
-     * stale content under the block metadata's newer identity. */
-    REQUIRE(__ut_evict_page_disagg_image(&page) == reinterpret_cast<const WT_PAGE_HEADER *>(new_dsk));
+    /*
+     * Using the page's own image here would publish stale content under the block metadata's newer
+     * identity.
+     */
+    REQUIRE(
+      __ut_evict_page_disagg_image(&page) == reinterpret_cast<const WT_PAGE_HEADER *>(new_dsk));
     REQUIRE(__ut_evict_page_disagg_image(&page) != old_dsk);
 
     free(old_dsk);
     free(new_dsk);
 }
 
-TEST_CASE("Victim cache source: a single-block replacement without a retained image is not "
-          "cacheable",
+TEST_CASE(
+  "Victim cache source: a single-block replacement without a retained image is not "
+  "cacheable",
   "[evict][disagg_cache]")
 {
     WT_PAGE_HEADER *dsk = make_dsk(4096);

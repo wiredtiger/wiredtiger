@@ -80,20 +80,20 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __evict_page_disagg_image --
- *     Return the on-disk-format image that matches the page's current disaggregated block
- *     metadata, or NULL if there is no such image available to cache. The block metadata itself
- *     always comes straight from the page, unconditionally; only the image needs this care, since
- *     it is the one piece that a reconciliation can leave stale.
+ *     Return the on-disk-format image that matches the page's current disaggregated block metadata,
+ *     or NULL if there is no such image available to cache. The block metadata itself always comes
+ *     straight from the page, unconditionally; only the image needs this care, since it is the one
+ *     piece that a reconciliation can leave stale.
  *
- *     The page's own image matches its metadata only while nothing has reconciled the page since
- *     it was read. Once reconciliation replaces the page with a single new block, the metadata is
- *     advanced to describe that block immediately, but the page's own image is left as it was;
- *     clearing a page's dirty flag on its own does not undo a reconciliation result already
- *     sitting on it, so a page can reach here still carrying such a replacement. Use the
- *     replacement's own retained image in that case, for the same reason a page carrying an
- *     unwritten reconciliation result is re-instantiated from it elsewhere rather than discarded.
- *     A page whose reconciliation result is a split or a deletion, or a replacement whose image
- *     was not retained in memory, cannot be represented by a single cached image at all.
+ * The page's own image matches its metadata only while nothing has reconciled the page since it was
+ *     read. Once reconciliation replaces the page with a single new block, the metadata is advanced
+ *     to describe that block immediately, but the page's own image is left as it was; clearing a
+ *     page's dirty flag on its own does not undo a reconciliation result already sitting on it, so
+ *     a page can reach here still carrying such a replacement. Use the replacement's own retained
+ *     image in that case, for the same reason a page carrying an unwritten reconciliation result is
+ *     re-instantiated from it elsewhere rather than discarded. A page whose reconciliation result
+ *     is a split or a deletion, or a replacement whose image was not retained in memory, cannot be
+ *     represented by a single cached image at all.
  */
 static WT_INLINE const WT_PAGE_HEADER *
 __evict_page_disagg_image(WT_PAGE *page)
@@ -146,9 +146,8 @@ __evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /*
-     * Only cache a page whose in-memory image is consistent with its block metadata: either it
-     * was never reconciled since being read, or reconciliation replaced it and retained the new
-     * image.
+     * Only cache a page whose in-memory image is consistent with its block metadata: either it was
+     * never reconciled since being read, or reconciliation replaced it and retained the new image.
      */
     if (__evict_page_disagg_image(page) == NULL)
         return (false);
@@ -188,8 +187,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page = ref->page;
 
     /*
-     * Re-resolve the image rather than pass it down from the eligibility check, so the two stay
-     * in sync by construction instead of by re-deriving the same logic twice.
+     * Re-resolve the image rather than pass it down from the eligibility check, so the two stay in
+     * sync by construction instead of by re-deriving the same logic twice.
      */
     const WT_PAGE_HEADER *disk_image = __evict_page_disagg_image(page);
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
