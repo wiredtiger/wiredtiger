@@ -189,6 +189,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     const WT_PAGE_HEADER *disk_image;
     if (!__evict_page_victim_cache_eligible(session, ref, &disk_image))
         return;
+    WT_ASSERT(session, disk_image != NULL);
 
     /* Eligibility has already confirmed the disagg page log handle exists. */
     WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
