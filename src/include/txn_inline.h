@@ -2052,6 +2052,50 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 }
 
 /*
+ * __wt_step_down_read_lock --
+ *     Take the step-down read lock.
+ */
+static WT_INLINE void
+__wt_step_down_read_lock(WT_SESSION_IMPL *session)
+{
+    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+}
+
+/*
+ * __wt_step_down_read_unlock --
+ *     Release the step-down lock taken by __wt_step_down_read_lock.
+ */
+static WT_INLINE void
+__wt_step_down_read_unlock(WT_SESSION_IMPL *session)
+{
+    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+}
+
+/*
+ * __wt_step_down_write_lock --
+ *     Take the step-down write lock.
+ */
+static WT_INLINE void
+__wt_step_down_write_lock(WT_SESSION_IMPL *session)
+{
+    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+        __wt_writelock(session, &S2C(session)->txn_global.step_down_lock);
+}
+
+/*
+ * __wt_step_down_write_unlock --
+ *     Release the step-down lock taken by __wt_step_down_write_lock.
+ */
+static WT_INLINE void
+__wt_step_down_write_unlock(WT_SESSION_IMPL *session)
+{
+    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+        __wt_writeunlock(session, &S2C(session)->txn_global.step_down_lock);
+}
+
+/*
  * __wt_txn_stepdown_straddler_check --
  *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
  *     checkpointed at that timestamp, and everything committed after it must go to the ingest
@@ -2190,12 +2234,14 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
      * the timestamp as set also makes the writes of transactions that committed before it was set
      * visible.
+     *
+     * FIXME-WT-18650: Remove step_down_lock when always mirroring writes.
      */
     if (__wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        __wt_step_down_read_lock(session);
         txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
                                  &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        __wt_step_down_read_unlock(session);
     }
 
     F_SET(txn, WT_TXN_RUNNING);

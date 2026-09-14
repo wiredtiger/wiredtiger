@@ -235,6 +235,8 @@ struct __wt_txn_global {
      * write transaction commits. A committing write transaction either observes the timestamp and
      * rolls back, or its writes happen before the timestamp store and are visible to every
      * transaction that begins with the timestamp set.
+     *
+     * FIXME-WT-18650: Remove step_down_lock when always mirroring writes.
      */
     WT_RWLOCK step_down_lock;
 

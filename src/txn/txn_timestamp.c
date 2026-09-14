@@ -661,14 +661,16 @@ set:
      * clears it, so it is only valid on a leader and cannot be changed while set. The step-down
      * epoch is stored in the same locked section so readers observe the boundary in both spaces or
      * in neither.
+     *
+     * FIXME-WT-18650: Remove step_down_lock when always mirroring writes.
      */
     if (has_step_down) {
-        __wt_writelock(session, &txn_global->step_down_lock);
+        __wt_step_down_write_lock(session);
         __wt_atomic_store_uint64_relaxed(&txn_global->step_down_timestamp, step_down_ts);
         if (has_step_down_epoch)
             __wt_atomic_store_uint64_relaxed(
               &txn_global->step_down_disaggregated_schema_epoch, step_down_epoch);
-        __wt_writeunlock(session, &txn_global->step_down_lock);
+        __wt_step_down_write_unlock(session);
         WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 1);
         __wt_verbose_info(session, WT_VERB_TIMESTAMP, "Updated global step down timestamp to %s",
           __wt_timestamp_to_string(step_down_ts, ts_string[0]));

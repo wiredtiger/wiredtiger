@@ -1911,12 +1911,14 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
      * see the earlier switch of the role to follower. Without that ordering a reader could observe
      * the stale leader role with no step-down timestamp and read only stable, missing ingest
      * content.
+     *
+     * FIXME-WT-18650: Remove step_down_lock when always mirroring writes.
      */
-    __wt_writelock(session, &conn->txn_global.step_down_lock);
+    __wt_step_down_write_lock(session);
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     __wt_atomic_store_uint64_relaxed(
       &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
-    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+    __wt_step_down_write_unlock(session);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
 
