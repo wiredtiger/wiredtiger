@@ -1326,6 +1326,9 @@ struct __wt_session {
      * that is\, when a Btree page is split\, it will be split into smaller pages\, where each page
      * is the specified percentage of the maximum Btree page size., an integer between \c 50 and \c
      * 100; default \c 90.}
+     * @config{tiered_storage = (, Removed options\, preserved to allow parsing old metadata., a set
+     * of related configuration options defined as follows.}
+     * @config{ ),,}
      * @config{type, set the type of data source used to store a column group\, index or simple
      * table.  By default\, a \c "file:" URI is derived from the object name.  The \c type
      * configuration can be used to switch to a different data source or an extension configured by

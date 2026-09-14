@@ -277,33 +277,38 @@ lsm_config = [
     ]),
 ]
 
+# Common removed-option fields for table/file and wiredtiger_open.
+tiered_storage_local_retention = Config('local_retention', '300', r'''
+    removed option, preserved to allow parsing old metadata''',
+    min='0', max='10000', undoc=True)
+tiered_storage_shared = Config('shared', 'false', r'''
+    removed option, preserved to allow parsing old metadata''',
+    type='boolean', undoc=True)
+tiered_storage_configuration_common = [
+    Config('name', 'none', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('auth_token', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('bucket', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('bucket_prefix', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    Config('cache_directory', '', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
+    tiered_storage_local_retention,
+    tiered_storage_shared,
+]
+
 tiered_config = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
-        type='category', undoc=True, subconfig=[
-        Config('name', 'none', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('auth_token', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('bucket', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('bucket_prefix', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('cache_directory', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('local_retention', '300', r'''
-            removed option, preserved to allow parsing old metadata''',
-            min='0', max='10000'),
-        Config('shared', 'false', r'''
-            removed option, preserved to allow parsing old metadata''',
-            type='boolean'),
+        type='category', subconfig=
+        tiered_storage_configuration_common + [
         Config('object_target_size', '0', r'''
             removed option, preserved to allow parsing old metadata''',
-            min='0'),
+            min='0', undoc=True),
         ]),
 ]
-# Distinguishes the create check table from wiredtiger_open's same-named category.
-tiered_config[0].method_name = 'WT_SESSION.create'
 
 tiered_tree_config = [
     Config('bucket', '', r'''
@@ -1274,27 +1279,12 @@ wiredtiger_open_statistics_log_configuration = [
 wiredtiger_open_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
-        type='category', undoc=True, subconfig=[
-        Config('name', 'none', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('auth_token', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('bucket', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('bucket_prefix', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('cache_directory', '', r'''
-            removed option, preserved to allow parsing old metadata'''),
-        Config('local_retention', '300', r'''
-            removed option, preserved to allow parsing old metadata''',
-            min='0', max='10000'),
-        Config('shared', 'false', r'''
-            removed option, preserved to allow parsing old metadata''',
-            type='boolean'),
+        type='category', undoc=True, subconfig=
+        tiered_storage_configuration_common + [
         Config('interval', '60', r'''
             removed option, preserved to allow parsing old metadata''',
-            min=1, max=1000),
-        ]),
+            min=1, max=1000, undoc=True),
+    ]),
 ]
 
 # At this stage live restore intentionally does not support reconfiguring the number of worker
