@@ -960,6 +960,57 @@ err:
 }
 
 /*
+ * __wt_btcur_search_verify --
+ *     Search the data store for a key read out of the history store. Verify holds the btree
+ *     exclusively and runs without a transaction of its own, so it drives a btree cursor directly
+ *     rather than going through the cursor API; this stands in for __wt_btcur_search on that path.
+ *     When live_tw is set, the time window of the key's current value is handed back for the
+ *     callers that compare it against the history store's own records. The cursor is left reset.
+ */
+int
+__wt_btcur_search_verify(
+  WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *foundp, bool *validp, WT_TIME_WINDOW *live_tw)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    uint64_t recno;
+    const uint8_t *p;
+
+    session = CUR2S(cbt);
+    *foundp = false;
+    if (validp != NULL)
+        *validp = false;
+
+    if (CUR2BT(cbt)->type == BTREE_ROW) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, false, NULL, false, NULL));
+    } else {
+        p = (const uint8_t *)key->data;
+        WT_ERR(__wt_vunpack_uint(&p, key->size, &recno));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_col_search(cbt, recno, NULL, false, NULL));
+    }
+    WT_ERR(ret);
+
+    *foundp = cbt->compare == 0;
+    if (*foundp && validp != NULL) {
+        /*
+         * The verify session isn't inside a normal user transaction, so it has no snapshot;
+         * resolving the value's visibility needs one unless we're explicitly read-uncommitted, same
+         * as the history store's own cursor methods (see __curhs_file_cursor_next).
+         */
+        WT_WITH_TXN_ISOLATION(
+          session, WT_ISO_READ_UNCOMMITTED, ret = __wti_cursor_valid(cbt, validp, false));
+        WT_ERR(ret);
+
+        if (*validp)
+            WT_TIME_WINDOW_COPY(live_tw, &cbt->upd_value->tw);
+    }
+
+err:
+    WT_TRET(__cursor_reset(cbt));
+    return (ret);
+}
+
+/*
  * __btcur_search_neighboring --
  *     Search for a valid record around the cursor location.
  *
