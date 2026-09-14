@@ -93,7 +93,7 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     def skip_stats(self, conn):
         return (
-            self.get_stat(stat.conn.cursor_tree_walk_del_internal_page_skip, conn=conn),
+            self.get_stat(stat.conn.cursor_tree_walk_ondisk_del_internal_page_skip, conn=conn),
             self.get_stat(
                 stat.conn.cursor_tree_walk_resident_del_internal_page_skip, conn=conn),
         )

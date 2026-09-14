@@ -2959,7 +2959,7 @@ __wt_btcur_skip_page_inc(
         if (resident_internal)
             walk_skip_stats->total_resident_del_internal_pages_skipped++;
         else
-            walk_skip_stats->total_del_internal_pages_skipped++;
+            walk_skip_stats->total_ondisk_del_internal_pages_skipped++;
     } else
         walk_skip_stats->total_del_leaf_pages_skipped++;
 }
