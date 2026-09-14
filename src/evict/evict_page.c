@@ -12,6 +12,7 @@ static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static WTI_EVICT_VICTIM_REASON __evict_page_victim_cache_eligible(
   WT_SESSION_IMPL *, WT_REF *, const WT_PAGE_HEADER **);
+static bool __evict_page_victim_cache_reason_per_page(WTI_EVICT_VICTIM_REASON);
 static const char *__evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_RECONCILE_TIMELINE *);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
@@ -156,6 +157,46 @@ __evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON reason)
 }
 
 /*
+ * __evict_page_victim_cache_reason_per_page --
+ *     Return whether a reason says something about this particular page, rather than something that
+ *     holds for the whole tree or deployment.
+ *
+ * The eligibility check runs for every page evicted from any tree, disaggregated or not, so a
+ *     reason that is fixed for the tree repeats for every page that tree ever evicts: a
+ *     non-disaggregated tree would report the same thing on every eviction for the life of the run,
+ *     drowning a verbose session in lines that carry no new information. Only the reasons that can
+ *     differ between two pages of the same tree, or between two attempts on one page, are worth a
+ *     line each. How often each reason fires is a question for statistics rather than for the log.
+ */
+static bool
+__evict_page_victim_cache_reason_per_page(WTI_EVICT_VICTIM_REASON reason)
+{
+    /* No default label, as with the other switches here: a new reason has to be classified. */
+    switch (reason) {
+    /* Fixed for the tree or the deployment, so identical for every page of it. */
+    case WTI_EVICT_VICTIM_OK:
+    case WTI_EVICT_VICTIM_NOT_DISAGG:
+    case WTI_EVICT_VICTIM_CHECKPOINT_CURSOR:
+    case WTI_EVICT_VICTIM_NO_BLOCK_MANAGER:
+    case WTI_EVICT_VICTIM_NO_PAGE_LOG:
+    case WTI_EVICT_VICTIM_COLD_TIER:
+    case WTI_EVICT_VICTIM_COUNT:
+        return (false);
+
+    /* A property of this page, or of the moment this page was tried. */
+    case WTI_EVICT_VICTIM_CACHE_UNAVAILABLE:
+    case WTI_EVICT_VICTIM_NOT_LEAF:
+    case WTI_EVICT_VICTIM_NO_DISAGG_INFO:
+    case WTI_EVICT_VICTIM_NO_IMAGE:
+    case WTI_EVICT_VICTIM_INVALID_PAGE_ID:
+    case WTI_EVICT_VICTIM_ROOT:
+        return (true);
+    }
+
+    return (false);
+}
+
+/*
  * __evict_page_victim_cache_eligible --
  *     Check whether a page is eligible to be put in the victim cache, returning the reason it is
  *     not when it is not. On success, also return the image to cache, resolved here so the caller
@@ -237,8 +278,9 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     const WT_PAGE_HEADER *disk_image;
     WTI_EVICT_VICTIM_REASON reason = __evict_page_victim_cache_eligible(session, ref, &disk_image);
     if (reason != WTI_EVICT_VICTIM_OK) {
-        __wt_verbose_debug3(session, WT_VERB_EVICTION, "victim cache: page %p not cached: %s",
-          (void *)ref->page, __evict_page_victim_cache_reason_str(reason));
+        if (__evict_page_victim_cache_reason_per_page(reason))
+            __wt_verbose_debug3(session, WT_VERB_EVICTION, "victim cache: page %p not cached: %s",
+              (void *)ref->page, __evict_page_victim_cache_reason_str(reason));
         return;
     }
     WT_ASSERT(session, disk_image != NULL);
