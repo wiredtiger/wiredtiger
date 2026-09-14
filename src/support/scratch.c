@@ -158,12 +158,8 @@ __wt_buf_set_printable_format(WT_SESSION_IMPL *session, const void *buffer, size
     p = (const uint8_t *)buffer;
     end = p + size;
 
-    /*
-     * The buffer is reused across calls and __wt_buf_init only resets its size, it neither clears
-     * nor NUL-terminates the existing contents. Write an empty string to reset the buffer.
-     */
-    WT_ERR(__wt_buf_init(session, buf, 0));
-    WT_ERR(__wt_buf_catfmt(session, buf, "%s", ""));
+    /* The buffer is reused across calls. Set the buffer to an empty string to reset it. */
+    WT_ERR(__wt_buf_fmt(session, buf, "%s", ""));
 
     WT_ERR(__pack_init(session, &pack, format));
     for (sep = ""; (ret = __pack_next(&pack, &pv)) == 0;) {
