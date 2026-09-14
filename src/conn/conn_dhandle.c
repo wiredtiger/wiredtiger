@@ -376,6 +376,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    int tret;
     bool discard, is_btree, is_mapped, marked_dead, no_schema_lock;
 
     conn = S2C(session);
@@ -486,9 +487,10 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || __wt_btree_stays_in_memory(btree))
                 discard = true;
             else {
-                WT_TRET(__wt_checkpoint_close(session, final));
-                if (!final && ret == EBUSY)
-                    WT_ERR(ret);
+                tret = __wt_checkpoint_close(session, final);
+                if (!final && tret == EBUSY)
+                    WT_ERR(tret);
+                WT_TRET(tret);
             }
         }
     }
@@ -499,8 +501,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * memory-mapped pages contain pointers into memory that becomes invalid if the mapping is
      * closed, so discard mapped files before closing, otherwise, close first.
      */
-    if (discard && is_mapped)
-        WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
+    if (discard && is_mapped) {
+        tret = __wt_evict_file(session, WT_SYNC_DISCARD);
+        if (!final && tret == EBUSY)
+            WT_ERR(tret);
+        WT_TRET(tret);
+    }
 
     /* Close the underlying handle. */
     switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
@@ -543,8 +549,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * we don't need to hold an exclusive handle to do it, second, code we call to clear the cache
      * expects the data handle dead flag to be set when discarding modified pages.
      */
-    if (discard && !is_mapped)
-        WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
+    if (discard && !is_mapped) {
+        tret = __wt_evict_file(session, WT_SYNC_DISCARD);
+        if (!final && tret == EBUSY)
+            WT_ERR(tret);
+        WT_TRET(tret);
+    }
 
     /*
      * If we marked a handle dead it will be closed by sweep, via another call to this function.
