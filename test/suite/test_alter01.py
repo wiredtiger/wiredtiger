@@ -144,6 +144,7 @@ class test_alter01(TieredConfigMixin, wttest.WiredTigerTestCase):
         # Verify the string in the metadata
         self.verify_metadata(access_param)
         self.verify_metadata(cache_param)
+        # Insert fake change
 
         # Run through all combinations of the alter commands
         # for all allowed settings.  This tests having only one or
