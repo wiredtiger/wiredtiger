@@ -259,8 +259,8 @@ TEST_CASE("Victim cache eligibility: a dirty page that was never reconciled is e
   "[evict][disagg_cache]")
 {
     /*
-     * The pre-WT-18626 gate rejected any page that was still dirty. Nothing about a dirty page
-     * makes its own image disagree with its block metadata until a reconciliation has run, so it is
+     * The gate used to reject any page that was still dirty. Nothing about a dirty page makes its
+     * own image disagree with its block metadata until a reconciliation has run, so it is
      * cacheable; this is the behavior change with the widest reach and it is pinned here.
      */
     eligibility_fixture f;
@@ -277,7 +277,7 @@ TEST_CASE("Victim cache eligibility: a retained replacement image is used, not t
     /*
      * The gate resolves the image rather than handing back page->dsk. Using the page's own image
      * here would publish stale content under the block metadata's newer identity, which is the
-     * WT-18626 bug itself.
+     * stale-image bug this gate was reworked to prevent.
      */
     eligibility_fixture f;
     WT_PAGE_HEADER *new_dsk = make_dsk(6144);
@@ -295,7 +295,7 @@ TEST_CASE("Victim cache eligibility: a replacement that retained no image is rej
   "[evict][disagg_cache]")
 {
     /*
-     * Written to storage, image not retained. The pre-WT-18626 gate accepted this page and cached
+     * Written to storage, image not retained. The gate used to accept this page and cache
      * page->dsk, which no longer describes it.
      */
     eligibility_fixture f;
