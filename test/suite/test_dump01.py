@@ -165,3 +165,31 @@ class test_pretty_hex_dump(wttest.WiredTigerTestCase, suite_subprocess):
         # JSON format: the zero-length values are dumped as empty strings.
         self.check_file_contains(self.json_dump_file, '"key0" : 1,\n"value0" : ""\n')
         self.check_file_contains(self.json_dump_file, '"key0" : 3,\n"value0" : ""\n')
+
+    def test_dump_field_separators(self):
+        """
+        Dumps a table with a multi-field value format. Every field is comma separated, including a
+        field that prints nothing: a zero-length item still takes up a field in the output.
+        """
+        uri = 'table:test_dump_separators'
+
+        # (key, item, string, expected pretty-printed value)
+        rows = [
+            (1, b'', 'x', ',x'),
+            (2, b'AB', 'x', 'AB,x'),
+            (3, b'', '', ','),
+        ]
+
+        self.session.create(uri, 'key_format=i,value_format=uS')
+        cursor = self.session.open_cursor(uri, None, None)
+        for k, item, string, _ in rows:
+            cursor[k] = (item, string)
+        cursor.close()
+
+        self.runWt(['dump', '-p', uri], outfilename=self.pretty_dump_file)
+
+        expected = []
+        for k, _, _, value in rows:
+            expected.append(f'{k}')
+            expected.append(value)
+        self.check_file_contains(self.pretty_dump_file, self.data_header + '\n'.join(expected))
