@@ -163,7 +163,7 @@ TEST_CASE(
     EligibilityFixture f;
     const WT_PAGE_HEADER *disk_image = nullptr;
 
-    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) == WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == f.dsk);
 }
 
@@ -176,7 +176,7 @@ TEST_CASE("Victim cache eligibility: retained replacement image is used",
     f.set_replace_image(new_dsk);
 
     const WT_PAGE_HEADER *disk_image = nullptr;
-    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) == WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == reinterpret_cast<const WT_PAGE_HEADER *>(new_dsk));
     REQUIRE(disk_image != f.dsk);
 
@@ -194,7 +194,7 @@ TEST_CASE(
     f.page->dsk = nullptr;
 
     const WT_PAGE_HEADER *disk_image = nullptr;
-    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) == WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == reinterpret_cast<const WT_PAGE_HEADER *>(new_dsk));
 
     free(new_dsk);
@@ -206,7 +206,7 @@ TEST_CASE("Victim cache eligibility: non-disaggregated btree is rejected", "[evi
     F_CLR(f.btree, WT_BTREE_DISAGGREGATED);
 
     const WT_PAGE_HEADER *disk_image = f.dsk; /* Should be reset to NULL on rejection. */
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -216,7 +216,7 @@ TEST_CASE("Victim cache eligibility: checkpoint-cursor btree is rejected", "[evi
     f.dhandle->checkpoint = "test_checkpoint";
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -227,7 +227,7 @@ TEST_CASE("Victim cache eligibility: internal page is rejected", "[evict][disagg
     F_SET(f.ref, WT_REF_FLAG_INTERNAL);
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -237,7 +237,7 @@ TEST_CASE("Victim cache eligibility: root page is rejected", "[evict][disagg_cac
     f.ref->home = nullptr;
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -247,7 +247,7 @@ TEST_CASE("Victim cache eligibility: cold storage tier is rejected", "[evict][di
     f.btree->storage_tier = WT_BTREE_STORAGE_TIER_COLD;
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -257,7 +257,7 @@ TEST_CASE("Victim cache eligibility: missing disagg_info is rejected", "[evict][
     f.page->disagg_info = nullptr;
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -267,7 +267,7 @@ TEST_CASE("Victim cache eligibility: invalid page id is rejected", "[evict][disa
     f.disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -277,7 +277,7 @@ TEST_CASE("Victim cache eligibility: multiblock result is rejected", "[evict][di
     f.set_rec_result(WT_PM_REC_MULTIBLOCK);
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -287,7 +287,7 @@ TEST_CASE("Victim cache eligibility: empty reconciliation is rejected", "[evict]
     f.set_rec_result(WT_PM_REC_EMPTY);
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }
 
@@ -299,6 +299,6 @@ TEST_CASE(
     f.set_replace_image(nullptr);
 
     const WT_PAGE_HEADER *disk_image = f.dsk;
-    REQUIRE_FALSE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image));
+    REQUIRE(__ut_evict_page_victim_cache_eligible(f.session, f.ref, &disk_image) != WTI_EVICT_VICTIM_OK);
     REQUIRE(disk_image == nullptr);
 }

@@ -10,8 +10,9 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
-static bool __evict_page_victim_cache_eligible(
+static WTI_EVICT_VICTIM_REASON __evict_page_victim_cache_eligible(
   WT_SESSION_IMPL *, WT_REF *, const WT_PAGE_HEADER **);
+static const char *__evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_RECONCILE_TIMELINE *);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
@@ -111,44 +112,95 @@ __evict_page_disagg_image(WT_PAGE *page)
 }
 
 /*
- * __evict_page_victim_cache_eligible --
- *     Check whether a page is eligible to be put in the victim cache. On success, also return the
- *     image to cache, resolved here so the caller does not need to redo the same check.
+ * __evict_page_victim_cache_reason_str --
+ *     Return a human-readable form of a victim cache eligibility outcome, for verbose logging.
  */
-static bool
+static const char *
+__evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON reason)
+{
+    /*
+     * No default label: a new reason must be named here, and the compiler says so rather than
+     * letting it log as an unhelpful "unknown".
+     */
+    switch (reason) {
+    case WTI_EVICT_VICTIM_OK:
+        return ("eligible");
+    case WTI_EVICT_VICTIM_NOT_DISAGG:
+        return ("btree is not disaggregated");
+    case WTI_EVICT_VICTIM_CHECKPOINT_CURSOR:
+        return ("btree is open under a checkpoint cursor");
+    case WTI_EVICT_VICTIM_NO_BLOCK_MANAGER:
+        return ("no disaggregated block manager");
+    case WTI_EVICT_VICTIM_NO_PAGE_LOG:
+        return ("no page log handle able to cache");
+    case WTI_EVICT_VICTIM_CACHE_UNAVAILABLE:
+        return ("page log cache is unavailable");
+    case WTI_EVICT_VICTIM_NOT_LEAF:
+        return ("page is not a leaf");
+    case WTI_EVICT_VICTIM_NO_DISAGG_INFO:
+        return ("page has no disaggregated block metadata");
+    case WTI_EVICT_VICTIM_NO_IMAGE:
+        return ("no image matches the page's block metadata");
+    case WTI_EVICT_VICTIM_INVALID_PAGE_ID:
+        return ("block metadata has no valid page id");
+    case WTI_EVICT_VICTIM_ROOT:
+        return ("page is a root page");
+    case WTI_EVICT_VICTIM_COLD_TIER:
+        return ("btree is on the cold storage tier");
+    case WTI_EVICT_VICTIM_COUNT:
+        break;
+    }
+
+    /* Only reachable for a value that is not a reason at all. */
+    return ("unknown");
+}
+
+/*
+ * __evict_page_victim_cache_eligible --
+ *     Check whether a page is eligible to be put in the victim cache, returning the reason it is
+ *     not when it is not. On success, also return the image to cache, resolved here so the caller
+ *     does not need to redo the same check.
+ */
+static WTI_EVICT_VICTIM_REASON
 __evict_page_victim_cache_eligible(
   WT_SESSION_IMPL *session, WT_REF *ref, const WT_PAGE_HEADER **diskp)
 {
     *diskp = NULL;
 
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        return (false);
+        return (WTI_EVICT_VICTIM_NOT_DISAGG);
 
     /* A checkpoint cursor's btree is not eligible for the victim cache. */
     if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
-        return (false);
+        return (WTI_EVICT_VICTIM_CHECKPOINT_CURSOR);
 
     WT_BM *bm = S2BT(session)->bm;
     if (bm == NULL)
-        return (false);
+        return (WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
 
     WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     if (block_disagg == NULL)
-        return (false);
+        return (WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
 
     WT_PAGE_LOG_HANDLE *plh = block_disagg->plhandle;
-    if (plh == NULL)
-        return (false);
+    if (plh == NULL || plh->plh_cache_put == NULL || plh->plh_cache_available == NULL)
+        return (WTI_EVICT_VICTIM_NO_PAGE_LOG);
 
-    if (plh->plh_cache_put == NULL || plh->plh_cache_available == NULL ||
-      !plh->plh_cache_available(plh, &session->iface))
-        return (false);
+    /*
+     * Unlike every other gate here, this one is a property of the page log's current state rather
+     * than of the page, so the same page can be rejected now and admitted moments later.
+     */
+    if (!plh->plh_cache_available(plh, &session->iface))
+        return (WTI_EVICT_VICTIM_CACHE_UNAVAILABLE);
 
     WT_PAGE *page = ref->page;
 
     /* Must be a leaf page with disagg info. */
-    if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL)
-        return (false);
+    if (!F_ISSET(ref, WT_REF_FLAG_LEAF))
+        return (WTI_EVICT_VICTIM_NOT_LEAF);
+
+    if (page->disagg_info == NULL)
+        return (WTI_EVICT_VICTIM_NO_DISAGG_INFO);
 
     /*
      * Only cache a page whose in-memory image is consistent with its block metadata: either it was
@@ -156,14 +208,14 @@ __evict_page_victim_cache_eligible(
      */
     const WT_PAGE_HEADER *disk_image = __evict_page_disagg_image(page);
     if (disk_image == NULL)
-        return (false);
+        return (WTI_EVICT_VICTIM_NO_IMAGE);
 
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
-        return (false);
+        return (WTI_EVICT_VICTIM_INVALID_PAGE_ID);
 
     /* Cannot cache root pages. */
     if (__wt_ref_is_root(ref))
-        return (false);
+        return (WTI_EVICT_VICTIM_ROOT);
 
     /*
      * Pages from cold collections must never enter the victim cache: caching cold data wastes
@@ -172,11 +224,11 @@ __evict_page_victim_cache_eligible(
      */
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
         WT_STAT_CONN_INCR(session, block_cache_cold_not_cached);
-        return (false);
+        return (WTI_EVICT_VICTIM_COLD_TIER);
     }
 
     *diskp = disk_image;
-    return (true);
+    return (WTI_EVICT_VICTIM_OK);
 }
 
 /*
@@ -187,8 +239,12 @@ static void
 __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     const WT_PAGE_HEADER *disk_image;
-    if (!__evict_page_victim_cache_eligible(session, ref, &disk_image))
+    WTI_EVICT_VICTIM_REASON reason = __evict_page_victim_cache_eligible(session, ref, &disk_image);
+    if (reason != WTI_EVICT_VICTIM_OK) {
+        __wt_verbose_debug3(session, WT_VERB_EVICTION, "victim cache: page %p not cached: %s",
+          (void *)ref->page, __evict_page_victim_cache_reason_str(reason));
         return;
+    }
     WT_ASSERT(session, disk_image != NULL);
 
     /* Eligibility has already confirmed the disagg page log handle exists. */
@@ -1655,10 +1711,16 @@ __ut_evict_page_disagg_image(WT_PAGE *page)
     return (__evict_page_disagg_image(page));
 }
 
-bool
+WTI_EVICT_VICTIM_REASON
 __ut_evict_page_victim_cache_eligible(
   WT_SESSION_IMPL *session, WT_REF *ref, const WT_PAGE_HEADER **diskp)
 {
     return (__evict_page_victim_cache_eligible(session, ref, diskp));
+}
+
+const char *
+__ut_evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON reason)
+{
+    return (__evict_page_victim_cache_reason_str(reason));
 }
 #endif
