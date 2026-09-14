@@ -262,17 +262,19 @@ class test_size_stats01(wttest.WiredTigerTestCase):
 
         # Oldest past the delete timestamp makes the tombstones globally visible. Cleanup while the
         # leaves are still in cache from the previous walk so it can dirty them; the next reopen
-        # loads images with the tombstones stripped.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20))
-        self.checkpoint_cleanup()
-        s = self.size_summary(cleanup=False)
-        self.assertEqual(s['scanned'], n_live)
-        self.assertEqual(s['key_count'], n_live)
-        self.assertEqual(s['value_count'], n_live)
-        self.assertEqual(s['deleted_key_count'], 0)
-        self.assertEqual(s['deleted_value_count'], 0)
-        self.assertEqual(s['deleted_key'], 0)
-        self.assertEqual(s['deleted_value'], 0)
+        # loads images with the tombstones stripped. Disaggregated storage does not rewrite leaves
+        # to drop obsolete time windows, so the stripped-image check is local-page only.
+        if not self.runningHook('disagg'):
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20))
+            self.checkpoint_cleanup()
+            s = self.size_summary(cleanup=False)
+            self.assertEqual(s['scanned'], n_live)
+            self.assertEqual(s['key_count'], n_live)
+            self.assertEqual(s['value_count'], n_live)
+            self.assertEqual(s['deleted_key_count'], 0)
+            self.assertEqual(s['deleted_value_count'], 0)
+            self.assertEqual(s['deleted_key'], 0)
+            self.assertEqual(s['deleted_value'], 0)
 
     # Overflow values with a visible stop belong with deleted, not live, same as on-page values.
     @wttest.skip_for_hook("disagg", "cannot force overflow pages on the layered stable constituent")
