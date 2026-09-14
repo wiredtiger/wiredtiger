@@ -2088,6 +2088,8 @@ static WT_INLINE WT_VISIBLE_TYPE __wt_txn_upd_visible_type(WT_SESSION_IMPL *sess
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_can_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -2625,7 +2627,7 @@ static WT_INLINE uint64_t __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 static WT_INLINE void __wt_block_header_byteswap(WT_BLOCK_HEADER *blk);
 static WT_INLINE void __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to);
 static WT_INLINE void __wt_btcur_skip_page_inc(
-  WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats);
+  WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, bool resident_internal);
 static WT_INLINE void __wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts);
 static WT_INLINE void __wt_btree_disable_bulk(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample);
