@@ -1978,11 +1978,13 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
      * read the step-down timestamp without taking the step-down lock and may miss it even when it
      * is set. This check is the guarantee: under the step-down lock it always observes a set
      * timestamp, so no straddler commits after the timestamp is in place.
+     *
+     * FIXME-WT-18650: Remove step_down_lock when always mirroring writes.
      */
     if (txn->mod_count != 0 && !txn->stepdown_ts_set && __wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        __wt_step_down_read_lock(session);
         ret = __wt_txn_stepdown_straddler_check(session, true);
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        __wt_step_down_read_unlock(session);
         WT_ERR(ret);
     }
 
