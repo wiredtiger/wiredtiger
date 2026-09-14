@@ -135,14 +135,16 @@ class test_disagg_checkpoint_size21(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # Step 5: Dirty the page and force eviction. The failpoint fires on this reconciliation,
         # entering the reconciliation error path with all three conditions true and exercising the
         # free page ID due to failed page replacement reconciliation scenario.
+        # debug_mode.timing_stress_force affects every reconciliation on the connection,
+        # not just this page, so disable it in a finally as soon as its job is done.
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, 0, nrows, 'C')
-        c.close()
-        self.evict_page('key000000')
-
-        # Disable the failpoint before the successful checkpoint to prevent another error.
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, 0, nrows, 'C')
+            c.close()
+            self.evict_page('key000000')
+        finally:
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
 
         # Step 6: Final checkpoint after the error path has run.
         self.session.checkpoint()

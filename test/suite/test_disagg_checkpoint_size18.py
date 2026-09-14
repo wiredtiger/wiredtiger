@@ -120,19 +120,23 @@ class test_disagg_checkpoint_size18(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # Dirty + evict once. The failing write enters the reconciliation
         # error path with the persistent flag false; the disagg block is
         # skipped and the page's block metadata is left unmodified.
+        # debug_mode.timing_stress_force affects every reconciliation on the
+        # connection, not just this page, so disable it in a finally as soon
+        # as its job is done.
         stat_key = stat.dsrc.disagg_block_plh_put_failed
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, 0, nrows, 'C')
-        c.close()
-        self.evict_page('key000000')
-
-        # Switch to full-image writes BEFORE disabling the failpoint so the
-        # recovery checkpoint forces a fresh full image and exercises the
-        # running-total decrement / running-total increment path.
-        # Doing it in this order avoids a race where background eviction
-        # between reconfigures could write a delta at the old delta_pct=90.
-        self.conn.reconfigure('page_delta=(delta_pct=1)')
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, 0, nrows, 'C')
+            c.close()
+            self.evict_page('key000000')
+        finally:
+            # Switch to full-image writes BEFORE disabling the failpoint so the
+            # recovery checkpoint forces a fresh full image and exercises the
+            # running-total decrement / running-total increment path.
+            # Doing it in this order avoids a race where background eviction
+            # between reconfigures could write a delta at the old delta_pct=90.
+            self.conn.reconfigure('page_delta=(delta_pct=1)')
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
 
         # Recovery checkpoint: the page's persistent flag being true passes the
         # old block metadata, so the running-total decrement runs before the

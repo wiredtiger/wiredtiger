@@ -191,18 +191,22 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # (d) Enable the failpoint and force a full-image eviction.
         #     The committed write makes the page dirty; delta_pct=1 forces a
         #     full-image write; the failpoint fires deterministically.
+        # debug_mode.timing_stress_force affects every reconciliation on the connection,
+        # not just this page, so disable it in a finally as soon as its job is done.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'
             'timing_stress_for_test=[failpoint_rec_before_wrapup],'
             'debug_mode=(timing_stress_force=true)'
         )
-        self.session.begin_transaction()
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, 0, nrows, 'D')
-        c.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
-        self.evict_page('key000000')
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            self.session.begin_transaction()
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, 0, nrows, 'D')
+            c.close()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+            self.evict_page('key000000')
+        finally:
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
 
         # Step 4: final checkpoint after the error path has run.
         self.session.checkpoint()

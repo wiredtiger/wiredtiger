@@ -180,25 +180,27 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # single-page replacement result. The failpoint then fires during the next
         # full-image write -- the reconciliation error path would trip the persistent flag
         # assertion if the reconciliation commit path did not restore the flag.
+        # debug_mode.timing_stress_force affects every reconciliation on the connection,
+        # not just this page, so disable it in a finally as soon as its job is done.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'
             'timing_stress_for_test=[failpoint_rec_before_wrapup],'
             'debug_mode=(timing_stress_force=true)'
         )
-        ts = 3
-        c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        self.insert_rows(c, 0, nrows, 'C')
-        c.close()
-        self.session.commit_transaction(f'commit_timestamp={ts}')
-        self.conn.set_timestamp(f'stable_timestamp={ts}')
-        self.evict_page('key000000')
-
-        # Release the blocker before cleanup so eviction is unblocked.
-        blocker.rollback_transaction()
-        blocker.close()
-
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            ts = 3
+            c = self.session.open_cursor(self.uri)
+            self.session.begin_transaction()
+            self.insert_rows(c, 0, nrows, 'C')
+            c.close()
+            self.session.commit_transaction(f'commit_timestamp={ts}')
+            self.conn.set_timestamp(f'stable_timestamp={ts}')
+            self.evict_page('key000000')
+        finally:
+            # Release the blocker before cleanup so eviction is unblocked.
+            blocker.rollback_transaction()
+            blocker.close()
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
 
@@ -310,18 +312,22 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.session.checkpoint()
 
         # (c-d) Enable the failpoint and evict with full-image mode.
+        # debug_mode.timing_stress_force affects every reconciliation on the connection,
+        # not just this page, so disable it in a finally as soon as its job is done.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'
             'timing_stress_for_test=[failpoint_rec_before_wrapup],'
             'debug_mode=(timing_stress_force=true)'
         )
-        self.session.begin_transaction()
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, 0, nrows, 'D')
-        c.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
-        self.evict_page('key000000')
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            self.session.begin_transaction()
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, 0, nrows, 'D')
+            c.close()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+            self.evict_page('key000000')
+        finally:
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
 
         self.assertGreater(self.get_stat(stat_key), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')

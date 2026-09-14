@@ -179,22 +179,25 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # post-reconciliation chain discard subtracts the full chain (old chain's
         # cumulative size + delta_size), the persistent flag is cleared, and page_id is
         # invalidated.
+        # debug_mode.timing_stress_force affects every reconciliation on the connection,
+        # not just this page, so disable it in a finally as soon as its job is done.
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
-        self.session.begin_transaction()
-        c = self.session.open_cursor(self.uri)
-        # Update only half the rows so the delta is ~50% of the full image,
-        # well below the delta_pct=90 threshold, keeping the write a delta.
-        self.insert_rows(c, 0, nrows // 2, 'C')
-        c.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
-        self.evict_page('key000000')
-
-        # Switch to full-image writes BEFORE disabling the failpoint. This
-        # prevents background eviction from writing a delta between the failpoint
-        # disable and the recovery checkpoint, which could inflate the running total
-        # and produce a false assertion failure on the correct path.
-        self.conn.reconfigure('page_delta=(delta_pct=1)')
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            self.session.begin_transaction()
+            c = self.session.open_cursor(self.uri)
+            # Update only half the rows so the delta is ~50% of the full image,
+            # well below the delta_pct=90 threshold, keeping the write a delta.
+            self.insert_rows(c, 0, nrows // 2, 'C')
+            c.close()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+            self.evict_page('key000000')
+        finally:
+            # Switch to full-image writes BEFORE disabling the failpoint. This
+            # prevents background eviction from writing a delta between the failpoint
+            # disable and the recovery checkpoint, which could inflate the running total
+            # and produce a false assertion failure on the correct path.
+            self.conn.reconfigure('page_delta=(delta_pct=1)')
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
 
         # Step 6: Recovery checkpoint. The page (page_id invalidated by the
         # reconciliation error path) gets a fresh page_id and is written as a

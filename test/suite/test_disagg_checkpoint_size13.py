@@ -113,17 +113,18 @@ class test_disagg_checkpoint_size13(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             'debug_mode=(timing_stress_force=true)'
         )
 
-        char = 'a'
-        new_start = nrows
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, new_start, big_batch, char)
-        band_start = (cycles * band) % nrows
-        self.insert_rows(c, band_start, band, char)
-        c.close()
-        self.evict_page(f'key{new_start:08d}')
-        self.evict_page(f'key{band_start:08d}')
-
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+        try:
+            char = 'a'
+            new_start = nrows
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, new_start, big_batch, char)
+            band_start = (cycles * band) % nrows
+            self.insert_rows(c, band_start, band, char)
+            c.close()
+            self.evict_page(f'key{new_start:08d}')
+            self.evict_page(f'key{band_start:08d}')
+        finally:
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
         self.session.checkpoint()
 
         rec_free_pageid_final = self.get_conn_stat(

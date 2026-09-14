@@ -123,28 +123,29 @@ class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             'debug_mode=(timing_stress_force=true)'
         )
 
-        # Stress: updates at moving commit_timestamps push the prior version
-        # of each band's rows into HS.
-        ts = 100
-        char = 'a'
-        new_start = nrows
-        band_start = cycles * band % nrows
+        try:
+            # Stress: updates at moving commit_timestamps push the prior version
+            # of each band's rows into HS.
+            ts = 100
+            char = 'a'
+            new_start = nrows
+            band_start = cycles * band % nrows
 
-        self.session.begin_transaction()
-        c = self.session.open_cursor(self.uri)
-        # Fresh appends do NOT generate HS entries (rows didn't exist at
-        # the reader's timestamp).
-        self.insert_rows(c, new_start, big_batch, char)
-        # Updates of existing rows DO push old versions to HS.
-        self.insert_rows(c, band_start, band, char)
-        c.close()
-        self.session.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(ts))
+            self.session.begin_transaction()
+            c = self.session.open_cursor(self.uri)
+            # Fresh appends do NOT generate HS entries (rows didn't exist at
+            # the reader's timestamp).
+            self.insert_rows(c, new_start, big_batch, char)
+            # Updates of existing rows DO push old versions to HS.
+            self.insert_rows(c, band_start, band, char)
+            c.close()
+            self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(ts))
 
-        self.evict_page(f'key{new_start:08d}')
-        self.evict_page(f'key{band_start:08d}')
-
-        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+            self.evict_page(f'key{new_start:08d}')
+            self.evict_page(f'key{band_start:08d}')
+        finally:
+            self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
         self.session.checkpoint()
 
         reader_sess.rollback_transaction()

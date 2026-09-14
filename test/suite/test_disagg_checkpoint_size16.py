@@ -120,12 +120,16 @@ class test_disagg_checkpoint_size16(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         # Guarantee the single-block branch is hit at least once instead of
         # depending on the 1% chance having fired somewhere in the stress above.
+        # debug_mode.timing_stress_force affects every reconciliation on the
+        # connection, so disable it in a finally as soon as its job is done.
         self.conn.reconfigure('debug_mode=(timing_stress_force=true)')
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, 0, nrows, 'z')
-        c.close()
-        self.evict_page(self.uri, 'key00000000')
-        self.conn.reconfigure('debug_mode=(timing_stress_force=false)')
+        try:
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, 0, nrows, 'z')
+            c.close()
+            self.evict_page(self.uri, 'key00000000')
+        finally:
+            self.conn.reconfigure('debug_mode=(timing_stress_force=false)')
 
         rec_free_pageid_mid = self.get_conn_stat(
             stat.conn.rec_free_page_id_due_to_failed_replacement_reconciliation)
@@ -146,12 +150,14 @@ class test_disagg_checkpoint_size16(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         # Guarantee the multi-block err-cleanup loop is hit at least once too.
         self.conn.reconfigure('debug_mode=(timing_stress_force=true)')
-        wc = self.session.open_cursor(wide_uri)
-        new_start = 2000 + wide_cycles * wide_band
-        self.insert_rows(wc, new_start, wide_band, 'Z')
-        wc.close()
-        self.evict_page(wide_uri, f'key{new_start:08d}')
-        self.conn.reconfigure('debug_mode=(timing_stress_force=false)')
+        try:
+            wc = self.session.open_cursor(wide_uri)
+            new_start = 2000 + wide_cycles * wide_band
+            self.insert_rows(wc, new_start, wide_band, 'Z')
+            wc.close()
+            self.evict_page(wide_uri, f'key{new_start:08d}')
+        finally:
+            self.conn.reconfigure('debug_mode=(timing_stress_force=false)')
 
         self.conn.reconfigure('timing_stress_for_test=[]')
         self.session.checkpoint()
