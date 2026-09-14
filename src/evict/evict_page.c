@@ -10,7 +10,8 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
-static bool __evict_page_victim_cache_eligible(WT_SESSION_IMPL *, WT_REF *);
+static bool __evict_page_victim_cache_eligible(
+  WT_SESSION_IMPL *, WT_REF *, const WT_PAGE_HEADER **);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_RECONCILE_TIMELINE *);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
@@ -111,11 +112,15 @@ __evict_page_disagg_image(WT_PAGE *page)
 
 /*
  * __evict_page_victim_cache_eligible --
- *     Check whether a page is eligible to be put in the victim cache.
+ *     Check whether a page is eligible to be put in the victim cache. On success, also return the
+ *     image to cache, resolved here so the caller does not need to redo the same check.
  */
 static bool
-__evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
+__evict_page_victim_cache_eligible(
+  WT_SESSION_IMPL *session, WT_REF *ref, const WT_PAGE_HEADER **diskp)
 {
+    *diskp = NULL;
+
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (false);
 
@@ -149,7 +154,8 @@ __evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
      * Only cache a page whose in-memory image is consistent with its block metadata: either it was
      * never reconciled since being read, or reconciliation replaced it and retained the new image.
      */
-    if (__evict_page_disagg_image(page) == NULL)
+    const WT_PAGE_HEADER *disk_image = __evict_page_disagg_image(page);
+    if (disk_image == NULL)
         return (false);
 
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
@@ -169,6 +175,7 @@ __evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
+    *diskp = disk_image;
     return (true);
 }
 
@@ -179,20 +186,14 @@ __evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
 static void
 __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    if (!__evict_page_victim_cache_eligible(session, ref))
+    const WT_PAGE_HEADER *disk_image;
+    if (!__evict_page_victim_cache_eligible(session, ref, &disk_image))
         return;
 
     /* Eligibility has already confirmed the disagg page log handle exists. */
     WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
     WT_PAGE *page = ref->page;
-
-    /*
-     * Re-resolve the image rather than pass it down from the eligibility check, so the two stay in
-     * sync by construction instead of by re-deriving the same logic twice.
-     */
-    const WT_PAGE_HEADER *disk_image = __evict_page_disagg_image(page);
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
-    WT_ASSERT(session, disk_image != NULL);
 
     /*
      * Time the victim-cache work - compression, checksum and put - and count the pages cached.
