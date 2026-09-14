@@ -36,20 +36,20 @@
 #include <utility>
 
 /* Byte-budget LRU: list for recency, map for O(1) lookup. Not thread-safe. */
-template <typename K, typename V> class SizedLRUCache {
+template <typename K, typename V> class sized_lru_cache {
 public:
     static constexpr size_t PAGE_SIZE = 4096;
 
-    SizedLRUCache() = default;
-    explicit SizedLRUCache(size_t new_max_size)
+    sized_lru_cache() = default;
+    explicit sized_lru_cache(size_t new_max_size)
     {
         set_max_size(new_max_size);
     }
 
-    SizedLRUCache(const SizedLRUCache &) = delete;
-    SizedLRUCache &operator=(const SizedLRUCache &) = delete;
-    SizedLRUCache(SizedLRUCache &&) = delete;
-    SizedLRUCache &operator=(SizedLRUCache &&) = delete;
+    sized_lru_cache(const sized_lru_cache &) = delete;
+    sized_lru_cache &operator=(const sized_lru_cache &) = delete;
+    sized_lru_cache(sized_lru_cache &&) = delete;
+    sized_lru_cache &operator=(sized_lru_cache &&) = delete;
 
     /* Replace any existing key. Returns bytes evicted to stay within the budget. */
     size_t
@@ -62,7 +62,7 @@ public:
         }
 
         cur_size += entry.data.size();
-        list.push_front(Node{key, std::move(entry)});
+        list.push_front(node{key, std::move(entry)});
         map[key] = list.begin();
 
         const size_t evicted = evict_to_max_size();
@@ -138,7 +138,7 @@ public:
     }
 
 private:
-    struct Node {
+    struct node {
         K key;
         V entry;
     };
@@ -148,11 +148,11 @@ private:
     {
         size_t evicted_size = 0;
         while (cur_size > max_size) {
-            auto &node = list.back();
-            const auto sz = node.entry.data.size();
+            auto &item = list.back();
+            const auto sz = item.entry.data.size();
             evicted_size += sz;
             cur_size -= sz;
-            map.erase(node.key);
+            map.erase(item.key);
             list.pop_back();
         }
         return evicted_size;
@@ -160,6 +160,6 @@ private:
 
     size_t max_size{0};
     size_t cur_size{0};
-    std::list<Node> list;
-    std::unordered_map<K, typename std::list<Node>::iterator> map;
+    std::list<node> list;
+    std::unordered_map<K, typename std::list<node>::iterator> map;
 };

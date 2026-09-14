@@ -38,25 +38,25 @@
 #include <vector>
 
 /* One mutex per shard. Budget is split equally and rounded up. */
-template <typename K, typename V> class ConcurrentSizedLRUCache {
+template <typename K, typename V> class concurrent_sized_lru_cache {
 public:
-    ConcurrentSizedLRUCache(size_t max_size, size_t n_shards)
+    concurrent_sized_lru_cache(size_t max_size, size_t n_shards)
     {
         if (n_shards == 0)
             n_shards = 1;
         const size_t shard_bytes = shard_size(max_size, n_shards);
         shards.reserve(n_shards);
         for (size_t i = 0; i < n_shards; ++i) {
-            auto shard = std::make_unique<Shard>();
-            shard->cache.set_max_size(shard_bytes);
-            shards.push_back(std::move(shard));
+            auto s = std::make_unique<shard>();
+            s->cache.set_max_size(shard_bytes);
+            shards.push_back(std::move(s));
         }
     }
 
-    ConcurrentSizedLRUCache(const ConcurrentSizedLRUCache &) = delete;
-    ConcurrentSizedLRUCache &operator=(const ConcurrentSizedLRUCache &) = delete;
-    ConcurrentSizedLRUCache(ConcurrentSizedLRUCache &&) = delete;
-    ConcurrentSizedLRUCache &operator=(ConcurrentSizedLRUCache &&) = delete;
+    concurrent_sized_lru_cache(const concurrent_sized_lru_cache &) = delete;
+    concurrent_sized_lru_cache &operator=(const concurrent_sized_lru_cache &) = delete;
+    concurrent_sized_lru_cache(concurrent_sized_lru_cache &&) = delete;
+    concurrent_sized_lru_cache &operator=(concurrent_sized_lru_cache &&) = delete;
 
     size_t
     put(const K &key, V &&entry)
@@ -134,9 +134,9 @@ public:
     }
 
 private:
-    struct Shard {
+    struct shard {
         mutable std::mutex mtx;
-        SizedLRUCache<K, V> cache;
+        sized_lru_cache<K, V> cache;
     };
 
     static size_t
@@ -145,17 +145,17 @@ private:
         return (max_size + n_shards - 1) / n_shards;
     }
 
-    Shard &
+    shard &
     shard_for(const K &key)
     {
         return *shards[std::hash<K>{}(key) % shards.size()];
     }
 
-    const Shard &
+    const shard &
     shard_for(const K &key) const
     {
         return *shards[std::hash<K>{}(key) % shards.size()];
     }
 
-    std::vector<std::unique_ptr<Shard>> shards;
+    std::vector<std::unique_ptr<shard>> shards;
 };

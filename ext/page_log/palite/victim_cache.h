@@ -36,17 +36,17 @@
 #include <utility>
 #include <vector>
 
-struct VictimCacheKey {
+struct victim_cache_key {
     uint64_t table_id;
     uint64_t page_id;
     uint64_t lsn;
 
-    bool operator==(const VictimCacheKey &) const = default;
+    bool operator==(const victim_cache_key &) const = default;
 };
 
-template <> struct std::hash<VictimCacheKey> {
+template <> struct std::hash<victim_cache_key> {
     size_t
-    operator()(const VictimCacheKey &key) const noexcept
+    operator()(const victim_cache_key &key) const noexcept
     {
         size_t h = std::hash<uint64_t>{}(key.table_id);
         h ^= std::hash<uint64_t>{}(key.page_id) << 1;
@@ -55,7 +55,7 @@ template <> struct std::hash<VictimCacheKey> {
     }
 };
 
-struct VictimCacheEntry {
+struct victim_cache_entry {
     uint64_t lsn;
     uint64_t backlink_lsn;
     uint64_t base_lsn;
@@ -65,17 +65,17 @@ struct VictimCacheEntry {
     std::vector<uint8_t> data;
 };
 
-class VictimCache {
+class victim_cache {
 public:
-    VictimCache(size_t size_bytes, size_t n_shards)
+    victim_cache(size_t size_bytes, size_t n_shards)
         : max_size(size_bytes), cache(size_bytes, n_shards)
     {
     }
 
-    VictimCache(const VictimCache &) = delete;
-    VictimCache &operator=(const VictimCache &) = delete;
-    VictimCache(VictimCache &&) = delete;
-    VictimCache &operator=(VictimCache &&) = delete;
+    victim_cache(const victim_cache &) = delete;
+    victim_cache &operator=(const victim_cache &) = delete;
+    victim_cache(victim_cache &&) = delete;
+    victim_cache &operator=(victim_cache &&) = delete;
 
     bool
     available() const
@@ -98,24 +98,24 @@ public:
     bool
     erase(uint64_t table_id, uint64_t page_id, uint64_t lsn)
     {
-        return cache.erase(VictimCacheKey{table_id, page_id, lsn});
+        return cache.erase(victim_cache_key{table_id, page_id, lsn});
     }
 
-    std::optional<VictimCacheEntry>
+    std::optional<victim_cache_entry>
     get_erase(uint64_t table_id, uint64_t page_id, uint64_t lsn)
     {
         if (!available())
             return std::nullopt;
-        return cache.get_erase(VictimCacheKey{table_id, page_id, lsn});
+        return cache.get_erase(victim_cache_key{table_id, page_id, lsn});
     }
 
     void
-    put(uint64_t table_id, uint64_t page_id, VictimCacheEntry &&entry)
+    put(uint64_t table_id, uint64_t page_id, victim_cache_entry &&entry)
     {
         if (!available())
             return;
         const uint64_t lsn = entry.lsn;
-        cache.put(VictimCacheKey{table_id, page_id, lsn}, std::move(entry));
+        cache.put(victim_cache_key{table_id, page_id, lsn}, std::move(entry));
     }
 
     bool
@@ -123,10 +123,10 @@ public:
     {
         if (!available())
             return false;
-        return cache.contains(VictimCacheKey{table_id, page_id, lsn});
+        return cache.contains(victim_cache_key{table_id, page_id, lsn});
     }
 
 private:
     const size_t max_size;
-    ConcurrentSizedLRUCache<VictimCacheKey, VictimCacheEntry> cache;
+    concurrent_sized_lru_cache<victim_cache_key, victim_cache_entry> cache;
 };
