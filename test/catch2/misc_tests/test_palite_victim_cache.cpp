@@ -68,7 +68,8 @@ TEST_CASE("Palite victim cache is off by default", "[palite_victim_cache]")
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
-TEST_CASE("Palite victim cache consume-on-get and erase-on-put", "[palite_victim_cache]")
+TEST_CASE(
+  "Palite victim cache get is not reused and put drops the cached copy", "[palite_victim_cache]")
 {
     connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=16").c_str());
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
@@ -107,8 +108,8 @@ TEST_CASE("Palite victim cache consume-on-get and erase-on-put", "[palite_victim
     REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
     free_results(results, n);
 
-    /* Consume-on-get removed the entry; the store still has the original page. */
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == -1);
+    /* Second get reads from the store. */
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
 
     n = 4;
     get_args = {};
@@ -119,13 +120,13 @@ TEST_CASE("Palite victim cache consume-on-get and erase-on-put", "[palite_victim
     REQUIRE(std::memcmp(results[0].data, store_bytes, results[0].size) == 0);
     free_results(results, n);
 
-    /* A later put of the same LSN drops any re-cached copy. */
+    /* A later put of the same page drops the cached copy. */
     REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
     WT_PAGE_LOG_PUT_ARGS erase_args{};
     erase_args.lsn = lsn;
     REQUIRE(handle->plh_put(handle, session, page_id, 0, &erase_args, &store_buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == -1);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);

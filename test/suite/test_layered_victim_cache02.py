@@ -26,10 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A leader that checkpoints an update, steps down, and then evicts the
-# resident page into the victim cache must still serve the checkpointed value
-# on a later read. The read goes through a fresh handle; the previous
-# checkpoint's value is the failure mode.
+# A leader that checkpoints an update, steps down, then evicts must still
+# serve the checkpointed value.
 
 import time
 import wiredtiger, wttest
@@ -113,10 +111,8 @@ class test_layered_victim_cache02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.materialize()
 
-        # Evict every leaf so the next read instantiates a disk image, then pin
-        # that page on a dedicated session. Commits on self.session reset that
-        # session's cursors; a second session keeps the hazard across the
-        # update checkpoint and step-down.
+        # Evict every leaf, then keep a cursor on another session so the page
+        # stays resident across the update checkpoint and step-down.
         self.evict_all(uri)
 
         key = f'k{self.nitems // 2:06d}'
@@ -141,8 +137,6 @@ class test_layered_victim_cache02(wttest.WiredTigerTestCase):
         puts_before = self.get_stat(stat.conn.block_cache_puts)
         self.conn.reconfigure('disaggregated=(role="follower")')
 
-        # Drop the pin so the outdated handle's in-use count can fall to zero
-        # and eviction can discard the resident page into the victim cache.
         pin.close()
         pin_session.close()
         self.wait_for_victim_puts(puts_before)

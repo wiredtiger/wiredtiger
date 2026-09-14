@@ -58,16 +58,20 @@ class test_layered_victim_cache01(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    def test_victim_cache_evict_consume(self):
+    def test_victim_cache_evict_and_read(self):
         page_log = self.conn.get_page_log(self.vars.page_log)
 
         uri = self.prefix + self.table_name
         self.session.create(uri, self.create_session_config + ',' + self.table_config)
 
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri, None, None)
+        self.session.begin_transaction()
         for i in range(self.nitems):
             cursor[f'k{i:06d}'] = 'v' * 64
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
@@ -77,7 +81,6 @@ class test_layered_victim_cache01(wttest.WiredTigerTestCase):
 
         key = f'k{self.nitems // 2:06d}'
         puts_before = self.get_stat(stat.conn.block_cache_puts)
-        # A second evict is the one that populates the cache: the first may only write the page.
         self.evict(uri, key)
         self.evict(uri, key)
         self.assertGreater(self.get_stat(stat.conn.block_cache_puts), puts_before)

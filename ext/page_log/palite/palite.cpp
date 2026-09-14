@@ -139,7 +139,7 @@
 
 #include "wiredtiger.h"
 #include "wiredtiger_ext.h"
-#include "block_cache.h"
+#include "victim_cache.h"
 
 #include <sqlite3.h>
 
@@ -564,14 +564,26 @@ log_and_throw(
 
 #define LOG_AND_THROW(...) log_and_throw(std::source_location::current(), config, __VA_ARGS__)
 
+template <typename R>
+static R
+safe_call_failure(int err)
+{
+    if constexpr (std::is_same_v<R, bool>)
+        return false;
+    else
+        return err;
+}
+
 /* Exception-safe template method that catches C++ exceptions */
 template <typename T, typename S, typename MemberFunc, typename... Args>
-static int
+static auto
 safe_call(WT_SESSION *sess, S *api, MemberFunc func, Args &&...args)
+  -> std::invoke_result_t<MemberFunc, T *, Args...>
 {
-    if (!api) {
-        return EINVAL;
-    }
+    using R = std::invoke_result_t<MemberFunc, T *, Args...>;
+
+    if (!api)
+        return safe_call_failure<R>(EINVAL);
 
     session(sess);
     /* std::unique_ptr is used as a simple scope guard to reset the session upon function exit */
@@ -583,28 +595,28 @@ safe_call(WT_SESSION *sess, S *api, MemberFunc func, Args &&...args)
         return std::invoke(func, obj, std::forward<Args>(args)...);
     } catch (const PaliteException &) {
         LOG_ERROR("Call failed");
-        return EINVAL;
+        return safe_call_failure<R>(EINVAL);
     } catch (const std::bad_alloc &e) {
         LOG_ERROR("Memory allocation failed: {}", e.what());
-        return ENOMEM;
+        return safe_call_failure<R>(ENOMEM);
     } catch (const std::invalid_argument &e) {
         LOG_ERROR("Invalid argument: {}", e.what());
-        return EINVAL;
+        return safe_call_failure<R>(EINVAL);
     } catch (const std::filesystem::filesystem_error &e) {
         LOG_ERROR("Filesystem error: {}", e.what());
-        return e.code().value();
+        return safe_call_failure<R>(e.code().value());
     } catch (const std::system_error &e) {
         LOG_ERROR("System error: {}", e.what());
-        return e.code().value();
+        return safe_call_failure<R>(e.code().value());
     } catch (const std::runtime_error &e) {
         LOG_ERROR("Runtime error: {}", e.what());
-        return EINVAL;
+        return safe_call_failure<R>(EINVAL);
     } catch (const std::exception &e) {
         LOG_ERROR("Exception: {}", e.what());
-        return EINVAL;
+        return safe_call_failure<R>(EINVAL);
     } catch (...) {
         LOG_ERROR("Unknown error occurred");
-        return EFAULT;
+        return safe_call_failure<R>(EFAULT);
     }
 }
 
@@ -2205,7 +2217,7 @@ public:
 class PaliteHandle : public WT_PAGE_LOG_HANDLE {
     uint64_t table_id; /* Table ID for this handle */
     Storage &storage;
-    palite::BlockCache &victim_cache;
+    VictimCache &victim_cache;
 
     void initialize_interface();
 
@@ -2213,8 +2225,7 @@ public:
     Config &config;
 
     ~PaliteHandle() = default;
-    PaliteHandle(
-      WT_PAGE_LOG *palite, Config &cfg, Storage &store, palite::BlockCache &cache, uint64_t tid)
+    PaliteHandle(WT_PAGE_LOG *palite, Config &cfg, Storage &store, VictimCache &cache, uint64_t tid)
         : WT_PAGE_LOG_HANDLE{}, table_id(tid), storage(store), victim_cache(cache), config(cfg)
     {
         WT_PAGE_LOG_HANDLE::page_log = palite;
@@ -2248,7 +2259,14 @@ public:
     get(uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
       WT_ITEM *results_array, uint32_t *results_count)
     {
-        if (victim_cache.tryGet(table_id, page_id, *args, results_array, *results_count)) {
+        if (auto entry = victim_cache.get_erase(table_id, page_id, args->lsn)) {
+            fill_item(&results_array[0], entry->data.data(), entry->data.size());
+            args->backlink_lsn = entry->backlink_lsn;
+            args->base_lsn = entry->base_lsn;
+            args->backlink_checkpoint_id = entry->backlink_checkpoint_id;
+            args->base_checkpoint_id = entry->base_checkpoint_id;
+            args->delta_count = entry->delta_count;
+            *results_count = 1;
             LOG_DEBUG("Victim cache hit page_id={} lsn={}", page_id, args->lsn);
             return 0;
         }
@@ -2270,22 +2288,30 @@ public:
     cache_put(
       uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
     {
-        int ret = victim_cache.put(table_id, page_id, checkpoint_id, *args, *buf);
-        LOG_DEBUG(
-          "Victim cache put page_id={} lsn={} size={} ret={}", page_id, args->lsn, buf->size, ret);
-        return ret;
+        if (!victim_cache.available() || (args->flags & WT_PAGE_LOG_DELTA))
+            return 0;
+
+        VictimCacheEntry entry{args->lsn, args->backlink_lsn, args->base_lsn, checkpoint_id,
+          checkpoint_id, args->delta_count, {}};
+        if (buf->size > 0 && buf->data != nullptr) {
+            const auto *p = static_cast<const uint8_t *>(buf->data);
+            entry.data.assign(p, p + buf->size);
+        }
+        victim_cache.put(table_id, page_id, std::move(entry));
+        LOG_DEBUG("Victim cache put page_id={} lsn={} size={}", page_id, args->lsn, buf->size);
+        return 0;
     }
 
     int
     cache_has(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args)
     {
-        return victim_cache.has(table_id, page_id, *args);
+        return victim_cache.contains(table_id, page_id, args->lsn) ? 0 : WT_NOTFOUND;
     }
 
     int
     cache_del(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args)
     {
-        return victim_cache.del(table_id, page_id, *args);
+        return victim_cache.erase(table_id, page_id, args->lsn) ? 0 : WT_NOTFOUND;
     }
 
     bool
@@ -2397,10 +2423,7 @@ palite_handle_cache_del(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page
 static bool
 palite_handle_cache_available(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess)
 {
-    if (plh == nullptr)
-        return false;
-    session(sess);
-    return static_cast<PaliteHandle *>(plh)->cache_available();
+    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::cache_available);
 }
 } /* extern "C" */
 
@@ -2427,16 +2450,15 @@ public:
     std::atomic_int ref_count; /* Reference counting for the page log service */
     Config config;             /* Configuration options */
     Storage storage;           /* Storage backend for page log */
-    std::unique_ptr<palite::BlockCache> victim_cache;
+    std::unique_ptr<VictimCache> victim_cache;
 
 public:
     ~Palite() = default;
     Palite(const std::filesystem::path &home_dir, WT_EXTENSION_API *wt_api, WT_CONFIG_ARG *cfg_arg)
         : WT_PAGE_LOG(), ref_count(1), config(wt_api, cfg_arg),
           storage(config, initialize_directory(home_dir)),
-          victim_cache(std::make_unique<palite::BlockCache>(
-            static_cast<std::size_t>(config.victim_cache_size_mb) * 1_MB,
-            config.victim_cache_shards == 0 ? 1 : config.victim_cache_shards))
+          victim_cache(std::make_unique<VictimCache>(
+            static_cast<size_t>(config.victim_cache_size_mb) * 1_MB, config.victim_cache_shards))
     {
         LOG_DEBUG("Initializing Palite page log extension, config: {}", config);
         initialize_interface();

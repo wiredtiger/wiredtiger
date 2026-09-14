@@ -30,33 +30,27 @@
 
 #include "sized_lru_cache.h"
 
-#include <cassert>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <vector>
 
-namespace palite {
-
-/* One mutex per shard. maxSize is split equally, rounded up so a tiny budget still admits pages. */
-template <class LRUShardType, typename Hash = std::hash<typename LRUShardType::key_type>>
+/* One mutex per shard. Budget is split equally and rounded up. */
+template <typename K, typename V, typename GetSize, typename Hash = std::hash<K>>
 class ConcurrentSizedLRUCache {
 public:
-    using key_type = typename LRUShardType::key_type;
-    using mapped_type = typename LRUShardType::mapped_type;
-    using K = key_type;
-    using V = mapped_type;
-
-    ConcurrentSizedLRUCache(std::size_t maxSize, std::size_t nShards) : _hash(Hash{})
+    ConcurrentSizedLRUCache(size_t max_size, size_t n_shards) : hash(Hash{})
     {
-        assert(nShards > 0);
-        const std::size_t shardSize = _shardSize(maxSize, nShards);
-        _shards.reserve(nShards);
-        for (std::size_t i = 0; i < nShards; ++i) {
+        if (n_shards == 0)
+            n_shards = 1;
+        const size_t shard_bytes = shard_size(max_size, n_shards);
+        shards.reserve(n_shards);
+        for (size_t i = 0; i < n_shards; ++i) {
             auto shard = std::make_unique<Shard>();
-            shard->cache.setMaxSize(shardSize);
-            _shards.push_back(std::move(shard));
+            shard->cache.set_max_size(shard_bytes);
+            shards.push_back(std::move(shard));
         }
     }
 
@@ -65,12 +59,12 @@ public:
     ConcurrentSizedLRUCache(ConcurrentSizedLRUCache &&) = delete;
     ConcurrentSizedLRUCache &operator=(ConcurrentSizedLRUCache &&) = delete;
 
-    std::size_t
-    add(const K &key, V &&entry)
+    size_t
+    put(const K &key, V &&entry)
     {
         auto &shard = shard_for(key);
         std::lock_guard<std::mutex> lock(shard.mtx);
-        return shard.cache.add(key, std::move(entry));
+        return shard.cache.put(key, std::move(entry));
     }
 
     bool
@@ -78,64 +72,64 @@ public:
     {
         auto &shard = shard_for(key);
         std::lock_guard<std::mutex> lock(shard.mtx);
-        return shard.cache.erase(key) > 0;
+        return shard.cache.erase(key);
     }
 
     std::optional<V>
-    getErase(const K &key)
+    get_erase(const K &key)
     {
         auto &shard = shard_for(key);
         std::lock_guard<std::mutex> lock(shard.mtx);
-        return shard.cache.getErase(key);
+        return shard.cache.get_erase(key);
     }
 
     void
     clear()
     {
-        for (auto &shard : _shards) {
+        for (auto &shard : shards) {
             std::lock_guard<std::mutex> lock(shard->mtx);
             shard->cache.clear();
         }
     }
 
     bool
-    hasKey(const K &key) const
+    contains(const K &key) const
     {
         auto &shard = shard_for(key);
         std::lock_guard<std::mutex> lock(shard.mtx);
-        return shard.cache.hasKey(key);
+        return shard.cache.contains(key);
     }
 
-    std::size_t
+    size_t
     size() const
     {
-        std::size_t total = 0;
-        for (const auto &shard : _shards) {
+        size_t total = 0;
+        for (const auto &shard : shards) {
             std::lock_guard<std::mutex> lock(shard->mtx);
             total += shard->cache.size();
         }
         return total;
     }
 
-    std::size_t
+    size_t
     count() const
     {
-        std::size_t total = 0;
-        for (const auto &shard : _shards) {
+        size_t total = 0;
+        for (const auto &shard : shards) {
             std::lock_guard<std::mutex> lock(shard->mtx);
             total += shard->cache.count();
         }
         return total;
     }
 
-    std::size_t
-    setMaxSize(std::size_t maxSize)
+    size_t
+    set_max_size(size_t max_size)
     {
-        const std::size_t shardSize = _shardSize(maxSize, _shards.size());
-        std::size_t evicted = 0;
-        for (auto &shard : _shards) {
+        const size_t shard_bytes = shard_size(max_size, shards.size());
+        size_t evicted = 0;
+        for (auto &shard : shards) {
             std::lock_guard<std::mutex> lock(shard->mtx);
-            evicted += shard->cache.setMaxSize(shardSize);
+            evicted += shard->cache.set_max_size(shard_bytes);
         }
         return evicted;
     }
@@ -143,29 +137,27 @@ public:
 private:
     struct Shard {
         mutable std::mutex mtx;
-        LRUShardType cache;
+        SizedLRUCache<K, V, GetSize, Hash> cache;
     };
 
-    static std::size_t
-    _shardSize(std::size_t maxSize, std::size_t nShards)
+    static size_t
+    shard_size(size_t max_size, size_t n_shards)
     {
-        return (maxSize + nShards - 1) / nShards;
+        return (max_size + n_shards - 1) / n_shards;
     }
 
     Shard &
     shard_for(const K &key)
     {
-        return *_shards[_hash(key) % _shards.size()];
+        return *shards[hash(key) % shards.size()];
     }
 
     const Shard &
     shard_for(const K &key) const
     {
-        return *_shards[_hash(key) % _shards.size()];
+        return *shards[hash(key) % shards.size()];
     }
 
-    std::vector<std::unique_ptr<Shard>> _shards;
-    Hash _hash;
+    std::vector<std::unique_ptr<Shard>> shards;
+    Hash hash;
 };
-
-} /* namespace palite */
