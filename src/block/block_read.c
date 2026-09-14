@@ -38,7 +38,7 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
       bm->is_live && block == bm->block, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
-    /* Read the block. */
+    /* FIXME-WT-18647: leftover local objectid; cookie pack/unpack is enough. */
     WT_RET(__wti_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
