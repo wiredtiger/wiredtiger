@@ -2948,6 +2948,75 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
+ * __wt_btcur_skip_clean_internal_page --
+ *     Return whether a clean resident internal page can be skipped.
+ */
+static WT_INLINE bool
+__wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR_COPY addr;
+    WT_REF *child;
+    WT_REF_STATE child_state;
+    WT_TIME_AGGREGATE *ta;
+    bool children_validated, visible;
+
+    for (children_validated = false;; children_validated = true) {
+        ta = NULL;
+        visible = false;
+
+        /*
+         * Prefer the reference address when it exists. A disaggregated skip-write can retain the
+         * current address while publishing an empty page-modify aggregate.
+         */
+        if (__wt_ref_addr_copy(session, ref, &addr)) {
+            if ((addr.del_set && __wt_page_del_visible(session, &addr.del, true)) ||
+              (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
+                __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+                  addr.ta.newest_stop_durable_ts)))
+                visible = true;
+        } else if (__wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
+          __wt_txn_snap_min_visible(
+            session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts))
+            visible = true;
+
+        if (!visible)
+            return (false);
+        if (children_validated)
+            return (true);
+
+        /*
+         * Locking the parent blocks new readers from entering its children, but an existing reader
+         * may hazard-couple between them. Scan in both directions so such a reader cannot move past
+         * the check, and reject queued pre-fetch work that may instantiate a child.
+         */
+        WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
+            child_state = WT_REF_GET_STATE(child);
+            if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
+              __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
+              (child_state != WT_REF_DISK && child_state != WT_REF_DELETED))
+                return (false);
+        }
+        WT_INTL_FOREACH_END;
+
+        WT_INTL_FOREACH_REVERSE_BEGIN (session, ref->page, child) {
+            child_state = WT_REF_GET_STATE(child);
+            if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
+              __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
+              (child_state != WT_REF_DISK && child_state != WT_REF_DELETED))
+                return (false);
+        }
+        WT_INTL_FOREACH_END;
+
+        /* Observe a dirty transition ordered before a child was published as on disk. */
+        WT_ACQUIRE_BARRIER();
+        if (__wt_page_is_modified(ref->page))
+            return (false);
+
+        /* Re-read the aggregate after validating the clean subtree. */
+    }
+}
+
+/*
  * __wt_btcur_skip_page_inc --
  *     Count a skipped deleted page as internal or leaf.
  */
@@ -2975,11 +3044,10 @@ __wt_btcur_skip_page(
 {
     WT_ADDR_COPY addr;
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
-    WT_REF *child;
-    WT_REF_STATE child_state, previous_state;
+    WT_REF_STATE previous_state;
     WT_TIME_AGGREGATE *ta;
     uint64_t sleep_usecs, yield_count;
-    bool check_internal_children, clean_page, internal_children_validated;
+    bool clean_page;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2988,7 +3056,7 @@ __wt_btcur_skip_page(
 
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
     ta = NULL;
-    check_internal_children = clean_page = internal_children_validated = false;
+    clean_page = false;
 
     /*
      * Trees on the local block manager never skip an internal page. Reading one in is what marks it
@@ -3018,14 +3086,14 @@ __wt_btcur_skip_page(
     if (yield_count != 0)
         ++walk_skip_stats->total_skip_lock_contended;
 
-    /*
-     * A dirty internal page must be walked. Delay checking the children of a clean internal page
-     * until its aggregate shows that the subtree could be skipped.
-     */
+    /* Check a clean resident internal page separately from the on-disk and leaf-page paths. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
-        if (previous_state != WT_REF_MEM || __wt_page_is_modified(ref->page))
-            goto unlock;
-        check_internal_children = true;
+        if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page) &&
+          __wt_btcur_skip_clean_internal_page(session, ref)) {
+            *skipp = true;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, true);
+        }
+        goto unlock;
     }
 
     /*
@@ -3052,18 +3120,12 @@ __wt_btcur_skip_page(
     if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
         clean_page = true;
 
-check_aggregate:
-    /*
-     * Prefer the reference address when it exists. A disaggregated skip-write can retain the
-     * current address while publishing an empty page-modify aggregate.
-     */
+    /* Look at the disk address, if it exists. */
     if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
-            if (check_internal_children && !internal_children_validated)
-                goto validate_internal;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
             goto unlock;
         }
 
@@ -3076,72 +3138,24 @@ check_aggregate:
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            if (check_internal_children && !internal_children_validated)
-                goto validate_internal;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
         }
-    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare) {
-        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            if (__wt_txn_snap_min_visible(
-                  session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
-                *skipp = true;
-                if (check_internal_children && !internal_children_validated)
-                    goto validate_internal;
-                __wt_btcur_skip_page_inc(ref, walk_skip_stats, internal_children_validated);
-            }
-        } else if (__wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
-                     ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
-            *skipp = true;
-            walk_skip_stats->total_inmem_del_pages_skipped++;
-        }
+    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
+      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+        /*
+         * If the reader can see all of the deleted content, they can skip a deleted clean page.
+         * Before determining whether the deleted page is visible, copy the stop time aggregate
+         * information pointer because as part of the checkpoint operation, this pointer can be
+         * released in parallel.
+         *
+         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
+         * use the range visibility check; it skips more pages than the snap_min bound used on the
+         * disk-address path, which only has the newest stop transaction.
+         */
+        *skipp = true;
+        walk_skip_stats->total_inmem_del_pages_skipped++;
     }
-    goto unlock;
-
-validate_internal:
-    /*
-     * Locking the parent blocks new readers from entering its children, but an existing reader may
-     * hazard-couple between them. Scan in both directions so such a reader cannot move past the
-     * check, and reject queued pre-fetch work that may instantiate a child.
-     */
-    WT_ASSERT(session, check_internal_children && *skipp);
-    WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-        child_state = WT_REF_GET_STATE(child);
-        if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
-          __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
-          (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)) {
-            *skipp = false;
-            goto unlock;
-        }
-    }
-    WT_INTL_FOREACH_END;
-
-    WT_INTL_FOREACH_REVERSE_BEGIN (session, ref->page, child) {
-        child_state = WT_REF_GET_STATE(child);
-        if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
-          __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
-          (child_state != WT_REF_DISK && child_state != WT_REF_DELETED)) {
-            *skipp = false;
-            goto unlock;
-        }
-    }
-    WT_INTL_FOREACH_END;
-
-    /* Observe a dirty transition ordered before a child was published as on disk. */
-    WT_ACQUIRE_BARRIER();
-    if (__wt_page_is_modified(ref->page)) {
-        *skipp = false;
-        goto unlock;
-    }
-
-    /*
-     * The parent may have been dirtied, reconciled and marked clean while its children were being
-     * checked. Re-read the aggregate after validating the children so the skip decision belongs to
-     * the clean state observed above.
-     */
-    internal_children_validated = true;
-    *skipp = false;
-    ta = NULL;
-    goto check_aggregate;
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);
