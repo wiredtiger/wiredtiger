@@ -2695,6 +2695,9 @@ static inline bool __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *pa
   WT_TIME_AGGREGATE **ta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #ifdef HAVE_UNITTEST
+extern WT_DHANDLE_CLOSE_ACTION __ut_conn_dhandle_close_action(
+  bool dhandle_dead, bool is_mapped, bool final, bool mark_dead, bool skips_checkpoint)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_DISAGG_PENDING_CRYPT_KEY *__ut_disagg_select_pending_crypt_key(WT_SESSION_IMPL *session,
   wt_timestamp_t checkpoint_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_EXT *__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
