@@ -274,6 +274,60 @@ class test_size_stats01(wttest.WiredTigerTestCase):
         self.assertEqual(s['deleted_key'], 0)
         self.assertEqual(s['deleted_value'], 0)
 
+    # Overflow values with a visible stop belong with deleted, not live, same as on-page values.
+    @wttest.skip_for_hook("disagg", "cannot force overflow pages on the layered stable constituent")
+    def test_size_tombstones_overflow(self):
+        nrecords, valuesize, keep_mod = 50, 2000, 10
+        value = 'v' * valuesize
+
+        self.session.create(self.uri,
+          'key_format=S,value_format=S,leaf_page_max=4KB,internal_page_max=4KB')
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+          ',stable_timestamp=' + self.timestamp_str(1))
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(nrecords):
+            self.session.begin_transaction()
+            cursor['key%08d' % i] = value
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.session.checkpoint()
+
+        cursor = self.session.open_cursor(self.uri)
+        n_deleted = 0
+        for i in range(nrecords):
+            if i % keep_mod != 0:
+                self.session.begin_transaction()
+                cursor.set_key('key%08d' % i)
+                self.assertEqual(cursor.remove(), 0)
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+                n_deleted += 1
+        cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        self.session.checkpoint()
+
+        n_live = nrecords - n_deleted
+        s = self.size_summary(cleanup=False)
+        self.assertGreater(s['overflow'], 0)
+        self.assertEqual(s['scanned'], n_live)
+        self.assertEqual(s['key_count'], n_live)
+        self.assertEqual(s['value_count'], n_live)
+        self.assertEqual(s['deleted_key_count'], n_deleted)
+        self.assertEqual(s['deleted_value_count'], n_deleted)
+        self.assertGreaterEqual(s['deleted_value'], n_deleted * valuesize)
+        self.assertGreaterEqual(s['value'], n_live * valuesize)
+
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20))
+        self.checkpoint_cleanup()
+        s = self.size_summary(cleanup=False)
+        self.assertEqual(s['scanned'], n_live)
+        self.assertEqual(s['key_count'], n_live)
+        self.assertEqual(s['value_count'], n_live)
+        self.assertEqual(s['deleted_key_count'], 0)
+        self.assertEqual(s['deleted_value_count'], 0)
+        self.assertGreaterEqual(s['value'], n_live * valuesize)
+
     # Delete 99% of the keys, leaving a large population of near-empty leaf pages that WiredTiger
     # never merges back together. This is the pathology the page-size histogram exists to surface:
     # the pages are uniformly underfull, concentrated in the smallest bucket.
