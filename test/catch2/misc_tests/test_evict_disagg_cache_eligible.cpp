@@ -16,24 +16,18 @@
 #include "../wrappers/connection_wrapper.h"
 
 /*
- * These tests exercise __evict_page_victim_cache_eligible(), the gate that decides whether a page
- * may enter the disaggregated victim cache and, if so, which on-disk-format image matches the
- * page's current block metadata. WT-18626 fixed a bug where a force-cleared reconciled page was
- * admitted because the gate only checked the dirty flag.
+ * These tests exercise the gate that decides whether a page may enter the victim cache and, if so,
+ * which on-disk-format image matches the page's current block metadata.
  *
  * The gate returns a named reason rather than a bool, which is what lets these tests assert that a
  * page is rejected for the reason intended rather than for some earlier gate that happened to fire
  * first, and what lets them walk every reason without keeping a list that could fall behind the
- * enum. See provoke() below for how that is enforced.
- *
- * Image resolution itself is covered against __evict_page_disagg_image() in
- * test_evict_disagg_cache_source.cpp; only the part of it visible through this gate is repeated
- * here.
+ * enum.
  */
 
 namespace {
 
-/* Whether the stand-in page log reports its cache as available; see plh_cache_available(). */
+/* Whether the stand-in page log reports its cache as available. */
 bool cache_available = true;
 
 WT_PAGE_HEADER *

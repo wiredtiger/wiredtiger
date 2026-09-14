@@ -79,14 +79,11 @@ struct __wti_evict_queue {
  *	Why a page was, or was not, admitted to the disaggregated victim cache.
  *
  * Each gate in the eligibility check has its own value rather than folding into a single "not
- * eligible". That buys two things. A page that was expected to be cached and was not can be
- * explained from a verbose log instead of by bisecting the gate by hand. And every switch over this
- * enum is written without a default label, so under -Wswitch-enum -Werror adding a gate here fails
- * the build until both the caller and the unit tests account for it, rather than leaving the new
- * gate silently untested.
- *
- * WTI_EVICT_VICTIM_COUNT must stay last. It is what lets the unit tests walk every reason without
- * keeping a list of their own that could fall out of step with this one.
+ * eligible". Two main benefits with this approach: a page that was expected to be cached and was
+ * not can be explained from a verbose log instead of by bisecting the gate by hand. And every
+ * switch over this enum is written without a default label, adding a gate here fails the build
+ * until both the caller and the unit tests account for it, rather than leaving the new gate
+ * silently untested.
  */
 typedef enum {
     WTI_EVICT_VICTIM_OK,                /* Eligible: the resolved image is returned. */

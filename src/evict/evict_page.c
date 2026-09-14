@@ -186,10 +186,6 @@ __evict_page_victim_cache_eligible(
     if (plh == NULL || plh->plh_cache_put == NULL || plh->plh_cache_available == NULL)
         return (WTI_EVICT_VICTIM_NO_PAGE_LOG);
 
-    /*
-     * Unlike every other gate here, this one is a property of the page log's current state rather
-     * than of the page, so the same page can be rejected now and admitted moments later.
-     */
     if (!plh->plh_cache_available(plh, &session->iface))
         return (WTI_EVICT_VICTIM_CACHE_UNAVAILABLE);
 
