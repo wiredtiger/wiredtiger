@@ -277,38 +277,39 @@ lsm_config = [
     ]),
 ]
 
-# Common removed-option fields for table/file and wiredtiger_open.
-tiered_storage_local_retention = Config('local_retention', '300', r'''
-    removed option, preserved to allow parsing old metadata''',
-    min='0', max='10000', undoc=True)
-tiered_storage_shared = Config('shared', 'false', r'''
-    removed option, preserved to allow parsing old metadata''',
-    type='boolean', undoc=True)
+# Leftover keys shared by create and wiredtiger_open.
 tiered_storage_configuration_common = [
     Config('name', 'none', r'''
-        removed option, preserved to allow parsing old metadata''', undoc=True),
+        removed option, preserved to allow parsing old metadata'''),
     Config('auth_token', '', r'''
-        removed option, preserved to allow parsing old metadata''', undoc=True),
+        removed option, preserved to allow parsing old metadata'''),
     Config('bucket', '', r'''
-        removed option, preserved to allow parsing old metadata''', undoc=True),
+        removed option, preserved to allow parsing old metadata'''),
     Config('bucket_prefix', '', r'''
-        removed option, preserved to allow parsing old metadata''', undoc=True),
+        removed option, preserved to allow parsing old metadata'''),
     Config('cache_directory', '', r'''
-        removed option, preserved to allow parsing old metadata''', undoc=True),
-    tiered_storage_local_retention,
-    tiered_storage_shared,
+        removed option, preserved to allow parsing old metadata'''),
+    Config('local_retention', '300', r'''
+        removed option, preserved to allow parsing old metadata''',
+        min='0', max='10000'),
+    Config('shared', 'false', r'''
+        removed option, preserved to allow parsing old metadata''',
+        type='boolean'),
 ]
 
 tiered_config = [
     Config('tiered_storage', '', r'''
         Removed options, preserved to allow parsing old metadata''',
-        type='category', subconfig=
+        type='category', undoc=True, subconfig=
         tiered_storage_configuration_common + [
         Config('object_target_size', '0', r'''
             removed option, preserved to allow parsing old metadata''',
-            min='0', undoc=True),
+            min='0'),
         ]),
 ]
+# Undocumented categories skip the header walk that stamps method_name.
+# Without this, create and open share confchk_tiered_storage_subconfigs.
+tiered_config[0].method_name = 'WT_SESSION.create'
 
 tiered_tree_config = [
     Config('bucket', '', r'''
@@ -1283,7 +1284,7 @@ wiredtiger_open_tiered_storage_configuration = [
         tiered_storage_configuration_common + [
         Config('interval', '60', r'''
             removed option, preserved to allow parsing old metadata''',
-            min=1, max=1000, undoc=True),
+            min=1, max=1000),
     ]),
 ]
 
