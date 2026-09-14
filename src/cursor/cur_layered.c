@@ -3119,6 +3119,8 @@ __clayered_put_both(
     WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
     ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
     __clayered_assert_mirrored_write(session, ret);
+    if (ret == 0)
+        WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
 
 err:
     __wt_scr_free(session, &ingest_buf);
@@ -3390,6 +3392,8 @@ __clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positi
       op, key, positioned && op->clayered->current_cursor == op->stable));
     ret = __clayered_ingest_tombstone(op, key);
     __clayered_assert_mirrored_write(session, ret);
+    if (ret == 0)
+        WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
     return (ret);
 }
 
@@ -4165,6 +4169,8 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_RET(__clayered_modify_stable(op, entries, nentries));
     ret = __clayered_modify_ingest(op, entries, nentries);
     __clayered_assert_mirrored_write(CUR2S(clayered), ret);
+    if (ret == 0)
+        WT_STAT_CONN_INCR(CUR2S(clayered), disagg_step_down_mirrored_writes);
     return (ret);
 }
 
