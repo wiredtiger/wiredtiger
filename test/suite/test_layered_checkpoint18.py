@@ -87,8 +87,9 @@ class test_layered_checkpoint18(wttest.WiredTigerTestCase):
 
         self.write_and_checkpoint(2, 2)
 
-        # The drop hands the constituent handles to sweep instead of discarding them here.
-        self.session.drop(self.uri)
+        # The drop marks the constituent handles dead and hands them to sweep instead of discarding
+        # their pages here.
+        self.session.drop(self.uri, 'force=true')
 
         # Wait for a couple of full sweep passes over the dropped handles.
         target = self.get_stat(wiredtiger.stat.conn.dh_sweeps) + 2
