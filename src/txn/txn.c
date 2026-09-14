@@ -1849,14 +1849,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * While the step-down timestamp is set, a committing transaction's ingest content must sit
-         * strictly above the boundary. Checked per operation here to fold the boundary check into
-         * the pass this loop already makes.
+         * While the step-down timestamp is set, different invariants apply depending on whether
+         * mirroring is enabled.
          *
-         * Mirror mode writes the stable constituent above the boundary and mirrors it to ingest, so
-         * record whether stable content above the boundary was written; after the loop we verify
-         * that a stable write was mirrored. Ingest-only mode never writes a stable constituent
-         * above the boundary and never writes both constituents from one transaction.
+         * If mirroring is disabled, a committing transaction's layered content must sit on one side
+         * of the boundary: ingest content strictly above the timestamp, stable content at or below
+         * it, and never both constituents from one transaction.
+         *
+         * Otherwise, after the loop we verify that stable writes were mirrored to ingest.
          */
         if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL) {
             if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
