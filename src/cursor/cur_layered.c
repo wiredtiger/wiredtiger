@@ -428,7 +428,7 @@ __clayered_enter_flags(
      * by contract.
      */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
-      F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) ||
+      __wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) ||
       mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
@@ -1216,9 +1216,8 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
      * the step-down window is marked at handle open and never attempts this open, so any other miss
      * is a genuinely missing constituent and must be reported.
      *
-     * FIXME-WT-18359: Investigate whether this guard is reachable now that
-     * WT_LAYERED_TABLE_STEP_DOWN_CREATED skips opening the stable constituent for tables created
-     * during the step-down window.
+     * FIXME-WT-18359: Investigate whether this guard is reachable now that step_down_created skips
+     * opening the stable constituent for tables created during the step-down window.
      */
     return (role == WTI_CLAYERED_ROLE_LEADER &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
@@ -1273,7 +1272,8 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
 
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed, unless the constituent does not exist yet. */
-        if (!F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
+        if (!__wt_atomic_load_bool_relaxed(
+              &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
           (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
@@ -1852,11 +1852,11 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
 
     /*
      * When both constituents are positioned on the same key, advance the alternate too so the key
-     * is not returned twice. This only arises when the current cursor is the ingest cursor, whose
-     * value shadows the stable copy; both must carry a key for the comparison to be valid.
+     * is not returned twice. Within one read context the tie always makes ingest current, but after
+     * a context change the alternate is repositioned from the current key and can land on it
+     * whichever constituent is current.
      */
-    if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT) &&
-      c_current == op->ingest) {
+    if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT)) {
         int cmp;
 
         WT_RET(__clayered_cursor_compare(op, c_alternate, c_current, &cmp));
@@ -2457,7 +2457,7 @@ __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
      * stable constituent at all, not because it is waiting on a checkpoint: opening as a follower
      * would refuse the bind against the leader-era snapshot.
      */
-    if (F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED))
+    if (__wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created))
         return (0);
 
     WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
@@ -3441,8 +3441,7 @@ __clayered_remove(WT_CURSOR *cursor)
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
-     * no position, key or value. This isn't just cosmetic, without a reset, iteration on this
-     * cursor won't start at the beginning/end of the table.
+     * no position, key or value.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     if (positioned)
@@ -3452,6 +3451,16 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
 
 err:
+    if (ret != 0) {
+        /*
+         * A failed remove loses the position, as with a file cursor: a cursor that started
+         * positioned ends with no key, one that started unpositioned keeps its application key.
+         */
+        if (positioned)
+            F_CLR(cursor, WT_CURSTD_KEY_SET);
+        F_CLR(cursor, WT_CURSTD_VALUE_SET);
+        WT_TRET(__clayered_reset_cursors(clayered, false));
+    }
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
@@ -3822,7 +3831,7 @@ __clayered_modify_try_ingest(
      * a modify operation. Similarly, a delete-encoded value alters the original value and also
      * cannot serve as the base value for a modify. In these cases, perform a full update instead.
      *
-     * FIXME-WT-17827: a lookup returns WT_NOTFOUND for a deleted key, so the tombstone case is only
+     * FIXME-WT-18563: a lookup returns WT_NOTFOUND for a deleted key, so the tombstone case is only
      * reachable if the modify skips the lookup on an already-positioned cursor. Revisit whether
      * that can happen.
      */
