@@ -86,18 +86,18 @@ struct __wti_evict_queue {
  * silently untested.
  */
 typedef enum {
-    WTI_EVICT_VICTIM_OK,                /* Eligible: the resolved image is returned. */
-    WTI_EVICT_VICTIM_NOT_DISAGG,        /* The btree is not disaggregated. */
-    WTI_EVICT_VICTIM_CHECKPOINT_CURSOR, /* The btree is open under a checkpoint cursor. */
-    WTI_EVICT_VICTIM_NO_BLOCK_MANAGER,  /* The btree has no disaggregated block manager. */
-    WTI_EVICT_VICTIM_NO_PAGE_LOG,       /* No page log handle, or it cannot cache at all. */
     WTI_EVICT_VICTIM_CACHE_UNAVAILABLE, /* The page log's cache is not currently accepting puts. */
-    WTI_EVICT_VICTIM_NOT_LEAF,          /* Internal pages are never cached. */
+    WTI_EVICT_VICTIM_CHECKPOINT_CURSOR, /* The btree is open under a checkpoint cursor. */
+    WTI_EVICT_VICTIM_COLD_TIER,         /* Cold collections must not displace hot pages. */
+    WTI_EVICT_VICTIM_INVALID_PAGE_ID,   /* The block metadata holds no valid page id. */
+    WTI_EVICT_VICTIM_NO_BLOCK_MANAGER,  /* The btree has no disaggregated block manager. */
     WTI_EVICT_VICTIM_NO_DISAGG_INFO,    /* The page carries no disaggregated block metadata. */
     WTI_EVICT_VICTIM_NO_IMAGE,          /* No image matches the page's current block metadata. */
-    WTI_EVICT_VICTIM_INVALID_PAGE_ID,   /* The block metadata holds no valid page id. */
+    WTI_EVICT_VICTIM_NO_PAGE_LOG,       /* No page log handle, or it cannot cache at all. */
+    WTI_EVICT_VICTIM_NOT_DISAGG,        /* The btree is not disaggregated. */
+    WTI_EVICT_VICTIM_NOT_LEAF,          /* Internal pages are never cached. */
+    WTI_EVICT_VICTIM_OK,                /* Eligible: the resolved image is returned. */
     WTI_EVICT_VICTIM_ROOT,              /* Root pages are never cached. */
-    WTI_EVICT_VICTIM_COLD_TIER,         /* Cold collections must not displace hot pages. */
 
     WTI_EVICT_VICTIM_COUNT /* Number of reasons; must stay last. */
 } WTI_EVICT_VICTIM_REASON;
