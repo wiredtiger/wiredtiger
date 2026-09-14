@@ -134,7 +134,6 @@ handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
     WT_DECL_RET;
-    int bytes_written;
     char buf[256];
     const char *msg;
 
@@ -146,7 +145,7 @@ handle_progress(
     } else
         msg = operation;
 
-    bytes_written =
+    int bytes_written =
       progress == 0 ? printf("%s\n", msg) : printf("%s: %" PRIu64 "\n", msg, progress);
     ret = fflush(stdout);
     return (bytes_written < 0 ? EIO : (ret == EOF ? errno : 0));
@@ -445,14 +444,12 @@ configure_obsolete_cleanup(char **p, size_t max)
 
 /*
  * configure_verbose --
- *     Configure verbose messaging.
+ *     Configure verbose messaging. WT_VERBOSE_INFO adds the lifecycle markers that identify which
+ *     phase the run had reached.
  */
 static void
 configure_verbose(char **p, size_t max)
 {
-    /*
-     * WT_VERBOSE_INFO adds the lifecycle markers that identify which phase the run had reached.
-     */
     CONFIG_APPEND(*p, ",verbose=[all:0]");
 }
 
