@@ -30,15 +30,13 @@
 
 #include <cassert>
 #include <cstddef>
-#include <functional>
 #include <list>
 #include <optional>
 #include <unordered_map>
 #include <utility>
 
 /* Byte-budget LRU: list for recency, map for O(1) lookup. Not thread-safe. */
-template <typename K, typename V, typename GetSize, typename Hash = std::hash<K>>
-class SizedLRUCache {
+template <typename K, typename V> class SizedLRUCache {
 public:
     static constexpr size_t PAGE_SIZE = 4096;
 
@@ -59,12 +57,12 @@ public:
     {
         auto i = map.find(key);
         if (i != map.end()) {
-            cur_size -= get_size(i->second->second);
+            cur_size -= i->second->entry.data.size();
             list.erase(i->second);
         }
 
-        cur_size += get_size(entry);
-        list.push_front(std::make_pair(key, std::move(entry)));
+        cur_size += entry.data.size();
+        list.push_front(Node{key, std::move(entry)});
         map[key] = list.begin();
 
         const size_t evicted = evict_to_max_size();
@@ -79,8 +77,8 @@ public:
         if (it == map.end())
             return std::nullopt;
 
-        V ret = std::move(it->second->second);
-        cur_size -= get_size(ret);
+        V ret = std::move(it->second->entry);
+        cur_size -= ret.data.size();
         list.erase(it->second);
         map.erase(it);
         return ret;
@@ -93,7 +91,7 @@ public:
         if (it == map.end())
             return false;
 
-        cur_size -= get_size(it->second->second);
+        cur_size -= it->second->entry.data.size();
         list.erase(it->second);
         map.erase(it);
         return true;
@@ -140,16 +138,21 @@ public:
     }
 
 private:
+    struct Node {
+        K key;
+        V entry;
+    };
+
     size_t
     evict_to_max_size()
     {
         size_t evicted_size = 0;
         while (cur_size > max_size) {
-            auto &pair = list.back();
-            const auto sz = get_size(pair.second);
+            auto &node = list.back();
+            const auto sz = node.entry.data.size();
             evicted_size += sz;
             cur_size -= sz;
-            map.erase(pair.first);
+            map.erase(node.key);
             list.pop_back();
         }
         return evicted_size;
@@ -157,7 +160,6 @@ private:
 
     size_t max_size{0};
     size_t cur_size{0};
-    GetSize get_size{};
-    std::list<std::pair<K, V>> list;
-    std::unordered_map<K, typename std::list<std::pair<K, V>>::iterator, Hash> map;
+    std::list<Node> list;
+    std::unordered_map<K, typename std::list<Node>::iterator> map;
 };

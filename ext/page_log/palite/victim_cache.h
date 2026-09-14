@@ -44,7 +44,7 @@ struct VictimCacheKey {
     bool operator==(const VictimCacheKey &) const = default;
 };
 
-struct VictimCacheKeyHash {
+template <> struct std::hash<VictimCacheKey> {
     size_t
     operator()(const VictimCacheKey &key) const noexcept
     {
@@ -63,14 +63,6 @@ struct VictimCacheEntry {
     uint64_t base_checkpoint_id;
     uint64_t delta_count;
     std::vector<uint8_t> data;
-};
-
-struct VictimCacheEntrySize {
-    size_t
-    operator()(const VictimCacheEntry &item) const
-    {
-        return item.data.size();
-    }
 };
 
 class VictimCache {
@@ -136,7 +128,5 @@ public:
 
 private:
     const size_t max_size;
-    ConcurrentSizedLRUCache<VictimCacheKey, VictimCacheEntry, VictimCacheEntrySize,
-      VictimCacheKeyHash>
-      cache;
+    ConcurrentSizedLRUCache<VictimCacheKey, VictimCacheEntry> cache;
 };

@@ -38,10 +38,9 @@
 #include <vector>
 
 /* One mutex per shard. Budget is split equally and rounded up. */
-template <typename K, typename V, typename GetSize, typename Hash = std::hash<K>>
-class ConcurrentSizedLRUCache {
+template <typename K, typename V> class ConcurrentSizedLRUCache {
 public:
-    ConcurrentSizedLRUCache(size_t max_size, size_t n_shards) : hash(Hash{})
+    ConcurrentSizedLRUCache(size_t max_size, size_t n_shards)
     {
         if (n_shards == 0)
             n_shards = 1;
@@ -137,7 +136,7 @@ public:
 private:
     struct Shard {
         mutable std::mutex mtx;
-        SizedLRUCache<K, V, GetSize, Hash> cache;
+        SizedLRUCache<K, V> cache;
     };
 
     static size_t
@@ -149,15 +148,14 @@ private:
     Shard &
     shard_for(const K &key)
     {
-        return *shards[hash(key) % shards.size()];
+        return *shards[std::hash<K>{}(key) % shards.size()];
     }
 
     const Shard &
     shard_for(const K &key) const
     {
-        return *shards[hash(key) % shards.size()];
+        return *shards[std::hash<K>{}(key) % shards.size()];
     }
 
     std::vector<std::unique_ptr<Shard>> shards;
-    Hash hash;
 };
