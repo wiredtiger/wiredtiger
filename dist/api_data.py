@@ -789,6 +789,11 @@ connection_runtime_config = [
         Config('tiered_flush_error_continue', 'false', r'''
             on a write to tiered storage, continue when an error occurs.''',
             type='boolean'),
+        Config('timing_stress_force', 'false', r'''
+            !!! FOR INTERNAL TESTING ONLY. If true, any timing-stress failpoint enabled via
+            timing_stress_for_test always fires instead of firing probabilistically. Intended
+            for deterministically exercising failure paths that are normally hit by chance.''',
+            type='boolean', undoc=True),
         Config('update_restore_evict', 'false', r'''
             if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),

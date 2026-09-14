@@ -105,27 +105,29 @@ class test_disagg_checkpoint_size13(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         rec_free_pageid_warmup = self.get_conn_stat(
             stat.conn.rec_free_page_id_due_to_failed_replacement_reconciliation)
 
+        # debug_mode.timing_stress_force makes the failpoint fire unconditionally
+        # on the next matching reconciliation instead of its usual 1% chance, so a
+        # single wide multi-block reconciliation below reaches the error-cleanup loop.
         self.conn.reconfigure(
-            'timing_stress_for_test=[failpoint_rec_before_wrapup]')
+            'timing_stress_for_test=[failpoint_rec_before_wrapup],'
+            'debug_mode=(timing_stress_force=true)'
+        )
 
-        for i in range(cycles):
-            char = chr(ord('a') + (i % 20))
-            new_start = nrows + i * big_batch
-            c = self.session.open_cursor(self.uri)
-            self.insert_rows(c, new_start, big_batch, char)
-            band_start = ((i + cycles) * band) % nrows
-            self.insert_rows(c, band_start, band, char)
-            c.close()
-            self.evict_page(f'key{new_start:08d}')
-            self.evict_page(f'key{band_start:08d}')
+        char = 'a'
+        new_start = nrows
+        c = self.session.open_cursor(self.uri)
+        self.insert_rows(c, new_start, big_batch, char)
+        band_start = (cycles * band) % nrows
+        self.insert_rows(c, band_start, band, char)
+        c.close()
+        self.evict_page(f'key{new_start:08d}')
+        self.evict_page(f'key{band_start:08d}')
 
-        self.conn.reconfigure('timing_stress_for_test=[]')
+        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
         self.session.checkpoint()
 
         rec_free_pageid_final = self.get_conn_stat(
             stat.conn.rec_free_page_id_due_to_failed_replacement_reconciliation)
 
-        # failpoint_rec_before_wrapup fires probabilistically (1%). If the
-        # workload happens not to roll the failpoint, skip rather than fail.
-        if rec_free_pageid_final == rec_free_pageid_warmup:
-            self.skipTest('failpoint_rec_before_wrapup did not fire in this run')
+        self.assertGreater(rec_free_pageid_final, rec_free_pageid_warmup,
+            'rec_free_page_id_due_to_failed_replacement_reconciliation did not advance')

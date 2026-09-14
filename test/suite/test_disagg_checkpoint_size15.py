@@ -116,32 +116,35 @@ class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             stat.conn.rec_free_page_id_due_to_failed_replacement_reconciliation)
         hs_insert_warmup = self.get_conn_stat(stat.conn.cache_hs_insert)
 
+        # debug_mode.timing_stress_force makes the failpoint fire unconditionally
+        # on the next matching reconciliation instead of its usual 1% chance.
         self.conn.reconfigure(
-            'timing_stress_for_test=[failpoint_rec_before_wrapup]')
+            'timing_stress_for_test=[failpoint_rec_before_wrapup],'
+            'debug_mode=(timing_stress_force=true)'
+        )
 
-        # Stress: updates at moving commit_timestamps so each cycle pushes
-        # the prior version of each band's rows into HS.
-        for i in range(cycles):
-            ts = 100 + i
-            char = chr(ord('a') + (i % 20))
-            new_start = nrows + i * big_batch
-            band_start = ((i + cycles) * band) % nrows
+        # Stress: updates at moving commit_timestamps push the prior version
+        # of each band's rows into HS.
+        ts = 100
+        char = 'a'
+        new_start = nrows
+        band_start = cycles * band % nrows
 
-            self.session.begin_transaction()
-            c = self.session.open_cursor(self.uri)
-            # Fresh appends do NOT generate HS entries (rows didn't exist at
-            # the reader's timestamp).
-            self.insert_rows(c, new_start, big_batch, char)
-            # Updates of existing rows DO push old versions to HS.
-            self.insert_rows(c, band_start, band, char)
-            c.close()
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(ts))
+        self.session.begin_transaction()
+        c = self.session.open_cursor(self.uri)
+        # Fresh appends do NOT generate HS entries (rows didn't exist at
+        # the reader's timestamp).
+        self.insert_rows(c, new_start, big_batch, char)
+        # Updates of existing rows DO push old versions to HS.
+        self.insert_rows(c, band_start, band, char)
+        c.close()
+        self.session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(ts))
 
-            self.evict_page(f'key{new_start:08d}')
-            self.evict_page(f'key{band_start:08d}')
+        self.evict_page(f'key{new_start:08d}')
+        self.evict_page(f'key{band_start:08d}')
 
-        self.conn.reconfigure('timing_stress_for_test=[]')
+        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
         self.session.checkpoint()
 
         reader_sess.rollback_transaction()
@@ -153,8 +156,5 @@ class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         self.assertGreater(hs_insert_final, hs_insert_warmup,
             'cache_hs_insert did not advance -- HS pressure was not applied')
-
-        # failpoint_rec_before_wrapup fires probabilistically (1%). If the
-        # workload happens not to roll the failpoint, skip rather than fail.
-        if rec_free_pageid_final == rec_free_pageid_warmup:
-            self.skipTest('failpoint_rec_before_wrapup did not fire in this run')
+        self.assertGreater(rec_free_pageid_final, rec_free_pageid_warmup,
+            'rec_free_page_id_due_to_failed_replacement_reconciliation did not advance')

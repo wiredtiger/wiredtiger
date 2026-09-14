@@ -182,34 +182,28 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # assertion if the reconciliation commit path did not restore the flag.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'
-            'timing_stress_for_test=[failpoint_rec_before_wrapup]'
+            'timing_stress_for_test=[failpoint_rec_before_wrapup],'
+            'debug_mode=(timing_stress_force=true)'
         )
-        max_iters = 500
-        for i in range(max_iters):
-            ts = 3 + i
-            c = self.session.open_cursor(self.uri)
-            self.session.begin_transaction()
-            self.insert_rows(c, 0, nrows, chr(ord('C') + (i % 20)))
-            c.close()
-            self.session.commit_transaction(f'commit_timestamp={ts}')
-            self.conn.set_timestamp(f'stable_timestamp={ts}')
-            self.evict_page('key000000')
-            if self.get_stat(stat_key) > 0:
-                break
+        ts = 3
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        self.insert_rows(c, 0, nrows, 'C')
+        c.close()
+        self.session.commit_transaction(f'commit_timestamp={ts}')
+        self.conn.set_timestamp(f'stable_timestamp={ts}')
+        self.evict_page('key000000')
 
         # Release the blocker before cleanup so eviction is unblocked.
         blocker.rollback_transaction()
         blocker.close()
 
-        self.conn.reconfigure('timing_stress_for_test=[]')
+        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
 
-        # The failpoint fires probabilistically (1% per reconcile). With a bounded
-        # workload it may not trigger on a given run; skip the size check below
-        # in that case rather than asserting on a probability.
-        if self.get_stat(stat_key) == 0:
-            self.skipTest('failpoint_rec_before_wrapup did not fire in this run')
+        self.assertGreater(self.get_stat(stat_key), 0,
+            'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 
         # Verify size is not inflated. Without the fix, the save-update-restore path
         # left the persistent flag false; the skip-write path then set a single-page
@@ -288,8 +282,7 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.assertGreater(size_with_delta, size_baseline,
             'Expected checkpoint size to grow after a delta write')
 
-        # Steps 34: loop until the error path fires.
-        # Each iteration:
+        # Steps 34: drive the error path in a single pass.
         #   a. Write to the page and rollback. The page becomes dirty with only
         #      aborted updates; the committed 'B' data is still a durable update.
         #   b. Checkpoint. Skip-write fires: newer_updates_than_last_rec_used stays
@@ -297,45 +290,41 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         #      skip-write path in the reconciliation commit path restores the persistent
         #      flag = (cumulative size > 0), reflecting that the chain is still counted
         #      in the file's running byte total.
-        #   c. Enable failpoint + delta_pct=1 and write committed data.
+        #   c. Enable the failpoint + delta_pct=1 and write committed data.
+        #      debug_mode.timing_stress_force makes the failpoint fire unconditionally
+        #      instead of its usual 1% chance.
         #   d. Evict: full-image write -> failpoint fires -> reconciliation error path.
         #      With the persistent flag set on entry, the error path completes; the
         #      page_id is invalidated and the rec_free_page_id stat increments.
-        max_iters = 500
-        for i in range(max_iters):
-            # (a) Write + rollback: dirty page, only aborted updates, content unchanged.
-            c = self.session.open_cursor(self.uri)
-            self.session.begin_transaction()
-            self.insert_rows(c, 0, nrows, chr(ord('C') + (i % 20)))
-            c.close()
-            self.session.rollback_transaction()
 
-            # (b) Checkpoint with skip-write. Before the fix, this set the persistent
-            # flag to false on the page, which stayed in cache with a single-page
-            # replacement result.
-            self.session.checkpoint()
+        # (a) Write + rollback: dirty page, only aborted updates, content unchanged.
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        self.insert_rows(c, 0, nrows, 'C')
+        c.close()
+        self.session.rollback_transaction()
 
-            # (c-d) Enable failpoint and evict with full-image mode.
-            self.conn.reconfigure(
-                'page_delta=(delta_pct=1),'
-                'timing_stress_for_test=[failpoint_rec_before_wrapup]'
-            )
-            self.session.begin_transaction()
-            c = self.session.open_cursor(self.uri)
-            self.insert_rows(c, 0, nrows, chr(ord('D') + (i % 20)))
-            c.close()
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3 + i))
-            self.evict_page('key000000')
-            self.conn.reconfigure('timing_stress_for_test=[]')
+        # (b) Checkpoint with skip-write. Before the fix, this set the persistent
+        # flag to false on the page, which stayed in cache with a single-page
+        # replacement result.
+        self.session.checkpoint()
 
-            if self.get_stat(stat_key) > 0:
-                break
+        # (c-d) Enable the failpoint and evict with full-image mode.
+        self.conn.reconfigure(
+            'page_delta=(delta_pct=1),'
+            'timing_stress_for_test=[failpoint_rec_before_wrapup],'
+            'debug_mode=(timing_stress_force=true)'
+        )
+        self.session.begin_transaction()
+        c = self.session.open_cursor(self.uri)
+        self.insert_rows(c, 0, nrows, 'D')
+        c.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+        self.evict_page('key000000')
+        self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
 
-        # The failpoint fires probabilistically (1% per reconcile). With a bounded
-        # workload it may not trigger on a given run; skip the size check below
-        # in that case rather than asserting on a probability.
-        if self.get_stat(stat_key) == 0:
-            self.skipTest('failpoint_rec_before_wrapup did not fire in this run')
+        self.assertGreater(self.get_stat(stat_key), 0,
+            'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
