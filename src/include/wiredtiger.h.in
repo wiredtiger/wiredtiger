@@ -7854,10 +7854,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! connection: total write I/Os */
 #define	WT_STAT_CONN_WRITE_IO				1498
 /*!
- * cursor: Total number of deleted internal pages skipped during tree
- * walk
+ * cursor: Total number of clean resident deleted internal pages skipped
+ * during tree walk
  */
-#define	WT_STAT_CONN_CURSOR_TREE_WALK_DEL_INTERNAL_PAGE_SKIP	1499
+#define	WT_STAT_CONN_CURSOR_TREE_WALK_RESIDENT_DEL_INTERNAL_PAGE_SKIP	1499
 /*! cursor: Total number of deleted leaf pages skipped during tree walk */
 #define	WT_STAT_CONN_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	1500
 /*! cursor: Total number of entries skipped by cursor next calls */
@@ -7874,13 +7874,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * walk
  */
 #define	WT_STAT_CONN_CURSOR_TREE_WALK_INMEM_DEL_PAGE_SKIP	1504
-/*! cursor: Total number of on-disk deleted pages skipped during tree walk */
-#define	WT_STAT_CONN_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP	1505
 /*!
- * cursor: Total number of resident deleted internal pages skipped during
+ * cursor: Total number of on-disk deleted internal pages skipped during
  * tree walk
  */
-#define	WT_STAT_CONN_CURSOR_TREE_WALK_RESIDENT_DEL_INTERNAL_PAGE_SKIP	1506
+#define	WT_STAT_CONN_CURSOR_TREE_WALK_ONDISK_DEL_INTERNAL_PAGE_SKIP	1505
+/*! cursor: Total number of on-disk deleted pages skipped during tree walk */
+#define	WT_STAT_CONN_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP	1506
 /*!
  * cursor: Total number of times a search near has exited due to prefix
  * config
@@ -10187,10 +10187,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2239
 /*!
- * cursor: Total number of deleted internal pages skipped during tree
- * walk
+ * cursor: Total number of clean resident deleted internal pages skipped
+ * during tree walk
  */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_INTERNAL_PAGE_SKIP	2240
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_RESIDENT_DEL_INTERNAL_PAGE_SKIP	2240
 /*! cursor: Total number of deleted leaf pages skipped during tree walk */
 #define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	2241
 /*! cursor: Total number of entries skipped by cursor next calls */
@@ -10207,13 +10207,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * walk
  */
 #define	WT_STAT_DSRC_CURSOR_TREE_WALK_INMEM_DEL_PAGE_SKIP	2245
-/*! cursor: Total number of on-disk deleted pages skipped during tree walk */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP	2246
 /*!
- * cursor: Total number of resident deleted internal pages skipped during
+ * cursor: Total number of on-disk deleted internal pages skipped during
  * tree walk
  */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_RESIDENT_DEL_INTERNAL_PAGE_SKIP	2247
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_INTERNAL_PAGE_SKIP	2246
+/*! cursor: Total number of on-disk deleted pages skipped during tree walk */
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP	2247
 /*!
  * cursor: Total number of times a search near has exited due to prefix
  * config

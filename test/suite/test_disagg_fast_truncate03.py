@@ -142,7 +142,7 @@ class test_disagg_fast_truncate03(test_cc_base):
         before = after
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), expected_count),
-            stat.dsrc.cursor_tree_walk_del_internal_page_skip,
+            stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip,
             before["internal_skip"],
             f"step {step}: the cleanup-read internal page was not clean-evicted",
             guard=(
@@ -183,7 +183,7 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_evicted": self.read_stat(stat.dsrc.cache_eviction_internal),
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
-            "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_del_internal_page_skip),
+            "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip),
             "resident_internal_skip": self.read_stat(
                 stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip
             ),
@@ -305,7 +305,7 @@ class test_disagg_fast_truncate03(test_cc_base):
         # while it is still resident rather than waiting for eviction.
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), surviving),
-            stat.dsrc.cursor_tree_walk_del_internal_page_skip,
+            stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip,
             before["internal_skip"] + before["resident_internal_skip"],
             "step 4: the clean emptied internal page was not skipped",
             additional_stat_key=stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip,

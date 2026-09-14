@@ -95,7 +95,7 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.session_follow.checkpoint()
 
         disk_before = self.get_stat(
-            stat.conn.cursor_tree_walk_del_internal_page_skip, conn=self.conn_follow)
+            stat.conn.cursor_tree_walk_ondisk_del_internal_page_skip, conn=self.conn_follow)
         resident_before = self.get_stat(
             stat.conn.cursor_tree_walk_resident_del_internal_page_skip, conn=self.conn_follow)
 
@@ -109,7 +109,7 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.session_follow.rollback_transaction()
 
         disk_after = self.get_stat(
-            stat.conn.cursor_tree_walk_del_internal_page_skip, conn=self.conn_follow)
+            stat.conn.cursor_tree_walk_ondisk_del_internal_page_skip, conn=self.conn_follow)
         resident_after = self.get_stat(
             stat.conn.cursor_tree_walk_resident_del_internal_page_skip, conn=self.conn_follow)
         self.assertGreater(disk_after + resident_after, disk_before + resident_before,
