@@ -271,7 +271,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
     blk->version = WT_BLOCK_DISAGG_VERSION;
     blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
-    blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
+    blk->combined_header_size = WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE;
     blk->previous_checksum = block_meta->checksum;
     blk->flags = 0;
     if (data_checksum)

@@ -203,7 +203,9 @@ struct __wt_bm {
     /* Methods */
     int (*addr_invalid)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
-    u_int (*block_header)(WT_BM *);
+    void (*block_header_init)(WT_BM *, WT_SESSION_IMPL *, void *);
+    u_int (*block_header_read_size)(WT_BM *, WT_SESSION_IMPL *, const void *);
+    u_int (*block_header_write_size)(WT_BM *);
     bool (*can_truncate)(WT_BM *, WT_SESSION_IMPL *);
     int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, WT_CKPT *, bool);
     int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
@@ -220,7 +222,7 @@ struct __wt_bm {
     void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
-    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *);
+    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, const void *);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool);
     int (*get_page_ids)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, size_t *, uint64_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
@@ -518,13 +520,17 @@ struct __wt_block_disagg_header {
      * As we create new versions, we bump the version number here, and consider what previous
      * versions are compatible with it.
      */
-#define WT_BLOCK_DISAGG_VERSION 0x1u
+#define WT_BLOCK_DISAGG_VERSION 0x2u
     uint8_t version; /* 01: version of writer */
 
 #define WT_BLOCK_DISAGG_COMPATIBLE_VERSION 0x1u
     uint8_t compatible_version; /* 02: minimum version of reader */
 
-    uint8_t header_size; /* 03: size of unencrypted, uncompressed header */
+    /*
+     * This covers the page header as well as this one: the first release wrote it that way and the
+     * field is on disk, so readers subtract WT_PAGE_HEADER_SIZE to recover this header's own size.
+     */
+    uint8_t combined_header_size; /* 03: unencrypted, uncompressed page plus block header */
 
     /*
      * Page checksums are stored in two places. Similarly to the default block header, except that
@@ -547,18 +553,23 @@ struct __wt_block_disagg_header {
     uint8_t flags;                      /* 12: flags */
 
     /*
-     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
-     * 32-bit aligned and having an extra couple bytes to play with in the future can't hurt.
+     * Add 3 bytes of padding: it wastes space, but it leaves the rest of the structure 32-bit
+     * aligned.
      */
     uint8_t unused[3]; /* 13-15: unused padding */
 };
 
 /*
- * WT_BLOCK_DISAGG_HEADER_SIZE is the number of bytes we allocate for a base page and delta
+ * WT_BLOCK_DISAGG_HEADER_WRITE_SIZE is the number of bytes we allocate for a base page and delta
  * structures: if the compiler inserts padding it will break the world.
+ * WT_BLOCK_DISAGG_HEADER_MIN_SIZE is the minimum number of bytes that we expect for the header.
  */
-#define WT_BLOCK_DISAGG_HEADER_SIZE 16
-#define WT_BLOCK_DISAGG_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
+#define WT_BLOCK_DISAGG_HEADER_MIN_SIZE 16
+#define WT_BLOCK_DISAGG_HEADER_WRITE_SIZE 16
+#define WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE \
+    (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_MIN_SIZE)
+#define WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE \
+    (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_WRITE_SIZE)
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)
 
 /*

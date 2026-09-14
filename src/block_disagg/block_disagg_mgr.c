@@ -22,15 +22,52 @@ __bmd_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, siz
 }
 
 /*
- * __bmd_block_header --
- *     Return the size of the block header.
+ * __bmd_block_header_init --
+ *     Initialize the block header of a disk image laid out for writing.
+ */
+static void
+__bmd_block_header_init(WT_BM *bm, WT_SESSION_IMPL *session, void *dsk)
+{
+    WT_UNUSED(bm);
+    WT_UNUSED(session);
+
+    memset(WT_BLOCK_HEADER_REF(dsk), 0, WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+    __wti_block_disagg_header_init(WT_BLOCK_HEADER_REF(dsk));
+}
+
+/*
+ * __bmd_block_header_read --
+ *     Return the size of the block header when reading an existing header.
  */
 static u_int
-__bmd_block_header(WT_BM *bm)
+__bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
+{
+    const WT_BLOCK_DISAGG_HEADER *header;
+
+    WT_UNUSED(bm);
+
+    header = (const WT_BLOCK_DISAGG_HEADER *)(((const uint8_t *)dsk) + WT_PAGE_HEADER_SIZE);
+    WT_ASSERT(session,
+      header->magic == WT_BLOCK_DISAGG_MAGIC_BASE || header->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
+    WT_ASSERT_ALWAYS(session,
+      header->combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
+        header->combined_header_size <= WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE,
+      "Illegal block disaggregated header size");
+
+    /* The stored size covers the page header as well; see the WT_BLOCK_DISAGG_HEADER definition. */
+    return ((u_int)header->combined_header_size - WT_PAGE_HEADER_SIZE);
+}
+
+/*
+ * __bmd_block_header_write --
+ *     Return the size of the block header when writing a new header.
+ */
+static u_int
+__bmd_block_header_write(WT_BM *bm)
 {
     WT_UNUSED(bm);
 
-    return ((u_int)WT_BLOCK_DISAGG_HEADER_SIZE);
+    return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
 }
 
 /*
@@ -128,12 +165,9 @@ __bmd_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
  *     Return the skip size for encryption
  */
 static size_t
-__bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session)
+__bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
 {
-    WT_UNUSED(bm);
-    WT_UNUSED(session);
-
-    return (WT_BLOCK_DISAGG_HEADER_BYTE_SIZE);
+    return (__bmd_block_header_read(bm, session, dsk));
 }
 
 /*
@@ -173,7 +207,9 @@ __bmd_method_set(WT_BM *bm, bool readonly)
 
     bm->addr_invalid = __bmd_addr_invalid;
     bm->addr_string = __wti_block_disagg_addr_string;
-    bm->block_header = __bmd_block_header;
+    bm->block_header_init = __bmd_block_header_init;
+    bm->block_header_read_size = __bmd_block_header_read;
+    bm->block_header_write_size = __bmd_block_header_write;
     bm->can_truncate = __bmd_can_truncate;
     bm->checkpoint = __wti_block_disagg_checkpoint;
     bm->checkpoint_load = __wti_block_disagg_checkpoint_load;

@@ -29,6 +29,22 @@ __wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DI
 }
 
 /*
+ * __wti_block_disagg_header_init --
+ *     Stamp the fields that identify a block header and describe its extent. A disk image laid out
+ *     for writing may be walked by the read path before it is written, and the read path recovers
+ *     the header size from the header itself, so these have to be set as soon as the image exists.
+ *     The caller owns the rest of the header, including the checksums.
+ */
+void
+__wti_block_disagg_header_init(WT_BLOCK_DISAGG_HEADER *blk)
+{
+    blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
+    blk->version = WT_BLOCK_DISAGG_VERSION;
+    blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
+    blk->combined_header_size = WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE;
+}
+
+/*
  * __wti_block_disagg_write_size --
  *     Return the buffer size required to write a block.
  */
@@ -48,7 +64,7 @@ __wti_block_disagg_write_size(size_t *sizep)
      * to size a buffer, we may cause a little bit of waste (for deltas), which should not be a
      * problem.
      */
-    *sizep = (size_t)(*sizep + WT_BLOCK_DISAGG_HEADER_BYTE_SIZE);
+    *sizep = (size_t)(*sizep + WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE);
     return (*sizep > UINT32_MAX - 1024 ? EINVAL : 0);
 }
 
@@ -151,15 +167,11 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     if (F_ISSET(header, WT_PAGE_ENCRYPTED))
         F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
 
-    if (block_meta->delta_count == 0)
-        blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
-    else {
+    __wti_block_disagg_header_init(blk);
+    if (block_meta->delta_count != 0) {
         blk->magic = WT_BLOCK_DISAGG_MAGIC_DELTA;
         F_SET(&put_args, WT_PAGE_LOG_DELTA);
     }
-    blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
-    blk->version = WT_BLOCK_DISAGG_VERSION;
-    blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
 
     /*
      * The reconciliation id stored in the block header is diagnostic, we don't care if it's
