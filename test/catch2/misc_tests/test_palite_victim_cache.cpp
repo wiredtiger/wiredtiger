@@ -71,7 +71,7 @@ TEST_CASE("Palite victim cache is off by default", "[palite_victim_cache]")
 TEST_CASE(
   "Palite victim cache get is not reused and put drops the cached copy", "[palite_victim_cache]")
 {
-    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=16").c_str());
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_max_entries=10000").c_str());
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
     WT_SESSION *session = (WT_SESSION *)conn.create_session();
 
@@ -127,6 +127,41 @@ TEST_CASE(
     erase_args.lsn = lsn;
     REQUIRE(handle->plh_put(handle, session, page_id, 0, &erase_args, &store_buf) == 0);
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
+TEST_CASE(
+  "Palite victim cache drops an entry when the handle is at capacity", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_max_entries=2").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+
+    const char *bytes = "cached-page";
+    WT_ITEM buf = item_from_string(bytes);
+    WT_PAGE_LOG_PUT_ARGS cache_args[3]{};
+    for (uint64_t page_id = 1; page_id <= 3; ++page_id) {
+        WT_PAGE_LOG_PUT_ARGS put_args{};
+        REQUIRE(handle->plh_put(handle, session, page_id, 0, &put_args, &buf) == 0);
+        cache_args[page_id - 1].lsn = put_args.lsn;
+        REQUIRE(
+          handle->plh_cache_put(handle, session, page_id, 0, &cache_args[page_id - 1], &buf) == 0);
+    }
+
+    uint32_t cached = 0;
+    for (uint64_t page_id = 1; page_id <= 3; ++page_id) {
+        if (handle->plh_cache_has(handle, session, page_id, 0, &cache_args[page_id - 1]) == 0)
+            ++cached;
+    }
+    REQUIRE(cached == 2);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);

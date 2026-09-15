@@ -28,16 +28,14 @@
 
 #pragma once
 
-#include "concurrent_sized_lru_cache.h"
-
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <optional>
-#include <utility>
+#include <unordered_map>
 #include <vector>
 
 struct victim_cache_key {
-    uint64_t table_id;
     uint64_t page_id;
     uint64_t lsn;
 
@@ -48,9 +46,8 @@ template <> struct std::hash<victim_cache_key> {
     size_t
     operator()(const victim_cache_key &key) const noexcept
     {
-        size_t h = std::hash<uint64_t>{}(key.table_id);
-        h ^= std::hash<uint64_t>{}(key.page_id) << 1;
-        h ^= std::hash<uint64_t>{}(key.lsn) << 2;
+        size_t h = std::hash<uint64_t>{}(key.page_id);
+        h ^= std::hash<uint64_t>{}(key.lsn) << 1;
         return h;
     }
 };
@@ -67,10 +64,7 @@ struct victim_cache_entry {
 
 class victim_cache {
 public:
-    victim_cache(size_t size_bytes, size_t n_shards)
-        : max_size(size_bytes), cache(size_bytes, n_shards)
-    {
-    }
+    explicit victim_cache(uint32_t max_entries) : max_entries(max_entries) {}
 
     victim_cache(const victim_cache &) = delete;
     victim_cache &operator=(const victim_cache &) = delete;
@@ -80,53 +74,56 @@ public:
     bool
     available() const
     {
-        return max_size > 0;
-    }
-
-    size_t
-    size() const
-    {
-        return cache.size();
-    }
-
-    size_t
-    count() const
-    {
-        return cache.count();
+        return max_entries > 0;
     }
 
     bool
-    erase(uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    erase(uint64_t page_id, uint64_t lsn)
     {
-        return cache.erase(victim_cache_key{table_id, page_id, lsn});
+        if (max_entries == 0)
+            return false;
+        std::lock_guard<std::mutex> lock(mtx);
+        return map.erase(victim_cache_key{page_id, lsn}) > 0;
     }
 
     std::optional<victim_cache_entry>
-    get_erase(uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    get_erase(uint64_t page_id, uint64_t lsn)
     {
-        if (!available())
+        if (max_entries == 0)
             return std::nullopt;
-        return cache.get_erase(victim_cache_key{table_id, page_id, lsn});
+        std::lock_guard<std::mutex> lock(mtx);
+        auto it = map.find(victim_cache_key{page_id, lsn});
+        if (it == map.end())
+            return std::nullopt;
+        victim_cache_entry entry = std::move(it->second);
+        map.erase(it);
+        return entry;
     }
 
     void
-    put(uint64_t table_id, uint64_t page_id, victim_cache_entry &&entry)
+    put(uint64_t page_id, victim_cache_entry &&entry)
     {
-        if (!available())
+        if (max_entries == 0)
             return;
         const uint64_t lsn = entry.lsn;
-        cache.put(victim_cache_key{table_id, page_id, lsn}, std::move(entry));
+        const victim_cache_key key{page_id, lsn};
+        std::lock_guard<std::mutex> lock(mtx);
+        if (!map.contains(key) && map.size() >= max_entries)
+            map.erase(map.begin());
+        map.insert_or_assign(key, std::move(entry));
     }
 
     bool
-    contains(uint64_t table_id, uint64_t page_id, uint64_t lsn) const
+    contains(uint64_t page_id, uint64_t lsn) const
     {
-        if (!available())
+        if (max_entries == 0)
             return false;
-        return cache.contains(victim_cache_key{table_id, page_id, lsn});
+        std::lock_guard<std::mutex> lock(mtx);
+        return map.contains(victim_cache_key{page_id, lsn});
     }
 
 private:
-    const size_t max_size;
-    concurrent_sized_lru_cache<victim_cache_key, victim_cache_entry> cache;
+    const uint32_t max_entries;
+    mutable std::mutex mtx;
+    std::unordered_map<victim_cache_key, victim_cache_entry> map;
 };

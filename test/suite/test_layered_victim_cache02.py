@@ -45,7 +45,7 @@ class test_layered_victim_cache02(wttest.WiredTigerTestCase):
         + 'page_delta=(delta_pct=100,leaf_page_delta=true),' \
         + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
-    disagg_config = 'victim_cache_size_mb=16'
+    disagg_config = 'victim_cache_max_entries=10000'
 
     create_session_config = 'key_format=S,value_format=S'
     table_name = test_name
