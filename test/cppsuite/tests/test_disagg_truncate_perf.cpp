@@ -57,11 +57,13 @@ extern "C" {
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -77,8 +79,11 @@ struct options {
     int64_t follower_ingest_mb;
     int64_t gc_truncate_count;
     int64_t checkpoint_interval_ms;
+    int64_t replica_ingest_mb;
+    int64_t apply_queue_max;
     int64_t verbose_level;
     std::string home_path;
+    std::string workload;
 };
 
 static options opt;
@@ -111,8 +116,11 @@ static std::atomic<uint64_t> g_inserted_bytes{0};
 /* Key of the most recent truncate, so a later phase knows where the live range starts. */
 static std::atomic<uint64_t> g_truncated_key{0};
 
-/* Per-phase counters. */
+/* Per-phase counters. The apply counters belong to the follower in the replica workload. */
 static std::atomic<uint64_t> g_truncate_ops{0};
+static std::atomic<uint64_t> g_apply_inserts{0};
+static std::atomic<uint64_t> g_apply_truncates{0};
+static std::atomic<uint64_t> g_apply_rollbacks{0};
 static std::atomic<uint64_t> g_insert_rollbacks{0};
 static std::atomic<uint64_t> g_truncate_rollbacks{0};
 static std::atomic<int64_t> g_peak_uncommitted_bytes{0};
@@ -202,11 +210,16 @@ load_configuration(int argc, char *argv[])
     opt.leader_ingest_mb = cfg.get_int("leader_ingest_mb");
     opt.marker_size_mb = cfg.get_int("marker_size_mb");
     opt.oplog_size_mb = cfg.get_int("oplog_size_mb");
+    opt.replica_ingest_mb = cfg.get_int("replica_ingest_mb");
+    opt.apply_queue_max = cfg.get_int("apply_queue_max");
     opt.value_size = cfg.get_int("value_size");
     opt.verbose_level = cfg.get_int("verbose_level");
+    opt.workload = cfg.get_string("workload");
 
     if (opt.marker_size_mb > opt.oplog_size_mb)
         testutil_die(EINVAL, "the marker size must not exceed the oplog size");
+    if (opt.workload != "phases" && opt.workload != "replica")
+        testutil_die(EINVAL, "unknown workload \"%s\"", opt.workload.c_str());
 }
 
 /*
@@ -247,6 +260,81 @@ private:
 };
 
 static std::unique_ptr<oplog_markers> g_markers;
+
+/* One leader write, waiting for the follower to apply it. */
+struct replication_op {
+    bool truncate;
+    uint64_t key;
+    wt_timestamp_t timestamp;
+};
+
+/*
+ * The leader's write stream, handed to the follower in order. It is bounded, so a follower that
+ * falls behind holds the leader back rather than growing without limit, which is what replication
+ * flow control does.
+ */
+class replication_queue {
+public:
+    void
+    push(const replication_op &op)
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        _not_full.wait(
+          lock, [this]() { return (_ops.size() < static_cast<size_t>(opt.apply_queue_max)); });
+        _ops.push_back(op);
+        _peak_depth = std::max(_peak_depth, static_cast<uint64_t>(_ops.size()));
+        _not_empty.notify_one();
+    }
+
+    /* Returns false once the leader is done and everything it wrote has been handed over. */
+    bool
+    pop(replication_op *opp)
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        _not_empty.wait(lock, [this]() { return (!_ops.empty() || _closed); });
+        if (_ops.empty())
+            return (false);
+        *opp = _ops.front();
+        _ops.pop_front();
+        _not_full.notify_one();
+        return (true);
+    }
+
+    void
+    close()
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        _closed = true;
+        _not_empty.notify_all();
+    }
+
+    uint64_t
+    peak_depth()
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        return (_peak_depth);
+    }
+
+private:
+    std::mutex _mutex;
+    std::condition_variable _not_full, _not_empty;
+    std::deque<replication_op> _ops;
+    uint64_t _peak_depth = 0;
+    bool _closed = false;
+};
+
+/* Only set for the replica workload, where the follower applies what the leader writes. */
+static std::unique_ptr<replication_queue> g_replication_queue;
+
+static void
+replicate(bool truncate, uint64_t key, wt_timestamp_t timestamp)
+{
+    if (g_replication_queue != nullptr)
+        g_replication_queue->push({truncate, key, timestamp});
+}
+
+/* Hand the leader's newest checkpoint to the follower. */
+static void deliver_latest_checkpoint(bool wait);
 
 /*
  * Take the next commit timestamp, publishing it first so the stable timestamp can never be moved
@@ -349,9 +437,10 @@ insert_worker(WT_CONNECTION *conn, int id, uint64_t target_bytes)
         uint64_t key = g_next_key.fetch_add(1);
         wt_timestamp_t commit_ts = reserve_timestamp(id);
 
-        if (insert_record(session, cursor, key, value, commit_ts))
+        if (insert_record(session, cursor, key, value, commit_ts)) {
             g_inserted_bytes.fetch_add(record_bytes());
-        else
+            replicate(false, key, commit_ts);
+        } else
             g_insert_rollbacks.fetch_add(1);
         release_timestamp(id);
     }
@@ -393,8 +482,6 @@ truncate_to_marker(scoped_session &session, scoped_cursor &cursor, scoped_cursor
         return (ret);
     }
 
-    g_truncate_ops.fetch_add(1);
-    g_truncated_key.store(marker_key);
     return (0);
 }
 
@@ -435,6 +522,11 @@ truncate_worker(
         release_timestamp(static_cast<int>(opt.insert_threads));
         if (ret != 0)
             g_truncate_rollbacks.fetch_add(1);
+        else {
+            g_truncate_ops.fetch_add(1);
+            g_truncated_key.store(marker_key);
+            replicate(true, marker_key, commit_ts);
+        }
     }
 }
 
@@ -463,8 +555,55 @@ leader_maintenance_worker(WT_CONNECTION *conn, uint64_t target_bytes)
           opt.checkpoint_interval_ms) {
             testutil_check(session->checkpoint(session.get(), nullptr));
             last_checkpoint = now;
+
+            /*
+             * Shipping a checkpoint is what lets the follower drain its ingest table and collect
+             * truncate list entries. Do not wait for the pickup: a real follower adopts it while it
+             * keeps applying, and waiting here would stall the leader.
+             */
+            if (g_replication_queue != nullptr)
+                deliver_latest_checkpoint(false);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
+/*
+ * Apply the leader's write stream in order. A single thread keeps inserts and truncates in the
+ * order the leader committed them, which is what makes the follower's view of the oplog match.
+ */
+static void
+apply_worker(WT_CONNECTION *conn)
+{
+    scoped_session session(conn);
+    scoped_cursor cursor = session.open_scoped_cursor(TABLE_URI);
+    scoped_cursor stat_cursor = session.open_scoped_cursor(STATISTICS_URI);
+    const std::string value = random_generator::instance().generate_pseudo_random_string(
+      static_cast<uint64_t>(opt.value_size));
+
+    execution_timer insert_timer("replica_apply_insert", "test_disagg_truncate_perf");
+    execution_timer truncate_timer("replica_apply_truncate", "test_disagg_truncate_perf");
+    replication_op op;
+
+    while (g_replication_queue->pop(&op)) {
+        if (op.truncate) {
+            int ret = truncate_timer.track([&]() {
+                return (
+                  truncate_to_marker(session, cursor, stat_cursor, op.key, op.timestamp, false));
+            });
+            if (ret == 0)
+                g_apply_truncates.fetch_add(1);
+            else
+                g_apply_rollbacks.fetch_add(1);
+        } else {
+            int ret = insert_timer.track([&]() {
+                return (insert_record(session, cursor, op.key, value, op.timestamp) ? 0 : 1);
+            });
+            if (ret == 0)
+                g_apply_inserts.fetch_add(1);
+            else
+                g_apply_rollbacks.fetch_add(1);
+        }
     }
 }
 
@@ -527,18 +666,12 @@ populate(WT_CONNECTION *conn)
     testutil_check(session->checkpoint(session.get(), nullptr));
 }
 
-/*
- * Take a leader checkpoint at the given timestamp and return its metadata, ready to hand to the
- * follower.
- */
+/* Read the metadata of the leader's newest complete checkpoint. */
 static std::string
-leader_checkpoint(wt_timestamp_t timestamp)
+latest_checkpoint_meta()
 {
     scoped_session session(g_leader);
     WT_PAGE_LOG *page_log;
-
-    set_timestamp(g_leader, STABLE_TS + "=" + hex(timestamp));
-    testutil_check(session->checkpoint(session.get(), nullptr));
 
     testutil_check(g_leader->get_page_log(g_leader, PAGE_LOG.c_str(), &page_log));
     WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args{};
@@ -547,10 +680,21 @@ leader_checkpoint(wt_timestamp_t timestamp)
 
     std::string meta(
       static_cast<const char *>(args.checkpoint_metadata.data), args.checkpoint_metadata.size);
-    testutil_assert(args.checkpoint_timestamp == timestamp);
     free(args.checkpoint_metadata.mem);
 
     return (meta);
+}
+
+/* Take a leader checkpoint at the given timestamp and return its metadata. */
+static std::string
+leader_checkpoint(wt_timestamp_t timestamp)
+{
+    scoped_session session(g_leader);
+
+    set_timestamp(g_leader, STABLE_TS + "=" + hex(timestamp));
+    testutil_check(session->checkpoint(session.get(), nullptr));
+
+    return (latest_checkpoint_meta());
 }
 
 /*
@@ -574,12 +718,19 @@ wait_for_pickup()
 }
 
 static void
-deliver_checkpoint(const std::string &meta)
+deliver_checkpoint(const std::string &meta, bool wait = true)
 {
     std::string config = "disaggregated=(checkpoint_meta=\"" + meta + "\")";
 
     testutil_check(g_follower->reconfigure(g_follower, config.c_str()));
-    wait_for_pickup();
+    if (wait)
+        wait_for_pickup();
+}
+
+static void
+deliver_latest_checkpoint(bool wait)
+{
+    deliver_checkpoint(latest_checkpoint_meta(), wait);
 }
 
 /*
@@ -607,6 +758,10 @@ run_gc_truncates()
         if (truncate_to_marker(
               session, cursor, stat_cursor, marker_key, g_timestamp.fetch_add(1), false) != 0)
             g_truncate_rollbacks.fetch_add(1);
+        else {
+            g_truncate_ops.fetch_add(1);
+            g_truncated_key.store(marker_key);
+        }
     }
     logger::log_msg(LOG_INFO,
       "The garbage collection phase completed " + std::to_string(g_truncate_ops.load()) +
@@ -636,7 +791,7 @@ report_leader_stats(const stat_sample &before, const stat_sample &after)
       after.eviction_blocked_truncate - before.eviction_blocked_truncate);
     writer.add_stat("leader_truncate_dirty_cache_rollback",
       after.truncate_dirty_rollback - before.truncate_dirty_rollback);
-    writer.add_stat("leader_bytes_dirty", after.bytes_dirty);
+    writer.add_stat("leader_bytes_dirty", after.bytes_dirty - before.bytes_dirty);
     writer.add_stat(
       "leader_eviction_pages_seen", after.eviction_pages_seen - before.eviction_pages_seen);
     report_counters("leader");
@@ -662,7 +817,7 @@ report_follower_stats(const stat_sample &before, const stat_sample &after)
     metrics_writer &writer = metrics_writer::instance();
 
     report_list_search_cost("follower", before, after);
-    writer.add_stat("follower_bytes_dirty", after.bytes_dirty);
+    writer.add_stat("follower_bytes_dirty", after.bytes_dirty - before.bytes_dirty);
     writer.add_stat(
       "follower_eviction_pages_seen", after.eviction_pages_seen - before.eviction_pages_seen);
     report_counters("follower");
@@ -721,6 +876,115 @@ create_table(WT_CONNECTION *conn)
     testutil_check(session->create(session.get(), TABLE_URI.c_str(), TABLE_CONFIG.c_str()));
 }
 
+static void
+report_replica_stats(const stat_sample &leader_before, const stat_sample &leader_after,
+  const stat_sample &follower_before, const stat_sample &follower_after)
+{
+    metrics_writer &writer = metrics_writer::instance();
+
+    writer.add_stat("replica_leader_page_delete_fast",
+      leader_after.page_delete_fast - leader_before.page_delete_fast);
+    writer.add_stat("replica_leader_truncate_keys_deleted",
+      leader_after.truncate_keys_deleted - leader_before.truncate_keys_deleted);
+    writer.add_stat(
+      "replica_leader_uncommitted_truncate_bytes_peak", g_peak_uncommitted_bytes.load());
+    writer.add_stat("replica_leader_truncate_ops", g_truncate_ops.load());
+    writer.add_stat(
+      "replica_leader_bytes_dirty", leader_after.bytes_dirty - leader_before.bytes_dirty);
+
+    report_list_search_cost("replica_follower", follower_before, follower_after);
+    writer.add_stat("replica_follower_gc_runs", follower_after.gc_runs - follower_before.gc_runs);
+    writer.add_stat("replica_follower_gc_entries_removed",
+      follower_after.gc_entries_removed - follower_before.gc_entries_removed);
+    writer.add_stat(
+      "replica_follower_bytes_dirty", follower_after.bytes_dirty - follower_before.bytes_dirty);
+    writer.add_stat("replica_apply_inserts", g_apply_inserts.load());
+    writer.add_stat("replica_apply_truncates", g_apply_truncates.load());
+    writer.add_stat("replica_apply_rollbacks", g_apply_rollbacks.load());
+    writer.add_stat("replica_apply_queue_peak_depth", g_replication_queue->peak_depth());
+}
+
+/*
+ * Run both roles at once, with the follower applying the leader's write stream and picking up its
+ * checkpoints as they are taken. This is the shape a running replica set has, and the only one
+ * where the ingest table drains and the truncate list settles rather than only growing.
+ */
+static void
+run_replica_workload()
+{
+    logger::log_msg(LOG_INFO, "Starting the replica phase.");
+    g_replication_queue.reset(new replication_queue());
+    reset_phase_counters();
+
+    stat_sample leader_before = read_stats(g_leader);
+    stat_sample follower_before = read_stats(g_follower);
+
+    uint64_t target_bytes = g_inserted_bytes.load() + mb_to_bytes(opt.replica_ingest_mb);
+    auto start = std::chrono::steady_clock::now();
+    {
+        thread_manager tm;
+        tm.add_thread(apply_worker, g_follower);
+        for (int64_t i = 0; i < opt.insert_threads; i++)
+            tm.add_thread(insert_worker, g_leader, static_cast<int>(i), target_bytes);
+        tm.add_thread(truncate_worker, g_leader, "replica", target_bytes, true);
+        tm.add_thread(leader_maintenance_worker, g_leader, target_bytes);
+
+        /*
+         * The leader's threads finish first. Closing the stream is what lets the follower finish
+         * applying and stop.
+         */
+        std::thread closer([&]() {
+            while (g_inserted_bytes.load() < target_bytes)
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            g_replication_queue->close();
+        });
+        tm.join();
+        closer.join();
+    }
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - start)
+                     .count();
+
+    /* One last checkpoint, so the follower prunes what it recorded at the end of the run. */
+    deliver_checkpoint(leader_checkpoint(g_timestamp.fetch_add(1)));
+
+    report_phase_rate("replica", elapsed, g_inserted_bytes.load());
+    report_replica_stats(
+      leader_before, read_stats(g_leader), follower_before, read_stats(g_follower));
+    logger::log_msg(LOG_INFO,
+      "The replica phase applied " + std::to_string(g_apply_inserts.load()) + " inserts and " +
+        std::to_string(g_apply_truncates.load()) + " truncates.");
+}
+
+/* Measure each role on its own, with the follower picking up a single checkpoint at the end. */
+static void
+run_phase_workload()
+{
+    stat_sample leader_before = read_stats(g_leader);
+    run_workload(g_leader, "leader", mb_to_bytes(opt.leader_ingest_mb), true, true);
+    stat_sample leader_after = read_stats(g_leader);
+    report_leader_stats(leader_before, leader_after);
+
+    /* Hand the follower everything the leader has written, then let it run its own workload. */
+    deliver_checkpoint(leader_checkpoint(g_timestamp.fetch_add(1)));
+
+    stat_sample follower_before = read_stats(g_follower);
+    run_workload(g_follower, "follower", mb_to_bytes(opt.follower_ingest_mb), false, false);
+    stat_sample follower_after = read_stats(g_follower);
+    report_follower_stats(follower_before, follower_after);
+
+    /*
+     * A checkpoint taken now sits above every truncate the follower recorded, so picking it up
+     * moves the prune timestamp past them and the entries can be freed.
+     */
+    deliver_checkpoint(leader_checkpoint(g_timestamp.fetch_add(1)));
+
+    stat_sample gc_before = read_stats(g_follower);
+    run_gc_truncates();
+    stat_sample gc_after = read_stats(g_follower);
+    report_gc_stats(gc_before, gc_after);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -746,29 +1010,10 @@ main(int argc, char *argv[])
 
     populate(g_leader);
 
-    stat_sample leader_before = read_stats(g_leader);
-    run_workload(g_leader, "leader", mb_to_bytes(opt.leader_ingest_mb), true, true);
-    stat_sample leader_after = read_stats(g_leader);
-    report_leader_stats(leader_before, leader_after);
-
-    /* Hand the follower everything the leader has written, then let it run its own workload. */
-    deliver_checkpoint(leader_checkpoint(g_timestamp.fetch_add(1)));
-
-    stat_sample follower_before = read_stats(g_follower);
-    run_workload(g_follower, "follower", mb_to_bytes(opt.follower_ingest_mb), false, false);
-    stat_sample follower_after = read_stats(g_follower);
-    report_follower_stats(follower_before, follower_after);
-
-    /*
-     * A checkpoint taken now sits above every truncate the follower recorded, so picking it up
-     * moves the prune timestamp past them and the entries can be freed.
-     */
-    deliver_checkpoint(leader_checkpoint(g_timestamp.fetch_add(1)));
-
-    stat_sample gc_before = read_stats(g_follower);
-    run_gc_truncates();
-    stat_sample gc_after = read_stats(g_follower);
-    report_gc_stats(gc_before, gc_after);
+    if (opt.workload == "replica")
+        run_replica_workload();
+    else
+        run_phase_workload();
 
     metrics_writer::instance().output_perf_file(progname);
     testutil_check(g_follower->close(g_follower, nullptr));

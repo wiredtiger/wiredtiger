@@ -307,10 +307,18 @@ methods = {
             The size of an oplog marker, the unit a single truncate removes''', min=1),
         Config('oplog_size_mb', 256, r'''
             How much data the oplog keeps before truncation starts''', min=1),
+        Config('apply_queue_max', 100000, r'''
+            How many leader writes may be waiting to be applied before the leader is held back''',
+            min=1),
+        Config('replica_ingest_mb', 1024, r'''
+            How much data the leader inserts while the follower applies its write stream''', min=1),
         Config('value_size', 1000, r'''
             The size of an oplog record''', min=1),
         Config('verbose_level', 0, r'''
             The disaggregated storage verbosity level''', min=0),
+        Config('workload', 'phases', r'''
+            Either phases, which measures each role on its own, or replica, which runs both at once
+            with the follower applying the leader's write stream'''),
     ]),
     'test_template' : Method(test_config),
 }
