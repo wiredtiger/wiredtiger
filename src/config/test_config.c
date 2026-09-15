@@ -1590,9 +1590,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_search_near_03, 15, confchk_search_near_03_jump, 15, WT_CONF_SIZING_NONE, false},
   {"test_disagg_truncate_perf",
     "apply_queue_max=100000,cache_size_mb=1024,"
-    "checkpoint_interval_ms=2000,follower_ingest_mb=64,"
+    "checkpoint_interval_ms=2000,follower_ingest_mb=256,"
     "gc_truncate_count=16,home=WT_TEST,insert_threads=4,"
-    "leader_ingest_mb=1024,marker_size_mb=16,oplog_size_mb=256,"
+    "leader_ingest_mb=1024,marker_size_mb=8,oplog_size_mb=256,"
     "replica_ingest_mb=1024,value_size=1000,verbose_level=0,"
     "workload=phases",
     confchk_test_disagg_truncate_perf, 14, confchk_test_disagg_truncate_perf_jump, 16,

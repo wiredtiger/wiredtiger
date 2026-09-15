@@ -293,7 +293,7 @@ methods = {
             The cache size that wiredtiger will be configured to run with''', min=1),
         Config('checkpoint_interval_ms', 2000, r'''
             How often the leader takes a checkpoint during its workload phase''', min=1),
-        Config('follower_ingest_mb', 64, r'''
+        Config('follower_ingest_mb', 256, r'''
             How much data the follower phase inserts''', min=1),
         Config('gc_truncate_count', 16, r'''
             How many truncates the garbage collection phase runs''', min=1),
@@ -303,7 +303,7 @@ methods = {
             How many threads append to the oplog''', min=1),
         Config('leader_ingest_mb', 1024, r'''
             How much data the leader phase inserts''', min=1),
-        Config('marker_size_mb', 16, r'''
+        Config('marker_size_mb', 8, r'''
             The size of an oplog marker, the unit a single truncate removes''', min=1),
         Config('oplog_size_mb', 256, r'''
             How much data the oplog keeps before truncation starts''', min=1),
