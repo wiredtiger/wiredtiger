@@ -182,6 +182,14 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
     def on_newer_enabled_no_basecfg(self):
         conn = wiredtiger.wiredtiger_open('.', self.open_config)
         session = conn.open_session()
+        meta = session.open_cursor('metadata:')
+        leftover = []
+        for k, v in meta:
+            assert isinstance(v, str) and v, k
+            if k.startswith(('object:', 'tier:', 'tiered:')):
+                leftover.append(k)
+        meta.close()
+        assert leftover, 'leftover enabled home lost refused URI metadata'
         try:
             session.open_cursor(self.uri)
             assert False, 'opening a leftover tiered table should fail'
