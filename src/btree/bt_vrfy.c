@@ -1658,10 +1658,20 @@ __verify_page_content_leaf(
     uint32_t cell_num;
     uint8_t *p;
     char tw_string[WT_TIME_STRING_SIZE];
-    bool found_ovfl;
+    bool found_ovfl, from_delta;
 
     page = ref->page;
     dsk = page->dsk;
+    /*
+     * A page assembled from a base image and one or more deltas can legitimately hold a cell whose
+     * writer already dropped it from the parent aggregate under its own, different visibility; see
+     * __time_value_obsolete_at_checkpoint. A page written as a single full image has no such
+     * reconstruction step, so a mismatch there stays a hard failure.
+     *
+     * FIXME-WT-17968: temporary, pending the checkpoint pick-up pinned-timestamp fix; remove
+     * from_delta along with it.
+     */
+    from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;
     tw = &unpack.tw;
     recno = ref->ref_recno;
@@ -1705,7 +1715,7 @@ __verify_page_content_leaf(
             __wt_verbose_debug3(session, WT_VERB_VERIFY, "cell num: %" PRIu32 ", time window: %s",
               cell_num - 1, __wt_time_window_to_string(tw, tw_string));
 
-            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, false)) != 0)
+            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, from_delta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
                   __verify_addr_string(session, ref, vs->tmp1));

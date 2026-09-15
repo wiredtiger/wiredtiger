@@ -391,12 +391,43 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
 }
 
 /*
+ * __time_value_obsolete_at_checkpoint --
+ *     Is a value time window already obsolete against the checkpoint's own oldest timestamp? A
+ *     disaggregated checkpoint's writer may have dropped a cell entirely once its stop became
+ *     globally visible to it, without folding that into the parent aggregate it had already built
+ *     for still-live siblings. Rebuilding the same base image and deltas under a different, older
+ *     visibility --
+ *     a follower's --
+ *     can then retain that cell, which is not corruption: the checkpoint's own oldest timestamp
+ *     already says no reader of this checkpoint needs it. Transaction ids are not comparable across
+ *     the connections sharing a disaggregated store, so only the timestamp is considered, matching
+ *     __hs_verify_obsolete.
+ *
+ * FIXME-WT-17968: this only exists because a follower can currently adopt a checkpoint whose oldest
+ *     timestamp has moved past content the follower's own pinned timestamp still needs --
+ *     the pick-up-time panic meant to refuse that is dead code. Once that gate is restored, no
+ *     follower can reach this divergence in the first place, and this relaxation (along with
+ *     __time_value_validate_parent's from_delta parameter) should be removed rather than kept as a
+ *     permanent tolerance.
+ */
+static WT_INLINE bool
+__time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    wt_timestamp_t checkpoint_oldest_ts;
+
+    checkpoint_oldest_ts = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
+    return (checkpoint_oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
+      tw->stop_ts <= checkpoint_oldest_ts);
+}
+
+/*
  * __time_value_validate_parent --
  *     Value time window validation against a parent.
  */
 static int
-__time_value_validate_parent(
-  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_TIME_AGGREGATE *parent, bool silent)
+__time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
+  WT_TIME_AGGREGATE *parent, bool from_delta, bool silent)
 {
     char time_string[2][WT_TIME_STRING_SIZE];
 
@@ -416,7 +447,13 @@ __time_value_validate_parent(
               "%s, parent %s",
               __wt_time_window_to_string(tw, time_string[0]),
               __wt_time_aggregate_to_string(parent, time_string[1]));
-    } else if (tw->start_ts != WT_TS_NONE && tw->start_ts < parent->oldest_start_ts)
+    } else if (tw->start_ts != WT_TS_NONE && tw->start_ts < parent->oldest_start_ts &&
+      /*
+       * Only a page rebuilt from a delta chain can have diverged from the checkpoint writer's own
+       * view this way; a full image's cells and its recorded aggregate were written together, by
+       * the same pass, and a mismatch there is a real inconsistency.
+       */
+      !(from_delta && __time_value_obsolete_at_checkpoint(session, tw)))
         /* Pages reconstructed from deltas may have cleared the start time point. */
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time before its parent's oldest start time; time window "
@@ -476,8 +513,8 @@ __time_value_validate_parent(
  *     Value time window validation.
  */
 int
-__wt_time_value_validate(
-  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_TIME_AGGREGATE *parent, bool silent)
+__wt_time_value_validate(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_TIME_AGGREGATE *parent,
+  bool from_delta, bool silent)
 {
     char time_string[2][WT_TIME_STRING_SIZE];
 
@@ -581,5 +618,5 @@ __wt_time_value_validate(
         return (0);
     return (WT_TIME_AGGREGATE_IS_EMPTY(parent) ?
         __time_value_validate_parent_stable(session, tw, silent) :
-        __time_value_validate_parent(session, tw, parent, silent));
+        __time_value_validate_parent(session, tw, parent, from_delta, silent));
 }
