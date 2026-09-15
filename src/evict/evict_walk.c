@@ -345,7 +345,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, covered, dhandle_list_locked, resume, try_publish;
+    bool aggressive, covered, dhandle_list_locked, outdated_disagg, resume, try_publish;
 
     WT_TRACK_OP_INIT(session);
 
@@ -434,6 +434,20 @@ retry:
 
         btree = dhandle->handle;
 
+        /*
+         * A dirty page on an outdated disaggregated btree belongs to an abandoned generation: it
+         * can never be written to shared storage, and only the outdated handling in __evict_review
+         * discards it, which needs the walk to have queued the page. Bypass the skips below that
+         * would otherwise drop such a tree for a whole pass, so the walk still reaches it when
+         * eviction is looking only for dirty pages. Trees with nothing dirty keep the ordinary
+         * heuristics: they have nothing stranded, so there is no reason to walk them harder.
+         */
+        outdated_disagg = __wt_btree_dhandle_is_outdated_disagg(dhandle, btree) &&
+          (__wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
+            __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf)) != 0;
+        if (outdated_disagg)
+            WT_STAT_CONN_INCR(session, eviction_server_walk_outdated_disagg_trees);
+
         /* Skip files that don't allow eviction. */
         try_publish = false;
         if (btree->evict_disabled > 0) {
@@ -455,19 +469,16 @@ retry:
             }
         }
 
-        /*
-         * Skip stable checkpoint handles on followers unless we are looking for clean pages.
-         * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
-         * with dedicated handling instead of matching the stable checkpoint URI.
-         */
-        if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        /* Skip read-only btrees if we are not looking for clean/updates pages. */
+        if (!outdated_disagg && F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
         }
 
         /* Skip files that are checkpointing if we are only looking for dirty pages. */
-        if (WT_BTREE_SYNCING(btree) &&
+        if (!outdated_disagg && WT_BTREE_SYNCING(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
             __evict_disagg_btree_skip_count(session, btree);
@@ -483,8 +494,8 @@ retry:
          * are better than starving the cache.
          */
         aggressive = __wt_evict_aggressive(session);
-        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) && !aggressive &&
-          __wt_btree_disagg_checkpointed(session, btree)) {
+        if (!outdated_disagg && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) &&
+          !aggressive && __wt_btree_disagg_checkpointed(session, btree)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_disagg_trees_checkpointed);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -496,7 +507,7 @@ retry:
          * If the file is contributing heavily to our cache usage then ignore the "stickiness" of
          * its pages.
          */
-        if (btree->evict_priority != 0 && !aggressive &&
+        if (!outdated_disagg && btree->evict_priority != 0 && !aggressive &&
           !__evict_btree_dominating_cache(session, btree, WT_EVICT_CACHE_ALL)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_stick_in_cache);
             __evict_disagg_btree_skip_count(session, btree);
@@ -512,7 +523,7 @@ retry:
              * huge numbers of active trees before allowing larger numbers of hazard pointers in the
              * walk session.
              */
-            if (__wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL &&
+            if (!outdated_disagg && __wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL &&
               session->hazards.num_active > WTI_EVICT_MAX_TREES) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_too_many_active_walks);
                 __evict_disagg_btree_skip_count(session, btree);
@@ -556,6 +567,11 @@ retry:
          *
          * A saturated walk period is excluded from that override because it means many consecutive
          * walks of this tree came up short, so the tree's size is not translating into candidates.
+         *
+         * An outdated tree is deliberately not exempted here. Unlike the skips above, this is a
+         * back-off rather than a permanent skip: even saturated it still walks the tree once every
+         * WTI_EVICT_WALK_PERIOD_MAX passes, which drains the stranded pages without spinning on a
+         * tree whose readers are holding them resident.
          */
         evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
         btree->evict_walk_dominating = false;
@@ -575,7 +591,7 @@ retry:
          * walking them serves no purpose. Such pages are not eligible for clean eviction, making
          * the operation unnecessary.
          */
-        if (__wt_btree_stays_in_memory(btree) &&
+        if (!outdated_disagg && __wt_btree_stays_in_memory(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
             continue;

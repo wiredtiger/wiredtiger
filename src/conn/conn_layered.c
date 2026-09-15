@@ -1642,16 +1642,20 @@ __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HAND
     WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
     WT_RET(ret);
 
-    /* Mark the disaggregated as readonly. */
-    F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
-
     /*
      * Mark the handle outdated so that if we step back up as leader in the future, we open a fresh
      * one rather than reusing this handle's resident pages. Carrying those pages into a new leader
      * era lets the drain dirty a page that still holds an unresolved on-disk prepared cell before
      * the drain resolves it, which reconciliation cannot represent (leaked prepared update).
+     *
+     * Store this ahead of the read-only flag: the eviction walk skips a read-only tree on a
+     * dirty-only pass unless it is also outdated, so a reader that sees the flag without the mark
+     * would skip a tree holding dirty content this step-down has just stranded.
      */
     __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
+
+    /* Mark the disaggregated as readonly. */
+    F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     return (0);
