@@ -93,10 +93,7 @@ util_page(WT_SESSION *session, int argc, char *argv[])
         return (usage());
     }
     if (dump_all_data && dump_key_data) {
-        fprintf(stderr,
-          "%s: page: -u (unredact all data) and -k (unredact only keys) are "
-          "mutually exclusive\n",
-          progname);
+        fprintf(stderr, "%s: page: " UTIL_REDACT_CONFLICT_MSG "\n", progname);
         return (usage());
     }
     if (dump_key_data && have_table_id) {
