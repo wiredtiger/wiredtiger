@@ -256,6 +256,42 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.session.rollback_transaction()
         return count
 
+    def test_checkpoint_cleans_up_visible_deleted_children(self):
+        self.populate()
+        surviving = self.nrows - (self.trunc_stop - self.trunc_start + 1)
+
+        # Reconcile the emptied internal pages while the deletions are not yet globally
+        # visible: they are left clean and resident, with the removal of their deleted
+        # children deferred.
+        self.fast_truncate()
+        self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
+        self.session.checkpoint()
+
+        # Once the deletions are globally visible, a checkpoint removes the deleted
+        # children of the resident pages on its own, without checkpoint cleanup.
+        before = self.snapshot_stats()
+        ts = self.timestamp_str(self.visible_ts)
+        with (
+            wttest.open_cursor(self.session, self.uri) as cursor,
+            self.transaction(commit_timestamp=self.visible_ts),
+        ):
+            cursor[1] = self.value + "b"
+        self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
+        self.session.checkpoint()
+        after = self.snapshot_stats()
+
+        self.assertEqual(self.scan_table(read_ts=self.visible_ts), surviving)
+        self.assertEqual(
+            after["cleanup_removed"],
+            before["cleanup_removed"],
+            "checkpoint cleanup unexpectedly removed the deleted children",
+        )
+        self.assertGreater(
+            after["real_deleted"],
+            before["real_deleted"],
+            "checkpoint did not remove globally visible deleted children",
+        )
+
     def test_skip_emptied_internal_page(self):
         self.populate()
         surviving = self.nrows - (self.trunc_stop - self.trunc_start + 1)
