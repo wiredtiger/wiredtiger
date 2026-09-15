@@ -1664,9 +1664,9 @@ __verify_page_content_leaf(
     dsk = page->dsk;
     /*
      * A page assembled from a base image and one or more deltas can legitimately hold a cell whose
-     * writer already dropped it from the parent aggregate under its own, different visibility; see
-     * __time_value_obsolete_at_checkpoint. A page written as a single full image has no such
-     * reconstruction step, so a mismatch there stays a hard failure.
+     * writer already dropped it from the parent aggregate under its own, different visibility. A
+     * page written as a single full image has no such reconstruction step, so a mismatch there
+     * stays a hard failure.
      *
      * FIXME-WT-17968: temporary, pending the checkpoint pick-up pinned-timestamp fix; remove
      * from_delta along with it.

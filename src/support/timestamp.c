@@ -401,14 +401,14 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
  *     can then retain that cell, which is not corruption: the checkpoint's own oldest timestamp
  *     already says no reader of this checkpoint needs it. Transaction ids are not comparable across
  *     the connections sharing a disaggregated store, so only the timestamp is considered, matching
- *     __hs_verify_obsolete.
+ *     the equivalent tolerance already applied to history-store records during verification.
  *
  * FIXME-WT-17968: this only exists because a follower can currently adopt a checkpoint whose oldest
  *     timestamp has moved past content the follower's own pinned timestamp still needs --
  *     the pick-up-time panic meant to refuse that is dead code. Once that gate is restored, no
- *     follower can reach this divergence in the first place, and this relaxation (along with
- *     __time_value_validate_parent's from_delta parameter) should be removed rather than kept as a
- *     permanent tolerance.
+ *     follower can reach this divergence in the first place, and this relaxation (along with the
+ *     parent-validation flag that gates it) should be removed rather than kept as a permanent
+ *     tolerance.
  */
 static WT_INLINE bool
 __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
