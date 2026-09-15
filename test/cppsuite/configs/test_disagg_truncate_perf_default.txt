@@ -6,6 +6,7 @@
 # small: its inserts land in an in-memory ingest table that nothing drains until the run ends. The
 # replica workload runs both roles at once and does not have that limit, because the follower picks
 # up the leader's checkpoints as they are taken.
+apply_batch_ops=1000,
 apply_queue_max=100000,
 cache_size_mb=1024,
 checkpoint_interval_ms=2000,

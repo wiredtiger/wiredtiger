@@ -81,6 +81,7 @@ struct options {
     int64_t checkpoint_interval_ms;
     int64_t replica_ingest_mb;
     int64_t apply_queue_max;
+    int64_t apply_batch_ops;
     int64_t verbose_level;
     std::string home_path;
     std::string workload;
@@ -282,6 +283,7 @@ load_configuration(int argc, char *argv[])
     opt.oplog_size_mb = cfg.get_int("oplog_size_mb");
     opt.replica_ingest_mb = cfg.get_int("replica_ingest_mb");
     opt.apply_queue_max = cfg.get_int("apply_queue_max");
+    opt.apply_batch_ops = cfg.get_int("apply_batch_ops");
     opt.value_size = cfg.get_int("value_size");
     opt.verbose_level = cfg.get_int("verbose_level");
     opt.workload = cfg.get_string("workload");
@@ -666,8 +668,16 @@ apply_worker(WT_CONNECTION *conn)
     execution_timer insert_timer("replica_apply_insert", "test_disagg_truncate_perf");
     execution_timer truncate_timer("replica_apply_truncate", "test_disagg_truncate_perf");
     replication_op op;
+    int64_t applied = 0;
 
     while (g_replication_queue->pop(&op)) {
+        /*
+         * Reopen the cursor between batches, the way a secondary does between the batches it
+         * applies. Holding one open across the whole stream pins the stable checkpoint it reads,
+         * and the ingest table cannot be collected past a checkpoint that is still in use.
+         */
+        if (++applied % opt.apply_batch_ops == 0)
+            cursor = session.open_scoped_cursor(TABLE_URI);
         if (op.truncate) {
             int ret = truncate_timer.track([&]() {
                 return (truncate_to_marker(

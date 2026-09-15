@@ -307,6 +307,10 @@ methods = {
             The size of an oplog marker, the unit a single truncate removes''', min=1),
         Config('oplog_size_mb', 256, r'''
             How much data the oplog keeps before truncation starts''', min=1),
+        Config('apply_batch_ops', 1000, r'''
+            How many operations the follower applies before it reopens its cursor. An open layered
+            cursor pins the stable checkpoint it is reading, which holds back the collection of
+            the ingest table''', min=1),
         Config('apply_queue_max', 100000, r'''
             How many leader writes may be waiting to be applied before the leader is held back''',
             min=1),
