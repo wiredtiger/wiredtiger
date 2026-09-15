@@ -520,7 +520,7 @@ struct __wt_block_disagg_header {
      * As we create new versions, we bump the version number here, and consider what previous
      * versions are compatible with it.
      */
-#define WT_BLOCK_DISAGG_VERSION 0x2u
+#define WT_BLOCK_DISAGG_VERSION 0x1u
     uint8_t version; /* 01: version of writer */
 
 #define WT_BLOCK_DISAGG_COMPATIBLE_VERSION 0x1u

@@ -46,14 +46,14 @@ __wti_block_disagg_header_write_size(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_header_init --
+ * __wti_block_disagg_header_init --
  *     Stamp the fields that identify a block header and describe its extent. A disk image laid out
  *     for writing may be walked by the read path before it is written, and the read path recovers
  *     the header size from the header itself, so these have to be set as soon as the image exists.
  *     The caller owns the rest of the header, including the checksums.
  */
 void
-__wt_block_disagg_header_init(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk)
+__wti_block_disagg_header_init(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk)
 {
     blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
     blk->version = WT_BLOCK_DISAGG_VERSION;
@@ -205,7 +205,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     if (F_ISSET(header, WT_PAGE_ENCRYPTED))
         F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
 
-    __wt_block_disagg_header_init(session, blk);
+    __wti_block_disagg_header_init(session, blk);
     if (block_meta->delta_count != 0) {
         blk->magic = WT_BLOCK_DISAGG_MAGIC_DELTA;
         F_SET(&put_args, WT_PAGE_LOG_DELTA);

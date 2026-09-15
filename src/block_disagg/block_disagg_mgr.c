@@ -31,7 +31,7 @@ __bmd_block_header_init(WT_BM *bm, WT_SESSION_IMPL *session, void *dsk)
     WT_UNUSED(bm);
 
     memset(WT_BLOCK_HEADER_REF(dsk), 0, S2BT(session)->block_header_write_size);
-    __wt_block_disagg_header_init(session, WT_BLOCK_HEADER_REF(dsk));
+    __wti_block_disagg_header_init(session, WT_BLOCK_HEADER_REF(dsk));
 }
 
 /*
@@ -167,7 +167,11 @@ __bmd_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 static size_t
 __bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
 {
-    return (__bmd_block_header_read(bm, session, dsk));
+    /*
+     * Encryption skips from the start of the image, so the page header counts towards the skip as
+     * well as the block header.
+     */
+    return ((size_t)WT_PAGE_HEADER_SIZE + __bmd_block_header_read(bm, session, dsk));
 }
 
 /*

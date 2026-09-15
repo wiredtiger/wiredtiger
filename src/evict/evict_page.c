@@ -260,15 +260,18 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * Fill in the disagg block header following the pattern from
-     * __wti_block_disagg_write_internal. The disagg block header
-     * is at WT_BLOCK_HEADER_REF (after the page header).
+     * Update the disagg block header following the pattern from __wti_block_disagg_write_internal.
+     * The disagg block header is at WT_BLOCK_HEADER_REF (after the page header).
+     *
+     * The image is the one whichever node laid it out produced, and compression preserves the bytes
+     * the headers occupy, so the fields describing the header are already correct here. Only the
+     * fields caching changes are rewritten: re-stamping the size with this node's would misdescribe
+     * an image written by a node whose header is a different size.
      */
     WT_BLOCK_DISAGG_HEADER *blk = WT_BLOCK_HEADER_REF(cache_buf->data);
-    memset(blk, 0, S2BT(session)->block_header_write_size);
+    WT_ASSERT(session,
+      blk->magic == WT_BLOCK_DISAGG_MAGIC_BASE || blk->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
 
-    /* Set disagg header fields. */
-    __wt_block_disagg_header_init(session, blk);
     blk->previous_checksum = block_meta->checksum;
     blk->flags = 0;
     if (data_checksum)

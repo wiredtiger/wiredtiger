@@ -59,13 +59,30 @@ build_image(std::vector<uint8_t> &image, uint8_t combined_header_size, uint8_t m
     image[combined_header_size] = k_data_marker;
 }
 
+/* Route the macro's block-manager call at the function under test. */
+static u_int
+stub_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
+{
+    return (__ut_bmd_block_header_read(bm, session, dsk));
+}
+
 struct block_header_size_fixture {
     std::shared_ptr<mock_session> mock;
     WT_SESSION_IMPL *session;
+    WT_BM bm = {};
 
     block_header_size_fixture() : mock(mock_session::build_test_mock_session())
     {
+        mock->setup_block_manager_file_operations();
         session = mock->get_wt_session_impl();
+
+        bm.block_header_read_size = stub_block_header_read;
+        S2BT(session)->bm = &bm;
+    }
+
+    ~block_header_size_fixture()
+    {
+        S2BT(session)->bm = nullptr;
     }
 };
 
@@ -86,11 +103,15 @@ TEST_CASE_METHOD(block_header_size_fixture,
     for (u_int size : sizes) {
         build_image(image, combined(size), WT_BLOCK_DISAGG_MAGIC_BASE);
 
-        u_int reported = __ut_bmd_block_header_read(nullptr, session, image.data());
-        REQUIRE(reported == size);
+        REQUIRE(__ut_bmd_block_header_read(nullptr, session, image.data()) == size);
 
-        /* The reported size must land on the byte the writer placed first. */
-        REQUIRE(image[WT_PAGE_HEADER_SIZE + reported] == k_data_marker);
+        /*
+         * Independently of the reported size, the macro the read path actually uses has to land on
+         * the byte the writer placed first.
+         */
+        const uint8_t *data =
+          (const uint8_t *)WT_PAGE_HEADER_READ_BYTE(session, S2BT(session), image.data());
+        REQUIRE(*data == k_data_marker);
     }
 }
 
@@ -102,6 +123,29 @@ TEST_CASE_METHOD(block_header_size_fixture,
     build_image(image, combined(WT_BLOCK_DISAGG_HEADER_WRITE_SIZE), WT_BLOCK_DISAGG_MAGIC_DELTA);
     REQUIRE(__ut_bmd_block_header_read(nullptr, session, image.data()) ==
       WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+}
+
+TEST_CASE_METHOD(block_header_size_fixture,
+  "disagg block header size: the debug mode widens the header this build writes", "[block_disagg]")
+{
+    /*
+     * The upgrade debug mode stands in for a future writer, so it has to widen the header and not
+     * merely stamp a newer version. Nothing on the write path otherwise observes the size, so
+     * without this the Python upgrade test passes whether or not the header actually grew.
+     */
+    S2C(session)->debug.disagg_block_header_upgrade =
+      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE;
+    REQUIRE(__wti_block_disagg_header_write_size(session) == WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+
+    for (auto mode : {WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE,
+           WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE}) {
+        S2C(session)->debug.disagg_block_header_upgrade = mode;
+        REQUIRE(__wti_block_disagg_header_write_size(session) ==
+          WT_BLOCK_DISAGG_HEADER_WRITE_SIZE + WT_BLOCK_DISAGG_HEADER_DEBUG_EXTRA_SIZE);
+    }
+
+    S2C(session)->debug.disagg_block_header_upgrade =
+      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE;
 }
 
 TEST_CASE("disagg block header size: the bound admits growth", "[block_disagg]")

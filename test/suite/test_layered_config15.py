@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
@@ -39,16 +39,37 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,'
-    conn_config = conn_base_config + 'disaggregated=(role="follower"),'
 
-    create_session_config = 'key_format=S,value_format=S,type=layered'
+    # Compression decides how much of the image is copied verbatim, and encryption derives its
+    # skip from the header size, so both have to see the larger header.
+    encrypt = [
+        ('none', dict(encryptor='none', encrypt_args='')),
+        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+    ]
+    compress = [
+        ('none', dict(block_compress='none')),
+        ('snappy', dict(block_compress='snappy')),
+    ]
 
     num_items = 2000
     num_modify = 100
     uri = f"table:{test_name}"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages)
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="follower"),' + \
+            'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
+
+    def conn_extensions(self, extlist):
+        extlist.extension('compressors', self.block_compress)
+        extlist.extension('encryptors', self.encryptor)
+        DisaggConfigMixin.conn_extensions(self, extlist)
+
+    def session_create_config(self):
+        return 'key_format=S,value_format=S,type=layered,block_compressor={}'.format(
+            self.block_compress)
 
     def value(self, i, modified=False):
         prefix = 'value_mod' if modified else 'value'
@@ -71,7 +92,7 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def debug_config(self, mode):
-        return self.conn_config + f',debug_mode=(disagg_block_header_upgrade={mode})'
+        return self.conn_config() + f',debug_mode=(disagg_block_header_upgrade={mode})'
 
     def test_larger_block_header_is_readable(self):
         """
@@ -80,7 +101,7 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
         where the writer left it.
         """
         self.conn.reconfigure('disaggregated=(role="leader")')
-        self.session.create(self.uri, self.create_session_config)
+        self.session.create(self.uri, self.session_create_config())
         self.populate(self.num_items, 1)
 
         # Restart as a node that writes the larger header, and rewrite part of the table so the
@@ -107,7 +128,7 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
     def subprocess_incompatible_block_header_refused(self):
         """Subprocess body: reading a block that demands a newer reader fails."""
         self.conn.reconfigure('disaggregated=(role="leader")')
-        self.session.create(self.uri, self.create_session_config)
+        self.session.create(self.uri, self.session_create_config())
         self.populate(self.num_items, 1)
 
         # Write blocks that declare they need a reader newer than any build here.
@@ -138,7 +159,9 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
             ',oldest_timestamp=' + self.timestamp_str(1))
 
         name = 'incompatible_block_header_refused'
+        # Restrict the child to this scenario so each is exercised and asserted independently.
         [returncode, home] = self.run_subprocess_function(f'SUBPROCESS_{name}',
-            f'{self.test_name}.{self.test_name}.subprocess_{name}', silent=True)
+            f'{self.test_name}.{self.test_name}.subprocess_{name}', silent=True,
+            scenario=getattr(self, 'scenario_number', None))
         self.assertNotEqual(returncode, 0)
         self.check_file_contains(os.path.join(home, 'stderr.txt'), 'unable to read root page')
