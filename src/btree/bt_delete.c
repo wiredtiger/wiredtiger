@@ -674,7 +674,7 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
     /* Walk the page entries, giving each one a tombstone. */
     WT_ROW_FOREACH (page, rip, i) {
         /* Retrieve the stop time point from the page's row. */
-        __wti_read_row_time_window(session, page, rip, &tw);
+        __wt_read_row_time_window(session, page, rip, &tw);
 
         WT_RET(__instantiate_tombstone(session, page_del, update_list, countp, &tw, &upd, &size));
         if (upd != NULL) {
