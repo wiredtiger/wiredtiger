@@ -571,6 +571,10 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE \
     (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_WRITE_SIZE)
 
+/* The write size is an on-disk format constant: compiler padding must not change it. */
+static_assert(sizeof(WT_BLOCK_DISAGG_HEADER) == WT_BLOCK_DISAGG_HEADER_WRITE_SIZE,
+  "WT_BLOCK_DISAGG_HEADER size mismatch");
+
 /*
  * A later release may append fields to the header. Readers locate the data with the header's own
  * combined_header_size rather than their own, so a larger header from a newer writer stays

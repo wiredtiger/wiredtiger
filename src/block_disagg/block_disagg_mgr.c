@@ -45,11 +45,7 @@ __bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
 
     WT_UNUSED(bm);
 
-    /*
-     * A newer writer may have appended fields we know nothing about; skipping what we cannot
-     * interpret is the point, so take the size as given. The read path validates it once per block,
-     * after matching the checksum that covers it, rather than on every walk through an image.
-     */
+    /* Get the block disaggregated header from the disk image. */
     header = (const WT_BLOCK_DISAGG_HEADER *)(((const uint8_t *)dsk) + WT_PAGE_HEADER_SIZE);
     WT_ASSERT(session,
       header->magic == WT_BLOCK_DISAGG_MAGIC_BASE || header->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
