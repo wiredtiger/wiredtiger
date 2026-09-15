@@ -7371,7 +7371,7 @@ buildvariants:
   display_name: "~ RHEL8 PPC"
   run_on:
   - rhel8-power-small
-  batchtime: 120 # 2 hours
+  batchtime: 720 # 12 hours
   expansions:
     REQUIRE_MDB_TOOLCHAIN: "1"
     format_test_setting: ulimit -c unlimited
