@@ -545,7 +545,6 @@ TextWrapper
 ThreadList
 ThreadListWrapper
 ThreadsafeForwardingResult
-TieredConfigMixin
 Timespec
 Tput
 TryCV
@@ -1068,6 +1067,7 @@ env
 eof
 ep
 epochless
+epochp
 epp
 eq
 equalp
@@ -1386,6 +1386,7 @@ logfile
 logmgr
 lognum
 logop
+logp
 logpath
 logread
 logrec
