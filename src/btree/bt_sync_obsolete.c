@@ -166,11 +166,15 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_evict_page_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else if (__sync_obsolete_tw_check(session, newest_ta)) {
+    } else if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      __sync_obsolete_tw_check(session, newest_ta)) {
 
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
-         * obsolete time window information.
+         * obsolete time window information. Skip this for disaggregated btrees: dirtying the page
+         * doesn't add any new update, so reconciliation finds nothing newer than what's already
+         * durable and skips writing the page, leaving the obsolete time window on disk regardless.
+         * Page-level cleanup still reclaims whole pages.
          */
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
@@ -200,14 +204,16 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
  *     its parent page dirty to remove it.
  */
 static int
-__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *visible_allp)
 {
     WT_PAGE_DELETED *page_del;
 
+    *visible_allp = false;
     page_del = ref->page_del;
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid, page_del->pg_del_durable_ts)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
+        *visible_allp = true;
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
@@ -282,12 +288,14 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
  *     between operations.
  */
 static int
-__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_cleanup_one(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool *deletedp, bool *visible_allp)
 {
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
     bool ref_deleted;
 
+    *deletedp = *visible_allp = false;
     ref_deleted = false;
 
     /* Ignore root pages as they can never be deleted. */
@@ -320,12 +328,15 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          * Use a parameter to allow the functions to request a state change.
          */
         new_state = previous_state;
-        if (previous_state == WT_REF_DELETED)
-            ret = __sync_obsolete_deleted_cleanup(session, ref);
-        else if (previous_state == WT_REF_DISK) {
+        if (previous_state == WT_REF_DELETED) {
+            *deletedp = true;
+            ret = __sync_obsolete_deleted_cleanup(session, ref, visible_allp);
+        } else if (previous_state == WT_REF_DISK) {
             ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
-            if (ref_deleted)
+            if (ref_deleted) {
                 new_state = WT_REF_DELETED;
+                *visible_allp = true;
+            }
         }
         /*
          * For deleted and on-disk pages, mark the ref as dirty if there has been a change in the
@@ -357,6 +368,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
     uint32_t slot;
+    bool child_deleted, child_visible_all, deleted, visible_all;
 
     WT_ASSERT_ALWAYS(session, WT_PAGE_IS_INTERNAL(parent->page),
       "Checkpoint obsolete cleanup requires an internal page");
@@ -366,11 +378,17 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
       (void *)parent->page);
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
+    deleted = visible_all = false;
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        WT_RET(__sync_obsolete_cleanup_one(session, ref));
+        WT_RET(__sync_obsolete_cleanup_one(session, ref, &child_deleted, &child_visible_all));
+        deleted |= child_deleted;
+        visible_all |= child_visible_all;
     }
+
+    if (deleted && !visible_all)
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_deleted_not_visible_all);
 
     WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
 
@@ -466,9 +484,15 @@ __checkpoint_cleanup_page_skip(
 
     /*
      * While we may have decided to skip the page, check if there is obsolete content that can be
-     * cleaned up.
+     * cleaned up. This only ever matters for reaching a leaf with an obsolete time window that
+     * isn't otherwise fully deleted: a ref only reaches this point with *skipp set for an internal
+     * page when its own aggregate has no stop time point anywhere below it, so there is no
+     * page-level reclaim being missed here. Don't force the read for a disaggregated btree: there
+     * is no new update for reconciliation to write, so it skips the write entirely and the obsolete
+     * time window stays on disk regardless.
      */
-    if (*skipp && __sync_obsolete_tw_check(session, addr.ta)) {
+    if (*skipp && !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      __sync_obsolete_tw_check(session, addr.ta)) {
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }

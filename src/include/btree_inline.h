@@ -43,9 +43,9 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 {
-    return ((F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
-              F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY)) &&
-      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
+      __wt_atomic_load_bool_relaxed(&session->dhandle->outdated));
 }
 
 /*
@@ -3008,6 +3008,9 @@ __wt_btcur_skip_page(
      * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
      * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
      * describes the whole subtree, and skipping it skips the subtree.
+     *
+     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
+     * evaluated through its address cell.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
         goto unlock;

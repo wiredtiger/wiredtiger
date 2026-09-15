@@ -391,6 +391,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_COMPACT_SLOW},
 
+  {"stress.disagg_stable_dhandle_delay", "stress disagg stable dhandle delay", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_DISAGG_STABLE_DHANDLE_DELAY},
+
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},
 
