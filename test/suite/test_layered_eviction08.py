@@ -32,20 +32,17 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered_eviction08.py
-#    A step-down leaves dirty pages resident on a btree it marks read-only. Those pages can never
-#    be written to shared storage, so the eviction server has to reach them and discard them. If
-#    the walk skips the tree because it is read-only, the pages are stranded and the cache fills.
+#    Content written before a step-down stays resident on the table the step-down makes read-only.
+#    Eviction has to reach and discard it, or it is stranded and the cache fills up.
 @disagg_test_class
 class test_layered_eviction08(wttest.WiredTigerTestCase):
-    # A low dirty target keeps the eviction server running dirty passes over the stranded content.
-    # The updates target is deliberately high: update-driven passes look for clean and update
-    # pages, and the read-only skip only applies to a pass looking solely for dirty pages.
+    # A low dirty target keeps eviction on dirty-only passes, which is where a read-only table is
+    # skipped. The high updates target keeps those passes from also counting as update passes.
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
                      + 'cache_size=20MB,eviction_dirty_target=1,eviction_dirty_trigger=20,' \
                      + 'eviction_updates_target=50,eviction_updates_trigger=60,' \
-                     + 'eviction=(threads_min=1,threads_max=1),' \
-                     + 'disaggregated=(lose_all_my_data=true),'
-    conn_config = conn_base_config + 'disaggregated=(role="follower")'
+                     + 'eviction=(threads_min=1,threads_max=1),'
+    conn_config = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     create_session_config = 'key_format=i,value_format=S,leaf_page_max=4KB,' \
                           + 'block_manager=disagg,log=(enabled=false)'
@@ -85,11 +82,10 @@ class test_layered_eviction08(wttest.WiredTigerTestCase):
         cursor.close()
         return ts
 
-    def strand_dirty_content(self):
+    def strand_content(self, extra_tables=0):
         """
-        Fill and checkpoint a disaggregated table, then dirty it again without checkpointing and
-        step down. The second write belongs to the leader era and is never flushed, so step-down
-        leaves it dirty and resident on a tree it marks read-only and outdated.
+        Fill and checkpoint a table as leader, write to it again above the stable timestamp, then
+        step down, leaving that second write resident on a table now marked read-only.
 
         Returns the connection's dirty bytes before and after that second write.
         """
@@ -100,58 +96,68 @@ class test_layered_eviction08(wttest.WiredTigerTestCase):
         uri = 'table:' + self.table_name
         self.session.create(uri, self.create_session_config)
 
+        # These are checkpointed and then left alone, so the step-down strands nothing on them.
+        quiet_uris = ['table:' + self.table_name + '_quiet%d' % i for i in range(extra_tables)]
+        for quiet_uri in quiet_uris:
+            self.session.create(quiet_uri, self.create_session_config)
+
         ts = self.write_rows(uri, self.nrows, self.value, 10)
+        for quiet_uri in quiet_uris:
+            ts = self.write_rows(quiet_uri, self.batch, self.value, ts)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
             ',oldest_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
 
-        # Everything written so far is checkpointed, so whatever dirty content the connection
-        # still reports belongs elsewhere. That is the floor the drain can return to.
+        # Everything so far is durable, so what is still dirty belongs elsewhere: the drain floor.
         baseline = self.dirty_bytes()
 
-        ts = self.write_rows(uri, self.stranded_rows, self.value.upper(), ts + 1)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
-            ',oldest_timestamp=' + self.timestamp_str(ts))
+        # Leave stable behind this write so it cannot be written out before the step-down.
+        self.write_rows(uri, self.stranded_rows, self.value.upper(), ts + 1)
         peak = self.dirty_bytes()
         self.assertGreater(peak, baseline,
-            'the tree holds no dirty content, so the step-down strands nothing')
+            'the table holds nothing for the step-down to strand')
 
         self.conn.reconfigure('disaggregated=(role="follower")')
 
-        # Release every reference to the tree. A page on an outdated tree cannot be re-read from
-        # shared storage, so eviction deliberately holds it resident while a reader still has the
-        # handle open. Closing the session drops its cached handle reference.
+        # Content that cannot be re-read from shared storage is deliberately held resident while
+        # anyone still has the table open, so drop this session's handles before expecting a drain.
         self.session.close()
         self.session = self.conn.open_session()
 
         return baseline, peak
 
-    def test_outdated_tree_dirty_pages_drain(self):
-        baseline, peak = self.strand_dirty_content()
+    def test_stranded_content_drains(self):
+        # The only user table here, so eviction ends its passes parked on it and has to drain it
+        # anyway.
+        baseline, peak = self.strand_content()
 
-        # Most of the stranded content must go. Eviction stops once the cache falls back under the
-        # dirty target, so the last of it legitimately stays resident; assert the direction with a
-        # wide margin rather than a return to the exact floor.
+        # Eviction stops once under the dirty target, so the last of it legitimately stays: allow a
+        # wide margin rather than expecting the exact floor.
         drained = baseline + (peak - baseline) // 4
         deadline = time.time() + self.drain_timeout
         while self.dirty_bytes() > drained:
             self.assertLess(time.time(), deadline,
-                'eviction did not discard the dirty pages stranded on the outdated tree')
+                'the content stranded by the step-down was never discarded')
             time.sleep(0.5)
 
-        # The tree was reached because it is outdated, not in spite of being read-only.
         self.assertGreater(
             self.conn_stat(wiredtiger.stat.conn.eviction_server_walk_outdated_disagg_trees), 0,
-            'the walk never took the outdated-tree path')
+            'eviction never reached the stepped-down table')
 
-    def test_read_only_tree_is_skipped(self):
-        # The other half of the change: the stranded content gives the eviction server a reason to
-        # run dirty-only passes, and on those passes a read-only tree with nothing stranded on it
-        # is still skipped.
-        self.strand_dirty_content()
+        # Nobody holds the table, so the drain should not still be waiting on a reader.
+        stale = self.conn_stat(wiredtiger.stat.conn.eviction_server_skip_stale_disagg_pages)
+        time.sleep(1)
+        self.assertEqual(
+            self.conn_stat(wiredtiger.stat.conn.eviction_server_skip_stale_disagg_pages), stale,
+            'eviction is still holding pages back for a reader that has gone')
 
+    def test_stranded_content_drains_alongside_quiet_tables(self):
+        # The same drain with other tables in the cache, so the walk has somewhere else to go.
+        baseline, peak = self.strand_content(extra_tables=4)
+
+        drained = baseline + (peak - baseline) // 4
         deadline = time.time() + self.drain_timeout
-        while self.conn_stat(wiredtiger.stat.conn.eviction_server_skip_trees_read_only) == 0:
+        while self.dirty_bytes() > drained:
             self.assertLess(time.time(), deadline,
-                'the eviction walk never skipped a clean read-only tree')
+                'the content stranded by the step-down was never discarded')
             time.sleep(0.5)

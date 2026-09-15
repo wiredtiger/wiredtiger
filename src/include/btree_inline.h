@@ -39,7 +39,7 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 /*
  * __wt_btree_dhandle_is_outdated_disagg --
  *     Return whether a btree belongs to an outdated disaggregated generation. The handle is passed
- *     explicitly because the eviction walk inspects candidates that are not the session's handle.
+ *     explicitly for candidates that are not the session's handle.
  */
 static WT_INLINE bool
 __wt_btree_dhandle_is_outdated_disagg(WT_DATA_HANDLE *dhandle, WT_BTREE *btree)
