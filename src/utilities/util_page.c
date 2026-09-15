@@ -20,8 +20,11 @@ usage(void)
       "required: numeric LSN (decimal or 0x-prefixed hex)", "-t table_id",
       "numeric table id to read directly off the page server without opening the table (use when "
       "the checkpoint is unreadable)",
-      "-k", "display only the keys in the application data when dumping the page", "-u",
-      "unredact all application data when dumping the page", "-?", "show this message", NULL, NULL};
+      "-k",
+      "display only the keys in the application data when dumping the page (not supported "
+      "with -t)",
+      "-u", "unredact all application data when dumping the page", "-?", "show this message", NULL,
+      NULL};
 
     util_usage("page [-k | -u] -p page_id -l lsn [-t table_id] [uri]", "options:", options);
     return (1);

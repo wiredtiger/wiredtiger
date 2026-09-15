@@ -15,10 +15,7 @@ typedef struct {
     size_t memsize; /* Managed memory size */
 } ULINE;
 
-/*
- * -u (unredact all application data) and -k (unredact only keys) are mutually exclusive; shared
- * so verify and page report the same wording.
- */
+/* Shared so verify and page report identical -u/-k conflict wording. */
 #define UTIL_REDACT_CONFLICT_MSG \
     "-u (unredact all data) and -k (unredact only keys) are mutually exclusive"
 

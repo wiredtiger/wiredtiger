@@ -29,7 +29,7 @@
 import json, os, re, subprocess
 from typing import NamedTuple
 import wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, get_shard_id
+from helper_disagg import DisaggConfigMixin, DisaggCorruptionMixin, get_shard_id
 from metadata_helper import get_table_id
 from run import wt_builddir
 from suite_subprocess import suite_subprocess
@@ -46,7 +46,8 @@ class PalitePage(NamedTuple):
 # A leader connection writes full-image and delta pages via checkpoints, then `wt page`
 # is run as a subprocess in follower mode against the same cell to inspect them.
 @wttest.skip_for_hook("tiered", "wt page does not run under tiered hook")
-class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
+class test_disagg_wt_page(
+        wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin, DisaggCorruptionMixin):
     uri = "layered:wt_page_test"
     stable_uri = "file:wt_page_test.wt_stable"
     nrows = 1000
@@ -135,7 +136,9 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     def _find_base_image_page(self):
         # Order by page size, not lsn: the root is written after (and is much
         # smaller than) the leaf it points to, so "newest" would pick the
-        # root instead of the leaf holding the application data.
+        # root instead of the leaf holding the application data. This only
+        # works because nrows currently fits in a single leaf; a larger
+        # fixture would need a selector that doesn't rely on page size.
         return self._find_page(
             "base_lsn=0 AND backlink_lsn=0", "base-image",
             order_by="length(page_data) DESC")
@@ -196,6 +199,28 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertIn("s3cr3t_v4lue", stdout)
         self.assertNotIn("{REDACTED}", stdout)
 
+    def test_full_image_corrupt(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        page = self._find_base_image_page()
+        table_id = get_table_id(self.session, self.stable_uri)
+        self.corrupt_page_image_at(table_id, page.page_id, page.lsn)
+        _, stderr = self._run_wt_page(
+            "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri, failure=True)
+        self.assertIn(f"page_id {page.page_id}, lsn {page.lsn}", stderr)
+        self.assertIn("{REDACTED} (use -u to dump)", stderr)
+
+    def test_full_image_corrupt_unredact(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        page = self._find_base_image_page()
+        table_id = get_table_id(self.session, self.stable_uri)
+        self.corrupt_page_image_at(table_id, page.page_id, page.lsn)
+        _, stderr = self._run_wt_page(
+            "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri, failure=True)
+        self.assertIn(f"page_id {page.page_id}, lsn {page.lsn}", stderr)
+        self.assertNotIn("{REDACTED}", stderr)
+
     def test_delta_chain(self):
         self._skip_if_not_diagnostic()
         self._populate()
@@ -209,9 +234,9 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertIn("delta_op: update", stdout)
         self.assertNotIn("s3cr3t_v4lue_v2", stdout)
         self.assertIn("{REDACTED}", stdout)
-        # Marker from __debug_cell_delta_leaf's tagged "V" value dump: proves
-        # the delta path's own unredact gate is exercised, not just the base
-        # image's (the line above passes regardless of the delta gate).
+        # The tagged value line proves the delta path's own unredact gate is
+        # exercised, not just the base image's (the line above passes
+        # regardless of the delta gate).
         self.assertIn("V: {REDACTED}", stdout)
 
     def test_delta_chain_unredact(self):
