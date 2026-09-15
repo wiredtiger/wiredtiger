@@ -872,10 +872,13 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * hopefully they can accumulate more changes before being reconciled. The cache has low
      * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
      * only for disaggregated storage.
+     *
+     * A page on an outdated tree is exempt: the tree is read-only, so no further modification can
+     * ever arrive and waiting for one pins the page until something else raises cache pressure.
      */
 #define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
     0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
-    if (__wt_conn_is_disagg(session) &&
+    if (__wt_conn_is_disagg(session) && !__wt_btree_is_outdated_disagg(session) &&
       __wt_atomic_load_uint32_relaxed(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0, pct_updates = 0.0;
         bool high_pressure = false;

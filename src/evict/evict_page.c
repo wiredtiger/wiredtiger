@@ -429,6 +429,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_EVICT_TIMELINE timeline;
     WT_PAGE *page;
     uint64_t page_size;
+    int32_t readers;
     uint8_t stats_flags;
     bool evict_clean, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
 
@@ -523,7 +524,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * from storage and eviction may discard it normally even with readers present.
      */
     if (__wt_btree_is_outdated_disagg(session) && !__wt_page_evict_clean(page)) {
-        if (__wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 0) {
+        /*
+         * The eviction server pins the tree it is currently walking via session_inuse, and that
+         * reference is held precisely while this tree's pages are being evicted. Counting it as a
+         * reader would make the gate permanently closed, so discount it here.
+         */
+        readers = __wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse);
+        if (conn->evict->walk_tree == session->dhandle)
+            --readers;
+        if (readers > 0) {
             ret = __wt_set_return(session, EBUSY);
             goto err;
         }
