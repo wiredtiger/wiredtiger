@@ -154,9 +154,10 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
         assert os.path.exists(ext), f'dir_store extension not found: {ext}'
         os.mkdir(self.bucket)
 
+        # Quote the path: standalone builds live in a directory with '=' in the name.
         conn_config = (
           'create,tiered_storage=(name=dir_store,bucket=%s,bucket_prefix=%s),'
-          'extensions=(%s)' % (self.bucket, self.bucket_prefix, ext))
+          'extensions=("%s")' % (self.bucket, self.bucket_prefix, ext))
         conn = wiredtiger.wiredtiger_open('.', conn_config)
         session = conn.open_session()
         session.create(self.uri, self.create_config)
