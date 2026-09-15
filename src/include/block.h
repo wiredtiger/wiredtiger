@@ -519,6 +519,12 @@ struct __wt_block_disagg_header {
      * or base page is stored in this block header, that must in turn match the checksum found in
      * the block header for the previous one. This is how we can verify that we have every expected
      * delta and that each delta is not corrupted.
+     *
+     * When there is no previous delta, we use the previous_checksum field to store the checksum of
+     * the original page (which is referenced from the internal page) for pages that were modified
+     * "offline" as indicated by the flags below.
+     *
+     * FIXME-WT-18666: We should store the checksum of the original page in a dedicated field.
      */
     uint32_t checksum;          /* 04-07: checksum */
     uint32_t previous_checksum; /* 08-11: checksum for previous delta or page */
