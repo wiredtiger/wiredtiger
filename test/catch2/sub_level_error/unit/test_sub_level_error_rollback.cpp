@@ -57,6 +57,10 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // It is possible to get WT_OLDEST_FOR_EVICTION as the sub-level rollback error from this
         // function. This should not be overwritten by WT_CACHE_OVERFLOW.
 
+        // The eviction server rebuilds the aggressive score and the cache flags on every pass, so
+        // hold it off while the stuck state is hand-set.
+        __wt_spin_lock(session_impl, &conn_impl->evict->evict_pass_lock);
+
         // Set the eviction cache as stuck.
         conn_impl->evict->evict_aggressive_score = WT_EVICT_SCORE_MAX;
         F_SET(conn_impl->evict, WT_EVICT_CACHE_HARD);
@@ -68,6 +72,8 @@ TEST_CASE("Test functions for error handling in rollback workflows",
           __wti_evict_app_assist_worker(session_impl, false, false, true, false) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
           "Transaction has the oldest pinned transaction ID");
+
+        __wt_spin_unlock(session_impl, &conn_impl->evict->evict_pass_lock);
 
         // Reset updates to the initial value.
         session_impl->txn->mod_count = 0;
@@ -167,7 +173,9 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Set the transaction to have 1 modification.
         session_impl->txn->mod_count = 1;
 
-        // The oldest-for-eviction check only applies once eviction reports itself stuck.
+        // The oldest-for-eviction check only applies once eviction reports itself stuck, and the
+        // eviction server rebuilds that state on every pass, so hold the server off.
+        __wt_spin_lock(session_impl, &conn_impl->evict->evict_pass_lock);
         conn_impl->evict->evict_aggressive_score = WT_EVICT_SCORE_MAX;
         F_SET(conn_impl->evict, WT_EVICT_CACHE_HARD);
 
@@ -190,6 +198,8 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
           "Transaction has the oldest pinned transaction ID");
+
+        __wt_spin_unlock(session_impl, &conn_impl->evict->evict_pass_lock);
 
         // Reset updates to the initial value.
         session_impl->txn->mod_count = 0;
