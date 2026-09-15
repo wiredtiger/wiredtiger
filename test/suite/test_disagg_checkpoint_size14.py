@@ -55,12 +55,16 @@ class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     table_config = 'key_format=S,value_format=S,leaf_page_max=8KB,internal_page_max=8KB'
 
     def insert_rows(self, cursor, start, count, value_char):
+        # One transaction per row: a range-wide transaction pins more uncommitted
+        # dirty content than the eviction updates trigger allows, and is rolled
+        # back once this thread is drawn into eviction.
         value = value_char * 1024
         self.ts_count = getattr(self, 'ts_count', 0) + 1
-        self.session.begin_transaction()
+        commit_config = 'commit_timestamp=' + self.timestamp_str(self.ts_count)
         for i in range(start, start + count):
+            self.session.begin_transaction()
             cursor[f'key{i:08d}'] = value
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
+            self.session.commit_transaction(commit_config)
 
     def evict_page(self, key):
         """Force eviction of the page containing key.  May silently fail (EBUSY)."""
