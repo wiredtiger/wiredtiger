@@ -53,7 +53,6 @@ class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     uri = 'layered:' + uri_base
     stable_uri = 'file:' + uri_base + '.wt_stable'
     table_config = 'key_format=S,value_format=S,leaf_page_max=8KB,internal_page_max=8KB'
-    ts_count = 0
 
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
@@ -82,6 +81,7 @@ class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
     def test_failed_install_retry_no_leak(self):
         # Aggressive workload; expect ~1 minute.
+        self.ts_count = 0
         nrows = 5000
         band = 200
         cycles = 400

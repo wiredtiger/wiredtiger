@@ -54,7 +54,6 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
     value_size = 8000
     num_failed_ckpts = 4
-    insert_ts = 0
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -117,6 +116,8 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
             f"{accumulated_database_size} : {context_message}")
 
     def test_failed_drop_does_not_shrink_database_size(self):
+        self.insert_ts = 0
+
         # Filler table for headroom.
         self.session.create(self.keep_uri, 'key_format=S,value_format=S')
         self.insert(self.keep_uri, 6000)
