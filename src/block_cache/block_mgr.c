@@ -110,8 +110,10 @@ __bm_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
  *     Return the size of the block header for writing a new header.
  */
 static u_int
-__bm_block_header_write(WT_BM *bm)
+__bm_block_header_write(WT_BM *bm, WT_SESSION_IMPL *session)
 {
+    WT_UNUSED(session);
+
     return (__wt_block_header(bm->block));
 }
 

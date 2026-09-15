@@ -29,10 +29,9 @@ static void
 __bmd_block_header_init(WT_BM *bm, WT_SESSION_IMPL *session, void *dsk)
 {
     WT_UNUSED(bm);
-    WT_UNUSED(session);
 
-    memset(WT_BLOCK_HEADER_REF(dsk), 0, WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
-    __wti_block_disagg_header_init(WT_BLOCK_HEADER_REF(dsk));
+    memset(WT_BLOCK_HEADER_REF(dsk), 0, S2BT(session)->block_header_write_size);
+    __wt_block_disagg_header_init(session, WT_BLOCK_HEADER_REF(dsk));
 }
 
 /*
@@ -49,9 +48,13 @@ __bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
     header = (const WT_BLOCK_DISAGG_HEADER *)(((const uint8_t *)dsk) + WT_PAGE_HEADER_SIZE);
     WT_ASSERT(session,
       header->magic == WT_BLOCK_DISAGG_MAGIC_BASE || header->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
+    /*
+     * A newer writer may have appended fields we know nothing about, so accept any size up to the
+     * sanity bound rather than only our own: skipping what we cannot interpret is the point.
+     */
     WT_ASSERT_ALWAYS(session,
       header->combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
-        header->combined_header_size <= WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE,
+        header->combined_header_size <= WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE,
       "Illegal block disaggregated header size");
 
     /* The stored size covers the page header as well; see the WT_BLOCK_DISAGG_HEADER definition. */
@@ -63,11 +66,11 @@ __bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
  *     Return the size of the block header when writing a new header.
  */
 static u_int
-__bmd_block_header_write(WT_BM *bm)
+__bmd_block_header_write(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
 
-    return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+    return (__wti_block_disagg_header_write_size(session));
 }
 
 /*
@@ -155,9 +158,8 @@ static int
 __bmd_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 {
     WT_UNUSED(bm);
-    WT_UNUSED(session);
 
-    return (__wti_block_disagg_write_size(sizep));
+    return (__wti_block_disagg_write_size(session, sizep));
 }
 
 /*
@@ -293,3 +295,15 @@ err:
     WT_TRET(bm->close(bm, session));
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+/*
+ * __ut_bmd_block_header_read --
+ *     Unit-test wrapper for __bmd_block_header_read.
+ */
+u_int
+__ut_bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
+{
+    return (__bmd_block_header_read(bm, session, dsk));
+}
+#endif

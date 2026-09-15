@@ -205,7 +205,7 @@ struct __wt_bm {
     int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
     void (*block_header_init)(WT_BM *, WT_SESSION_IMPL *, void *);
     u_int (*block_header_read_size)(WT_BM *, WT_SESSION_IMPL *, const void *);
-    u_int (*block_header_write_size)(WT_BM *);
+    u_int (*block_header_write_size)(WT_BM *, WT_SESSION_IMPL *);
     bool (*can_truncate)(WT_BM *, WT_SESSION_IMPL *);
     int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, WT_CKPT *, bool);
     int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
@@ -570,6 +570,20 @@ struct __wt_block_disagg_header {
     (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_MIN_SIZE)
 #define WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE \
     (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_WRITE_SIZE)
+
+/*
+ * A later release may append fields to the header. Readers locate the data with the header's own
+ * combined_header_size rather than their own, so a larger header from a newer writer stays
+ * readable; this bound only keeps a corrupt size from addressing past the end of a block.
+ */
+#define WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE 128
+
+/*
+ * The number of bytes debug_mode.disagg_block_header_upgrade appends to the header to stand in for
+ * a future writer. Keep the padded header within WT_BLOCK_COMPRESS_SKIP so it stays covered by the
+ * block checksum even when the data itself is not.
+ */
+#define WT_BLOCK_DISAGG_HEADER_DEBUG_EXTRA_SIZE 8
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)
 
 /*
