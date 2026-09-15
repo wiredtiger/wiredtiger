@@ -1648,13 +1648,10 @@ __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HAND
      * era lets the drain dirty a page that still holds an unresolved on-disk prepared cell before
      * the drain resolves it, which reconciliation cannot represent (leaked prepared update).
      *
-     * Store this ahead of the read-only flag: the eviction walk skips a read-only tree on a
-     * dirty-only pass unless it is also outdated, so a reader that sees the flag without the mark
-     * would skip a tree holding dirty content this step-down has just stranded.
+     * Store the mark before the read-only flag: the eviction walk skips a read-only tree on a
+     * dirty-only pass unless it is also outdated.
      */
     __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
-
-    /* Mark the disaggregated as readonly. */
     F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));

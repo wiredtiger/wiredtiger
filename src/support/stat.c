@@ -2272,8 +2272,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server slept, because we did not make progress with eviction",
   "cache: eviction server unable to reach eviction goal",
   "cache: eviction server waiting for a leaf page",
-  "cache: eviction server walks outdated disaggregated trees holding dirty content, bypassing the "
-  "per-tree skip heuristics",
+  "cache: eviction server walks outdated disaggregated trees holding resident content",
   "cache: eviction server walks trees within their walk period because they dominate the cache",
   "cache: eviction server walks trees within their walk period because they dominate the cache but "
   "queues no pages",

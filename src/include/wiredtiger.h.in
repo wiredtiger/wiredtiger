@@ -7000,7 +7000,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_WALK_LEAF_NOTFOUND	1183
 /*!
  * cache: eviction server walks outdated disaggregated trees holding
- * dirty content, bypassing the per-tree skip heuristics
+ * resident content
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_WALK_OUTDATED_DISAGG_TREES	1184
 /*!
