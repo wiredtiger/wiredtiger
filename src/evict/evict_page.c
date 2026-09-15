@@ -265,8 +265,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      *
      * The image is the one whichever node laid it out produced, and compression preserves the bytes
      * the headers occupy, so the fields describing the header are already correct here. Only the
-     * fields caching changes are rewritten: re-stamping the size with this node's would misdescribe
-     * an image written by a node whose header is a different size.
+     * fields caching changes are rewritten: stamping this node's header size over an image a node
+     * with a different header size wrote would point every reader at the wrong first data byte.
      */
     WT_BLOCK_DISAGG_HEADER *blk = WT_BLOCK_HEADER_REF(cache_buf->data);
     WT_ASSERT(session,

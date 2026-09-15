@@ -24,7 +24,8 @@ extern "C" {
 
 namespace {
 
-/* The first data byte of a block, chosen so a misplaced read is visible rather than merely wrong. */
+/* The first data byte of a block, chosen so a misplaced read is visible rather than merely wrong.
+ */
 constexpr uint8_t k_data_marker = 0x5a;
 
 /* Filler for the header region, distinct from the marker. */
@@ -169,12 +170,12 @@ TEST_CASE("disagg block header size: the read path rejects sizes it cannot use",
     constexpr uint32_t k_big_block = 4096;
 
     /* The oldest header still on disk, this build's, and a larger future one are all legal. */
-    REQUIRE(__ut_block_disagg_header_size_valid(
-      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, k_big_block));
-    REQUIRE(__ut_block_disagg_header_size_valid(
-      WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, k_big_block));
-    REQUIRE(__ut_block_disagg_header_size_valid(
-      WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE, k_big_block));
+    REQUIRE(
+      __ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, k_big_block));
+    REQUIRE(
+      __ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, k_big_block));
+    REQUIRE(
+      __ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE, k_big_block));
 
     /* A header too small to hold the fields the reader has already used. */
     REQUIRE_FALSE(__ut_block_disagg_header_size_valid(
@@ -190,10 +191,9 @@ TEST_CASE("disagg block header size: the read path rejects sizes it cannot use",
      * A header cannot extend past the block that carries it, whatever the format allows. The block
      * size is the binding limit here, not the format bound.
      */
-    REQUIRE(__ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE,
-      WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE));
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE,
-      WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE - 1));
+    REQUIRE(__ut_block_disagg_header_size_valid(
+      WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE));
     REQUIRE_FALSE(__ut_block_disagg_header_size_valid(
-      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, 0));
+      WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE - 1));
+    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, 0));
 }
