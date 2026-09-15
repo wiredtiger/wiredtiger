@@ -1671,8 +1671,8 @@ __verify_page_content_leaf(
      * FIXME-WT-17968: from_delta only earns its keep because a follower can currently adopt a
      * checkpoint its own pinned timestamp shouldn't allow. A restart always re-derives that pinned
      * timestamp from the checkpoint being recovered, so once the pick-up gate is fixed, remove
-     * from_delta along with it -- there is no already-affected state a restart into the fix doesn't
-     * already resync.
+     * from_delta along with it -- a restart into the fix already brings any already-affected state
+     * back into a consistent one.
      */
     from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;

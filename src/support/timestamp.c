@@ -404,13 +404,14 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
  *     the equivalent tolerance already applied to history-store records during verification.
  *
  * FIXME-WT-17968: this exists because a follower can currently adopt a checkpoint whose oldest
- *     timestamp has moved past content the follower's own pinned timestamp still needs -- the
- *     pick-up-time panic meant to refuse that is dead code. Once that gate is restored, this
+ *     timestamp has moved past content the follower's own pinned timestamp still needs --
+ *     the pick-up-time panic meant to refuse that is dead code. Once that gate is restored, this
  *     relaxation (along with the parent-validation flag that gates it) is safe to remove: a
  *     connection's own oldest timestamp is always re-derived from the checkpoint it recovers at
- *     startup, not carried over from before, so restarting into the fix resyncs a follower that had
- *     already adopted a bad checkpoint, and the restored gate keeps a running follower from drifting
- *     into that state again afterward. Nothing is stuck requiring proof of a clean fleet first.
+ *     startup, not carried over from before, so restarting into the fix brings a follower that had
+ *     already adopted a bad checkpoint back into a consistent state, and the restored gate keeps a
+ *     running follower from drifting into that state again afterward. Nothing is stuck requiring
+ *     proof of a clean fleet first.
  */
 static WT_INLINE bool
 __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
