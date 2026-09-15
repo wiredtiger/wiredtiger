@@ -547,8 +547,8 @@ struct __wt_block_disagg_header {
 
 /*
  * WT_BLOCK_DISAGG_HEADER_WRITE_SIZE is the number of bytes we allocate for a base page and delta
- * structures: if the compiler inserts padding it will break the world.
- * WT_BLOCK_DISAGG_HEADER_MIN_SIZE is the minimum number of bytes that we expect for the header.
+ * structures. WT_BLOCK_DISAGG_HEADER_MIN_SIZE is the minimum number of bytes that we expect for the
+ * header.
  */
 #define WT_BLOCK_DISAGG_HEADER_MIN_SIZE 16
 #define WT_BLOCK_DISAGG_HEADER_WRITE_SIZE 16
@@ -557,7 +557,7 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE \
     (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_WRITE_SIZE)
 
-/* The write size is an on-disk format constant: compiler padding must not change it. */
+/* Check that the compiler did not add any padding to the header; doing so will break the world. */
 static_assert(sizeof(WT_BLOCK_DISAGG_HEADER) == WT_BLOCK_DISAGG_HEADER_WRITE_SIZE,
   "WT_BLOCK_DISAGG_HEADER size mismatch");
 
