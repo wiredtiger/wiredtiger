@@ -617,6 +617,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * from storage and eviction may discard it normally even with readers present.
      */
     if (__wt_btree_is_outdated_disagg(session) && !__wt_page_evict_clean(page)) {
+        /*
+         * The walk releases its own reference on an outdated tree before the queue drains, so any
+         * reference here is a genuine reader. A close reconciles the page first, so it lands here
+         * too and retries rather than discarding content a reader may still navigate back to.
+         */
         if (__wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 0) {
             ret = __wt_set_return(session, EBUSY);
             goto err;
