@@ -85,6 +85,19 @@ struct __wt_dhandle_clear_log {
             WT_DHANDLE_ACQUIRE(dhandle);                                                   \
     } while (0)
 
+#define WT_DHANDLE_PREV(session, dhandle, head, headname, field)                           \
+    do {                                                                                   \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)); \
+        if ((dhandle) == NULL)                                                             \
+            (dhandle) = TAILQ_LAST(head, headname);                                        \
+        else {                                                                             \
+            WT_DHANDLE_RELEASE(dhandle);                                                   \
+            (dhandle) = TAILQ_PREV(dhandle, headname, field);                              \
+        }                                                                                  \
+        if ((dhandle) != NULL)                                                             \
+            WT_DHANDLE_ACQUIRE(dhandle);                                                   \
+    } while (0)
+
 #define WT_DHANDLE_IS_CHECKPOINT(dhandle) ((dhandle)->checkpoint != NULL)
 
 /*

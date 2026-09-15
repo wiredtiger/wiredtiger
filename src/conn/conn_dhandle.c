@@ -832,9 +832,15 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             __wt_checkpoint_handle_stats_clear(session);
             F_SET_ATOMIC_32(conn, WT_CONN_CKPT_GATHER);
         }
+        /*
+         * Walk backwards. The sweep server walks this list forwards, write-locking each handle
+         * across a close that can run long; if both walks went the same way at similar speeds, this
+         * one would keep catching up to whichever handle sweep is currently closing. Walking the
+         * other way, the two cross once per pass instead.
+         */
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
-              session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+              session, WT_DHANDLE_PREV(session, dhandle, &conn->dhqh, __wt_dhandle_qh, q));
             if (dhandle == NULL)
                 goto done;
 
