@@ -29,11 +29,65 @@ __wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DI
 }
 
 /*
+ * __wti_block_disagg_header_write_size --
+ *     Return the size of the block header a newly opened handle should write. Only the block
+ *     manager's handle-open path calls this: everything working on an existing image takes the size
+ *     from the btree, which fixed it here when the handle opened.
+ */
+u_int
+__wti_block_disagg_header_write_size(WT_SESSION_IMPL *session)
+{
+    if (S2C(session)->debug.disagg_block_header_upgrade ==
+      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE)
+        return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+
+    /* Stand in for a future writer that appended fields to the header. */
+    return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE + WT_BLOCK_DISAGG_HEADER_DEBUG_EXTRA_SIZE);
+}
+
+/*
+ * __wti_block_disagg_header_init --
+ *     Stamp the fields that identify a block header and describe its extent. A disk image laid out
+ *     for writing may be walked by the read path before it is written, and the read path recovers
+ *     the header size from the header itself, so these have to be set as soon as the image exists.
+ *     The caller owns the rest of the header, including the checksums.
+ */
+void
+__wti_block_disagg_header_init(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk)
+{
+    blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
+    blk->version = WT_BLOCK_DISAGG_VERSION;
+    blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
+
+    /*
+     * The size has to describe the layout the image actually has, so take it from the btree, which
+     * fixed it when the handle opened. Recomputing it here would disagree with the layout for any
+     * handle that opened before the connection's debug setting changed.
+     */
+    blk->combined_header_size =
+      (uint8_t)(WT_PAGE_HEADER_SIZE + S2BT(session)->block_header_write_size);
+
+    switch (S2C(session)->debug.disagg_block_header_upgrade) {
+    case WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE:
+        break;
+    case WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE:
+        /* A newer writer whose extra fields this build's readers may skip. */
+        blk->version = WT_BLOCK_DISAGG_VERSION + 1;
+        break;
+    case WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE:
+        /* A newer writer whose blocks this build's readers must refuse. */
+        blk->version = WT_BLOCK_DISAGG_VERSION + 1;
+        blk->compatible_version = WT_BLOCK_DISAGG_VERSION + 1;
+        break;
+    }
+}
+
+/*
  * __wti_block_disagg_write_size --
  *     Return the buffer size required to write a block.
  */
 int
-__wti_block_disagg_write_size(size_t *sizep)
+__wti_block_disagg_write_size(WT_SESSION_IMPL *session, size_t *sizep)
 {
     /*
      * We write the page size, in bytes, into the block's header as a 4B unsigned value, and it's
@@ -48,7 +102,7 @@ __wti_block_disagg_write_size(size_t *sizep)
      * to size a buffer, we may cause a little bit of waste (for deltas), which should not be a
      * problem.
      */
-    *sizep = (size_t)(*sizep + WT_BLOCK_DISAGG_HEADER_BYTE_SIZE);
+    *sizep = (size_t)(*sizep + WT_PAGE_HEADER_SIZE + S2BT(session)->block_header_write_size);
     return (*sizep > UINT32_MAX - 1024 ? EINVAL : 0);
 }
 
@@ -106,7 +160,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
      * Clear the block header to ensure all of it is initialized, even the unused fields.
      */
     blk = WT_BLOCK_HEADER_REF(buf->mem);
-    memset(blk, 0, sizeof(*blk));
+    memset(blk, 0, btree->block_header_write_size);
 
     if (buf->size > UINT32_MAX) {
         WT_ASSERT(session, buf->size <= UINT32_MAX);
@@ -151,15 +205,11 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     if (F_ISSET(header, WT_PAGE_ENCRYPTED))
         F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
 
-    if (block_meta->delta_count == 0)
-        blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
-    else {
+    __wti_block_disagg_header_init(session, blk);
+    if (block_meta->delta_count != 0) {
         blk->magic = WT_BLOCK_DISAGG_MAGIC_DELTA;
         F_SET(&put_args, WT_PAGE_LOG_DELTA);
     }
-    blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
-    blk->version = WT_BLOCK_DISAGG_VERSION;
-    blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
 
     /*
      * The reconciliation id stored in the block header is diagnostic, we don't care if it's

@@ -2727,6 +2727,7 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE address_cookie_upgrade;
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE block_header_upgrade;
 
     conn = S2C(session);
 
@@ -2747,6 +2748,19 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(
       __wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_optional_field", &cval));
     conn->debug.disagg_address_cookie_optional_field = cval.val != 0;
+
+    /* Parse the block header upgrade mode, which is an enumeration. */
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_block_header_upgrade", &cval));
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("none", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE;
+    else if (WT_CONFIG_LIT_MATCH("compatible", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE;
+    else if (WT_CONFIG_LIT_MATCH("incompatible", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_block_header_upgrade: '%.*s'",
+          (int)cval.len, cval.str);
+    conn->debug.disagg_block_header_upgrade = block_header_upgrade;
 
     return (0);
 }
