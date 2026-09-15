@@ -403,12 +403,15 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
  *     the connections sharing a disaggregated store, so only the timestamp is considered, matching
  *     the equivalent tolerance already applied to history-store records during verification.
  *
- * FIXME-WT-17968: this only exists because a follower can currently adopt a checkpoint whose oldest
- *     timestamp has moved past content the follower's own pinned timestamp still needs --
- *     the pick-up-time panic meant to refuse that is dead code. Once that gate is restored, no
- *     follower can reach this divergence in the first place, and this relaxation (along with the
- *     parent-validation flag that gates it) should be removed rather than kept as a permanent
- *     tolerance.
+ * FIXME-WT-17968: this exists because a follower can currently adopt a checkpoint whose oldest
+ *     timestamp has moved past content the follower's own pinned timestamp still needs -- the
+ *     pick-up-time panic meant to refuse that is dead code. Restoring that gate stops any new
+ *     follower from reaching this divergence, but does not retroactively fix a follower that
+ *     already adopted a bad checkpoint under the unfixed gate; that follower's already-reconstructed
+ *     state does not get revalidated just because the gate is fixed later. This relaxation (along
+ *     with the parent-validation flag that gates it) is only safe to remove once it's known that no
+ *     such already-affected checkpoint is still in use anywhere -- not simply once the gate itself
+ *     is restored.
  */
 static WT_INLINE bool
 __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
