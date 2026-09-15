@@ -134,6 +134,18 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         self.assertIn("(chunk 2 of ", err)
         self.assertNotIn("{REDACTED}", err)
 
+    def test_raw_read_keys_only_rejected(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('wt page requires a diagnostic build')
+        self._populate()
+        table_id, page_id, lsn = self._find_base_image_page()
+        _, err = self._run_wt(
+            'page', '-k', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn),
+            failure=True)
+        self.assertIn('-k is not supported with -t', err)
+
     def test_raw_read_unknown_page(self):
         if self.ds_name != 'palite':
             self.skipTest('palite-only test')

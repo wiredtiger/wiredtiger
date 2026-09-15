@@ -157,7 +157,8 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         _, stderr = self._run_wt_page('-?')
         self.assertIn('-p page_id', stderr)
         self.assertIn('-l lsn', stderr)
-        self.assertIn('unredact application data', stderr)
+        self.assertIn('unredact all application data', stderr)
+        self.assertIn('display only the keys in the application data', stderr)
 
     def test_unknown_page_id(self):
         self._skip_if_not_diagnostic()
@@ -225,6 +226,41 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertIn("delta_op: update", stdout)
         self.assertIn("s3cr3t_v4lue_v2", stdout)
         self.assertNotIn("{REDACTED}", stdout)
+
+    def test_full_image_keys_only(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        page = self._find_base_image_page()
+        stdout, _ = self._run_wt_page(
+            "-k", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        self.assertEqual(self._assert_chain_header(stdout, page), 1)
+        self.assertIn("secret_key", stdout)
+        self.assertNotIn("s3cr3t_v4lue", stdout)
+        self.assertIn("{REDACTED}", stdout)
+
+    def test_delta_chain_keys_only(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        self._dirty_and_checkpoint()
+        page = self._find_delta_page()
+        stdout, _ = self._run_wt_page(
+            "-k", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        result_count = self._assert_chain_header(stdout, page)
+        self.assertGreater(result_count, 1)
+        self.assertIn("delta_op: update", stdout)
+        self.assertIn("secret_key", stdout)
+        self.assertNotIn("s3cr3t_v4lue_v2", stdout)
+        # Value stays redacted even though the key is shown.
+        self.assertIn("V: {REDACTED}", stdout)
+
+    def test_conflicting_redact_flags(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        page = self._find_base_image_page()
+        _, stderr = self._run_wt_page(
+            "-u", "-k", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri,
+            failure=True)
+        self.assertIn("mutually exclusive", stderr)
 
     def test_delta_chain_with_deletes(self):
         self._skip_if_not_diagnostic()
