@@ -574,9 +574,10 @@ struct __wt_block_disagg_header {
 /*
  * A later release may append fields to the header. Readers locate the data with the header's own
  * combined_header_size rather than their own, so a larger header from a newer writer stays
- * readable; this bound only keeps a corrupt size from addressing past the end of a block.
+ * readable. The headers have to fit in the bytes compression copies verbatim, otherwise a
+ * compressed block's header would itself be compressed and no reader could find its way in.
  */
-#define WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE 128
+#define WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE WT_BLOCK_COMPRESS_SKIP
 
 /*
  * The number of bytes debug_mode.disagg_block_header_upgrade appends to the header to stand in for

@@ -45,19 +45,17 @@ __bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
 
     WT_UNUSED(bm);
 
+    /*
+     * A newer writer may have appended fields we know nothing about; skipping what we cannot
+     * interpret is the point, so take the size as given. The read path validates it once per block,
+     * after matching the checksum that covers it, rather than on every walk through an image.
+     */
     header = (const WT_BLOCK_DISAGG_HEADER *)(((const uint8_t *)dsk) + WT_PAGE_HEADER_SIZE);
     WT_ASSERT(session,
       header->magic == WT_BLOCK_DISAGG_MAGIC_BASE || header->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
-    /*
-     * A newer writer may have appended fields we know nothing about, so accept any size up to the
-     * sanity bound rather than only our own: skipping what we cannot interpret is the point.
-     */
-    WT_ASSERT_ALWAYS(session,
-      header->combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
-        header->combined_header_size <= WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE,
-      "Illegal block disaggregated header size");
 
     /* The stored size covers the page header as well; see the WT_BLOCK_DISAGG_HEADER definition. */
+    WT_ASSERT(session, header->combined_header_size >= WT_PAGE_HEADER_SIZE);
     return ((u_int)header->combined_header_size - WT_PAGE_HEADER_SIZE);
 }
 
