@@ -97,7 +97,10 @@ static int
 __hs_verify_chain_close(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_HS_VERIFY_CHAIN *chain, WT_ITEM *tmp)
 {
+    WT_DECL_RET;
     WT_TIME_WINDOW *live_tw, *newest_tw;
+    uint64_t recno;
+    const uint8_t *p;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     /*
@@ -115,9 +118,21 @@ __hs_verify_chain_close(
     if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT))
         return (0);
 
-    if (!chain->searched)
-        WT_RET(__wt_btcur_search_verify(
-          ds_cbt, chain->key, &chain->exists, &chain->live_valid, &chain->live_tw));
+    if (!chain->searched) {
+        if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
+            WT_WITH_PAGE_INDEX(
+              session, ret = __wt_row_search(ds_cbt, chain->key, false, NULL, false, NULL));
+        } else {
+            p = (const uint8_t *)chain->key->data;
+            WT_RET(__wt_vunpack_uint(&p, chain->key->size, &recno));
+            WT_WITH_PAGE_INDEX(session, ret = __wt_col_search(ds_cbt, recno, NULL, false, NULL));
+        }
+        WT_RET(ret);
+
+        chain->exists = ds_cbt->compare == 0;
+        chain->live_valid = chain->exists && __wt_read_cell_time_window(ds_cbt, &chain->live_tw);
+        WT_RET(__cursor_reset(ds_cbt));
+    }
 
     /* A key found missing is the existence check's business; there is nothing to compare. */
     if (!chain->live_valid)
@@ -144,8 +159,7 @@ __hs_verify_chain_close(
  * __hs_verify_id --
  *     Verify the history store for a single btree. Given a cursor to the tree, walk all history
  *     store keys. This function assumes any caller has already opened a cursor to the history
- *     store. Records for a key are grouped as they are walked past, so that the per-key checks
- *     share the walk, and the data store search, with the check that the key exists at all.
+ *     store. Records for a key are grouped as they are walked.
  */
 static int
 __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *ds_cbt,
@@ -158,8 +172,9 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
     WT_ITEM key;
     WT_TIME_WINDOW *hs_tw;
     wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
+    uint64_t hs_counter, recno;
     uint32_t btree_id;
+    const uint8_t *p;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool check_data_store;
@@ -177,9 +192,9 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
      * If using standard cursors, we need to skip the non-globally visible tombstones in the data
      * table to verify the corresponding entries in the history store are too present in the data
      * store. Though this is not required currently as we are directly searching btree cursors,
-     * leave it here in case we switch to standard cursors. The per-key checks need it for a
-     * different reason: the data table's current tombstone is one of the values they compare
-     * against, so it must not be hidden from them.
+     * leave it here in case we switch to standard cursors. The per-key checks need it as the data
+     * table's current tombstone is one of the values they compare against, so it must not be hidden
+     * from them.
      */
     F_SET(&ds_cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
@@ -268,9 +283,21 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * its own window rather than excused by this one.
          */
         if (!chain.exists && !__hs_verify_obsolete(hs_tw, checkpoint_oldest_ts)) {
-            WT_ERR(__wt_btcur_search_verify(ds_cbt, &key, &chain.exists,
-              check_data_store ? &chain.live_valid : NULL,
-              check_data_store ? &chain.live_tw : NULL));
+            if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
+                WT_WITH_PAGE_INDEX(
+                  session, ret = __wt_row_search(ds_cbt, &key, false, NULL, false, NULL));
+            } else {
+                p = (const uint8_t *)key.data;
+                WT_ERR(__wt_vunpack_uint(&p, key.size, &recno));
+                WT_WITH_PAGE_INDEX(
+                  session, ret = __wt_col_search(ds_cbt, recno, NULL, false, NULL));
+            }
+            WT_ERR(ret);
+
+            chain.exists = ds_cbt->compare == 0;
+            if (chain.exists && check_data_store)
+                chain.live_valid = __wt_read_cell_time_window(ds_cbt, &chain.live_tw);
+            WT_ERR(__cursor_reset(ds_cbt));
             chain.searched = true;
 
             /*
@@ -294,8 +321,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
     WT_ERR_NOTFOUND_OK(ret, true);
 
     /*
-     * Close out the last group. WT_TRET keeps a WT_NOTFOUND in place, which is how the caller
-     * learns the walk ran off the end of the history store.
+     * Close out the last group.
      */
     if (chain.open && per_key_checks)
         WT_TRET(__hs_verify_chain_close(session, ds_cbt, &chain, tmp));
@@ -336,10 +362,7 @@ __hs_verify_cursor_open(WT_SESSION_IMPL *session, uint32_t btree_id, WT_CURSOR *
 /*
  * __wt_hs_verify_one --
  *     Verify the history store for a given btree. This must be called when we are known to have
- *     exclusive access to the btree. The per-key checks --
- *     the ones that compare a key's history store records against each other and against the data
- *     store's current value --
- *     are the expensive part of the walk and are only run when the caller asks for them.
+ *     exclusive access to the btree.
  */
 int
 __wt_hs_verify_one(
