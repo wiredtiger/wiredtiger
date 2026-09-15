@@ -37,14 +37,15 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_eviction_enabled --
- *     Return true if page eviction is enabled for the given tree.
+ * __wt_btree_dhandle_is_outdated_disagg --
+ *     Return whether a btree belongs to an outdated disaggregated generation. The handle is passed
+ *     explicitly because the eviction walk inspects candidates that are not the session's handle.
  */
 static WT_INLINE bool
-__wt_btree_eviction_enabled(WT_BTREE *btree)
+__wt_btree_dhandle_is_outdated_disagg(WT_DATA_HANDLE *dhandle, WT_BTREE *btree)
 {
-    return (!F_ISSET(btree, WT_BTREE_NO_EVICT) &&
-      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0);
+    return (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+      __wt_atomic_load_bool_relaxed(&dhandle->outdated));
 }
 
 /*
@@ -54,9 +55,7 @@ __wt_btree_eviction_enabled(WT_BTREE *btree)
 static WT_INLINE bool
 __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
-      __wt_atomic_load_bool_relaxed(&session->dhandle->outdated));
+    return (__wt_btree_dhandle_is_outdated_disagg(session->dhandle, S2BT(session)));
 }
 
 /*
