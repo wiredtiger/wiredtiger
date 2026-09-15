@@ -44,18 +44,14 @@
 #include "src/component/metrics_monitor.h"
 #include "src/component/metrics_writer.h"
 #include "src/component/timestamp_manager.h"
+#include "src/main/configuration.h"
 #include "src/storage/scoped_session.h"
 #include "src/util/execution_timer.h"
+#include "src/util/options_parser.h"
 
 extern "C" {
 #include "wiredtiger.h"
 #include "test_util.h"
-}
-
-/* Declare getopt external variables. */
-extern "C" {
-extern int __wt_optind;
-extern char *__wt_optarg;
 }
 
 #include <algorithm>
@@ -63,6 +59,7 @@ extern char *__wt_optarg;
 #include <chrono>
 #include <deque>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -71,18 +68,17 @@ extern char *__wt_optarg;
 using namespace test_harness;
 
 struct options {
-    int cache_size_mb = 1024;
-    int insert_threads = 4;
-    int value_size = 1000;
-    int marker_size_mb = 16;
-    int oplog_size_mb = 256;
-    int leader_ingest_mb = 1024;
-    int follower_ingest_mb = 64;
-    int gc_truncate_count = 16;
-    int checkpoint_interval_ms = 2000;
-    int verbose_level = 0;
-    bool slow_follower_truncate = false;
-    std::string home_path = DEFAULT_DIR;
+    int64_t cache_size_mb;
+    int64_t insert_threads;
+    int64_t value_size;
+    int64_t marker_size_mb;
+    int64_t oplog_size_mb;
+    int64_t leader_ingest_mb;
+    int64_t follower_ingest_mb;
+    int64_t gc_truncate_count;
+    int64_t checkpoint_interval_ms;
+    int64_t verbose_level;
+    std::string home_path;
 };
 
 static options opt;
@@ -143,7 +139,7 @@ record_bytes()
 }
 
 static uint64_t
-mb_to_bytes(int mb)
+mb_to_bytes(int64_t mb)
 {
     return (static_cast<uint64_t>(mb) * WT_MEGABYTE);
 }
@@ -160,87 +156,57 @@ set_timestamp(WT_CONNECTION *conn, const std::string &config)
     testutil_check(conn->set_timestamp(conn, config.c_str()));
 }
 
-static void
-usage(const char *progname)
+/* Read a configuration file, dropping comments and the whitespace that makes it readable. */
+static std::string
+read_configuration_file(const std::string &filename)
 {
-    std::cerr << "usage: " << progname << " [options]\n"
-              << "  -g N   cache size in MB\n"
-              << "  -t N   insert threads\n"
-              << "  -v N   value size in bytes\n"
-              << "  -m N   oplog marker size in MB\n"
-              << "  -o N   oplog size in MB, the volume kept before truncation starts\n"
-              << "  -i N   leader phase ingest volume in MB\n"
-              << "  -f N   follower phase ingest volume in MB\n"
-              << "  -G N   truncates run in the garbage collection phase\n"
-              << "  -c N   leader checkpoint interval in milliseconds\n"
-              << "  -h P   home directory\n"
-              << "  -S     use the slow follower truncate path\n"
-              << "  -V N   verbosity\n";
+    std::string config, line;
+    std::ifstream config_file(filename);
+
+    if (!config_file.is_open())
+        testutil_die(EINVAL, "failed to open %s for reading", filename.c_str());
+
+    while (getline(config_file, line)) {
+        line.erase(std::remove_if(line.begin(), line.end(), isspace), line.end());
+        if (line.empty() || line[0] == '#')
+            continue;
+        config += line;
+    }
+    return (config);
 }
 
-static bool
-parse_options(int argc, char *argv[], options &out, std::string &error)
+/*
+ * Read the test configuration, either from a file or from a configuration string given on the
+ * command line. Anything left out falls back to the default the test declares in dist/test_data.py.
+ */
+static void
+load_configuration(int argc, char *argv[])
 {
-    int ch;
+    const std::string test_name = "test_disagg_truncate_perf";
+    std::string config;
 
-    while ((ch = __wt_getopt("test_disagg_truncate_perf", argc, argv, "c:f:g:G:h:i:m:o:t:v:SV:")) !=
-      EOF) {
-        switch (ch) {
-        case 'c':
-            out.checkpoint_interval_ms = atoi(__wt_optarg);
-            break;
-        case 'f':
-            out.follower_ingest_mb = atoi(__wt_optarg);
-            break;
-        case 'g':
-            out.cache_size_mb = atoi(__wt_optarg);
-            break;
-        case 'G':
-            out.gc_truncate_count = atoi(__wt_optarg);
-            break;
-        case 'h':
-            out.home_path = __wt_optarg;
-            break;
-        case 'i':
-            out.leader_ingest_mb = atoi(__wt_optarg);
-            break;
-        case 'm':
-            out.marker_size_mb = atoi(__wt_optarg);
-            break;
-        case 'o':
-            out.oplog_size_mb = atoi(__wt_optarg);
-            break;
-        case 't':
-            out.insert_threads = atoi(__wt_optarg);
-            break;
-        case 'v':
-            out.value_size = atoi(__wt_optarg);
-            break;
-        case 'S':
-            out.slow_follower_truncate = true;
-            break;
-        case 'V':
-            out.verbose_level = atoi(__wt_optarg);
-            break;
-        case '?':
-        default:
-            error = "unknown option";
-            return (false);
-        }
-    }
+    if (option_exists("-C", argc, argv))
+        config = value_for_opt("-C", argc, argv);
+    else
+        config = read_configuration_file(option_exists("-f", argc, argv) ?
+            value_for_opt("-f", argc, argv) :
+            "configs/" + test_name + "_default.txt");
 
-    if (out.cache_size_mb <= 0 || out.insert_threads <= 0 || out.value_size <= 0 ||
-      out.marker_size_mb <= 0 || out.oplog_size_mb <= 0 || out.leader_ingest_mb <= 0 ||
-      out.follower_ingest_mb <= 0 || out.gc_truncate_count <= 0 ||
-      out.checkpoint_interval_ms <= 0) {
-        error = "all numeric options must be greater than zero";
-        return (false);
-    }
-    if (out.marker_size_mb > out.oplog_size_mb) {
-        error = "the marker size must not exceed the oplog size";
-        return (false);
-    }
-    return (true);
+    configuration cfg(test_name, config);
+    opt.cache_size_mb = cfg.get_int("cache_size_mb");
+    opt.checkpoint_interval_ms = cfg.get_int("checkpoint_interval_ms");
+    opt.follower_ingest_mb = cfg.get_int("follower_ingest_mb");
+    opt.gc_truncate_count = cfg.get_int("gc_truncate_count");
+    opt.home_path = cfg.get_string("home");
+    opt.insert_threads = cfg.get_int("insert_threads");
+    opt.leader_ingest_mb = cfg.get_int("leader_ingest_mb");
+    opt.marker_size_mb = cfg.get_int("marker_size_mb");
+    opt.oplog_size_mb = cfg.get_int("oplog_size_mb");
+    opt.value_size = cfg.get_int("value_size");
+    opt.verbose_level = cfg.get_int("verbose_level");
+
+    if (opt.marker_size_mb > opt.oplog_size_mb)
+        testutil_die(EINVAL, "the marker size must not exceed the oplog size");
 }
 
 /*
@@ -461,12 +427,12 @@ truncate_worker(
             continue;
         }
 
-        wt_timestamp_t commit_ts = reserve_timestamp(opt.insert_threads);
+        wt_timestamp_t commit_ts = reserve_timestamp(static_cast<int>(opt.insert_threads));
         int ret = timer.track([&]() {
             return (truncate_to_marker(
               session, cursor, stat_cursor, marker_key, commit_ts, sample_uncommitted));
         });
-        release_timestamp(opt.insert_threads);
+        release_timestamp(static_cast<int>(opt.insert_threads));
         if (ret != 0)
             g_truncate_rollbacks.fetch_add(1);
     }
@@ -526,8 +492,8 @@ run_workload(WT_CONNECTION *conn, const std::string &phase, uint64_t phase_bytes
     uint64_t target_bytes = start_bytes + phase_bytes;
     auto start = std::chrono::steady_clock::now();
     thread_manager tm;
-    for (int i = 0; i < opt.insert_threads; i++)
-        tm.add_thread(insert_worker, conn, i, target_bytes);
+    for (int64_t i = 0; i < opt.insert_threads; i++)
+        tm.add_thread(insert_worker, conn, static_cast<int>(i), target_bytes);
     tm.add_thread(truncate_worker, conn, phase, target_bytes, sample_uncommitted);
     if (advance_stable)
         tm.add_thread(leader_maintenance_worker, conn, target_bytes);
@@ -552,8 +518,8 @@ populate(WT_CONNECTION *conn)
     reset_phase_counters();
 
     thread_manager tm;
-    for (int i = 0; i < opt.insert_threads; i++)
-        tm.add_thread(insert_worker, conn, i, mb_to_bytes(opt.oplog_size_mb));
+    for (int64_t i = 0; i < opt.insert_threads; i++)
+        tm.add_thread(insert_worker, conn, static_cast<int>(i), mb_to_bytes(opt.oplog_size_mb));
     tm.add_thread(leader_maintenance_worker, conn, mb_to_bytes(opt.oplog_size_mb));
     tm.join();
 
@@ -636,7 +602,7 @@ run_gc_truncates()
     uint64_t chunk = live_keys / static_cast<uint64_t>(opt.gc_truncate_count + 1);
     testutil_assert(chunk > 0);
 
-    for (int i = 0; i < opt.gc_truncate_count; i++) {
+    for (int64_t i = 0; i < opt.gc_truncate_count; i++) {
         marker_key += chunk;
         if (truncate_to_marker(
               session, cursor, stat_cursor, marker_key, g_timestamp.fetch_add(1), false) != 0)
@@ -721,8 +687,6 @@ connection_config(const std::string &role)
       ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so]" +
       ",disaggregated=(page_log=" + PAGE_LOG + ",role=\"" + role + "\")";
 
-    if (opt.slow_follower_truncate)
-        config += ",debug_mode=(disagg_slow_truncate_follower=true)";
     if (opt.verbose_level > 0)
         config += ",verbose=(disaggregated_storage:" + std::to_string(opt.verbose_level) + ")";
     return (config);
@@ -757,40 +721,17 @@ create_table(WT_CONNECTION *conn)
     testutil_check(session->create(session.get(), TABLE_URI.c_str(), TABLE_CONFIG.c_str()));
 }
 
-static void
-log_options()
-{
-    logger::log_msg(LOG_INFO, "cache size MB: " + std::to_string(opt.cache_size_mb));
-    logger::log_msg(LOG_INFO, "insert threads: " + std::to_string(opt.insert_threads));
-    logger::log_msg(LOG_INFO, "value size: " + std::to_string(opt.value_size));
-    logger::log_msg(LOG_INFO, "marker size MB: " + std::to_string(opt.marker_size_mb));
-    logger::log_msg(LOG_INFO, "oplog size MB: " + std::to_string(opt.oplog_size_mb));
-    logger::log_msg(LOG_INFO, "leader ingest MB: " + std::to_string(opt.leader_ingest_mb));
-    logger::log_msg(LOG_INFO, "follower ingest MB: " + std::to_string(opt.follower_ingest_mb));
-    logger::log_msg(LOG_INFO, "gc truncates: " + std::to_string(opt.gc_truncate_count));
-    logger::log_msg(
-      LOG_INFO, "checkpoint interval ms: " + std::to_string(opt.checkpoint_interval_ms));
-    logger::log_msg(LOG_INFO,
-      std::string("slow follower truncate: ") + (opt.slow_follower_truncate ? "on" : "off"));
-}
-
 int
 main(int argc, char *argv[])
 {
     const std::string progname = testutil_set_progname(argv);
     logger::trace_level = LOG_INFO;
 
-    std::string err;
-    if (!parse_options(argc, argv, opt, err)) {
-        std::cerr << "error: " << err << "\n";
-        usage(argv[0]);
-        return (EXIT_FAILURE);
-    }
     logger::log_msg(LOG_INFO, "Starting " + progname);
-    log_options();
+    load_configuration(argc, argv);
 
     g_markers.reset(new oplog_markers());
-    g_worker_count = opt.insert_threads + 1;
+    g_worker_count = static_cast<int>(opt.insert_threads) + 1;
     g_worker_timestamps.reset(new std::atomic<uint64_t>[g_worker_count]);
     for (int i = 0; i < g_worker_count; i++)
         g_worker_timestamps[i].store(WT_TS_MAX);

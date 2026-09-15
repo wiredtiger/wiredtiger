@@ -288,5 +288,29 @@ methods = {
         Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
+    'test_disagg_truncate_perf' : Method([
+        Config('cache_size_mb', 1024, r'''
+            The cache size that wiredtiger will be configured to run with''', min=1),
+        Config('checkpoint_interval_ms', 2000, r'''
+            How often the leader takes a checkpoint during its workload phase''', min=1),
+        Config('follower_ingest_mb', 64, r'''
+            How much data the follower phase inserts''', min=1),
+        Config('gc_truncate_count', 16, r'''
+            How many truncates the garbage collection phase runs''', min=1),
+        Config('home', 'WT_TEST', r'''
+            The directory holding both connections and the shared page log'''),
+        Config('insert_threads', 4, r'''
+            How many threads append to the oplog''', min=1),
+        Config('leader_ingest_mb', 1024, r'''
+            How much data the leader phase inserts''', min=1),
+        Config('marker_size_mb', 16, r'''
+            The size of an oplog marker, the unit a single truncate removes''', min=1),
+        Config('oplog_size_mb', 256, r'''
+            How much data the oplog keeps before truncation starts''', min=1),
+        Config('value_size', 1000, r'''
+            The size of an oplog record''', min=1),
+        Config('verbose_level', 0, r'''
+            The disaggregated storage verbosity level''', min=0),
+    ]),
     'test_template' : Method(test_config),
 }
