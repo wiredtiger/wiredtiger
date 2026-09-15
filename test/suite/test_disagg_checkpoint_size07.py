@@ -54,6 +54,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
     value_size = 8000
     num_failed_ckpts = 4
+    insert_ts = 0
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -73,14 +74,14 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         return ret == 0
 
     def insert(self, uri, nrows, start=0):
-        ts = getattr(self, '_insert_ts', 0) + 1
-        self._insert_ts = ts
-        self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
         for i in range(start, start + nrows):
+            self.insert_ts += 1
+            self.session.begin_transaction()
             cursor[str(i)] = str(i) + 'x' * self.value_size
+            self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(self.insert_ts))
         cursor.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
 
     def get_checkpoint_size(self, uri):
         """The size of a file's most recent checkpoint, as the database size counts it."""
