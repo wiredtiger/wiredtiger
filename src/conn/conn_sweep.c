@@ -69,6 +69,18 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 
     conn = S2C(session);
 
+    /*
+     * This walk, like the other sweep-server walks below, doesn't take the handle list lock. During
+     * normal operation, the sweep server is the only thing that ever removes a handle from this
+     * list, so nothing else invalidates the pointers this walk follows. A new handle is fully
+     * initialized, behind a release barrier, before it is linked in, so this walk never finds one
+     * half-built either.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (WT_IS_METADATA(dhandle))
             continue;
@@ -230,12 +242,17 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     conn = S2C(session);
 
     /*
-     * Walk backwards. Checkpoint and statistics logging walk this list forwards and read-lock each
-     * handle in turn, while closing a handle holds its write lock for a long time. Two walks going
-     * the same way at similar speeds stay alongside each other, so the forward walk waits behind
-     * one closing handle after another. Walking the other way, the two cross once per pass.
+     * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
+     * only thing that ever removes a handle from this list, so nothing else invalidates the
+     * pointers this walk follows. A new handle is fully initialized, behind a release barrier,
+     * before it is linked in, so this walk never finds one half-built either.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
      */
-    TAILQ_FOREACH_REVERSE (dhandle, &conn->dhqh, __wt_dhandle_qh, q) {
+    TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         bool sweep_non_outdated_handle =
           __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep.handles_min;
         /*
@@ -303,6 +320,17 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
     conn = S2C(session);
 
+    /*
+     * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
+     * only thing that ever removes a handle from this list, so nothing else invalidates the
+     * pointers this walk follows. A new handle is fully initialized, behind a release barrier,
+     * before it is linked in, so this walk never finds one half-built either.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (WT_DHANDLE_CAN_DISCARD(dhandle))
             ++*dead_handlesp;
@@ -371,6 +399,20 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
+     * only thing that ever removes a handle from this list, so nothing else invalidates the
+     * pointers this walk follows. A new handle is fully initialized, behind a release barrier,
+     * before it is linked in, so this walk never finds one half-built either.
+     *
+     * The safe variant lets this loop remove the handle it is currently visiting, which is the one
+     * thing it does that the other sweep walks don't.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH_SAFE(dhandle, &conn->dhqh, q, dhandle_tmp)
     {
         if (WT_IS_METADATA(dhandle))
