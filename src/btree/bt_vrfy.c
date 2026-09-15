@@ -1668,8 +1668,11 @@ __verify_page_content_leaf(
      * page written as a single full image has no such reconstruction step, so a mismatch there
      * stays a hard failure.
      *
-     * FIXME-WT-17968: temporary, pending the checkpoint pick-up pinned-timestamp fix; remove
-     * from_delta along with it.
+     * FIXME-WT-17968: from_delta only earns its keep because a follower can currently adopt a
+     * checkpoint its own pinned timestamp shouldn't allow. Fixing that pick-up-time gate does not
+     * retroactively clean up a follower that already adopted a bad checkpoint beforehand, so
+     * from_delta stays until it's known no such checkpoint is still in use, not merely once the gate
+     * itself is fixed.
      */
     from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;
