@@ -392,26 +392,14 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
 
 /*
  * __time_value_obsolete_at_checkpoint --
- *     Is a value time window already obsolete against the checkpoint's own oldest timestamp? A
- *     disaggregated checkpoint's writer may have dropped a cell entirely once its stop became
- *     globally visible to it, without folding that into the parent aggregate it had already built
- *     for still-live siblings. Rebuilding the same base image and deltas under a different, older
- *     visibility --
- *     a follower's --
- *     can then retain that cell, which is not corruption: the checkpoint's own oldest timestamp
- *     already says no reader of this checkpoint needs it. Transaction ids are not comparable across
- *     the connections sharing a disaggregated store, so only the timestamp is considered, matching
- *     the equivalent tolerance already applied to history-store records during verification.
+ *     Is a value time window already obsolete against the checkpoint's own oldest timestamp, rather
+ *     than the reading connection's? Rebuilding a page from a base image and deltas keeps only the
+ *     cells still live under whoever is doing the rebuilding, which need not match what the
+ *     checkpoint's own writer saw when it built the parent aggregate. Transaction ids are not
+ *     comparable across connections sharing a disaggregated store, so only the timestamp counts.
  *
- * FIXME-WT-17968: this exists because a follower can currently adopt a checkpoint whose oldest
- *     timestamp has moved past content the follower's own pinned timestamp still needs --
- *     the pick-up-time panic meant to refuse that is dead code. Once that gate is restored, this
- *     relaxation (along with the parent-validation flag that gates it) is safe to remove: a
- *     connection's own oldest timestamp is always re-derived from the checkpoint it recovers at
- *     startup, not carried over from before, so restarting into the fix brings a follower that had
- *     already adopted a bad checkpoint back into a consistent state, and the restored gate keeps a
- *     running follower from drifting into that state again afterward. Nothing is stuck requiring
- *     proof of a clean fleet first.
+ * FIXME-WT-17968: only needed while checkpoint pick-up can adopt a checkpoint whose oldest
+ *     timestamp is ahead of the reader's own; remove once that is fixed.
  */
 static WT_INLINE bool
 __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
@@ -433,6 +421,14 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
   WT_TIME_AGGREGATE *parent, bool from_delta, bool silent)
 {
     char time_string[2][WT_TIME_STRING_SIZE];
+    bool start_obsolete_at_checkpoint;
+
+    /*
+     * A page rebuilt from a delta chain can hold a cell the checkpoint's own writer had already
+     * treated as obsolete when it built this aggregate; a full image has no such rebuild step, so a
+     * mismatch there stays a real failure.
+     */
+    start_obsolete_at_checkpoint = from_delta && __time_value_obsolete_at_checkpoint(session, tw);
 
     if (parent->newest_start_durable_ts != WT_TS_NONE &&
       tw->durable_start_ts > parent->newest_start_durable_ts)
@@ -451,13 +447,7 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
               __wt_time_window_to_string(tw, time_string[0]),
               __wt_time_aggregate_to_string(parent, time_string[1]));
     } else if (tw->start_ts != WT_TS_NONE && tw->start_ts < parent->oldest_start_ts &&
-      /*
-       * Only a page rebuilt from a delta chain can have diverged from the checkpoint writer's own
-       * view this way; a full image's cells and its recorded aggregate were written together, by
-       * the same pass, and a mismatch there is a real inconsistency.
-       */
-      !(from_delta && __time_value_obsolete_at_checkpoint(session, tw)))
-        /* Pages reconstructed from deltas may have cleared the start time point. */
+      !start_obsolete_at_checkpoint)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time before its parent's oldest start time; time window "
           "%s, parent %s",

@@ -1663,16 +1663,11 @@ __verify_page_content_leaf(
     page = ref->page;
     dsk = page->dsk;
     /*
-     * A page assembled from a base image and one or more deltas can legitimately hold a cell whose
-     * writer already dropped it from the parent aggregate under its own, different visibility. A
-     * page written as a single full image has no such reconstruction step, so a mismatch there
-     * stays a hard failure.
+     * Tells the parent-aggregate check below that this page was rebuilt from a base image and
+     * deltas, so it may relax a start-time mismatch that a full image could not have.
      *
-     * FIXME-WT-17968: from_delta only earns its keep because a follower can currently adopt a
-     * checkpoint its own pinned timestamp shouldn't allow. A restart always re-derives that pinned
-     * timestamp from the checkpoint being recovered, so once the pick-up gate is fixed, remove
-     * from_delta along with it -- a restart into the fix already brings any already-affected state
-     * back into a consistent one.
+     * FIXME-WT-17968: remove once checkpoint pick-up enforces that a reader's oldest timestamp
+     * covers the checkpoint it adopts.
      */
     from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;
