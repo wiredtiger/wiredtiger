@@ -70,13 +70,11 @@ struct options {
     int64_t cache_size_mb;
     int64_t checkpoint_interval_ms;
     int64_t follower_ingest_mb;
-    int64_t gc_truncate_count;
     int64_t insert_threads;
     int64_t leader_ingest_mb;
     int64_t marker_size_mb;
     int64_t oplog_size_mb;
     int64_t value_size;
-    int64_t verbose_level;
     std::string home_path;
 };
 
@@ -89,6 +87,9 @@ static const std::string PAGE_LOG = "palite";
 
 /* A percentile is only worth reporting over a reasonable number of operations. */
 static const int64_t MINIMUM_TRUNCATES = 25;
+
+/* Truncates run in the garbage collection phase, enough to collect what the follower recorded. */
+static const int64_t GC_TRUNCATES = 16;
 
 static WT_CONNECTION *g_leader;
 static WT_CONNECTION *g_follower;
@@ -257,14 +258,12 @@ load_configuration(int argc, char *argv[])
     opt.cache_size_mb = cfg.get_int("cache_size_mb");
     opt.checkpoint_interval_ms = cfg.get_int("checkpoint_interval_ms");
     opt.follower_ingest_mb = cfg.get_int("follower_ingest_mb");
-    opt.gc_truncate_count = cfg.get_int("gc_truncate_count");
     opt.home_path = cfg.get_string("home");
     opt.insert_threads = cfg.get_int("insert_threads");
     opt.leader_ingest_mb = cfg.get_int("leader_ingest_mb");
     opt.marker_size_mb = cfg.get_int("marker_size_mb");
     opt.oplog_size_mb = cfg.get_int("oplog_size_mb");
     opt.value_size = cfg.get_int("value_size");
-    opt.verbose_level = cfg.get_int("verbose_level");
 
     if (opt.marker_size_mb > opt.oplog_size_mb)
         testutil_die(EINVAL, "the marker size must not exceed the oplog size");
@@ -678,11 +677,10 @@ run_gc_phase()
 
     /* Spread the truncates over whatever is left live, so they stay behind the insert head. */
     uint64_t marker_key = g_truncated_key.load();
-    uint64_t chunk =
-      (g_next_key.load() - marker_key) / static_cast<uint64_t>(opt.gc_truncate_count + 1);
+    uint64_t chunk = (g_next_key.load() - marker_key) / static_cast<uint64_t>(GC_TRUNCATES + 1);
     testutil_assert(chunk > 0);
 
-    for (int64_t i = 0; i < opt.gc_truncate_count; i++) {
+    for (int64_t i = 0; i < GC_TRUNCATES; i++) {
         marker_key += chunk;
         if (truncate_to_marker(
               session, cursor, stat_cursor, marker_key, g_timestamp.fetch_add(1), true) != 0)
@@ -703,9 +701,6 @@ connection_config(const std::string &role)
       "MB,statistics=(all),statistics_log=(json,wait=1,on_close),precise_checkpoint=true" +
       ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so]" +
       ",disaggregated=(page_log=" + PAGE_LOG + ",role=\"" + role + "\")";
-
-    if (opt.verbose_level > 0)
-        config += ",verbose=(disaggregated_storage:" + std::to_string(opt.verbose_level) + ")";
     return (config);
 }
 

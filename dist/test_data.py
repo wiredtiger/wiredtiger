@@ -295,8 +295,6 @@ methods = {
             How often the leader takes a checkpoint during its workload phase''', min=1),
         Config('follower_ingest_mb', 384, r'''
             How much data the follower phase inserts''', min=1),
-        Config('gc_truncate_count', 16, r'''
-            How many truncates the garbage collection phase runs''', min=1),
         Config('home', 'WT_TEST', r'''
             The directory holding both connections and the shared page log'''),
         Config('insert_threads', 4, r'''
@@ -309,8 +307,6 @@ methods = {
             How much data the oplog keeps before truncation starts''', min=1),
         Config('value_size', 1000, r'''
             The size of an oplog record''', min=1),
-        Config('verbose_level', 0, r'''
-            The disaggregated storage verbosity level''', min=0),
     ]),
     'test_template' : Method(test_config),
 }

@@ -4,11 +4,9 @@
 cache_size_mb=8192,
 checkpoint_interval_ms=2000,
 follower_ingest_mb=8192,
-gc_truncate_count=32,
 home=WT_TEST,
 insert_threads=8,
 leader_ingest_mb=32768,
 marker_size_mb=16,
 oplog_size_mb=8192,
-value_size=1000,
-verbose_level=0
+value_size=1000
