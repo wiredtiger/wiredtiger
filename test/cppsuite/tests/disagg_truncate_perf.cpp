@@ -34,6 +34,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -104,7 +105,7 @@ private:
 
     /* Configuration. */
     int64_t _cache_size_mb, _checkpoint_interval_ms, _insert_mb, _insert_threads;
-    int64_t _marker_size_mb, _oplog_size_mb, _truncate_count, _value_size;
+    int64_t _marker_size_mb, _oplog_size_mb, _value_size;
     std::string _role;
 
     /* Set once the connection is in the follower role, whether by restart or by stepping down. */
@@ -120,10 +121,13 @@ private:
     cache_pressure _cache;
     truncate_cost _cost;
 
+    /* The timestamp manager in use, which the follower modes replace when the role changes. */
+    timestamp_manager *_tsm = nullptr;
+    std::unique_ptr<timestamp_manager> _follower_tsm;
+
     void load_config();
     void load(bool capture_checkpoints);
-    void run_leader();
-    void run_follower();
+    void run_workload();
     void insert_worker(uint64_t target_bytes);
     void truncate_worker(uint64_t target_bytes);
     void checkpoint_worker(uint64_t target_bytes, bool capture_checkpoints);
@@ -188,7 +192,6 @@ disagg_truncate_perf::load_config()
     _insert_threads = _config->get_int("insert_threads");
     _marker_size_mb = _config->get_int("marker_size_mb");
     _oplog_size_mb = _config->get_int("oplog_size_mb");
-    _truncate_count = _config->get_int("truncate_count");
     _value_size = _config->get_int("value_size");
     _role = _config->get_string("role");
 
@@ -198,15 +201,13 @@ disagg_truncate_perf::load_config()
     if (_marker_size_mb > _oplog_size_mb)
         testutil_die(EINVAL, "the marker size must not exceed the oplog size");
 
-    /*
-     * A leader truncates as the oplog overflows, so its insert volume and the marker size decide
-     * how many truncates it gets to measure. A follower is told how many to run.
+    /* Truncation follows the oplog overflowing, so the insert volume and marker size set its rate.
      */
-    int64_t truncates = _role == "leader" ? _insert_mb / _marker_size_mb : _truncate_count;
+    int64_t truncates = _insert_mb / _marker_size_mb;
     if (truncates < MINIMUM_TRUNCATES)
         testutil_die(EINVAL,
           "the run would measure %" PRId64 " truncates, fewer than the %" PRId64
-          " needed to measure one: raise insert_mb or truncate_count, or lower marker_size_mb",
+          " needed to measure one: raise insert_mb or lower marker_size_mb",
           truncates, MINIMUM_TRUNCATES);
 }
 
@@ -271,8 +272,7 @@ disagg_truncate_perf::insert_worker(uint64_t target_bytes)
         }
 
         testutil_check(session->timestamp_transaction(session.get(),
-          (COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(_timestamp_manager->get_next_ts()))
-            .c_str()));
+          (COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(_tsm->get_next_ts())).c_str()));
         if ((ret = session->commit_transaction(session.get(), nullptr)) != 0) {
             testutil_assert(ret == WT_ROLLBACK);
             _insert_rollbacks.fetch_add(1);
@@ -309,8 +309,7 @@ disagg_truncate_perf::truncate_to_marker(
       metrics_monitor::get_stat(stat_cursor, WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES);
 
     testutil_check(session->timestamp_transaction(session.get(),
-      (COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(_timestamp_manager->get_next_ts()))
-        .c_str()));
+      (COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(_tsm->get_next_ts())).c_str()));
     if ((ret = session->commit_transaction(session.get(), nullptr)) != 0) {
         testutil_assert(ret == WT_ROLLBACK);
         return (ret);
@@ -508,13 +507,17 @@ disagg_truncate_perf::load(bool capture_checkpoints)
     testutil_check(session->checkpoint(session.get(), nullptr));
 }
 
-/* Append to the oplog and trim it as it overflows, which is what a primary does. */
+/*
+ * Append to the oplog and trim it as it overflows. Every role runs this: a leader writes to its
+ * stable tree, a follower to its ingest table, and only the roles differ in what a truncate then
+ * has to do.
+ */
 void
-disagg_truncate_perf::run_leader()
+disagg_truncate_perf::run_workload()
 {
-    logger::log_msg(LOG_INFO, "Starting the leader phase.");
+    logger::log_msg(LOG_INFO, "Starting the " + _role + " phase.");
 
-    std::atomic<bool> sampling_done{false};
+    std::atomic<bool> done{false};
     uint64_t target_bytes = _inserted_bytes.load() + mb_to_bytes(_insert_mb);
     phase_stats before = read_phase_stats();
     auto start = std::chrono::steady_clock::now();
@@ -524,60 +527,23 @@ disagg_truncate_perf::run_leader()
         for (int64_t i = 0; i < _insert_threads; i++)
             tm.add_thread(&disagg_truncate_perf::insert_worker, this, target_bytes);
         tm.add_thread(&disagg_truncate_perf::truncate_worker, this, target_bytes);
-        tm.add_thread(&disagg_truncate_perf::checkpoint_worker, this, target_bytes, false);
-        tm.add_thread(&disagg_truncate_perf::sampler_worker, this, &sampling_done);
+        tm.add_thread(&disagg_truncate_perf::sampler_worker, this, &done);
+
+        /* Only a leader checkpoints, and only a restarted follower has anything to pick up. */
+        if (!_follower)
+            tm.add_thread(&disagg_truncate_perf::checkpoint_worker, this, target_bytes, false);
+        if (!_checkpoints.empty())
+            tm.add_thread(&disagg_truncate_perf::pickup_worker, this, &done);
 
         thread_manager stopper;
         stopper.add_thread([&]() {
             while (_inserted_bytes.load() < target_bytes)
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            sampling_done.store(true);
+            done.store(true);
         });
         tm.join();
         stopper.join();
     }
-
-    report_phase(before, read_phase_stats(),
-      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - start)
-          .count()));
-}
-
-/*
- * Trim an oplog a leader wrote, while picking up that leader's checkpoints. A follower does not
- * append: its rows arrive in the checkpoints it adopts.
- */
-void
-disagg_truncate_perf::run_follower()
-{
-    logger::log_msg(LOG_INFO, "Starting the follower phase.");
-
-    scoped_session session = connection_manager::instance().create_session();
-    scoped_cursor cursor = session.open_scoped_cursor(TABLE_URI);
-    scoped_cursor stat_cursor = session.open_scoped_cursor(STATISTICS_URI);
-
-    std::atomic<bool> done{false};
-    phase_stats before = read_phase_stats();
-    auto start = std::chrono::steady_clock::now();
-    execution_timer timer("truncate", _args.test_name);
-
-    thread_manager tm;
-    tm.add_thread(&disagg_truncate_perf::sampler_worker, this, &done);
-    if (!_checkpoints.empty())
-        tm.add_thread(&disagg_truncate_perf::pickup_worker, this, &done);
-
-    uint64_t marker_key = _truncated_key.load();
-    for (int64_t i = 0; i < _truncate_count; i++) {
-        marker_key += marker_records();
-        testutil_assert(marker_key < _next_key.load());
-        if (timer.track([&]() {
-                return (truncate_to_marker(session, cursor, stat_cursor, marker_key));
-            }) != 0)
-            _truncate_rollbacks.fetch_add(1);
-    }
-
-    done.store(true);
-    tm.join();
 
     report_phase(before, read_phase_stats(),
       static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -608,26 +574,24 @@ disagg_truncate_perf::run()
      * The framework's timestamp manager moves the stable and oldest timestamps behind the clock,
      * which is what lets anything leave cache. Run it for the whole test.
      */
-    _timestamp_manager->load();
+    _tsm = _timestamp_manager;
+    _tsm->load();
     thread_manager timestamps;
-    timestamps.add_thread(&component::run, _timestamp_manager);
+    timestamps.add_thread(&component::run, _tsm);
 
     load(_role == "follower");
 
     if (_role == "leader") {
-        run_leader();
-        _timestamp_manager->end_run();
+        run_workload();
+        _tsm->end_run();
         timestamps.join();
         metrics_writer::instance().output_perf_file(_args.test_name);
         return;
     }
 
-    /*
-     * Neither of the follower modes checkpoints again, so the timestamp manager has nothing left to
-     * do. Stop it before the role changes: it moves timestamps on the connection, which one of the
-     * two modes is about to close.
+    /* Stop the timestamp manager: it moves timestamps on a connection about to change underneath.
      */
-    _timestamp_manager->end_run();
+    _tsm->end_run();
     timestamps.join();
 
     std::string follower_config = config;
@@ -659,7 +623,20 @@ disagg_truncate_perf::run()
         connection_manager::instance().reopen(follower_config, home);
     }
 
+    /*
+     * Give the follower its own timestamp manager. It has to keep moving the stable timestamp: its
+     * inserts are unstable updates until it does, and a follower writes none of them out.
+     */
+    _follower_tsm.reset(new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER)));
+    _tsm = _follower_tsm.get();
+    _tsm->load();
+    thread_manager follower_timestamps;
+    follower_timestamps.add_thread(&component::run, _tsm);
+
     _follower = true;
-    run_follower();
+    run_workload();
+
+    _tsm->end_run();
+    follower_timestamps.join();
     metrics_writer::instance().output_perf_file(_args.test_name);
 }

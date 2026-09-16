@@ -1,12 +1,14 @@
 # Configuration for disagg_truncate_perf across a role change.
-# The oplog is loaded as a leader, the connection then steps down in place and trims it. Nothing is
-# adopted and the cache stays warm, so this measures the step down and the truncates after it.
-cache_size_mb=1024,
+# The oplog is loaded as a leader, the connection then steps down in place, appends to its ingest
+# table and trims. Nothing is adopted and the cache stays warm, so this measures the step down and
+# the truncates after it.
+# The insert volume has to fit the cache: a follower's ingest table is in memory and nothing
+# collects it here, since a stepped down connection adopts no checkpoints.
+cache_size_mb=2048,
 checkpoint_interval_ms=2000,
-insert_mb=1024,
+insert_mb=256,
 insert_threads=4,
 marker_size_mb=8,
-oplog_size_mb=1024,
+oplog_size_mb=512,
 role=switch,
-truncate_count=32,
 value_size=1000

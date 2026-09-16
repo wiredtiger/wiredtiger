@@ -294,9 +294,6 @@ methods = {
         Config('role', 'leader', r'''
             What the run measures: a leader trimming its own oplog, a follower trimming one a
             leader wrote and picking up its checkpoints, or the switch between the two'''),
-        Config('truncate_count', 32, r'''
-            How many truncates a follower runs, which does not append and so never overflows''',
-            min=1),
         Config('value_size', 1000, r'''
             The size of an oplog record''', min=1),
     ]),

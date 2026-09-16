@@ -826,8 +826,6 @@ static const WT_CONFIG_CHECK confchk_disagg_truncate_perf[] = {
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4,
     confchk_timestamp_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 26, INT64_MIN,
     INT64_MAX, NULL},
-  {"truncate_count", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 54, 1,
-    INT64_MAX, NULL},
   {"validate", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 29, INT64_MIN,
     INT64_MAX, NULL},
   {"value_size", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 38, 1, INT64_MAX,
@@ -841,7 +839,7 @@ static const uint8_t confchk_disagg_truncate_perf_jump[WT_CONFIG_JUMP_TABLE_SIZE
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5, 6, 7, 7,
-  7, 7, 10, 10, 10, 10, 12, 12, 14, 14, 14, 16, 18, 20, 20, 22, 23, 23, 23, 23, 23, 23, 23, 23};
+  7, 7, 10, 10, 10, 10, 12, 12, 14, 14, 14, 16, 18, 19, 19, 21, 22, 22, 22, 22, 22, 22, 22, 22};
 
 static const WT_CONFIG_CHECK confchk_hs_cleanup[] = {
   {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
@@ -1458,8 +1456,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "oplog_size_mb=256,reverse_collator=false,role=leader,"
     "statistics_config=(enable_logging=true,type=all),"
     "sweep_interval=10,timestamp_manager=(enabled=true,oldest_lag=1,"
-    "op_rate=1s,stable_lag=1),truncate_count=32,validate=true,"
-    "value_size=1000,"
+    "op_rate=1s,stable_lag=1),validate=true,value_size=1000,"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
     ",op_rate=1s,thread_count=0),checkpoint_config=(op_rate=60s,"
     "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
@@ -1473,7 +1470,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_disagg_truncate_perf, 23, confchk_disagg_truncate_perf_jump, 10, WT_CONF_SIZING_NONE,
+    confchk_disagg_truncate_perf, 22, confchk_disagg_truncate_perf_jump, 10, WT_CONF_SIZING_NONE,
     false},
   {"hs_cleanup",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
