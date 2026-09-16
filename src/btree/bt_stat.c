@@ -686,8 +686,7 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
                 break;
             case WT_CELL_VALUE:
             case WT_CELL_VALUE_OVFL: {
-                bool deleted = WT_TIME_WINDOW_HAS_STOP(&unpack_kv.tw) &&
-                  __wt_txn_tw_stop_visible(session, &unpack_kv.tw);
+                bool deleted = __wt_txn_tw_stop_visible(session, &unpack_kv.tw);
 
                 if (have_key)
                     WT_RET(__size_stat_flush_key(
