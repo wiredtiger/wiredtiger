@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, compatibility_test, wiredtiger
+import json, os, compatibility_test, wiredtiger
 
 
 class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
@@ -42,6 +42,7 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
     Enabled leftover: older dir_store + flush_tier. Develop with a default
     open (reads WiredTiger.basecfg) returns ENOTSUP. Develop with
     config_base=false opens; the leftover table URI is unsupported.
+    Older then reopens the same home with dir_store and reads the rows.
     '''
 
     older = ['mongodb-8.0', 'mongodb-9.0']
@@ -54,6 +55,8 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
     meta_file_uri = 'file:WiredTiger.wt'
     bucket = 'bucket1'
     bucket_prefix = 'pfx_'
+    leftover_prefixes = ('object:', 'tier:', 'tiered:')
+    leftover_snapshot = 'leftover_meta.json'
     nrows = 100
 
     # Ignore leftover WiredTiger.basecfg; logging off so log version is not in play.
@@ -71,11 +74,41 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
         self.run_method_on_branch(self.older_branch, 'on_older_enabled')
         self.run_method_on_branch(self.newer_branch, 'on_newer_enabled_basecfg')
         self.run_method_on_branch(self.newer_branch, 'on_newer_enabled_no_basecfg')
+        self.run_method_on_branch(self.older_branch, 'on_older_enabled_reopen')
 
     def _dir_store_path(self):
         # The extension exists only in the older build.
         return os.path.join(self.branch_build_path(self.older_branch.name),
           'ext', 'storage_sources', 'dir_store', 'libwiredtiger_dir_store.so')
+
+    def _enabled_conn_config(self):
+        ext = self._dir_store_path()
+        assert os.path.exists(ext), f'dir_store extension not found: {ext}'
+        # Quote the path: standalone builds live in a directory with '=' in the name.
+        return (
+          'create,tiered_storage=(name=dir_store,bucket=%s,bucket_prefix=%s),'
+          'extensions=("%s")' % (self.bucket, self.bucket_prefix, ext))
+
+    def _leftover_meta(self, session):
+        meta = session.open_cursor('metadata:')
+        leftover = {}
+        for k, v in meta:
+            assert isinstance(v, str) and v, k
+            if k.startswith(self.leftover_prefixes):
+                leftover[k] = v
+        meta.close()
+        return leftover
+
+    def _write_leftover_snapshot(self, leftover):
+        with open(self.leftover_snapshot, 'w') as f:
+            json.dump(leftover, f, sort_keys=True)
+
+    def _assert_leftover_unchanged(self, session):
+        with open(self.leftover_snapshot) as f:
+            expected = json.load(f)
+        got = self._leftover_meta(session)
+        assert got == expected, 'tiered metadata changed:\nexpected %s\ngot %s' % (
+          expected, got)
 
     def _write_rows(self, session):
         c = session.open_cursor(self.uri)
@@ -150,23 +183,16 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
         conn.close()
 
     def on_older_enabled(self):
-        ext = self._dir_store_path()
-        assert os.path.exists(ext), f'dir_store extension not found: {ext}'
         os.mkdir(self.bucket)
-
-        # Quote the path: standalone builds live in a directory with '=' in the name.
-        conn_config = (
-          'create,tiered_storage=(name=dir_store,bucket=%s,bucket_prefix=%s),'
-          'extensions=("%s")' % (self.bucket, self.bucket_prefix, ext))
-        conn = wiredtiger.wiredtiger_open('.', conn_config)
+        conn = wiredtiger.wiredtiger_open('.', self._enabled_conn_config())
         session = conn.open_session()
         session.create(self.uri, self.create_config)
         self._write_rows(session)
         session.checkpoint('flush_tier=(enabled)')
-        meta = session.open_cursor('metadata:')
-        found = any(k.startswith('tiered:') for k, _v in meta)
-        meta.close()
-        assert found, 'older branch did not create a tiered: metadata entry'
+        leftover = self._leftover_meta(session)
+        assert any(k.startswith('tiered:') for k in leftover), (
+          'older branch did not create a tiered: metadata entry')
+        self._write_leftover_snapshot(leftover)
         session.close()
         conn.close()
 
@@ -182,20 +208,21 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
     def on_newer_enabled_no_basecfg(self):
         conn = wiredtiger.wiredtiger_open('.', self.open_config)
         session = conn.open_session()
-        meta = session.open_cursor('metadata:')
-        leftover = []
-        for k, v in meta:
-            assert isinstance(v, str) and v, k
-            if k.startswith(('object:', 'tier:', 'tiered:')):
-                leftover.append(k)
-        meta.close()
-        assert leftover, 'old metadata file missing expected tiered storage entries'
+        self._assert_leftover_unchanged(session)
         try:
             session.open_cursor(self.uri)
             assert False, 'opening a leftover tiered table should fail'
         except wiredtiger.WiredTigerError:
             pass
         self.assert_captured_output_contains('stderr', 'unsupported object operation')
+        session.close()
+        conn.close()
+
+    def on_older_enabled_reopen(self):
+        conn = wiredtiger.wiredtiger_open('.', self._enabled_conn_config())
+        session = conn.open_session()
+        self._assert_leftover_unchanged(session)
+        self._check_rows(session)
         session.close()
         conn.close()
 
