@@ -2571,9 +2571,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "disagg truncate perf test"
         vars:
-          # Keep an 8GB oplog of 1KB records trimmed in 16MB markers, ingesting 32GB as the leader
-          # and 2GB as the follower. Cache size is 8GB, checkpoints every two seconds.
-          test_args: '-C "cache_size_mb=8192,checkpoint_interval_ms=2000,follower_ingest_mb=2048,gc_truncate_count=32,home=WT_TEST,insert_threads=8,leader_ingest_mb=32768,marker_size_mb=16,oplog_size_mb=8192,value_size=1000,verbose_level=0"'
+          test_args: "-f configs/test_disagg_truncate_perf_perf.txt"
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
