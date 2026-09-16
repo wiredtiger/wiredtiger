@@ -556,6 +556,8 @@ __wt_meta_track_drop_rename(WT_SESSION_IMPL *session, uint32_t id)
     trk = (WT_META_TRACK *)session->meta_track_next - 1;
     WT_ASSERT(session, trk->op == WT_ST_DROP_COMMIT && trk->b == NULL);
 
+    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->drop_defer_unlink))
+        return;
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_LIVE_RESTORE_FS))
         return;
     WT_ERR(__wt_fs_exist(session, trk->a, &exist));

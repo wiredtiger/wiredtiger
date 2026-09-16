@@ -1153,7 +1153,8 @@ struct __wt_connection_impl {
      */
     bool modified;
 
-    WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
+    WT_CONN_SWEEP sweep;              /* Handle sweep thread and configuration */
+    wt_shared bool drop_defer_unlink; /* Deferred unlink of dropped files */
 
     WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 
