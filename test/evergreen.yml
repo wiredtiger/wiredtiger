@@ -2288,6 +2288,396 @@ tasks:
             ${PREPARE_TEST_ENV}
             test/catch2/catch2-unittests
 
+ - name: COMPATIBILITY-TEST-develop-test-readonly-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/readonly
+ - name: COMPATIBILITY-TEST-develop-test-cppsuite-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/cppsuite
+ - name: COMPATIBILITY-TEST-develop-test-fops-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/fops
+ - name: COMPATIBILITY-TEST-develop-test-salvage-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/salvage
+ - name: COMPATIBILITY-TEST-develop-test-catch2-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/catch2
+ - name: COMPATIBILITY-TEST-develop-test-format-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/format
+ - name: COMPATIBILITY-TEST-develop-test-manydbs-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/manydbs
+ - name: COMPATIBILITY-TEST-develop-test-fuzz-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/fuzz
+ - name: COMPATIBILITY-TEST-develop-test-syscall-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/syscall
+ - name: COMPATIBILITY-TEST-develop-test-thread-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/thread
+ - name: COMPATIBILITY-TEST-develop-test-packing-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/test/packing
+ - name: COMPATIBILITY-TEST-develop-lang-python-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/develop/lang/python
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-readonly-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/readonly
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-cppsuite-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/cppsuite
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-fops-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/fops
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-salvage-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/salvage
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-catch2-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/catch2
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-format-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/format
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-manydbs-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/manydbs
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-fuzz-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/fuzz
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-syscall-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/syscall
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-thread-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/thread
+ - name: COMPATIBILITY-TEST-mongodb-8.3-test-packing-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/test/packing
+ - name: COMPATIBILITY-TEST-mongodb-8.3-ext-storage-sources-s3-store-test-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/ext/storage_sources/s3_store/test
+ - name: COMPATIBILITY-TEST-mongodb-8.3-ext-storage-sources-gcp-store-test-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/ext/storage_sources/gcp_store/test
+ - name: COMPATIBILITY-TEST-mongodb-8.3-ext-storage-sources-azure-store-test-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/ext/storage_sources/azure_store/test
+ - name: COMPATIBILITY-TEST-mongodb-8.3-lang-python-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-8.3/lang/python
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-readonly-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/readonly
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-cppsuite-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/cppsuite
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-fops-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/fops
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-salvage-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/salvage
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-catch2-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/catch2
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-format-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/format
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-manydbs-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/manydbs
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-fuzz-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/fuzz
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-syscall-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/syscall
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-thread-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/thread
+ - name: COMPATIBILITY-TEST-mongodb-9.0-test-packing-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/test/packing
+ - name: COMPATIBILITY-TEST-mongodb-9.0-lang-python-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: COMPATIBILITY_TEST/mongodb-9.0/lang/python
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.

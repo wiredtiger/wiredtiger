@@ -271,8 +271,8 @@
  */
 #define WT_TIME_AGGREGATE_MERGE_PAGE_DEL(ta, page_del)                                \
     do {                                                                              \
-        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;                         \
-        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;             \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;                      \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;            \
         (ta)->newest_txn = (page_del)->txnid;                                         \
         (ta)->newest_stop_ts = (page_del)->pg_del_start_ts;                           \
         (ta)->newest_stop_txn = (page_del)->txnid;                                    \
