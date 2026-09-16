@@ -7,6 +7,7 @@ set(sources
     misc.c
     parse_opts.c
     thread.c
+    tiered.c
     util_modify.c
     util_random.c
 )

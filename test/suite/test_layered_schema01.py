@@ -26,9 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wtscenario import make_scenarios
+
+StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # Basic layered tree creation test
 @disagg_test_class

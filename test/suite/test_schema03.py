@@ -33,6 +33,7 @@
 
 import os
 import suite_random
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 import wtscenario, wttest
 
 try:
@@ -194,8 +195,7 @@ class idxconfig:
             colpos += 1
         return keys
 
-@wttest.skip_for_hook("disagg", "Disagg rewrites table: creates; this test assumes ordinary tables")
-class test_schema03(wttest.WiredTigerTestCase):
+class test_schema03(TieredConfigMixin, wttest.WiredTigerTestCase):
     """
     Test schemas - a 'predictably random' assortment of columns,
     column groups and indices are created within tables, and are
@@ -223,7 +223,7 @@ class test_schema03(wttest.WiredTigerTestCase):
     """
 
     # Boost cache size and number of sessions for this test
-    conn_config = 'cache_size=100m,session_max=1000,'
+    conn_config_string = 'cache_size=100m,session_max=1000,'
 
     ################################################################
     # These three variables can be altered to help generate
@@ -275,8 +275,9 @@ class test_schema03(wttest.WiredTigerTestCase):
     table_args_scenarios = wtscenario.quick_scenarios('s_extra_table_args',
         ['', ',type=file'], [0.5, 0.5])
 
+    tiered_storage_sources = gen_tiered_storage_sources()
     scenarios = wtscenario.make_scenarios(
-        restart_scenarios, ntable_scenarios,
+        tiered_storage_sources, restart_scenarios, ntable_scenarios,
         ncolgroup_scenarios, nindex_scenarios, idx_args_scenarios,
         table_args_scenarios, prune=30)
 
@@ -301,6 +302,10 @@ class test_schema03(wttest.WiredTigerTestCase):
             self.skipTest('Require %d open files, only %d available' % newlimit)
         resource.setrlimit(resource.RLIMIT_NOFILE, newlimit)
         super(test_schema03, self).setUp()
+
+    # Set up connection config.
+    def conn_config(self):
+        return self.conn_config_string + self.tiered_conn_config()
 
     def tearDown(self):
         super(test_schema03, self).tearDown()

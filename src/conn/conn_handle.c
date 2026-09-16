@@ -31,6 +31,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     /* Prefetch. */
     WT_RET(__wti_conn_prefetch_init(session));
 
+    /* Tiered storage. */
+    WT_RET(__wti_conn_tiered_init(session));
+
     /* I/O capacity subsystem. */
     __wti_conn_capacity_init(session);
 
@@ -129,6 +132,9 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
     __wti_conn_prefetch_destroy(session);
+
+    /* Tiered storage. */
+    __wti_conn_tiered_destroy(session);
 
     /* I/O capacity subsystem. */
     __wti_conn_capacity_destroy(session);

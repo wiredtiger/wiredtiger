@@ -54,6 +54,7 @@
         Module("schema"),
         Module("session"),
         # Module("support"),
+        Module("tiered"),
         Module("truncate"),
         Module("txn"),
         # Module("utilities"),

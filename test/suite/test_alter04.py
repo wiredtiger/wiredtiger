@@ -27,12 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
 # Smoke-test the session alter operations.
 # This test confirms os_cache_dirty_max and os_cache_max.
-@wttest.skip_for_hook("disagg", "session.alter is not supported in disaggregated storage")
-class test_alter04(wttest.WiredTigerTestCase):
+class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
     name = "alter04"
     entries = 100
     cache_alter=('1M', '100K')
@@ -56,7 +56,8 @@ class test_alter04(wttest.WiredTigerTestCase):
         ('cache', dict(setting='os_cache_max')),
         ('cache_dirty', dict(setting='os_cache_dirty_max')),
     ]
-    scenarios = make_scenarios(types, sizes, reopen, settings)
+    tiered_storage_sources = gen_tiered_storage_sources()
+    scenarios = make_scenarios(tiered_storage_sources, types, sizes, reopen, settings)
 
     def verify_metadata(self, metastr):
         if metastr == '':
@@ -82,6 +83,9 @@ class test_alter04(wttest.WiredTigerTestCase):
 
     # Alter: Change the setting after creation
     def test_alter04_cache(self):
+        if self.is_tiered_scenario() and (self.uri == 'file:'):
+            self.skipTest('Tiered storage does not support file URIs.')
+
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=i,'
         complex_params = ''

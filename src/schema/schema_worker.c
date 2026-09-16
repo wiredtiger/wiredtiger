@@ -74,6 +74,37 @@ __wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
 }
 
 /*
+ * __schema_tiered_worker --
+ *     Run a schema worker operation on each tier of a tiered data source.
+ */
+static int
+__schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+    u_int i;
+
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
+    tiered = (WT_TIERED *)session->dhandle;
+
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        dhandle = tiered->tiers[i].tier;
+        if (dhandle == NULL)
+            continue;
+        WT_WITHOUT_DHANDLE(session,
+          ret = __wt_schema_worker(session, dhandle->name, file_func, name_func, cfg, open_flags));
+        WT_ERR(ret);
+    }
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __schema_layered_stable_worker_verify --
  *     Verify the layered stable table.
  */
@@ -244,10 +275,11 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     WT_SESSION *wt_session;
     WT_TABLE *table;
     u_int i;
-    bool skip;
+    bool is_tiered, skip;
 
     table = NULL;
     skip = false;
+    WT_NOT_READ(is_tiered, false);
 
     if (name_func != NULL)
         WT_ERR(name_func(session, uri, &skip));
@@ -255,6 +287,12 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     /* If the callback said to skip this object, we're done. */
     if (skip)
         return (0);
+
+    /* Tiered tables do not support verify or salvage operations. */
+    is_tiered = WT_PREFIX_MATCH(uri, "object:") || WT_PREFIX_MATCH(uri, "tier:") ||
+      WT_PREFIX_MATCH(uri, "tiered:");
+    if (is_tiered && (file_func == __wt_salvage || file_func == __wt_verify))
+        WT_ERR(ENOTSUP);
 
     /* Get the btree handle(s) and call the underlying function. */
     if (WT_PREFIX_MATCH(uri, "file:")) {
@@ -284,6 +322,11 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
         for (i = 0; i < WT_COLGROUPS(table); i++) {
             colgroup = table->cgroups[i];
 
+            /* Verify is not implemented for tiered tables. */
+            if ((file_func == __wt_salvage || file_func == __wt_verify) &&
+              WT_PREFIX_MATCH(colgroup->source, "tiered:"))
+                WT_ERR(ENOTSUP);
+
             skip = false;
             if (name_func != NULL)
                 WT_ERR(name_func(session, colgroup->name, &skip));
@@ -311,6 +354,8 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
         }
     } else if (WT_PREFIX_MATCH(uri, "layered:") && file_func == __wt_verify) {
         WT_ERR(__schema_layered_worker_verify(session, uri, file_func, name_func, cfg, open_flags));
+    } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
+        WT_ERR(__schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {
         wt_session = (WT_SESSION *)session;
         if (file_func == __wt_salvage && dsrc->salvage != NULL)

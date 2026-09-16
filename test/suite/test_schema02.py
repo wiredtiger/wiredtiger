@@ -27,11 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
 # Columns, column groups, indexes
-@wttest.skip_for_hook("disagg", "Column groups are not supported with disagg layered tables")
-class test_schema02(wttest.WiredTigerTestCase):
+class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
@@ -41,7 +41,8 @@ class test_schema02(wttest.WiredTigerTestCase):
         ('normal', dict(type='normal', idx_config='')),
     ]
 
-    scenarios = make_scenarios(types)
+    tiered_storage_sources = gen_tiered_storage_sources()
+    scenarios = make_scenarios(tiered_storage_sources, types)
 
     def expect_failure_colgroup(self, name, configstr, match):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

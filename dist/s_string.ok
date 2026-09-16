@@ -545,6 +545,7 @@ TextWrapper
 ThreadList
 ThreadListWrapper
 ThreadsafeForwardingResult
+TieredConfigMixin
 Timespec
 Tput
 TryCV
@@ -1386,7 +1387,6 @@ logfile
 logmgr
 lognum
 logop
-logp
 logpath
 logread
 logrec

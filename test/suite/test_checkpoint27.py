@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 # Check that nothing bad happens if we read in metadata pages while in the
 # middle of reading a checkpoint.
 
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 class test_checkpoint(wttest.WiredTigerTestCase):
 

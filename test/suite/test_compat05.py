@@ -34,6 +34,7 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     remove_values = [

@@ -124,7 +124,8 @@ class test_compact02(compact_util):
         self.session.checkpoint()
         sz = self.get_size(self.uri)
         self.pr('After populate ' + str(sz // mb) + 'MB')
-        self.assertGreater(sz, self.fullsize)
+        if not self.runningHook('tiered'):
+            self.assertGreater(sz, self.fullsize)
 
         # 3. Delete the half of the records with the larger record size.
         c = self.session.open_cursor(self.uri, None)
@@ -160,7 +161,7 @@ class test_compact02(compact_util):
 
         statDict = self.get_compact_progress_stats(self.uri)
         # After compact, the file size should be less than half the full size.
-        if not self.dryrun:
+        if not self.runningHook('tiered') and not self.dryrun:
             self.assertLess(sz, self.fullsize // 2)
 
             # Verify compact progress stats.

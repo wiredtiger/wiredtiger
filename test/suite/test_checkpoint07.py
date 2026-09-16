@@ -32,6 +32,7 @@ import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
+@wttest.skip_for_hook("tiered", "tiered checkpoints override clean checkpoint timer behavior")
 class test_checkpoint07(wttest.WiredTigerTestCase):
     ckpt_precision = [
         ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),

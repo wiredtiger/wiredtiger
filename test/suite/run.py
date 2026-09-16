@@ -351,6 +351,9 @@ if __name__ == '__main__':
     hook_names = []
     timeout = 0
     command_line_vars = dict()
+    # Generate a random string to use as a prefix for the tiered test objects to group them under
+    # the same test run.
+    ss_random_prefix = str(random.randrange(1, 2147483646))
 
     while len(args) > 0:
         arg = args.pop(0)
@@ -632,7 +635,7 @@ if __name__ == '__main__':
     wttest.WiredTigerTestCase.globalSetup(command_line_vars, preserve, removeAtStart, timestamp,
                                           gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
-                                          seedw, seedz, hookmgr, timeout)
+                                          seedw, seedz, hookmgr, ss_random_prefix, timeout)
 
     skipTests = []
     if skipFileForTests:
