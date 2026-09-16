@@ -619,7 +619,6 @@ __wti_evict_threshold_pct(double pct_clean, double pct_dirty, double pct_updates
         WT_MIN(WT_MIN(clean_trigger - pct_clean, dirty_trigger - pct_dirty),
           updates_trigger - pct_updates)));
 }
-}
 
 /* !!!
  * __wt_evict_needed --
