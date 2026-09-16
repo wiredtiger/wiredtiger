@@ -2,12 +2,8 @@
 # Keep a 256MB oplog of 1KB records, trimmed 8MB at a time, and give the leader enough ingest to
 # recycle it several times over. Each phase has to retire enough markers for its truncate
 # percentiles to mean something.
-# The phases workload measures each role on its own. There the follower volume is deliberately
-# small: its inserts land in an in-memory ingest table that nothing drains until the run ends. The
-# replica workload runs both roles at once and does not have that limit, because the follower picks
-# up the leader's checkpoints as they are taken.
-apply_batch_ops=1000,
-apply_queue_max=100000,
+# The follower phase keeps its own volume modest: its inserts land in an in-memory ingest table
+# that nothing collects until the run delivers the next checkpoint.
 cache_size_mb=1024,
 checkpoint_interval_ms=2000,
 follower_ingest_mb=256,
@@ -17,7 +13,5 @@ insert_threads=4,
 leader_ingest_mb=1024,
 marker_size_mb=8,
 oplog_size_mb=256,
-replica_ingest_mb=1024,
 value_size=1000,
-verbose_level=0,
-workload=phases
+verbose_level=0
