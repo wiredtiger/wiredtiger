@@ -1,11 +1,11 @@
-# Configuration for disagg_truncate_perf.
-# Keep a 256MB oplog of 1KB records, trimmed 8MB at a time, and give each phase enough ingest to
-# recycle it several times over, so its truncate percentiles mean something.
+# Configuration for disagg_truncate_perf as a leader.
+# Keep a 256MB oplog of 1KB records, trimmed 8MB at a time, and append enough to recycle it several
+# times over, so the truncate percentiles mean something.
 cache_size_mb=1024,
 checkpoint_interval_ms=2000,
-follower_ingest_mb=384,
+insert_mb=1024,
 insert_threads=4,
-leader_ingest_mb=1024,
 marker_size_mb=8,
 oplog_size_mb=256,
+role=leader,
 value_size=1000

@@ -280,6 +280,25 @@ methods = {
         Config("burst_duration", 90, r'''
         How long the insertions will occur for.''')]),
     'cache_resize' : Method(test_config),
+    'disagg_truncate_perf' : Method(test_config + [
+        Config('checkpoint_interval_ms', 2000, r'''
+            How often a leader checkpoints while the workload runs''', min=1),
+        Config('insert_mb', 1024, r'''
+            How much data the run appends to the oplog''', min=1),
+        Config('insert_threads', 4, r'''
+            How many threads append to the oplog''', min=1),
+        Config('marker_size_mb', 8, r'''
+            The size of an oplog marker, the unit a single truncate removes''', min=1),
+        Config('oplog_size_mb', 256, r'''
+            How much data the oplog keeps before truncation starts''', min=1),
+        Config('role', 'leader', r'''
+            The role the measured workload runs in, either leader or follower'''),
+        Config('truncate_count', 32, r'''
+            How many truncates a follower runs, which does not append and so never overflows''',
+            min=1),
+        Config('value_size', 1000, r'''
+            The size of an oplog record''', min=1),
+    ]),
     'hs_cleanup' : Method(test_config),
     'operations_test' : Method(test_config),
     'reverse_split' : Method(test_config),
@@ -288,21 +307,5 @@ methods = {
         Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
-    'disagg_truncate_perf' : Method(test_config + [
-        Config('checkpoint_interval_ms', 2000, r'''
-            How often the leader checkpoints while a phase runs''', min=1),
-        Config('follower_ingest_mb', 384, r'''
-            How much data the follower phase inserts''', min=1),
-        Config('insert_threads', 4, r'''
-            How many threads append to the oplog''', min=1),
-        Config('leader_ingest_mb', 1024, r'''
-            How much data the leader phase inserts''', min=1),
-        Config('marker_size_mb', 8, r'''
-            The size of an oplog marker, the unit a single truncate removes''', min=1),
-        Config('oplog_size_mb', 256, r'''
-            How much data the oplog keeps before truncation starts''', min=1),
-        Config('value_size', 1000, r'''
-            The size of an oplog record''', min=1),
-    ]),
     'test_template' : Method(test_config),
 }

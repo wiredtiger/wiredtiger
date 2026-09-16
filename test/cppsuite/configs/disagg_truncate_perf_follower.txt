@@ -1,0 +1,12 @@
+# Configuration for disagg_truncate_perf as a follower.
+# The oplog is loaded as a leader, then the run restarts in the follower role and trims it while
+# picking up the checkpoints taken during that load.
+cache_size_mb=1024,
+checkpoint_interval_ms=2000,
+insert_mb=1024,
+insert_threads=4,
+marker_size_mb=8,
+oplog_size_mb=1024,
+role=follower,
+truncate_count=32,
+value_size=1000

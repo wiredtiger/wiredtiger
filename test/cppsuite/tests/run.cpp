@@ -45,7 +45,6 @@
 #include "burst_inserts.cpp"
 #include "cache_resize.cpp"
 #include "disagg_truncate_perf.cpp"
-#include "disagg_truncate_perf.cpp"
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
 #include "reverse_split.cpp"
@@ -156,8 +155,6 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         burst_inserts(args).run();
     else if (test_name == "cache_resize")
         cache_resize(args).run();
-    else if (test_name == "disagg_truncate_perf")
-        disagg_truncate_perf(args).run();
     else if (test_name == "disagg_truncate_perf")
         disagg_truncate_perf(args).run();
     else if (test_name == "hs_cleanup")
