@@ -54,11 +54,14 @@ __drop_file(
 
     /* Remove the metadata entry (ignore missing items). */
     WT_TRET(__wt_metadata_remove(session, uri));
-    if (remove_files)
+    if (remove_files) {
         /*
          * Schedule the remove of the underlying physical file when the drop completes.
          */
         WT_TRET(__wt_meta_track_drop(session, filename));
+        if (ret == 0 && id_found)
+            __wt_meta_track_drop_rename(session, id);
+    }
 
     __wti_debug_crash_if_flag_set(
       session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, "after dropping file entry", uri);
@@ -453,6 +456,56 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
 }
 
 /*
+ * __drop_pending_transfer --
+ *     Hand the internal session's pending removals to the caller, which removes the files after its
+ *     locks are released. If the caller's buffer cannot grow, closing the internal session removes
+ *     them.
+ */
+static void
+__drop_pending_transfer(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+{
+    WT_ITEM *from, *to;
+
+    from = &int_session->drop_pending;
+    to = &session->drop_pending;
+    if (from->size == 0 || __wt_buf_grow(session, to, to->size + from->size) != 0)
+        return;
+    memcpy((uint8_t *)to->mem + to->size, from->mem, from->size);
+    to->size += from->size;
+    from->size = 0;
+}
+
+/*
+ * __wt_drop_pending_apply --
+ *     Remove the files this session's committed drops renamed. The metadata is already durable, so
+ *     failures are logged rather than returned.
+ */
+void
+__wt_drop_pending_apply(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_ITEM *buf;
+    const char *end, *name;
+
+    buf = &session->drop_pending;
+    if (buf->size == 0)
+        return;
+
+    end = (const char *)buf->mem + buf->size;
+    for (name = buf->mem; name < end; name += strlen(name) + 1) {
+        while (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DROP_DEFERRED_HOLD))
+            __wt_sleep(0, 10 * WT_THOUSAND);
+
+        if ((ret = __wt_fs_remove(session, name, false, false)) != 0)
+            __wt_err(session, ret, "remove dropped file %s", name);
+
+        WT_STAT_CONN_DECR(session, session_table_drop_deferred);
+        WT_STAT_CONN_INCR(session, session_table_drop_deferred_applied);
+    }
+    __wt_buf_free(session, buf);
+}
+
+/*
  * __wt_schema_drop --
  *     Process a WT_SESSION::drop operation for all supported types.
  */
@@ -476,6 +529,8 @@ __wt_schema_drop(
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);
+    if (int_session != session)
+        __drop_pending_transfer(session, int_session);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }

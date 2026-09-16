@@ -1039,7 +1039,7 @@ connection_runtime_config = [
         'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
-        'evict_reposition',
+        'drop_deferred_hold', 'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
         'disagg_stable_dhandle_delay',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',

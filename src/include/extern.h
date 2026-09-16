@@ -1801,6 +1801,7 @@ extern void __wt_disagg_cancel_unpublished_op(
   WT_SESSION_IMPL *session, const char *table_name, WT_SHARED_METADATA_OP op);
 extern void __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen);
 extern void __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size);
+extern void __wt_drop_pending_apply(WT_SESSION_IMPL *session);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);
 extern void __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
@@ -1849,6 +1850,7 @@ extern void __wt_log_data_dump(
   WT_SESSION_IMPL *session, const void *data, size_t size, const char *fmt, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)));
 extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
+extern void __wt_meta_track_drop_rename(WT_SESSION_IMPL *session, uint32_t id);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));

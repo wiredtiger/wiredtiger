@@ -391,6 +391,10 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Discard metadata tracking. */
     __wt_meta_track_discard(session);
 
+    /* Remove any files a drop on this session left behind. */
+    __wt_drop_pending_apply(session);
+    __wt_buf_free(session, &session->drop_pending);
+
     /*
      * Close the file where we tracked long operations. Do this before releasing resources, as we do
      * scratch buffer management when we flush optrack buffers to disk.
@@ -1376,6 +1380,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
               WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
                 session, ret, ret = __wt_schema_drop(session, uri, cfg, true)));
     }
+    __wt_drop_pending_apply(session);
 
 err:
     if (ret != 0)
