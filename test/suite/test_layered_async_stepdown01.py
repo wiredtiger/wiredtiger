@@ -33,8 +33,8 @@ from wtscenario import make_scenarios
 
 # test_layered_async_stepdown01.py
 #    Write routing and write semantics: writes route to stable before the step-down timestamp is
-#    set and to ingest afterwards, and the merged view drives duplicate-key detection,
-#    overwrite=false and reserve.
+#    set and to ingest afterwards (mirrored to both constituents when write mirroring is enabled),
+#    and the merged view drives duplicate-key detection, overwrite=false and reserve.
 @disagg_test_class
 class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -53,7 +53,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     uri = f'layered:{test_name}'
 
-    # Writes route to stable beforehand and to ingest afterwards.
+    # Writes route to stable beforehand and to ingest afterwards (mirrored to both when enabled).
     def test_write_routing_around_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -87,7 +87,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
                 lambda: self.conn.reconfigure(
                     'disaggregated=(stepdown_write_mirroring=false)'))
 
-    # Update, modify and remove of stable keys route to ingest, like insert.
+    # Update, modify and remove of stable keys route to ingest, like insert (mirrored when enabled).
     def test_update_modify_remove_routing_after_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -194,7 +194,8 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
         self.complete_step_down(20)
 
-    # All tables share one cutoff, so a single call routes every table's later writes to ingest.
+    # All tables share one cutoff, so a single call routes every table's later writes to ingest
+    # (mirrored to both when enabled).
     def test_multiple_tables_share_cutoff(self):
         uri1 = f'layered:{self.test_name}_multi1'
         uri2 = f'layered:{self.test_name}_multi2'
@@ -259,7 +260,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.update(), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
 
-        # Remove of a stable key: a tombstone routed to ingest.
+        # Remove of a stable key: a tombstone routed to ingest (mirrored when enabled).
         self.session.begin_transaction()
         cursor.set_key('k2')
         self.assertEqual(cursor.remove(), 0)

@@ -3454,9 +3454,8 @@ __clayered_needs_pre_lookup(WTI_CLAYERED_OP *op)
 {
     /*
      * The ingest cursor is always in overwrite mode so insert() can write over an ingest tombstone,
-     * which means non-overwrite duplicate detection has to happen here instead. This lookup also
-     * covers the cases that need both constituents consulted, currently a subset of having an
-     * ingest cursor.
+     * which means non-overwrite duplicate detection has to happen here instead, unless writes are
+     * mirrored to both stable and ingest and write conflicts are detected already on stable.
      */
     return (op->write_target == WTI_CLAYERED_WRITE_INGEST &&
       !F_ISSET(&op->clayered->iface, WT_CURSTD_OVERWRITE));

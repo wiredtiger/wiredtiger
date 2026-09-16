@@ -467,11 +467,12 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
         self.session.checkpoint()
 
-        # Cycle 2: setting the cutoff again must succeed and route new writes to ingest.
+        # Cycle 2: setting the cutoff again must succeed and route new writes to ingest (mirrored
+        # to both when enabled).
         self.set_step_down_ts(60)
         self.write_at(self.uri, {'d': 'cycle2-ingest'}, 70)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 80), {'d'},
-            'a later write in the second cycle must route to ingest')
+            'a later write in the second cycle must reach ingest')
         self.complete_step_down(60)
 
         expected['d'] = 'cycle2-ingest'
