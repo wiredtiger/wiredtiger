@@ -46,7 +46,6 @@ class PalitePage(NamedTuple):
 # Test the `wt page` command against a palite backed disaggregated storage database.
 # A leader connection writes full-image and delta pages via checkpoints, then `wt page`
 # is run as a subprocess in follower mode against the same cell to inspect them.
-@wttest.skip_for_hook("tiered", "wt page does not run under tiered hook")
 class test_disagg_wt_page(
         wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin, DisaggCorruptionMixin):
     uri = "layered:wt_page_test"
@@ -280,10 +279,13 @@ class test_disagg_wt_page(
         result_count = self._assert_chain_header(stdout, page)
         self.assertGreater(result_count, 1)
         self.assertIn("delta_op: update", stdout)
-        self.assertIn("secret_key", stdout)
-        self.assertNotIn("s3cr3t_v4lue_v2", stdout)
+        # Scope to the delta section: secret_key is also in the base image, which is
+        # always unredacted under -k regardless of the delta path's own gating.
+        delta_section = stdout.split("- delta page", 1)[1]
+        self.assertIn("secret_key", delta_section)
+        self.assertNotIn("s3cr3t_v4lue_v2", delta_section)
         # Value stays redacted even though the key is shown.
-        self.assertIn("V: {REDACTED}", stdout)
+        self.assertIn("V: {REDACTED}", delta_section)
 
     def test_conflicting_redact_flags(self):
         self._skip_if_not_diagnostic()
