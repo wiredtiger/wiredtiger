@@ -248,13 +248,9 @@ __verify_dsk_value_validity(WT_CELL_UNPACK_KV *unpack, WT_VERIFY_INFO *vi)
 
     addr = vi->page_addr;
 
-    /*
-     * This validates a single on-disk block -- a base image or an individual delta -- before any
-     * base+delta merge runs, so the divergence a merge can introduce under a different reader's
-     * visibility does not apply here; always validate strictly.
-     */
     if ((ret = __wt_time_value_validate(vi->session, &unpack->tw, addr != NULL ? &addr->ta : NULL,
-           false, F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
+           FLD_ISSET(vi->flags, WT_VRFY_DISK_FROM_DELTA),
+           F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
         return (0);
 
     WT_RET_VRFY_RETVAL(vi->session, ret,
