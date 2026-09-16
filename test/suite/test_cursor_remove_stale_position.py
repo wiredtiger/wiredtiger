@@ -27,21 +27,28 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
-# test_cursor_remove_stale_position_col.py
+# test_cursor_remove_stale_position.py
 #   WT_CURSOR.remove on a cursor that's already positioned (rather than freshly searched) must
-#   still return not-found for a record that's already gone, the same as a remove that searches
-#   first -- whether "already gone" means the record never had a value on the page at all, or an
-#   earlier, already-visible remove left only a real value with a stop time window behind.
-class test_cursor_remove_stale_position_col(wttest.WiredTigerTestCase):
-    uri = 'table:test_cursor_remove_stale_position_col'
+#   still return not-found for a key that's already gone, the same as a remove that searches
+#   first -- whether "already gone" means the key never had a value on the page at all, or an
+#   earlier, already-visible remove left only a value with a stop time window behind.
+class test_cursor_remove_stale_position(wttest.WiredTigerTestCase):
+    uri = 'table:test_cursor_remove_stale_position'
+
+    formats = [
+        ('column', dict(key_format='r', key=5, other_keys=list(range(1, 11)))),
+        ('row', dict(key_format='S', key='k5', other_keys=['k%d' % i for i in range(1, 11)])),
+    ]
+    scenarios = make_scenarios(formats)
 
     def create_and_populate(self):
-        self.session.create(self.uri, 'key_format=r,value_format=S')
+        self.session.create(self.uri, 'key_format=%s,value_format=S' % self.key_format)
         c = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 11):
-            c[i] = 'value%d' % i
+        for k in self.other_keys:
+            c[k] = 'value'
         self.session.commit_transaction()
         return c
 
@@ -53,34 +60,35 @@ class test_cursor_remove_stale_position_col(wttest.WiredTigerTestCase):
         evict_cursor.reset()
         evict_cursor.close()
 
-    def check_remove_on_stale_position_rejected(self, key):
+    def check_remove_on_stale_position_rejected(self):
         """
-        Position a cursor on key via an uncommitted value only visible at read-uncommitted, then
-        remove through that same cursor after the value disappears without ever repositioning it.
-        The remove must return not-found rather than silently creating a tombstone.
+        Position a cursor on self.key via an uncommitted value only visible at read-uncommitted,
+        then remove through that same cursor after the value disappears without ever
+        repositioning it. The remove must return not-found rather than silently creating a
+        tombstone.
         """
-        # Session A writes a phantom value into the record but never commits it.
+        # Session A writes a phantom value into the key but never commits it.
         sessionA = self.conn.open_session()
         cA = sessionA.open_cursor(self.uri)
         sessionA.begin_transaction()
-        cA.set_key(key)
+        cA.set_key(self.key)
         cA.set_value('phantom')
         cA.update()
 
         # Session B, reading uncommitted outside any explicit transaction, positions on that same,
-        # still-uncommitted value. The cursor stays positioned on the record from here on.
+        # still-uncommitted value. The cursor stays positioned on the key from here on.
         sessionB = self.conn.open_session()
         sessionB.reconfigure('isolation=read-uncommitted')
         cB = sessionB.open_cursor(self.uri)
-        cB.set_key(key)
+        cB.set_key(self.key)
         self.assertEqual(cB.search(), 0)
 
         # Session A rolls back, so the value B just saw no longer exists anywhere.
         sessionA.rollback_transaction()
 
         # B removes through the same still-positioned cursor, without a set_key in between. Despite
-        # the stale position, this must behave exactly like a remove that searches first: the
-        # record is already gone, so it returns not-found rather than creating a spurious tombstone.
+        # the stale position, this must behave exactly like a remove that searches first: the key
+        # is already gone, so it returns not-found rather than creating a spurious tombstone.
         sessionB.begin_transaction('isolation=snapshot')
         self.assertEqual(cB.remove(), wiredtiger.WT_NOTFOUND)
         sessionB.rollback_transaction()
@@ -88,45 +96,43 @@ class test_cursor_remove_stale_position_col(wttest.WiredTigerTestCase):
         # Reconciling the page must not find anything wrong: nothing was ever removed.
         self.session.checkpoint()
 
-    def test_remove_already_positioned_on_nonexistent_record(self):
+    def test_remove_already_positioned_on_nonexistent_key(self):
         c = self.create_and_populate()
 
-        # Remove the record and checkpoint with nothing holding the remove back from global
-        # visibility, so its on-disk cell becomes an explicit "deleted" placeholder rather than a
-        # real value.
+        # Remove the key and checkpoint with nothing holding the remove back from global
+        # visibility, so it leaves no trace of ever having had a value.
         self.session.begin_transaction()
-        c.set_key(5)
+        c.set_key(self.key)
         c.remove()
         self.session.commit_transaction()
         c.close()
         self.session.checkpoint()
 
-        # Force the page back out of cache so record 5 is backed only by that on-disk placeholder,
-        # with no leftover in-memory update.
-        self.evict(1)
+        # Force the page back out of cache: no leftover in-memory update, nothing on the page.
+        self.evict(self.other_keys[0])
 
-        self.check_remove_on_stale_position_rejected(5)
+        self.check_remove_on_stale_position_rejected()
 
     def test_remove_already_positioned_on_already_deleted_value(self):
         c = self.create_and_populate()
 
         # Hold a transaction open with an old snapshot before the real remove below, so that when
         # we checkpoint, the remove isn't yet globally visible and the on-page cell keeps the
-        # original value with a stop time window rather than collapsing to a "deleted" placeholder.
+        # original value with a stop time window rather than being omitted outright.
         sessionOld = self.conn.open_session()
         sessionOld.begin_transaction()
 
         self.session.begin_transaction()
-        c.set_key(5)
+        c.set_key(self.key)
         c.remove()
         self.session.commit_transaction()
         c.close()
         self.session.checkpoint()
 
-        # Force the page back out of cache: only the on-page cell (value5 with an embedded stop
-        # time window) is left, no in-memory update.
-        self.evict(1)
+        # Force the page back out of cache: only the on-page cell (the original value with an
+        # embedded stop time window) is left, no in-memory update.
+        self.evict(self.other_keys[0])
 
-        self.check_remove_on_stale_position_rejected(5)
+        self.check_remove_on_stale_position_rejected()
 
         sessionOld.rollback_transaction()
