@@ -30,6 +30,7 @@ import json, os, re, subprocess
 from typing import NamedTuple
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, DisaggCorruptionMixin, get_shard_id
+from helper_wt_corruption import parse_verify_leaves
 from metadata_helper import get_table_id
 from run import wt_builddir
 from suite_subprocess import suite_subprocess
@@ -116,13 +117,13 @@ class test_disagg_wt_page(
     # Find the page chain entry matching where_clause, highest order_by first.
     # Shells out to the sqlite3 binary built alongside palite; the system
     # Python sqlite3 may be too old to parse the palite schema.
-    def _find_page(self, where_clause, description, order_by="lsn DESC"):
+    def _find_page(self, where_clause, description):
         table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
                           f'pages_{get_shard_id(table_id):02d}.db')
         sql = (f"SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
                f"FROM pages WHERE table_id={table_id} AND {where_clause} "
-               f"ORDER BY {order_by} LIMIT 1;")
+               f"ORDER BY lsn DESC LIMIT 1;")
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         out = subprocess.run([sqlite_exe, '-json', db, sql],
                              capture_output=True, text=True, check=True).stdout
@@ -134,14 +135,20 @@ class test_disagg_wt_page(
                           r['backlink_lsn'], r['flags'])
 
     def _find_base_image_page(self):
-        # Order by page size, not lsn: the root is written after (and is much
-        # smaller than) the leaf it points to, so "newest" would pick the
-        # root instead of the leaf holding the application data. This only
-        # works because nrows currently fits in a single leaf; a larger
-        # fixture would need a selector that doesn't rely on page size.
+        # base_lsn=0 AND backlink_lsn=0 also matches the root (a full image
+        # with no backlink), so pick the leaf by decoding the tree with `wt
+        # verify -d dump_address` rather than guessing from palite's schema,
+        # which has no page-type column to distinguish leaf from root.
+        cmd = ['-C', self._wt_page_extra_config(), 'verify', '-d', 'dump_address',
+               self.stable_uri]
+        self.runWt(cmd, outfilename='wt.out', errfilename='wt.err')
+        with open('wt.out') as f:
+            stdout = f.read()
+        leaves = parse_verify_leaves(stdout, disagg=True)
+        self.assertEqual(len(leaves), 1, f"expected a single leaf, got {leaves}")
+        page_id, _ = leaves[0]
         return self._find_page(
-            "base_lsn=0 AND backlink_lsn=0", "base-image",
-            order_by="length(page_data) DESC")
+            f"page_id={page_id} AND base_lsn=0 AND backlink_lsn=0", "base-image")
 
     def _find_delta_page(self):
         return self._find_page(
