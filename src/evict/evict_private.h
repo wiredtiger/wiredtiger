@@ -17,6 +17,12 @@
 #define WTI_EVICT_WALK_INCR 100         /* Pages added each walk */
 
 /*
+ * The walk end is incremented each time the walk reaches the boundary of the tree. Two ends
+ * guarantee at least one full traversal from wherever the scan arrived.
+ */
+#define WTI_EVICT_WALK_MAX_ENDS 2 /* Tree walk ends before the scan moves on */
+
+/*
  * The walk period doubles on every unproductive walk of a tree, so saturation means the tree has
  * been unproductive for many consecutive walks.
  */
@@ -153,6 +159,34 @@ struct __wti_evict_queue {
         WT_WITH_LOCK_WAIT(session, &evict->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
     } while (0)
 
+/*
+ * WTI_EVICT_VICTIM_REASON --
+ *	Why a page was, or was not, admitted to the disaggregated victim cache.
+ *
+ * Each gate in the eligibility check has its own value rather than folding into a single "not
+ * eligible". Two main benefits with this approach: a page that was expected to be cached and was
+ * not can be explained from a verbose log instead of by bisecting the gate by hand. And every
+ * switch over this enum is written without a default label, adding a gate here fails the build
+ * until both the caller and the unit tests account for it, rather than leaving the new gate
+ * silently untested.
+ */
+typedef enum {
+    WTI_EVICT_VICTIM_CACHE_UNAVAILABLE, /* The page log's cache is not currently accepting puts. */
+    WTI_EVICT_VICTIM_CHECKPOINT_CURSOR, /* The btree is open under a checkpoint cursor. */
+    WTI_EVICT_VICTIM_COLD_TIER,         /* Cold collections must not displace hot pages. */
+    WTI_EVICT_VICTIM_INVALID_PAGE_ID,   /* The block metadata holds no valid page id. */
+    WTI_EVICT_VICTIM_NO_BLOCK_MANAGER,  /* The btree has no disaggregated block manager. */
+    WTI_EVICT_VICTIM_NO_DISAGG_INFO,    /* The page carries no disaggregated block metadata. */
+    WTI_EVICT_VICTIM_NO_IMAGE,          /* No image matches the page's current block metadata. */
+    WTI_EVICT_VICTIM_NO_PAGE_LOG,       /* No page log handle, or it cannot cache at all. */
+    WTI_EVICT_VICTIM_NOT_DISAGG,        /* The btree is not disaggregated. */
+    WTI_EVICT_VICTIM_NOT_LEAF,          /* Internal pages are never cached. */
+    WTI_EVICT_VICTIM_OK,                /* Eligible: the resolved image is returned. */
+    WTI_EVICT_VICTIM_ROOT,              /* Root pages are never cached. */
+
+    WTI_EVICT_VICTIM_COUNT /* Number of reasons; must stay last. */
+} WTI_EVICT_VICTIM_REASON;
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern bool __wti_dirty_index_unlink_page(WT_PAGE *page, uint32_t slot)
@@ -191,6 +225,9 @@ static WT_INLINE bool __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen
 static WT_INLINE bool __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE double __wti_evict_dirty_target(WT_EVICT *evict)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE double __wti_evict_threshold_pct(double pct_clean, double pct_dirty,
+  double pct_updates, double clean_trigger, double dirty_trigger, double updates_trigger)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);

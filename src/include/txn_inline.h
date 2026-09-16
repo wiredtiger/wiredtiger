@@ -594,6 +594,38 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
+ * __txn_disagg_commit_ts_check --
+ *     Transactions committing layered content on a disaggregated connection must carry a commit
+ *     timestamp.
+ */
+static WT_INLINE int
+__txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
+{
+    /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        return (0);
+
+    if (!__wt_conn_is_disagg(session))
+        return (0);
+
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
+        return (0);
+
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+        return (0);
+
+    /* Metadata commits untimestamped by design and its transactions cannot be rolled back. */
+    if (WT_IS_ANY_METADATA(btree->dhandle))
+        return (0);
+
+    /* Only layered constituents need ordering. */
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+}
+
+/*
  * __wt_txn_timestamp_usage_check --
  *     Check if a commit will violate timestamp rules.
  */
@@ -623,6 +655,8 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
+
+    WT_RET(__txn_disagg_commit_ts_check(session, txn, btree));
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
@@ -1903,8 +1937,8 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
 
     session->txn->update_dirty_bytes += size;
 
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_count, 1);
     WT_STAT_SESSION_INCRV(session, txn_updates_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
@@ -1926,19 +1960,19 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_updates_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_truncate_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV(session, cache_truncate_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_truncate_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_count, val);
         WT_STAT_SESSION_SET(session, txn_updates, 0);
     }
 }
@@ -1979,12 +2013,16 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 static WT_INLINE int
 __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
-    WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN *txn;
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
-    WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
+
+    /*
+     * Unlink the item before touching the transaction: nothing after this can fail, so a claim
+     * failure leaves the transaction untouched and the caller can discard its state.
+     */
+    WT_RET(__wt_prepared_discover_unlink_item(session, prepared_id, &prepared_item));
     txn->time_point.prepared_id = prepared_id;
     txn->time_point.prepare_timestamp = prepared_item->prepare_timestamp;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE);
@@ -2006,11 +2044,11 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
-    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
+    __wt_prepared_discover_free_item(session, prepared_item);
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
-    return (ret);
+    return (0);
 }
 
 /*
@@ -2065,6 +2103,26 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
 }
 
 /*
+ * __wt_txn_config_clear --
+ *     Discard a transaction's configuration. The cache-size exemption is the only setting stored
+ *     outside the transaction, so it is dropped here, and only when the transaction claimed it
+ *     rather than the session. Clearing twice is harmless, so error paths may nest.
+ */
+static WT_INLINE void
+__wt_txn_config_clear(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    txn->flags = 0;
+    txn->time_point.flags = 0;
+    txn->operation_timeout_us = 0;
+}
+
+/*
  * __wt_txn_begin --
  *     Begin a transaction.
  */
@@ -2072,6 +2130,7 @@ static WT_INLINE int
 __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     WT_TXN *txn;
     uint64_t prepared_id;
 
@@ -2086,13 +2145,16 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    WT_RET(__wt_txn_config(session, conf));
+    /* A stale exemption means an earlier transaction was abandoned without clearing its config. */
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE));
+
+    WT_ERR(__wt_txn_config(session, conf));
 
     if (conf != NULL) {
-        WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
+        WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
-            WT_RET(__wt_txn_claim_prepared_txn(session, prepared_id));
+            WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
+            WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
             return (0);
         }
     }
@@ -2104,14 +2166,14 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (txn->isolation == WT_ISO_SNAPSHOT &&
       !(F_ISSET(txn, WT_TXN_AUTOCOMMIT) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
         if (session->ncursors > 0)
-            WT_RET(__wt_session_copy_values(session));
+            WT_ERR(__wt_session_copy_values(session));
 
         /*
          * Stall here if the cache is completely full. Eviction check can return rollback, but the
          * WT_SESSION.begin_transaction API can't, continue on.
          */
-        WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, true, false, NULL), WT_ROLLBACK);
+        WT_ERR_ERROR_OK(__wt_evict_app_assist_worker_check(session, false, true, true, false, NULL),
+          WT_ROLLBACK, false);
 
         __wt_txn_get_snapshot(session);
     }
@@ -2146,6 +2208,18 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     __txn_clear_bytes_dirty(session);
 
     return (0);
+
+err:
+    /*
+     * In the event that we error we should clear the flags on the transaction so they are not set
+     * in a subsequent call to transaction begin.
+     *
+     * Wiping the flags is only safe before a snapshot is allocated: the release path keys on
+     * WT_TXN_HAS_SNAPSHOT to know it must give the snapshot back.
+     */
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
+    __wt_txn_config_clear(session);
+    return (ret);
 }
 
 /*

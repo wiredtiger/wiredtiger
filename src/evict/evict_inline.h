@@ -385,6 +385,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /* Update bytes and pages evicted. */
     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
+    __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_EVICT, memory_footprint);
     (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
     if (!WT_PAGE_IS_INTERNAL(page))
         (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_leaf, 1);
@@ -602,6 +603,24 @@ __wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_BTREE *btree, 
     return (true);
 }
 
+/*
+ * __wti_evict_threshold_pct --
+ *     Return the cache-full percentage used by the eviction trigger check: one hundred minus the
+ *     smallest margin between a usage percentage and its trigger, floored at zero. Exceeding any
+ *     trigger therefore yields a percentage of at least one hundred. Kept separate from
+ *     __wt_evict_needed, as pure arithmetic, so it can be unit tested without live cache state.
+ */
+static WT_INLINE double
+__wti_evict_threshold_pct(double pct_clean, double pct_dirty, double pct_updates,
+  double clean_trigger, double dirty_trigger, double updates_trigger)
+{
+    return (WT_MAX(0.0,
+      100.0 -
+        WT_MIN(WT_MIN(clean_trigger - pct_clean, dirty_trigger - pct_dirty),
+          updates_trigger - pct_updates)));
+}
+}
+
 /* !!!
  * __wt_evict_needed --
  *     Check whether the configured clean/dirty/update eviction trigger thresholds for the cache
@@ -697,10 +716,9 @@ __wt_evict_needed(
      */
     dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
     if (pct_fullp != NULL)
-        *pct_fullp = WT_MAX(0.0,
-          100.0 -
-            WT_MIN(WT_MIN(evict->eviction_trigger - pct_full, dirty_trigger - pct_dirty),
-              __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) - pct_updates));
+        *pct_fullp =
+          __wti_evict_threshold_pct(pct_full, pct_dirty, pct_updates, evict->eviction_trigger,
+            dirty_trigger, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
 
     /*
      * Only check the dirty trigger when the session is not busy.
@@ -941,12 +959,6 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
      * be able to accomplish anything useful.
      */
     if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
-        return (0);
-
-    /* Setting cache_max_wait_us to 1 effectively means "disable eviction when possible" */
-    uint64_t cache_max_wait_us =
-      session->cache_max_wait_us != 0 ? session->cache_max_wait_us : conn->evict->cache_max_wait_us;
-    if (cache_max_wait_us == 1)
         return (0);
 
     /*

@@ -236,5 +236,56 @@ class test_eviction08(wttest.WiredTigerTestCase):
 
         self.assertEqual(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, disabled_uri), 0)
 
+@wttest.skip_for_hook("disagg", "Layout and eviction behavior differ under disaggregated storage.")
+class test_eviction08_walk_rotation(wttest.WiredTigerTestCase):
+    conn_config = ('cache_size=20MB,statistics=(all),'
+                   'eviction=(threads_min=1,threads_max=1)')
+    table_config = 'key_format=i,value_format=S,leaf_page_max=4KB,memory_page_max=512KB'
+
+    dominant_uri = 'table:test_eviction08_dominant'
+    small_uris = [f'table:test_eviction08_small{i}' for i in range(8)]
+    dominant_rows = 40000
+    small_rows = 50
+    value = 'abcde' * 100
+
+    def test_eviction_walk_rotation(self):
+        for uri in [self.dominant_uri] + self.small_uris:
+            self.session.create(uri, self.table_config)
+
+        cursor = self.session.open_cursor(self.dominant_uri)
+        for i in range(self.dominant_rows):
+            if i % 1000 == 0:
+                self.session.begin_transaction()
+            cursor[i] = self.value
+            if i % 1000 == 999:
+                self.session.commit_transaction()
+        cursor.close()
+
+        small_cursors = []
+        for uri in self.small_uris:
+            c = self.session.open_cursor(uri)
+            for i in range(self.small_rows):
+                c[i] = self.value
+            small_cursors.append(c)
+
+        cursor = self.session.open_cursor(self.dominant_uri)
+        deadline = time.time() + 120
+        offset = 0
+        while self.get_stat(stat.conn.eviction_server_skip_trees_walk_complete) == 0:
+            self.assertLess(time.time(), deadline,
+                            'eviction scan never rotated off the dominant table')
+            offset = (offset + 1) % 37
+            self.session.begin_transaction()
+            for i in range(offset, self.dominant_rows, 37):
+                cursor[i] = self.value
+            self.session.commit_transaction()
+            for c in small_cursors:
+                for i in range(self.small_rows):
+                    c[i] = self.value
+
+        cursor.close()
+        for c in small_cursors:
+            c.close()
+
 if __name__ == '__main__':
     wttest.run()

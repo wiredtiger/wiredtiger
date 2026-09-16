@@ -493,8 +493,10 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q)
-        if (WT_DHANDLE_BTREE(dhandle))
+        if (WT_DHANDLE_BTREE(dhandle)) {
+            ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session, true)));
+        }
     __wti_evict_set_saved_walk_tree(session, NULL);
     return (ret);
 }
@@ -702,10 +704,11 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
+    wt_timestamp_t create_epoch;
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, dhandle_list_locked;
+    bool aggressive, covered, dhandle_list_locked, resume, try_publish;
 
     WT_TRACK_OP_INIT(session);
 
@@ -759,17 +762,28 @@ retry:
             dhandle_list_locked = true;
         }
 
+        /* Pick the tree to walk. On entry, resume the tree the last pass stopped on */
+        resume = false;
         if (dhandle == NULL) {
-            /*
-             * On entry, continue from wherever we got to in the scan last time through. If we don't
-             * have a saved handle, pick one randomly from the list.
-             */
-            if ((dhandle = evict->walk_tree) != NULL)
-                __wti_evict_set_saved_walk_tree(session, NULL);
-            else
-                __evict_walk_choose_dhandle(session, &dhandle);
-        } else {
-            __wti_evict_set_saved_walk_tree(session, NULL);
+            dhandle = evict->walk_tree;
+            resume = dhandle != NULL;
+        }
+        __wti_evict_set_saved_walk_tree(session, NULL);
+        btree = dhandle != NULL && WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
+
+        /*
+         * Stop resuming and clear the walk point once the walk has reached the end of the tree
+         * twice as the tree must have been fully traversed.
+         */
+        if (resume && btree != NULL && btree->evict_walk_ends >= WTI_EVICT_WALK_MAX_ENDS) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_walk_complete);
+            WT_WITH_DHANDLE(session, dhandle, ret = __evict_clear_walk(session, true));
+            WT_ERR(ret);
+            resume = false;
+        }
+        if (!resume) {
+            if (btree != NULL)
+                btree->evict_walk_ends = 0;
             __evict_walk_choose_dhandle(session, &dhandle);
         }
 
@@ -781,17 +795,35 @@ retry:
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
             continue;
 
-        /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
+
+        /* Skip files that don't allow eviction. */
+        try_publish = false;
         if (btree->evict_disabled > 0) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
+            /*
+             * A disaggregated btree is held out of eviction until it is published. Compare the
+             * epochs, which takes no lock, and try publishing the btree below instead of skipping
+             * it here.
+             */
+            create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
+            covered = create_epoch != WT_SCHEMA_EPOCH_NONE &&
+              create_epoch <= __wt_get_stable_disaggregated_schema_epoch(session);
+
+            try_publish = covered && F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+              __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
+            if (!try_publish) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            }
         }
 
-        /* Skip read-only btrees if we are not looking for clean/updates pages. */
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
-          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+        /*
+         * Skip stable checkpoint handles on followers unless we are looking for clean pages.
+         * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
+         * with dedicated handling instead of matching the stable checkpoint URI.
+         */
+        if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -917,6 +949,21 @@ retry:
         __wti_evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
         dhandle_list_locked = false;
+
+        /*
+         * Publish the btree so eviction can write its pages. The schema lock orders publication
+         * against the checkpoint, which selects the btrees to write under that same lock, and
+         * against the role transitions. The lock order puts the schema lock before the handle list
+         * lock, so this waits for the release above.
+         */
+        if (try_publish) {
+            WT_WITH_DHANDLE(session, dhandle,
+              WT_WITH_SCHEMA_LOCK_NOWAIT(
+                session, ret, __wt_disagg_btree_publish_for_eviction(session)));
+
+            /* A busy schema lock is not an error here: a later pass publishes the tree. */
+            WT_ERR_ERROR_OK(ret, EBUSY, false);
+        }
 
         /*
          * Re-check the "no eviction" flag, used to enforce exclusive access when a handle is being
@@ -1811,6 +1858,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             break;
 
         if (ref == NULL) {
+            ++btree->evict_walk_ends;
             WT_STAT_CONN_INCR(session, eviction_walks_ended);
 
             if (++restarts == 2) {

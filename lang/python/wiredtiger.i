@@ -99,9 +99,6 @@ from packing import pack, unpack
 %typemap(in, numinputs=0) WT_KEY_PROVIDER ** (WT_KEY_PROVIDER *temp = NULL) {
     $1 = &temp;
  }
-%typemap(in, numinputs=0) WT_STORAGE_SOURCE ** (WT_STORAGE_SOURCE *temp = NULL) {
-    $1 = &temp;
- }
 %typemap(in, numinputs=0) bool * (bool temp = false) {
     $1 = &temp;
  }
@@ -252,8 +249,37 @@ from packing import pack, unpack
 }
 
 /*
+ * This typemap removes the two last arguments for plh_get_page_ids, and uses local variables for
+ * them instead. The local variables will be used in the matching argout typemap.
+ * Code in this typemap appears before the call to the API function.
+ */
+%typemap(in,numinputs=0) (WT_ITEM *item, size_t *size) (WT_ITEM ids, size_t count) {
+    memset(&ids, 0, sizeof(ids));
+    count = 0;
+    $1 = &ids;
+    $2 = &count;
+}
+
+/*
+ * This typemap is for plh_get_page_ids, and is used in conjunction with the previous typemap.
+ * Code in this typemap appears after the call to the API function.
+ * The packed array of page ids is converted to a python list of integers.
+ */
+%typemap(argout) (WT_ITEM *item, size_t *size) {
+    const uint64_t *ids;
+    size_t n;
+
+    ids = (const uint64_t *)$1->data;
+    $result = PyList_New((Py_ssize_t)*$2);
+    for (n = 0; n < *$2; n++)
+        PyList_SetItem($result, (Py_ssize_t)n, PyLong_FromUnsignedLongLong(ids[n]));
+    free($1->mem);
+}
+
+/*
  * This typemap removes the argument for pl_get_complete_checkpoint and allocates a local
- * WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS struct instead.
+ * WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS struct instead. Zeroing it selects the most recently
+ * completed checkpoint; the wrapper below overwrites the selector when the caller supplies one.
  * Code in this typemap appears before the call to the API function.
  */
 %typemap(in,numinputs=0) WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *
@@ -327,10 +353,6 @@ from packing import pack, unpack
 
 %typemap(argout) WT_PAGE_LOG_HANDLE ** {
     $result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log_handle, 0);
-}
-
-%typemap(argout) WT_STORAGE_SOURCE ** {
-    $result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_storage_source, 0);
 }
 
 %typemap(argout) bool * {
@@ -477,7 +499,6 @@ DESTRUCTOR(__wt_file_handle, close)
 DESTRUCTOR(__wt_page_log, pl_terminate)
 DESTRUCTOR(__wt_page_log_handle, plh_close)
 DESTRUCTOR(__wt_session, close)
-DESTRUCTOR(__wt_storage_source, ss_terminate)
 DESTRUCTOR(__wt_file_system, fs_terminate)
 
 /*
@@ -659,7 +680,6 @@ SELFHELPER(struct __wt_file_system, file_system)
 SELFHELPER(struct __wt_page_log, page_log)
 SELFHELPER(struct __wt_page_log_handle, page_log_handle)
 SELFHELPER(struct __wt_key_provider, key_provider)
-SELFHELPER(struct __wt_storage_source, storage_source)
 
  /*
   * Create an error exception if it has not already
@@ -1221,13 +1241,27 @@ typedef int int_void;
 };
 %enddef
 
+SIDESTEP_METHOD(__wt_page_log, pl_abandon_checkpoint,
+  (WT_SESSION *session),
+  ($self, session))
+
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (WT_SESSION *session, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args),
   ($self, session, args))
 
-SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
-  (WT_SESSION *session, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args),
-  ($self, session, args))
+/*
+ * Optionally ask for specific checkpoint LSN. If omitted, it defaults to zero, which asks for the
+ * most recently completed checkpoint.
+ */
+%ignore __wt_page_log::pl_get_complete_checkpoint;
+%rename (pl_get_complete_checkpoint) __wt_page_log::_pl_get_complete_checkpoint;
+%extend __wt_page_log {
+    int _pl_get_complete_checkpoint(WT_SESSION *session,
+      WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args, uint64_t lsn = 0) {
+        args->lsn = lsn;
+        return ($self->pl_get_complete_checkpoint($self, session, args));
+     }
+};
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_last_lsn,
   (WT_SESSION *session, uint64_t *lsn),
@@ -1275,25 +1309,6 @@ SIDESTEP_METHOD(__wt_page_log_handle, plh_discard,
   ($self, session, page_id, checkpoint_id, discard_args))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
-  (WT_SESSION *session),
-  ($self, session))
-
-SIDESTEP_METHOD(__wt_storage_source, ss_customize_file_system,
-  (WT_SESSION *session, const char *bucket_name,
-    const char *auth_token, const char *config, WT_FILE_SYSTEM **file_systemp),
-  ($self, session, bucket_name, auth_token, config, file_systemp))
-
-SIDESTEP_METHOD(__wt_storage_source, ss_flush,
-  (WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-    const char *source, const char *object, const char *config),
-  ($self, session, file_system, source, object, config))
-
-SIDESTEP_METHOD(__wt_storage_source, ss_flush_finish,
-  (WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-    const char *source, const char *object, const char *config),
-  ($self, session, file_system, source, object, config))
-
-SIDESTEP_METHOD(__wt_storage_source, terminate,
   (WT_SESSION *session),
   ($self, session))
 
@@ -1497,7 +1512,6 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(PageLogGetArgs) __wt_page_log_get_args;
 %rename(PageLogHandle) __wt_page_log_handle;
 %rename(PageLogPutArgs) __wt_page_log_put_args;
-%rename(StorageSource) __wt_storage_source;
 %rename(FileSystem) __wt_file_system;
 
 %include "wiredtiger.h"

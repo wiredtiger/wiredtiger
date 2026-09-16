@@ -671,11 +671,11 @@ class DisaggCorruptionMixin:
 
     # ---- Write helpers ----
 
-    def _palite_mutate(self, table_id, sql):
+    def _palite_mutate(self, table_id, sql, home=None):
         """Run sql against the pages_NN.db for table_id's shard. Returns the
         sqlite3 CLI's stdout split into non-empty lines."""
         shard = get_shard_id(table_id)
-        db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
+        db_path = os.path.join(home or self.home, 'kv_home', f'pages_{shard:02d}.db')
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         result = subprocess.run(
             [sqlite_exe, '-bail', db_path],
@@ -754,6 +754,16 @@ class DisaggCorruptionMixin:
         rows = self._palite_mutate(table_id, sql)
         self._require_one_change(rows, table_id, page_id, lsn)
         return table_id, page_id, lsn
+
+    def delete_all_table_pages(self, table_id, home=None):
+        """Delete every page image for a table from the palite pages table,
+        standing in for a page server that has already reclaimed the table's
+        data."""
+        # FIXME-WT-18561: do this within Palite (a real trim/delete debug hook) instead of editing
+        # its SQLite pages table directly.
+        self.close_conn()
+        self._palite_mutate(table_id, f'DELETE FROM pages WHERE table_id={table_id};\n',
+            home=home)
 
     def set_random_page_discarded(self):
         """Pick one not-yet-discarded page image (one (page_id, lsn) row
@@ -944,6 +954,13 @@ class DisaggSchemaEpochMixin:
         cursor.close()
         session.close()
         return config
+
+    def stable_id(self, conn, uri):
+        """Return the btree ID of a table's stable constituent in conn's local metadata."""
+        config = self.stable_config(conn, uri)
+        match = re.search(r'\bid=(\d+)', config)
+        self.assertIsNotNone(match, f'no id in stable config: {config}')
+        return int(match.group(1))
 
     def inject_stable_entry(self, conn, key, config):
         """

@@ -61,6 +61,18 @@ workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
 }
 
 /*
+ * workload_set_frontier --
+ *     Set the frontier timestamps on the connection and mirror the stable schema epoch, so the
+ *     generator can free slots whose published drops the epoch has covered.
+ */
+void
+workload_set_frontier(WORKLOAD_STATE *state, uint64_t ts)
+{
+    set_ts(state->cfg, state->conn, TS_FRONTIER, ts);
+    __wt_atomic_store_uint64(&state->stable_epoch, ts);
+}
+
+/*
  * workload_active --
  *     The condition a phase loop runs on: true until the shutdown has reached the caller's stage.
  */
@@ -108,7 +120,7 @@ node_open(WORKLOAD_STATE *state, const char *disagg_mode)
 
     state->cfg->opts->disagg.mode = disagg_mode;
     testutil_wiredtiger_open(
-      state->cfg->opts, node_home, ENV_CONFIG_DEF, NULL, &state->conn, false, false);
+      state->cfg->opts, node_home, ENV_CONFIG_DEF, NULL, &state->conn, false);
 
     /* The page log outlives every role the node takes; the connection owns it either way. */
     testutil_check(state->conn->get_page_log(state->conn, "palite", &state->page_log));
@@ -191,7 +203,7 @@ node_transition_done(const TEST_CONFIG *cfg, WORKLOAD_STATE *state, bool complet
 
 /*
  * node_stage_stopped --
- *     Whether every thread of a stage has been joined. STAGE_WORKERS is nth_workers threads wide,
+ *     Whether every thread of a stage has been joined. STAGE_WORKERS is worker_count threads wide,
  *     the other stages are one thread each, and STAGE_NONE is no thread at all.
  */
 bool
@@ -200,7 +212,7 @@ node_stage_stopped(WORKLOAD_STATE *state, uint32_t stage)
     if (stage != STAGE_WORKERS)
         return (!state->aux_thr[stage].created);
 
-    for (uint32_t i = 0; i < state->nth_workers; i++)
+    for (uint32_t i = 0; i < state->worker_count; i++)
         if (state->workers[i].thr.created)
             return (false);
     return (true);
@@ -244,9 +256,9 @@ static void
 workload_start(WORKLOAD_STATE *state, bool as_leader)
 {
     TEST_CONFIG *cfg = state->cfg;
-    testutil_assert(cfg->nth <= MAX_TH);
+    testutil_assert(cfg->thread_count <= MAX_TH);
 
-    state->nth_workers = cfg->nth;
+    state->worker_count = cfg->thread_count;
     state->leads = as_leader;
     /* A leader feeds itself; so does a follower with no peer. Snapshot it: peer_alive can flip. */
     state->generates = as_leader || !cfg->peer_alive;
@@ -254,22 +266,29 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->handover_received = false;
     state->emitted = state->applied = 0;
     state->stepdown_ts = state->stepdown_ckpt_lsn = 0;
+    state->stepdown_ckpt_due = false;
 
     /* The frontier continues from the previous phase; nothing above it is completed yet. */
     state->frontier_ts = state->current_ts;
     memset(state->completed_ts, 0, sizeof(state->completed_ts));
 
-    /* Reset workers' state. Note: tables' state survives role transitioning. */
-    for (uint32_t i = 0; i < cfg->nth; i++) {
+    /* Reset workers' state. */
+    for (uint32_t i = 0; i < cfg->thread_count; i++) {
         state->workers[i].busy = false;
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
-        memset(state->workers[i].stepdown_insert, 0, sizeof(state->workers[i].stepdown_insert));
+        testutil_random_from_random(&state->workers[i].rnd, &cfg->opts->data_rnd);
+        /*
+         * A leading phase checkpoints every slot, including inherited ingest data; a follower phase
+         * covers nothing, so the slots it inherits stay blocked.
+         */
+        if (as_leader)
+            for (uint32_t j = 0; j < cfg->pool_size; j++)
+                state->workers[i].table[j].uncovered_insert = false;
+        /* State and slot generation survive role transitioning. */
     }
 
-    /* Re-seed the phase's worker and auxiliary streams. */
-    for (uint32_t i = 0; i <= cfg->nth; i++)
-        testutil_random_from_random(
-          &state->gen_rnd[i], i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
+    /* Re-seed the auxiliary stream. */
+    testutil_random_from_random(&state->ext_rnd, &cfg->opts->extra_rnd);
 
     node_aux_start(state, STAGE_TS, thread_ts_run);
     node_workers_start(state);
@@ -320,10 +339,15 @@ node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
         println("Node %" PRIu32 ": no peer to hand over to; continuing alone", state->cfg->node_id);
     }
 
-    /* Reset adopted checkpoint and transition tracking. */
-    state->adopted_ckpt_lsn = 0;
+    /* The pick-up resumes from the step-down checkpoint. */
+    const uint64_t stepdown_lsn = __wt_atomic_load_uint64(&state->stepdown_ckpt_lsn);
+    if (state->adopted_ckpt_lsn < stepdown_lsn)
+        state->adopted_ckpt_lsn = stepdown_lsn;
+
+    /* Reset transition tracking. */
     __wt_atomic_store_uint64(&state->stepdown_ts, 0);
     __wt_atomic_store_uint64(&state->stepdown_ckpt_lsn, 0);
+    __wt_atomic_store_bool(&state->stepdown_ckpt_due, false);
 }
 
 /*
@@ -340,7 +364,7 @@ node_step_up(WORKLOAD_STATE *state, uint64_t final_ts)
 
     /* Restore the timestamps on the new leader's connection. */
     if (final_ts != 0)
-        set_ts(state->conn, TS_FRONTIER, final_ts);
+        workload_set_frontier(state, final_ts);
 }
 
 /*
@@ -428,13 +452,9 @@ node_main(TEST_CONFIG *cfg)
 
     const NODE_ROLE *role = node_role(cfg->start_leader);
     node_open(state, role->name);
-    /*
-     * Enter the epoch world before the workload can publish anything, on either role: a follower
-     * publishes the operations it applies too. Timestamps start at the same point, so the first
-     * event's epoch is above the stable one.
-     */
-    workload_seed_counter(state, SCHEMA_EPOCH_BOOTSTRAP);
-    set_ts(state->conn, TS_FRONTIER, SCHEMA_EPOCH_BOOTSTRAP);
+    /* Seed the timestamp sequence; epoch mode also enters the schema epoch world at this value. */
+    workload_seed_counter(state, TS_BOOTSTRAP);
+    workload_set_frontier(state, TS_BOOTSTRAP);
     println("Node %" PRIu32 ": starting as %s", cfg->node_id, role->name);
 
     return (node_run(cfg, state, role));

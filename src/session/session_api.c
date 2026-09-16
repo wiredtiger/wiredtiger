@@ -516,6 +516,11 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
             F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
         else
             F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        /*
+         * The session now owns this flag, so drop any ownership a running transaction recorded in
+         * txn config; it must no longer undo the setting when it is released.
+         */
+        F_CLR(session->txn, WT_TXN_IGNORE_CACHE_SIZE);
     }
     WT_RET_NOTFOUND_OK(ret);
 
@@ -554,14 +559,8 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if ((ret = __wt_conf_getones(session, conf, cache_max_wait_ms, &cval)) == 0) {
-        if (cval.val > 1)
-            session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
-        else if (cval.val == 1)
-            session->cache_max_wait_us = 1;
-        else
-            session->cache_max_wait_us = 0;
-    }
+    if ((ret = __wt_conf_getones(session, conf, cache_max_wait_ms, &cval)) == 0)
+        session->cache_max_wait_us = cval.val > 0 ? (uint64_t)(cval.val * WT_THOUSAND) : 0;
     WT_RET_NOTFOUND_OK(ret);
 
     return (0);
@@ -654,8 +653,6 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     case 't':
         if (WT_PREFIX_MATCH(uri, "table:"))
             WT_RET(__wt_curtable_open(session, uri, owner, cfg, cursorp));
-        if (WT_PREFIX_MATCH(uri, "tiered:"))
-            WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
         break;
     case 'c':
         if (WT_PREFIX_MATCH(uri, "colgroup:")) {
@@ -893,7 +890,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
         if (!WT_PREFIX_MATCH(uri, "backup:") && !WT_PREFIX_MATCH(uri, "colgroup:") &&
           !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "file:") &&
           !WT_PREFIX_MATCH(uri, WT_METADATA_URI) && !WT_PREFIX_MATCH(uri, "table:") &&
-          !WT_PREFIX_MATCH(uri, "tiered:") && __wt_schema_get_source(session, uri) == NULL)
+          __wt_schema_get_source(session, uri) == NULL)
             WT_ERR(__wt_bad_object_type(session, uri));
     }
 

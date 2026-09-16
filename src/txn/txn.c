@@ -860,6 +860,17 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (cval.val == 0)
         txn->txn_log.txn_logsync = 0;
 
+    /*
+     * Exempt this transaction from the cache size, recording ownership of the session flag so that
+     * __wt_txn_config_clear drops it again, unless the session was already configured to ignore the
+     * cache size. A false setting is not an override of the session-level setting.
+     */
+    WT_ERR(__wt_conf_gets_def(session, conf, ignore_cache_size, 0, &cval));
+    if (cval.val && !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
+        F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        F_SET(txn, WT_TXN_IGNORE_CACHE_SIZE);
+    }
+
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
     if (cval.len > 0 && WT_CONF_STRING_MATCH(force, cval))
@@ -897,15 +908,12 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
 err:
-    if (ret != 0) {
-        /*
-         * In the event that we error during configuration we should clear the flags on the
-         * transaction so they are not set in a subsequent call to transaction begin.
-         */
-        txn->flags = 0;
-        txn->time_point.flags = 0;
-        txn->operation_timeout_us = 0;
-    }
+    /*
+     * A rejected configuration must leave nothing behind for the next transaction, including the
+     * session flag this function may have set.
+     */
+    if (ret != 0)
+        __wt_txn_config_clear(session);
     return (ret);
 }
 
@@ -1001,12 +1009,8 @@ __txn_release(WT_SESSION_IMPL *session)
      * Purposely do NOT clear the commit and durable timestamps on release. Other readers may still
      * find these transactions in the durable queue and will need to see those timestamps.
      */
-    txn->flags = 0;
-    txn->time_point.flags = 0;
+    __wt_txn_config_clear(session);
     txn->time_point.prepare_timestamp = WT_TS_NONE;
-
-    /* Clear operation timer. */
-    txn->operation_timeout_us = 0;
 
     /* Reset the dirty footprint tracking */
     __txn_clear_bytes_dirty(session);
@@ -1750,31 +1754,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * While the step-down timestamp is set, a committing transaction's layered content must sit
-         * on one side of the boundary: ingest content strictly above the timestamp, stable content
-         * at or below it, and never both constituents from one transaction. Checked per operation
-         * here to fold the boundary check into the pass this loop already makes.
-         */
-        if (step_down_ts != WT_TS_NONE && !prepare && op->type != WT_TXN_OP_NONE &&
-          op->btree != NULL) {
-            if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
-                wrote_ingest = true;
-                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
-                    WT_ASSERT_ALWAYS(session, txn->first_commit_timestamp > step_down_ts,
-                      "ingest content committing at or below the step-down timestamp");
-            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
-                wrote_stable = true;
-                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
-                    WT_ASSERT_ALWAYS(session, txn->time_point.commit_timestamp <= step_down_ts,
-                      "stable content committing above the step-down timestamp");
-            }
-            WT_ASSERT_ALWAYS(session, !(wrote_ingest && wrote_stable),
-              "transaction committing while the step-down timestamp is set wrote both layered "
-              "constituents");
-        }
-#endif
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
@@ -1865,6 +1844,24 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             __wti_mark_committed_truncate_table(session, op);
             break;
         }
+
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * While the step-down timestamp is set, a committing transaction's layered content must sit
+         * on one side of the boundary: ingest content strictly above the timestamp, stable content
+         * at or below it, and never both constituents from one transaction.
+         */
+        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL) {
+            if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
+                wrote_ingest = true;
+                WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
+            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                wrote_stable = true;
+                WT_ASSERT(session, txn->time_point.durable_timestamp <= step_down_ts);
+            }
+            WT_ASSERT(session, !(wrote_ingest && wrote_stable));
+        }
+#endif
 
         /* If we used the cursor to resolve prepared updates, free and clear the key. */
         if (cursor != NULL)

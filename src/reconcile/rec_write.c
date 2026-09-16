@@ -2689,8 +2689,41 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * disk. In local mode, if restoring saved update chains, we can skip the disk written.
          */
         if (r->page->disagg_info != NULL) {
-            if (chunk->entries == 0)
+            if (chunk->entries == 0) {
+                /*
+                 * Nothing survives onto the page: every update was restored to the in-memory chain.
+                 * If a previous reconciliation left a block behind, treat this like any other
+                 * disagg skip-write so the page keeps pointing at it instead of losing track of it:
+                 * otherwise the address a follower would need to find it is never recorded, and the
+                 * block itself can be freed out from under still-live content. There's nothing to
+                 * copy forward when no such block exists. This can only apply to the one-chunk
+                 * case: a split produces more than one chunk precisely because the old single page
+                 * is becoming multiple new ones, so no single chunk can claim to still be "the"
+                 * previous page and inherit its address.
+                 *
+                 * This is the second cause of a skip-write, and deliberately counts against the
+                 * same statistic as the one below: both mean the page kept the block it already
+                 * had.
+                 *
+                 * The previous block is only safe to reuse if the page's current content still
+                 * matches what it represents. An in-memory split has already moved some of the
+                 * page's rows to a new sibling ref, and a selected update newer than anything the
+                 * last reconciliation captured means the page now holds content that block never
+                 * saw either way: leave block_meta unset rather than publish an address for the
+                 * wrong content. The wrapup step already frees the previous block and resets the
+                 * page id to invalid whenever the result carries no valid page id, the same as it
+                 * always has for a page that has never been written.
+                 */
+                if (last_block && r->multi_next == 1 &&
+                  page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                  WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
+                  !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
+                    WT_RET(__rec_copy_prev_addr(session, r));
+                    F_SET(multi, WT_MULTI_SKIP_WRITE);
+                    WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
+                }
                 goto copy_image;
+            }
         } else if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
             goto copy_image;
 
@@ -3041,11 +3074,10 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 
 /*
  * __rec_wrapup_decrease_disagg_size --
- *     A newly written full page image terminates the on-disk delta chain, so the prior chain's
- *     cumulative size must stop counting toward the tree's byte total. Decrease the size when this
- *     reconciliation wrote a single full image and did not skip the write. Callers gate on their
- *     own page id conditions before establishing there is a chain to obsolete. When a replacement
- *     cookie is supplied it records the size being obsoleted; diagnostic builds check they agree.
+ *     The prior delta chain is obsolete, so its cumulative size must stop counting toward the
+ *     tree's byte total. Only call this once the chain has terminated, that is, this reconciliation
+ *     wrote a single full page image with no deltas. The replacement cookie records the size being
+ *     obsoleted; diagnostic builds check the two agree.
  */
 static int
 __rec_wrapup_decrease_disagg_size(
@@ -3055,9 +3087,10 @@ __rec_wrapup_decrease_disagg_size(
 
     page = r->page;
 
-    /* Only a full page image (no deltas) that was actually written terminates the chain. */
-    if (F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) || r->multi->block_meta->delta_count != 0)
-        return (0);
+    /* The caller gates on disagg_delta_chain_end; verify the chain has in fact terminated. */
+    WT_ASSERT(session,
+      r->multi_next == 1 && r->multi->block_meta != NULL &&
+        !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0);
 
 #ifdef HAVE_DIAGNOSTIC
     if (cookie != NULL) {
@@ -3092,6 +3125,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     WT_REF_STATE previous_ref_state;
     WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
     uint32_t i;
+    bool disagg_delta_chain_end;
     bool disagg_page_free_required;
     bool disagg_page_is_valid;
 
@@ -3135,6 +3169,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
           (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
 
     /*
+     * A newly written full page image terminates the on-disk delta chain, so the size the chain
+     * accumulated stops counting toward the tree. The block manager applies this when it keeps the
+     * page id rather than freeing the block.
+     */
+    disagg_delta_chain_end = r->multi_next == 1 && r->multi->block_meta != NULL &&
+      !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0;
+
+    /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
      * entirely consistent at that point (the underlying block manager is presumably going to do
      * some action to resolve the list of allocated/free/whatever blocks that are associated with
@@ -3167,10 +3209,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
             break;
         }
 
-        WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
-        /* Update the size accounting if we keep the page id and terminate the delta chain. */
-        if (disagg_page_is_valid && !disagg_page_free_required)
-            WT_RET(__rec_wrapup_decrease_disagg_size(session, r, NULL, 0));
+        WT_RET(
+          __wt_ref_block_free(session, ref, disagg_page_free_required, disagg_delta_chain_end));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3196,7 +3236,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
                  */
                 if (ref->addr != NULL) {
                     if (page->disagg_info == NULL)
-                        WT_RET(__wt_ref_block_free(session, ref, true));
+                        WT_RET(__wt_ref_block_free(session, ref, true, false));
                     /*
                      * r->multi_next may be 0; check it to avoid block_meta is NULL.
                      * WT_PM_REC_REPLACE only indicates previous reconciliation generated one page.
@@ -3207,17 +3247,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
                          * If we write an empty page for update restore eviction, we need to free
                          * the page id.
                          */
-                        WT_RET(__wt_ref_block_free(session, ref, true));
-                    else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
+                        WT_RET(__wt_ref_block_free(session, ref, true, false));
+                    else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
                         /* Only free a disagg page if we don't skip writing the page. */
-                        WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
-                        /*
-                         * Update the tree size accounting if we don't free the page id and we
-                         * terminate the delta chain.
-                         */
-                        if (disagg_page_is_valid && !disagg_page_free_required)
-                            WT_RET(__rec_wrapup_decrease_disagg_size(session, r, NULL, 0));
-                    }
+                        WT_RET(__wt_ref_block_free(
+                          session, ref, disagg_page_free_required, disagg_delta_chain_end));
                 }
             } else {
                 /*
@@ -3241,7 +3275,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
                      * the one held on page->disagg_info appears to be from the previous block, and
                      * the one on the multi->block_meta appears to be from the current block.
                      */
-                    if (r->multi_next == 1 && r->multi->block_meta != NULL)
+                    if (disagg_delta_chain_end)
                         WT_RET(__rec_wrapup_decrease_disagg_size(session, r,
                           mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 }
