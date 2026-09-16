@@ -136,6 +136,50 @@ class test_drop05(wttest.WiredTigerTestCase):
         self.assertEqual(self.leftover_files(), [])
         self.assertEqual(self.get_stat(stat.conn.session_table_drop_deferred_applied), applied)
 
+# The deferred unlink can be turned off at open and switched at runtime.
+class test_drop05_config(wttest.WiredTigerTestCase):
+    conn_config = 'statistics=(all),file_manager=(drop_defer_unlink=false)'
+    nrows = 200
+
+    def setUp(self):
+        if self.runningHook('disagg') or self.runningHook('tiered'):
+            self.skipTest('asserts on the physical .wt file of a table')
+        super().setUp()
+
+    def leftover_files(self):
+        return [f for f in os.listdir(self.home) if '.wtdrop' in f]
+
+    def create_populate_drop(self, name):
+        uri = 'table:' + name
+        self.session.create(uri, 'key_format=Q,value_format=S')
+        cursor = self.session.open_cursor(uri)
+        for i in range(self.nrows):
+            cursor[i] = 'a' * 50
+        cursor.close()
+        self.session.checkpoint()
+        self.assertTrue(os.path.exists(os.path.join(self.home, name + '.wt')))
+        self.session.drop(uri)
+        self.assertFalse(os.path.exists(os.path.join(self.home, name + '.wt')))
+        self.assertEqual(self.leftover_files(), [])
+
+    def test_drop_defer_unlink_off(self):
+        self.create_populate_drop('test_drop05_off')
+        self.assertEqual(self.get_stat(stat.conn.session_table_drop_deferred_applied), 0)
+
+    def test_drop_defer_unlink_reconfigure(self):
+        self.conn.reconfigure('file_manager=(drop_defer_unlink=true)')
+        self.create_populate_drop('test_drop05_first')
+        applied = self.get_stat(stat.conn.session_table_drop_deferred_applied)
+        self.assertGreater(applied, 0)
+
+        self.conn.reconfigure('file_manager=(drop_defer_unlink=false)')
+        self.create_populate_drop('test_drop05_second')
+        self.assertEqual(self.get_stat(stat.conn.session_table_drop_deferred_applied), applied)
+
+        self.conn.reconfigure('file_manager=(drop_defer_unlink=true)')
+        self.create_populate_drop('test_drop05_third')
+        self.assertGreater(self.get_stat(stat.conn.session_table_drop_deferred_applied), applied)
+
 class test_drop05_inmem(wttest.WiredTigerTestCase):
     conn_config = 'in_memory=true,statistics=(all)'
     uri = 'table:test_drop05_inmem'
