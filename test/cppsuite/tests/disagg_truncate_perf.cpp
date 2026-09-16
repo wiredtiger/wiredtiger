@@ -35,6 +35,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <shared_mutex>
 #include <thread>
 #include <vector>
 
@@ -114,9 +115,16 @@ private:
     std::atomic<uint64_t> _next_key{1}, _inserted_bytes{0}, _truncated_key{0};
     std::atomic<uint64_t> _truncate_ops{0}, _insert_rollbacks{0}, _truncate_rollbacks{0};
     std::atomic<uint64_t> _truncate_list_entries{0};
+    uint64_t _phase_start_bytes{0};
 
     /* Checkpoints taken while loading, handed to the follower one at a time once it restarts. */
     std::vector<std::string> _checkpoints;
+
+    /*
+     * Charging a truncate for the cache it creates means reading a statistic the inserters also
+     * move, so they are held off for as long as one is open.
+     */
+    std::shared_mutex _insert_gate;
 
     cache_pressure _cache;
     truncate_cost _cost;
@@ -259,6 +267,7 @@ disagg_truncate_perf::insert_worker(uint64_t target_bytes)
       static_cast<uint64_t>(_value_size));
 
     while (_inserted_bytes.load() < target_bytes) {
+        std::shared_lock<std::shared_mutex> gate(_insert_gate);
         int ret;
 
         testutil_check(session->begin_transaction(session.get(), nullptr));
@@ -359,6 +368,7 @@ disagg_truncate_perf::truncate_worker(uint64_t target_bytes)
             continue;
         }
 
+        std::unique_lock<std::shared_mutex> gate(_insert_gate);
         if (timer.track([&]() {
                 return (truncate_to_marker(session, cursor, stat_cursor, marker_key));
             }) != 0)
@@ -467,6 +477,8 @@ disagg_truncate_perf::report_phase(
 
     report(role + "_duration_ms", elapsed);
     report(role + "_truncates_per_second", (_truncate_ops.load() * 1000) / elapsed);
+    report(role + "_insert_mb_per_second",
+      ((_inserted_bytes.load() - _phase_start_bytes) * 1000) / WT_MEGABYTE / elapsed);
     report(role + "_truncate_ops", _truncate_ops.load());
     report(role + "_truncate_rollbacks", _truncate_rollbacks.load());
     report(role + "_insert_rollbacks", _insert_rollbacks.load());
@@ -518,7 +530,8 @@ disagg_truncate_perf::run_workload()
     logger::log_msg(LOG_INFO, "Starting the " + _role + " phase.");
 
     std::atomic<bool> done{false};
-    uint64_t target_bytes = _inserted_bytes.load() + mb_to_bytes(_insert_mb);
+    _phase_start_bytes = _inserted_bytes.load();
+    uint64_t target_bytes = _phase_start_bytes + mb_to_bytes(_insert_mb);
     phase_stats before = read_phase_stats();
     auto start = std::chrono::steady_clock::now();
 
