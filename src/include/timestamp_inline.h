@@ -138,8 +138,8 @@
  */
 #define WT_TIME_AGGREGATE_INIT(ta)                      \
     do {                                                \
-        (ta)->newest_durable_ts = WT_TS_NONE;           \
-        (ta)->newest_page_stop_durable_ts = WT_TS_NONE; \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
         (ta)->oldest_start_ts = WT_TS_NONE;             \
         (ta)->newest_txn = WT_TXN_NONE;                 \
         (ta)->newest_stop_ts = WT_TS_MAX;               \
@@ -159,8 +159,8 @@
  */
 #define WT_TIME_AGGREGATE_INIT_MERGE(ta)                \
     do {                                                \
-        (ta)->newest_durable_ts = WT_TS_NONE;           \
-        (ta)->newest_page_stop_durable_ts = WT_TS_NONE; \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
         (ta)->oldest_start_ts = WT_TS_MAX;              \
         (ta)->newest_txn = WT_TXN_NONE;                 \
         (ta)->newest_stop_ts = WT_TS_NONE;              \
@@ -174,12 +174,12 @@
 #define WT_TIME_AGGREGATE_IS_EMPTY(ta)                                                             \
     ((ta)->init_merge == 0 ?                                                                       \
         ((ta)->newest_durable_ts == WT_TS_NONE &&                                                  \
-          (ta)->newest_page_stop_durable_ts == WT_TS_NONE &&                                       \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
           (ta)->oldest_start_ts == WT_TS_NONE && (ta)->newest_txn == WT_TXN_NONE &&                \
           (ta)->newest_stop_ts == WT_TS_MAX && (ta)->newest_stop_txn == WT_TXN_MAX &&              \
           (ta)->prepare == 0) :                                                                    \
         ((ta)->newest_durable_ts == WT_TS_NONE &&                                                  \
-          (ta)->newest_page_stop_durable_ts == WT_TS_NONE && (ta)->oldest_start_ts == WT_TS_MAX && \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
           (ta)->newest_txn == WT_TXN_NONE && (ta)->newest_stop_ts == WT_TS_NONE &&                 \
           (ta)->newest_stop_txn == WT_TXN_NONE && (ta)->prepare == 0))
 
@@ -196,10 +196,10 @@
         WT_ASSERT(session, (ta)->init_merge == 1);                                             \
         if ((tw)->start_prepare_ts == WT_TS_NONE) {                                            \
             (ta)->oldest_start_ts = WT_MIN((tw)->start_ts, (ta)->oldest_start_ts);             \
-            (ta)->newest_durable_ts = WT_MAX((tw)->durable_start_ts, (ta)->newest_durable_ts); \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
         } else {                                                                               \
             (ta)->oldest_start_ts = WT_MIN((tw)->start_prepare_ts, (ta)->oldest_start_ts);     \
-            (ta)->newest_durable_ts = WT_MAX((tw)->start_prepare_ts, (ta)->newest_durable_ts); \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
         }                                                                                      \
         (ta)->newest_txn = WT_MAX((tw)->start_txn, (ta)->newest_txn);                          \
         /*                                                                                     \
@@ -208,33 +208,33 @@
          */                                                                                    \
         if ((tw)->stop_txn != WT_TXN_MAX) {                                                    \
             (ta)->newest_txn = WT_MAX((tw)->stop_txn, (ta)->newest_txn);                       \
-            (ta)->newest_durable_ts = WT_MAX((tw)->durable_stop_ts, (ta)->newest_durable_ts);  \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
         }                                                                                      \
         (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);                 \
         if ((tw)->stop_prepare_ts == WT_TS_NONE) {                                             \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_ts, (ta)->newest_stop_ts);                \
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
-                (ta)->newest_page_stop_durable_ts =                                            \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
                   WT_MAX((tw)->durable_stop_ts, (ta)->newest_page_stop_durable_ts);            \
             else {                                                                             \
                 __wt_verbose_debug1(session, WT_VERB_RECONCILE,                                \
                   "clearing page stop durable timestamp during aggregate update: "             \
                   "stop_ts=%" PRIu64 ", page_stop_durable_ts=%" PRIu64,                        \
                   (ta)->newest_stop_ts, (ta)->newest_page_stop_durable_ts);                    \
-                (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
             }                                                                                  \
         } else {                                                                               \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts);        \
-            (ta)->newest_durable_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_durable_ts);  \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
-                (ta)->newest_page_stop_durable_ts =                                            \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
                   WT_MAX((tw)->stop_prepare_ts, (ta)->newest_page_stop_durable_ts);            \
             else {                                                                             \
                 __wt_verbose_debug1(session, WT_VERB_RECONCILE,                                \
                   "clearing page stop durable timestamp during prepared aggregate update: "    \
                   "stop_ts=%" PRIu64 ", page_stop_durable_ts=%" PRIu64,                        \
                   (ta)->newest_stop_ts, (ta)->newest_page_stop_durable_ts);                    \
-                (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
             }                                                                                  \
         }                                                                                      \
         if ((tw)->stop_txn != WT_TXN_MAX && (tw)->stop_txn != WT_TXN_NONE)                     \
@@ -251,11 +251,11 @@
 #define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                                  \
     do {                                                                                          \
         WT_ASSERT(session, (ta)->init_merge == 1);                                                \
-        (ta)->newest_durable_ts = WT_MAX((page_del)->pg_del_durable_ts, (ta)->newest_durable_ts); \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
         WT_ASSERT(session,                                                                        \
           (page_del)->pg_del_start_ts == WT_TS_NONE ||                                            \
             (page_del)->pg_del_durable_ts != WT_TS_NONE);                                         \
-        (ta)->newest_page_stop_durable_ts =                                                       \
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
           WT_MAX((page_del)->pg_del_durable_ts, (ta)->newest_page_stop_durable_ts);               \
         (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);                           \
         (ta)->newest_stop_ts = WT_MAX((page_del)->pg_del_start_ts, (ta)->newest_stop_ts);         \
@@ -271,7 +271,8 @@
  */
 #define WT_TIME_AGGREGATE_MERGE_PAGE_DEL(ta, page_del)                                \
     do {                                                                              \
-        (ta)->newest_stop_durable_ts = (page_del)->pg_del_durable_ts;                 \
+        (ta)->newest_durable_ts = (page_del)->pg_del_durable_ts;\
+        (ta)->newest_page_stop_durable_ts = (page_del)->pg_del_durable_ts;\
         (ta)->newest_txn = (page_del)->txnid;                                         \
         (ta)->newest_stop_ts = (page_del)->pg_del_start_ts;                           \
         (ta)->newest_stop_txn = (page_del)->txnid;                                    \
