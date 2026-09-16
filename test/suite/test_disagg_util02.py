@@ -114,9 +114,9 @@ class test_disagg_wt_page(
         c.close()
         self.session.checkpoint()
 
-    # Find the page chain entry matching where_clause, highest order_by first.
-    # Shells out to the sqlite3 binary built alongside palite; the system
-    # Python sqlite3 may be too old to parse the palite schema.
+    # Find the newest page chain entry matching where_clause. Shells out to
+    # the sqlite3 binary built alongside palite; the system Python sqlite3
+    # may be too old to parse the palite schema.
     def _find_page(self, where_clause, description):
         table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
