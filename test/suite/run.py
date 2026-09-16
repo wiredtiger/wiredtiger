@@ -351,9 +351,6 @@ if __name__ == '__main__':
     hook_names = []
     timeout = 0
     command_line_vars = dict()
-    # Generate a random string to use as a prefix for the tiered test objects to group them under
-    # the same test run.
-    ss_random_prefix = str(random.randrange(1, 2147483646))
 
     while len(args) > 0:
         arg = args.pop(0)
@@ -607,6 +604,17 @@ if __name__ == '__main__':
         elif verbose >= 2:
             print('Python restarted for ASAN')
 
+    # FIXME-WT-18608: Remove this override once the requirement is enforced by default.
+    #
+    # Writes to disaggregated tables may skip the commit timestamp by default, until the
+    # applications doing so are fixed; keep the requirement enforced for our own tests. The
+    # environment outranks the connection config, so leave it alone under the disagg hook, which
+    # runs tests that predate the requirement and asks for it to be optional.
+    if not any(name.split('=', 1)[0] == 'disagg' for name in hook_names):
+        wt_config = os.environ.get('WIREDTIGER_CONFIG')
+        os.environ['WIREDTIGER_CONFIG'] = (wt_config + ',' if wt_config else '') + \
+            'debug_mode=(disagg_commit_ts_optional=false)'
+
     # We don't import wttest until after ASAN environment variables are set.
     import wttest
     # Use the same version of unittest found by wttest.py
@@ -624,7 +632,7 @@ if __name__ == '__main__':
     wttest.WiredTigerTestCase.globalSetup(command_line_vars, preserve, removeAtStart, timestamp,
                                           gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
-                                          seedw, seedz, hookmgr, ss_random_prefix, timeout)
+                                          seedw, seedz, hookmgr, timeout)
 
     skipTests = []
     if skipFileForTests:

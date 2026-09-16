@@ -194,6 +194,10 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t oldest_id;
 
     wt_shared wt_timestamp_t durable_timestamp;
+    /*
+     * All accesses are relaxed: the value never orders other memory. Writers and the in-engine
+     * readers hold the checkpoint lock, and query_timestamp only returns it.
+     */
     wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
     /*
      * Release-stored by checkpoint once its durable state is established, acquire-loaded by sweep
@@ -507,20 +511,21 @@ struct __wt_txn {
 #define WT_TXN_AUTOCOMMIT 0x00001u
 #define WT_TXN_ERROR 0x00002u
 #define WT_TXN_HAS_SNAPSHOT 0x00004u
-#define WT_TXN_IGNORE_PREPARE 0x00008u
-#define WT_TXN_IS_CHECKPOINT 0x00010u
-#define WT_TXN_PREPARE 0x00020u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00040u
-#define WT_TXN_READONLY 0x00080u
-#define WT_TXN_REFRESH_SNAPSHOT 0x00100u
-#define WT_TXN_RUNNING 0x00200u
-#define WT_TXN_SHARED_TS_DURABLE 0x00400u
-#define WT_TXN_SHARED_TS_READ 0x00800u
-#define WT_TXN_SYNC_SET 0x01000u
-#define WT_TXN_TS_NOT_SET 0x02000u
-#define WT_TXN_TS_ROUND_PREPARED 0x04000u
-#define WT_TXN_TS_ROUND_READ 0x08000u
-#define WT_TXN_UPDATE 0x10000u
+#define WT_TXN_IGNORE_CACHE_SIZE 0x00008u
+#define WT_TXN_IGNORE_PREPARE 0x00010u
+#define WT_TXN_IS_CHECKPOINT 0x00020u
+#define WT_TXN_PREPARE 0x00040u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00080u
+#define WT_TXN_READONLY 0x00100u
+#define WT_TXN_REFRESH_SNAPSHOT 0x00200u
+#define WT_TXN_RUNNING 0x00400u
+#define WT_TXN_SHARED_TS_DURABLE 0x00800u
+#define WT_TXN_SHARED_TS_READ 0x01000u
+#define WT_TXN_SYNC_SET 0x02000u
+#define WT_TXN_TS_NOT_SET 0x04000u
+#define WT_TXN_TS_ROUND_PREPARED 0x08000u
+#define WT_TXN_TS_ROUND_READ 0x10000u
+#define WT_TXN_UPDATE 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 

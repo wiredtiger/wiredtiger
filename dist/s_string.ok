@@ -146,6 +146,8 @@ DataSet
 Decrementing
 Decrypt
 DeleteFileW
+Dequeue
+Dequeued
 Deterministically
 Dhandle
 DisAgg
@@ -159,6 +161,7 @@ Dxxx
 EACCES
 EB
 EBUSY
+ECANCELED
 EDC
 EEXIST
 EFAULT
@@ -243,6 +246,7 @@ Getters
 Gh
 Github
 Golomb
+HALFLIFE
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -406,6 +410,7 @@ PTR
 PTRDIFF
 PYTHONMALLOC
 Palite
+Palite's
 Palites
 Pe
 PlatformSDK
@@ -480,11 +485,13 @@ SIGKILLs
 SIGPIPE
 SIGSEGV
 SIMD
+SLIST
 SLS
 SLVG
 SMT
 SPINLOCK
 SSq
+STAILQ
 STATP
 STR
 STRUCT
@@ -538,7 +545,6 @@ TextWrapper
 ThreadList
 ThreadListWrapper
 ThreadsafeForwardingResult
-TieredConfigMixin
 Timespec
 Tput
 TryCV
@@ -638,6 +644,7 @@ WiredTigerTimestamp
 WiredTigerTmplog
 WithSeeds
 WriteFile
+Wswitch
 Wundef
 Wuninitialized
 Wunused
@@ -966,6 +973,7 @@ demuxes
 demuxing
 dequeue
 dequeued
+dequeues
 der
 deref
 dereference
@@ -1059,6 +1067,7 @@ env
 eof
 ep
 epochless
+epochp
 epp
 eq
 equalp
@@ -1164,8 +1173,11 @@ fwrite
 gb
 gc
 gcc
+gcda
+gcno
 gcov
 gcovr
+gcovr's
 gcp
 gdb
 gdb's
@@ -1196,6 +1208,7 @@ goto
 goutf
 groupd
 gte
+halvings
 handleops
 handlep
 handoff
@@ -1373,6 +1386,7 @@ logfile
 logmgr
 lognum
 logop
+logp
 logpath
 logread
 logrec
@@ -1427,6 +1441,7 @@ memsize
 metaconf
 metadata's
 metafile
+metric's
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
@@ -1583,6 +1598,7 @@ packv
 pagesize
 pali
 palite
+palite's
 param
 params
 parens
@@ -1654,6 +1670,7 @@ psp
 pthread
 ptr
 ptrdiff
+publishedp
 pv
 pval
 pwrite
@@ -1754,6 +1771,7 @@ sanitizer
 sanitizers
 scalable
 scen
+scheckpoint
 schemas
 sclose
 scr
@@ -1844,6 +1862,7 @@ strtoll
 strtoull
 strtouq
 struct
+struct's
 structs
 su
 subcommand
@@ -1865,6 +1884,7 @@ sublist
 suboptimal
 subproc
 subprocess
+subprocess's
 subprocesses
 substring
 substrings
@@ -1936,6 +1956,8 @@ topologies
 totalsec
 tp
 traceapi
+tracefile
+tracefiles
 tracepat
 transactional
 transactionally
@@ -2020,6 +2042,7 @@ unreferenced
 unsetting
 unsized
 unspawned
+unsuffixed
 unsynchronised
 unterminated
 untimestamped

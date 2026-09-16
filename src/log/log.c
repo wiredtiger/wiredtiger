@@ -1555,7 +1555,7 @@ __wti_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const char *dest)
      */
     WT_RET(__wt_scr_alloc(session, 0, &from_path));
     WT_ERR(__wt_scr_alloc(session, 0, &to_path));
-    tmp_id = __wt_atomic_add_uint32(&log->tmp_fileid, 1);
+    tmp_id = __wt_atomic_add_uint32_relaxed(&log->tmp_fileid, 1);
     WT_ERR(__wt_log_filename(session, tmp_id, WTI_LOG_TMPNAME, from_path));
     WT_ERR(__wt_log_filename(session, lognum, dest, to_path));
     __wt_spin_lock(session, &log->log_fs_lock);
@@ -1920,10 +1920,10 @@ __wti_log_release(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *freep)
      * Checkpoints can be configured based on amount of log written. Add in this log record to the
      * sum and if needed, signal the checkpoint condition. The logging subsystem manages the
      * accumulated field. There is a bit of layering violation here checking the connection ckpt
-     * field and using its condition. Don't signal on close because the checkpoint server is
-     * shutdown before logging.
+     * field and using its condition. Don't signal once the checkpoint server has been shut down;
+     * the server flag is cleared (and the condition variable destroyed) before logging finishes.
      */
-    if (WT_CKPT_LOGSIZE(conn) && !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING)) {
+    if (WT_CKPT_LOGSIZE(conn) && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT)) {
         __wt_tsan_suppress_add_int64(&log->log_written, (wt_off_t)release_bytes);
         __wt_checkpoint_signal(session, log->log_written);
     }
@@ -2449,8 +2449,15 @@ err:
         WT_TRET(__wt_close(session, &log_fh));
         log_fh = NULL;
         /* Don't alter the file when the logging system is not set up. */
-        if (log != NULL)
+        if (log != NULL) {
             WT_TRET(__log_truncate(session, &rd_lsn, false, true));
+            __wt_verbose_notice(session, WT_VERB_LOG,
+              "salvage: log scan truncated at %" PRIu32 "/%" PRIu32
+              ", returning end of log (flags 0x%" PRIx32 ", first record %d)",
+              rd_lsn.l.file, __wt_lsn_offset(&rd_lsn), flags, firstrecord);
+        }
+        /* Salvage truncated at this LSN, so this is the end of the log. */
+        eol = true;
         ret = 0;
     }
 

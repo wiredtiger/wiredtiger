@@ -86,12 +86,14 @@ query_ts(WT_CONNECTION *conn, uint8_t bit)
  *     Set the selected connection timestamps to given value.
  */
 void
-set_ts(WT_CONNECTION *conn, uint8_t mask, uint64_t ts)
+set_ts(const TEST_CONFIG *cfg, WT_CONNECTION *conn, uint8_t mask, uint64_t ts)
 {
+    if (cfg->epoch_less)
+        mask &= (uint8_t)~TS_SCHEMA_EPOCHS;
+    testutil_assert(mask != 0);
+
     char config[256];
     size_t len = 0;
-
-    testutil_assert(mask != 0);
     for (uint8_t bit = 1; bit != 0; bit = (uint8_t)(bit << 1)) {
         if ((mask & bit) == 0)
             continue;
@@ -102,38 +104,41 @@ set_ts(WT_CONNECTION *conn, uint8_t mask, uint64_t ts)
 }
 
 /*
- * adopted_lsn_publish --
- *     Report the latest adopted checkpoint LSN for a stepping-down peer to wait on.
+ * adopted_ckpt_publish --
+ *     Report the latest adopted checkpoint's LSN and schema epoch for the peer to wait on.
  */
 void
-adopted_lsn_publish(uint32_t node_id, uint64_t lsn)
+adopted_ckpt_publish(uint32_t node_id, uint64_t lsn, uint64_t schema_epoch)
 {
     /* Write to a temporary file first, so a reader never sees a partial value */
     char tmp[64];
-    testutil_snprintf(tmp, sizeof(tmp), ADOPTED_LSN_FILE ".%" PRIu32, node_id);
+    testutil_snprintf(tmp, sizeof(tmp), ADOPTED_CKPT_FILE ".%" PRIu32, node_id);
 
     FILE *fp;
     testutil_assert_errno((fp = fopen(tmp, "w")) != NULL);
-    testutil_assert(fprintf(fp, "%" PRIu64 "\n", lsn) > 0);
+    testutil_assert(fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", lsn, schema_epoch) > 0);
     testutil_check(fclose(fp));
-    /* Publish the LSN. */
-    testutil_assert_errno(rename(tmp, ADOPTED_LSN_FILE) == 0);
+    /* Publish the pair. */
+    testutil_assert_errno(rename(tmp, ADOPTED_CKPT_FILE) == 0);
 }
 
 /*
- * adopted_lsn_read --
- *     Return the peer's last reported adopted checkpoint LSN; zero when none yet.
+ * adopted_ckpt_read --
+ *     Return the peer's last reported adopted checkpoint LSN and its schema epoch.
  */
 uint64_t
-adopted_lsn_read(void)
+adopted_ckpt_read(uint64_t *schema_epochp)
 {
-    FILE *fp = fopen(ADOPTED_LSN_FILE, "r");
-    if (fp == NULL)
-        return (0);
+    uint64_t lsn = 0, schema_epoch = 0;
 
-    uint64_t lsn = 0;
-    (void)fscanf(fp, "%" SCNu64, &lsn);
-    testutil_check(fclose(fp));
+    FILE *fp = fopen(ADOPTED_CKPT_FILE, "r");
+    if (fp != NULL) {
+        testutil_ignore_ret(fscanf(fp, "%" SCNu64 " %" SCNu64, &lsn, &schema_epoch));
+        testutil_check(fclose(fp));
+    }
+
+    if (schema_epochp != NULL)
+        *schema_epochp = schema_epoch;
     return (lsn);
 }
 
@@ -146,11 +151,12 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-b build-dir] [-h dir] [-k [l|f]N] [-p] [-r l|f|lf] [-s N] [-T threads] "
+      "usage: %s [-b build-dir] [-e] [-h dir] [-k [l|f]N] [-p] [-r l|f|lf] [-s N] [-T threads] "
       "[-t time] [-q] [-u pool] [-v]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
+      "\t-e run legacy schema operations without epochs (single node only)\n"
       "\t-h home directory\n"
       "\t-k kill after N seconds: lN the current leader, fN the current follower (two nodes),\n"
       "\t   plain N the lone node (single node); may be given more than once\n"
@@ -243,10 +249,10 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
 
     *rand_thp = *rand_timep = true;
 
-    testutil_parse_begin_opt(argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:q", cfg->opts);
+    testutil_parse_begin_opt(argc, argv, "A:b:eh:i:k:pP:r:R:s:t:T:u:vW:q", cfg->opts);
 
     int ch;
-    while ((ch = __wt_getopt(progname, argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:q")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "A:b:eh:i:k:pP:r:R:s:t:T:u:vW:q")) != EOF)
         switch (ch) {
         case 'A':
             if (strcmp(__wt_optarg, "l") == 0)
@@ -255,6 +261,9 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
                 cfg->start_leader = false;
             else
                 usage();
+            break;
+        case 'e':
+            cfg->epoch_less = true;
             break;
         case 'i':
             cfg->node_id = parse_uint_in_range(__wt_optarg, 0, MAX_NODES - 1, "Node id");
@@ -277,7 +286,7 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
             break;
         case 'T':
             *rand_thp = false;
-            cfg->nth = parse_uint_in_range(__wt_optarg, 1, MAX_TH, "Thread count");
+            cfg->thread_count = parse_uint_in_range(__wt_optarg, 1, MAX_TH, "Thread count");
             break;
         case 'q':
             cfg->unique_tables = true;
@@ -334,9 +343,9 @@ randomize_run_parameters(TEST_CONFIG *cfg, bool rand_th, bool rand_time)
 
     const uint32_t rand_value = __wt_random(&cfg->opts->data_rnd);
     if (rand_th) {
-        cfg->nth = rand_value % MAX_TH;
-        if (cfg->nth < MIN_TH)
-            cfg->nth = MIN_TH;
+        cfg->thread_count = rand_value % MAX_TH;
+        if (cfg->thread_count < MIN_TH)
+            cfg->thread_count = MIN_TH;
     }
 
     /* No -r: run a random single node. */
@@ -365,6 +374,11 @@ validate_run_parameters(const TEST_CONFIG *cfg)
         fprintf(stderr, "-k lN / -k fN target roles; use plain -k N with a single node\n");
         usage();
     }
+    if (cfg->epoch_less && multi_node) {
+        fprintf(
+          stderr, "-e supports single-node roles only; schema epochs are required with -r lf\n");
+        usage();
+    }
 }
 
 /*
@@ -389,8 +403,9 @@ print_run_banner(const TEST_CONFIG *cfg)
     println("Parent: roles %s; %" PRIu32 " schema threads; pool %" PRIu32
             " slots; switch every %" PRIu32 "s; kill leader@%" PRIu32 " follower@%" PRIu32
             " lone@%" PRIu32 "; stop at %" PRIu32 "s",
-      roles_arg(cfg), cfg->nth, cfg->pool_size, cfg->switch_interval, cfg->kill_time[KILL_LEADER],
-      cfg->kill_time[KILL_FOLLOWER], cfg->kill_time[KILL_LONE], cfg->total_time);
+      roles_arg(cfg), cfg->thread_count, cfg->pool_size, cfg->switch_interval,
+      cfg->kill_time[KILL_LEADER], cfg->kill_time[KILL_FOLLOWER], cfg->kill_time[KILL_LONE],
+      cfg->total_time);
 
     char switch_arg[32] = "", kill_args[64] = "";
     if (cfg->switch_interval != 0)
@@ -401,10 +416,10 @@ print_run_banner(const TEST_CONFIG *cfg)
             testutil_snprintf_len_incr(kill_args, sizeof(kill_args), &len, " -k %s%" PRIu32,
               kill_prefix[k], cfg->kill_time[k]);
 
-    println("CONFIG: %s -r %s%s%s -u %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
+    println("CONFIG: %s%s -r %s%s%s -u %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
             " " TESTUTIL_SEED_FORMAT,
-      progname, roles_arg(cfg), switch_arg, kill_args, cfg->pool_size, cfg->nth, cfg->total_time,
-      cfg->opts->data_seed, cfg->opts->extra_seed);
+      progname, cfg->epoch_less ? " -e" : "", roles_arg(cfg), switch_arg, kill_args, cfg->pool_size,
+      cfg->thread_count, cfg->total_time, cfg->opts->data_seed, cfg->opts->extra_seed);
 }
 
 /*
@@ -420,7 +435,7 @@ main(int argc, char *argv[])
 
     TEST_CONFIG cfg = {0};
     cfg.opts = &s_opts;
-    cfg.nth = MIN_TH;
+    cfg.thread_count = MIN_TH;
     /*
      * Default: 32 slots per thread. A wide pool keeps the generator's picks off the few slots gated
      * behind a checkpoint, so it rarely comes up empty and has to wait.

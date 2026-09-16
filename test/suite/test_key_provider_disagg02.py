@@ -63,7 +63,9 @@ class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
     def subprocess_func(self):
         # Populate table.
         ds = SimpleDataSet(self, self.uri, self.nentries)
+        self.session.begin_transaction()
         ds.populate()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.next_commit_ts()))
         ds.check()
 
         # Establish a durable baseline checkpoint that persists a key provider page.
@@ -75,7 +77,7 @@ class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
         self.session.checkpoint(f"debug=(checkpoint_crash_trigger_point={self.crash_point})") # Expected to fail
 
     def test_key_provider_disagg02(self):
-        self.conn.close()
+        self.conn.close('debug=(skip_checkpoint=true)')
 
         subdir = 'SUBPROCESS'
         new_home_dir = self.crash_in_subprocess(subdir,

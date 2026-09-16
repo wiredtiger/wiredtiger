@@ -277,36 +277,39 @@ lsm_config = [
     ]),
 ]
 
+# Leftover keys shared by create and wiredtiger_open.
+tiered_storage_configuration_common = [
+    Config('name', 'none', r'''
+        removed option, preserved to allow parsing old metadata'''),
+    Config('auth_token', '', r'''
+        removed option, preserved to allow parsing old metadata'''),
+    Config('bucket', '', r'''
+        removed option, preserved to allow parsing old metadata'''),
+    Config('bucket_prefix', '', r'''
+        removed option, preserved to allow parsing old metadata'''),
+    Config('cache_directory', '', r'''
+        removed option, preserved to allow parsing old metadata'''),
+    Config('local_retention', '300', r'''
+        removed option, preserved to allow parsing old metadata''',
+        min='0', max='10000'),
+    Config('shared', 'false', r'''
+        removed option, preserved to allow parsing old metadata''',
+        type='boolean'),
+]
+
 tiered_config = [
     Config('tiered_storage', '', r'''
-        configure a storage source for this table''',
-        type='category', subconfig=[
-        Config('name', 'none', r'''
-            permitted values are \c "none" or a custom storage source name created with
-            WT_CONNECTION::add_storage_source. See @ref custom_storage_sources for more
-            information'''),
-        Config('auth_token', '', r'''
-            authentication string identifier'''),
-        Config('bucket', '', r'''
-            the bucket indicating the location for this table'''),
-        Config('bucket_prefix', '', r'''
-            the unique bucket prefix for this table'''),
-        Config('cache_directory', '', r'''
-            a directory to store locally cached versions of files in the storage source. By
-            default, it is named with \c "-cache" appended to the bucket name. A relative
-            directory name is relative to the home directory'''),
-        Config('local_retention', '300', r'''
-            time in seconds to retain data on tiered storage on the local tier for faster
-            read access''',
-            min='0', max='10000'),
+        Removed options, preserved to allow parsing old metadata''',
+        type='category', undoc=True, subconfig=
+        tiered_storage_configuration_common + [
         Config('object_target_size', '0', r'''
-            this option is no longer supported, retained for backward compatibility''',
-            min='0', undoc=True),
-        Config('shared', 'false', r'''
-            enable sharing tiered tables across other WiredTiger instances.''',
-            type='boolean'),
+            removed option, preserved to allow parsing old metadata''',
+            min='0'),
         ]),
 ]
+# Undocumented categories skip the header walk that stamps method_name.
+# Without this, create and open share confchk_tiered_storage_subconfigs.
+tiered_config[0].method_name = 'WT_SESSION.create'
 
 tiered_tree_config = [
     Config('bucket', '', r'''
@@ -355,7 +358,7 @@ file_runtime_config = common_runtime_config + log_runtime_config + [
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + tiered_config + file_disaggregated_config + [
+file_config = format_meta + file_runtime_config + file_disaggregated_config + [
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "best" or \c "first"; the \c "best"
         configuration uses a best-fit algorithm, the \c "first" configuration uses a
@@ -373,7 +376,8 @@ file_config = format_meta + file_runtime_config + tiered_config + file_disaggreg
         these names are also available. See @ref compression for more information'''),
     Config('block_manager', 'default', r'''
         configure a manager for file blocks. Permitted values are \c "default" or the
-        disaggregated storage block manager backed by \c PALI.''',
+        disaggregated storage block manager backed by \c PALI, which requires a page log
+        service to be configured.''',
         choices=['default', 'disagg']),
     Config('checksum', 'on', r'''
         configure block checksums; the permitted values are \c on, \c off, \c uncompressed and
@@ -507,10 +511,6 @@ file_meta = file_config + [
         the file is read-only. All methods that modify a file are disabled. See @ref
         readonly for more information''',
         type='boolean'),
-    Config('tiered_object', 'false', r'''
-        this file is a tiered object. When opened on its own, it is marked as readonly and may
-        be restricted in other ways''',
-        type='boolean', undoc=True),
     Config('version', '(major=0,minor=0)', r'''
         the file version'''),
 ]
@@ -626,7 +626,9 @@ connection_runtime_config = [
         min='1MB', max='10TB'),
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait for space to be
-        available in cache before giving up. Default or 0 will wait forever. 1 will never wait''',
+        available in cache before giving up. Default or 0 will wait forever. Individual
+        sessions and transactions can bypass this wait with their own \c ignore_cache_size
+        configuration''',
         min=0),
     Config('cache_stuck_timeout_ms', '300000', r'''
         the number of milliseconds to wait before a stuck cache times out in diagnostic mode.
@@ -727,6 +729,11 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
+        # FIXME-WT-18608: Set default to false once we fix all the issues on the MongoDB side.
+        Config('disagg_commit_ts_optional', 'true', r'''
+            !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated
+            tables are not required to carry a commit timestamp.''',
+            type='boolean', undoc=True),
         Config('disagg_slow_truncate_follower', 'false', r'''
             if true, follower-side layered-table truncate uses the slow per-record delete path
             instead of the optimized range delete. Intended for debugging the disaggregated
@@ -777,9 +784,6 @@ connection_runtime_config = [
             operations for tables with logging turned off. This additional logging information
             is intended for debugging and is informational only, that is, it is ignored during
             recovery''',
-            type='boolean'),
-        Config('tiered_flush_error_continue', 'false', r'''
-            on a write to tiered storage, continue when an error occurs.''',
             type='boolean'),
         Config('update_restore_evict', 'false', r'''
             if true, control all dirty page evictions through forcing update restore eviction.''',
@@ -1067,11 +1071,13 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
+        'aggressive_stash_free', 'aggressive_sweep', 'backup_blkmod_delay', 'backup_rename',
+        'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
+        'disagg_stable_dhandle_delay',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -1080,7 +1086,7 @@ connection_runtime_config = [
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
         'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
         'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4',
-        'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'split_5', 'split_6', 'split_7', 'split_8']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1094,6 +1100,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'block_cache',
+            'cache_top',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
@@ -1131,7 +1138,6 @@ connection_runtime_config = [
             'sweep',
             'temporary',
             'thread_group',
-            'tiered',
             'timestamp',
             'transaction',
             'verify',
@@ -1271,44 +1277,14 @@ wiredtiger_open_statistics_log_configuration = [
         ])
 ]
 
-tiered_storage_configuration_common = [
-    Config('local_retention', '300', r'''
-        time in seconds to retain data on tiered storage on the local tier for faster read
-        access''',
-        min='0', max='10000'),
-]
-connection_reconfigure_tiered_storage_configuration = [
-    Config('tiered_storage', '', r'''
-        enable tiered storage. Enabling tiered storage may use one session from the configured
-        session_max''',
-        type='category', subconfig=tiered_storage_configuration_common)
-]
 wiredtiger_open_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
-        enable tiered storage. Enabling tiered storage may use one session from the configured
-        session_max''',
+        Removed options, preserved to allow parsing old metadata''',
         type='category', undoc=True, subconfig=
         tiered_storage_configuration_common + [
-        Config('auth_token', '', r'''
-            authentication string identifier'''),
-        Config('bucket', '', r'''
-            bucket string identifier where the objects should reside'''),
-        Config('bucket_prefix', '', r'''
-            unique string prefix to identify our objects in the bucket. Multiple instances
-            can share the storage bucket and this identifier is used in naming objects'''),
-        Config('cache_directory', '', r'''
-            a directory to store locally cached versions of files in the storage source. By
-            default, it is named with \c "-cache" appended to the bucket name. A relative
-            directory name is relative to the home directory'''),
         Config('interval', '60', r'''
-            interval in seconds at which to check for tiered storage related work to perform''',
+            removed option, preserved to allow parsing old metadata''',
             min=1, max=1000),
-        Config('name', 'none', r'''
-            Permitted values are \c "none" or a custom storage name created with
-            WT_CONNECTION::add_storage_source'''),
-        Config('shared', 'false', r'''
-            enable sharing tiered tables across other WiredTiger instances.''',
-            type='boolean'),
     ]),
 ]
 
@@ -1390,12 +1366,15 @@ session_config = [
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default value will be the global setting of the
-        connection config. 0 will wait forever. 1 will never wait''',
+        connection config. 0 will wait forever. Use the \c ignore_cache_size configuration to
+        allow operations to proceed regardless of cache usage''',
         min=0),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size and are not blocked
-        when the cache is full. Note that use of this option for operations that create cache
-        pressure can starve ordinary sessions that obey the cache size.''',
+        when the cache is full. This setting may be reconfigured while a transaction is running,
+        in which case it takes precedence over the \c ignore_cache_size setting of
+        WT_SESSION::begin_transaction. Note that use of this option for operations that create
+        cache pressure can starve ordinary sessions that obey the cache size.''',
         type='boolean'),
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
@@ -1752,11 +1731,6 @@ methods = {
     Config('remove_files', 'true', r'''
         if the underlying files should be removed''',
         type='boolean'),
-    Config('remove_shared', 'false', r'''
-        to force the removal of any shared objects. This is intended for tiered tables, and can
-        only be set if the drop operation is configured to remove the underlying files. Ignore
-        this configuration if it is set for non-tiered tables''',
-        type='boolean', undoc=True),
 ]),
 
 'WT_SESSION.log_flush' : Method([
@@ -2008,6 +1982,10 @@ methods = {
         Display the contents of in-memory pages as they are verified, using the application's
         message handler, intended for debugging''',
         type='boolean'),
+    Config('fix_btree_size', 'false', r'''
+        When set to true, verify overwrites the checkpoint metadata size with the size derived from
+        walking the tree if they differ''',
+        type='boolean'),
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It
         will skip past the corrupt block and continue with the verification process''',
@@ -2027,6 +2005,15 @@ methods = {
 ]),
 
 'WT_SESSION.begin_transaction' : Method([
+    Config('ignore_cache_size', 'false', r'''
+        when set, operations performed by this transaction ignore the cache size and are not
+        blocked when the cache is full. The setting applies until the transaction is resolved,
+        unless WT_SESSION::reconfigure sets \c ignore_cache_size while the transaction is
+        running, which makes it session-wide. Setting it to \c false has no effect: it does not
+        override a session configured with \c ignore_cache_size. Note that use of this option
+        for operations that create cache pressure can starve ordinary transactions that obey the
+        cache size.''',
+        type='boolean'),
     Config('ignore_prepare', 'false', r'''
         whether to ignore updates by other prepared transactions when doing of read operations
         of this transaction. When \c true, forces the transaction to be read-only. Use \c force
@@ -2217,31 +2204,6 @@ methods = {
         dropped if open in a cursor. While a hot backup is in progress, checkpoints created
         prior to the start of the backup cannot be dropped''',
         type='list'),
-    Config('flush_tier', '', r'''
-        configure flushing objects to tiered storage after checkpoint. See @ref tiered_storage''',
-        type='category', subconfig= [
-            Config('enabled', 'false', r'''
-                if true and tiered storage is in use, perform one iteration of object switching
-                and flushing objects to tiered storage''',
-                type='boolean'),
-            Config('force', 'false', r'''
-                if false (the default), flush_tier of any individual object may be skipped if the
-                underlying object has not been modified since the previous flush_tier. If true,
-                this option forces the flush_tier''',
-                type='boolean'),
-            Config('sync', 'true', r'''
-                wait for all objects to be flushed to the shared storage to the level specified.
-                When false, do not wait for any objects to be written to the tiered storage system
-                but return immediately after generating the objects and work units for an internal
-                thread.  When true, the caller waits until all work queued for this call to be
-                completely processed before returning''',
-                type='boolean'),
-            Config('timeout', '0', r'''
-                amount of time, in seconds, to wait for flushing of objects to complete.
-                WiredTiger returns EBUSY if the timeout is reached. A value of zero disables
-                the timeout''',
-                type='int'),
-    ]),
     Config('force', 'false', r'''
         if false (the default), checkpoints may be skipped if the underlying object has not been
         modified. If true, this option forces the checkpoint''',
@@ -2260,7 +2222,6 @@ methods = {
 'WT_CONNECTION.add_data_source' : Method([]),
 'WT_CONNECTION.add_encryptor' : Method([]),
 'WT_CONNECTION.add_page_log' : Method([]),
-'WT_CONNECTION.add_storage_source' : Method([]),
 'WT_CONNECTION.close' : Method([
     Config('debug', '', r'''
         configure debug specific behavior on connection close. Generally only used for internal
@@ -2270,9 +2231,6 @@ methods = {
             Skips the checkpoint during shutdown.''',
             type='boolean'),
         ]),
-    Config('final_flush', 'false', r'''
-        wait for final flush_tier to copy objects''',
-        type='boolean', undoc=True),
     Config('leak_memory', 'false', r'''
         don't free memory during close''',
         type='boolean'),
@@ -2288,6 +2246,8 @@ methods = {
         print incremental backup information''', type='boolean'),
     Config('cache', 'false', r'''
         print cache information''', type='boolean'),
+    Config('cache_top', 'false', r'''
+        print the tables consuming the most cache''', type='boolean'),
     Config('cursors', 'false', r'''
         print all open cursor information''', type='boolean'),
     Config('handles', 'false', r'''
@@ -2307,7 +2267,6 @@ methods = {
     connection_reconfigure_page_delta_configuration +\
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
-    connection_reconfigure_tiered_storage_configuration +\
     connection_runtime_config
 ),
 'WT_CONNECTION.set_file_system' : Method([]),

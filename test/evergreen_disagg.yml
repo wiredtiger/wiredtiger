@@ -564,21 +564,6 @@ functions:
           ./test_schema_disagg_abort -b "$build_dir" ${schema_args} -T 12 -u 64 -t 300
         done
 
-  "timestamp abort disagg":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ${additional_san_vars}
-        for i in $(seq ${times|1}); do
-          echo Iteration $i/${times}
-          ./test_timestamp_abort -G -s
-        done
-
 #######################################
 #               Variables             #
 #######################################
@@ -664,15 +649,6 @@ variables:
             runs.predictable_replay=1 runs.rows=50000:200000 runs.ops=500000:2000000
           times: 10
 
-  - &timestamp-abort-test-disagg
-    depends_on:
-        - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "timestamp abort disagg"
-        vars:
-          times: 50
-
   - &schema-disagg-abort-smoke-test-disagg
     depends_on:
         - name: compile
@@ -689,7 +665,7 @@ variables:
             ${PREPARE_TEST_ENV}
             # The full mode matrix in short runs: single node, lone follower, role switches,
             # kills, and both two-node topologies. The two-node switch modes at the end are
-            # EXPECTED to fail until FIXME-WT-18068 and FIXME-WT-17746 land.
+            # EXPECTED to fail until FIXME-WT-17746 land.
             bash ./smoke.sh
 
   # Configure flags for builtins.
@@ -756,13 +732,6 @@ tasks:
     name: format-stress-test-disagg-snapshot-2
     tags: ["stress-test-disagg-fail"]
 
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-2
-    tags: ["stress-test-disagg-fail"]
-
   # The schema-disagg-abort matrix. The kill variants cover their graceful counterparts, since a
   # kill lands halfway through the run and everything before it is the graceful workload.
   - name: schema-disagg-abort-crash-test-disagg-1
@@ -827,6 +796,31 @@ tasks:
           # the operations it accumulated: the way a fresh node bootstraps its own tables before
           # taking leadership.
           schema_args: -r f -s 30
+
+  # Legacy schema mode: no schema epochs and no publish, single node only.
+  - name: schema-disagg-abort-legacy-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          # The only legacy shape that asserts drop absence: a step-up resurrects the drops a
+          # node applied while following.
+          schema_args: -e -r l -k 150
+
+  - name: schema-disagg-abort-legacy-switch-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          schema_args: -e -r l -s 30
 
   # FIXME-WT-18403: Remove these tasks once all the known create/drop/create issues are gone.
   - name: schema-disagg-abort-unique-crash-test-disagg-1

@@ -184,9 +184,9 @@ __time_aggregate_validate_parent(
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     /*
-     * A new-format live parent has no page-stop durable timestamp, but its newest durable
-     * timestamp still includes the stop timestamp of deleted children. Keep validating the child
-     * against both parent fields so legacy aggregates retain the original strict check.
+     * A new-format live parent has no page-stop durable timestamp, but its newest durable timestamp
+     * still includes the stop timestamp of deleted children. Keep validating the child against both
+     * parent fields so legacy aggregates retain the original strict check.
      */
     if (ta->newest_page_stop_durable_ts > parent->newest_page_stop_durable_ts &&
       ta->newest_page_stop_durable_ts > parent->newest_durable_ts)

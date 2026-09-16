@@ -1223,6 +1223,24 @@ err:
 }
 
 /*
+ * __inmem_deleted_ref_should_dirty_parent --
+ *     Return whether rebuilding deleted references should dirty their internal page.
+ */
+static WT_INLINE bool
+__inmem_deleted_ref_should_dirty_parent(WT_SESSION_IMPL *session)
+{
+    /*
+     * Checkpoint cleanup examines each deleted child after reading a disaggregated page and dirties
+     * the parent if any child can be removed. Other trees and readers retain the existing behavior.
+     * FIXME-WT-18564: local block manager trees rely on this dirtying to reclaim the blocks of
+     * deleted children, so the suppression cannot extend to them until that path is covered.
+     */
+    return (S2BT(session)->modified &&
+      (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
+        session != S2C(session)->cc_cleanup.session));
+}
+
+/*
  * __inmem_col_int_init_ref --
  *     Initialize one ref in a column-store internal page.
  */
@@ -1230,10 +1248,6 @@ static int
 __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, uint32_t hint,
   void *addr, uint64_t recno, bool internal, bool deleted, WT_PAGE_DELETED *page_del)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
     __wt_tsan_suppress_store_wt_page_ptr_v(&ref->home, home);
     ref->pindex_hint = hint;
     ref->addr = addr;
@@ -1254,12 +1268,7 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-        /*
-         * If the tree is already dirty and so will be written, mark the page dirty. (We want to
-         * free the deleted pages, but if the handle is read-only or if the application never
-         * modifies the tree, we're not able to do so.)
-         */
-        if (btree->modified) {
+        if (__inmem_deleted_ref_should_dirty_parent(session)) {
             WT_RET(__wt_page_modify_init(session, home));
             __wt_page_only_modify_set(session, home);
         }
@@ -1420,7 +1429,6 @@ __inmem_col_var(
 static int
 __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_ITEM(current);
     WT_DECL_RET;
@@ -1428,8 +1436,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_REF *ref, **refp;
     uint32_t hint;
     bool overflow_keys;
-
-    btree = S2BT(session);
 
     WT_RET(__wt_scr_alloc(session, 0, &current));
 
@@ -1489,12 +1495,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-            /*
-             * If the tree is already dirty and so will be written, mark the page dirty. (We want to
-             * free the deleted pages, but if the handle is read-only or if the application never
-             * modifies the tree, we're not able to do so.)
-             */
-            if (btree->modified) {
+            if (__inmem_deleted_ref_should_dirty_parent(session)) {
                 WT_ERR(__wt_page_modify_init(session, page));
                 __wt_page_only_modify_set(session, page);
             }

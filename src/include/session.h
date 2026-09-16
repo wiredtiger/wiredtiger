@@ -57,6 +57,18 @@ struct __wt_prefetch {
     WT_PAGE *prefetch_prev_ref_home;
     uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
     uint64_t prefetch_skipped_with_parent;
+
+    /* Set by a caller that knows pre-fetch should be triggered. */
+    bool scan_hint;
+};
+
+/*
+ * WT_PREFETCH_SCAN --
+ *	The session pre-fetch state a declared scan replaced, so it can be put back.
+ */
+struct __wt_prefetch_scan {
+    bool prefetch_set;  /* The scan set WT_SESSION_PREFETCH_ENABLED */
+    bool scan_hint_set; /* The scan set the hint */
 };
 
 /*
@@ -79,11 +91,6 @@ struct __wt_error_info {
 /* Get the btree for a session */
 #define S2BT(session) ((WT_BTREE *)(session)->dhandle->handle)
 #define S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
-
-/* Get the file system for a session */
-#define S2FS(session)                                                \
-    ((session)->bucket_storage == NULL ? S2C(session)->file_system : \
-                                         (session)->bucket_storage->file_system)
 
 typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
@@ -139,7 +146,6 @@ struct __wt_session_impl {
 
     wt_shared WT_DATA_HANDLE *dhandle; /* Current data handle */
     WT_DHANDLE_CLEAR_LOG dhandle_clear_log;
-    WT_BUCKET_STORAGE *bucket_storage; /* Current bucket storage and file system */
 
     /*
      * Each session keeps a cache of data handles. The set of handles can grow quite large so we
@@ -328,13 +334,12 @@ struct __wt_session_impl {
 #define WT_SESSION_PREFETCH_ENABLED 0x00400000u
 #define WT_SESSION_PREFETCH_THREAD 0x00800000u
 #define WT_SESSION_QUIET_CORRUPT_FILE 0x01000000u
-#define WT_SESSION_QUIET_OPEN_FILE 0x02000000u
-#define WT_SESSION_READ_SKIP_CORRUPT 0x04000000u
-#define WT_SESSION_READ_WONT_NEED 0x08000000u
-#define WT_SESSION_RESOLVING_TXN 0x10000000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000000u
-#define WT_SESSION_SAVE_ERRORS 0x40000000u
-#define WT_SESSION_SCHEMA_TXN 0x80000000u
+#define WT_SESSION_READ_SKIP_CORRUPT 0x02000000u
+#define WT_SESSION_READ_WONT_NEED 0x04000000u
+#define WT_SESSION_RESOLVING_TXN 0x08000000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x10000000u
+#define WT_SESSION_SAVE_ERRORS 0x20000000u
+#define WT_SESSION_SCHEMA_TXN 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

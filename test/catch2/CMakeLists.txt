@@ -21,10 +21,14 @@ else()
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_disagg_cache_eligible.cpp
+        misc_tests/test_evict_disagg_cache_source.cpp
+        misc_tests/test_evict_needed_pct_full.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_modify_tombstone_namespace.cpp
         misc_tests/test_page_delta_merge_empty_value.cpp
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
@@ -176,10 +180,6 @@ if(ENABLE_LZ4)
             LZ4_EXTENSION="$<TARGET_FILE:wiredtiger_lz4>"
     )
     add_dependencies(catch2-unittests wiredtiger_lz4)
-endif()
-
-if(WT_POSIX)
-    add_dependencies(catch2-unittests wiredtiger_dir_store)
 endif()
 
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)

@@ -325,7 +325,7 @@ CONFIG configuration_list[] = {
 
 {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0}
 
-{"runs.ops", "operations per run", 0x0, 0, M(2), M(100)}
+{"runs.ops", "operations per run", 0x0, 0, M(2), UINT_MAX}
 
 {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0}
 
@@ -358,6 +358,8 @@ CONFIG configuration_list[] = {
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
 {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0}
+
+{"stress.disagg_stable_dhandle_delay", "stress disagg stable dhandle delay", C_BOOL, 2, 0, 0}
 
 {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
 
@@ -394,10 +396,6 @@ CONFIG configuration_list[] = {
 {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0}
 
 {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0}
-
-{"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
-
-{"tiered_storage.storage_source", "storage source used (dir_store | none | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
 
