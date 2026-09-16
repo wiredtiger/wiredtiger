@@ -3121,6 +3121,7 @@ __clayered_put_both(
     WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
     ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
     __clayered_assert_mirrored_write(session, ret);
+    WT_ERR(ret);
 
 err:
     __wt_scr_free(session, &ingest_buf);
