@@ -2291,12 +2291,10 @@ public:
         if (!cache.available() || (args->flags & WT_PAGE_LOG_DELTA))
             return 0;
 
+        const auto *p = static_cast<const uint8_t *>(buf->data);
+        const size_t n = (p != nullptr) ? buf->size : 0;
         victim_cache_entry entry{args->lsn, args->backlink_lsn, args->base_lsn, checkpoint_id,
-          checkpoint_id, args->delta_count, {}};
-        if (buf->size > 0 && buf->data != nullptr) {
-            const auto *p = static_cast<const uint8_t *>(buf->data);
-            entry.data.assign(p, p + buf->size);
-        }
+          checkpoint_id, args->delta_count, std::vector<uint8_t>(p, p + n)};
         cache.put(page_id, std::move(entry));
         LOG_DEBUG("Victim cache put page_id={} lsn={} size={}", page_id, args->lsn, buf->size);
         return 0;
