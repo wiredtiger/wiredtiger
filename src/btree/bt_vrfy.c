@@ -1665,6 +1665,9 @@ __verify_page_content_leaf(
     /*
      * Tells the parent-aggregate check below that this page was rebuilt from a base image and
      * deltas, so it may relax a start-time mismatch that a full image could not have.
+     *
+     * FIXME-WT-17968: revisit whether from_delta is still needed once the checkpoint pick-up
+     * pinned-timestamp gate is restored, rather than assuming it is.
      */
     from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;

@@ -400,13 +400,17 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
  *     whose oldest timestamp is ahead of its own, keeps a cell the writer had already dropped.
  *     Transaction ids are not comparable across connections sharing a disaggregated store, so only
  *     the timestamp counts.
+ *
+ * FIXME-WT-17968: revisit whether this is still needed once the checkpoint pick-up pinned-timestamp
+ *     gate is restored. A reader with no oldest timestamp of its own set yet has a pinned timestamp
+ *     of WT_TS_NONE, which makes that gate inert regardless, so this relaxation looks needed either
+ *     way --
+ *     but confirm that once the other fix lands rather than assuming it here.
  */
 static WT_INLINE bool
 __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    wt_timestamp_t checkpoint_oldest_ts;
-
-    checkpoint_oldest_ts = __wt_atomic_load_uint64_acquire(
+    wt_timestamp_t checkpoint_oldest_ts = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
     return (checkpoint_oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
       tw->stop_ts <= checkpoint_oldest_ts);
