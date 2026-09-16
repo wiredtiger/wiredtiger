@@ -140,7 +140,7 @@ __meta_track_drop_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
     const char *name;
 
     name = trk->a;
-    if (trk->b != NULL && (ret = __wt_fs_rename(session, trk->a, trk->b, false)) == 0) {
+    if (trk->b != NULL && __wt_fs_rename(session, trk->a, trk->b, false) == 0) {
         /* The space was reserved when the drop was tracked: the apply must not allocate. */
         buf = &session->drop_pending;
         len = strlen(trk->b) + 1;
