@@ -1665,9 +1665,6 @@ __verify_page_content_leaf(
     /*
      * Tells the parent-aggregate check below that this page was rebuilt from a base image and
      * deltas, so it may relax a start-time mismatch that a full image could not have.
-     *
-     * FIXME-WT-17968: remove once checkpoint pick-up enforces that a reader's oldest timestamp
-     * covers the checkpoint it adopts.
      */
     from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;

@@ -395,11 +395,11 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
  *     Is a value time window already obsolete against the checkpoint's own oldest timestamp, rather
  *     than the reading connection's? Rebuilding a page from a base image and deltas keeps only the
  *     cells still live under whoever is doing the rebuilding, which need not match what the
- *     checkpoint's own writer saw when it built the parent aggregate. Transaction ids are not
- *     comparable across connections sharing a disaggregated store, so only the timestamp counts.
- *
- * FIXME-WT-17968: only needed while checkpoint pick-up can adopt a checkpoint whose oldest
- *     timestamp is ahead of the reader's own; remove once that is fixed.
+ *     checkpoint's own writer saw when it built the parent aggregate --
+ *     a reader with no oldest timestamp of its own set yet, or one that has adopted a checkpoint
+ *     whose oldest timestamp is ahead of its own, keeps a cell the writer had already dropped.
+ *     Transaction ids are not comparable across connections sharing a disaggregated store, so only
+ *     the timestamp counts.
  */
 static WT_INLINE bool
 __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
