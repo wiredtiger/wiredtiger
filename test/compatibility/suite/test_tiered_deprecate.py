@@ -189,7 +189,7 @@ class test_tiered_deprecate(compatibility_test.CompatibilityTestCase):
             if k.startswith(('object:', 'tier:', 'tiered:')):
                 leftover.append(k)
         meta.close()
-        assert leftover, 'leftover enabled home lost refused URI metadata'
+        assert leftover, 'old metadata file missing expected tiered storage entries'
         try:
             session.open_cursor(self.uri)
             assert False, 'opening a leftover tiered table should fail'
