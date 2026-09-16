@@ -2238,7 +2238,7 @@ public:
     {
         storage.simulate_unstable_network();
 
-        cache.erase(page_id, args->lsn);
+        cache.erase(page_id, args->backlink_lsn);
 
         const uint64_t lsn = storage.make_next_lsn();
         storage.put_page(table_id, page_id, lsn, args, buf);
@@ -2257,16 +2257,18 @@ public:
     get(uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
       WT_ITEM *results_array, uint32_t *results_count)
     {
-        if (auto entry = cache.get_erase(page_id, args->lsn)) {
-            fill_item(&results_array[0], entry->data.data(), entry->data.size());
-            args->backlink_lsn = entry->backlink_lsn;
-            args->base_lsn = entry->base_lsn;
-            args->backlink_checkpoint_id = entry->backlink_checkpoint_id;
-            args->base_checkpoint_id = entry->base_checkpoint_id;
-            args->delta_count = entry->delta_count;
-            *results_count = 1;
-            LOG_DEBUG("Victim cache hit page_id={} lsn={}", page_id, args->lsn);
-            return 0;
+        if (!(args->flags & WT_PAGE_LOG_CACHE_BYPASS)) {
+            if (auto entry = cache.get_erase(page_id, args->lsn)) {
+                fill_item(&results_array[0], entry->data.data(), entry->data.size());
+                args->backlink_lsn = entry->backlink_lsn;
+                args->base_lsn = entry->base_lsn;
+                args->backlink_checkpoint_id = entry->backlink_checkpoint_id;
+                args->base_checkpoint_id = entry->base_checkpoint_id;
+                args->delta_count = entry->delta_count;
+                *results_count = 1;
+                LOG_DEBUG("Victim cache hit page_id={} lsn={}", page_id, args->lsn);
+                return 0;
+            }
         }
 
         storage.simulate_unstable_network();

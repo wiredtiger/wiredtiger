@@ -100,6 +100,17 @@ TEST_CASE(
 
     WT_ITEM results[4]{};
     uint32_t n = 4;
+    WT_PAGE_LOG_GET_ARGS bypass_args{};
+    bypass_args.lsn = lsn;
+    bypass_args.flags = WT_PAGE_LOG_CACHE_BYPASS;
+    REQUIRE(handle->plh_get(handle, session, page_id, 0, &bypass_args, results, &n) == 0);
+    REQUIRE(n == 1);
+    REQUIRE(results[0].size == std::strlen(store_bytes));
+    REQUIRE(std::memcmp(results[0].data, store_bytes, results[0].size) == 0);
+    free_results(results, n);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+
+    n = 4;
     WT_PAGE_LOG_GET_ARGS get_args{};
     get_args.lsn = lsn;
     REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
@@ -124,7 +135,7 @@ TEST_CASE(
     REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
     WT_PAGE_LOG_PUT_ARGS erase_args{};
-    erase_args.lsn = lsn;
+    erase_args.backlink_lsn = lsn;
     REQUIRE(handle->plh_put(handle, session, page_id, 0, &erase_args, &store_buf) == 0);
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
 
