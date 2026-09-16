@@ -2665,15 +2665,45 @@ tasks:
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
 
-  - name: unit-test-zstd
-    tags: ["python"]
+  - name: unit-test-zstd-bucket00
+    tags: ["python", "unit_test_zstd"]
     depends_on:
     - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --zstd
+          unit_test_args: -v 2 --zstd -b 0/4
+
+  - name: unit-test-zstd-bucket01
+    tags: ["python", "unit_test_zstd"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd -b 1/4
+
+  - name: unit-test-zstd-bucket02
+    tags: ["python", "unit_test_zstd"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd -b 2/4
+
+  - name: unit-test-zstd-bucket03
+    tags: ["python", "unit_test_zstd"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd -b 3/4
 
   - name: unit-test-extra-long
     tags: ["python"]
@@ -7016,7 +7046,7 @@ buildvariants:
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: unit-test-hook-disagg-leader-key-provider
     - name: unit-test-hook-parallel-checkpoint
     - name: unit-test-hook-timing-stress-log
@@ -7293,7 +7323,7 @@ buildvariants:
     - name: time-shift-sensitivity-test
     - name: syscall-linux
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: unit-test-extra-long
       distros: rhel80-large
     - name: unit-test-hook-disagg-leader-extra-long
@@ -7453,7 +7483,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-arm64-large
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: wtperf-test
     - name: memory-model-test
       batchtime: 40320 # 28 days
@@ -7492,7 +7522,7 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: ubuntu2004-large
@@ -7518,7 +7548,7 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: ubuntu2004-arm64-large
@@ -7765,7 +7795,7 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: amazon2023.3-arm64-large
@@ -7818,7 +7848,7 @@ buildvariants:
       distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2023.3-arm64-large
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: wtperf-test
     - name: checkpoint-filetypes-test
     - name: compile
