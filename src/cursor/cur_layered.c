@@ -3035,6 +3035,7 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_ASSERT(session, c != NULL);
 
+    /* No need to search the layered table truncate list if writing to stable. */
     if (op->write_target == WTI_CLAYERED_WRITE_INGEST) {
         /*
          * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
@@ -3068,8 +3069,9 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
     if (c == op->ingest) {
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * A mirrored write must leave the same logical value in both trees. Check before resetting
-         * the stable cursor.
+         * When mirroring writes, the stable table is always written to first. After writing the
+         * ingest table, check that both tables have the same logical value before resetting the
+         * stable cursor.
          */
         if (op->write_target == WTI_CLAYERED_WRITE_BOTH && put_op != WTI_CLAYERED_PUT_RESERVE)
             __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
@@ -3250,7 +3252,8 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
      * step-down lock does not close this window: it is acquired separately from taking the
      * snapshot, so a stable commit can still be invisible to it, and this check remains necessary.
      *
-     * When step-down writes are mirrored to stable there is no need to probe.
+     * When step-down writes are mirrored to stable there is no need to probe, and this function
+     * exits early from the previous write_target check.
      */
     bool stepdown_ts_set = session->txn->stepdown_ts_set;
 
