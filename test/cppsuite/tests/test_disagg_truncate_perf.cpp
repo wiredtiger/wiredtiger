@@ -94,12 +94,13 @@ static const int64_t GC_TRUNCATES = 16;
 static WT_CONNECTION *g_leader;
 static WT_CONNECTION *g_follower;
 
-/* Timestamp allocator. Every commit in the test takes its timestamp from here. */
-static std::atomic<uint64_t> g_timestamp{1000};
-
-/* What each worker is committing at, so stable never overtakes an open transaction. */
-static std::unique_ptr<std::atomic<uint64_t>[]> g_worker_timestamps;
-static int g_worker_count;
+/*
+ * Timestamps carry the clock in their high bits and a counter in their low ones, as the rest of the
+ * suite does. The stable timestamp then trails by a number of seconds, which is what keeps it from
+ * overtaking a transaction that is still open.
+ */
+static std::atomic<uint64_t> g_timestamp{0};
+static const uint64_t STABLE_LAG_SECONDS = 5;
 
 /* The head and the volume run for the whole test, so the oplog keeps its shape across phases. */
 static std::atomic<uint64_t> g_next_key{1};
@@ -295,21 +296,19 @@ expired_marker(uint64_t *marker_keyp)
     return (true);
 }
 
-/*
- * Take the next commit timestamp, publishing it first so the stable timestamp can never be moved
- * past a transaction that has not committed yet.
- */
-static wt_timestamp_t
-reserve_timestamp(int worker)
+static uint64_t
+clock_seconds()
 {
-    g_worker_timestamps[worker].store(g_timestamp.load());
-    return (g_timestamp.fetch_add(1));
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+
+    return (
+      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count()) << 32);
 }
 
-static void
-release_timestamp(int worker)
+static wt_timestamp_t
+next_timestamp()
 {
-    g_worker_timestamps[worker].store(WT_TS_MAX);
+    return (clock_seconds() | (g_timestamp.fetch_add(1) & 0x00000000FFFFFFFF));
 }
 
 static phase_stats
@@ -359,13 +358,11 @@ insert_worker(WT_CONNECTION *conn, int id, uint64_t target_bytes)
 
     while (g_inserted_bytes.load() < target_bytes) {
         uint64_t key = g_next_key.fetch_add(1);
-        wt_timestamp_t commit_ts = reserve_timestamp(id);
 
-        if (insert_record(session, cursor, key, value, commit_ts))
+        if (insert_record(session, cursor, key, value, next_timestamp()))
             g_inserted_bytes.fetch_add(record_bytes());
         else
             g_insert_rollbacks.fetch_add(1);
-        release_timestamp(id);
     }
 }
 
@@ -440,12 +437,10 @@ truncate_worker(WT_CONNECTION *conn, const std::string &phase, uint64_t target_b
             continue;
         }
 
-        wt_timestamp_t commit_ts = reserve_timestamp(static_cast<int>(opt.insert_threads));
         int ret = timer.track([&]() {
-            return (
-              truncate_to_marker(session, cursor, stat_cursor, marker_key, commit_ts, follower));
+            return (truncate_to_marker(
+              session, cursor, stat_cursor, marker_key, next_timestamp(), follower));
         });
-        release_timestamp(static_cast<int>(opt.insert_threads));
         if (ret != 0)
             g_truncate_rollbacks.fetch_add(1);
     }
@@ -463,11 +458,7 @@ leader_maintenance_worker(WT_CONNECTION *conn, uint64_t target_bytes)
     auto last_checkpoint = std::chrono::steady_clock::now();
 
     while (g_inserted_bytes.load() < target_bytes) {
-        uint64_t stable = g_timestamp.load();
-        for (int i = 0; i < g_worker_count; i++)
-            stable = std::min(stable, g_worker_timestamps[i].load());
-        if (stable > 1)
-            set_timestamp(conn, STABLE_TS + "=" + hex(stable - 1));
+        set_timestamp(conn, STABLE_TS + "=" + hex(clock_seconds() - (STABLE_LAG_SECONDS << 32)));
 
         auto now = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_checkpoint).count() >=
@@ -682,8 +673,8 @@ run_gc_phase()
 
     for (int64_t i = 0; i < GC_TRUNCATES; i++) {
         marker_key += chunk;
-        if (truncate_to_marker(
-              session, cursor, stat_cursor, marker_key, g_timestamp.fetch_add(1), true) != 0)
+        if (truncate_to_marker(session, cursor, stat_cursor, marker_key, next_timestamp(), true) !=
+          0)
             g_truncate_rollbacks.fetch_add(1);
     }
 
@@ -741,24 +732,19 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_INFO, "Starting " + progname);
     load_configuration(argc, argv);
 
-    g_worker_count = static_cast<int>(opt.insert_threads) + 1;
-    g_worker_timestamps.reset(new std::atomic<uint64_t>[g_worker_count]);
-    for (int i = 0; i < g_worker_count; i++)
-        g_worker_timestamps[i].store(WT_TS_MAX);
-
     open_connections();
     populate();
     run_phase(g_leader, "leader", opt.leader_ingest_mb);
 
     /* Hand the follower everything the leader has written, then let it run its own workload. */
-    deliver_checkpoint(g_timestamp.fetch_add(1));
+    deliver_checkpoint(next_timestamp());
     run_phase(g_follower, "follower", opt.follower_ingest_mb);
 
     /*
      * A checkpoint taken now sits above every truncate the follower recorded, so picking it up
      * moves the prune timestamp past them and the entries can be freed.
      */
-    deliver_checkpoint(g_timestamp.fetch_add(1));
+    deliver_checkpoint(next_timestamp());
     run_gc_phase();
 
     metrics_writer::instance().output_perf_file(progname);
