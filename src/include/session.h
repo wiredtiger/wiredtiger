@@ -190,6 +190,9 @@ struct __wt_session_impl {
     int meta_track_nest;     /* Nesting level of meta transaction */
 #define WT_META_TRACKING(session) ((session)->meta_track_next != NULL)
 
+    /* Renamed files of committed drops, NUL-separated, removed once the drop's locks are gone. */
+    WT_ITEM drop_pending;
+
     /* Current rwlock for callback. */
     WT_RWLOCK *current_rwlock;
     uint8_t current_rwticket;

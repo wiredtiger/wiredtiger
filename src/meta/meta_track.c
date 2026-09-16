@@ -127,6 +127,39 @@ __wt_meta_track_on(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __meta_track_drop_apply --
+ *     Commit a file drop: rename the file to its target and leave the removal to the session, or
+ *     remove it in place.
+ */
+static int
+__meta_track_drop_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
+{
+    WT_DECL_RET;
+    WT_ITEM *buf;
+    size_t len;
+    const char *name;
+
+    name = trk->a;
+    if (trk->b != NULL && (ret = __wt_fs_rename(session, trk->a, trk->b, false)) == 0) {
+        /* The space was reserved when the drop was tracked: the apply must not allocate. */
+        buf = &session->drop_pending;
+        len = strlen(trk->b) + 1;
+        WT_ASSERT(session, buf->size + len <= buf->memsize);
+        if (buf->size + len <= buf->memsize) {
+            memcpy((uint8_t *)buf->mem + buf->size, trk->b, len);
+            buf->size += len;
+            WT_STAT_CONN_INCR(session, session_table_drop_deferred);
+            return (0);
+        }
+        name = trk->b;
+    }
+
+    if ((ret = __wt_block_manager_drop(session, name, false)) != 0)
+        __wt_err(session, ret, "metadata remove dropped file %s", name);
+    return (ret);
+}
+
+/*
  * __meta_track_apply --
  *     Apply the changes in a metadata tracking record.
  */
@@ -146,8 +179,7 @@ __meta_track_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         WT_WITH_DHANDLE(session, trk->dhandle, ret = bm->checkpoint_resolve(bm, session, false));
         break;
     case WT_ST_DROP_COMMIT:
-        if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
-            __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
+        ret = __meta_track_drop_apply(session, trk);
         break;
     case WT_ST_HS_TRUNCATE:
         /* The truncate opens its own cursors, so save our caller's handle. */
@@ -504,6 +536,47 @@ __wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename)
 err:
     __meta_track_err(session);
     return (ret);
+}
+
+/*
+ * __wt_meta_track_drop_rename --
+ *     Rename the file of the drop just tracked at commit instead of removing it, and reserve the
+ *     space to remove it once the drop's locks are released. The target must not exist: replacing a
+ *     file frees its extents inside the rename.
+ */
+void
+__wt_meta_track_drop_rename(WT_SESSION_IMPL *session, uint32_t id)
+{
+    WT_DECL_RET;
+    WT_META_TRACK *trk;
+    size_t len;
+    int suffix;
+    bool exist;
+
+    trk = (WT_META_TRACK *)session->meta_track_next - 1;
+    WT_ASSERT(session, trk->op == WT_ST_DROP_COMMIT && trk->b == NULL);
+
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_LIVE_RESTORE_FS))
+        return;
+    WT_ERR(__wt_fs_exist(session, trk->a, &exist));
+    if (!exist)
+        return;
+
+    len = strlen(trk->a) + strlen(".4294967295.wtdrop.2147483647") + 1;
+    WT_ERR(__wt_malloc(session, len, &trk->b));
+    WT_ERR(__wt_snprintf(trk->b, len, "%s.%" PRIu32 ".wtdrop", trk->a, id));
+    for (suffix = 1; (ret = __wt_fs_exist(session, trk->b, &exist)) == 0 && exist; ++suffix)
+        WT_ERR(__wt_snprintf(trk->b, len, "%s.%" PRIu32 ".wtdrop.%d", trk->a, id, suffix));
+    WT_ERR(ret);
+
+    WT_ERR(__wt_buf_grow(
+      session, &session->drop_pending, session->drop_pending.memsize + strlen(trk->b) + 1));
+    return;
+
+err:
+    __wt_free(session, trk->b);
+    __wt_verbose_notice(session, WT_VERB_FILEOPS, "%s: could not defer file removal: %s", trk->a,
+      __wt_strerror(session, ret, NULL, 0));
 }
 
 /*
