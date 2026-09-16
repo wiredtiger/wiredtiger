@@ -3283,11 +3283,23 @@ static WT_INLINE int
 __clayered_ingest_tombstone(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *const c_ingest = op->ingest;
 
-    /* If we are positioned on the stable table, we need to set the key. */
-    if (clayered->current_cursor != c_ingest)
+    /*
+     * Position the ingest cursor unless it is already seated on this key. A walk can leave it on
+     * the key being removed, and re-seating it would cost a search; a cursor seated anywhere else
+     * must not be written through.
+     */
+    if (!F_ISSET(c_ingest, WT_CURSTD_KEY_INT)) {
         c_ingest->set_key(c_ingest, key);
+    } else {
+        int cmp;
+
+        WT_RET(__wt_compare(session, op->collator, &c_ingest->key, key, &cmp));
+        if (cmp != 0)
+            c_ingest->set_key(c_ingest, key);
+    }
 
     /* A mirrored remove retains stable's position at the deleted key. */
     if (op->write_target == WTI_CLAYERED_WRITE_INGEST &&
@@ -3383,14 +3395,33 @@ __clayered_remove_from_stable(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 static WT_INLINE int
 __clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
-    WT_SESSION_IMPL *session = CUR2S(op->clayered);
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_DECL_RET;
+    bool stable_on_key;
 
-    /* Ensure the stable cursor position is not reused incorrectly after a mirrored remove. */
-    F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    /*
+     * A positioned remove leaves the cursor on the removed key, so a stable constituent already
+     * seated on that key keeps the walk frontier: the mirrored tombstone leaves ingest on the same
+     * key, and the next step advances both as a tie. Keep the iteration flags in that case.
+     *
+     * Against a stable position anywhere else the remove needs a search, which drops that position
+     * without recording where the frontier moved to, so the flags must go and the next step
+     * re-seats stable from the current key.
+     */
+    stable_on_key = positioned && clayered->current_cursor == op->stable &&
+      F_ISSET(op->stable, WT_CURSTD_KEY_INT);
+    if (stable_on_key) {
+        int cmp;
+
+        WT_RET(__wt_compare(session, op->collator, &op->stable->key, key, &cmp));
+        stable_on_key = (cmp == 0);
+    }
+    if (!stable_on_key)
+        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     /* Write to stable first to detect conflict and exit early. */
-    WT_RET(__clayered_remove_from_stable(op, key, positioned));
+    WT_RET(__clayered_remove_from_stable(op, key, stable_on_key));
     ret = __clayered_ingest_tombstone(op, key);
     __clayered_assert_mirrored_write(session, ret);
     return (ret);
