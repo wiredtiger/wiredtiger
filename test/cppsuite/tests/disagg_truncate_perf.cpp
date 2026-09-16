@@ -105,7 +105,10 @@ private:
     /* Configuration. */
     int64_t _cache_size_mb, _checkpoint_interval_ms, _insert_mb, _insert_threads;
     int64_t _marker_size_mb, _oplog_size_mb, _truncate_count, _value_size;
-    bool _follower;
+    std::string _role;
+
+    /* Set once the connection is in the follower role, whether by restart or by stepping down. */
+    bool _follower = false;
 
     std::atomic<uint64_t> _next_key{1}, _inserted_bytes{0}, _truncated_key{0};
     std::atomic<uint64_t> _truncate_ops{0}, _insert_rollbacks{0}, _truncate_rollbacks{0};
@@ -187,7 +190,10 @@ disagg_truncate_perf::load_config()
     _oplog_size_mb = _config->get_int("oplog_size_mb");
     _truncate_count = _config->get_int("truncate_count");
     _value_size = _config->get_int("value_size");
-    _follower = _config->get_string("role") == "follower";
+    _role = _config->get_string("role");
+
+    if (_role != "leader" && _role != "follower" && _role != "switch")
+        testutil_die(EINVAL, "unknown role \"%s\"", _role.c_str());
 
     if (_marker_size_mb > _oplog_size_mb)
         testutil_die(EINVAL, "the marker size must not exceed the oplog size");
@@ -196,7 +202,7 @@ disagg_truncate_perf::load_config()
      * A leader truncates as the oplog overflows, so its insert volume and the marker size decide
      * how many truncates it gets to measure. A follower is told how many to run.
      */
-    int64_t truncates = _follower ? _truncate_count : _insert_mb / _marker_size_mb;
+    int64_t truncates = _role == "leader" ? _insert_mb / _marker_size_mb : _truncate_count;
     if (truncates < MINIMUM_TRUNCATES)
         testutil_die(EINVAL,
           "the run would measure %" PRId64 " truncates, fewer than the %" PRId64
@@ -452,7 +458,7 @@ void
 disagg_truncate_perf::report_phase(
   const phase_stats &before, const phase_stats &after, uint64_t elapsed_ms)
 {
-    const std::string role = _follower ? "follower" : "leader";
+    const std::string &role = _role;
     uint64_t truncates = std::max(_cost.count.load(), static_cast<uint64_t>(1));
     uint64_t samples = std::max(_cache.samples.load(), static_cast<uint64_t>(1));
     uint64_t elapsed = std::max(elapsed_ms, static_cast<uint64_t>(1));
@@ -557,7 +563,8 @@ disagg_truncate_perf::run_follower()
 
     thread_manager tm;
     tm.add_thread(&disagg_truncate_perf::sampler_worker, this, &done);
-    tm.add_thread(&disagg_truncate_perf::pickup_worker, this, &done);
+    if (!_checkpoints.empty())
+        tm.add_thread(&disagg_truncate_perf::pickup_worker, this, &done);
 
     uint64_t marker_key = _truncated_key.load();
     for (int64_t i = 0; i < _truncate_count; i++) {
@@ -605,29 +612,54 @@ disagg_truncate_perf::run()
     thread_manager timestamps;
     timestamps.add_thread(&component::run, _timestamp_manager);
 
-    load(_follower);
+    load(_role == "follower");
 
-    if (!_follower) {
+    if (_role == "leader") {
         run_leader();
         _timestamp_manager->end_run();
         timestamps.join();
+        metrics_writer::instance().output_perf_file(_args.test_name);
+        return;
+    }
+
+    /*
+     * Neither of the follower modes checkpoints again, so the timestamp manager has nothing left to
+     * do. Stop it before the role changes: it moves timestamps on the connection, which one of the
+     * two modes is about to close.
+     */
+    _timestamp_manager->end_run();
+    timestamps.join();
+
+    std::string follower_config = config;
+    follower_config.replace(follower_config.find("%ROLE%"), strlen("%ROLE%"), "follower");
+
+    if (_role == "switch") {
+        /*
+         * Step down in place. Every worker has been joined, which step-down requires: it asserts
+         * that no application write transaction is open. The connection keeps the cache it warmed
+         * as a leader, and adopts nothing, so this measures the transition itself and the truncates
+         * that follow it.
+         */
+        WT_CONNECTION *conn = connection_manager::instance().get_connection();
+        logger::log_msg(LOG_INFO, "Stepping down to follower.");
+        testutil_check(conn->reconfigure(conn, "disaggregated=(role=\"follower\")"));
+
+        scoped_session session = connection_manager::instance().create_session();
+        scoped_cursor cursor = session.open_scoped_cursor(STATISTICS_URI);
+        report("switch_step_down_time",
+          static_cast<uint64_t>(
+            metrics_monitor::get_stat(cursor, WT_STAT_CONN_DISAGG_STEP_DOWN_TIME)));
     } else {
         /*
          * Restart in the follower role. A connection cannot adopt a checkpoint it wrote itself, so
-         * the restart is what lets the checkpoints kept during the load be picked up. The timestamp
-         * manager stops first: it moves timestamps on the connection that is about to close, and a
-         * follower has no need of it, only of the timestamps it hands out.
+         * the restart is what lets the checkpoints kept during the load be picked up.
          */
-        _timestamp_manager->end_run();
-        timestamps.join();
-
         logger::log_msg(LOG_INFO, "Restarting as a follower.");
-        std::string follower_config = config;
-        follower_config.replace(follower_config.find("%ROLE%"), strlen("%ROLE%"), "follower");
         connection_manager::instance().close();
         connection_manager::instance().reopen(follower_config, home);
-        run_follower();
     }
 
+    _follower = true;
+    run_follower();
     metrics_writer::instance().output_perf_file(_args.test_name);
 }

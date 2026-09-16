@@ -1,0 +1,12 @@
+# Configuration for disagg_truncate_perf across a role change.
+# The oplog is loaded as a leader, the connection then steps down in place and trims it. Nothing is
+# adopted and the cache stays warm, so this measures the step down and the truncates after it.
+cache_size_mb=1024,
+checkpoint_interval_ms=2000,
+insert_mb=1024,
+insert_threads=4,
+marker_size_mb=8,
+oplog_size_mb=1024,
+role=switch,
+truncate_count=32,
+value_size=1000
