@@ -2765,6 +2765,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
+  "layered: follower truncates rolled back by an uncommitted ingest update in or adjacent to the "
+  "range",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
@@ -3903,6 +3905,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
+    stats->layered_truncate_ingest_conflict = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
@@ -5190,6 +5193,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
+    to->layered_truncate_ingest_conflict +=
+      WT_STAT_CONN_READ(from, layered_truncate_ingest_conflict);
     to->layered_table_manager_logops_applied +=
       WT_STAT_CONN_READ(from, layered_table_manager_logops_applied);
     to->layered_table_manager_logops_skipped +=

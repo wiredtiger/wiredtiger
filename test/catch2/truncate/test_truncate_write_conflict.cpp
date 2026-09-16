@@ -119,14 +119,51 @@ class write_conflict_fixture {
 public:
     write_conflict_fixture()
     {
-        constexpr auto uri = "layered:write_conflict";
-
         static constexpr auto config =
           "key_format=S,value_format=S,block_manager=disagg,type=layered";
 
         auto &session = _session->iface;
         CHECK(session.create(&session, uri, config) == 0);
         CHECK(session.open_cursor(&session, uri, nullptr, nullptr, &_cursor) == 0);
+    }
+
+    static constexpr auto uri = "layered:write_conflict";
+
+    [[nodiscard]] WT_CURSOR *
+    open_cursor(WT_SESSION_IMPL *session)
+    {
+        WT_CURSOR *cursor = nullptr;
+        auto *iface = &session->iface;
+        CHECK(iface->open_cursor(iface, uri, nullptr, nullptr, &cursor) == 0);
+        return cursor;
+    }
+
+    int
+    insert(WT_SESSION_IMPL *session, const int key)
+    {
+        auto *cursor = open_cursor(session);
+        const auto key_str = format_key(key);
+        cursor->set_key(cursor, key_str.c_str());
+        cursor->set_value(cursor, "value");
+        const int ret = cursor->insert(cursor);
+        CHECK(cursor->close(cursor) == 0);
+        return ret;
+    }
+
+    int
+    truncate(WT_SESSION_IMPL *session, const int start, const int stop)
+    {
+        auto *start_cursor = open_cursor(session);
+        auto *stop_cursor = open_cursor(session);
+        const auto start_str = format_key(start);
+        const auto stop_str = format_key(stop);
+        start_cursor->set_key(start_cursor, start_str.c_str());
+        stop_cursor->set_key(stop_cursor, stop_str.c_str());
+        auto *iface = &session->iface;
+        const int ret = iface->truncate(iface, nullptr, start_cursor, stop_cursor, nullptr);
+        CHECK(start_cursor->close(start_cursor) == 0);
+        CHECK(stop_cursor->close(stop_cursor) == 0);
+        return ret;
     }
 
     [[nodiscard]] WT_SESSION_IMPL *
@@ -1069,6 +1106,50 @@ SCENARIO("non-ingest write conflict with overlapping committed and uncommitted r
             THEN("it returns WT_ROLLBACK")
             {
                 REQUIRE(result == WT_ROLLBACK);
+            }
+        }
+    }
+}
+
+SCENARIO("follower truncate conflicts with an uncommitted ingest insert inside the range",
+  "[truncate_list][write_conflict]")
+{
+    GIVEN("committed keys 100-200 in ingest and an uncommitted insert of key 155 by another txn")
+    {
+        write_conflict_fixture f;
+
+        do_in_committed_transaction(f.session(), [&] {
+            for (int key = 100; key <= 200; key += 10)
+                CHECK(f.insert(f.session(), key) == 0);
+            return 0;
+        });
+
+        do_in_uncommitted_transaction(f.session(), [&] { return f.insert(f.session(), 155); });
+        const auto cleanup = rollback_on_exit(f.session());
+
+        WHEN("another transaction truncates [100, 200]")
+        {
+            auto *session_2 = f.create_session();
+
+            const auto result = do_in_rolled_back_transaction(
+              session_2, [&] { return f.truncate(session_2, 100, 200); });
+
+            THEN("it returns WT_ROLLBACK")
+            {
+                REQUIRE(result == WT_ROLLBACK);
+            }
+        }
+
+        WHEN("another transaction truncates [160, 200], which excludes the uncommitted key")
+        {
+            auto *session_2 = f.create_session();
+
+            const auto result = do_in_rolled_back_transaction(
+              session_2, [&] { return f.truncate(session_2, 160, 200); });
+
+            THEN("it returns 0 (no conflict)")
+            {
+                REQUIRE(result == 0);
             }
         }
     }
