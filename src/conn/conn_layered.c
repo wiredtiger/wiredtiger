@@ -2014,17 +2014,12 @@ static int
 __disagg_config_stepdown_write_mirroring(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
 
-    conn = S2C(session);
-    WT_ERR_NOTFOUND_OK(
-      __wt_config_gets(session, cfg, "disaggregated.stepdown_write_mirroring", &cval), false);
-    if (ret == 0 && cval.val != 0)
-        F_SET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
-
-err:
-    return (ret);
+    WT_RET_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.stepdown_write_mirroring", &cval));
+     
+    if (cval.val != 0)
+        F_SET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 }
 
 /*

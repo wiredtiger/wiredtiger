@@ -487,23 +487,24 @@ __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op
     /* Only the diagnostic assertions consume op. */
     WT_UNUSED(op);
 
+    bool step_down_created = __wt_atomic_load_bool_relaxed(&table->step_down_created);
+    bool is_mirroring = F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
+  
     if (mode != WTI_CLAYERED_MODE_WRITE)
         return (WTI_CLAYERED_WRITE_NONE);
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER ||
-      __wt_atomic_load_bool_relaxed(&table->step_down_created)) {
+  
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER || step_down_created) {
         WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
         return (WTI_CLAYERED_WRITE_INGEST);
     }
+    
     WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
-    if (CUR2S(clayered)->txn->stepdown_ts_set) {
-        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-        return (F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage,
-                  WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ?
-            WTI_CLAYERED_WRITE_BOTH :
-            WTI_CLAYERED_WRITE_INGEST);
-    }
-    WT_ASSERT(CUR2S(clayered), op->ingest == NULL);
-    return (WTI_CLAYERED_WRITE_STABLE);
+    
+    if (!CUR2S(clayered)->txn->stepdown_ts_set)
+         return (WTI_CLAYERED_WRITE_STABLE);
+         
+     WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
+      return (is_mirroring? WTI_CLAYERED_WRITE_BOTH : WTI_CLAYERED_WRITE_INGEST);
 }
 
 /*
@@ -4112,8 +4113,8 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     c_stable = op->stable;
     if (clayered->current_cursor == c_stable) {
         /*
-         * Cursor is positioned on the stable table. Apply the modify unless stable already contains
-         * the final value, then write a full value to ingest.
+         * Cursor is positioned on the stable table. Compute a full value first unless stable already contains
+         * it, then write it to ingest.
          */
         c_ingest->set_key(c_ingest, &cursor->key);
         __clayered_decode_current(clayered, &value);
