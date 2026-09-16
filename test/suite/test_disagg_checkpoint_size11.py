@@ -182,6 +182,8 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # debug_mode.timing_stress_force affects every reconciliation on the connection,
         # not just this page, so disable it in a finally as soon as its job is done.
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
+        delta_stat = stat.dsrc.rec_page_delta_leaf
+        delta_before = self.get_stat(delta_stat)
         try:
             self.session.begin_transaction()
             c = self.session.open_cursor(self.uri)
@@ -198,6 +200,11 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             # and produce a false assertion failure on the correct path.
             self.conn.reconfigure('page_delta=(delta_pct=1)')
             self.conn.reconfigure('timing_stress_for_test=[],debug_mode=(timing_stress_force=false)')
+
+        # Confirm the write that hit the failpoint was actually a delta (delta_count > 0),
+        # not a full image -- the scenario under test requires the delta branch specifically.
+        self.assertGreater(self.get_stat(delta_stat), delta_before,
+            'rec_page_delta_leaf did not advance -- the eviction did not write a delta')
 
         # Step 6: Recovery checkpoint. The page (page_id invalidated by the
         # reconciliation error path) gets a fresh page_id and is written as a
