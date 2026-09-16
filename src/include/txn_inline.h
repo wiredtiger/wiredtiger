@@ -2539,8 +2539,10 @@ static WT_INLINE int
 __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
   wt_timestamp_t *prev_tsp, u_int modify_type)
 {
+    WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    bool tw_found;
 
     txn = session->txn;
 
@@ -2562,6 +2564,28 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
 
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
             return (WT_NOTFOUND);
+
+        /*
+         * An emptied chain isn't itself proof that there's something to remove: an earlier,
+         * already-visible remove can be reflected only in the on-page cell's own time window, with
+         * no update chain left to record it. A row-store key with an insert list of its own has no
+         * on-page row at all (that's what distinguishes it from an overlaid on-page row, which
+         * updates through the row's own update slot instead). Variable-length column-store likewise
+         * allocates a slot for every record number in an on-page cell's range whether or not that
+         * record ever held a value. So for either store, failing to find a time window here means
+         * there's nothing on the page for this key, and the remove must be rejected outright;
+         * finding one just means checking whether its stop is already visible.
+         */
+        if (upd == NULL) {
+            tw_found = (S2BT(session)->type != BTREE_ROW || cbt->ins == NULL) &&
+              __wt_read_cell_time_window(cbt, &tw);
+
+            if (!tw_found)
+                return (WT_NOTFOUND);
+
+            if (WT_TIME_WINDOW_HAS_STOP(&tw) && __wt_txn_tw_stop_visible(session, &tw))
+                return (WT_NOTFOUND);
+        }
     }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */
