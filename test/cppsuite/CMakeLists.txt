@@ -70,13 +70,6 @@ create_test_executable(test_disagg_failover_perf
     CXX
 )
 
-create_test_executable(test_disagg_truncate_perf
-    SOURCES tests/test_disagg_truncate_perf.cpp
-    LIBS cppsuite_test_harness
-    ADDITIONAL_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/configs
-    CXX
-)
-
 if(ENABLE_ANTITHESIS)
     target_link_libraries(run wt::voidstar)
     target_link_libraries(csuite_style_example_test wt::voidstar)

@@ -783,6 +783,64 @@ static const uint8_t confchk_cache_resize_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5, 6, 6, 6, 6, 7,
   7, 7, 7, 8, 8, 9, 9, 9, 10, 12, 13, 13, 14, 15, 15, 15, 15, 15, 15, 15, 15};
 
+static const WT_CONFIG_CHECK confchk_disagg_truncate_perf[] = {
+  {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 0, INT64_MIN, INT64_MAX, NULL},
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 1, 0,
+    INT64_MAX, NULL},
+  {"cache_size_mb", "int", NULL, "min=0,max=100000000000", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 2, 0, 100000000000, NULL},
+  {"checkpoint_interval_ms", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48,
+    1, INT64_MAX, NULL},
+  {"compression_enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 3,
+    INT64_MIN, INT64_MAX, NULL},
+  {"duration_seconds", "int", NULL, "min=0,max=1000000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
+    4, 0, 1000000, NULL},
+  {"enable_logging", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 5,
+    INT64_MIN, INT64_MAX, NULL},
+  {"follower_ingest_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 49, 1,
+    INT64_MAX, NULL},
+  {"in_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 6, INT64_MIN,
+    INT64_MAX, NULL},
+  {"insert_threads", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 50, 1,
+    INT64_MAX, NULL},
+  {"leader_ingest_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 51, 1,
+    INT64_MAX, NULL},
+  {"marker_size_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 52, 1,
+    INT64_MAX, NULL},
+  {"metrics_monitor", "category", NULL, NULL, confchk_metrics_monitor_subconfigs, 6,
+    confchk_metrics_monitor_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 7, INT64_MIN,
+    INT64_MAX, NULL},
+  {"operation_tracker", "category", NULL, NULL, confchk_operation_tracker_subconfigs, 4,
+    confchk_operation_tracker_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 19, INT64_MIN,
+    INT64_MAX, NULL},
+  {"oplog_size_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 53, 1,
+    INT64_MAX, NULL},
+  {"reverse_collator", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 22,
+    INT64_MIN, INT64_MAX, NULL},
+  {"statistics_config", "category", NULL, NULL, confchk_statistics_config_subconfigs, 2,
+    confchk_statistics_config_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 23, INT64_MIN,
+    INT64_MAX, NULL},
+  {"sweep_interval", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 25,
+    INT64_MIN, INT64_MAX, NULL},
+  {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4,
+    confchk_timestamp_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 26, INT64_MIN,
+    INT64_MAX, NULL},
+  {"validate", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 29, INT64_MIN,
+    INT64_MAX, NULL},
+  {"value_size", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 38, 1, INT64_MAX,
+    NULL},
+  {"workload_manager", "category", NULL, NULL, confchk_workload_manager_subconfigs, 10,
+    confchk_workload_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 30, INT64_MIN,
+    INT64_MAX, NULL},
+  {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
+
+static const uint8_t confchk_disagg_truncate_perf_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5, 6, 7, 8,
+  8, 8, 10, 10, 10, 11, 13, 13, 15, 15, 15, 16, 18, 19, 19, 21, 22, 22, 22, 22, 22, 22, 22, 22};
+
 static const WT_CONFIG_CHECK confchk_hs_cleanup[] = {
   {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_BOOLEAN, 0, INT64_MIN, INT64_MAX, NULL},
@@ -1048,33 +1106,6 @@ static const uint8_t confchk_search_near_03_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5, 6, 6, 6, 6,
   7, 7, 7, 7, 8, 8, 9, 9, 9, 10, 12, 13, 13, 14, 15, 15, 15, 15, 15, 15, 15, 15};
-
-static const WT_CONFIG_CHECK confchk_test_disagg_truncate_perf[] = {
-  {"cache_size_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 2, 1,
-    INT64_MAX, NULL},
-  {"checkpoint_interval_ms", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48,
-    1, INT64_MAX, NULL},
-  {"follower_ingest_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 49, 1,
-    INT64_MAX, NULL},
-  {"home", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 50, INT64_MIN,
-    INT64_MAX, NULL},
-  {"insert_threads", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 51, 1,
-    INT64_MAX, NULL},
-  {"leader_ingest_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 52, 1,
-    INT64_MAX, NULL},
-  {"marker_size_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 53, 1,
-    INT64_MAX, NULL},
-  {"oplog_size_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 54, 1,
-    INT64_MAX, NULL},
-  {"value_size", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 38, 1, INT64_MAX,
-    NULL},
-  {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
-
-static const uint8_t confchk_test_disagg_truncate_perf_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2,
-  2, 3, 3, 4, 5, 5, 5, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9};
 
 static const WT_CONFIG_CHECK confchk_test_template[] = {
   {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
@@ -1409,6 +1440,38 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_cache_resize, 15, confchk_cache_resize_jump, 9, WT_CONF_SIZING_NONE, false},
+  {"disagg_truncate_perf",
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
+    "cache_size_mb=0,checkpoint_interval_ms=2000,"
+    "compression_enabled=false,duration_seconds=0,"
+    "enable_logging=false,follower_ingest_mb=384,in_memory=false,"
+    "insert_threads=4,leader_ingest_mb=1024,marker_size_mb=8,"
+    "metrics_monitor=(cache_hs_insert=(max=1,min=0,postrun=false,"
+    "runtime=false,save=false),cc_pages_removed=(max=1,min=0,"
+    "postrun=false,runtime=false,save=false),enabled=true,op_rate=1s,"
+    "stat_cache_size=(max=1,min=0,postrun=false,runtime=false,"
+    "save=false),stat_db_size=(max=1,min=0,postrun=false,"
+    "runtime=false,save=false)),operation_tracker=(enabled=true,"
+    "op_rate=1s,tracking_key_format=QSQ,tracking_value_format=iS),"
+    "oplog_size_mb=256,reverse_collator=false,"
+    "statistics_config=(enable_logging=true,type=all),"
+    "sweep_interval=10,timestamp_manager=(enabled=true,oldest_lag=1,"
+    "op_rate=1s,stable_lag=1),validate=true,value_size=1000,"
+    "workload_manager=(background_compact_config=(free_space_target_mb=20"
+    ",op_rate=1s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
+    confchk_disagg_truncate_perf, 22, confchk_disagg_truncate_perf_jump, 10, WT_CONF_SIZING_NONE,
+    false},
   {"hs_cleanup",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
@@ -1436,7 +1499,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_hs_cleanup, 15, confchk_hs_cleanup_jump, 10, WT_CONF_SIZING_NONE, false},
+    confchk_hs_cleanup, 15, confchk_hs_cleanup_jump, 11, WT_CONF_SIZING_NONE, false},
   {"operations_test",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
@@ -1464,7 +1527,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_operations_test, 15, confchk_operations_test_jump, 11, WT_CONF_SIZING_NONE, false},
+    confchk_operations_test, 15, confchk_operations_test_jump, 12, WT_CONF_SIZING_NONE, false},
   {"reverse_split",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
@@ -1492,7 +1555,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_reverse_split, 15, confchk_reverse_split_jump, 12, WT_CONF_SIZING_NONE, false},
+    confchk_reverse_split, 15, confchk_reverse_split_jump, 13, WT_CONF_SIZING_NONE, false},
   {"search_near_01",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
@@ -1521,7 +1584,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_search_near_01, 16, confchk_search_near_01_jump, 13, WT_CONF_SIZING_NONE, false},
+    confchk_search_near_01, 16, confchk_search_near_01_jump, 14, WT_CONF_SIZING_NONE, false},
   {"search_near_02",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
@@ -1549,7 +1612,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_search_near_02, 15, confchk_search_near_02_jump, 14, WT_CONF_SIZING_NONE, false},
+    confchk_search_near_02, 15, confchk_search_near_02_jump, 15, WT_CONF_SIZING_NONE, false},
   {"search_near_03",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
@@ -1577,14 +1640,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_search_near_03, 15, confchk_search_near_03_jump, 15, WT_CONF_SIZING_NONE, false},
-  {"test_disagg_truncate_perf",
-    "cache_size_mb=1024,checkpoint_interval_ms=2000,"
-    "follower_ingest_mb=384,home=WT_TEST,insert_threads=4,"
-    "leader_ingest_mb=1024,marker_size_mb=8,oplog_size_mb=256,"
-    "value_size=1000",
-    confchk_test_disagg_truncate_perf, 9, confchk_test_disagg_truncate_perf_jump, 16,
-    WT_CONF_SIZING_NONE, false},
+    confchk_search_near_03, 15, confchk_search_near_03_jump, 16, WT_CONF_SIZING_NONE, false},
   {"test_template",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"

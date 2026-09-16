@@ -288,15 +288,11 @@ methods = {
         Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
-    'test_disagg_truncate_perf' : Method([
-        Config('cache_size_mb', 1024, r'''
-            The cache size that wiredtiger will be configured to run with''', min=1),
+    'disagg_truncate_perf' : Method(test_config + [
         Config('checkpoint_interval_ms', 2000, r'''
-            How often the leader takes a checkpoint during its workload phase''', min=1),
+            How often the leader checkpoints while a phase runs''', min=1),
         Config('follower_ingest_mb', 384, r'''
             How much data the follower phase inserts''', min=1),
-        Config('home', 'WT_TEST', r'''
-            The directory holding both connections and the shared page log'''),
         Config('insert_threads', 4, r'''
             How many threads append to the oplog''', min=1),
         Config('leader_ingest_mb', 1024, r'''

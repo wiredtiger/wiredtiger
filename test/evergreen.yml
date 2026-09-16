@@ -889,35 +889,6 @@ functions:
           - task_id
           - execution
 
-  "disagg truncate perf test":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build/test/cppsuite"
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          ${PREPARE_TEST_ENV}
-          ./test_disagg_truncate_perf ${test_args|}
-    - *dump_stacktraces
-    - *upload_stacktraces
-    - command: subprocess.exec
-      params:
-        binary: bash
-        args:
-          - ./wiredtiger/test/evergreen/perf_submission.sh
-        env:
-          perf_file_path: ./wiredtiger/cmake_build/test/cppsuite/test_disagg_truncate_perf.json
-        include_expansions_in_env:
-          - requester
-          - revision_order_id
-          - project_id
-          - version_id
-          - build_variant
-          - task_name
-          - task_id
-          - execution
-
   "wt2853_perf test":
     command: shell.exec
     params:
@@ -2569,9 +2540,10 @@ tasks:
     tags: ["cppsuite-perf-test-arm"]
     commands:
       - func: "fetch artifacts"
-      - func: "disagg truncate perf test"
+      - func: "cppsuite perf test"
         vars:
-          test_args: "-f configs/test_disagg_truncate_perf_perf.txt"
+          test_config_filename: configs/disagg_truncate_perf_perf.txt
+          test_name: disagg_truncate_perf
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks

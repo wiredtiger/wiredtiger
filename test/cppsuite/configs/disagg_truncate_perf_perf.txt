@@ -1,10 +1,9 @@
-# Configuration for test_disagg_truncate_perf on the performance builders.
+# Configuration for disagg_truncate_perf on the performance builders.
 # An 8GB oplog of 1KB records trimmed 16MB at a time, recycled four times over by the leader and
 # once by the follower, against an 8GB cache and a checkpoint every two seconds.
 cache_size_mb=8192,
 checkpoint_interval_ms=2000,
 follower_ingest_mb=8192,
-home=WT_TEST,
 insert_threads=8,
 leader_ingest_mb=32768,
 marker_size_mb=16,
