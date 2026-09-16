@@ -184,16 +184,13 @@ WT_CONF_API_DECLARE(file, config, 5, 51);
 WT_CONF_API_DECLARE(file, meta, 6, 60);
 WT_CONF_API_DECLARE(index, meta, 2, 16);
 WT_CONF_API_DECLARE(layered, meta, 4, 26);
-WT_CONF_API_DECLARE(object, meta, 6, 62);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
-WT_CONF_API_DECLARE(tier, meta, 6, 63);
-WT_CONF_API_DECLARE(tiered, meta, 7, 74);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 27, 214);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 27, 215);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 27, 208);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 27, 207);
 
-#define WT_CONF_API_ELEMENTS 57
+#define WT_CONF_API_ELEMENTS 54
 
 /*
  * Per-API configuration structure declarations: END
