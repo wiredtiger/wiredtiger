@@ -129,7 +129,6 @@ static const named_stat PHASE_STATS[] = {
   {"truncate_list_gc_runs", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_RUNS},
   {"truncate_list_gc_entries_removed", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED},
 };
-static const size_t SEARCH_CALLS = 6, ENTRIES_WALKED = 7;
 
 /* Cache occupancy, sampled while a phase runs rather than read once at its end. */
 static const named_stat CACHE_GAUGES[] = {
@@ -154,21 +153,12 @@ struct cache_pressure {
 
 static cache_pressure g_leader_cache, g_follower_cache;
 
-/*
- * The cache a single truncate creates. The leader pins dirty internal pages until its transaction
- * resolves, the follower grows its ingest table and truncate list instead, so each role is charged
- * against a different statistic.
- */
+/* The cache a single truncate creates, charged per operation. */
 struct truncate_pressure {
-    int field;
-    /* The leader's gauge is given back at commit, so it is read while the truncate is open. */
-    bool read_before_commit;
     std::atomic<uint64_t> count{0}, total{0}, peak{0};
 };
 
-static truncate_pressure g_leader_pressure{
-  WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES, true, {}, {}, {}};
-static truncate_pressure g_follower_pressure{WT_STAT_CONN_CACHE_BYTES_UPDATES, false, {}, {}, {}};
+static truncate_pressure g_leader_pressure, g_follower_pressure;
 
 static uint64_t
 record_bytes()
@@ -300,39 +290,23 @@ load_configuration(int argc, char *argv[])
 }
 
 /*
- * MongoDB reclaims the oplog in whole markers rather than a record at a time. Matching that shape
- * is what makes the ranges here representative: one large range per marker, behind the insert head.
+ * MongoDB reclaims the oplog in whole markers rather than a record at a time. Keys are sequential
+ * and records are a fixed size, so the oldest marker is whatever sits behind the volume the oplog
+ * is meant to keep: one large range per truncate, well behind the insert head.
  */
-class oplog_markers {
-public:
-    oplog_markers() : _next_marker_bytes(mb_to_bytes(opt.marker_size_mb)), _truncated_bytes(0) {}
+static bool
+expired_marker(uint64_t *marker_keyp)
+{
+    uint64_t keep = mb_to_bytes(opt.oplog_size_mb) / record_bytes();
+    uint64_t marker = mb_to_bytes(opt.marker_size_mb) / record_bytes();
+    uint64_t head = g_next_key.load();
 
-    /* Close off filled markers, and report the oldest once the oplog is over its size. */
-    bool
-    expired_marker(uint64_t head_key, uint64_t inserted_bytes, uint64_t *marker_keyp)
-    {
-        while (inserted_bytes >= _next_marker_bytes) {
-            _marker_keys.push_back(head_key);
-            _next_marker_bytes += mb_to_bytes(opt.marker_size_mb);
-        }
+    if (head - g_truncated_key.load() <= keep + marker)
+        return (false);
 
-        if (_marker_keys.empty() ||
-          inserted_bytes - _truncated_bytes <= mb_to_bytes(opt.oplog_size_mb))
-            return (false);
-
-        *marker_keyp = _marker_keys.front();
-        _marker_keys.pop_front();
-        _truncated_bytes += mb_to_bytes(opt.marker_size_mb);
-        return (true);
-    }
-
-private:
-    std::deque<uint64_t> _marker_keys;
-    uint64_t _next_marker_bytes;
-    uint64_t _truncated_bytes;
-};
-
-static std::unique_ptr<oplog_markers> g_markers;
+    *marker_keyp = head - keep;
+    return (true);
+}
 
 /*
  * Take the next commit timestamp, publishing it first so the stable timestamp can never be moved
@@ -408,12 +382,18 @@ insert_worker(WT_CONNECTION *conn, int id, uint64_t target_bytes)
     }
 }
 
-/* Truncate up to the marker key, charging the operation for the cache it creates. */
+/*
+ * Truncate up to the marker key, charging the operation for the cache it creates. A leader pins
+ * dirty internal pages until the transaction resolves, and that gauge is given back at commit, so
+ * it is read while the truncate is open. A follower instead grows its ingest table and truncate
+ * list, which is the change in update bytes across the whole operation.
+ */
 static int
 truncate_to_marker(scoped_session &session, scoped_cursor &cursor, scoped_cursor &stat_cursor,
-  uint64_t marker_key, wt_timestamp_t commit_ts, truncate_pressure &pressure)
+  uint64_t marker_key, wt_timestamp_t commit_ts, bool follower)
 {
-    int64_t before = pressure.read_before_commit ? 0 : get_stat(stat_cursor, pressure.field);
+    truncate_pressure &pressure = follower ? g_follower_pressure : g_leader_pressure;
+    int64_t before = follower ? get_stat(stat_cursor, WT_STAT_CONN_CACHE_BYTES_UPDATES) : 0;
     int ret;
 
     testutil_check(session->begin_transaction(session.get(), nullptr));
@@ -425,8 +405,9 @@ truncate_to_marker(scoped_session &session, scoped_cursor &cursor, scoped_cursor
         return (ret);
     }
 
-    if (pressure.read_before_commit)
-        record_pressure(pressure, get_stat(stat_cursor, pressure.field));
+    if (!follower)
+        record_pressure(
+          pressure, get_stat(stat_cursor, WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES));
 
     testutil_check(
       session->timestamp_transaction(session.get(), (COMMIT_TS + "=" + hex(commit_ts)).c_str()));
@@ -435,8 +416,8 @@ truncate_to_marker(scoped_session &session, scoped_cursor &cursor, scoped_cursor
         return (ret);
     }
 
-    if (!pressure.read_before_commit) {
-        record_pressure(pressure, get_stat(stat_cursor, pressure.field) - before);
+    if (follower) {
+        record_pressure(pressure, get_stat(stat_cursor, WT_STAT_CONN_CACHE_BYTES_UPDATES) - before);
         g_follower_truncate_entries.fetch_add(1);
     }
     g_truncate_ops.fetch_add(1);
@@ -449,8 +430,7 @@ truncate_to_marker(scoped_session &session, scoped_cursor &cursor, scoped_cursor
  * trails the inserters and retires whole markers once the oplog is over its configured size.
  */
 static void
-truncate_worker(
-  WT_CONNECTION *conn, const std::string &phase, uint64_t target_bytes, truncate_pressure *pressure)
+truncate_worker(WT_CONNECTION *conn, const std::string &phase, uint64_t target_bytes, bool follower)
 {
     scoped_session session(conn);
     scoped_cursor cursor = session.open_scoped_cursor(TABLE_URI);
@@ -463,9 +443,8 @@ truncate_worker(
     uint64_t marker_key;
 
     for (;;) {
-        uint64_t inserted = g_inserted_bytes.load();
-        if (!g_markers->expired_marker(g_next_key.load() - 1, inserted, &marker_key)) {
-            if (inserted >= target_bytes)
+        if (!expired_marker(&marker_key)) {
+            if (g_inserted_bytes.load() >= target_bytes)
                 break;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
@@ -474,7 +453,7 @@ truncate_worker(
         wt_timestamp_t commit_ts = reserve_timestamp(static_cast<int>(opt.insert_threads));
         int ret = timer.track([&]() {
             return (
-              truncate_to_marker(session, cursor, stat_cursor, marker_key, commit_ts, *pressure));
+              truncate_to_marker(session, cursor, stat_cursor, marker_key, commit_ts, follower));
         });
         release_timestamp(static_cast<int>(opt.insert_threads));
         if (ret != 0)
@@ -546,34 +525,11 @@ cache_sampler_worker(WT_CONNECTION *conn, cache_pressure *pressure, std::atomic<
     }
 }
 
-class cache_sampler {
-public:
-    cache_sampler(WT_CONNECTION *conn, cache_pressure *pressure)
-    {
-        _threads.add_thread(cache_sampler_worker, conn, pressure, &_stop);
-    }
-
-    ~cache_sampler()
-    {
-        _stop.store(true);
-        _threads.join();
-    }
-
-private:
-    std::atomic<bool> _stop{false};
-    thread_manager _threads;
-};
-
 static void
 report_phase_stats(const std::string &phase, const phase_stats &before, const phase_stats &after)
 {
     for (size_t i = 0; i < WT_ELEMENTS(PHASE_STATS); i++)
         report(phase + "_" + PHASE_STATS[i].name, static_cast<uint64_t>(after[i] - before[i]));
-
-    int64_t calls = after[SEARCH_CALLS] - before[SEARCH_CALLS];
-    int64_t walked = after[ENTRIES_WALKED] - before[ENTRIES_WALKED];
-    report(phase + "_truncate_list_entries_walked_per_call",
-      calls == 0 ? 0 : static_cast<uint64_t>(walked / calls));
 }
 
 static void
@@ -615,27 +571,37 @@ reset_phase_counters()
 
 /* Run the insert and truncate workload against one role, and report everything it produced. */
 static void
-run_phase(WT_CONNECTION *conn, const std::string &phase, int64_t phase_mb,
-  truncate_pressure &pressure, cache_pressure &cache)
+run_phase(WT_CONNECTION *conn, const std::string &phase, int64_t phase_mb)
 {
     logger::log_msg(LOG_INFO, "Starting the " + phase + " phase.");
     reset_phase_counters();
 
     bool leader = conn == g_leader;
+    cache_pressure &cache = leader ? g_leader_cache : g_follower_cache;
+    truncate_pressure &pressure = leader ? g_leader_pressure : g_follower_pressure;
+    std::atomic<bool> sampling_done{false};
     uint64_t start_bytes = g_inserted_bytes.load();
     uint64_t target_bytes = start_bytes + mb_to_bytes(phase_mb);
     phase_stats before = read_phase_stats(conn);
     auto start = std::chrono::steady_clock::now();
 
     {
-        cache_sampler sampler(conn, &cache);
         thread_manager tm;
         for (int64_t i = 0; i < opt.insert_threads; i++)
             tm.add_thread(insert_worker, conn, static_cast<int>(i), target_bytes);
-        tm.add_thread(truncate_worker, conn, phase, target_bytes, &pressure);
+        tm.add_thread(truncate_worker, conn, phase, target_bytes, !leader);
+        tm.add_thread(cache_sampler_worker, conn, &cache, &sampling_done);
         if (leader)
             tm.add_thread(leader_maintenance_worker, conn, target_bytes);
+
+        thread_manager stopper;
+        stopper.add_thread([&]() {
+            while (g_inserted_bytes.load() < target_bytes)
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            sampling_done.store(true);
+        });
         tm.join();
+        stopper.join();
     }
 
     int64_t elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -741,8 +707,8 @@ run_gc_phase()
 
     for (int64_t i = 0; i < opt.gc_truncate_count; i++) {
         marker_key += chunk;
-        if (truncate_to_marker(session, cursor, stat_cursor, marker_key, g_timestamp.fetch_add(1),
-              g_follower_pressure) != 0)
+        if (truncate_to_marker(
+              session, cursor, stat_cursor, marker_key, g_timestamp.fetch_add(1), true) != 0)
             g_truncate_rollbacks.fetch_add(1);
     }
 
@@ -803,7 +769,6 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_INFO, "Starting " + progname);
     load_configuration(argc, argv);
 
-    g_markers.reset(new oplog_markers());
     g_worker_count = static_cast<int>(opt.insert_threads) + 1;
     g_worker_timestamps.reset(new std::atomic<uint64_t>[g_worker_count]);
     for (int i = 0; i < g_worker_count; i++)
@@ -811,12 +776,11 @@ main(int argc, char *argv[])
 
     open_connections();
     populate();
-    run_phase(g_leader, "leader", opt.leader_ingest_mb, g_leader_pressure, g_leader_cache);
+    run_phase(g_leader, "leader", opt.leader_ingest_mb);
 
     /* Hand the follower everything the leader has written, then let it run its own workload. */
     deliver_checkpoint(g_timestamp.fetch_add(1));
-    run_phase(
-      g_follower, "follower", opt.follower_ingest_mb, g_follower_pressure, g_follower_cache);
+    run_phase(g_follower, "follower", opt.follower_ingest_mb);
 
     /*
      * A checkpoint taken now sits above every truncate the follower recorded, so picking it up

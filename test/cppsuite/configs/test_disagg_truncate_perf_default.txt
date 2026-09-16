@@ -6,7 +6,7 @@
 # that nothing collects until the run delivers the next checkpoint.
 cache_size_mb=1024,
 checkpoint_interval_ms=2000,
-follower_ingest_mb=256,
+follower_ingest_mb=384,
 gc_truncate_count=16,
 home=WT_TEST,
 insert_threads=4,

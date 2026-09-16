@@ -293,7 +293,7 @@ methods = {
             The cache size that wiredtiger will be configured to run with''', min=1),
         Config('checkpoint_interval_ms', 2000, r'''
             How often the leader takes a checkpoint during its workload phase''', min=1),
-        Config('follower_ingest_mb', 256, r'''
+        Config('follower_ingest_mb', 384, r'''
             How much data the follower phase inserts''', min=1),
         Config('gc_truncate_count', 16, r'''
             How many truncates the garbage collection phase runs''', min=1),
