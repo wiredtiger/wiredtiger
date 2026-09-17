@@ -32,7 +32,7 @@
 from contextlib import closing, nullcontext
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
-from wiredtiger import stat, WiredTigerError
+from wiredtiger import WiredTigerError
 from wtscenario import make_scenarios
 import wttest
 
@@ -54,6 +54,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
     conn_config = 'disaggregated=(role="leader"),'
 
     CONFLICT_MSG = "/conflict between concurrent operations/"
+    WARNING_MSG = 'conflicts with an uncommitted ingest update'
 
     # These helpers are local to 18 because they all take an explicit session
     # (the conflict tests drive two sessions concurrently). The equivalent
@@ -224,9 +225,6 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         with self.cursor_on(session) as cursor:
             cursor[key] = value
 
-    def conflict_stat(self):
-        return self.get_stat(stat.conn.layered_truncate_ingest_conflict)
-
     def test_truncate_over_uncommitted_ingest_insert_conflicts(self):
         # A follower with stable keys 1-100; key 45 has no ingest content.
         self.setup_leader(keys=range_inclusive(1, 100))
@@ -237,19 +235,18 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         session_a.begin_transaction()
         self.write_on(session_a, 45)
 
-        before = self.conflict_stat()
         # txn B truncates 30-60, which covers the pending write, and gets
         # WT_ROLLBACK.
-        with (
-            self.auto_closing_session() as session_b,
-            self.transaction(session=session_b, rollback=True),
-        ):
-            self.assertRaisesException(
-                WiredTigerError,
-                lambda: self.truncate_on(session_b, 30, 60),
-                self.CONFLICT_MSG,
-            )
-        self.assertGreater(self.conflict_stat(), before)
+        with self.expectedStdoutPattern(self.WARNING_MSG):
+            with (
+                self.auto_closing_session() as session_b,
+                self.transaction(session=session_b, rollback=True),
+            ):
+                self.assertRaisesException(
+                    WiredTigerError,
+                    lambda: self.truncate_on(session_b, 30, 60),
+                    self.CONFLICT_MSG,
+                )
 
     def test_truncate_over_stable_only_uncommitted_remove_conflicts(self):
         # Key 45 lives only in stable; the follower has no ingest content for it.
@@ -265,15 +262,16 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         # txn B truncates 30-60, which covers the pending remove, and gets
         # WT_ROLLBACK.
-        with (
-            self.auto_closing_session() as session_b,
-            self.transaction(session=session_b, rollback=True),
-        ):
-            self.assertRaisesException(
-                WiredTigerError,
-                lambda: self.truncate_on(session_b, 30, 60),
-                self.CONFLICT_MSG,
-            )
+        with self.expectedStdoutPattern(self.WARNING_MSG):
+            with (
+                self.auto_closing_session() as session_b,
+                self.transaction(session=session_b, rollback=True),
+            ):
+                self.assertRaisesException(
+                    WiredTigerError,
+                    lambda: self.truncate_on(session_b, 30, 60),
+                    self.CONFLICT_MSG,
+                )
 
     def test_truncate_start_boundary_uncommitted_insert_conflicts(self):
         # The pending key sits exactly on the truncate start bound.
@@ -284,15 +282,16 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         session_a.begin_transaction()
         self.write_on(session_a, 30)
 
-        with (
-            self.auto_closing_session() as session_b,
-            self.transaction(session=session_b, rollback=True),
-        ):
-            self.assertRaisesException(
-                WiredTigerError,
-                lambda: self.truncate_on(session_b, 30, 60),
-                self.CONFLICT_MSG,
-            )
+        with self.expectedStdoutPattern(self.WARNING_MSG):
+            with (
+                self.auto_closing_session() as session_b,
+                self.transaction(session=session_b, rollback=True),
+            ):
+                self.assertRaisesException(
+                    WiredTigerError,
+                    lambda: self.truncate_on(session_b, 30, 60),
+                    self.CONFLICT_MSG,
+                )
 
     def test_truncate_beside_uncommitted_ingest_insert_no_conflict(self):
         self.setup_leader(keys=range_inclusive(1, 100))

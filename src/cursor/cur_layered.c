@@ -1565,7 +1565,9 @@ __clayered_truncate_ingest_conflict_check(WT_SESSION_IMPL *session, WT_LAYERED_T
 
 err:
     if (ret == WT_ROLLBACK)
-        WT_STAT_CONN_INCR(session, layered_truncate_ingest_conflict);
+        __wt_verbose_warning(session, WT_VERB_LAYERED,
+          "follower truncate on %s conflicts with an uncommitted ingest update in the range",
+          layered->iface.name);
     WT_TRET(walk->reset(walk));
     return (ret);
 }
