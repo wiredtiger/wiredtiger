@@ -468,7 +468,7 @@ __drop_pending_transfer(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
 
     from = &int_session->drop_pending;
     to = &session->drop_pending;
-    if (from->size == 0 || __wt_buf_grow(session, to, to->size + from->size) != 0)
+    if (from->size == 0 || __wt_buf_extend(session, to, to->size + from->size) != 0)
         return;
     memcpy((uint8_t *)to->mem + to->size, from->mem, from->size);
     to->size += from->size;

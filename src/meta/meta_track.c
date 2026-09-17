@@ -572,7 +572,7 @@ __wt_meta_track_drop_defer(WT_SESSION_IMPL *session, uint32_t id)
         WT_ERR(__wt_snprintf(trk->b, len, "%s.%" PRIu32 ".wtdrop.%d", trk->a, id, suffix));
     WT_ERR(ret);
 
-    WT_ERR(__wt_buf_grow(
+    WT_ERR(__wt_buf_extend(
       session, &session->drop_pending, session->drop_pending.memsize + strlen(trk->b) + 1));
     return;
 
