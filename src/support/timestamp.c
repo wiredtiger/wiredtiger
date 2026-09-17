@@ -210,7 +210,7 @@ __time_aggregate_validate_parent(
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (ta->newest_stop_ts > parent->newest_stop_ts)
+    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > parent->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest stop time after its parent's; time aggregate %s, "
           "parent %s",
