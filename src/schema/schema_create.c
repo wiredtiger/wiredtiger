@@ -213,11 +213,12 @@ __create_file(
       *filestripped;
     char *fileconf, *filemeta;
     uint32_t allocsize, fileid;
-    bool against_stable, exists, import, import_repair, is_metadata, is_shared;
+    bool against_stable, exists, import, import_repair, ingest, is_metadata, is_shared;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
+    ingest = WT_URI_IS_INGEST(uri);
 
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
@@ -254,8 +255,10 @@ __create_file(
             WT_IGNORE_RET(__wt_fs_remove(session, filename, true, false));
     }
 
-    WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
-    allocsize = (uint32_t)cval.val;
+    if (!ingest) {
+        WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
+        allocsize = (uint32_t)cval.val;
+    }
 
     /*
      * If we are importing an existing object rather than creating a new one, there are two possible
@@ -313,8 +316,8 @@ __create_file(
                   uri);
             }
         }
-    } else
-        /* Create the file. */
+    } else if (!ingest)
+        /* Ingest files are created on first block open. */
         WT_ERR(__create_file_block_manager(session, uri, filename, allocsize, filecfg));
 
     /*
@@ -323,7 +326,22 @@ __create_file(
      * information is reconstructed inside import repair or when grabbing file metadata.
      */
     if (!is_metadata) {
-        if (!import_repair) {
+        if (ingest) {
+            /*
+             * Ingest tables are in-memory and rebuilt on first pickup. Persist the caller's config
+             * plus a new id; open fills remaining keys from file.meta.
+             */
+            fileid = __wt_generate_file_id(session, uri, false);
+            WT_ERR(__wt_scr_alloc(session, 0, &val));
+            WT_ERR(__wt_buf_fmt(session, val,
+              "%s%s"
+              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
+              config == NULL ? "" : config, config != NULL && config[0] != '\0' ? "," : "", fileid,
+              WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+            WT_ERR(__wt_strndup(session, val->data, val->size, &fileconf));
+            filestripped = fileconf;
+            fileconf = NULL;
+        } else if (!import_repair) {
             WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
             fileid = __wt_generate_file_id(session, uri, is_shared);
 
@@ -341,10 +359,12 @@ __create_file(
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
-        /* Strip any configuration settings that should not be persisted. */
-        filecfg[1] = fileconf;
-        filecfg[2] = NULL;
-        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        if (!ingest) {
+            /* Strip any configuration settings that should not be persisted. */
+            filecfg[1] = fileconf;
+            filecfg[2] = NULL;
+            WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        }
         WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*

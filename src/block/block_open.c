@@ -140,6 +140,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     uint64_t bucket, hash;
     uint32_t flags;
@@ -213,6 +214,11 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
         LF_SET(WT_FS_OPEN_READONLY);
         block->readonly = true;
     }
+    /*
+     * Ingest create skips the filesystem. CREATE lets the first handle open make the empty file.
+     */
+    if (!readonly && WT_URI_IS_INGEST(filename))
+        LF_SET(WT_FS_OPEN_CREATE);
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
     /*
@@ -224,6 +230,15 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
+    if (WT_URI_IS_INGEST(filename) && block->size == 0) {
+        WT_ERR(__wti_desc_write(session, block->fh, allocsize));
+        block->size = allocsize;
+        if (WT_META_TRACKING(session)) {
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s", filename));
+            WT_ERR(__wt_meta_track_fileop(session, NULL, tmp->data));
+        }
+    }
     /*
      * If we're opening a file and it only contains a header and we're doing incremental backup
      * indicate this so that the first checkpoint is sure to set all the bits as dirty to cover the
@@ -248,6 +263,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
 
     __wt_spin_unlock(session, &conn->block_lock);
+    __wt_scr_free(session, &tmp);
 
     *blockp = block;
     return (0);
@@ -255,6 +271,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 err:
     __wt_spin_unlock(session, &conn->block_lock);
     WT_TRET(__wt_block_close(session, block));
+    __wt_scr_free(session, &tmp);
 
     return (ret);
 }
