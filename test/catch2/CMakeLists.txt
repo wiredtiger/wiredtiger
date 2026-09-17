@@ -39,6 +39,7 @@ else()
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
+        misc_tests/test_palite_victim_cache.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
