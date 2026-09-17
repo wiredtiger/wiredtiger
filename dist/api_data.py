@@ -902,10 +902,6 @@ connection_runtime_config = [
         Config('close_scan_interval', '10', r'''
             interval in seconds at which to check for files that are inactive and close them''',
             min=1, max=100000),
-        Config('drop_defer_unlink', 'true', r'''
-            defer removing a dropped table's file until the drop has released its locks; when
-            false the file is removed while the locks are held''',
-            type='boolean', undoc=True),
         ]),
     Config('generation_drain_timeout_ms', '240000', r'''
         the number of milliseconds to wait for a resource to drain before timing out. In the

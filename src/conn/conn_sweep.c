@@ -674,9 +674,6 @@ __wti_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "file_manager.close_handle_minimum", &cval));
     conn->sweep.handles_min = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "file_manager.drop_defer_unlink", &cval));
-    __wt_atomic_store_bool_relaxed(&conn->drop_defer_unlink, cval.val != 0);
-
     return (0);
 }
 
