@@ -60,7 +60,7 @@ __drop_file(
          */
         WT_TRET(__wt_meta_track_drop(session, filename));
         if (ret == 0 && id_found)
-            __wt_meta_track_drop_rename(session, id);
+            __wt_meta_track_drop_defer(session, id);
     }
 
     __wti_debug_crash_if_flag_set(
@@ -477,8 +477,10 @@ __drop_pending_transfer(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
 
 /*
  * __wt_drop_pending_apply --
- *     Remove the files this session's committed drops renamed. The metadata is already durable, so
- *     failures are logged rather than returned.
+ *     Remove the files this session's committed drops renamed. The drop calls this right after
+ *     releasing its locks, so the buffer is normally empty by session close, whose call releases
+ *     anything a caller left behind. The metadata is already durable, so failures are logged rather
+ *     than returned.
  */
 void
 __wt_drop_pending_apply(WT_SESSION_IMPL *session)
