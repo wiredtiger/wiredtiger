@@ -35,15 +35,19 @@ from wtscenario import make_scenarios
 # aggregate does not report corruption on a disaggregated follower.
 #
 # A leader whose oldest timestamp has moved past a tombstone drops the deleted key
-# entirely the next time it rebuilds the page from its base image and deltas, so a
-# later write it reconciles on top carries a parent aggregate that no longer accounts
-# for that key's start time. A follower whose own oldest timestamp never advances
-# past the tombstone should never be able to adopt that checkpoint in the first
-# place -- the checkpoint's oldest timestamp has moved past content the follower's
-# pinned timestamp still needs. If it is allowed to adopt it anyway, the follower
-# rebuilds the same base image and deltas without dropping the key, and its
-# reconstructed leaf holds a cell whose start time predates what the checkpoint's
-# own parent aggregate for that leaf claims is its floor.
+# entirely the next time it rebuilds the page from its base image and deltas, so the
+# checkpoint it takes afterward carries a parent aggregate that no longer accounts
+# for that key's start time. A follower picking up only that checkpoint, whose own
+# oldest timestamp has never advanced past the tombstone -- the common case being
+# one that was never set at all -- rebuilds the same base image and deltas without
+# dropping the key, and its reconstructed leaf holds a cell whose start time
+# predates what the checkpoint's own parent aggregate for that leaf claims is its
+# floor.
+#
+# The follower only ever picks up this one, latest checkpoint -- it never adopts an
+# earlier one first -- so the scenario stays valid regardless of whether checkpoint
+# pick-up is later made to enforce oldest timestamp ordering between successive
+# checkpoints a follower adopts.
 @disagg_test_class
 class test_verify_disagg06(wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -101,22 +105,6 @@ class test_verify_disagg06(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(15))
         self.session.checkpoint()
 
-        # Deliver this checkpoint to a follower whose own oldest timestamp never
-        # advances past the delete. From here on the follower's visibility of the
-        # tombstone never changes.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
-                                           self.conn_config_follower)
-        session_follow = conn_follow.open_session('')
-        conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        self.disagg_advance_checkpoint_and_wait(conn_follow)
-
-        # At this point leader and follower agree: the tombstone is retained and
-        # both verify cleanly. Verify requires no open cursors on the table.
-        cursor.close()
-        self.verifyUntilSuccess(self.session)
-        self.verifyUntilSuccess(session_follow)
-        cursor = self.session.open_cursor(self.uri, None, None)
-
         # Advance only the leader's oldest timestamp to a point strictly between
         # the delete (10) and the other keys' own insert (15): the tombstone
         # becomes globally visible and the key is dropped outright, while the
@@ -137,11 +125,13 @@ class test_verify_disagg06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         cursor.close()
 
-        # Deliver the new checkpoint to the follower and wait for it to actually
-        # be adopted -- delivery alone can be deferred while a snapshot predates
-        # it. The follower's own oldest timestamp (1) is still behind the
-        # tombstone (10), let alone the leader's current oldest (12): adopting
-        # this checkpoint should be refused.
+        # Only now does a follower pick up this checkpoint -- the latest one,
+        # never having adopted the earlier one. Its own oldest timestamp is left
+        # unset, well behind the tombstone (10) and the leader's current oldest
+        # (12).
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+                                           self.conn_config_follower)
+        session_follow = conn_follow.open_session('')
         self.disagg_advance_checkpoint_and_wait(conn_follow)
 
         # The leader verifies cleanly: its own rebuild of the leaf agrees with
