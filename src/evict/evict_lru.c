@@ -13,7 +13,8 @@ static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
-static bool __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level);
+static bool __evict_skip_tree(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level, bool *clear_maybe_nonemptyp);
 static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed);
 
 #define WT_EVICT_HAS_WORKERS(s) \
@@ -470,6 +471,118 @@ __evict_update_checkpoint_dirty(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __evict_level_hidden_for_tree --
+ *     Return whether a subqueue of this tree at this level should be hidden from the bucket
+ *     counters. Must be read where the decision is used, not cached across a lock acquisition: see
+ *     the note in __wt_evict_enqueue_page.
+ */
+static WT_INLINE bool
+__evict_level_hidden_for_tree(WT_BTREE *btree, int level)
+{
+    return (WT_BTREE_SYNCING(btree) && __evict_level_holds_modified(level));
+}
+
+/*
+ * __evict_subqueue_set_hidden --
+ *     Move one subqueue in or out of the hidden state, adjusting its bucket and bucketset counters
+ *     by the number of pages it currently holds. Idempotent, so a caller need not track whether a
+ *     subqueue was already hidden.
+ */
+static void
+__evict_subqueue_set_hidden(
+  WT_SESSION_IMPL *session, WT_EVICT_DHANDLE_SUBQUEUE *subq, bool hide)
+{
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_BUCKETSET *bucketset;
+    uint64_t items;
+
+    bucket = subq->bucket;
+    bucketset = bucket->bucketset;
+
+    /*
+     * The subqueue lock is what makes this atomic against the enqueue and dequeue paths: they test
+     * hidden and update num_items under the same lock, so the count read here cannot be stale and
+     * no concurrent update can be applied to the wrong side of the transition.
+     */
+    __wt_spin_lock(session, &subq->evict_queue_lock);
+    if (subq->hidden != hide) {
+        subq->hidden = hide;
+        items = subq->num_items;
+        if (items != 0) {
+            if (hide) {
+                __wt_atomic_sub_uint64(&bucket->bucket_num_items, items);
+                __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, items);
+            } else {
+                __wt_atomic_add_uint64(&bucket->bucket_num_items, items);
+                __wt_atomic_add_uint64(&bucketset->bucketset_num_items, items);
+            }
+        }
+    }
+    __wt_spin_unlock(session, &subq->evict_queue_lock);
+}
+
+/*
+ * __evict_tree_set_hidden --
+ *     Hide or reveal every subqueue belonging to a tree, at the levels that hold modified pages.
+ *
+ *     A tree lives in the slot its name hashes to, and that slot is the same in every bucket, so
+ *     this visits one slot per bucket rather than all dhandle_hash_size of them: num_buckets probes
+ *     per modified level, twice per checkpoint. Against a sweep that costs num_buckets probes and
+ *     runs thousands of times a second for the length of the sync, that is not a cost worth
+ *     optimising further.
+ */
+static void
+__evict_tree_set_hidden(WT_SESSION_IMPL *session, WT_BTREE *btree, bool hide)
+{
+    WT_EVICT *evict;
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_BUCKETSET *bucketset;
+    WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
+    WT_EVICT_DHANDLE_SUBQUEUE *subq;
+    uint32_t j, slot;
+    u_int i;
+
+    evict = S2C(session)->evict;
+    slot = (uint32_t)(btree->dhandle->name_hash % evict->dhandle_hash_size);
+
+    for (i = 0; i < WT_EVICT_LEVELS; i++) {
+        if (!__evict_level_holds_modified((int)i))
+            continue;
+        bucketset = &evict->evict_bucketset[i];
+        for (j = 0; j < bucketset->num_buckets; j++) {
+            bucket = &bucketset->buckets[j];
+            hash_entry = &bucket->pertree_hashtable[slot];
+
+            /*
+             * Unlocked hint, as elsewhere: a chain with no subqueues cannot hold one of ours. A
+             * subqueue created concurrently is handled by the enqueue path, which decides its
+             * hidden state under the chain lock we would have taken here.
+             */
+            if (TAILQ_EMPTY(&hash_entry->dhandle_hashchain))
+                continue;
+
+            /* Chain lock before subqueue lock, and a blocking acquire: this must not miss one. */
+            __wt_spin_lock(session, &hash_entry->evict_hashchain_lock);
+            TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq)
+                if (subq->dhandle == btree->dhandle) {
+                    __evict_subqueue_set_hidden(session, subq, hide);
+
+                    /*
+                     * Store 1 in this slot's maybe_nonempty again. The walk may only store 0 while
+                     * the tree is syncing because this pass runs: otherwise the 1 would come back
+                     * only in the buckets that happen to receive a new enqueue, and the pages
+                     * queued in every other bucket would never be visited again.
+                     */
+                    if (!hide)
+                        __wt_atomic_store_uint32_relaxed(&hash_entry->maybe_nonempty, 1);
+                    break;
+                }
+            __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+        }
+    }
+}
+
+/*
  * __wt_evict_checkpoint_tree_enter --
  *     Tell eviction that a checkpoint has begun syncing this tree, so that its dirty leaf bytes
  *     stop counting towards the dirty thresholds.
@@ -485,6 +598,13 @@ __wt_evict_checkpoint_tree_enter(WT_SESSION_IMPL *session, WT_BTREE *btree)
     u_int i;
 
     evict = S2C(session)->evict;
+
+    /*
+     * Take this tree's queued pages out of the bucket counters first, and unconditionally: unlike
+     * the dirty-byte discount below, hiding is not limited by the size of the registry, and the
+     * sweep is burning cycles on this tree from the moment WT_BTREE_SYNCING was set.
+     */
+    __evict_tree_set_hidden(session, btree, true);
 
     __wt_spin_lock(session, &evict->evict_ckpt_trees_lock);
     for (i = 0; i < WT_EVICT_CKPT_TREES_MAX; i++)
@@ -515,6 +635,13 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
     evict = S2C(session)->evict;
     empty = true;
+
+    /*
+     * Put the pages back into the counters. Safe to do before the registry work below: the caller
+     * has already stored WT_BTREE_SYNC_OFF, so __evict_skip_tree no longer rejects this tree and a
+     * sweep that reaches these pages can evict them.
+     */
+    __evict_tree_set_hidden(session, btree, false);
 
     __wt_spin_lock(session, &evict->evict_ckpt_trees_lock);
     for (i = 0; i < WT_EVICT_CKPT_TREES_MAX; i++)
@@ -1444,7 +1571,7 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
          * safely access its dhandle. For a per-tree subqueue the caller already tested the tree.
          */
         if (!per_tree &&
-          __evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle, level))
+          __evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle, level, NULL))
             continue;
 
         /* Try to lock the reference. If it's already locked, skip it. */
@@ -1758,7 +1885,7 @@ __evict_get_ref(
                 WT_EVICT_DHANDLE_SUBQUEUE *subq, *subq_start;
                 const char *subq_name;
                 uint32_t chain_len, chain_skip, slot, slot_iter, slot_start;
-                bool all_empty, wrapped;
+                bool all_empty, clear_maybe_nonempty, wrapped;
 
                 WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
@@ -1827,20 +1954,35 @@ __evict_get_ref(
                             WT_STAT_CONN_INCR(session, eviction_skip_empty_subqueue);
                             continue;
                         }
-                        /*
-                         * This subqueue holds pages, so the slot must stay marked even if we go on
-                         * to skip it below. Record that before any of the skip paths, not after the
-                         * scan: a subqueue we decline to scan still has pages for a later pass.
-                         */
-                        all_empty = false;
-                        if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle, i)) {
+                        if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle, i,
+                              &clear_maybe_nonempty)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
+
+                            /*
+                             * A tree-level rejection is not about this subqueue's contents: it will
+                             * refuse every page here, and every other subqueue of the same tree,
+                             * until the tree's state changes. When some pass will store 1 in
+                             * maybe_nonempty at that point, leave all_empty alone so the walk can
+                             * store 0 and later sweeps skip this slot with one relaxed load instead
+                             * of a trylock and a chain walk. When nothing will, keep maybe_nonempty
+                             * at 1 as before: no other writer would set it, and these pages would
+                             * never be visited again.
+                             */
+                            if (!clear_maybe_nonempty)
+                                all_empty = false;
                             __wt_verbose_debug2(session, WT_VERB_EVICTION,
                               "subq WALK   tree=%s level=%d bucket_id=%" PRIu64 " slot=%u SKIP_SYNCING",
                               subq->dhandle->name != NULL ? subq->dhandle->name : "(null)",
                               (int) i, bucket->id, slot);
                             continue;
                         }
+
+                        /*
+                         * This subqueue holds pages we are willing to scan, so the slot must stay
+                         * marked even if the per-page checks below reject all of them: those
+                         * rejections are transient and the pages are still here for a later pass.
+                         */
+                        all_empty = false;
 
                         /*
                          * Capture the tree name while we still hold the chain lock: after we drop
@@ -1878,8 +2020,11 @@ __evict_get_ref(
                             ref->page->evict_data.bucket = NULL;
                             /* The page is leaving the subqueue: drop the cached pointer. */
                             ref->page->evict_data.subq = NULL;
-                            __wt_atomic_sub_uint64(&bucket->bucket_num_items, 1);
-                            __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
+                            --subq->num_items;
+                            if (!subq->hidden) {
+                                __wt_atomic_sub_uint64(&bucket->bucket_num_items, 1);
+                                __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
+                            }
                         }
                         __wt_spin_unlock(session, &subq->evict_queue_lock);
 
@@ -2284,10 +2429,13 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
         __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
         TAILQ_REMOVE(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
         page->evict_data.subq = NULL;
+        --dhandle_subqueue->num_items;
+        if (!dhandle_subqueue->hidden) {
+            __wt_atomic_sub_uint64(&page->evict_data.bucket->bucket_num_items, 1);
+            __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
+        }
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
     }
-    __wt_atomic_sub_uint64(&page->evict_data.bucket->bucket_num_items, 1);
-    __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
     page->evict_data.bucket = NULL;
     if (destroying)
         page->evict_data.destroying = true; /* sticky flag, once set can't unset */
@@ -2402,6 +2550,19 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
             }
             WT_STAT_CONN_INCR(session, eviction_per_dhandle_queue_allocations);
             dhandle_subqueue->dhandle = page->evict_data.dhandle;
+            dhandle_subqueue->bucket = bucket;
+
+            /*
+             * Decide the new subqueue's hidden state here rather than inheriting a value read
+             * earlier. We hold the chain lock, and the reveal pass takes the same lock per bucket
+             * after the caller has stored WT_BTREE_SYNC_OFF. So either that pass has already run
+             * for this bucket, in which case the load below sees the sync finished and the subqueue
+             * is created visible, or it has not, in which case it will find this subqueue and
+             * reveal it. Reading the flag before acquiring the lock would admit the one ordering
+             * that strands a subqueue hidden for the rest of the connection's life.
+             */
+            dhandle_subqueue->hidden = __evict_level_hidden_for_tree(
+              (WT_BTREE *)page->evict_data.dhandle->handle, bucketset->level);
             TAILQ_INIT(&dhandle_subqueue->evict_queue);
             if(__wt_spin_init(session, &dhandle_subqueue->evict_queue_lock, "evict subqueue") != 0) {
                 __wt_free(session, dhandle_subqueue);
@@ -2445,6 +2606,12 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
          * can find it without walking the hash chain.
          */
         page->evict_data.subq = dhandle_subqueue;
+        ++dhandle_subqueue->num_items;
+        page->evict_data.bucket = bucket;
+        if (!dhandle_subqueue->hidden) {
+            __wt_atomic_add_uint64(&bucket->bucket_num_items, 1);
+            __wt_atomic_add_uint64(&bucketset->bucketset_num_items, 1);
+        }
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
 
         __wt_spin_unlock(session, &dhandle_hashentry->evict_hashchain_lock);
@@ -2454,9 +2621,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
           page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
                             bucket->id, hash_slot, (int)bucketset->level);
     }
-    page->evict_data.bucket = bucket;
-    __wt_atomic_add_uint64(&bucket->bucket_num_items, 1);
-    __wt_atomic_add_uint64(&bucketset->bucketset_num_items, 1);
 
     WT_STAT_CONN_INCR(session, eviction_enqueued_page);
 done:
@@ -2580,13 +2744,23 @@ __evict_disagg_btree_skip_count(WT_SESSION_IMPL *session, WT_BTREE *btree)
 /*
  * __evict_skip_tree --
  *     Decide if we should skip this tree
+ *
+ *     If clear_maybe_nonemptyp is not NULL, it is set to whether some later pass will store 1 in
+ *     the caller's maybe_nonempty once this rejection stops applying. A caller holding a hash slot
+ *     may store 0 in maybe_nonempty when this is true, and must leave it at 1 when it is false:
+ *     the remaining rejections depend on global flags that toggle continuously, and no transition
+ *     would set the hint again.
  */
 static bool
-__evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level)
+__evict_skip_tree(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level, bool *clear_maybe_nonemptyp)
 {
     WT_EVICT *evict;
 
     evict = S2C(session)->evict;
+
+    if (clear_maybe_nonemptyp != NULL)
+        *clear_maybe_nonemptyp = false;
 
     /* Skip files that don't allow eviction. */
     if (__wt_atomic_load_int32_relaxed(&btree->evict_data.evict_disabled) > 0) {
@@ -2616,6 +2790,14 @@ __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level)
      */
     if (WT_BTREE_SYNCING(btree) && __evict_level_holds_modified((int)level)) {
         WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
+
+        /*
+         * __wt_evict_checkpoint_tree_exit reveals this tree's subqueues and sets maybe_nonempty
+         * back to 1 for their slots, so the caller may treat this chain as drained until then.
+         */
+        if (clear_maybe_nonemptyp != NULL)
+            *clear_maybe_nonemptyp = true;
+
         __evict_disagg_btree_skip_count(session, btree);
         return true;
     }

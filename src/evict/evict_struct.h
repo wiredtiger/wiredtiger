@@ -156,6 +156,34 @@ struct __wt_evict_dhandle_subqueue {
     TAILQ_ENTRY(__wt_evict_dhandle_subqueue) dhandle_subq;
 	WT_SPINLOCK evict_queue_lock;
     struct __wt_evictbucket_qh evict_queue; /* Pages in this queue */
+
+    /*
+     * The bucket holding this subqueue, so that a hide or reveal pass can adjust the bucket and
+     * bucketset counters without a page to read it from. Set when the subqueue is created and never
+     * changed: a subqueue belongs to one bucket for its whole life.
+     */
+    struct __wt_evict_bucket *bucket;
+
+    /*
+     * Number of pages linked into evict_queue. Maintained under evict_queue_lock, which is the only
+     * lock held by both the enqueue path and the dequeue path -- the dequeue path deliberately does
+     * not take the chain lock, so the chain lock cannot serialise this.
+     */
+    uint64_t num_items;
+
+    /*
+     * When set, this subqueue's pages are excluded from bucket_num_items and bucketset_num_items:
+     * the tree is being checkpointed and every page here would be refused by __evict_skip_tree, so
+     * leaving them counted would keep the level in the weighting and keep the bucket past the
+     * empty-bucket reject for the length of the sync.
+     *
+     * The counters therefore mean "queued pages in non-hidden subqueues". Enqueue and dequeue test
+     * this flag under evict_queue_lock and skip the counter update while it is set, so the page
+     * population can change during the sync window without the counters drifting. Drift is not
+     * benign: a stuck-positive count reinstates the sweep permanently, and an over-subtraction
+     * wraps these unsigned counters to a value no bucket can ever drain below.
+     */
+    bool hidden;
 };
 
 /*
