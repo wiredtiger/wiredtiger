@@ -2566,15 +2566,15 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
             return (WT_NOTFOUND);
 
         /*
-         * An emptied chain isn't itself proof that there's something to remove: an earlier,
-         * already-visible remove can be reflected only in the on-page cell's own time window, with
-         * no update chain left to record it. A row-store key with an insert list of its own has no
-         * on-page row at all (that's what distinguishes it from an overlaid on-page row, which
-         * updates through the row's own update slot instead). Variable-length column-store likewise
-         * allocates a slot for every record number in an on-page cell's range whether or not that
-         * record ever held a value. So for either store, failing to find a time window here means
-         * there's nothing on the page for this key, and the remove must be rejected outright;
-         * finding one just means checking whether its stop is already visible.
+         * Getting here means the update chain has nothing left: either the key was never modified
+         * at all, or the loop above walked the chain to its end and every update on it was aborted.
+         * Either way, the on-page cell is the only remaining evidence of whether there's anything
+         * to remove. No time window at all means no on-page value either: a row-store key with an
+         * insert list of its own has no on-page row (that's what distinguishes it from an overlaid
+         * on-page row, which updates through the row's own update slot instead), and a
+         * variable-length column-store record can be a deleted placeholder because that record
+         * number never held a value. A time window with an already-visible stop means the key was
+         * already removed. Either way, reject the tombstone instead of stacking it onto nothing.
          */
         if (upd == NULL) {
             tw_found = (S2BT(session)->type != BTREE_ROW || cbt->ins == NULL) &&
