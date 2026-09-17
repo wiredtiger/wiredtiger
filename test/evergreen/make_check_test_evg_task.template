@@ -1,4 +1,4 @@
-  - name: {{task_name}}
+ - name: {{task_name}}
     tags: ["pull_request"]
     depends_on:
       - name: compile
