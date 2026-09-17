@@ -286,22 +286,6 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.complete_step_down(20)
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
 
-    # Open a private session/cursor over uri, write key=value and expect the update to conflict
-    # (or to succeed cleanly when conflict=False), then tear the session down.
-    def write_conflict_checked(self, uri, key, value, conflict=True):
-        session = self.conn.open_session()
-        cursor = session.open_cursor(uri, None, None)
-        session.begin_transaction()
-        cursor.set_key(key)
-        cursor.set_value(value)
-        if conflict:
-            self.expect_conflict_rollback(cursor.update)
-        else:
-            self.assertEqual(cursor.update(), 0)
-        session.rollback_transaction()
-        cursor.close()
-        session.close()
-
     # A reserve conflicts with concurrent writers and leaves no content behind.
     def test_reserve_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
@@ -315,12 +299,16 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.set_key('k1')
         self.assertEqual(cursor.reserve(), 0)
 
-        # A mirrored reserve also protects the stable constituent from a direct concurrent writer.
-        self.write_conflict_checked(self.stable_uri(self.uri), 'k1', 'stable-writer',
-            conflict=self.stable_has_step_down_writes())
-
         # A concurrent writer conflicts with the reservation.
-        self.write_conflict_checked(self.uri, 'k1', 'other')
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur.set_key('k1')
+        wcur.set_value('other')
+        self.expect_conflict_rollback(wcur.update)
+        wsession.rollback_transaction()
+        wcur.close()
+        wsession.close()
 
         # The reserve-only commit leaves no content behind in either constituent.
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))

@@ -4132,8 +4132,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         F_CLR(c_ingest, WT_CURSTD_VALUE_SET);
         WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, false, &c_ingest->value, &buf));
         F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
-        ret = c_ingest->update(c_ingest);
-        WT_ERR(ret);
+        WT_ERR(c_ingest->update(c_ingest));
     }
 
 #ifdef HAVE_DIAGNOSTIC
