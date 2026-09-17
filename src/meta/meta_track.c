@@ -141,7 +141,10 @@ __meta_track_drop_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
 
     name = trk->a;
     if (trk->b != NULL && __wt_fs_rename(session, trk->a, trk->b, false) == 0) {
-        /* The space was reserved when the drop was tracked: the apply must not allocate. */
+        /*
+         * The metadata is already committed and an apply failure panics the connection, so the
+         * space was reserved while the drop could still be unrolled.
+         */
         buf = &session->drop_pending;
         len = strlen(trk->b) + 1;
         WT_ASSERT(session, buf->size + len <= buf->memsize);
@@ -539,13 +542,13 @@ err:
 }
 
 /*
- * __wt_meta_track_drop_rename --
- *     Rename the file of the drop just tracked at commit instead of removing it, and reserve the
- *     space to remove it once the drop's locks are released. The target must not exist: replacing a
- *     file frees its extents inside the rename.
+ * __wt_meta_track_drop_defer --
+ *     Schedule the drop just tracked to rename its file at commit instead of removing it, and
+ *     reserve the space to remove it once the drop's locks are released. The target must not exist:
+ *     replacing a file frees its extents inside the rename.
  */
 void
-__wt_meta_track_drop_rename(WT_SESSION_IMPL *session, uint32_t id)
+__wt_meta_track_drop_defer(WT_SESSION_IMPL *session, uint32_t id)
 {
     WT_DECL_RET;
     WT_META_TRACK *trk;
