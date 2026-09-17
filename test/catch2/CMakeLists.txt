@@ -14,6 +14,7 @@ else()
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
+        misc_tests/test_config_overlay.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp

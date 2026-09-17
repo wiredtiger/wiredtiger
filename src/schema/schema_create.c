@@ -335,16 +335,33 @@ __create_file(
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
-            WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
+            /*
+             * Overlay the create config and generated id onto the file.meta defaults. Collapse
+             * would search that default string for every key; the overlay is small, so one walk of
+             * the defaults is enough.
+             */
+            WT_ERR(__wt_config_overlay(session, filecfg[0], &filecfg[1], &fileconf));
         } else {
             /* Try to recreate the associated metadata from the imported data source. */
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
-        /* Strip any configuration settings that should not be persisted. */
-        filecfg[1] = fileconf;
-        filecfg[2] = NULL;
-        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        /*
+         * Drop tiered_storage.shared if present. file.meta has no such key, so a non-import create
+         * cannot emit one unless the caller passed it; skip the merge-based strip in that case.
+         * Import still strips: repaired metadata can carry the key.
+         */
+        if (!import &&
+          (ret = __wt_config_getones(session, fileconf, "tiered_storage", &cval)) == WT_NOTFOUND) {
+            filestripped = fileconf;
+            fileconf = NULL;
+            ret = 0;
+        } else {
+            WT_ERR(ret);
+            filecfg[1] = fileconf;
+            filecfg[2] = NULL;
+            WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        }
         WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*
