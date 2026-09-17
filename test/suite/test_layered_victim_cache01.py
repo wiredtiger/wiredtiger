@@ -43,7 +43,7 @@ class test_layered_victim_cache01(wttest.WiredTigerTestCase):
     table_name = test_name
     nitems = 1000
 
-    common_table_config = 'block_manager=disagg,log=(enabled=false),leaf_page_max=4KB,'
+    common_table_config = 'block_manager=disagg,log=(enabled=false),leaf_page_max=32KB,'
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, [
         ('uncompressed', dict(prefix='table:', compress=None, table_config=common_table_config)),
