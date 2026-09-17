@@ -181,8 +181,14 @@ class test_eviction07(wttest.WiredTigerTestCase):
 class test_eviction07_begin_transaction(wttest.WiredTigerTestCase):
     uri = 'table:test_eviction07_begin_transaction'
     cache_bytes = 10 * 1024 * 1024
-    operation_timeout_ms = 200
-    cache_max_wait_ms = 2000
+
+    timeout_values = [
+        ('operation-timeout-first', dict(
+            operation_timeout_ms=200, cache_max_wait_ms=2000, cache_wait_times_out=False)),
+        ('cache-wait-first', dict(
+            operation_timeout_ms=2000, cache_max_wait_ms=200, cache_wait_times_out=True)),
+    ]
+    scenarios = make_scenarios(timeout_values)
 
     conn_config = 'cache_size=10MB,statistics=(all),eviction=(threads_max=1)'
 
@@ -195,7 +201,7 @@ class test_eviction07_begin_transaction(wttest.WiredTigerTestCase):
             for i in range(rows_per_txn):
                 pin_cursor[base + i] = value
 
-    def test_operation_timeout_at_begin_transaction(self):
+    def test_timeout_precedence_at_begin_transaction(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
         stat_session = None
         session = None
@@ -215,25 +221,39 @@ class test_eviction07_begin_transaction(wttest.WiredTigerTestCase):
             inuse = self.get_stat(stat.conn.cache_bytes_inuse, session=stat_session)
             self.assertGreater(inuse, self.cache_bytes)
 
-            # Applications commonly leave cache_max_wait_ms unset, so a regression could leave
-            # begin_transaction stuck indefinitely. Set it here only as a test safety net, beyond
-            # the operation timeout, so the test returns and fails instead of hanging.
+            # Applications commonly leave cache_max_wait_ms unset. Set both limits here so a
+            # regression returns instead of hanging and to verify which limit takes precedence.
             session = self.conn.open_session('cache_max_wait_ms=%d' % self.cache_max_wait_ms)
             cursor = session.open_cursor(self.uri)
 
+            # Only a cache wait timeout increments eviction_timed_out_ops.
+            cache_timeouts = self.get_stat(
+                stat.conn.eviction_timed_out_ops, session=stat_session)
             start = time.monotonic()
             session.begin_transaction(
                 'operation_timeout_ms=%d' % self.operation_timeout_ms)
             txn_active = True
             elapsed = time.monotonic() - start
+            if self.cache_wait_times_out:
+                self.captureout.checkAdditionalPattern(
+                    self, 'rollback reason: Cache capacity has overflown')
 
-            min_elapsed = self.operation_timeout_ms / 1000.0 * 0.5
+            smaller_timeout_ms = min(self.operation_timeout_ms, self.cache_max_wait_ms)
+            larger_timeout_ms = max(self.operation_timeout_ms, self.cache_max_wait_ms)
+            min_elapsed = smaller_timeout_ms / 1000.0 * 0.5
             self.assertGreaterEqual(elapsed, min_elapsed,
                 'begin_transaction returned in %.3f seconds, too fast to have been in the '
                 'eviction assist' % elapsed)
-            self.assertLess(elapsed, 1.0,
-                'begin_transaction took %.3f seconds, far beyond operation_timeout_ms=%d' %
-                (elapsed, self.operation_timeout_ms))
+            self.assertLess(elapsed, larger_timeout_ms / 1000.0 * 0.8,
+                'begin_transaction took %.3f seconds, approaching the larger timeout of %dms' %
+                (elapsed, larger_timeout_ms))
+
+            cache_timeouts_after = self.get_stat(
+                stat.conn.eviction_timed_out_ops, session=stat_session)
+            if self.cache_wait_times_out:
+                self.assertGreater(cache_timeouts_after, cache_timeouts)
+            else:
+                self.assertEqual(cache_timeouts_after, cache_timeouts)
         finally:
             if txn_active:
                 session.rollback_transaction()
