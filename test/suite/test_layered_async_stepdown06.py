@@ -474,7 +474,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         conn_b.close()
         self.conn.reconfigure('disaggregated=(role="leader")')
 
-        # Afer stepping up, the content in ingest is drained to stable.
+        # After stepping up, the content in ingest is drained to stable.
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 30),
             {'a': 'stable', 'b': 'window', 'c': 'from-b'},
             'the step-up must recover the window write from ingest after a pickup')
