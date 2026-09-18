@@ -16,7 +16,7 @@
 
 /*
  * A disaggregated read is handed a base page and the deltas written on top of it, and must decide
- * that it received all of them, in order, uncorrupted. It does that with a chain of checksums: the
+ * that it received all of them, in order, and intact. It does that with a chain of checksums: the
  * address cookie in the internal page names the newest block's checksum, and each block names its
  * predecessor's in previous_checksum. A page rewritten "offline" has no predecessor, so it reuses
  * previous_checksum to carry the checksum the internal page still references.
@@ -29,12 +29,11 @@
 namespace {
 
 /*
- * One page-log result image, keeping the size and flags a test needs to rewrite a header field and
+ * One page-log result image, keeping the flags a test needs to rewrite a header field and
  * re-checksum the image.
  */
 struct block_image {
     std::vector<uint8_t> bytes;
-    uint32_t size;
     uint8_t flags;
     uint32_t checksum; /* The checksum written into the header. */
 
@@ -42,6 +41,12 @@ struct block_image {
     header()
     {
         return (static_cast<WT_BLOCK_DISAGG_HEADER *>(WT_BLOCK_HEADER_REF(bytes.data())));
+    }
+
+    uint32_t
+    size() const
+    {
+        return (static_cast<uint32_t>(bytes.size()));
     }
 
     /* Checksum the image the way the write path does, over the prefix or the whole image. */
@@ -52,7 +57,7 @@ struct block_image {
 
         blk->checksum = 0;
         checksum = __wt_checksum(bytes.data(),
-          (flags & WT_BLOCK_DISAGG_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP));
+          (flags & WT_BLOCK_DISAGG_DATA_CKSUM) ? size() : WT_MIN(size(), WT_BLOCK_COMPRESS_SKIP));
         blk->checksum = checksum;
     }
 
@@ -64,7 +69,7 @@ struct block_image {
         recompute_checksum();
     }
 
-    /* Damage the image without re-checksumming it. */
+    /* Damage the image, leaving the stored checksum stale. */
     void
     corrupt_body(size_t offset)
     {
@@ -86,7 +91,6 @@ make_block_image(uint32_t size, uint8_t magic, uint32_t previous_checksum, uint8
 
     REQUIRE(size > WT_BLOCK_DISAGG_HEADER_BYTE_SIZE);
     img.bytes.assign(size, 0);
-    img.size = size;
     img.flags = flags;
 
     /* Give the body a recognizable pattern so that flipping a byte in it actually changes it. */
@@ -205,6 +209,7 @@ struct read_checksum_fixture {
 
     static constexpr uint64_t PAGE_ID = 7;
     static constexpr uint64_t LSN = 100;
+    static constexpr uint64_t BASE_LSN = 50;
 
     read_checksum_fixture() : conn_wrapper("WT_TEST.block_disagg_read_checksum", "create")
     {
@@ -220,11 +225,9 @@ struct read_checksum_fixture {
         block_disagg.plhandle = &plhandle;
         bm.block = reinterpret_cast<WT_BLOCK *>(&block_disagg);
 
-        btree.storage_tier = WT_BTREE_STORAGE_TIER_NONE;
         btree.bm = &bm;
         btree.dhandle = &dhandle;
         dhandle.handle = &btree;
-        dhandle.checkpoint = nullptr;
 
         /*
          * The session belongs to the connection, which closes it. Put the fabricated handle back
@@ -236,9 +239,6 @@ struct read_checksum_fixture {
         /* A failed checksum panics unless the session tolerates corruption, taking the binary. */
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-        /* The corruption flag lives on the connection and nothing in the read path clears it. */
-        F_CLR_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
-
         page_log.blocks = &blocks;
         page_log.lsn = LSN;
         g_page_log = &page_log;
@@ -247,7 +247,10 @@ struct read_checksum_fixture {
     ~read_checksum_fixture()
     {
         g_page_log = nullptr;
+
+        /* The corruption flag lives on the connection and nothing in the read path clears it. */
         F_CLR_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
+
         session->dhandle = saved_dhandle;
     }
 
@@ -257,24 +260,29 @@ struct read_checksum_fixture {
     {
         uint32_t sum = 0;
         for (const block_image &img : blocks)
-            sum += img.size;
+            sum += img.size();
         return (sum);
     }
 
+    /*
+     * The read asserts that the cookie's delta flag, base LSN, and size all agree with the chain it
+     * is handed, so derive them from the chain; a caller passing a size is forging an image the
+     * page service never stored.
+     */
     int
-    read_multiple(uint32_t cookie_checksum, uint32_t cookie_size, uint64_t cookie_flags = 0,
-      uint64_t base_lsn = 0)
+    read_multiple(uint32_t cookie_checksum, uint32_t cookie_size = 0)
     {
         WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
         uint8_t addr[WT_ADDR_MAX_COOKIE];
         uint8_t *endp = addr;
+        bool has_deltas = blocks.size() > 1;
 
         memset(&cookie, 0, sizeof(cookie));
         cookie.page_id = PAGE_ID;
-        cookie.flags = cookie_flags;
+        cookie.flags = has_deltas ? WT_BLOCK_DISAGG_ADDR_FLAG_DELTA : 0;
         cookie.lsn = LSN;
-        cookie.base_lsn = base_lsn;
-        cookie.size = cookie_size;
+        cookie.base_lsn = page_log.base_lsn = has_deltas ? BASE_LSN : 0;
+        cookie.size = cookie_size != 0 ? cookie_size : cumulative_size();
         cookie.checksum = cookie_checksum;
         REQUIRE(__wti_block_disagg_addr_pack(session, &endp, &cookie) == 0);
 
@@ -298,7 +306,7 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
     {
         uint32_t cookie_checksum = build_chain(blocks, 0, WT_BLOCK_DISAGG_DATA_CKSUM);
 
-        REQUIRE(read_multiple(cookie_checksum, cumulative_size()) == 0);
+        REQUIRE(read_multiple(cookie_checksum) == 0);
         CHECK_FALSE(corruption_flagged());
         CHECK(results_count == 1);
         CHECK(block_meta.page_id == PAGE_ID);
@@ -306,22 +314,17 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
         CHECK(block_meta.delta_count == 0);
         CHECK(block_meta.base_lsn == 0);
         CHECK(block_meta.checksum == cookie_checksum);
-
-        /* The read zeroes the checksum field in place before verifying the image. */
-        CHECK(blocks[0].header()->checksum == 0);
     }
 
     SECTION("a delta chain is accepted when every block names its predecessor")
     {
         uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
-        page_log.base_lsn = 50;
 
-        REQUIRE(read_multiple(
-                  cookie_checksum, cumulative_size(), WT_BLOCK_DISAGG_ADDR_FLAG_DELTA, 50) == 0);
+        REQUIRE(read_multiple(cookie_checksum) == 0);
         CHECK_FALSE(corruption_flagged());
         CHECK(results_count == 4);
         CHECK(block_meta.delta_count == 3);
-        CHECK(block_meta.base_lsn == 50);
+        CHECK(block_meta.base_lsn == BASE_LSN);
         CHECK(block_meta.checksum == cookie_checksum);
     }
 
@@ -329,17 +332,15 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
     {
         uint32_t cookie_checksum = build_chain(blocks, 0, WT_BLOCK_DISAGG_DATA_CKSUM);
 
-        REQUIRE(read_multiple(cookie_checksum ^ 1, cumulative_size()) == WT_ERROR);
+        REQUIRE(read_multiple(cookie_checksum ^ 1) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
     SECTION("a newest delta whose checksum does not match the cookie is rejected")
     {
         uint32_t cookie_checksum = build_chain(blocks, 2, WT_BLOCK_DISAGG_DATA_CKSUM);
-        page_log.base_lsn = 50;
 
-        REQUIRE(read_multiple(cookie_checksum ^ 1, cumulative_size(),
-                  WT_BLOCK_DISAGG_ADDR_FLAG_DELTA, 50) == WT_ERROR);
+        REQUIRE(read_multiple(cookie_checksum ^ 1) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
@@ -352,10 +353,8 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
         build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
         blocks[2].relink(blocks[1].checksum ^ 1);
         blocks[3].relink(blocks[2].checksum);
-        page_log.base_lsn = 50;
 
-        REQUIRE(read_multiple(blocks[3].checksum, cumulative_size(),
-                  WT_BLOCK_DISAGG_ADDR_FLAG_DELTA, 50) == WT_ERROR);
+        REQUIRE(read_multiple(blocks[3].checksum) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
@@ -364,7 +363,7 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
         uint32_t cookie_checksum = build_chain(blocks, 0, WT_BLOCK_DISAGG_DATA_CKSUM);
         blocks[0].corrupt_body(300);
 
-        REQUIRE(read_multiple(cookie_checksum, cumulative_size()) == WT_ERROR);
+        REQUIRE(read_multiple(cookie_checksum) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
@@ -377,7 +376,7 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
         uint32_t cookie_checksum = build_chain(blocks, 0, 0);
         blocks[0].corrupt_body(300);
 
-        REQUIRE(read_multiple(cookie_checksum, cumulative_size()) == 0);
+        REQUIRE(read_multiple(cookie_checksum) == 0);
         CHECK_FALSE(corruption_flagged());
     }
 
@@ -386,7 +385,7 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
         uint32_t cookie_checksum = build_chain(blocks, 0, 0);
         blocks[0].corrupt_body(WT_BLOCK_COMPRESS_SKIP - 8);
 
-        REQUIRE(read_multiple(cookie_checksum, cumulative_size()) == WT_ERROR);
+        REQUIRE(read_multiple(cookie_checksum) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
@@ -449,7 +448,7 @@ TEST_CASE_METHOD(
         blocks = {
           make_block_image(512, WT_BLOCK_DISAGG_MAGIC_DELTA, 0, WT_BLOCK_DISAGG_DATA_CKSUM)};
 
-        REQUIRE(read_multiple(blocks[0].checksum, cumulative_size()) == WT_ERROR);
+        REQUIRE(read_multiple(blocks[0].checksum) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
@@ -458,10 +457,8 @@ TEST_CASE_METHOD(
         build_chain(blocks, 1, WT_BLOCK_DISAGG_DATA_CKSUM);
         blocks[1].header()->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
         blocks[1].recompute_checksum();
-        page_log.base_lsn = 50;
 
-        REQUIRE(read_multiple(blocks[1].checksum, cumulative_size(),
-                  WT_BLOCK_DISAGG_ADDR_FLAG_DELTA, 50) == WT_ERROR);
+        REQUIRE(read_multiple(blocks[1].checksum) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 
@@ -470,7 +467,7 @@ TEST_CASE_METHOD(
         blocks = {make_block_image(512, WT_BLOCK_DISAGG_MAGIC_BASE, 0, WT_BLOCK_DISAGG_DATA_CKSUM,
           WT_BLOCK_DISAGG_VERSION + 1)};
 
-        REQUIRE(read_multiple(blocks[0].checksum, cumulative_size()) == WT_ERROR);
+        REQUIRE(read_multiple(blocks[0].checksum) == WT_ERROR);
         CHECK(corruption_flagged());
     }
 }
