@@ -425,6 +425,65 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'k1', 'k2'})
         self.assertEqual(self.read_kvs_at(self.uri, 50), {'k1': 'v', 'k2': 'follower'})
 
+        # Neither write reached the step-down checkpoint.
+        self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(self.uri), 50), {})
+
+    # Test step-down -> pickup -> step-up. Writes in the stepdown window survive through ingest.
+    # The step-up must drain the writes from ingest to stable.
+    def test_step_up_after_pickup_recovers_window_writes(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'a': 'stable'}, 10)
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'b': 'window'}, 30)
+        self.complete_step_down(20)
+
+        # A second node picks the stepdown checkpoint up, to take over as leader below.
+        conn_b = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+            self.conn_base_config + 'disaggregated=(role="follower")')
+        self.disagg_advance_checkpoint(conn_b, self.conn)
+
+        # The step-down checkpoint holds the pre-cutoff content only.
+        self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(self.uri), 30),
+            {'a': 'stable'})
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 30),
+            {'b': 'window'})
+        self.assertEqual(self.read_kvs_at(self.uri, 30),
+            {'a': 'stable', 'b': 'window'})
+
+        # Node B takes over, writes and publishes its own checkpoint, which carries only what B has.
+        conn_b.reconfigure('disaggregated=(role="leader")')
+        session_b = conn_b.open_session('')
+        c_b = session_b.open_cursor(self.uri, None, None)
+        session_b.begin_transaction()
+        c_b['c'] = 'from-b'
+        session_b.commit_transaction('commit_timestamp=' + self.timestamp_str(21))
+        c_b.close()
+        conn_b.set_timestamp('stable_timestamp=' + self.timestamp_str(21))
+        session_b.checkpoint()
+        session_b.close()
+
+        # This node picks B's checkpoint up, replacing its stable tree with B's content.
+        self.disagg_advance_checkpoint_and_wait(self.conn, conn_b)
+        self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(self.uri), 30),
+            {'a': 'stable', 'c': 'from-b'})
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 30),
+            {'b': 'window'})
+
+        conn_b.reconfigure('disaggregated=(role="follower")')
+        conn_b.close()
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
+        # Afer stepping up, the content in ingest is drained to stable.
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 30),
+            {'a': 'stable', 'b': 'window', 'c': 'from-b'},
+            'the step-up must recover the window write from ingest after a pickup')
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 30), {})
+        self.assertEqual(self.read_kvs_at(self.uri, 30),
+            {'a': 'stable', 'b': 'window', 'c': 'from-b'})
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.session.checkpoint()
 
     # Once the step-down completes the node is a follower; setting the cutoff again is rejected.
     def test_step_down_ts_after_step_down_rejected(self):
@@ -458,7 +517,8 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # Step up. The promotion drains the ingest content into the stable table.
         self.conn.reconfigure('disaggregated=(role="leader")')
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'a', 'b', 'c'},
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 50),
+            {'a': 'cycle1-stable', 'b': 'cycle1-ingest', 'c': 'follower-ingest'},
             'the step-up must drain the ingest content into the stable table')
         expected = {'a': 'cycle1-stable', 'b': 'cycle1-ingest', 'c': 'follower-ingest'}
         self.assertEqual(self.read_kvs_at(self.uri, 50), expected)

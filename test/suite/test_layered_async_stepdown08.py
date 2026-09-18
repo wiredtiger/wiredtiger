@@ -174,8 +174,8 @@ class test_layered_async_stepdown08(
         self.complete_step_down(self.cutoff_ts)
         assert_both_sides()
 
-    def test_existing_table_writes_are_mirrored(self):
-        """Writes to an existing table in the window reach both constituents in both epoch modes."""
+    def test_existing_table_window_writes(self):
+        """Test writing to an existing table in the window in both epoch modes."""
         self.setup_world()
         uri, rows = self.create_with_rows('existing', 2)
         self.publish_and_make_stable(uri, 20)
