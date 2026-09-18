@@ -8,7 +8,6 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
-        misc_tests/test_block_disagg_read_checksum.cpp
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_checkpoint_log_cleanup.cpp
@@ -19,6 +18,7 @@ else()
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_version.cpp
+        misc_tests/test_disagg_block_read_checksum.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
