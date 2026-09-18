@@ -258,26 +258,32 @@ functions:
         set -o verbose
         git clone https://github.com/wiredtiger/mongo-tests
   "fetch mongo repo" :
-    command: shell.exec
-    type: setup
-    params:
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        pushd wiredtiger
-        # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
-        # the case of patch builds, it is possible that the developer has a branch name that doesn't
-        # adhere to naming rules, therefore derive the base branch name from git.
-        branch=$(git branch --contains | grep -e "mongodb" -e "develop" -e "evg-pr-test-")
-        mongo_repo=https://github.com/mongodb/mongo
-        if [[ $branch =~ "mongodb-" ]]; then
-          mongo_branch=v$(echo $branch | cut -d'-' -f 2)
-        else
-          mongo_branch=master
-        fi
-        popd
-        git clone $mongo_repo -b $mongo_branch
+    - command: github.generate_token
+      params:
+        owner: 10gen
+        repo: mongo
+        expansion_name: generated_mongo_token
+        permissions:
+          contents: read
+    - command: shell.exec
+      type: setup
+      params:
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          pushd wiredtiger
+          # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
+          # the case of patch builds, it is possible that the developer has a branch name that doesn't
+          # adhere to naming rules, therefore derive the base branch name from git.
+          branch=$(git branch --contains | grep -e "mongodb" -e "develop" -e "evg-pr-test-")
+          if [[ $branch =~ "mongodb-" ]]; then
+            mongo_branch=v$(echo $branch | cut -d'-' -f 2)
+          else
+            mongo_branch=master
+          fi
+          popd
+          git clone https://x-access-token:${generated_mongo_token}@github.com/10gen/mongo.git -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
     type: setup
@@ -2665,15 +2671,45 @@ tasks:
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
 
-  - name: unit-test-zstd
-    tags: ["python"]
+  - name: unit-test-zstd-bucket00
+    tags: ["python", "unit_test_zstd"]
     depends_on:
     - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --zstd
+          unit_test_args: -v 2 --zstd -b 0/4
+
+  - name: unit-test-zstd-bucket01
+    tags: ["python", "unit_test_zstd"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd -b 1/4
+
+  - name: unit-test-zstd-bucket02
+    tags: ["python", "unit_test_zstd"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd -b 2/4
+
+  - name: unit-test-zstd-bucket03
+    tags: ["python", "unit_test_zstd"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd -b 3/4
 
   - name: unit-test-extra-long
     tags: ["python"]
@@ -7016,7 +7052,7 @@ buildvariants:
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: unit-test-hook-disagg-leader-key-provider
     - name: unit-test-hook-parallel-checkpoint
     - name: unit-test-hook-timing-stress-log
@@ -7293,7 +7329,7 @@ buildvariants:
     - name: time-shift-sensitivity-test
     - name: syscall-linux
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: unit-test-extra-long
       distros: rhel80-large
     - name: unit-test-hook-disagg-leader-extra-long
@@ -7371,7 +7407,7 @@ buildvariants:
   display_name: "~ RHEL8 PPC"
   run_on:
   - rhel8-power-small
-  batchtime: 120 # 2 hours
+  batchtime: 720 # 12 hours
   expansions:
     REQUIRE_MDB_TOOLCHAIN: "1"
     format_test_setting: ulimit -c unlimited
@@ -7453,7 +7489,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-arm64-large
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: wtperf-test
     - name: memory-model-test
       batchtime: 40320 # 28 days
@@ -7492,7 +7528,7 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: ubuntu2004-large
@@ -7518,7 +7554,7 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: ubuntu2004-arm64-large
@@ -7765,7 +7801,7 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: amazon2023.3-arm64-large
@@ -7818,7 +7854,7 @@ buildvariants:
       distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2023.3-arm64-large
-    - name: unit-test-zstd
+    - name: ".unit_test_zstd"
     - name: wtperf-test
     - name: checkpoint-filetypes-test
     - name: compile
