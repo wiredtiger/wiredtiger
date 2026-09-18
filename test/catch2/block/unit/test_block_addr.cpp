@@ -182,3 +182,100 @@ TEST_CASE("Block manager: addr pack and unpack", "[block_addr]")
         CHECK(packed[2] != expected_packed_vals[2]);
     }
 }
+
+/*
+ * Address cookies encode an object id only when it is non-zero: packing omits id 0 (no trailing
+ * flag byte), and unpacking defaults a missing id to 0. The object id is on-disk state; WT-18647
+ * removes the local block manager's in-memory object id plumbing but must keep this pack/unpack so
+ * existing databases (block pages written on object 0) keep loading. These cases pin the on-disk
+ * encoding and guard that unpack keeps parsing a trailing object id, which a real multi-object file
+ * would set.
+ */
+TEST_CASE("Block manager: addr cookie object id encoding", "[block_addr]")
+{
+    WT_BLOCK b;
+    WT_BM bm, *bmp;
+
+    b.allocsize = 4;
+    bmp = &bm;
+    bmp->block = &b;
+
+    // A cookie without an object id: the offset/size/checksum triple is all that gets packed, and
+    // unpacking defaults the id to 0.
+    SECTION("Object id zero is omitted")
+    {
+        uint8_t p[WT_ADDR_MAX_COOKIE];
+        const uint8_t *begin = p;
+        uint8_t *pp = p;
+        uint32_t checksum, obj_id, size;
+        wt_off_t offset;
+
+        REQUIRE(__wt_block_addr_pack(
+                  bmp->block, &pp, WT_TIERED_OBJECTID_NONE, 2048, 4096, (uint32_t)0xdeadbeef) == 0);
+        size_t addr_size = WT_PTRDIFF(pp, begin);
+
+        REQUIRE(__wt_block_addr_unpack(
+                  nullptr, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        CHECK(obj_id == 0);
+        REQUIRE(offset == 2048);
+        REQUIRE(size == 4096);
+        CHECK(checksum == (uint32_t)0xdeadbeef);
+    }
+
+    // A cookie referencing a non-zero object id: a 0x01 flag byte and the packed id trail the
+    // triple, and unpacking must still parse it and report the id.
+    SECTION("Non-zero object id is parsed")
+    {
+        uint8_t p[WT_ADDR_MAX_COOKIE];
+        const uint8_t *begin = p;
+        uint8_t *pp = p;
+        uint32_t checksum, obj_id, size;
+        wt_off_t offset;
+
+        // Emulate an old build writing a cookie for object 5: pack the triple without an id, then
+        // append the flag byte and the id exactly as the cookie format defines.
+        REQUIRE(__wt_block_addr_pack(
+                  bmp->block, &pp, WT_TIERED_OBJECTID_NONE, 2048, 4096, (uint32_t)0xdeadbeef) == 0);
+        *pp = 0x01; /* WT_BLOCK_COOKIE_FILEID */
+        ++pp;
+        REQUIRE(__wt_vpack_uint(&pp, 0, 5) == 0);
+        size_t addr_size = WT_PTRDIFF(pp, begin);
+
+        REQUIRE(__wt_block_addr_unpack(
+                  nullptr, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        CHECK(obj_id == 5);
+        REQUIRE(offset == 2048);
+        REQUIRE(size == 4096);
+        CHECK(checksum == (uint32_t)0xdeadbeef);
+    }
+
+    // The current pack of a non-zero id emits the same flag byte and id encoding, and round-trips
+    // through unpack.
+    SECTION("Non-zero object id round-trips through pack")
+    {
+        uint8_t p[WT_ADDR_MAX_COOKIE];
+        const uint8_t *begin = p;
+        uint8_t *pp = p;
+        uint64_t v;
+        uint32_t checksum, obj_id, size;
+        wt_off_t offset;
+
+        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, 5, 2048, 4096, (uint32_t)0xdeadbeef) == 0);
+        size_t addr_size = WT_PTRDIFF(pp, begin);
+
+        // The id is the only trailing data: a flag byte then the packed id.
+        begin = p;
+        REQUIRE(__wt_vunpack_uint(&begin, 0, &v) == 0);
+        REQUIRE(__wt_vunpack_uint(&begin, 0, &v) == 0);
+        REQUIRE(__wt_vunpack_uint(&begin, 0, &v) == 0);
+        REQUIRE(*begin == 0x01);
+        ++begin;
+        REQUIRE(__wt_vunpack_uint(&begin, 0, &v) == 0);
+        CHECK(v == 5);
+        CHECK(WT_PTRDIFF(begin, p) == (ptrdiff_t)addr_size);
+
+        REQUIRE(__wt_block_addr_unpack(
+                  nullptr, bmp->block, p, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        CHECK(obj_id == 5);
+    }
+}
