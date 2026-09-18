@@ -2663,6 +2663,10 @@ static WT_INLINE void __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
+static WT_INLINE void __wt_step_down_read_lock(WT_SESSION_IMPL *session);
+static WT_INLINE void __wt_step_down_read_unlock(WT_SESSION_IMPL *session);
+static WT_INLINE void __wt_step_down_write_lock(WT_SESSION_IMPL *session);
+static WT_INLINE void __wt_step_down_write_unlock(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
 static WT_INLINE void __wt_timer_evaluate_ms(
   WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff_ms);
