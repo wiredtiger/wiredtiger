@@ -119,6 +119,22 @@ __block_disagg_header_version_compatible(uint8_t compatible_version)
 }
 
 /*
+ * __wt_block_disagg_header_size_valid --
+ *     Return whether a block's recorded header size can describe its own headers. Everything that
+ *     walks the image finds the data with this size, so it has to be large enough to hold the
+ *     fields the reader has already used and small enough to leave the data inside the block. A
+ *     newer writer's larger header is legal, hence the upper bound is the format's rather than this
+ *     build's own.
+ */
+bool
+__wt_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
+{
+    return (combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
+      combined_header_size <= WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE &&
+      combined_header_size <= block_size);
+}
+
+/*
  * __block_disagg_read_multiple --
  *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
  *     page id, checkpoint id pair.
@@ -238,6 +254,16 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       "compatible version error, the block's compatible version %" PRIu8
                       " is greater than the reader version of %" PRIu8,
                       swap.compatible_version, WT_BLOCK_DISAGG_VERSION);
+                    goto corrupt;
+                }
+
+                if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
+                      "header size %" PRIu8
+                      " is outside the legal range of %d to %d, or larger than the block",
+                      swap.combined_header_size, WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE,
+                      (int)WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE);
                     goto corrupt;
                 }
 
