@@ -1027,8 +1027,11 @@ __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
     WT_ASSERT(session, !(dump_all_data && dump_key_data));
 
     ds = &_ds;
-    flags = dump_all_data ? WT_DEBUG_UNREDACT_ALL : 0;
-    flags |= dump_key_data ? WT_DEBUG_UNREDACT_KEYS : 0;
+    flags = 0;
+    if (dump_all_data)
+        LF_SET(WT_DEBUG_UNREDACT_ALL);
+    if (dump_key_data)
+        LF_SET(WT_DEBUG_UNREDACT_KEYS);
     WT_RET(__debug_config(session, ds, ofile, flags));
 
     WT_ERR(ds->f(ds,
