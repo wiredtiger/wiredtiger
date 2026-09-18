@@ -198,8 +198,8 @@ timestamp interacts with any on-page items so the page can be skipped over
 if not. Aggregates are represented in memory by the \c WT_TIME_AGGREGATE
 structure, which contains the following elements:
 
-- \c newest_start_durable_ts (\c WT_TS_NONE if none)
-- \c newest_stop_durable_ts (\c WT_TS_NONE if none, excludes any \c WT_TS_MAX)
+- \c newest_durable_ts (\c WT_TS_NONE if none)
+- \c newest_page_stop_durable_ts (\c WT_TS_NONE if none or page have keys not removed, excludes any \c WT_TS_MAX)
 - \c oldest_start_ts (\c WT_TS_NONE if none)
 - \c newest_txn (\c WT_TXN_NONE if none, excludes any \c WT_TS_MAX)
 - \c newest_stop_ts (\c WT_TS_MAX if none, including any \c WT_TS_MAX)
