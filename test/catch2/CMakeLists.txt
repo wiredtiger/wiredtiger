@@ -8,6 +8,7 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
+        misc_tests/test_block_disagg_read_checksum.cpp
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_checkpoint_log_cleanup.cpp
