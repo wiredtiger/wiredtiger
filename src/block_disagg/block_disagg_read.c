@@ -119,15 +119,15 @@ __block_disagg_header_version_compatible(uint8_t compatible_version)
 }
 
 /*
- * __block_disagg_header_size_valid --
+ * __wt_block_disagg_header_size_valid --
  *     Return whether a block's recorded header size can describe its own headers. Everything that
  *     walks the image finds the data with this size, so it has to be large enough to hold the
  *     fields the reader has already used and small enough to leave the data inside the block. A
  *     newer writer's larger header is legal, hence the upper bound is the format's rather than this
  *     build's own.
  */
-static bool
-__block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
+bool
+__wt_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
 {
     return (combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
       combined_header_size <= WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE &&
@@ -257,7 +257,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                     goto corrupt;
                 }
 
-                if (!__block_disagg_header_size_valid(swap.combined_header_size, size)) {
+                if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {
                     __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
                       size, page_id, lsn, is_delta, result,
                       "header size %" PRIu8
@@ -479,15 +479,5 @@ bool
 __ut_block_disagg_header_version_compatible(uint8_t compatible_version)
 {
     return (__block_disagg_header_version_compatible(compatible_version));
-}
-
-/*
- * __ut_block_disagg_header_size_valid --
- *     Unit-test wrapper for __block_disagg_header_size_valid.
- */
-bool
-__ut_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
-{
-    return (__block_disagg_header_size_valid(combined_header_size, block_size));
 }
 #endif

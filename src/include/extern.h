@@ -12,6 +12,8 @@ extern WT_HAZARD *__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_SESSION_IMPL **sessionp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_SHARED_METADATA_OP __wt_disagg_table_last_unpublished_op(WT_SESSION_IMPL *session,
   const char *table_name) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_block_disagg_manager_owns_object(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block,
@@ -2704,8 +2706,6 @@ extern WT_EXT *__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_bitflip_detect(void *data, size_t check_size, uint32_t expected_checksum,
   size_t *bit_position) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __ut_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_disagg_header_version_compatible(uint8_t compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size,

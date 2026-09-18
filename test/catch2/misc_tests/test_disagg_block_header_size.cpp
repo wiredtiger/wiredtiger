@@ -171,29 +171,29 @@ TEST_CASE("disagg block header size: the read path rejects sizes it cannot use",
 
     /* The oldest header still on disk, this build's, and a larger future one are all legal. */
     REQUIRE(
-      __ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, k_big_block));
+      __wt_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, k_big_block));
     REQUIRE(
-      __ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, k_big_block));
+      __wt_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, k_big_block));
     REQUIRE(
-      __ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE, k_big_block));
+      __wt_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE, k_big_block));
 
     /* A header too small to hold the fields the reader has already used. */
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(
+    REQUIRE_FALSE(__wt_block_disagg_header_size_valid(
       WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE - 1, k_big_block));
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(0, k_big_block));
+    REQUIRE_FALSE(__wt_block_disagg_header_size_valid(0, k_big_block));
 
     /* A header past the span compression leaves intact could not be read at all. */
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(
+    REQUIRE_FALSE(__wt_block_disagg_header_size_valid(
       WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE + 1, k_big_block));
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(UINT8_MAX, k_big_block));
+    REQUIRE_FALSE(__wt_block_disagg_header_size_valid(UINT8_MAX, k_big_block));
 
     /*
      * A header cannot extend past the block that carries it, whatever the format allows. The block
      * size is the binding limit here, not the format bound.
      */
-    REQUIRE(__ut_block_disagg_header_size_valid(
+    REQUIRE(__wt_block_disagg_header_size_valid(
       WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE));
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(
+    REQUIRE_FALSE(__wt_block_disagg_header_size_valid(
       WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE, WT_BLOCK_DISAGG_HEADER_WRITE_COMBINED_SIZE - 1));
-    REQUIRE_FALSE(__ut_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, 0));
+    REQUIRE_FALSE(__wt_block_disagg_header_size_valid(WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE, 0));
 }

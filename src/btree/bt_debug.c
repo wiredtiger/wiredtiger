@@ -545,6 +545,18 @@ __wt_debug_disagg_page_id(
             continue;
         }
 
+        /* Everything below walks the image with this size, so it has to describe the headers. */
+        if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {
+            __wt_errx(session,
+              "wt page: result %u: header size %" PRIu8 " is outside the legal range of %d to %d",
+              i, swap.combined_header_size, WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE,
+              (int)WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE);
+            __wt_log_data_dump(session, results[i].data, size,
+              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            WT_TRET(WT_ERROR);
+            continue;
+        }
+
         __wt_page_header_byteswap((void *)results[i].data);
         if (i == 0) {
             WT_ERR(__debug_disagg_image(
