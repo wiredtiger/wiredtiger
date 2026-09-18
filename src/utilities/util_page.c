@@ -23,8 +23,8 @@ usage(void)
       "-k",
       "display only the keys in the application data when dumping the page (not supported "
       "with -t)",
-      "-u", "unredact all application data when dumping the page", "-?", "show this message", NULL,
-      NULL};
+      "-u", "unredact all application data when dumping the page (not supported with -k)", "-?",
+      "show this message", NULL, NULL};
 
     util_usage("page [-k | -u] -p page_id -l lsn [-t table_id] [uri]", "options:", options);
     return (1);
