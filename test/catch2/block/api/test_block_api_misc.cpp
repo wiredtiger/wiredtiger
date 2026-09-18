@@ -55,8 +55,7 @@ test_addr_invalid(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uin
     // address cookie, but this allows for more rigorous testing with different inputs.
     uint8_t p[WT_ADDR_MAX_COOKIE], *pp;
     pp = p;
-    REQUIRE(__wt_block_addr_pack(
-              bm->block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
+    REQUIRE(__wt_block_addr_pack(bm->block, &pp, pack_offset, pack_size, pack_checksum) == 0);
     size_t addr_size = WT_PTRDIFF(pp, p);
 
     return (bm->addr_invalid(bm, session, p, addr_size));
@@ -75,8 +74,7 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
     // address cookie, but this allows for more rigorous testing with different inputs.
     uint8_t p[WT_ADDR_MAX_COOKIE], *pp;
     pp = p;
-    REQUIRE(__wt_block_addr_pack(
-              bm->block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
+    REQUIRE(__wt_block_addr_pack(bm->block, &pp, pack_offset, pack_size, pack_checksum) == 0);
     size_t addr_size = WT_PTRDIFF(pp, p);
 
     // Compare the string output of bm->addr_string against the known expected string.
@@ -104,15 +102,13 @@ TEST_CASE("Block manager: addr invalid", "[block_api_misc]")
     SECTION("Test addr invalid with a valid address cookie containing non-zero values")
     {
         bm.block->allocsize = 1;
-        bm.block->objectid = 1;
-        bm.block->size = 1024;
+        bm.block->size = 4096;
         REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345) == 0);
     }
 
     SECTION("Test addr invalid with a valid address cookie containing zero values")
     {
         bm.block->allocsize = 1;
-        bm.block->objectid = 1;
         bm.block->size = 0;
         REQUIRE(test_addr_invalid(s, &bm, 0, 0, 0) == 0);
     }
@@ -122,7 +118,6 @@ TEST_CASE("Block manager: addr invalid", "[block_api_misc]")
      * SECTION("Test addr invalid address with an invalid address")
      * {
      *   bm.block->allocsize = 1;
-     *   bm.block->objectid = WT_TIERED_OBJECTID_NONE;
      *   bm.block->size = 1024;
      *   // Create a situation where the block is misplaced, meaning that its address is on the
      *   // available list.

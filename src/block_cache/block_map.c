@@ -105,8 +105,6 @@ __wti_blkcache_map_read(
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
-    WT_ASSERT(session, block->objectid == objectid);
-
     /* Map the block if it's possible. */
     handle = block->fh->handle;
     if (handle->fh_map_preload != NULL && offset + size <= (wt_off_t)bm->maplen &&

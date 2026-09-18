@@ -636,18 +636,6 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
-    /*
-     * Freeing blocks in a previous object isn't possible in the current architecture. We'd like to
-     * know when a previous object is either completely rewritten (or more likely, empty enough that
-     * rewriting remaining blocks is worth doing). Just knowing which blocks are no longer in use
-     * isn't enough to remove them (because the internal pages have to be rewritten and we don't
-     * know where they are); the simplest solution is probably to keep a count of freed bytes from
-     * each object in the metadata, and when enough of the object is no longer in use, perform a
-     * compaction like process to do any remaining cleanup.
-     */
-    if (objectid != block->objectid)
-        return (0);
-
     __wt_verbose(session, WT_VERB_BLOCK, "block free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
       (intmax_t)offset, (intmax_t)size);
 
@@ -658,7 +646,7 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 
     WT_RET(__wti_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    WT_TRET(__wti_block_off_free(session, block, objectid, offset, (wt_off_t)size));
+    WT_TRET(__wti_block_off_free(session, block, offset, (wt_off_t)size));
 
     __wt_spin_unlock(session, &block->live_lock);
     return (ret);
@@ -669,8 +657,7 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
  *     Free a file range to the underlying file.
  */
 int
-__wti_block_off_free(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, wt_off_t size)
+__wti_block_off_free(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset, wt_off_t size)
 {
     WT_DECL_RET;
 
@@ -680,10 +667,6 @@ __wti_block_off_free(
 
     /* If a sync is running, no other sessions can free blocks. */
     WT_ASSERT(session, WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session));
-
-    /* We can't reuse free space in an object. */
-    if (objectid != block->objectid)
-        return (0);
 
     /*
      * Callers of this function are expected to have already acquired any locks required to
@@ -1210,8 +1193,7 @@ __wti_block_extlist_read(
         return (0);
 
     WT_RET(__wt_scr_alloc(session, el->size, &tmp));
-    WT_ERR(
-      __wti_block_read_off(session, block, tmp, el->objectid, el->offset, el->size, el->checksum));
+    WT_ERR(__wti_block_read_off(session, block, tmp, el->offset, el->size, el->checksum));
 
     p = WT_BLOCK_HEADER_BYTE(tmp->mem);
     WT_ERR(__wt_extlist_read_pair(&p, &off, &size));
@@ -1330,7 +1312,6 @@ __wti_block_extlist_write(
     /* Write the extent list to disk. */
     WT_ERR(__wti_block_write_off(
       session, block, tmp, &el->offset, &el->size, &el->checksum, true, true, true));
-    el->objectid = block->objectid;
 
     /*
      * Remove the allocated blocks from the system's allocation list, extent blocks never appear on

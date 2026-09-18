@@ -133,8 +133,8 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
  *     Open a block handle.
  */
 int
-__wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
-  const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
+__wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
+  bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
   WT_LIVE_RESTORE_FH_META *lr_fh_meta, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
@@ -158,7 +158,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
-        if (block->objectid == objectid && strcmp(filename, block->name) == 0) {
+        if (strcmp(filename, block->name) == 0) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
@@ -169,7 +169,6 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_ERR(__wt_calloc_one(session, &block));
     WT_ERR(__wt_strdup(session, filename, &block->name));
     block->compact_session_id = WT_SESSION_ID_INVALID;
-    block->objectid = objectid;
     block->ref = 1;
 
     /* If not passed an allocation size, get one from the configuration. */

@@ -104,12 +104,10 @@ __wt_block_salvage_next(
     WT_DECL_RET;
     WT_FH *fh;
     wt_off_t max, offset;
-    uint32_t allocsize, checksum, objectid, size;
+    uint32_t allocsize, checksum, size;
     uint8_t *endp;
 
     *eofp = 0;
-
-    objectid = 0;
 
     fh = block->fh;
     allocsize = block->allocsize;
@@ -139,19 +137,19 @@ __wt_block_salvage_next(
          * otherwise, move past it.
          */
         if (!__wti_block_offset_invalid(block, offset, size) &&
-          __wti_block_read_off(session, block, tmp, objectid, offset, size, checksum) == 0)
+          __wti_block_read_off(session, block, tmp, offset, size, checksum) == 0)
             break;
 
         /* Free the allocation-size block. */
         __wt_verbose(session, WT_VERB_SALVAGE, "skipping %" PRIu32 "B at file offset %" PRIuMAX,
           allocsize, (uintmax_t)offset);
-        WT_ERR(__wti_block_off_free(session, block, objectid, offset, (wt_off_t)allocsize));
+        WT_ERR(__wti_block_off_free(session, block, offset, (wt_off_t)allocsize));
         block->slvg_off += allocsize;
     }
 
     /* Re-create the address cookie that should reference this block. */
     endp = addr;
-    WT_ERR(__wt_block_addr_pack(block, &endp, objectid, offset, size, checksum));
+    WT_ERR(__wt_block_addr_pack(block, &endp, offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
 done:
@@ -180,7 +178,7 @@ __wt_block_salvage_valid(
     if (valid)
         block->slvg_off = offset + size;
     else {
-        WT_RET(__wti_block_off_free(session, block, objectid, offset, (wt_off_t)block->allocsize));
+        WT_RET(__wti_block_off_free(session, block, offset, (wt_off_t)block->allocsize));
         block->slvg_off = offset + block->allocsize;
     }
 

@@ -32,19 +32,6 @@ __block_extlist_setup(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *n
 }
 
 /*
- * __block_extlist_reset --
- *     Discard and reinitialize the extent lists in a checkpoint structure
- */
-static int
-__block_extlist_reset(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
-{
-    __wti_block_ckpt_destroy(session, ci);
-    WT_RET(__block_extlist_setup(session, ci, name));
-
-    return (0);
-}
-
-/*
  * __wti_block_ckpt_init --
  *     Return the address cookie for the root page of a checkpoint. Also initialize extent lists if
  *     we are loading the live checkpoint in a writable file.
@@ -120,30 +107,18 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         WT_ERR(__wti_block_ckpt_unpack(session, block, addr, addr_size, ci));
 
         /* Verify sets up next. */
-        if (block->verify) {
-            WT_ASSERT(session, block->objectid == 0 && ci->root_objectid == 0);
+        if (block->verify)
             WT_ERR(__wti_verify_ckpt_load(session, block, ci));
-        }
 
         /* Read any root page. */
         if (ci->root_offset != WT_BLOCK_INVALID_OFFSET) {
-            /* A checkpoint shouldn't point to an object created after this one. */
-            WT_ASSERT(session, block->objectid >= ci->root_objectid);
-
             endp = root_addr;
             WT_ERR(__wt_block_addr_pack(
-              block, &endp, ci->root_objectid, ci->root_offset, ci->root_size, ci->root_checksum));
+              block, &endp, ci->root_offset, ci->root_size, ci->root_checksum));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
         }
 
         if (!checkpoint) {
-            /*
-             * Discard extent lists on object-id mismatch: kept only as tiered-storage
-             * backward-compatibility defense, not a live kind of checkpoint.
-             */
-            if (block->objectid != ci->root_objectid)
-                __block_extlist_reset(session, ci, "live");
-
             /*
              * Rolling a checkpoint forward requires the avail list, the blocks from which we can
              * allocate.
@@ -286,11 +261,10 @@ __wt_block_checkpoint(
      */
     if (buf == NULL) {
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
-        ci->root_objectid = ci->root_size = ci->root_checksum = 0;
+        ci->root_size = ci->root_checksum = 0;
     } else {
         WT_ERR(__wti_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
           &ci->root_checksum, data_checksum, true, false));
-        ci->root_objectid = block->objectid;
     }
 
     /*
@@ -317,12 +291,9 @@ err:
  *     Read a checkpoint's extent lists.
  */
 static int
-__ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bool *localp)
+__ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 {
     WT_BLOCK_CKPT *ci;
-
-    /* Assume the cookie belongs to this handle. */
-    *localp = true;
 
     /*
      * Allocate a checkpoint structure, crack the cookie and read the checkpoint's extent lists.
@@ -338,16 +309,6 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
     ci = ckpt->bpriv;
     WT_RET(__wti_block_ckpt_init(session, ci, ckpt->name));
     WT_RET(__wti_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
-
-    /*
-     * Skip when the cookie's object id does not match this handle: those extent lists are not in
-     * this file. Kept only as tiered-storage backward-compatibility defense, not a live kind of
-     * checkpoint.
-     */
-    if (ci->root_objectid != block->objectid) {
-        *localp = false;
-        return (0);
-    }
 
     WT_RET(__wti_block_extlist_read(session, block, &ci->alloc, ci->file_size));
     WT_RET(__wti_block_extlist_read(session, block, &ci->discard, ci->file_size));
@@ -588,8 +549,6 @@ __ckpt_read_deletion_extlists(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, bool *deletingp)
 {
     WT_CKPT *ckpt, *next_ckpt;
-    bool local;
-
     *deletingp = false;
 
     WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -600,16 +559,10 @@ __ckpt_read_deletion_extlists(
          * Read the extent lists for this checkpoint and for the subsequent checkpoint if we have
          * not already done so. There may be more than one deleted checkpoint, so these reads may
          * have been done in a prior iteration of this loop.
-         *
-         * Skip object-id mismatches: those extent lists are not in this file. Kept only as
-         * tiered-storage backward-compatibility defense, not a live kind of checkpoint.
          */
-        if (ckpt->bpriv == NULL) {
-            WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, ckpt, &local),
+        if (ckpt->bpriv == NULL)
+            WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, ckpt),
               "reading extent lists for deleted checkpoint %s", ckpt->name);
-            if (!local)
-                continue;
-        }
 
         *deletingp = true;
 
@@ -620,17 +573,9 @@ __ckpt_read_deletion_extlists(
         /*
          * The subsequent checkpoint may be the live tree, which has no extent blocks to read.
          */
-        if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD)) {
-            WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, next_ckpt, &local),
+        if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD))
+            WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, next_ckpt),
               "reading extent lists for checkpoint %s following deletion", next_ckpt->name);
-            /*
-             * An object-id mismatch on the merge target is not skippable leftover. That skip is
-             * kept only as tiered-storage backward-compatibility defense, not a live kind of
-             * checkpoint.
-             */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
-              "subsequent checkpoint cookie object id does not match this handle");
-        }
     }
     return (0);
 }
@@ -798,12 +743,8 @@ __ckpt_delete_and_merge(
         if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
 
-        /*
-         * Set the "from" checkpoint structure. Skip object-id mismatches as on the read path.
-         */
+        /* Set the "from" checkpoint structure. */
         a = ckpt->bpriv;
-        if (a->root_objectid != block->objectid)
-            continue;
 
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
             __wti_ckpt_verbose(

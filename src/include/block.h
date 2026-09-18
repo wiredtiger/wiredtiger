@@ -18,9 +18,6 @@
  */
 #define WT_BLOCK_INVALID_OFFSET 0
 
-/* Address cookies omit object ID 0; unpack defaults a missing id to 0. */
-#define WT_TIERED_OBJECTID_NONE 0
-
 /*
  * The max corrupt block size that we'll attempt to detect bitflips for. Essentially default
  * leaf_page_max with a buffer.
@@ -62,7 +59,6 @@ struct __wt_extlist {
     wt_shared uint64_t bytes; /* Byte count */
     uint32_t entries;         /* Entry count */
 
-    uint32_t objectid; /* Written object ID */
     wt_off_t offset;   /* Written extent offset */
     uint32_t checksum; /* Written extent checksum */
     uint32_t size;     /* Written extent size */
@@ -172,7 +168,12 @@ typedef struct {
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
-    uint32_t root_objectid;
+    /*
+     * The object ID from the checkpoint cookie. Local files always write object ID 0, which is
+     * omitted, so this is only ever non-zero when loading a legacy cookie that encoded one; it is
+     * kept as the decoded cookie value and is not threaded through anything else.
+     */
+    uint32_t objectid;
     wt_off_t root_offset; /* The root */
     uint32_t root_checksum, root_size;
 
@@ -274,9 +275,8 @@ struct __wt_block {
      */
 
     /* ===== Begin shared prefix with WT_BLOCK_DISAGG ===== */
-    const char *name;  /* Name */
-    uint32_t objectid; /* Object id */
-    uint32_t ref;      /* References */
+    const char *name; /* Name */
+    uint32_t ref;     /* References */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -465,9 +465,8 @@ struct __wt_block_disagg {
      */
 
     /* ===== Begin shared prefix with WT_BLOCK ===== */
-    const char *name;  /* Name */
-    uint32_t objectid; /* Object id */
-    uint32_t ref;      /* References */
+    const char *name; /* Name */
+    uint32_t ref;     /* References */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */

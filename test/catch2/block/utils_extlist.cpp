@@ -60,10 +60,10 @@ extlist_print_off(const WT_EXTLIST &extlist)
     const char *track_size = extlist.track_size ? "true" : "false";
     line_stream << std::showbase << "{name "
                 << ((extlist.name != nullptr) ? extlist.name : "(nullptr)") << ", bytes "
-                << extlist.bytes << ", entries " << extlist.entries << ", objectid "
-                << extlist.objectid << ", offset " << extlist.offset << ", checksum " << std::hex
-                << extlist.checksum << std::dec << ", size " << extlist.size << ", track_size "
-                << track_size << ", last " << extlist.last << ' ';
+                << extlist.bytes << ", entries " << extlist.entries << ", offset " << extlist.offset
+                << ", checksum " << std::hex << extlist.checksum << std::dec << ", size "
+                << extlist.size << ", track_size " << track_size << ", last " << extlist.last
+                << ' ';
     if (extlist.last != nullptr) {
         off_size last_off_size = {extlist.last->off, extlist.last->size};
         line_stream << &last_off_size;
@@ -308,10 +308,10 @@ operator<<(std::ostream &out, const WT_EXTLIST *extlist)
     }
 
     out << std::showbase << "{name " << ((extlist->name != nullptr) ? extlist->name : "(nullptr)")
-        << ", bytes " << extlist->bytes << ", entries " << extlist->entries << ", objectid "
-        << extlist->objectid << ", offset " << extlist->offset << ", checksum " << std::hex
-        << extlist->checksum << std::dec << ", size " << extlist->size << ", track_size "
-        << (extlist->track_size ? "true" : "false") << ", last " << extlist->last << ' ';
+        << ", bytes " << extlist->bytes << ", entries " << extlist->entries << ", offset "
+        << extlist->offset << ", checksum " << std::hex << extlist->checksum << std::dec
+        << ", size " << extlist->size << ", track_size " << (extlist->track_size ? "true" : "false")
+        << ", last " << extlist->last << ' ';
     if (extlist->last != nullptr) {
         utils::off_size last_off_size = {extlist->last->off, extlist->last->size};
         out << &last_off_size;

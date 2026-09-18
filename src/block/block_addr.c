@@ -85,18 +85,16 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
  *     Pack components into an address cookie, UPDATING the caller's buffer reference.
  */
 int
-__wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t offset,
-  uint32_t size, uint32_t checksum)
+__wt_block_addr_pack(
+  WT_BLOCK *block, uint8_t **pp, wt_off_t offset, uint32_t size, uint32_t checksum)
 {
-    uint64_t c, i, o, s;
+    uint64_t c, o, s;
 
     /* See the comment above about storing large offsets: this is the reverse operation. */
     if (size == 0) {
-        i = 0;
         o = WT_BLOCK_INVALID_OFFSET;
         s = c = 0;
     } else {
-        i = objectid;
         o = (uint64_t)offset / block->allocsize - 1;
         s = size / block->allocsize;
         c = checksum;
@@ -106,18 +104,11 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
     WT_RET(__wt_vpack_uint(pp, 0, c));
 
     /*
-     * Don't store object IDs of zero, the function that cracks the cookie defaults IDs to 0.
-     *
-     * TODO: testing has-objects is not quite right. Ideally, we don't store a object ID if there's
-     * only a single object. We want to be able to convert existing object to a stack, which means
-     * starting with a single object with no object IDs, where all future objects in the stack know
-     * a missing object ID is a reference to the base object.
+     * The cookie format reserves an optional trailing object ID (WT_BLOCK_COOKIE_FILEID) that
+     * __block_addr_unpack still parses, so cookies encoded with a non-zero ID by legacy
+     * multi-object or tiered files remain readable. Local files always reference object 0, which
+     * formats as omitted, so the ID is never written here.
      */
-    if (i != WT_TIERED_OBJECTID_NONE) {
-        **pp = WT_BLOCK_COOKIE_FILEID;
-        ++(*pp);
-        WT_RET(__wt_vpack_uint(pp, 0, i));
-    }
     return (0);
 }
 
@@ -156,15 +147,14 @@ __wt_block_addr_invalid(
 #ifdef HAVE_DIAGNOSTIC
     /*
      * In diagnostic mode, verify the address isn't on the available list, or for live systems, the
-     * discard list. This only applies if the block is in this object.
+     * discard list.
      */
-    if (objectid == block->objectid)
-        WT_RET(__wti_block_misplaced(
-          session, block, "addr-valid", offset, size, live, __PRETTY_FUNCTION__, __LINE__));
+    WT_RET(__wti_block_misplaced(
+      session, block, "addr-valid", offset, size, live, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Check if the address is past the end of the file. */
-    if (objectid == block->objectid && offset + size > block->size)
+    if (offset + size > block->size)
         WT_RET_MSG(session, EINVAL, "address is past the end of the file");
     return (0);
 }
@@ -217,13 +207,13 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
      * Passing an address cookie size of 0 so the unpack function doesn't read an object ID.
      */
     ++ckpt;
-    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->root_objectid, &ci->root_offset,
-      &ci->root_size, &ci->root_checksum));
-    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->alloc.objectid, &ci->alloc.offset,
+    WT_RET(__block_addr_unpack(
+      session, block, &ckpt, 0, &objectid, &ci->root_offset, &ci->root_size, &ci->root_checksum));
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &objectid, &ci->alloc.offset,
       &ci->alloc.size, &ci->alloc.checksum));
-    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->avail.objectid, &ci->avail.offset,
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &objectid, &ci->avail.offset,
       &ci->avail.size, &ci->avail.checksum));
-    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->discard.objectid, &ci->discard.offset,
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &objectid, &ci->discard.offset,
       &ci->discard.size, &ci->discard.checksum));
     WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
     ci->file_size = (wt_off_t)a;
@@ -240,7 +230,7 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
             objectid = (uint32_t)a;
         }
     }
-    ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid = objectid;
+    ci->objectid = objectid;
 
     /*
      * If there is no flag value or the flag value is the object ID flag by itself, assert the
@@ -297,30 +287,22 @@ __wti_block_ckpt_pack(
     /*
      * See the comment above about address cookies and sizes for an explanation.
      *
-     * Passing an object ID of 0 so the pack function doesn't store an object ID.
+     * Local files always reference object 0, which the cookie format encodes as omitted; the unpack
+     * side still parses a trailing object ID from legacy cookies.
      */
-    WT_RET(__wt_block_addr_pack(
-      block, pp, WT_TIERED_OBJECTID_NONE, ci->root_offset, ci->root_size, ci->root_checksum));
-    WT_RET(__wt_block_addr_pack(
-      block, pp, WT_TIERED_OBJECTID_NONE, ci->alloc.offset, ci->alloc.size, ci->alloc.checksum));
+    WT_RET(__wt_block_addr_pack(block, pp, ci->root_offset, ci->root_size, ci->root_checksum));
+    WT_RET(__wt_block_addr_pack(block, pp, ci->alloc.offset, ci->alloc.size, ci->alloc.checksum));
     if (skip_avail)
-        WT_RET(__wt_block_addr_pack(block, pp, WT_TIERED_OBJECTID_NONE, 0, 0, 0));
+        WT_RET(__wt_block_addr_pack(block, pp, 0, 0, 0));
     else
-        WT_RET(__wt_block_addr_pack(block, pp, WT_TIERED_OBJECTID_NONE, ci->avail.offset,
-          ci->avail.size, ci->avail.checksum));
-    WT_RET(__wt_block_addr_pack(block, pp, WT_TIERED_OBJECTID_NONE, ci->discard.offset,
-      ci->discard.size, ci->discard.checksum));
+        WT_RET(
+          __wt_block_addr_pack(block, pp, ci->avail.offset, ci->avail.size, ci->avail.checksum));
+    WT_RET(
+      __wt_block_addr_pack(block, pp, ci->discard.offset, ci->discard.size, ci->discard.checksum));
     a = (uint64_t)ci->file_size;
     WT_RET(__wt_vpack_uint(pp, 0, a));
     a = ci->ckpt_size;
     WT_RET(__wt_vpack_uint(pp, 0, a));
-    /* Don't store object IDs of zero, the function that cracks the cookie defaults IDs to 0. */
-    if (block->objectid != 0) {
-        **pp = WT_BLOCK_COOKIE_FILEID;
-        ++(*pp);
-        a = block->objectid;
-        WT_RET(__wt_vpack_uint(pp, 0, a));
-    }
 
     return (0);
 }
@@ -351,7 +333,7 @@ __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
 
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, tmp, "version=%" PRIu8, ci->version));
-    WT_ERR(__wt_buf_catfmt(session, tmp, ", object ID=%" PRIu32, ci->root_objectid));
+    WT_ERR(__wt_buf_catfmt(session, tmp, ", object ID=%" PRIu32, ci->objectid));
     if (ci->root_offset == WT_BLOCK_INVALID_OFFSET)
         WT_ERR(__wt_buf_catfmt(session, tmp, ", root=[Empty]"));
     else

@@ -813,8 +813,8 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         uri += strlen("file:");
-        WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
-          false, allocsize, lr_fh_meta, &bm->block));
+        WT_ERR(__wt_block_open(
+          session, uri, cfg, forced_salvage, readonly, false, allocsize, lr_fh_meta, &bm->block));
     } else {
         /* Leftover tiered URIs must not map onto a file. */
         WT_ERR(__wt_object_unsupported(session, uri));

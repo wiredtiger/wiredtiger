@@ -40,8 +40,6 @@ static_assert(
  */
 static_assert(offsetof(WT_BLOCK_DISAGG, name) == offsetof(WT_BLOCK, name),
   "WT_BLOCK_DISAGG::name must alias WT_BLOCK::name");
-static_assert(offsetof(WT_BLOCK_DISAGG, objectid) == offsetof(WT_BLOCK, objectid),
-  "WT_BLOCK_DISAGG::objectid must alias WT_BLOCK::objectid");
 static_assert(offsetof(WT_BLOCK_DISAGG, ref) == offsetof(WT_BLOCK, ref),
   "WT_BLOCK_DISAGG::ref must alias WT_BLOCK::ref");
 static_assert(offsetof(WT_BLOCK_DISAGG, q) == offsetof(WT_BLOCK, q),

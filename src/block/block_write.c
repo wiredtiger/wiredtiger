@@ -205,7 +205,7 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
       session, block, buf, &offset, &size, &checksum, data_checksum, checkpoint_io, false));
 
     endp = addr;
-    WT_RET(__wt_block_addr_pack(block, &endp, block->objectid, offset, size, checksum));
+    WT_RET(__wt_block_addr_pack(block, &endp, offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);
@@ -331,8 +331,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
         if (!caller_locked)
             __wt_spin_lock(session, &block->live_lock);
-        WT_TRET(
-          __wti_block_off_free(session, block, block->objectid, offset, (wt_off_t)align_size));
+        WT_TRET(__wti_block_off_free(session, block, offset, (wt_off_t)align_size));
         if (!caller_locked)
             __wt_spin_unlock(session, &block->live_lock);
         WT_RET(ret);

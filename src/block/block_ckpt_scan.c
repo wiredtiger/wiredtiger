@@ -222,14 +222,12 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
     const WT_PAGE_HEADER *dsk;
     wt_off_t ext_off, ext_size, offset;
     uint64_t len, nblocks, write_gen;
-    uint32_t checksum, objectid, size;
+    uint32_t checksum, size;
     const uint8_t *p, *t;
     bool found;
 
     *metadatap = *checkpoint_listp = NULL;
     WT_RET(__wt_buf_init(session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
-
-    objectid = 0;
 
     /*
      * Initialize a pair of structures that track the best and current checkpoints found so far.
@@ -283,7 +281,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
          * block isn't valid, skip to the next possible block.
          */
         if (__wti_block_offset_invalid(block, offset, size) ||
-          __wti_block_read_off(session, block, tmp, objectid, offset, size, checksum) != 0) {
+          __wti_block_read_off(session, block, tmp, offset, size, checksum) != 0) {
             size = WT_BTREE_MIN_ALLOC_SIZE;
             continue;
         }

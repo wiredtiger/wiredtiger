@@ -668,13 +668,13 @@ __wt_block_compact_page_rewrite(
 
     /* Free the original block. */
     __wt_spin_lock(session, &block->live_lock);
-    ret = __wti_block_off_free(session, block, objectid, offset, (wt_off_t)size);
+    ret = __wti_block_off_free(session, block, offset, (wt_off_t)size);
     __wt_spin_unlock(session, &block->live_lock);
     WT_ERR(ret);
 
     /* Build the returned address cookie. */
     endp = addr;
-    WT_ERR(__wt_block_addr_pack(block, &endp, objectid, new_offset, size, checksum));
+    WT_ERR(__wt_block_addr_pack(block, &endp, new_offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
     block->compact_bytes_rewritten += size;
 
@@ -692,7 +692,7 @@ __wt_block_compact_page_rewrite(
 err:
     if (discard_block) {
         __wt_spin_lock(session, &block->live_lock);
-        WT_TRET(__wti_block_off_free(session, block, objectid, new_offset, (wt_off_t)size));
+        WT_TRET(__wti_block_off_free(session, block, new_offset, (wt_off_t)size));
         __wt_spin_unlock(session, &block->live_lock);
     }
     __wt_scr_free(session, &tmp);

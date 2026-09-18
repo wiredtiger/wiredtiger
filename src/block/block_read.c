@@ -38,8 +38,7 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
       bm->is_live && block == bm->block, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
-    /* FIXME-WT-18647: leftover local objectid; cookie pack/unpack is enough. */
-    WT_RET(__wti_block_read_off(session, block, buf, objectid, offset, size, checksum));
+    WT_RET(__wti_block_read_off(session, block, buf, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
     WT_RET(__wti_block_discard(session, block, (size_t)size));
@@ -154,8 +153,8 @@ err:
  *     Read an addr/size pair referenced block into a buffer.
  */
 int
-__wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
-  wt_off_t offset, uint32_t size, uint32_t checksum)
+__wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t offset,
+  uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
     size_t bufsize, check_size;
@@ -235,7 +234,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
          * too long.
          */
         __wt_log_data_dump(session, buf->data, buf->size,
-          "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", objectid,
+          "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
           (uintmax_t)offset, size, checksum);
 
         /* Dump the free disk space. */
