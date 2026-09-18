@@ -1902,6 +1902,10 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
           "last checkpoint timestamp %s does not match the step down timestamp %s at step down",
           __wt_timestamp_to_string(ckpt_ts, ts_string[0]),
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+
+        WT_STAT_CONN_SET(session, disagg_step_down_window_duration,
+          WT_CLOCKDIFF_MS(__wt_clock(session),
+            __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_start_time)));
     }
 
     /*
