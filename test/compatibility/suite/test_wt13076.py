@@ -43,11 +43,24 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         ('full', dict(delete_all=True)),
     ])
     uri = 'table:wt13076'
-    nrows = 100
+    nrows = 10000
     table_config = 'key_format=i,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512'
 
-    def _create_deleted_pages(self):
-        conn = wiredtiger.wiredtiger_open('.', 'create,statistics=(all)')
+    def _deleted_keys(self, start, count):
+        if self.delete_all:
+            return range(start, start + count)
+        return range(start, start + count, 2)
+
+    def _log_scenario(self, branch_name, operation):
+        pattern = 'all keys' if self.delete_all else 'alternating keys'
+        self.prhead(
+            'WT-13076 {} on {}: rows={}, delete_pattern={}, page_config={}'.format(
+                operation, branch_name, self.nrows, pattern, self.table_config))
+
+    def _create_deleted_pages(self, branch_name):
+        self._log_scenario(branch_name, 'creating and deleting')
+        conn = wiredtiger.wiredtiger_open(
+            '.', 'create,statistics=(all),verbose=(reconcile)')
         session = conn.open_session()
         session.create(self.uri, self.table_config)
         cursor = session.open_cursor(self.uri)
@@ -58,8 +71,7 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
             session.commit_transaction('commit_timestamp=10')
         session.checkpoint()
 
-        # Deleting a contiguous range fully removes some child pages while their parent remains live.
-        deleted = range(self.nrows) if self.delete_all else range(self.nrows // 2)
+        deleted = self._deleted_keys(0, self.nrows)
         for key in deleted:
             session.begin_transaction()
             cursor.set_key(key)
@@ -70,18 +82,16 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         session.close()
         conn.close()
 
-    def _verify_pages(self, rounds):
-        conn = wiredtiger.wiredtiger_open('.', 'statistics=(all)')
+    def _verify_pages(self, rounds, branch_name):
+        self._log_scenario(branch_name, 'verifying')
+        conn = wiredtiger.wiredtiger_open(
+            '.', 'statistics=(all),verbose=(reconcile)')
         session = conn.open_session()
         cursor = session.open_cursor(self.uri)
-        deleted = set(range(self.nrows) if self.delete_all else range(self.nrows // 2))
+        deleted = set(self._deleted_keys(0, self.nrows))
         for round_number in range(rounds):
             start = self.nrows + round_number * 20
-            deleted.update(
-                range(start, start + 20)
-                if self.delete_all
-                else range(start, start + 20, 2)
-            )
+            deleted.update(self._deleted_keys(start, 20))
         for key in range(self.nrows + rounds * 20):
             cursor.set_key(key)
             ret = cursor.search()
@@ -99,8 +109,10 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         wt = os.path.join(self.branch_build_path(branch.name), 'wt')
         subprocess.run([wt, 'verify', self.uri], check=True)
 
-    def _mutate_pages(self, round_number):
-        conn = wiredtiger.wiredtiger_open('.', 'statistics=(all)')
+    def _mutate_pages(self, round_number, branch_name):
+        self._log_scenario(branch_name, 'mutating')
+        conn = wiredtiger.wiredtiger_open(
+            '.', 'statistics=(all),verbose=(reconcile)')
         session = conn.open_session()
         cursor = session.open_cursor(self.uri)
         start = self.nrows + round_number * 20
@@ -110,7 +122,7 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
             cursor[key] = 'value'
             session.commit_transaction('commit_timestamp=30')
 
-        deleted = range(start, start + 20) if self.delete_all else range(start, start + 20, 2)
+        deleted = self._deleted_keys(start, 20)
         for key in deleted:
             session.begin_transaction()
             cursor.set_key(key)
@@ -135,29 +147,29 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         self.run_method_on_branch(self.older_branch, 'on_older_branch_final_verify')
 
     def on_older_branch_create(self):
-        self._create_deleted_pages()
+        self._create_deleted_pages(self.older)
 
     def on_newer_branch_create(self):
-        self._create_deleted_pages()
+        self._create_deleted_pages(self.newer)
 
     def on_older_branch_verify_and_mutate(self, rounds):
-        self._verify_pages(rounds)
+        self._verify_pages(rounds, self.older)
         self._verify_file(self.older_branch)
-        self._mutate_pages(rounds)
+        self._mutate_pages(rounds, self.older)
         self._verify_file(self.older_branch)
 
     def on_newer_branch_verify_and_mutate(self, rounds):
-        self._verify_pages(rounds)
+        self._verify_pages(rounds, self.newer)
         self._verify_file(self.newer_branch)
-        self._mutate_pages(rounds)
+        self._mutate_pages(rounds, self.newer)
         self._verify_file(self.newer_branch)
 
     def on_newer_branch_final_verify(self):
-        self._verify_pages(2)
+        self._verify_pages(2, self.newer)
         self._verify_file(self.newer_branch)
 
     def on_older_branch_final_verify(self):
-        self._verify_pages(2)
+        self._verify_pages(2, self.older)
         self._verify_file(self.older_branch)
 
 
