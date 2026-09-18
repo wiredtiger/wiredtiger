@@ -162,6 +162,14 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
 
     /*
+     * Ensure that we don't accidentally write a block with flags that should not be written out to
+     * stable storage, even though we just constructed the flags above. The "modified" flag should
+     * never be set during normal write path, as it indicates an offline modification outside of the
+     * regular write path, e.g., by the victim block cache.
+     */
+    WT_ASSERT(session, !F_ISSET(blk, WT_BLOCK_DISAGG_MODIFIED));
+
+    /*
      * The reconciliation id stored in the block header is diagnostic, we don't care if it's
      * truncated.
      */
