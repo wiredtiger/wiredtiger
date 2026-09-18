@@ -535,7 +535,7 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
             else
                 __wt_errx(session,
                   "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED} (use -u to dump)",
+                  ": {REDACTED}",
                   i, page_id, lsn);
             WT_TRET(WT_ERROR);
             continue;
@@ -552,7 +552,7 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
             else
                 __wt_errx(session,
                   "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED} (use -u to dump)",
+                  ": {REDACTED}",
                   i, page_id, lsn);
             WT_TRET(WT_ERROR);
             continue;
@@ -619,7 +619,7 @@ __wt_debug_disagg_page_id_raw(
             else
                 __wt_errx(session,
                   "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED} (use -u to dump)",
+                  ": {REDACTED}",
                   count - 1, page_id, lsn);
         } else {
             if (dump_all_data)
@@ -628,7 +628,7 @@ __wt_debug_disagg_page_id_raw(
             else
                 __wt_errx(session,
                   "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED} (use -u to dump)",
+                  ": {REDACTED}",
                   i, count - 1, page_id, lsn);
         }
     }
