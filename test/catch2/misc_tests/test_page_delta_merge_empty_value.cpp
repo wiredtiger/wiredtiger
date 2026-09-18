@@ -51,7 +51,7 @@ init_disk_state(WT_SESSION_IMPL *session, WT_ITEM *img, WTI_DISK_LEAF_MERGE_STAT
      * __wt_cell_pack_leaf_kv appends at img->mem + img->size, so reserve the page header up front
      * (matching how the real merge seeds new_image->size before packing cells).
      */
-    img->size = WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
+    img->size = WT_PAGE_HEADER_WRITE_SIZE(btree);
     s->cell_ptr = (uint8_t *)WT_PAGE_HEADER_WRITE_BYTE(btree, img->mem);
     s->all_empty_value = true;
     s->any_empty_value = false;

@@ -127,11 +127,11 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 #define WT_BLOCK_HEADER_REF(dsk) ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_SIZE))
 
 /*
- * WT_PAGE_HEADER_BYTE_WRITE_SIZE --
+ * WT_PAGE_HEADER_WRITE_SIZE --
  *	   The first usable data byte on the block (past the combined headers) when writing a new
  * page.
  */
-#define WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree) \
+#define WT_PAGE_HEADER_WRITE_SIZE(btree) \
     ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header_write_size))
 
 /*
@@ -149,7 +149,7 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  * page.
  */
 #define WT_PAGE_HEADER_WRITE_BYTE(btree, dsk) \
-    ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree)))
+    ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_WRITE_SIZE(btree)))
 
 /*
  * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.

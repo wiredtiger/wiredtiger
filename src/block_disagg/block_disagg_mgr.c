@@ -51,7 +51,7 @@ __bmd_block_header_read(WT_BM *bm, WT_SESSION_IMPL *session, const void *dsk)
       header->magic == WT_BLOCK_DISAGG_MAGIC_BASE || header->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
 
     /* The stored size covers the page header as well; see the WT_BLOCK_DISAGG_HEADER definition. */
-    WT_ASSERT(session, header->combined_header_size >= WT_PAGE_HEADER_SIZE);
+    WT_ASSERT(session, header->combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE);
     return ((u_int)header->combined_header_size - WT_PAGE_HEADER_SIZE);
 }
 

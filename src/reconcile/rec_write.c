@@ -1329,15 +1329,15 @@ __wti_rec_split_init(
      */
     if (r->salvage != NULL) {
         r->split_size = 0;
-        r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
+        r->space_avail = r->page_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     } else {
         r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
         /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas.
          */
-        r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
+        r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
         r->min_split_size =
           __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
-        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
+        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     }
 
     /*
@@ -1629,8 +1629,8 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
     r->first_free = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
     /* Set the space available to another split-size and minimum split-size chunk. */
-    r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
-    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
+    r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
+    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
 
 done:
     /*
@@ -1725,8 +1725,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * The sizes in the chunk include the header, so when calculating the combined size, be sure not
      * to include the header twice.
      */
-    combined_size =
-      prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree));
+    combined_size = prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
 
     if (combined_size <= r->page_size) {
         /*
@@ -1738,7 +1737,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
           WT_PAGE_HEADER_WRITE_BYTE(btree, dsk),
-          cur_ptr->image.size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree));
+          cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
         prev_ptr->image.size = combined_size;
 
         /*
@@ -1769,7 +1768,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * the current.
          */
         memmove(cur_dsk_start + len_to_move, cur_dsk_start,
-          cur_ptr->image.size - WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree));
+          cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
         memcpy(
           cur_dsk_start, (uint8_t *)r->prev_ptr->image.mem + prev_ptr->min_offset, len_to_move);
 
@@ -2140,7 +2139,7 @@ __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_PAGE_HEADER_SIZE);
     btree->bm->block_header_init(btree->bm, session, r->delta.mem);
-    r->delta.size = WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree);
+    r->delta.size = WT_PAGE_HEADER_WRITE_SIZE(btree);
 
     return (0);
 }
@@ -3686,7 +3685,7 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
         __rec_set_page_write_gen(btree, dsk);
         dsk->u.datalen = (uint32_t)kv->buf.size;
         memcpy(WT_PAGE_HEADER_WRITE_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
-        dsk->mem_size = WT_PAGE_HEADER_BYTE_WRITE_SIZE(btree) + (uint32_t)kv->buf.size;
+        dsk->mem_size = WT_PAGE_HEADER_WRITE_SIZE(btree) + (uint32_t)kv->buf.size;
         tmp->size = dsk->mem_size;
 
         /* Write the buffer. */
