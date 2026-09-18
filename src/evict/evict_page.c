@@ -329,6 +329,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_err(session, ret,
           "victim cache: failed to compress block before caching, caching uncompressed");
         ret = 0;
+        WT_UNUSED(ret); /* Quiet clang analyzer. */
     }
 
     /* We want a copy because eviction owns the page but not the disk image. */
