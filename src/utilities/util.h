@@ -15,10 +15,6 @@ typedef struct {
     size_t memsize; /* Managed memory size */
 } ULINE;
 
-/* Shared so verify and page report identical -u/-k conflict wording. */
-#define UTIL_REDACT_CONFLICT_MSG \
-    "-u (unredact all data) and -k (unredact only keys) are mutually exclusive"
-
 extern const char *home;         /* Home directory */
 extern const char *progname;     /* Program name */
 extern const char *usage_prefix; /* Global arguments */
