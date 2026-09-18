@@ -624,15 +624,15 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(self.read_kvs_at(self.uri, 50),
             {'b': 's', 'd': 's', 'a': 'i', 'z': 'i', 'y': 'i'})
 
-    # Two writers that both began after the cutoff collide trying to modify the same ingest key.
-    def test_mirrored_modify_conflict_leaves_ingest_alone(self):
+    # Two writers that both began after the cutoff collide trying to modify the same key.
+    def test_modify_conflict_leaves_ingest_alone(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
 
         self.set_step_down_ts(20)
 
-        # Writer A holds an uncommitted mirrored modify on k1.
+        # Writer A holds an uncommitted modify of k1.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor.set_key('k1')
@@ -661,14 +661,14 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
 
     # A step-down writer that writes a key cleanly, then conflicts on another, cannot commit: the
     # conflict drops that write and the transaction must roll back, losing the clean write too.
-    def test_mirrored_conflict_then_cannot_commit(self):
+    def test_conflict_then_cannot_commit(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
 
         self.set_step_down_ts(20)
 
-        # Writer A holds an uncommitted mirrored write on k1.
+        # Writer A holds an uncommitted write of k1.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['k1'] = 'a'
@@ -696,5 +696,78 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'a'})
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': 'a'})
         expected_stable = {'k1': 'a'} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
+
+    # Two writers that both began after the cutoff collide on a remove of the same key.
+    def test_remove_conflict_both_after_cutoff(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'base'}, 10)
+
+        self.set_step_down_ts(20)
+
+        # Writer A holds an uncommitted remove of k1.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        self.assertEqual(cursor.remove(), 0)
+
+        # Writer B's remove of the same key conflicts; it wrote nothing else, so its transaction
+        # still commits (empty).
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur.set_key('k1')
+        self.expect_conflict_rollback(wcur.remove)
+        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        wcur.close()
+        wsession.close()
+
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+
+        # A's remove alone took effect, on both constituents.
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {})
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': '\x14'})
+        expected_stable = {} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
+        self.complete_step_down(20)
+
+    # A remove leaves ingest holding the bare tombstone marker, and in mirrored mode the stable
+    # row is gone as well, so re-inserting the key has to succeed on both legs: a plain insert,
+    # and one with overwrite=false that must not report a duplicate.
+    def test_reinsert_after_remove(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'base', 'k2': 'base'}, 10)
+
+        self.set_step_down_ts(20)
+        self.remove_at(self.uri, ['k1', 'k2'], 30)
+
+        # A plain insert over one removed key.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        cursor.set_value('again')
+        self.assertEqual(cursor.insert(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
+        cursor.close()
+
+        # An overwrite=false insert over the other: ingest holds only the tombstone marker, which
+        # must not be reported as an existing value.
+        cursor = self.session.open_cursor(self.uri, None, 'overwrite=false')
+        self.session.begin_transaction()
+        cursor.set_key('k2')
+        cursor.set_value('again')
+        self.assertEqual(cursor.insert(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(32))
+        cursor.close()
+
+        expected = {'k1': 'again', 'k2': 'again'}
+        self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
+        expected_stable = expected if self.stable_has_step_down_writes() \
+            else {'k1': 'base', 'k2': 'base'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)
