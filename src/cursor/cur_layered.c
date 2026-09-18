@@ -4105,11 +4105,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     WT_ERR(__clayered_modify_check(op, &cursor->key));
 
-    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
-      !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
-        WT_ERR(__clayered_lookup(op, &value));
-    else
-        WT_ITEM_SET(value, cursor->value);
+    WT_ERR(__clayered_lookup(op, &value));
 
     if (clayered->current_cursor == c_ingest)
         WT_ERR(__clayered_modify_try_ingest(op, entries, nentries, &value, &need_full_update));
