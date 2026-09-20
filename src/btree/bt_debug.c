@@ -534,9 +534,8 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
                   "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
             else
                 __wt_errx(session,
-                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED}",
-                  i, page_id, lsn);
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, page_id,
+                  lsn);
             WT_TRET(WT_ERROR);
             continue;
         }
@@ -551,9 +550,8 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
                   "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
             else
                 __wt_errx(session,
-                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED}",
-                  i, page_id, lsn);
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, page_id,
+                  lsn);
             WT_TRET(WT_ERROR);
             continue;
         }
@@ -618,8 +616,7 @@ __wt_debug_disagg_page_id_raw(
                   lsn);
             else
                 __wt_errx(session,
-                  "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED}",
+                  "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}",
                   count - 1, page_id, lsn);
         } else {
             if (dump_all_data)
@@ -627,9 +624,8 @@ __wt_debug_disagg_page_id_raw(
                   "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
             else
                 __wt_errx(session,
-                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64
-                  ": {REDACTED}",
-                  i, count - 1, page_id, lsn);
+                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, count - 1,
+                  page_id, lsn);
         }
     }
 
