@@ -746,8 +746,11 @@ NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
 NOTFOUND_OK(__wt_cursor::_modify)
 NOTFOUND_OK(__wt_cursor::largest_key)
+NOTFOUND_OK(__wt_cursor::set_position)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
+ANY_OK(__wt_position::__wt_position)
+ANY_OK(__wt_position::~__wt_position)
 ANY_OK(__wt_page_log_discard_args::__wt_page_log_discard_args)
 ANY_OK(__wt_page_log_discard_args::~__wt_page_log_discard_args)
 ANY_OK(__wt_page_log_complete_checkpoint_args::__wt_page_log_complete_checkpoint_args)
@@ -876,6 +879,11 @@ OVERRIDE_METHOD(__wt_page_log, WT_PAGE_LOG, get_open_checkpoint, (self))
 %typemap(in,numinputs=0) (uint64_t *recnop) (uint64_t recno) { $1 = &recno; }
 %typemap(frearg) (uint64_t *recnop) "";
 %typemap(argout) (uint64_t *recnop) { $result = PyLong_FromUnsignedLongLong(*$1); }
+
+/* Handle the position returned by get_position. */
+%typemap(in,numinputs=0) (double *posp) (double pos) { $1 = &pos; }
+%typemap(frearg) (double *posp) "";
+%typemap(argout) (double *posp) { $result = PyFloat_FromDouble(*$1); }
 
 /* Handle returned hexadecimal timestamps. */
 %typemap(in,numinputs=0) (char *hex_timestamp) (char tsbuf[WT_TS_HEX_STRING_SIZE]) { $1 = tsbuf; }
@@ -1516,6 +1524,19 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(FileSystem) __wt_file_system;
 
 %include "wiredtiger.h"
+
+%extend __wt_position {
+    __wt_position() {
+        return (struct __wt_position *)calloc(1, sizeof(struct __wt_position));
+    }
+    ~__wt_position() {
+        free($self);
+    }
+%pythoncode %{
+    def __repr__(self):
+        return 'Position(%r, %d, %d)' % (self.pos, self.flags, self.pages_skipped)
+%}
+}
 
 %extend __wt_crypt_keys {
     __wt_crypt_keys() {

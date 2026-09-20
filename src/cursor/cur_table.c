@@ -765,6 +765,68 @@ err:
 }
 
 /*
+ * __curtable_set_position --
+ *     WT_CURSOR->set_position method for the table cursor type.
+ */
+static int
+__curtable_set_position(WT_CURSOR *cursor, WT_POSITION *position)
+{
+    WT_CURSOR **cp, *primary;
+    WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    u_int i;
+
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, set_position, NULL);
+
+    WT_ERR(cursor->reset(cursor));
+    cp = ctable->cg_cursors;
+    primary = *cp;
+    WT_ERR(primary->set_position(primary, position));
+
+    /*
+     * Key-only mode leaves the primary holding an external key: share it with the other column
+     * groups as set_key does. Otherwise position them on the record the primary found.
+     */
+    for (i = 1, ++cp; i < WT_COLGROUPS(ctable->table); i++, ++cp) {
+        (*cp)->key.data = primary->key.data;
+        (*cp)->key.size = primary->key.size;
+        (*cp)->recno = primary->recno;
+        F_SET(*cp, WT_CURSTD_KEY_EXT);
+        if (!F_ISSET(position, WT_POSITION_KEY_ONLY))
+            WT_ERR((*cp)->search(*cp));
+    }
+
+err:
+    if (ret != 0)
+        WT_TRET(cursor->reset(cursor));
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curtable_get_position --
+ *     WT_CURSOR->get_position method for the table cursor type.
+ */
+static int
+__curtable_get_position(WT_CURSOR *cursor, double *posp)
+{
+    WT_CURSOR *primary;
+    WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, get_position, NULL);
+
+    primary = *ctable->cg_cursors;
+    ret = primary->get_position(primary, posp);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curtable_bound --
  *     WT_CURSOR->bound method for the table cursor type.
  *
@@ -984,8 +1046,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_reserve,                            /* reserve */
       __wti_cursor_reconfigure,                      /* reconfigure */
       __curtable_largest_key,                        /* largest_key */
-      __wt_cursor_set_position_notsup,               /* set_position */
-      __wt_cursor_get_position_notsup,               /* get_position */
+      __curtable_set_position,                       /* set_position */
+      __curtable_get_position,                       /* get_position */
       __curtable_bound,                              /* bound */
       __wt_cursor_notsup,                            /* cache */
       __wt_cursor_reopen_notsup,                     /* reopen */

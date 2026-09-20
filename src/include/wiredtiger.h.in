@@ -743,7 +743,13 @@ struct __wt_cursor {
      * object the cursor should be placed, without naming a key. Positions
      * are derived from the shape of the tree: they preserve key order but are
      * not uniform, and they change as the object changes. This method is
-     * only supported by row-store file: and table: objects.
+     * only supported by row-store file:, table: and layered: objects.
+     *
+     * A layered table's positions are defined over its stable constituent.
+     * A stable record hidden by the ingest constituent resolves to its
+     * nearest visible neighbor as WT_CURSOR::search_near would, and
+     * ::WT_POSITION_CACHE_ONLY is best-effort on layered tables because that
+     * resolution may read neighboring pages.
      *
      * By default the leaf page addressed by the position is read and the
      * cursor moves forwards from the selected slot to the first visible
@@ -784,7 +790,7 @@ struct __wt_cursor {
      * WT_CURSOR::set_position: for an unchanged object, positioning at the
      * value returned here lands on the same on-disk slot, and key order
      * implies position order. This method is only supported by row-store
-     * file: and table: objects.
+     * file:, table: and layered: objects.
      *
      * The cursor must be positioned, otherwise EINVAL is returned.
      *

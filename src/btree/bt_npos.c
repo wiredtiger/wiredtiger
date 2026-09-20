@@ -504,6 +504,9 @@ __npos_key(WT_SESSION_IMPL *session, double npos, uint32_t flags, WT_ITEM *key)
     btree = S2BT(session);
     read_cache = LF_ISSET(WT_READ_CACHE);
 
+    /* The empty key must be a valid zero-length item, not a NULL reference. */
+    WT_RET(__wt_buf_init(session, key, 1));
+
 restart:
     current = &btree->root;
     npos_local = npos;
