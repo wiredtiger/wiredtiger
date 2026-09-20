@@ -71,8 +71,9 @@ keys have three properties that matter here:
 - Slot 0 of a row-store internal page carries no usable key. The leftmost child inherits its
   parent's separator, recursively; the leftmost leaf of the tree has the empty key, meaning
   "before everything".
-- A separator may be an overflow item. Instantiated ones are in memory; an on-page overflow
-  ref key needs one overflow block read (`__wt_ref_key_onpage_ovfl` path).
+- A separator may be an overflow item, but internal-page overflow keys are always
+  instantiated when the page is read, so reading a separator never requires an overflow
+  block read.
 
 A separator is exactly what a truncate marker needs: a boundary that aligns with a page edge so
 fast truncation applies. Reaching a real record from it is one `search_near`.
@@ -86,8 +87,8 @@ sorts them by RecordId, and keeps every k-th sample as a marker boundary. It fal
 full collection scan when it cannot get enough samples.
 
 With positioning, that loop becomes: for i in 1..N, position at i/N, read the key. Samples
-arrive in order, at most one leaf read each, deterministic. In key-only mode there is no leaf
-read at all.
+arrive in order, one leaf read each in the common case, deterministic. In key-only mode there
+is no leaf read at all.
 
 ### 2.4 Existing API precedents
 
@@ -208,7 +209,7 @@ for (i = 1; i < n_markers; ++i) {
 ```
 
 **Sampling N records with their values.** Replace a random cursor with N evenly spaced reads.
-Each call reads at most one leaf page and the results arrive in key order:
+Each call reads one leaf page in the common case and the results arrive in key order:
 
 ```c
 WT_POSITION p = {0};
@@ -314,8 +315,9 @@ With `KEY_ONLY` the call never touches a leaf page:
    leaf. Along the way remember the deepest ref that was reached through a non-zero slot; its
    separator key is the boundary for the target leaf. If every slot on the path was 0 the
    boundary is the empty key.
-2. Copy that key into the cursor's key buffer while the hazard pointer on the parent is still held, then release the parent. An on-page overflow ref key is read through the
-   existing overflow helpers.
+2. Copy that key into the cursor's key buffer while the hazard pointer on the parent is still
+   held, then release the parent. The empty key is stored as a zero-length, NUL-terminated
+   item so that string-format callers see an empty C string.
 3. Mark the key as externally set (`WT_CURSTD_KEY_EXT`) and leave the cursor unpositioned.
    This is the state `set_key` produces, so the natural next call is `search_near`, `search`,
    or a range truncate using the cursor as a bound.
@@ -327,7 +329,14 @@ Boundary keys are raw separator bytes. Because leaf separators are suffix-trunca
 boundary is usually not a complete packed key: on a typed key format such as `q` or `Q`,
 `get_key` may fail to unpack it. Callers read it through a cursor opened with `raw=true`
 (`get_raw_key_value` requires the value to be set and so cannot read a key-only result), and
-use it as a byte-string bound. `search_near` from the key works because tree
+use it as a byte-string bound.
+
+The empty key returned for the leftmost boundary is a sentinel meaning "start of object". It
+is not a key: `set_key` and `bound` reject empty keys, and on an object with a custom collator
+it does not necessarily sort first, so callers must not search from it or bound on it. All
+non-empty boundaries are prefixes of real keys and compare correctly under any collator. An
+object that fits in a single page, including one never checkpointed, yields the empty key for
+every position. `search_near` from the key works because tree
 comparison is bytewise, and the empty key sorts before every record.
 
 The anchor and `PREV` have no effect in this mode. `CACHE_ONLY` applies to the internal pages:
@@ -370,7 +379,7 @@ from `set_position` is a natural future output field.
 | `file:` row-store | full | primary implementation in the btree layer, wrapped in `cur_file.c` |
 | `file:` column-store | `ENOTSUP` | deprecated; rejected at the API boundary when the cursor has a record-number key |
 | `table:` single colgroup | full | delegate to the primary, as `largest_key` does |
-| `table:` multiple colgroups | full | position the primary, then `search` the other colgroups by the returned key, mirroring `__curtable_search_near`; key-only mode delegates to the primary and sets the table key |
+| `table:` multiple colgroups | full | position the primary, then `search` the other colgroups by the returned key, mirroring `__curtable_search_near`; key-only mode delegates to the primary and sets the table key; `CACHE_ONLY` applies to the primary only |
 | `layered:` | full, one constituent | see below |
 | checkpoint cursor | full | positions in the checkpoint tree |
 | dump, raw | full | pass-through wrappers |
@@ -419,11 +428,17 @@ This needs a new `WTI_CLAYERED_MODE_POSITION` operation mode alongside
 - Tree whose only pages are deleted: the parent scan and the tree walk step past them;
   `WT_NOTFOUND` if nothing remains. Key-only mode still returns a boundary key.
 - Concurrent splits: the descent restarts from the root on `WT_RESTART`, as today.
-- Cost: one root-to-leaf descent plus at most one leaf read in the default mode; internal
-  pages only in key-only mode; on layered tables one additional `search_near` on the
-  constituents. The scan for a usable page is unbounded and, in the worst case (a long run
-  of deleted or locked pages), proportional to tree width; `pages_skipped` reports it per
-  call. A walk limit is a possible future struct field.
+- Cost: one root-to-leaf descent plus one leaf read in the common case in the default mode;
+  the walk to a visible record may continue onto neighbouring pages, tables with several
+  column groups search each of them, and layered tables re-resolve through the constituents.
+  Internal pages only in key-only mode. The scan for a usable page is unbounded and, in the
+  worst case (a long run of deleted or locked pages), proportional to tree width;
+  `pages_skipped` reports it per call. A walk limit is a possible future struct field.
+- Cache-only mode governs page reads during the descent and the walk. The returned record's
+  overflow items, if any, are still read, and on tables with several column groups the other
+  column groups are searched with ordinary reads.
+- Anchors select an on-disk slot; a page with no on-disk entries starts on its smallest-key
+  insert list.
 
 ## 7. Implementation plan
 
@@ -513,6 +528,31 @@ operation to `test/format` alongside the random cursor smoke test so the concurr
   interface is wanted.
 - **Dedicated `partition:` URI** returning separator keys: does not compose with normal
   cursor operations. Its one advantage, a boundary key without a leaf read, is key-only mode.
+
+### 9.1 Review suggestions not adopted
+
+Raised in review and deliberately left as they are:
+
+- **Propagate cache-only into overflow reads and secondary column-group searches.** Skipping a
+  record's overflow value would change what `set_position` returns, and there is no
+  cache-only variant of `search` for the other column groups. The limits are documented
+  instead; a true no-I/O guarantee would be a separate feature.
+- **Reject key-only mode on objects with a custom collator.** Only the empty sentinel
+  misbehaves under a collator; every non-empty boundary is a real key prefix and compares
+  correctly. The sentinel is documented as unusable for search and bounds.
+- **Return `WT_NOTFOUND` for the leftmost key-only boundary** instead of the empty key. It
+  would break the single-page and empty-object behaviour the truncate-marker loop relies on.
+- **Make insert-list `get_position` independent of arrival direction.** A record on an insert
+  list reports the slot of the on-disk cell the walk associates it with, which can differ
+  between a forward and a backward arrival. Ordering is preserved in both directions and the
+  round-trip caveat in 4.3 already covers insert-list records; deriving the cell from the
+  iteration state adds complexity with no consumer that needs it.
+- **Preserve `pages_skipped` across a split-induced restart.** The scan restarts from the root
+  with a zero count when a concurrent split forces `WT_RESTART`. The field is documented as
+  approximate, the case needs a split during the scan, and accumulating would over-count
+  children that are rescanned.
+- **Relax the diagnostic assertion that a default-mode success sets the value.** It is
+  unreachable today and would catch a future internal key-only misuse, which is its purpose.
 
 ## 10. Future work
 
