@@ -984,6 +984,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_reserve,                            /* reserve */
       __wti_cursor_reconfigure,                      /* reconfigure */
       __curtable_largest_key,                        /* largest_key */
+      __wt_cursor_set_position_notsup,               /* set_position */
+      __wt_cursor_get_position_notsup,               /* get_position */
       __curtable_bound,                              /* bound */
       __wt_cursor_notsup,                            /* cache */
       __wt_cursor_reopen_notsup,                     /* reopen */

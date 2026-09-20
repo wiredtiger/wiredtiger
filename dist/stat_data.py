@@ -596,6 +596,7 @@ conn_stats = [
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_cached_count', 'cached cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_create', 'cursor create calls'),
+    CursorStat('cursor_get_position', 'cursor get position calls'),
     CursorStat('cursor_insert', 'cursor insert calls', '', 'otel_counter'),
     CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),
@@ -613,6 +614,7 @@ conn_stats = [
     CursorStat('cursor_search', 'cursor search calls'),
     CursorStat('cursor_search_hs', 'cursor search history store calls'),
     CursorStat('cursor_search_near', 'cursor search near calls'),
+    CursorStat('cursor_set_position', 'cursor set position calls'),
     CursorStat('cursor_truncate', 'cursor truncate calls'),
     CursorStat('cursor_truncate_keys_deleted', 'cursor truncates performed on individual keys'),
     CursorStat('cursor_update', 'cursor update calls'),
@@ -1232,6 +1234,7 @@ dsrc_stats = [
     ##########################################
     CursorStat('cursor_cache', 'close calls that result in cache'),
     CursorStat('cursor_create', 'create calls'),
+    CursorStat('cursor_get_position', 'get position calls'),
     CursorStat('cursor_insert', 'insert calls'),
     CursorStat('cursor_insert_bulk', 'bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'insert key and value bytes', 'size'),
@@ -1249,6 +1252,7 @@ dsrc_stats = [
     CursorStat('cursor_search', 'search calls'),
     CursorStat('cursor_search_hs', 'search history store calls'),
     CursorStat('cursor_search_near', 'search near calls'),
+    CursorStat('cursor_set_position', 'set position calls'),
     CursorStat('cursor_truncate', 'truncate calls'),
     CursorStat('cursor_update', 'update calls'),
     CursorStat('cursor_update_bytes', 'update key and value bytes', 'size'),
@@ -1467,6 +1471,7 @@ conn_dsrc_stats = [
     CursorErrorStat('cursor_compare_error', 'cursor compare calls that return an error'),
     CursorErrorStat('cursor_equals_error', 'cursor equals calls that return an error'),
     CursorErrorStat('cursor_get_key_error', 'cursor get key calls that return an error'),
+    CursorErrorStat('cursor_get_position_error', 'cursor get position calls that return an error'),
     CursorErrorStat('cursor_get_value_error', 'cursor get value calls that return an error'),
     CursorErrorStat('cursor_insert_error', 'cursor insert calls that return an error'),
     CursorErrorStat('cursor_largest_key_error', 'cursor largest key calls that return an error'),
@@ -1481,6 +1486,7 @@ conn_dsrc_stats = [
     CursorErrorStat('cursor_reset_error', 'cursor reset calls that return an error'),
     CursorErrorStat('cursor_search_error', 'cursor search calls that return an error'),
     CursorErrorStat('cursor_search_near_error', 'cursor search near calls that return an error'),
+    CursorErrorStat('cursor_set_position_error', 'cursor set position calls that return an error'),
     CursorErrorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################

@@ -579,6 +579,8 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __wt_cursor_notsup,                             /* reserve */
       __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_set_position_notsup,                /* set_position */
+      __wt_cursor_get_position_notsup,                /* get_position */
       __curindex_bound,                               /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */

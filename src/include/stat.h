@@ -950,6 +950,8 @@ struct __wt_connection_stats {
     int64_t cursor_create;
     int64_t cursor_equals_error;
     int64_t cursor_get_key_error;
+    int64_t cursor_get_position;
+    int64_t cursor_get_position_error;
     int64_t cursor_get_value_error;
     int64_t cursor_insert;
     int64_t cursor_insert_error;
@@ -985,6 +987,8 @@ struct __wt_connection_stats {
     int64_t cursor_search_hs;
     int64_t cursor_search_near;
     int64_t cursor_search_near_error;
+    int64_t cursor_set_position;
+    int64_t cursor_set_position_error;
     int64_t cursor_sweep_buckets;
     int64_t cursor_sweep_closed;
     int64_t cursor_sweep_examined;
@@ -1819,6 +1823,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_compare_error;
     int64_t cursor_equals_error;
     int64_t cursor_get_key_error;
+    int64_t cursor_get_position_error;
     int64_t cursor_get_value_error;
     int64_t cursor_insert_error;
     int64_t cursor_largest_key_error;
@@ -1839,7 +1844,9 @@ struct __wt_dsrc_stats {
     int64_t cursor_reset_error;
     int64_t cursor_search_error;
     int64_t cursor_search_near_error;
+    int64_t cursor_set_position_error;
     int64_t cursor_update_error;
+    int64_t cursor_get_position;
     int64_t cursor_insert;
     int64_t cursor_insert_bytes;
     int64_t cursor_modify;
@@ -1864,6 +1871,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_search;
     int64_t cursor_search_hs;
     int64_t cursor_search_near;
+    int64_t cursor_set_position;
     int64_t cursor_truncate;
     int64_t cursor_update;
     int64_t cursor_update_bytes;

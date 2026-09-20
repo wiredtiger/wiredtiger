@@ -16,7 +16,8 @@
  */
 #define WT_CURSOR_STATIC_INIT(n, get_key, get_value, get_raw_key_value, set_key, set_value,      \
   compare, equals, next, prev, reset, search, search_near, insert, modify, update, remove,       \
-  reserve, reconfigure, largest_key, bound, cache, reopen, checkpoint_id, close)                 \
+  reserve, reconfigure, largest_key, set_position, get_position, bound, cache, reopen,           \
+  checkpoint_id, close)                                                                          \
     static const WT_CURSOR n = {                                                                 \
       NULL, /* session */                                                                        \
       NULL, /* uri */                                                                            \
@@ -24,19 +25,20 @@
       NULL, /* value_format */                                                                   \
       get_key, get_value, get_raw_key_value, set_key, set_value, compare, equals, next, prev,    \
       reset, search, search_near, insert, modify, update, remove, reserve, checkpoint_id, close, \
-      largest_key, reconfigure, bound, cache, reopen, 0, /* uri_hash */                          \
-      {NULL, NULL},                                      /* TAILQ_ENTRY q */                     \
-      0,                                                 /* recno key */                         \
-      {0},                                               /* recno raw buffer */                  \
-      NULL,                                              /* json_private */                      \
-      NULL,                                              /* lang_private */                      \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM key */                       \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM value */                     \
-      0,                                                 /* int saved_err */                     \
-      NULL,                                              /* internal_uri */                      \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM lower bound */               \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM upper bound */               \
-      0                                                  /* uint32_t flags */                    \
+      largest_key, set_position, get_position, reconfigure, bound, cache, reopen,                \
+      0,                     /* uri_hash */                                                      \
+      {NULL, NULL},          /* TAILQ_ENTRY q */                                                 \
+      0,                     /* recno key */                                                     \
+      {0},                   /* recno raw buffer */                                              \
+      NULL,                  /* json_private */                                                  \
+      NULL,                  /* lang_private */                                                  \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM key */                                                   \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                 \
+      0,                     /* int saved_err */                                                 \
+      NULL,                  /* internal_uri */                                                  \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM lower bound */                                           \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM upper bound */                                           \
+      0                      /* uint32_t flags */                                                \
     }
 
 /* Call a function without the evict reposition cursor flag, restore afterwards. */
@@ -277,6 +279,7 @@ struct __wt_cursor_btree {
 #define WT_CBT_SEARCH_SMALLEST 0x100u    /* Row-store: small-key insert list */
 #define WT_CBT_SIZE_STAT 0x200u          /* Accumulate size summary during traversal */
 #define WT_CBT_VAR_ONPAGE_MATCH 0x400u   /* Var-store: on-page recno match */
+#define WT_CBT_WALK_CACHE_ONLY 0x800u    /* Tree walk stays in cache */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \

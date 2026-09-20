@@ -354,6 +354,32 @@ __curdump_search_near(WT_CURSOR *cursor, int *exact)
     return (cdump->child->search_near(cdump->child, exact));
 }
 
+/*
+ * __curdump_set_position --
+ *     WT_CURSOR::set_position for dump cursors.
+ */
+static int
+__curdump_set_position(WT_CURSOR *cursor, WT_POSITION *position)
+{
+    WT_CURSOR_DUMP *cdump;
+
+    cdump = (WT_CURSOR_DUMP *)cursor;
+    return (cdump->child->set_position(cdump->child, position));
+}
+
+/*
+ * __curdump_get_position --
+ *     WT_CURSOR::get_position for dump cursors.
+ */
+static int
+__curdump_get_position(WT_CURSOR *cursor, double *posp)
+{
+    WT_CURSOR_DUMP *cdump;
+
+    cdump = (WT_CURSOR_DUMP *)cursor;
+    return (cdump->child->get_position(cdump->child, posp));
+}
+
 WT_CURDUMP_PASS(insert)
 WT_CURDUMP_PASS(update)
 WT_CURDUMP_PASS(remove)
@@ -411,6 +437,8 @@ __wti_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __wt_cursor_notsup,                           /* reserve */
       __wt_cursor_config_notsup,                    /* reconfigure */
       __wt_cursor_notsup,                           /* largest_key */
+      __curdump_set_position,                       /* set_position */
+      __curdump_get_position,                       /* get_position */
       __curdump_bound,                              /* bound */
       __wt_cursor_notsup,                           /* cache */
       __wt_cursor_reopen_notsup,                    /* reopen */
