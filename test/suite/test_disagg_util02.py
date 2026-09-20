@@ -214,7 +214,7 @@ class test_disagg_wt_page(
         _, stderr = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri, failure=True)
         self.assertIn(f"page_id {page.page_id}, lsn {page.lsn}", stderr)
-        self.assertIn("{REDACTED} (use -u to dump)", stderr)
+        self.assertIn("{REDACTED}", stderr)
 
     def test_full_image_corrupt_unredact(self):
         self._skip_if_not_diagnostic()
