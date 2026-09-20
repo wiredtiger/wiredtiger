@@ -10,6 +10,9 @@ A cursor includes:
 
 See @subpage cursor_ops for a description of how to use cursors.
 
+Cursors can also be moved to a fraction of an object without naming a
+key, see @subpage cursor_positioning for details.
+
 @section cursor_types Cursor types
 
 @copydoc doc_cursor_types

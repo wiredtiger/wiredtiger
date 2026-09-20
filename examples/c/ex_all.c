@@ -42,6 +42,7 @@ static void checkpoint_ops(WT_SESSION *session);
 static void connection_ops(WT_CONNECTION *conn);
 static int cursor_ops(WT_SESSION *session);
 static void cursor_search_near(WT_CURSOR *cursor);
+static void cursor_position(WT_CURSOR *cursor);
 static void cursor_statistics(WT_SESSION *session);
 static void pack_ops(WT_SESSION *session);
 static void session_ops(WT_SESSION *session);
@@ -279,6 +280,8 @@ cursor_ops(WT_SESSION *session)
 
     cursor_search_near(cursor);
 
+    cursor_position(cursor);
+
     {
         /*! [Insert a new record and fail if the record exists] */
         /* Insert a new record and fail if the record exists. */
@@ -430,6 +433,94 @@ cursor_ops(WT_SESSION *session)
     /*! [Close the cursor] */
 
     return (0);
+}
+
+static void
+cursor_position(WT_CURSOR *cursor)
+{
+    WT_POSITION position;
+    double pos;
+    int exact, i, n, ret;
+    const char *key, *value;
+
+    /*! [Position a cursor at a fraction of the object] */
+    memset(&position, 0, sizeof(position));
+    position.pos = 0.5; /* Halfway through the object. */
+    ret = cursor->set_position(cursor, &position);
+    if (ret == 0) {
+        error_check(cursor->get_key(cursor, &key));
+        error_check(cursor->get_value(cursor, &value));
+        if (position.pages_skipped != 0) {
+            /* The addressed page was unusable, a nearby page was used instead. */
+        }
+    } else
+        scan_end_check(ret == WT_NOTFOUND); /* The object has no visible record. */
+    /*! [Position a cursor at a fraction of the object] */
+
+    /*! [Report progress with the cursor's position] */
+    error_check(cursor->reset(cursor));
+    for (i = 0; (ret = cursor->next(cursor)) == 0; ++i)
+        if (i % 100000 == 0) {
+            error_check(cursor->get_position(cursor, &pos));
+            printf("%.0f%% of the object scanned\n", pos * 100.0);
+        }
+    scan_end_check(ret == WT_NOTFOUND);
+    /*! [Report progress with the cursor's position] */
+
+    /*! [Partition an object into evenly spaced samples] */
+    n = 10;
+    for (i = 0; i <= n; ++i) {
+        memset(&position, 0, sizeof(position));
+        position.pos = (double)i / n;
+        if ((ret = cursor->set_position(cursor, &position)) == WT_NOTFOUND)
+            break;
+        error_check(ret);
+        error_check(cursor->get_key(cursor, &key)); /* Samples arrive in key order. */
+    }
+    /*! [Partition an object into evenly spaced samples] */
+
+    /*! [Find page boundary keys without reading leaf pages] */
+    {
+        WT_CURSOR *raw;
+        WT_ITEM boundary;
+        char *copy;
+
+        /*
+         * Boundary keys are separators, not necessarily records, and may not unpack for typed key
+         * formats: read them through a raw cursor and keep the bytes. Searching from one reaches
+         * the first visible record of its page.
+         */
+        error_check(cursor->session->open_cursor(cursor->session, cursor->uri, NULL, "raw", &raw));
+        for (i = 1; i < n; ++i) {
+            memset(&position, 0, sizeof(position));
+            position.pos = (double)i / n;
+            position.flags = WT_POSITION_KEY_ONLY;
+            error_check(raw->set_position(raw, &position));
+
+            error_check(raw->get_key(raw, &boundary));
+            copy = malloc(boundary.size + 1);
+            testutil_assert(copy != NULL);
+            memcpy(copy, boundary.data, boundary.size); /* The boundary of range i. */
+            free(copy);
+
+            error_check(raw->search_near(raw, &exact));
+        }
+        error_check(raw->close(raw));
+    }
+    /*! [Find page boundary keys without reading leaf pages] */
+
+    /*! [Position only within cached pages] */
+    memset(&position, 0, sizeof(position));
+    position.pos = 0.5;
+    position.flags = WT_POSITION_CACHE_ONLY;
+    ret = cursor->set_position(cursor, &position);
+    if (ret == WT_NOTFOUND) {
+        /* Nothing near the position is in memory. */
+    } else
+        error_check(ret);
+    /*! [Position only within cached pages] */
+
+    error_check(cursor->reset(cursor));
 }
 
 static void

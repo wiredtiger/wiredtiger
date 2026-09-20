@@ -29,6 +29,70 @@
 #include "format.h"
 
 /*
+ * position_kv --
+ *     Position a cursor at a random fraction of the table with random options and check the
+ *     outcome. Returns false if the transaction was rolled back.
+ */
+static bool
+position_kv(WT_CURSOR *cursor)
+{
+    WT_DECL_RET;
+    WT_ITEM key, value;
+    WT_POSITION position;
+    double pos;
+    int exact;
+    bool key_only;
+
+    memset(&position, 0, sizeof(position));
+    position.pos = mmrand(&g.extra_rnd, 0, WT_THOUSAND) / (double)WT_THOUSAND;
+    position.flags = mmrand(&g.extra_rnd, 0, 3) << 4;
+    if (mmrand(&g.extra_rnd, 1, 3) == 1)
+        position.flags |= WT_POSITION_PREV;
+    if (mmrand(&g.extra_rnd, 1, 10) == 1)
+        position.flags |= WT_POSITION_CACHE_ONLY;
+    key_only = mmrand(&g.extra_rnd, 1, 4) == 1;
+    if (key_only)
+        position.flags |= WT_POSITION_KEY_ONLY;
+
+    switch (ret = cursor->set_position(cursor, &position)) {
+    case 0:
+        break;
+    case WT_NOTFOUND:
+    case WT_CACHE_FULL:
+    case WT_PREPARE_CONFLICT:
+        return (true);
+    case WT_ROLLBACK:
+        return (false);
+    default:
+        testutil_check(ret);
+    }
+
+    if (key_only) {
+        /* The boundary key is usable as a search key. */
+        testutil_assert(position.pages_skipped == 0);
+        testutil_check(cursor->get_key(cursor, &key));
+        switch (ret = cursor->search_near(cursor, &exact)) {
+        case 0:
+            break;
+        case WT_NOTFOUND:
+        case WT_CACHE_FULL:
+        case WT_PREPARE_CONFLICT:
+            return (true);
+        case WT_ROLLBACK:
+            return (false);
+        default:
+            testutil_check(ret);
+        }
+    }
+
+    testutil_check(cursor->get_key(cursor, &key));
+    testutil_check(cursor->get_value(cursor, &value));
+    testutil_check(cursor->get_position(cursor, &pos));
+    testutil_assert(pos >= 0. && pos <= 1.);
+    return (true);
+}
+
+/*
  * random_kv --
  *     Do random cursor operations.
  */
@@ -100,6 +164,12 @@ random_kv(void *arg)
             testutil_check(cursor->get_value(cursor, &value));
         }
 
+        testutil_check(cursor->close(cursor));
+
+        /* Position a plain cursor at random fractions of the same table. */
+        wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
+        for (i = mmrand(&g.extra_rnd, 0, 100); i > 0 && !rollback && !g.workers_finished; --i)
+            rollback = !position_kv(cursor);
         testutil_check(cursor->close(cursor));
 
         /*
