@@ -363,8 +363,9 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     case 1:
         if (*userp != *treep)
             break;
-
-        /* Contents are equal up to the smallest length. */
+    /* FALLTHROUGH */
+    case 0:
+        /* Contents are equal up to the smallest length (an empty search key sorts first). */
         return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
     }
     return (*userp < *treep ? -1 : 1);
