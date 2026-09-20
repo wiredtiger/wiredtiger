@@ -74,6 +74,44 @@ __hs_verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, const char *ke
 }
 
 /*
+ * __hs_verify_ds_search --
+ *     Search the data store for a history store key, and optionally read back the time window of
+ *     the value found there. A row-store key is used directly; a column-store key is unpacked to
+ *     the record number.
+ */
+static int
+__hs_verify_ds_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_ITEM *key,
+  bool read_time_window, WT_HS_VERIFY_CHAIN *chain)
+{
+    WT_DECL_RET;
+    WT_PAGE *page;
+    uint64_t recno;
+    const uint8_t *up;
+
+    if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ds_cbt, key, false, NULL, false, NULL));
+    } else {
+        up = (const uint8_t *)key->data;
+        WT_RET(__wt_vunpack_uint(&up, key->size, &recno));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_col_search(ds_cbt, recno, NULL, false, NULL));
+    }
+    WT_RET(ret);
+
+    chain->exists = ds_cbt->compare == 0;
+    if (chain->exists && read_time_window) {
+        page = ds_cbt->ref->page;
+        if (page->type == WT_PAGE_ROW_LEAF) {
+            __wt_read_row_time_window(session, page, &page->pg_row[ds_cbt->slot], &chain->live_tw);
+            chain->live_valid = true;
+        } else
+            chain->live_valid = __wt_read_col_time_window(
+              session, page, WT_COL_PTR(page, &page->pg_var[ds_cbt->slot]), &chain->live_tw);
+    }
+
+    return (__cursor_reset(ds_cbt));
+}
+
+/*
  * __hs_verify_chain_close --
  *     Close out the records sharing one key: confirm the newest of them doesn't overlap the data
  *     table's current value. The data store's own search for this key normally handed back the
@@ -84,11 +122,7 @@ static int
 __hs_verify_chain_close(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_HS_VERIFY_CHAIN *chain, WT_ITEM *tmp)
 {
-    WT_DECL_RET;
-    WT_PAGE *page;
     WT_TIME_WINDOW *live_tw, *newest_tw;
-    uint64_t recno;
-    const uint8_t *up;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     /*
@@ -106,30 +140,8 @@ __hs_verify_chain_close(
     if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT))
         return (0);
 
-    if (!chain->searched) {
-        if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
-            WT_WITH_PAGE_INDEX(
-              session, ret = __wt_row_search(ds_cbt, chain->key, false, NULL, false, NULL));
-        } else {
-            up = (const uint8_t *)chain->key->data;
-            WT_RET(__wt_vunpack_uint(&up, chain->key->size, &recno));
-            WT_WITH_PAGE_INDEX(session, ret = __wt_col_search(ds_cbt, recno, NULL, false, NULL));
-        }
-        WT_RET(ret);
-
-        chain->exists = ds_cbt->compare == 0;
-        if (chain->exists) {
-            page = ds_cbt->ref->page;
-            if (page->type == WT_PAGE_ROW_LEAF) {
-                __wt_read_row_time_window(
-                  session, page, &page->pg_row[ds_cbt->slot], &chain->live_tw);
-                chain->live_valid = true;
-            } else
-                chain->live_valid = __wt_read_col_time_window(
-                  session, page, WT_COL_PTR(page, &page->pg_var[ds_cbt->slot]), &chain->live_tw);
-        }
-        WT_RET(__cursor_reset(ds_cbt));
-    }
+    if (!chain->searched)
+        WT_RET(__hs_verify_ds_search(session, ds_cbt, chain->key, true, chain));
 
     /* A key found missing is the existence check's business; there is nothing to compare. */
     if (!chain->live_valid)
@@ -167,12 +179,10 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
     WT_DECL_RET;
     WT_HS_VERIFY_CHAIN chain;
     WT_ITEM key;
-    WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw;
     wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter, recno;
+    uint64_t hs_counter;
     uint32_t btree_id;
-    const uint8_t *up;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool check_data_store;
@@ -281,29 +291,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * its own window rather than excused by this one.
          */
         if (!chain.exists && !__hs_verify_obsolete(hs_tw, checkpoint_oldest_ts)) {
-            if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
-                WT_WITH_PAGE_INDEX(
-                  session, ret = __wt_row_search(ds_cbt, &key, false, NULL, false, NULL));
-            } else {
-                up = (const uint8_t *)key.data;
-                WT_ERR(__wt_vunpack_uint(&up, key.size, &recno));
-                WT_WITH_PAGE_INDEX(
-                  session, ret = __wt_col_search(ds_cbt, recno, NULL, false, NULL));
-            }
-            WT_ERR(ret);
-
-            chain.exists = ds_cbt->compare == 0;
-            if (chain.exists && check_data_store) {
-                page = ds_cbt->ref->page;
-                if (page->type == WT_PAGE_ROW_LEAF) {
-                    __wt_read_row_time_window(
-                      session, page, &page->pg_row[ds_cbt->slot], &chain.live_tw);
-                    chain.live_valid = true;
-                } else
-                    chain.live_valid = __wt_read_col_time_window(
-                      session, page, WT_COL_PTR(page, &page->pg_var[ds_cbt->slot]), &chain.live_tw);
-            }
-            WT_ERR(__cursor_reset(ds_cbt));
+            WT_ERR(__hs_verify_ds_search(session, ds_cbt, &key, check_data_store, &chain));
             chain.searched = true;
 
             /*
