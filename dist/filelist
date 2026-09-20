@@ -43,6 +43,7 @@ src/btree/bt_read.c
 src/btree/bt_ret.c
 src/btree/bt_slvg.c
 src/btree/bt_split.c
+src/btree/bt_split_points.c
 src/btree/bt_stat.c
 src/btree/bt_sync.c
 src/btree/bt_sync_obsolete.c

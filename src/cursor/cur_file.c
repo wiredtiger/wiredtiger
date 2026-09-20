@@ -1041,43 +1041,63 @@ static int
 __curfile_split_points(WT_CURSOR *cursor, int max_points, uint32_t flags)
 {
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(leading);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-
-    WT_UNUSED(max_points);
-    WT_UNUSED(flags);
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, split_points, cbt->dhandle);
 
-    /* Split points are a row-store concept; a column store has no keys to partition. */
-    if (S2BT(session)->type != BTREE_ROW)
-        WT_ERR_MSG(session, ENOTSUP, "split points not supported by this cursor type");
-
     /* Discard any split points computed by an earlier call. */
     __curfile_free_split_points(session, cbt);
 
+    /* A degenerate request yields no keys at all; never more than asked for. */
+    if (max_points <= 0) {
+        ret = 0;
+        goto done;
+    }
+
+    if (S2BT(session)->type != BTREE_ROW) {
+        WT_ERR_MSG(session, ENOTSUP, "split points not supported by this cursor type");
+    }
+
     /*
-     * The leading key is the first key at or after the lower bound, or the first key in the table
+     * The leading key: the first key at or after the lower bound, or the first key in the table
      * when there is no lower bound. Drop any current position without clearing bounds (bounds
      * define the range), then advance to the first in-range key. An empty range computes no keys,
      * so the count stays zero and no key is fabricated.
      */
+    WT_ERR(__wt_scr_alloc(session, 0, &leading));
     WT_ERR(__wt_btcur_reset(cbt));
 
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_next(cbt, false));
-    if (ret == WT_NOTFOUND)
+    if (ret == WT_NOTFOUND) {
         ret = 0;
-    else if (ret == 0) {
+        goto done; /* empty range: null keys */
+    }
+    WT_ERR(ret);
+    WT_ERR(__wt_buf_set(session, leading, cursor->key.data, cursor->key.size));
+
+    /* One partition: the range cannot be split into more than one useful piece. */
+    if (max_points == 1) {
         WT_ERR(__wt_calloc(session, 1, sizeof(WT_ITEM), &cbt->split_points));
+        WT_ERR(__wt_buf_set(session, &cbt->split_points[0], leading->data, leading->size));
         cbt->split_point_count = 1;
-        cbt->split_point_next = 0;
-        WT_ERR(__wt_buf_set(session, &cbt->split_points[0], cursor->key.data, cursor->key.size));
+        goto done;
     }
 
+    /*
+     * The descent and sampling live in the btree module; it fills in the remaining split points and
+     * the count. It returns ENOTSUP for a non-row-store, 0 or errno otherwise.
+     */
+    WT_ERR(__wt_btree_split_points(session, cbt, leading, max_points, flags));
+
+done:
 err:
     if (ret != 0)
         __curfile_free_split_points(session, cbt);
+    if (leading != NULL)
+        __wt_scr_free(session, &leading);
     API_END_RET(session, ret);
 }
 

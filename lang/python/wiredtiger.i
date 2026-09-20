@@ -994,6 +994,14 @@ typedef int int_void;
         return (ret);
     }
 
+    int_void _get_split_point_count(int *countp) {
+        uint32_t c;
+        int ret = $self->get_split_point_count($self, &c);
+        if (ret == 0)
+            *countp = (int)c;
+        return (ret);
+    }
+
     int_void _get_value(char **datap, int *sizep) {
         WT_ITEM v;
         int ret = $self->get_value($self, &v);
@@ -1158,6 +1166,15 @@ typedef int int_void;
         Returns the next split point key, or None when exhausted.'''
 
         return self._get_split_point()
+
+    def get_split_point_count(self):
+        '''get_split_point_count(self) -> int
+
+        @copydoc WT_CURSOR::get_split_point_count
+        Returns the number of split points computed by the most recent
+        WT_CURSOR::split_points call.'''
+
+        return self._get_split_point_count()
 
     def set_key(self, *args):
         '''set_key(self) -> None
