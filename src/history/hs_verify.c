@@ -58,27 +58,18 @@ static int
 __hs_verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, const char *key_format,
   wt_timestamp_t start_ts, wt_timestamp_t stop_ts, wt_timestamp_t stable_timestamp, WT_ITEM *tmp)
 {
+    wt_timestamp_t failed_ts;
     char tp_string[2][WT_TS_INT_STRING_SIZE];
     bool start;
 
-    start = true;
+    if (!__wt_ts_stable_violation(start_ts, stop_ts, stable_timestamp, &start, &failed_ts))
+        return (0);
 
-    if (start_ts != WT_TS_NONE && start_ts > stable_timestamp)
-        goto msg;
-
-    if (stop_ts != WT_TS_MAX && stop_ts > stable_timestamp) {
-        start = false;
-        goto msg;
-    }
-
-    return (0);
-
-msg:
     WT_RET_MSG(session, WT_ERROR,
       "Value in history store for key {%s} has failed verification with a %s timestamp of %s "
       "greater than the stable_timestamp of %s",
       __wt_key_string(session, key->data, key->size, key_format, tmp), start ? "start" : "stop",
-      __wt_timestamp_to_string(start ? start_ts : stop_ts, tp_string[0]),
+      __wt_timestamp_to_string(failed_ts, tp_string[0]),
       __wt_timestamp_to_string(stable_timestamp, tp_string[1]));
 }
 

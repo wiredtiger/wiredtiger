@@ -1401,23 +1401,13 @@ static int
 __verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
   wt_timestamp_t start_ts, wt_timestamp_t stop_ts, WT_VSTUFF *vs)
 {
-    WT_DECL_RET;
+    wt_timestamp_t failed_ts;
     char tp_string[2][WT_TS_INT_STRING_SIZE];
     bool start;
 
-    start = true;
+    if (!__wt_ts_stable_violation(start_ts, stop_ts, vs->stable_timestamp, &start, &failed_ts))
+        return (0);
 
-    if (start_ts != WT_TS_NONE && start_ts > vs->stable_timestamp)
-        goto msg;
-
-    if (stop_ts != WT_TS_MAX && stop_ts > vs->stable_timestamp) {
-        start = false;
-        goto msg;
-    }
-
-    return (ret);
-
-msg:
     WT_RET(__wt_buf_fmt(session, vs->tmp1, "cell %" PRIu32 " on page at %s", cell_num,
       __verify_addr_string(session, ref, vs->tmp2)));
 
@@ -1425,7 +1415,7 @@ msg:
       "%s has failed verification with a %s timestamp of %s greater than the stable_timestamp of "
       "%s",
       (char *)vs->tmp1->data, start ? "start" : "stop",
-      __wt_timestamp_to_string(start ? start_ts : stop_ts, tp_string[0]),
+      __wt_timestamp_to_string(failed_ts, tp_string[0]),
       __wt_timestamp_to_string(vs->stable_timestamp, tp_string[1]));
 }
 

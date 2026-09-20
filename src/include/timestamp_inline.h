@@ -352,6 +352,30 @@ __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_ts_stable_violation --
+ *     Check a start/stop timestamp pair against the stable timestamp. Return true and set the
+ *     failing side and value when either is past it.
+ */
+static WT_INLINE bool
+__wt_ts_stable_violation(wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
+  wt_timestamp_t stable_timestamp, bool *startp, wt_timestamp_t *tsp)
+{
+    if (start_ts != WT_TS_NONE && start_ts > stable_timestamp) {
+        *startp = true;
+        *tsp = start_ts;
+        return (true);
+    }
+
+    if (stop_ts != WT_TS_MAX && stop_ts > stable_timestamp) {
+        *startp = false;
+        *tsp = stop_ts;
+        return (true);
+    }
+
+    return (false);
+}
+
+/*
  * __wt_get_stable_disaggregated_schema_epoch --
  *     Return the stable disaggregated schema epoch with acquire memory ordering guarantees. This
  *     function is also used in contexts where the synchronization is not required, for simplicity.
