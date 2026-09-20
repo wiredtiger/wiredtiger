@@ -138,8 +138,9 @@ travels in the struct, so the signature never changes again.
 struct __wt_position {
     double pos;             /* In: requested position in [0, 1]. */
     uint32_t flags;         /* In: WT_POSITION_* flags; 0 selects all defaults. */
-    uint32_t pages_skipped; /* Out: leaf pages skipped to find a usable page; 0 means the
-                               target page itself was used. */
+    uint32_t pages_skipped; /* Out: approximate count of pages stepped over to find a usable
+                               page, one per unreadable subtree; 0 means the target page
+                               itself was used. */
     /*
      * Future fields are appended here as needed: a config string for rare options, a metric
      * selector (bytes, record count), a walk limit, the actual position reached.
@@ -197,11 +198,11 @@ WT_POSITION p = {0};
 p.flags = WT_POSITION_KEY_ONLY;
 for (i = 1; i < n_markers; ++i) {
     p.pos = (double)i / n_markers;
-    if ((ret = cursor->set_position(cursor, &p)) == WT_NOTFOUND)
-        break;                              /* Empty object. */
-    WT_ERR(ret);
-    WT_ERR(cursor->get_key(cursor, &key));  /* Boundary key for marker i. */
-    /* Copy the key out; the cursor is not positioned and holds no page. */
+    WT_ERR(cursor->set_position(cursor, &p));
+    WT_ERR(cursor->get_raw_key_value(cursor, &key, NULL)); /* Boundary key for marker i. */
+    /* Copy the key out; the cursor is not positioned and holds no page. Key-only mode
+     * always yields a boundary, the empty key for the leftmost one, so there is no
+     * WT_NOTFOUND to handle here. Boundaries are raw separator bytes, see 4.2. */
 }
 ```
 
@@ -269,10 +270,15 @@ visiting.
 2. Reset the cursor, releasing any current page. Set `pages_skipped` to 0.
 3. Clamp `pos` to [0, 1]. Values below 0 mean the first page, above 1 the last page,
    matching the internal contract.
-4. Descend with `__wt_page_from_npos_for_read`, or `__wt_page_from_npos_for_eviction` when
-   `CACHE_ONLY` is set, passing `WT_READ_PREV` when `PREV` is set. This yields a leaf ref with
-   a hazard pointer, or `NULL` if the tree has no usable leaf. If `__find_closest_leaf` had to
-   walk, its page count is stored in `pages_skipped`.
+4. Descend from the root as `__wt_page_from_npos` does, with the read flags of the read path
+   (or the cache-only flags when `CACHE_ONLY` is set). The cursor path has its own descent:
+   when the addressed child cannot be entered (deleted with the deletion visible, locked
+   without waiting, or not in memory in cache-only mode) it scans the parent's index from
+   that slot in the walk direction, enters the first usable child at the edge nearest the
+   addressed page, and counts each child stepped over. Only when the parent's children are
+   exhausted does it fall back to the tree walk from the parent, which then also counts.
+   The eviction descent is unchanged. This yields a leaf ref with a hazard pointer, or `NULL`
+   if the tree has no usable leaf, and the count in `pages_skipped`.
 5. Pick the starting slot from the anchor: `0`, `entries - 1`, `entries / 2`, or
    `floor(remainder * entries)` for `EXACT`, where `remainder` is the fraction left after the
    descent and `entries` is the count of on-disk cells on the page. Insert-list records are not
@@ -313,7 +319,14 @@ With `KEY_ONLY` the call never touches a leaf page:
    This is the state `set_key` produces, so the natural next call is `search_near`, `search`,
    or a range truncate using the cursor as a bound.
 4. `pages_skipped` is always 0: the leaf's state is irrelevant to its separator, so there is
-   no closest-leaf walk.
+   no closest-leaf walk. The call never returns `WT_NOTFOUND` outside cache-only mode: an
+   empty or single-page tree yields the empty key, which is a valid boundary.
+
+Boundary keys are raw separator bytes. Because leaf separators are suffix-truncated, a
+boundary is usually not a complete packed key: on a typed key format such as `q` or `Q`,
+`get_key` may fail to unpack it. Callers read it with `get_raw_key_value` or through a raw
+cursor, and use it as a byte-string bound. `search_near` from the key works because tree
+comparison is bytewise, and the empty key sorts before every record.
 
 The anchor and `PREV` have no effect in this mode. `CACHE_ONLY` applies to the internal pages:
 if an internal page on the path is not in memory the call returns `WT_NOTFOUND`.
@@ -342,7 +355,9 @@ order (non-strict). This is the property sampling relies on and the property the
 
 `pages_skipped` tells the caller whether it got the page its position addressed. Zero means
 yes. Non-zero means the addressed page was deleted, locked, or (in cache-only mode) not in
-memory, and the result is that many leaf pages away in the walk direction. Callers that care
+memory, and the result is approximately that many pages away in the walk direction; an
+unreadable subtree counts once regardless of its size. On an empty tree the value may be 1
+with `WT_NOTFOUND`, since the placeholder child is stepped over. Callers that care
 can call `get_position` on the result and compare. Returning the reached position directly
 from `set_position` is a natural future output field.
 
@@ -365,9 +380,18 @@ from `set_position` is a natural future output field.
 Positions are defined over one constituent. `set_position` uses the stable constituent when the
 table has one, otherwise the ingest constituent. Content present only in the other
 constituent is not part of the position space. After the constituent call returns, the layered
-cursor takes the same post-positioning path it takes after `search_near` on that constituent,
-so `next` and `prev` continue correctly. Key-only mode delegates in the same way and sets the
-layered cursor's key.
+cursor re-resolves the returned key through the `search_near` path, which applies ingest
+precedence, tombstones, and committed truncate ranges and leaves the cursor in the state
+`search_near` leaves it, so `next` and `prev` continue correctly. A stable record hidden by the
+ingest constituent therefore resolves to its nearest visible neighbour as `search_near` would,
+regardless of `PREV`, and `CACHE_ONLY` is best-effort on layered tables because that resolution
+may read neighbouring pages. Key-only mode delegates in the same way and sets the layered
+cursor's key.
+
+"A stable constituent exists" is a property of the table (a follower with a checkpoint, or a
+table not created by step-down), not of whether the cursor has lazily opened its stable
+cursor yet; `get_position` opens it on demand so the result is always in the stable position
+space when one exists.
 
 `get_position` on a layered cursor:
 
@@ -389,15 +413,15 @@ This needs a new `WTI_CLAYERED_MODE_POSITION` operation mode alongside
 - `next_random` cursors: `EINVAL`; they replace `next` and are single-purpose.
 - Bulk cursors: `EINVAL`.
 - Record-number keys (column-store): `ENOTSUP`.
-- Empty tree: `WT_NOTFOUND`.
-- Tree whose only pages are deleted: `__find_closest_leaf` walks past them; `WT_NOTFOUND` if
-  nothing remains. Key-only mode still returns a boundary key.
+- Empty tree: `WT_NOTFOUND` in the default mode. Key-only mode returns the empty key.
+- Tree whose only pages are deleted: the parent scan and the tree walk step past them;
+  `WT_NOTFOUND` if nothing remains. Key-only mode still returns a boundary key.
 - Concurrent splits: the descent restarts from the root on `WT_RESTART`, as today.
 - Cost: one root-to-leaf descent plus at most one leaf read in the default mode; internal
-  pages only in key-only mode. The closest-leaf walk is unbounded and, in the worst case (a
-  long run of deleted or locked pages), proportional to tree width; the existing
-  `npos_read_walk_max` statistic records it, and `pages_skipped` reports it per call. A walk
-  limit is a possible future struct field.
+  pages only in key-only mode; on layered tables one additional `search_near` on the
+  constituents. The scan for a usable page is unbounded and, in the worst case (a long run
+  of deleted or locked pages), proportional to tree width; `pages_skipped` reports it per
+  call. A walk limit is a possible future struct field.
 
 ## 7. Implementation plan
 
