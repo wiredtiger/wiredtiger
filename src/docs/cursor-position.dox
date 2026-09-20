@@ -61,7 +61,10 @@ within the page, ::WT_POSITION_ANCHOR_FIRST selects the first slot,
 ::WT_POSITION_ANCHOR_MIDDLE the middle slot and ::WT_POSITION_ANCHOR_LAST
 the last. Only records already written to the page are indexed this way;
 records still on the page's insert list are visited by the walk but are
-never selected as a starting slot.
+never selected as a starting slot. A page with no records written to it
+yet, which is the usual state of a never-checkpointed object, has no
+slots to select: the walk starts on its insert list, at the smallest key
+or, with ::WT_POSITION_PREV, the largest.
 
 ::WT_POSITION_PREV walks backwards instead of forwards. The anchor and
 the direction are independent: ::WT_POSITION_ANCHOR_LAST alone starts at
@@ -106,17 +109,22 @@ ending at it can be truncated without reading the pages inside.
 Boundary keys need care:
 
 - They are usually not the key of any record. Reconciliation shortens
-  separators to the shortest prefix that still separates the two pages,
-  so for typed key formats such as \c q or \c S the boundary key may not
-  unpack with WT_CURSOR::get_key. Read it through a cursor opened in
-  @ref cursor_raw "raw mode" and treat it as an opaque byte string that
-  sorts correctly against packed keys. WT_CURSOR::search_near from the
-  key works regardless of format and reaches the first visible record of
-  the page.
-- The leftmost page of the object has the empty key as its boundary,
-  which sorts before every record. An empty object, or one small enough
-  to fit on a single page, has no internal pages: key-only positioning
-  succeeds and returns the empty key for every position.
+  separators to the shortest prefix that still separates the two pages.
+  A string-format (\c S) boundary is a valid, shorter string and is
+  returned as such by WT_CURSOR::get_key; a boundary of another typed
+  format such as \c q, \c Q or \c i may not unpack. Read those through a
+  cursor opened in @ref cursor_raw "raw mode" and treat them as opaque
+  byte strings that sort correctly against packed keys.
+  WT_CURSOR::search_near from the key works regardless of format and
+  reaches the first visible record of the page.
+- The leftmost page of the object has the empty key as its boundary. The
+  empty key is a sentinel meaning the start of the object: it is not
+  usable as a search key or as a cursor bound, and on an object with a
+  custom collator it does not necessarily sort first. Non-empty
+  boundaries are prefixes of real keys and compare correctly under any
+  collator. An empty object, or one with no internal pages, such as one
+  that has never been checkpointed and still fits in a single in-memory
+  page, yields the empty key for every position.
 - The anchor and direction flags have no effect in this mode, and
   WT_POSITION::pages_skipped is always zero, because the state of the
   leaf pages does not matter.
@@ -131,8 +139,11 @@ performs no I/O in the common case.
 page is read from disk and no locked page is waited for. If the addressed
 page is not in memory, the nearest page in the walk direction that is in
 memory is used and WT_POSITION::pages_skipped is set; if nothing usable
-is in memory, ::WT_NOTFOUND is returned. This suits diagnostics and
-heuristics that want to look at resident data without causing I/O.
+is in memory, ::WT_NOTFOUND is returned. Overflow items of the returned
+record are still read from disk, and on tables with several column
+groups the flag applies to the primary column group only. This suits
+diagnostics and heuristics that want to look at resident data without
+causing I/O.
 
 @snippet ex_all.c Position only within cached pages
 
@@ -167,8 +178,11 @@ keeps its place. If the stable constituent is empty the method returns
 
 Sampling an object at evenly spaced positions replaces a random cursor
 with a deterministic walk: positioning at \c i/N for \c i from 0 to \c N
-reads at most one leaf page per sample and returns the samples in key
-order.
+returns the samples in key order, reading one leaf page per sample in
+the common case. The walk to a visible record may continue onto a
+neighboring page, a table with several column groups searches each of
+them for the record, and a layered table resolves the record again
+through its constituents.
 
 @snippet ex_all.c Partition an object into evenly spaced samples
 

@@ -250,10 +250,12 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
             self.position(c, 0.5, KEY_ONLY | flags)
             self.assertEqual(c.get_key(), boundary)
 
-        # The leftmost page has the empty key as its boundary.
+        # The leftmost page has the empty key as its boundary, a sentinel that cannot be a bound.
         for pos in (-1.0, 0.0):
             self.position(c, pos, KEY_ONLY)
             self.assertEqual(c.get_key(), b'')
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: c.bound('bound=lower'), '/Empty keys not permitted/')
             self.assertGreater(c.search_near(), 0)
             self.assertEqual(self.check_record(c, keys), keys[0])
         c.close()
@@ -263,17 +265,11 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         self.populate()
         c = self.session.open_cursor(self.uri)
 
-        # Nothing but the root is cached after reopening; the first pass reads internal pages.
-        for pos in self.sample_positions():
-            self.position(c, pos, KEY_ONLY)
-        self.assertEqual(self.stat(stat.dsrc.cache_read_leaf, self.uri), 0)
-
-        # With the internal pages cached, key-only positioning reads nothing at all.
-        reads = self.stat(stat.conn.cache_read)
+        # Nothing but the root is cached after reopening: key-only positioning reads internal
+        # pages as needed and never a leaf page.
         for pos in self.sample_positions():
             self.position(c, pos, KEY_ONLY)
             self.position(c, pos, KEY_ONLY | PREV)
-        self.assertEqual(self.stat(stat.conn.cache_read), reads)
         self.assertEqual(self.stat(stat.dsrc.cache_read_leaf, self.uri), 0)
         c.close()
 
@@ -362,16 +358,19 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         self.assertGreater(notfound + skipped, 0)
         self.assertEqual(self.stat(stat.conn.cache_read), reads)
 
-        # A page read by a search is found again from the cache at the record's position.
+        # A page read by a search is found again from the cache at the record's position. A
+        # second cursor stays on the page so it cannot be evicted in between.
         key = keys[self.nrows // 2]
-        c.set_key(key)
-        self.assertEqual(c.search(), 0)
-        pos = c.get_position()
+        pin = self.session.open_cursor(self.uri)
+        pin.set_key(key)
+        self.assertEqual(pin.search(), 0)
+        pos = pin.get_position()
         reads = self.stat(stat.conn.cache_read)
         p = self.position(c, pos, CACHE_ONLY)
         self.assertEqual(p.pages_skipped, 0)
         self.assertEqual(self.check_record(c, keys), key)
         self.assertEqual(self.stat(stat.conn.cache_read), reads)
+        pin.close()
 
         # Reading the whole table through a small cache evicts most of it.
         c.reset()

@@ -3851,6 +3851,8 @@ __clayered_set_position(WT_CURSOR *cursor, WT_POSITION *position)
     key_only = F_ISSET(position, WT_POSITION_KEY_ONLY);
 
     CURSOR_API_CALL(cursor, session, ret, set_position, clayered->dhandle);
+    if (F_ISSET(clayered, WTI_CLAYERED_RANDOM))
+        WT_ERR_MSG(session, EINVAL, "set_position is not supported by next_random cursors");
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);

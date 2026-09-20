@@ -759,19 +759,28 @@ struct __wt_cursor {
      *
      * With ::WT_POSITION_KEY_ONLY no leaf page is read: the key is set to the
      * boundary key of the addressed page, exactly as if WT_CURSOR::set_key had
-     * been called, and the cursor ends with no position. The leftmost page has
-     * the empty key as its boundary. Follow the call with WT_CURSOR::search_near
-     * to reach a record.
+     * been called, and the cursor ends with no position. Follow the call with
+     * WT_CURSOR::search_near to reach a record. Boundary keys are prefixes of
+     * record keys: a string-format key is returned as a string, but a key of
+     * another typed format such as \c q may not unpack and should be read
+     * through a cursor opened in raw mode. The leftmost page has the empty
+     * key as its boundary: a sentinel for the start of the object, not a key
+     * usable for a search or a bound. An object with no internal pages, for
+     * example one never checkpointed that fits in a single in-memory page,
+     * returns the empty key for every position.
      *
      * ::WT_POSITION_PREV walks backwards instead of forwards, and the anchor
      * flags select which on-disk slot of the page the walk starts from; records
      * not yet written to a page are visited by the walk but never selected as a
-     * starting slot. The anchor and the direction are independent: the last
-     * visible on-disk slot of the addressed page is ::WT_POSITION_ANCHOR_LAST
-     * combined with ::WT_POSITION_PREV.
+     * starting slot, unless the page has no on-disk slots at all, in which case
+     * the walk starts on its insert list. The anchor and the direction are
+     * independent: the last visible on-disk slot of the addressed page is
+     * ::WT_POSITION_ANCHOR_LAST combined with ::WT_POSITION_PREV.
      *
      * ::WT_POSITION_CACHE_ONLY confines the call to pages already in memory;
-     * ::WT_NOTFOUND is returned when nothing usable is in memory.
+     * ::WT_NOTFOUND is returned when nothing usable is in memory. Overflow
+     * items of the returned record are still read, and on tables with several
+     * column groups the flag applies to the primary column group only.
      *
      * Bounded cursors, cursors configured with \c next_random and bulk
      * cursors return EINVAL, as does a NaN position.

@@ -1343,6 +1343,9 @@ __wti_cursor_bound(WT_CURSOR *cursor, WT_CONF *conf, WT_COLLATOR *collator)
 
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_RET(__cursor_checkkey(cursor));
+        WT_RET(__wt_cursor_get_raw_key(cursor, &key));
+        if (key.size == 0)
+            WT_RET_MSG(session, EINVAL, "Empty keys not permitted as cursor bounds");
 
         WT_RET(__wt_conf_gets_def(session, conf, inclusive, true, &cval));
         if (cval.val == 0)
@@ -1354,7 +1357,6 @@ __wti_cursor_bound(WT_CURSOR *cursor, WT_CONF *conf, WT_COLLATOR *collator)
              * If the lower bounds are set, make sure that the upper bound is greater than the lower
              * bound.
              */
-            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
             if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
                 WT_RET(__wt_compare(session, collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
@@ -1379,7 +1381,6 @@ __wti_cursor_bound(WT_CURSOR *cursor, WT_CONF *conf, WT_COLLATOR *collator)
              * If the upper bounds are set, make sure that the lower bound is less than the upper
              * bound.
              */
-            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
             if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
                 WT_RET(__wt_compare(session, collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
