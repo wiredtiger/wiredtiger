@@ -198,6 +198,14 @@ class test_layered_position01(wttest.WiredTigerTestCase):
         self.check_all(c, keys, keys)
         c.close()
 
+        # A cursor configured for random retrieval cannot be positioned.
+        p = wiredtiger.Position()
+        p.pos = 0.5
+        rc = self.session.open_cursor(self.uri, None, 'next_random=true')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: rc.set_position(p), '/not supported by next_random cursors/')
+        rc.close()
+
     def test_follower_stable_only(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         keys = self.stable_keys()

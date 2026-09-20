@@ -302,6 +302,8 @@ test_cursor_position(WT_CONNECTION *conn, bool in_mem)
     double expect, hi, lo, page_id, pos, prev_pos;
     uint64_t exact, first, key, last, middle, near, prev_first, rt_key;
     int count, exact_cmp, i;
+    char str_key[32];
+    const char *str_boundary;
     bool have_before, on_disk;
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -528,6 +530,38 @@ test_cursor_position(WT_CONNECTION *conn, bool in_mem)
     p.flags = WT_POSITION_KEY_ONLY;
     testutil_check(other->set_position(other, &p));
     testutil_assert(other->key.size == 0);
+    testutil_check(other->close(other));
+
+    /*
+     * On a string-keyed table the empty boundary reads as an empty C string, even after a non-empty
+     * boundary has filled the cursor's key buffer.
+     */
+    testutil_check(session->create(session, "file:normalized_pos_str.wt",
+      "key_format=S,value_format=S,memory_page_max=1KB,leaf_page_max=1KB,allocation_size=1KB"));
+    testutil_check(session->open_cursor(session, "file:normalized_pos_str.wt", NULL, NULL, &other));
+    for (i = 0; i < NUM_KEYS / 10; ++i) {
+        testutil_snprintf(str_key, sizeof(str_key), "key%08d", i);
+        other->set_key(other, str_key);
+        other->set_value(other, str_key);
+        testutil_check(other->insert(other));
+    }
+    /* Stabilize the tree shape so a key-only descent finds internal pages. */
+    while ((ret = other->next(other)) == 0)
+        ;
+    testutil_assert(ret == WT_NOTFOUND);
+    p.pos = 0.5;
+    testutil_check(other->set_position(other, &p));
+    testutil_assert(other->key.size > 0);
+    testutil_check(other->get_key(other, &str_boundary));
+    testutil_assertfmt(strlen(str_boundary) == other->key.size,
+      "key-only boundary \"%s\" is not terminated at its %" WT_SIZET_FMT " bytes", str_boundary,
+      other->key.size);
+    p.pos = 0.;
+    testutil_check(other->set_position(other, &p));
+    testutil_check(other->get_key(other, &str_boundary));
+    testutil_assertfmt(strlen(str_boundary) == 0,
+      "leftmost key-only boundary on a string table is \"%s\", expected an empty string",
+      str_boundary);
     testutil_check(other->close(other));
 
     testutil_check(cursor->close(cursor));

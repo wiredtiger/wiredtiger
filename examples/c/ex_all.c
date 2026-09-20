@@ -487,8 +487,8 @@ cursor_position(WT_CURSOR *cursor)
 
         /*
          * Boundary keys are separators, not necessarily records, and may not unpack for typed key
-         * formats: read them through a raw cursor and keep the bytes. Searching from one reaches
-         * the first visible record of its page.
+         * formats other than strings: read them through a raw cursor and keep the bytes. Searching
+         * from one reaches the first visible record of its page.
          */
         error_check(cursor->session->open_cursor(cursor->session, cursor->uri, NULL, "raw", &raw));
         for (i = 1; i < n; ++i) {

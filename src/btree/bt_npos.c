@@ -504,13 +504,17 @@ __npos_key(WT_SESSION_IMPL *session, double npos, uint32_t flags, WT_ITEM *key)
     btree = S2BT(session);
     read_cache = LF_ISSET(WT_READ_CACHE);
 
-    /* The empty key must be a valid zero-length item, not a NULL reference. */
+    /*
+     * The empty key must be a valid zero-length item, not a NULL reference, and NUL-terminated so
+     * string-format callers reading it as a C string see an empty string rather than stale bytes.
+     */
     WT_RET(__wt_buf_init(session, key, 1));
 
 restart:
     current = &btree->root;
     npos_local = npos;
     key->size = 0;
+    ((char *)key->mem)[0] = '\0';
     for (;;) {
         if (F_ISSET(current, WT_REF_FLAG_LEAF))
             break;
@@ -532,6 +536,9 @@ restart:
         if (idx != 0) {
             __wt_ref_key(page, descent, &data, &size);
             WT_ERR(__wt_buf_set(session, key, data, size));
+            /* Separators are unterminated prefixes; string-format callers read a C string. */
+            WT_ERR(__wt_buf_grow(session, key, size + 1));
+            ((char *)key->mem)[size] = '\0';
         }
 
         if (F_ISSET(descent, WT_REF_FLAG_LEAF))
