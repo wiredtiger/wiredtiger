@@ -794,6 +794,10 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 /* Replace get_raw_key_value method with a Python equivalent */
 %ignore __wt_cursor::get_raw_key_value;
 
+/* Replace get_split_point with a Python equivalent that returns the key. */
+%ignore __wt_cursor::get_split_point;
+%ignore __wt_cursor::get_split_point_count;
+
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
@@ -975,6 +979,21 @@ typedef int int_void;
         return (ret);
     }
 
+    int_void _get_split_point(char **datap, int *sizep) {
+        WT_ITEM k;
+        int ret = $self->get_split_point($self, &k);
+        if (ret == 0) {
+            *datap = (char *)k.data;
+            *sizep = (int)k.size;
+        } else if (ret == WT_NOTFOUND) {
+            /* Exhaustion is not an error: return success with no data, so None is produced. */
+            *datap = NULL;
+            *sizep = 0;
+            ret = 0;
+        }
+        return (ret);
+    }
+
     int_void _get_value(char **datap, int *sizep) {
         WT_ITEM v;
         int ret = $self->get_value($self, &v);
@@ -1131,6 +1150,14 @@ typedef int int_void;
         keys = unpack(self.key_format, result[0])
         values = unpack(self.value_format, result[1])
         return (keys[0], values[0])
+
+    def get_split_point(self):
+        '''get_split_point(self) -> object
+
+        @copydoc WT_CURSOR::get_split_point
+        Returns the next split point key, or None when exhausted.'''
+
+        return self._get_split_point()
 
     def set_key(self, *args):
         '''set_key(self) -> None

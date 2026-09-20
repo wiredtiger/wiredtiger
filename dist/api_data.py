@@ -1609,6 +1609,12 @@ methods = {
 
 'WT_CURSOR.bound' : Method(cursor_bound_config, compilable=True),
 
+'WT_CURSOR.split_points' : Method([]),
+
+'WT_CURSOR.get_split_point' : Method([]),
+
+'WT_CURSOR.get_split_point_count' : Method([]),
+
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
         the file checkpoint entries''',

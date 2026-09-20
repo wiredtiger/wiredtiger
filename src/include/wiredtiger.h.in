@@ -722,6 +722,53 @@ struct __wt_cursor {
      */
     int __F(bound)(WT_CURSOR *cursor, const char *config);
 
+    /*!
+     * Compute up to \c max_points keys that partition this cursor's range.
+     *
+     * The range is the cursor's bounds, set with WT_CURSOR::bound; without bounds the whole
+     * table is the range. The first key returned is the first key at or after the lower bound.
+     * One key means one partition: the range cannot be usefully split and the caller scans it
+     * serially. An empty range computes no keys at all; WiredTiger does not fabricate a key, so
+     * satisfying the caller's never-empty contract is the caller's job.
+     *
+     * The number of computed keys is published via WT_CURSOR::get_split_point_count. A returned
+     * key is a real key in the table, a hint for partitioning a scan, not a description of the
+     * data. Fewer keys than requested is a normal result.
+     *
+     * Returns 0 on success or an error code, like other WiredTiger methods; the key count is not
+     * the return value.
+     *
+     * The \c flags parameter takes \c WT_SPLIT_POINT_NO_IO to restrict the computation to pages
+     * already in cache, in which case fewer keys, or none, may be returned.
+     *
+     * @param cursor the cursor handle
+     * @param max_points the maximum number of keys to compute
+     * @param flags flags modifying the computation
+     * @errors
+     */
+    int __F(split_points)(WT_CURSOR *cursor, int max_points, uint32_t flags);
+
+    /*!
+     * Return successive split points computed by WT_CURSOR::split_points, ascending, terminating
+     * with ::WT_NOTFOUND. The key is valid until the next call on the cursor.
+     *
+     * @param cursor the cursor handle
+     * @param key a key item to be filled in
+     * @errors
+     */
+    int __F(get_split_point)(WT_CURSOR *cursor, WT_ITEM *key);
+
+    /*!
+     * Return the number of split points computed by the last WT_CURSOR::split_points call. This
+     * is the number of keys a caller will obtain from WT_CURSOR::get_split_point before it
+     * returns ::WT_NOTFOUND.
+     *
+     * @param cursor the cursor handle
+     * @param countp a count to be filled in
+     * @errors
+     */
+    int __F(get_split_point_count)(WT_CURSOR *cursor, uint32_t *countp);
+
     /*
      * Protected fields, only to be used by cursor implementations.
      */
@@ -807,6 +854,11 @@ struct __wt_cursor {
     uint64_t flags;
 #endif
 };
+
+/*! WT_CURSOR::split_points flags */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_SPLIT_POINT_NO_IO 0x1u /* Use only pages already in cache. */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*! WT_SESSION::timestamp_transaction_uint timestamp types */
 typedef enum {

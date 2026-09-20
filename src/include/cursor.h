@@ -14,29 +14,31 @@
 /*
  * Initialize a static WT_CURSOR structure.
  */
-#define WT_CURSOR_STATIC_INIT(n, get_key, get_value, get_raw_key_value, set_key, set_value,      \
-  compare, equals, next, prev, reset, search, search_near, insert, modify, update, remove,       \
-  reserve, reconfigure, largest_key, bound, cache, reopen, checkpoint_id, close)                 \
-    static const WT_CURSOR n = {                                                                 \
-      NULL, /* session */                                                                        \
-      NULL, /* uri */                                                                            \
-      NULL, /* key_format */                                                                     \
-      NULL, /* value_format */                                                                   \
-      get_key, get_value, get_raw_key_value, set_key, set_value, compare, equals, next, prev,    \
-      reset, search, search_near, insert, modify, update, remove, reserve, checkpoint_id, close, \
-      largest_key, reconfigure, bound, cache, reopen, 0, /* uri_hash */                          \
-      {NULL, NULL},                                      /* TAILQ_ENTRY q */                     \
-      0,                                                 /* recno key */                         \
-      {0},                                               /* recno raw buffer */                  \
-      NULL,                                              /* json_private */                      \
-      NULL,                                              /* lang_private */                      \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM key */                       \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM value */                     \
-      0,                                                 /* int saved_err */                     \
-      NULL,                                              /* internal_uri */                      \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM lower bound */               \
-      {NULL, 0, NULL, 0, 0},                             /* WT_ITEM upper bound */               \
-      0                                                  /* uint32_t flags */                    \
+#define WT_CURSOR_STATIC_INIT(n, get_key, get_value, get_raw_key_value, set_key, set_value,        \
+  compare, equals, next, prev, reset, search, search_near, insert, modify, update, remove,         \
+  reserve, reconfigure, largest_key, bound, cache, reopen, checkpoint_id, close)                   \
+    static const WT_CURSOR n = {                                                                   \
+      NULL, /* session */                                                                          \
+      NULL, /* uri */                                                                              \
+      NULL, /* key_format */                                                                       \
+      NULL, /* value_format */                                                                     \
+      get_key, get_value, get_raw_key_value, set_key, set_value, compare, equals, next, prev,      \
+      reset, search, search_near, insert, modify, update, remove, reserve, checkpoint_id, close,   \
+      largest_key, reconfigure, bound, __wt_cursor_split_points_notsup,                            \
+      __wt_cursor_get_split_point_notsup, __wt_cursor_get_split_point_count_notsup, cache, reopen, \
+      0,                     /* uri_hash */                                                        \
+      {NULL, NULL},          /* TAILQ_ENTRY q */                                                   \
+      0,                     /* recno key */                                                       \
+      {0},                   /* recno raw buffer */                                                \
+      NULL,                  /* json_private */                                                    \
+      NULL,                  /* lang_private */                                                    \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM key */                                                     \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                   \
+      0,                     /* int saved_err */                                                   \
+      NULL,                  /* internal_uri */                                                    \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM lower bound */                                             \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM upper bound */                                             \
+      0                      /* uint32_t flags */                                                  \
     }
 
 /* Call a function without the evict reposition cursor flag, restore afterwards. */
@@ -285,6 +287,14 @@ struct __wt_cursor_btree {
       WT_CBT_VAR_ONPAGE_MATCH)
 
     uint32_t flags;
+
+    /*
+     * Split points computed by the split_points API: the computed keys, how many there are and the
+     * next key to return. Only a btree cursor has a tree to sample, so they live here.
+     */
+    WT_ITEM *split_points;      /* Computed keys. */
+    uint32_t split_point_count; /* Number of computed keys. */
+    uint32_t split_point_next;  /* Next key to return. */
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */

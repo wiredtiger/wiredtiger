@@ -765,6 +765,68 @@ err:
 }
 
 /*
+ * __curtable_split_points --
+ *     WT_CURSOR->split_points method for the table cursor type. A table's keys live in its column
+ *     groups; the primary column group holds the key, so forward the computation there and report
+ *     its answer.
+ */
+static int
+__curtable_split_points(WT_CURSOR *cursor, int max_points, uint32_t flags)
+{
+    WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, split_points, NULL);
+
+    ret = ctable->cg_cursors[0]->split_points(ctable->cg_cursors[0], max_points, flags);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curtable_get_split_point --
+ *     WT_CURSOR->get_split_point method for the table cursor type.
+ */
+static int
+__curtable_get_split_point(WT_CURSOR *cursor, WT_ITEM *key)
+{
+    WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, get_split_point, NULL);
+
+    ret = ctable->cg_cursors[0]->get_split_point(ctable->cg_cursors[0], key);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curtable_get_split_point_count --
+ *     WT_CURSOR->get_split_point_count method for the table cursor type.
+ */
+static int
+__curtable_get_split_point_count(WT_CURSOR *cursor, uint32_t *countp)
+{
+    WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, get_split_point_count, NULL);
+
+    ret = ctable->cg_cursors[0]->get_split_point_count(ctable->cg_cursors[0], countp);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curtable_bound --
  *     WT_CURSOR->bound method for the table cursor type.
  *
@@ -1061,6 +1123,11 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
         cursor->next = __curtable_next_random;
         cursor->reset = __curtable_reset;
     }
+
+    /* A table's keys live in its column groups; forward split points to the primary one. */
+    cursor->split_points = __curtable_split_points;
+    cursor->get_split_point = __curtable_get_split_point;
+    cursor->get_split_point_count = __curtable_get_split_point_count;
 
     WT_ERR(__wt_cursor_init(cursor, cursor->internal_uri, owner, cfg, cursorp));
 

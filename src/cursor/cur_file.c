@@ -632,6 +632,26 @@ err:
 }
 
 /*
+ * __curfile_free_split_points --
+ *     Discard any split points computed for the cursor.
+ */
+static void
+__curfile_free_split_points(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+    u_int i;
+
+    if (cbt->split_points == NULL)
+        return;
+
+    for (i = 0; i < cbt->split_point_count; i++)
+        __wt_buf_free(session, &cbt->split_points[i]);
+    __wt_free(session, cbt->split_points);
+    cbt->split_points = NULL;
+    cbt->split_point_count = 0;
+    cbt->split_point_next = 0;
+}
+
+/*
  * __curfile_close --
  *     WT_CURSOR->close method for the btree cursor type.
  */
@@ -686,6 +706,9 @@ err:
           session, cbt->checkpoint_hs_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
         cbt->checkpoint_hs_dhandle = NULL;
     }
+
+    /* Release any split points computed by the split_points API. */
+    __curfile_free_split_points(session, cbt);
 
     __wt_cursor_close(cursor);
 
@@ -1011,6 +1034,101 @@ err:
 }
 
 /*
+ * __curfile_split_points --
+ *     WT_CURSOR->split_points method for the btree cursor type.
+ */
+static int
+__curfile_split_points(WT_CURSOR *cursor, int max_points, uint32_t flags)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    WT_UNUSED(max_points);
+    WT_UNUSED(flags);
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, split_points, cbt->dhandle);
+
+    /* Split points are a row-store concept; a column store has no keys to partition. */
+    if (S2BT(session)->type != BTREE_ROW)
+        WT_ERR_MSG(session, ENOTSUP, "split points not supported by this cursor type");
+
+    /* Discard any split points computed by an earlier call. */
+    __curfile_free_split_points(session, cbt);
+
+    /*
+     * The leading key is the first key at or after the lower bound, or the first key in the table
+     * when there is no lower bound. Drop any current position without clearing bounds (bounds
+     * define the range), then advance to the first in-range key. An empty range computes no keys,
+     * so the count stays zero and no key is fabricated.
+     */
+    WT_ERR(__wt_btcur_reset(cbt));
+
+    WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_next(cbt, false));
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+    else if (ret == 0) {
+        WT_ERR(__wt_calloc(session, 1, sizeof(WT_ITEM), &cbt->split_points));
+        cbt->split_point_count = 1;
+        cbt->split_point_next = 0;
+        WT_ERR(__wt_buf_set(session, &cbt->split_points[0], cursor->key.data, cursor->key.size));
+    }
+
+err:
+    if (ret != 0)
+        __curfile_free_split_points(session, cbt);
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curfile_get_split_point --
+ *     WT_CURSOR->get_split_point method for the btree cursor type.
+ */
+static int
+__curfile_get_split_point(WT_CURSOR *cursor, WT_ITEM *key)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, get_split_point, cbt->dhandle);
+
+    /* Report the next split point and advance, terminating with WT_NOTFOUND. */
+    if (cbt->split_point_count == 0 || cbt->split_point_next >= cbt->split_point_count)
+        ret = WT_NOTFOUND;
+    else {
+        WT_ERR(__wt_buf_set(session, key, cbt->split_points[cbt->split_point_next].data,
+          cbt->split_points[cbt->split_point_next].size));
+        ++cbt->split_point_next;
+    }
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curfile_get_split_point_count --
+ *     WT_CURSOR->get_split_point_count method for the btree cursor type.
+ */
+static int
+__curfile_get_split_point_count(WT_CURSOR *cursor, uint32_t *countp)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, get_split_point_count, cbt->dhandle);
+
+    *countp = cbt->split_point_count;
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curfile_largest_key --
  *     WT_CURSOR->largest_key default implementation..
  */
@@ -1210,6 +1328,11 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if ((WT_STREQ(cursor->value_format, "S") || WT_STREQ(cursor->value_format, "u")) &&
       __wt_version_gte(S2C(session)->compat_version, WT_LOG_V2_VERSION))
         cursor->modify = __curfile_modify;
+
+    /* The file cursor implements split points; set them before init sets a default. */
+    cursor->split_points = __curfile_split_points;
+    cursor->get_split_point = __curfile_get_split_point;
+    cursor->get_split_point_count = __curfile_get_split_point_count;
 
     /*
      * Cursors on metadata should not be cached, doing so interferes with named checkpoints. The

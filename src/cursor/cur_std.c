@@ -49,6 +49,43 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
 }
 
 /*
+ * __wt_cursor_split_points_notsup --
+ *     WT_CURSOR.split_points not-supported.
+ */
+int
+__wt_cursor_split_points_notsup(WT_CURSOR *cursor, int max_points, uint32_t flags)
+{
+    WT_UNUSED(max_points);
+    WT_UNUSED(flags);
+
+    WT_RET_MSG(CUR2S(cursor), ENOTSUP, "split points not supported by this cursor type");
+}
+
+/*
+ * __wt_cursor_get_split_point_notsup --
+ *     WT_CURSOR.get_split_point not-supported.
+ */
+int
+__wt_cursor_get_split_point_notsup(WT_CURSOR *cursor, WT_ITEM *key)
+{
+    WT_UNUSED(key);
+
+    WT_RET_MSG(CUR2S(cursor), ENOTSUP, "split points not supported by this cursor type");
+}
+
+/*
+ * __wt_cursor_get_split_point_count_notsup --
+ *     WT_CURSOR.get_split_point_count not-supported.
+ */
+int
+__wt_cursor_get_split_point_count_notsup(WT_CURSOR *cursor, uint32_t *countp)
+{
+    WT_UNUSED(countp);
+
+    WT_RET_MSG(CUR2S(cursor), ENOTSUP, "split points not supported by this cursor type");
+}
+
+/*
  * __wti_cursor_get_value_notsup --
  *     WT_CURSOR.get_value not-supported.
  */
@@ -224,6 +261,9 @@ __wti_cursor_set_notsup(WT_CURSOR *cursor)
     cursor->search = __wt_cursor_notsup;
     cursor->search_near = __wt_cursor_search_near_notsup;
     cursor->update = __wt_cursor_notsup;
+    cursor->split_points = __wt_cursor_split_points_notsup;
+    cursor->get_split_point = __wt_cursor_get_split_point_notsup;
+    cursor->get_split_point_count = __wt_cursor_get_split_point_count_notsup;
 }
 
 /*
@@ -1525,6 +1565,17 @@ __wt_cursor_init(
         cursor->reserve = __wt_cursor_notsup;
         cursor->update = __wt_cursor_notsup;
     }
+
+    /*
+     * Split points are only useful on a btree cursor; every other cursor type gets a default that
+     * fails cleanly rather than dereferencing a null function pointer.
+     */
+    if (cursor->split_points == NULL)
+        cursor->split_points = __wt_cursor_split_points_notsup;
+    if (cursor->get_split_point == NULL)
+        cursor->get_split_point = __wt_cursor_get_split_point_notsup;
+    if (cursor->get_split_point_count == NULL)
+        cursor->get_split_point_count = __wt_cursor_get_split_point_count_notsup;
 
     /*
      * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have been already

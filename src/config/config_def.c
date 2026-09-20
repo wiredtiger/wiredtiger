@@ -3824,9 +3824,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"WT_CURSOR.bound", "action=set,bound=,inclusive=true", confchk_WT_CURSOR_bound, 3,
     confchk_WT_CURSOR_bound_jump, 15, WT_CONF_SIZING_INITIALIZE(WT_CURSOR, bound), true},
   {"WT_CURSOR.close", "", NULL, 0, NULL, 16, WT_CONF_SIZING_NONE, false},
+  {"WT_CURSOR.get_split_point", "", NULL, 0, NULL, 17, WT_CONF_SIZING_NONE, false},
+  {"WT_CURSOR.get_split_point_count", "", NULL, 0, NULL, 18, WT_CONF_SIZING_NONE, false},
   {"WT_CURSOR.reconfigure", "append=false,overwrite=true,prefix_search=false",
-    confchk_WT_CURSOR_reconfigure, 3, confchk_WT_CURSOR_reconfigure_jump, 17, WT_CONF_SIZING_NONE,
+    confchk_WT_CURSOR_reconfigure, 3, confchk_WT_CURSOR_reconfigure_jump, 19, WT_CONF_SIZING_NONE,
     false},
+  {"WT_CURSOR.split_points", "", NULL, 0, NULL, 20, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.alter",
     "access_pattern_hint=none,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -3834,30 +3837,30 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "checkpoint=,exclusive_refreshed=true,log=(enabled=true),"
     "os_cache_dirty_max=0,os_cache_max=0,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_WT_SESSION_alter, 11, confchk_WT_SESSION_alter_jump, 18, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_alter, 11, confchk_WT_SESSION_alter_jump, 21, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.begin_transaction",
     "claim_prepared_id=,ignore_cache_size=false,ignore_prepare=false,"
     "isolation=,name=,no_timestamp=false,operation_timeout_ms=0,"
     "priority=0,read_timestamp=,roundup_timestamps=(prepared=false,"
     "read=false),sync=",
-    confchk_WT_SESSION_begin_transaction, 11, confchk_WT_SESSION_begin_transaction_jump, 19,
+    confchk_WT_SESSION_begin_transaction, 11, confchk_WT_SESSION_begin_transaction_jump, 22,
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
     "debug=(checkpoint_cleanup=false,checkpoint_crash_point=0,"
     "checkpoint_crash_trigger_point=,database_size_fix=false),drop=,"
     "force=false,name=,use_timestamp=true",
-    confchk_WT_SESSION_checkpoint, 5, confchk_WT_SESSION_checkpoint_jump, 20, WT_CONF_SIZING_NONE,
+    confchk_WT_SESSION_checkpoint, 5, confchk_WT_SESSION_checkpoint_jump, 23, WT_CONF_SIZING_NONE,
     false},
-  {"WT_SESSION.close", "", NULL, 0, NULL, 21, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.close", "", NULL, 0, NULL, 24, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.commit_transaction",
     "commit_timestamp=,durable_timestamp=,operation_timeout_ms=0,"
     "sync=",
-    confchk_WT_SESSION_commit_transaction, 4, confchk_WT_SESSION_commit_transaction_jump, 22,
+    confchk_WT_SESSION_commit_transaction, 4, confchk_WT_SESSION_commit_transaction_jump, 25,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.compact",
     "background=,dryrun=false,exclude=,free_space_target=20MB,"
     "run_once=false,timeout=1200",
-    confchk_WT_SESSION_compact, 6, confchk_WT_SESSION_compact_jump, 23, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_compact, 6, confchk_WT_SESSION_compact_jump, 26, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -3884,14 +3887,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),type=file,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_WT_SESSION_create, 53, confchk_WT_SESSION_create_jump, 24, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_create, 53, confchk_WT_SESSION_create_jump, 27, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true",
-    confchk_WT_SESSION_drop, 4, confchk_WT_SESSION_drop_jump, 25, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_drop, 4, confchk_WT_SESSION_drop_jump, 28, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.log_flush", "sync=on", confchk_WT_SESSION_log_flush, 1,
-    confchk_WT_SESSION_log_flush_jump, 26, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.log_printf", "", NULL, 0, NULL, 27, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_log_flush_jump, 29, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.log_printf", "", NULL, 0, NULL, 30, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.open_cursor",
     "append=false,bulk=false,checkpoint=,checkpoint_use_history=true,"
     "checkpoint_wait=true,debug=(checkpoint_read_timestamp=,"
@@ -3901,53 +3904,53 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "next_random=false,next_random_sample_size=0,next_random_seed=0,"
     "overwrite=true,prefix_search=false,raw=false,read_once=false,"
     "readonly=false,skip_sort_check=false,statistics=,target=",
-    confchk_WT_SESSION_open_cursor, 19, confchk_WT_SESSION_open_cursor_jump, 28,
+    confchk_WT_SESSION_open_cursor, 19, confchk_WT_SESSION_open_cursor_jump, 31,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.prepare_transaction",
     "prepare_timestamp=,prepared_id=", confchk_WT_SESSION_prepare_transaction, 2,
-    confchk_WT_SESSION_prepare_transaction_jump, 29, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_prepare_transaction_jump, 32, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.prepared_id_transaction", "prepared_id=", confchk_WT_SESSION_prepared_id_transaction,
-    1, confchk_WT_SESSION_prepared_id_transaction_jump, 30, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.prepared_id_transaction_uint", "", NULL, 0, NULL, 31, WT_CONF_SIZING_NONE, false},
+    1, confchk_WT_SESSION_prepared_id_transaction_jump, 33, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.prepared_id_transaction_uint", "", NULL, 0, NULL, 34, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.publish", "disaggregated=(schema_epoch=)", confchk_WT_SESSION_publish, 1,
-    confchk_WT_SESSION_publish_jump, 32, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_publish_jump, 35, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1,
-    confchk_WT_SESSION_query_timestamp_jump, 33, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_query_timestamp_jump, 36, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.reconfigure",
     "cache_cursors=true,cache_max_wait_ms=0,"
     "debug=(checkpoint_fail_before_turtle_update=false,"
     "release_evict_page=false),ignore_cache_size=false,"
     "isolation=snapshot,prefetch=(enabled=false)",
-    confchk_WT_SESSION_reconfigure, 6, confchk_WT_SESSION_reconfigure_jump, 34,
+    confchk_WT_SESSION_reconfigure, 6, confchk_WT_SESSION_reconfigure_jump, 37,
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, reconfigure), true},
-  {"WT_SESSION.reset", "", NULL, 0, NULL, 35, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.reset_snapshot", "", NULL, 0, NULL, 36, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.reset", "", NULL, 0, NULL, 38, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.reset_snapshot", "", NULL, 0, NULL, 39, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.rollback_transaction",
     "operation_timeout_ms=0,rollback_timestamp=", confchk_WT_SESSION_rollback_transaction, 2,
-    confchk_WT_SESSION_rollback_transaction_jump, 37, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_rollback_transaction_jump, 40, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.salvage", "force=false", confchk_WT_SESSION_salvage, 1,
-    confchk_WT_SESSION_salvage_jump, 38, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.strerror", "", NULL, 0, NULL, 39, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_salvage_jump, 41, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.strerror", "", NULL, 0, NULL, 42, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.timestamp_transaction",
     "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"
     "read_timestamp=,rollback_timestamp=",
-    confchk_WT_SESSION_timestamp_transaction, 5, confchk_WT_SESSION_timestamp_transaction_jump, 40,
+    confchk_WT_SESSION_timestamp_transaction, 5, confchk_WT_SESSION_timestamp_transaction_jump, 43,
     WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.timestamp_transaction_uint", "", NULL, 0, NULL, 41, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.truncate", "", NULL, 0, NULL, 42, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.timestamp_transaction_uint", "", NULL, 0, NULL, 44, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.truncate", "", NULL, 0, NULL, 45, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.verify",
     "do_not_clear_txn_id=false,dump_address=false,dump_all_data=false"
     ",dump_blocks=false,dump_key_data=false,dump_layout=false,"
     "dump_offsets=,dump_pages=false,dump_tree_shape=false,"
     "fix_btree_size=false,read_corrupt=false,skip_per_key_hs=false,"
     "stable_timestamp=false,strict=false",
-    confchk_WT_SESSION_verify, 14, confchk_WT_SESSION_verify_jump, 43, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_verify, 14, confchk_WT_SESSION_verify_jump, 46, WT_CONF_SIZING_NONE, false},
   {"colgroup.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,source=,type=file,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_colgroup_meta, 8, confchk_colgroup_meta_jump, 44, WT_CONF_SIZING_NONE, false},
+    confchk_colgroup_meta, 8, confchk_colgroup_meta_jump, 47, WT_CONF_SIZING_NONE, false},
   {"file.config",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -3965,7 +3968,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "prefix_compression=false,prefix_compression_min=4,"
     "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
     "value_format=u,verbose=[],write_timestamp_usage=none",
-    confchk_file_config, 42, confchk_file_config_jump, 45, WT_CONF_SIZING_NONE, false},
+    confchk_file_config, 42, confchk_file_config_jump, 48, WT_CONF_SIZING_NONE, false},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -3985,14 +3988,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,value_format=u,verbose=[]"
     ",version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_file_meta, 49, confchk_file_meta_jump, 46, WT_CONF_SIZING_NONE, false},
+    confchk_file_meta, 49, confchk_file_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,extractor=,immutable=false,key_format=u,"
     "source=,type=file,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_index_meta, 12, confchk_index_meta_jump, 47, WT_CONF_SIZING_NONE, false},
+    confchk_index_meta, 12, confchk_index_meta_jump, 50, WT_CONF_SIZING_NONE, false},
   {"layered.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -4003,13 +4006,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stepdown_write_mirroring=false,strict_checkpoint_metadata=),"
     "ingest=,key_format=u,log=(enabled=true),stable=,value_format=u,"
     "verbose=[],write_timestamp_usage=none",
-    confchk_layered_meta, 12, confchk_layered_meta_jump, 48, WT_CONF_SIZING_NONE, false},
+    confchk_layered_meta, 12, confchk_layered_meta_jump, 51, WT_CONF_SIZING_NONE, false},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "colgroups=,collator=,columns=,key_format=u,value_format=u,"
     "verbose=[],write_timestamp_usage=none",
-    confchk_table_meta, 9, confchk_table_meta_jump, 49, WT_CONF_SIZING_NONE, false},
+    confchk_table_meta, 9, confchk_table_meta_jump, 52, WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
@@ -4085,7 +4088,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "transaction_sync=(enabled=false,method=fsync),"
     "use_environment=true,use_environment_priv=false,verbose=[],"
     "verify_metadata=false,write_through=",
-    confchk_wiredtiger_open, 74, confchk_wiredtiger_open_jump, 50, WT_CONF_SIZING_NONE, false},
+    confchk_wiredtiger_open, 74, confchk_wiredtiger_open_jump, 53, WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open_all",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
@@ -4161,7 +4164,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "transaction_sync=(enabled=false,method=fsync),"
     "use_environment=true,use_environment_priv=false,verbose=[],"
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
-    confchk_wiredtiger_open_all, 75, confchk_wiredtiger_open_all_jump, 51, WT_CONF_SIZING_NONE,
+    confchk_wiredtiger_open_all, 75, confchk_wiredtiger_open_all_jump, 54, WT_CONF_SIZING_NONE,
     false},
   {"wiredtiger_open_basecfg",
     "backup_restore_target=,"
@@ -4237,7 +4240,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "shared=false),timing_stress_for_test=,"
     "transaction_sync=(enabled=false,method=fsync),verbose=[],"
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
-    confchk_wiredtiger_open_basecfg, 68, confchk_wiredtiger_open_basecfg_jump, 52,
+    confchk_wiredtiger_open_basecfg, 68, confchk_wiredtiger_open_basecfg_jump, 55,
     WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open_usercfg",
     "backup_restore_target=,"
@@ -4313,7 +4316,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "shared=false),timing_stress_for_test=,"
     "transaction_sync=(enabled=false,method=fsync),verbose=[],"
     "verify_metadata=false,write_through=",
-    confchk_wiredtiger_open_usercfg, 67, confchk_wiredtiger_open_usercfg_jump, 53,
+    confchk_wiredtiger_open_usercfg, 67, confchk_wiredtiger_open_usercfg_jump, 56,
     WT_CONF_SIZING_NONE, false},
   {NULL, NULL, NULL, 0, NULL, 0, WT_CONF_SIZING_NONE, false}};
 
