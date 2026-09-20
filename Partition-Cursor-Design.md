@@ -199,10 +199,11 @@ p.flags = WT_POSITION_KEY_ONLY;
 for (i = 1; i < n_markers; ++i) {
     p.pos = (double)i / n_markers;
     WT_ERR(cursor->set_position(cursor, &p));
-    WT_ERR(cursor->get_raw_key_value(cursor, &key, NULL)); /* Boundary key for marker i. */
+    WT_ERR(cursor->get_key(cursor, &key));  /* Boundary key for marker i, as a WT_ITEM. */
     /* Copy the key out; the cursor is not positioned and holds no page. Key-only mode
      * always yields a boundary, the empty key for the leftmost one, so there is no
-     * WT_NOTFOUND to handle here. Boundaries are raw separator bytes, see 4.2. */
+     * WT_NOTFOUND to handle here. The cursor was opened with raw=true because boundaries
+     * are raw separator bytes, see 4.2. */
 }
 ```
 
@@ -324,8 +325,9 @@ With `KEY_ONLY` the call never touches a leaf page:
 
 Boundary keys are raw separator bytes. Because leaf separators are suffix-truncated, a
 boundary is usually not a complete packed key: on a typed key format such as `q` or `Q`,
-`get_key` may fail to unpack it. Callers read it with `get_raw_key_value` or through a raw
-cursor, and use it as a byte-string bound. `search_near` from the key works because tree
+`get_key` may fail to unpack it. Callers read it through a cursor opened with `raw=true`
+(`get_raw_key_value` requires the value to be set and so cannot read a key-only result), and
+use it as a byte-string bound. `search_near` from the key works because tree
 comparison is bytewise, and the empty key sorts before every record.
 
 The anchor and `PREV` have no effect in this mode. `CACHE_ONLY` applies to the internal pages:
