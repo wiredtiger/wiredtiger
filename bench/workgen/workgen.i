@@ -44,6 +44,14 @@
  */
 %feature("flatnested");
 
+/*
+ * Both names shadow Python built-ins, which SWIG otherwise flags as
+ * Warning 321. Rename the generated Python bindings only; the C/C++
+ * API keeps its original name.
+ */
+%rename(next_op) next;
+%rename(help_str) help;
+
 /* We only need to reference WiredTiger types. */
 %import "wiredtiger.h"
 
