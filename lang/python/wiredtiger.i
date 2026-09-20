@@ -1501,6 +1501,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 
 %rename(Cursor) __wt_cursor;
 %rename(Modify) __wt_modify;
+%rename(Position) __wt_position;
 %rename(Session) __wt_session;
 %rename(Connection) __wt_connection;
 %rename(FileHandle) __wt_file_handle;

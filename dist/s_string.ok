@@ -367,6 +367,7 @@ NUL
 NUM
 NVRAM
 NZD
+NaN
 Namespace
 NetBSD
 NoAddr
@@ -1623,6 +1624,7 @@ portably
 pos
 posint
 posix
+posp
 postrun
 postsize
 powershell

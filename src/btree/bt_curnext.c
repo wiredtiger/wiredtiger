@@ -663,6 +663,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */
     if (truncating)
         LF_SET(WT_READ_TRUNCATE);
+    if (F_ISSET(cbt, WT_CBT_WALK_CACHE_ONLY))
+        LF_SET(WT_READ_CACHE | WT_READ_NO_WAIT);
 
     /* Accumulate the size summary as the walk visits each page. */
     if (F_ISSET(cbt, WT_CBT_SIZE_STAT))

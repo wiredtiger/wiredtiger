@@ -4283,6 +4283,8 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __clayered_reserve,                             /* reserve */
       __clayered_reconfigure,                         /* reconfigure */
       __clayered_largest_key,                         /* largest_key */
+      __wt_cursor_set_position_notsup,                /* set_position */
+      __wt_cursor_get_position_notsup,                /* get_position */
       __clayered_bound,                               /* bound */
       __clayered_cache,                               /* cache */
       __clayered_reopen,                              /* reopen */

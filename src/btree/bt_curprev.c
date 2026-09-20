@@ -582,6 +582,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     flags = WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
     if (truncating)
         LF_SET(WT_READ_TRUNCATE);
+    if (F_ISSET(cbt, WT_CBT_WALK_CACHE_ONLY))
+        LF_SET(WT_READ_CACHE | WT_READ_NO_WAIT);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 

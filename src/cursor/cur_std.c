@@ -176,6 +176,30 @@ __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
 }
 
 /*
+ * __wt_cursor_set_position_notsup --
+ *     Unsupported cursor set-position.
+ */
+int
+__wt_cursor_set_position_notsup(WT_CURSOR *cursor, WT_POSITION *position)
+{
+    WT_UNUSED(position);
+
+    return (__wt_cursor_notsup(cursor));
+}
+
+/*
+ * __wt_cursor_get_position_notsup --
+ *     Unsupported cursor get-position.
+ */
+int
+__wt_cursor_get_position_notsup(WT_CURSOR *cursor, double *posp)
+{
+    WT_UNUSED(posp);
+
+    return (__wt_cursor_notsup(cursor));
+}
+
+/*
  * __wt_cursor_config_notsup --
  *     Unsupported cursor API call which takes config.
  */

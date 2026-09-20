@@ -1059,6 +1059,74 @@ err:
 }
 
 /*
+ * __curfile_set_position --
+ *     WT_CURSOR->set_position method for the btree cursor type.
+ */
+static int
+__curfile_set_position(WT_CURSOR *cursor, WT_POSITION *position)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, set_position, cbt->dhandle);
+
+    if (CUR2BT(cbt)->type != BTREE_ROW)
+        WT_ERR_MSG(session, ENOTSUP, "set_position is only supported by row-store objects");
+    if (WT_CURSOR_BOUNDS_SET(cursor))
+        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with cursor set_position");
+    if (cursor->next == __wti_curfile_next_random)
+        WT_ERR_MSG(session, EINVAL, "set_position is not supported by next_random cursors");
+    if (F_ISSET(cursor, WT_CURSTD_BULK))
+        WT_ERR_MSG(session, EINVAL, "set_position is not supported by bulk cursors");
+    /* NaN is the only value that compares unequal to itself. */
+    if (!(position->pos <= 0.0 || position->pos >= 0.0))
+        WT_ERR_MSG(session, EINVAL, "set_position requires a numeric position");
+
+    WT_ERR(__cursor_copy_release(cursor));
+    WT_ERR(__curfile_check_cbt_txn(session, cbt));
+
+    WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_set_position(cbt, position));
+    WT_ERR(ret);
+
+    /* The cursor is positioned, or in key-only mode holds an external key. */
+    WT_ASSERT(session,
+      F_ISSET(position, WT_POSITION_KEY_ONLY) ?
+        F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_EXT :
+        (F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+          F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT));
+
+err:
+    API_END_RET_STAT(session, ret, cursor_set_position);
+}
+
+/*
+ * __curfile_get_position --
+ *     WT_CURSOR->get_position method for the btree cursor type.
+ */
+static int
+__curfile_get_position(WT_CURSOR *cursor, double *posp)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    CURSOR_API_CALL(cursor, session, ret, get_position, cbt->dhandle);
+
+    if (CUR2BT(cbt)->type != BTREE_ROW)
+        WT_ERR_MSG(session, ENOTSUP, "get_position is only supported by row-store objects");
+    if (!WT_CURSOR_IS_POSITIONED(cbt) || !F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        WT_ERR_MSG(session, EINVAL, "get_position requires a positioned cursor");
+
+    WT_WITH_CHECKPOINT(session, cbt, __wt_btcur_get_position(cbt, posp));
+
+err:
+    API_END_RET_STAT(session, ret, cursor_get_position);
+}
+
+/*
  * __curfile_create --
  *     Open a cursor for a given btree handle.
  */
@@ -1085,6 +1153,8 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_reserve,                              /* reserve */
       __wti_cursor_reconfigure,                       /* reconfigure */
       __curfile_largest_key,                          /* largest_key */
+      __curfile_set_position,                         /* set_position */
+      __curfile_get_position,                         /* get_position */
       __curfile_bound,                                /* bound */
       __curfile_cache,                                /* cache */
       __curfile_reopen,                               /* reopen */
