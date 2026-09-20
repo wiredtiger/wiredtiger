@@ -51,8 +51,33 @@ from __future__ import print_function
 from contextlib import closing
 import os, re, unittest, wthooks, wttest
 from wttest import WiredTigerTestCase
-from disagg_publish import publish_then_advance_stable_epoch, seed_stable_schema_epoch
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_expected_output
+
+def _query_schema_epoch(connection, name):
+    """Return the named schema epoch as an integer."""
+    return int(connection.query_timestamp(f"get={name}"), 16)
+
+def seed_stable_schema_epoch(connection):
+    """Initialize the stable schema epoch on a newly opened connection."""
+    # Stable is unset after open but the last checkpoint tells us where to resume.
+    last_checkpoint_epoch = _query_schema_epoch(
+        connection, "last_disaggregated_schema_epoch"
+    )
+
+    # Zero disables schema epochs, therefore we should start new databases at 1.
+    epoch = max(last_checkpoint_epoch, 1)
+    connection.set_timestamp(f"stable_disaggregated_schema_epoch={epoch:x}")
+
+def publish_then_advance_stable_epoch(session, uri):
+    """Publish a schema change and advance stable. Callers must exclude no-ops."""
+    connection = session.connection
+
+    # Advancing stable after each publish lets us use it as the epoch counter.
+    epoch = _query_schema_epoch(connection, "stable_disaggregated_schema_epoch") + 1
+    session.publish(uri, f"disaggregated=(schema_epoch={epoch:x})")
+
+    # Advance now so writes can evict pages before the next checkpoint.
+    connection.set_timestamp(f"stable_disaggregated_schema_epoch={epoch:x}")
 
 # These are the hook functions that are run when particular APIs are called.
 
@@ -357,7 +382,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # Creating an existing table can succeed without queuing a schema change.
     should_publish = (
         disagg_parameters.publish
-        and (mark_table_as_layered or uri.startswith("layered:"))
+        and (uri.startswith("layered:") or mark_table_as_layered)
         and not layered_table_exists(session_self, uri)
     )
 
@@ -373,10 +398,10 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
     disagg_parameters = testcase.platform_api.getDisaggParameters()
 
     # A forced drop of a missing table has nothing to publish.
-    # Check the URI too: unrelated objects can share a layered table's name.
+    # Check the URI too as unrelated objects can share a layered table's name.
     should_publish = (
         disagg_parameters.publish
-        and (is_layered(uri) or uri.startswith("layered:"))
+        and (uri.startswith("layered:") or uri in testcase.layered_uris)
         and layered_table_exists(session_self, uri)
     )
 
