@@ -776,6 +776,16 @@ struct __wt_cursor {
      * Bounded cursors, cursors configured with \c next_random and bulk
      * cursors return EINVAL, as does a NaN position.
      *
+     * See @ref cursor_positioning for details.
+     *
+     * @snippet ex_all.c Position a cursor at a fraction of the object
+     *
+     * @snippet ex_all.c Partition an object into evenly spaced samples
+     *
+     * @snippet ex_all.c Find page boundary keys without reading leaf pages
+     *
+     * @snippet ex_all.c Position only within cached pages
+     *
      * @param cursor the cursor handle
      * @param position the requested position and options; output fields are
      * set on success and on ::WT_NOTFOUND
@@ -793,6 +803,8 @@ struct __wt_cursor {
      * file:, table: and layered: objects.
      *
      * The cursor must be positioned, otherwise EINVAL is returned.
+     *
+     * @snippet ex_all.c Report progress with the cursor's position
      *
      * @param cursor the cursor handle
      * @param posp a pointer to a location where the position is stored
