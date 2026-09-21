@@ -428,6 +428,48 @@ __clayered_skip_stable(
 }
 
 /*
+ * __clayered_route_to_ingest --
+ *     Whether the operation should route to the ingest constituent.
+ */
+static WT_INLINE bool
+__clayered_route_to_ingest(
+  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
+{
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER)
+        return (true);
+
+    /* Writes with the step-down timestamp set should route to ingest. */
+    bool step_down_ts_set = CUR2S(clayered)->txn->stepdown_ts_set;
+    if (step_down_ts_set && mode == WTI_CLAYERED_MODE_WRITE)
+        return (true);
+
+    /*
+     * When write mirroring is disabled during step-down, writes only go to ingest, and therefore
+     * reads must also route to ingest.
+     */
+    bool mirroring =
+      F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
+    if (step_down_ts_set && !mirroring)
+        return (true);
+
+    /*
+     * A table created inside the step-down window has no stable constituent at all, so its cursors
+     * use ingest whenever the transaction began. 
+     */
+    if (__wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created))
+        return (true);
+
+    /*
+     * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
+     * by contract.
+     */
+    if (mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+        return (true);
+
+    return (false);
+}
+
+/*
  * __clayered_enter_flags --
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
@@ -435,7 +477,6 @@ static WT_INLINE uint32_t
 __clayered_enter_flags(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
 {
-    WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
 
     if (mode == WTI_CLAYERED_MODE_SEARCH_NEAR || mode == WTI_CLAYERED_MODE_SEARCH)
@@ -450,25 +491,7 @@ __clayered_enter_flags(
         LF_SET(
           role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
 
-    /*
-     * A transaction that started with the step-down timestamp set mirrors leader writes to both
-     * constituents to detect write conflicts when write mirroring is enabled; otherwise it routes
-     * them to ingest. It reads from stable if writes are mirrored, otherwise it behaves like a
-     * follower: it reads the ingest constituent over the stable table.
-     *
-     * A table created inside the step-down window has no stable constituent at all, so its cursors
-     * use ingest whenever the transaction began. That covers a transaction from before the
-     * timestamp was set, which would otherwise read stable alone and find nothing to open.
-     *
-     * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
-     * by contract.
-     */
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER ||
-      (session->txn->stepdown_ts_set &&
-        (mode == WTI_CLAYERED_MODE_WRITE ||
-          !F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))) ||
-      __wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) ||
-      mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+    if (__clayered_route_to_ingest(clayered, mode, role))
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
@@ -3079,7 +3102,7 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
             __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
 #endif
 
-        /* Preserve stable's matching position for mirrored writes and ongoing traversals. */
+        /* Preserve the stable cursor position for mirrored writes and ongoing traversals. */
         if (op->write_target == WTI_CLAYERED_WRITE_INGEST &&
           !F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
             WT_RET(__clayered_reset_cursors(clayered, true));
