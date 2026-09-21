@@ -923,7 +923,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
             F_SET(cst, WT_STAT_OTEL_NONE);
         WT_ERR_NOTFOUND_OK(ret, false);
         if ((ret = __wt_config_subgets(session, &cval, "counters", &sval)) == 0 && sval.val != 0) {
-            if (FLD_ISSET(cst->flags, WT_STAT_OTEL_NONE))
+            if (F_ISSET(cst, WT_STAT_OTEL_NONE))
                 WT_ERR_MSG(session, EINVAL,
                   "Only one of none, counters, gauges, histograms configuration values should "
                   "be specified");
@@ -931,7 +931,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         }
         WT_ERR_NOTFOUND_OK(ret, false);
         if ((ret = __wt_config_subgets(session, &cval, "gauges", &sval)) == 0 && sval.val != 0) {
-            if (FLD_ISSET(cst->flags, WT_STAT_OTEL_NONE | WT_STAT_OTEL_COUNTERS))
+            if (F_ISSET(cst, WT_STAT_OTEL_NONE | WT_STAT_OTEL_COUNTERS))
                 WT_ERR_MSG(session, EINVAL,
                   "Only one of none, counters, gauges, histograms configuration values should "
                   "be specified");
@@ -940,8 +940,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         WT_ERR_NOTFOUND_OK(ret, false);
         if ((ret = __wt_config_subgets(session, &cval, "histograms", &sval)) == 0 &&
           sval.val != 0) {
-            if (FLD_ISSET(
-                  cst->flags, WT_STAT_OTEL_NONE | WT_STAT_OTEL_COUNTERS | WT_STAT_OTEL_GAUGES))
+            if (F_ISSET(cst, WT_STAT_OTEL_NONE | WT_STAT_OTEL_COUNTERS | WT_STAT_OTEL_GAUGES))
                 WT_ERR_MSG(session, EINVAL,
                   "Only one of none, counters, gauges, histograms configuration values should "
                   "be specified");

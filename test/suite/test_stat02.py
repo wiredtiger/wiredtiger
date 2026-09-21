@@ -246,6 +246,44 @@ class test_stat_cursor_otel_error(wttest.WiredTigerTestCase):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.wiredtiger_open('.', config), msg)
 
+# Test that an OTel-only "statistics" configuration (no "fast"/"all") still
+# inherits the connection's default statistics type, rather than being treated
+# as an explicit type selection that skips that inheritance.
+class test_stat_cursor_otel_inherits_default(wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    pfx = test_name
+
+    uri = [
+        ('otel_inherit_1', dict(uri='file:' + pfx, dataset=SimpleDataSet)),
+        ('otel_inherit_2', dict(uri='table:' + pfx, dataset=SimpleDataSet)),
+        ('otel_inherit_3', dict(uri='table:' + pfx, dataset=ComplexDataSet)),
+    ]
+
+    scenarios = make_scenarios(uri)
+    conn_config = 'statistics=(all)'
+
+    def test_stat_cursor_otel_inherits_default(self):
+        self.dataset(self, self.uri, 100).populate()
+
+        # Open the OTel-only cursor first, before any other statistics cursor
+        # for this object: a cursor that fails to inherit the connection's
+        # default type reports zero rather than whatever an earlier cursor
+        # already computed, so going first is what makes the failure visible.
+        cursor = self.session.open_cursor(
+            'statistics:' + self.uri, None, 'statistics=(counters)')
+        otel_entries = cursor[stat.dsrc.btree_entries][2]
+        cursor.close()
+
+        # A cursor with no "statistics" configuration at all inherits the
+        # connection's default type ("all" here), which includes tree-walk
+        # statistics such as btree_entries.
+        cursor = self.session.open_cursor('statistics:' + self.uri, None, None)
+        default_entries = cursor[stat.dsrc.btree_entries][2]
+        cursor.close()
+
+        self.assertGreater(default_entries, 0)
+        self.assertEqual(otel_entries, default_entries)
+
 # Test data-source cache walk statistics
 class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
     test_name = __qualname__

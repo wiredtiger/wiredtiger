@@ -1874,8 +1874,10 @@ methods = {
         resets statistics after gathering them, where appropriate (for example, a cache size
         statistic is not cleared, while the count of cursor insert operations will be cleared).
         At most one of "none", "counters", "gauges" or "histograms" may also be configured to
-        select an OTel metric type; configuring one of these currently has no effect on which
-        statistics are returned. See @ref statistics for more information''',
+        select an OTel metric type; this "none" is unrelated to the database-level \c statistics
+        configuration value of the same name and does not disable statistics gathering. These
+        four values are accepted but do not yet affect which statistics are gathered.
+        See @ref statistics for more information''',
         type='list',
         choices=['all', 'cache_walk', 'clear', 'counters', 'fast', 'gauges', 'histograms', 'none',
           'size', 'tree_walk']),
