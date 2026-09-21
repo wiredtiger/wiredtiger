@@ -246,9 +246,8 @@ class test_stat_cursor_otel_error(wttest.WiredTigerTestCase):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.wiredtiger_open('.', config), msg)
 
-# Test that an OTel-only "statistics" configuration (no "fast"/"all") still
-# inherits the connection's default statistics type, rather than being treated
-# as an explicit type selection that skips that inheritance.
+# Test that an OTel-only "statistics" configuration inherits the connection's default statistics
+# type.
 class test_stat_cursor_otel_inherits_default(wttest.WiredTigerTestCase):
     test_name = __qualname__
     pfx = test_name
@@ -264,6 +263,14 @@ class test_stat_cursor_otel_inherits_default(wttest.WiredTigerTestCase):
 
     def test_stat_cursor_otel_inherits_default(self):
         self.dataset(self, self.uri, 100).populate()
+
+        # FIXME-WT-18691: this assumes an OTel-only cursor still reports the
+        # same value for a stat that isn't tagged with that OTel type. Per
+        # the OTel design, a cursor opened with a given OTel type will only
+        # return statistics tagged with that same type, so once per-stat
+        # OTel types are assigned (WT-18690) and cursors start filtering by
+        # them (WT-18691), this assertion may need a stat that stays
+        # untyped, or may need to change outright.
 
         # Open the OTel-only cursor first, before any other statistics cursor
         # for this object: a cursor that fails to inherit the connection's
