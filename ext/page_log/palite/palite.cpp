@@ -2338,6 +2338,8 @@ public:
     {
         storage.simulate_unstable_network();
 
+        cache.erase(page_id, args->backlink_lsn);
+
         const uint64_t lsn = storage.make_next_lsn();
         storage.discard_page(table_id, page_id, lsn, args);
         args->lsn = lsn;
