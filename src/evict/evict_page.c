@@ -399,7 +399,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Caching here is best effort, don't bubble up the error if it fails. */
     if ((ret = plh->plh_cache_put(
-                     plh, &session->iface, block_meta->page_id, 0, &args, cache_buf)) != 0)
+           plh, &session->iface, block_meta->page_id, 0, &args, cache_buf)) != 0)
         __wt_err(session, ret, "victim cache: failed to cache page");
     bool cached = ret == 0;
 
