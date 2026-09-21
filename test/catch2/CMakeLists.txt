@@ -15,12 +15,15 @@ else()
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_disagg_cache_eligible.cpp
+        misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_futex.cpp
@@ -37,6 +40,7 @@ else()
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
+        misc_tests/test_palite_victim_cache.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
@@ -178,10 +182,6 @@ if(ENABLE_LZ4)
             LZ4_EXTENSION="$<TARGET_FILE:wiredtiger_lz4>"
     )
     add_dependencies(catch2-unittests wiredtiger_lz4)
-endif()
-
-if(WT_POSIX)
-    add_dependencies(catch2-unittests wiredtiger_dir_store)
 endif()
 
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)

@@ -104,9 +104,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     if 'compatibility=' in conn_config:
         skip_test("cannot run disagg hook on a test that requires compatibility in the config string")
 
-    if 'tiered_storage=' in conn_config:
-        skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
-
     page_log_extension = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(page_log_extension) == 0:
         raise RuntimeError(page_log_name + ' storage source extension not found')
@@ -133,7 +130,33 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     else:
         disagg_verbose_config = ',verbose=[layered]'
 
-    disagg_config = disagg_verbose_config \
+    # Tests running under the hook predate the commit-timestamp requirement for disaggregated
+    # tables; dedicated disagg tests set their own connection config and keep the check.
+    # Merge into an existing debug_mode category: a duplicate key would override, and a regex
+    # stops at the first ')' so nested subcategories need a scan for the matching close.
+    debug_key = 'debug_mode=('
+    start = conn_config.find(debug_key)
+    if start >= 0:
+        open_paren = start + len(debug_key) - 1
+        depth = 0
+        close_paren = -1
+        for i in range(open_paren, len(conn_config)):
+            if conn_config[i] == '(':
+                depth += 1
+            elif conn_config[i] == ')':
+                depth -= 1
+                if depth == 0:
+                    close_paren = i
+                    break
+        if close_paren < 0:
+            raise Exception('hook_disagg: bad debug_mode in config "%s"' % conn_config)
+        conn_config = conn_config[:close_paren] + ',disagg_commit_ts_optional=true' + \
+            conn_config[close_paren:]
+        disagg_debug_config = ''
+    else:
+        disagg_debug_config = ',debug_mode=(disagg_commit_ts_optional=true)'
+
+    disagg_config = disagg_verbose_config + disagg_debug_config \
         + f',disaggregated=(role="{disagg_parameters.role}"' \
         + f',page_log={page_log_name})'
 
@@ -246,8 +269,6 @@ def session_alter_replace(orig_session_alter, session_self, uri, config):
     return orig_session_alter(session_self, uri, config)
 
 # Called to replace Session.checkpoint.
-# We add a call to flush_tier during every checkpoint to make sure we are exercising disagg
-# functionality.
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     # We cannot do named checkpoints with disagg storage objects.
     # We can't really continue the test without the name, as the name will certainly be used.
@@ -389,7 +410,6 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_import",          "Can't import a disagg table"),
             ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
-            ("tiered",               "Tiered tests do not apply to disagg"),
         ]
 
         for (skip_string, skip_reason) in skip_categories:

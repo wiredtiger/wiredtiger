@@ -194,6 +194,10 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t oldest_id;
 
     wt_shared wt_timestamp_t durable_timestamp;
+    /*
+     * All accesses are relaxed: the value never orders other memory. Writers and the in-engine
+     * readers hold the checkpoint lock, and query_timestamp only returns it.
+     */
     wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
     /*
      * Release-stored by checkpoint once its durable state is established, acquire-loaded by sweep
@@ -447,8 +451,8 @@ struct __wt_txn {
 
     /*
      * True if the step-down timestamp was set when this transaction began. Used to redirect the
-     * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
-     * straddlers.
+     * transaction's writes to the ingest constituent (or mirrored to both stable and ingest when
+     * write mirroring is enabled), to include ingest in its reads, and to detect straddlers.
      */
     bool stepdown_ts_set;
     /*

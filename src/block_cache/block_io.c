@@ -236,6 +236,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
+        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
     }
 
     /*
@@ -272,6 +273,19 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
               "compressed block for which no compression configured");
             /* Odd error handling structure to avoid static analyzer complaints. */
             WT_ERR(ret == 0 ? WT_ERROR : ret);
+        }
+
+        /*
+         * Bound the header's in-memory size before using it for decompression. Example in salvage,
+         * corrupted block may be too small and underflows the subtraction below.
+         */
+        if (dsk->mem_size <= WT_BLOCK_COMPRESS_SKIP) {
+            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+                __wt_errx(session,
+                  "%s: compressed block has an invalid in-memory size of %" PRIu32 "B",
+                  btree->dhandle->name, dsk->mem_size);
+            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+              "compressed block has an invalid in-memory size"));
         }
 
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
@@ -529,6 +543,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
+        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
     }
 
     /* Decrypt. */

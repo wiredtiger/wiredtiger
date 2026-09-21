@@ -203,6 +203,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.stepdown_async", "use async step-down instead of synchronous", C_IGNORE | C_BOOL, 0, 0,
     0, V_GLOBAL_DISAGG_STEPDOWN_ASYNC},
 
+  {"disagg.stepdown_write_mirroring", "mirror leader step-down-window writes to both constituents",
+    C_BOOL, 50, 0, 0, V_GLOBAL_DISAGG_STEPDOWN_WRITE_MIRRORING},
+
   {"disagg.snapshot_read", "run background transactions checking snapshot isolation on a follower",
     C_IGNORE | C_BOOL, 0, 0, 0, V_GLOBAL_DISAGG_SNAPSHOT_READ},
 
@@ -437,13 +440,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_7},
 
   {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_8},
-
-  {"tiered_storage.flush_frequency",
-    "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
-    100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},
-
-  {"tiered_storage.storage_source", "storage source used (dir_store | none | off)",
-    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_TIERED_STORAGE_STORAGE_SOURCE},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,
     100, V_GLOBAL_TRANSACTION_IMPLICIT},

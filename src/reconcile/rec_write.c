@@ -2689,8 +2689,41 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * disk. In local mode, if restoring saved update chains, we can skip the disk written.
          */
         if (r->page->disagg_info != NULL) {
-            if (chunk->entries == 0)
+            if (chunk->entries == 0) {
+                /*
+                 * Nothing survives onto the page: every update was restored to the in-memory chain.
+                 * If a previous reconciliation left a block behind, treat this like any other
+                 * disagg skip-write so the page keeps pointing at it instead of losing track of it:
+                 * otherwise the address a follower would need to find it is never recorded, and the
+                 * block itself can be freed out from under still-live content. There's nothing to
+                 * copy forward when no such block exists. This can only apply to the one-chunk
+                 * case: a split produces more than one chunk precisely because the old single page
+                 * is becoming multiple new ones, so no single chunk can claim to still be "the"
+                 * previous page and inherit its address.
+                 *
+                 * This is the second cause of a skip-write, and deliberately counts against the
+                 * same statistic as the one below: both mean the page kept the block it already
+                 * had.
+                 *
+                 * The previous block is only safe to reuse if the page's current content still
+                 * matches what it represents. An in-memory split has already moved some of the
+                 * page's rows to a new sibling ref, and a selected update newer than anything the
+                 * last reconciliation captured means the page now holds content that block never
+                 * saw either way: leave block_meta unset rather than publish an address for the
+                 * wrong content. The wrapup step already frees the previous block and resets the
+                 * page id to invalid whenever the result carries no valid page id, the same as it
+                 * always has for a page that has never been written.
+                 */
+                if (last_block && r->multi_next == 1 &&
+                  page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                  WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
+                  !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
+                    WT_RET(__rec_copy_prev_addr(session, r));
+                    F_SET(multi, WT_MULTI_SKIP_WRITE);
+                    WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
+                }
                 goto copy_image;
+            }
         } else if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
             goto copy_image;
 
