@@ -125,6 +125,7 @@ Multithreaded
 NOTFOUND
 NSEC
 NUMA
+NaN
 NoSQL
 OOP
 OPTYPE
@@ -613,6 +614,7 @@ php
 pid
 plantuml
 png
+pos
 posix
 ppc
 pre

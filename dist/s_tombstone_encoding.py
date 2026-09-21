@@ -237,7 +237,7 @@ CALLGRAPH_GOLDEN_CALLERS = {
     DECODE_CURRENT_FN: frozenset({
         "__clayered_copy_duplicate_kv", "__clayered_iterate", "__clayered_modify",
         "__clayered_modify_ingest", "__clayered_next_random", "__clayered_search",
-        "__clayered_search_near", "__clayered_update"}),
+        "__clayered_search_near", "__clayered_set_position", "__clayered_update"}),
     INGEST_TO_STABLE_FN: frozenset({"__layered_copy_ingest_table"}),
     STABLE_TO_INGEST_FN: frozenset({"__prepare_discover_alloc_upd"}),
     # Not a conversion helper: it stores bytes its callers already encoded, so it is exempt from

@@ -1,0 +1,204 @@
+/*! @page cursor_positioning Cursor positioning by fraction
+
+The WT_CURSOR::set_position and WT_CURSOR::get_position methods describe
+a cursor's place in an object as a fraction of the whole object, without
+naming a key. An application can ask how far into an object a positioned
+cursor is, or move a cursor to a given fraction of an object it knows
+nothing about. Both methods are supported by row-store \c file:,
+\c table: and \c layered: objects, including cursors opened on
+checkpoints.
+
+@section cursor_position_soft Soft positions
+
+A position is a value in the range [0, 1] derived from the shape of the
+in-memory tree: the root's children divide the range into equal parts,
+each child divides its part among its own children, and so on down to the
+records of a leaf page. Positions preserve key order (a record with a
+larger key never has a smaller position), but they are not uniform: two
+positions the same distance apart can span very different numbers of
+records.
+
+Positions also change as the object changes. Pages split, merge, are
+evicted and are read again, and the in-memory tree differs from the tree
+on disk. A position is therefore soft: it is valid for sampling and for
+progress reporting, and it can be used to resume a best-effort scan, but
+it must never be stored as a durable pointer to a record. Use a key for
+that.
+
+@section cursor_position_struct The WT_POSITION structure
+
+WT_CURSOR::set_position takes a pointer to a WT_POSITION structure. A
+zero-filled structure selects the default behavior, so an application
+fills in only the fields it needs:
+
+- WT_POSITION::pos is the requested position. Values below 0 address
+  the first page of the object and values above 1 the last page.
+- WT_POSITION::flags selects the mode, the walk direction and the
+  anchor, as described below. Unknown bits are ignored.
+- WT_POSITION::pages_skipped is an output field: the number of pages
+  stepped over because the page the position addressed could not be
+  used. Zero means the addressed page itself was used. The count is
+  approximate: a step over an unreadable subtree counts once. The field
+  is set on success and on ::WT_NOTFOUND.
+
+Fields may be appended to the structure in later versions.
+
+@section cursor_position_default Positioning the cursor
+
+By default WT_CURSOR::set_position reads the leaf page the position
+addresses, selects a starting slot on that page, and moves forwards to
+the first record visible to the cursor's transaction. On success the
+cursor is positioned with its key and value set, exactly as after
+WT_CURSOR::search_near, and WT_CURSOR::next, WT_CURSOR::prev and the
+other cursor methods continue from there. If no visible record follows,
+::WT_NOTFOUND is returned and the cursor is reset.
+
+@snippet ex_all.c Position a cursor at a fraction of the object
+
+The starting slot is chosen by the anchor flags: by default
+(::WT_POSITION_ANCHOR_EXACT) the remainder of the position selects a slot
+within the page, ::WT_POSITION_ANCHOR_FIRST selects the first slot,
+::WT_POSITION_ANCHOR_MIDDLE the middle slot and ::WT_POSITION_ANCHOR_LAST
+the last. Only records already written to the page are indexed this way;
+records still on the page's insert list are visited by the walk but are
+never selected as a starting slot. A page with no records written to it
+yet, which is the usual state of a never-checkpointed object, has no
+slots to select: the walk starts on its insert list, at the smallest key
+or, with ::WT_POSITION_PREV, the largest.
+
+::WT_POSITION_PREV walks backwards instead of forwards. The anchor and
+the direction are independent: ::WT_POSITION_ANCHOR_LAST alone starts at
+the last slot and moves forwards, which reaches the next page if that
+slot is not visible, while ::WT_POSITION_ANCHOR_LAST combined with
+::WT_POSITION_PREV returns the last visible on-disk slot of the
+addressed page.
+
+If the addressed page cannot be used, because it was deleted, is locked,
+or is not in memory in cache-only mode, the nearest usable page in the
+walk direction is used instead and WT_POSITION::pages_skipped reports how
+many pages were stepped over. On an intact, fully readable object the
+field is always zero.
+
+@section cursor_position_get Reading the cursor's position
+
+WT_CURSOR::get_position returns the position of the record the cursor is
+positioned on. The cursor must be positioned, otherwise EINVAL is
+returned; a cursor that only has a key set, including the key set by
+key-only positioning, is not positioned.
+
+@snippet ex_all.c Report progress with the cursor's position
+
+The two methods are consistent with each other. For an unchanged object,
+positioning at the value WT_CURSOR::get_position returned for a record
+written to a page returns the same record. A record that is still on a
+page's insert list maps to the nearest slot written to the page, so the
+round trip may return a neighboring record instead.
+
+@section cursor_position_key_only Key-only positioning
+
+With ::WT_POSITION_KEY_ONLY no leaf page is read. The cursor's key is set
+to the boundary key of the page the position addresses, as if
+WT_CURSOR::set_key had been called, and the cursor is left unpositioned.
+The boundary key is the separator stored in the parent page: it is
+greater than every key on the preceding page and no greater than the
+first key on its own page, and it aligns with a page edge, so a range
+ending at it can be truncated without reading the pages inside.
+
+@snippet ex_all.c Find page boundary keys without reading leaf pages
+
+Boundary keys need care:
+
+- They are usually not the key of any record. Reconciliation shortens
+  separators to the shortest prefix that still separates the two pages.
+  A string-format (\c S) boundary is a valid, shorter string and is
+  returned as such by WT_CURSOR::get_key; a boundary of another typed
+  format such as \c q, \c Q or \c i may not unpack. Read those through a
+  cursor opened in @ref cursor_raw "raw mode" and treat them as opaque
+  byte strings that sort correctly against packed keys.
+  WT_CURSOR::search_near from the key works regardless of format and
+  reaches the first visible record of the page.
+- The leftmost page of the object has the empty key as its boundary. The
+  empty key is a sentinel meaning the start of the object: it is not
+  usable as a search key or as a cursor bound, and on an object with a
+  custom collator it does not necessarily sort first. Non-empty
+  boundaries are prefixes of real keys and compare correctly under any
+  collator. An empty object, or one with no internal pages, such as one
+  that has never been checkpointed and still fits in a single in-memory
+  page, yields the empty key for every position.
+- The anchor and direction flags have no effect in this mode, and
+  WT_POSITION::pages_skipped is always zero, because the state of the
+  leaf pages does not matter.
+
+Key-only positioning costs a descent through the internal pages only,
+which are a small fraction of the object and are usually cached, and
+performs no I/O in the common case.
+
+@section cursor_position_cache_only Cache-only positioning
+
+::WT_POSITION_CACHE_ONLY confines the call to pages already in memory: no
+page is read from disk and no locked page is waited for. If the addressed
+page is not in memory, the nearest page in the walk direction that is in
+memory is used and WT_POSITION::pages_skipped is set; if nothing usable
+is in memory, ::WT_NOTFOUND is returned. Overflow items of the returned
+record are still read from disk, and on tables with several column
+groups the flag applies to the primary column group only. This suits
+diagnostics and heuristics that want to look at resident data without
+causing I/O.
+
+@snippet ex_all.c Position only within cached pages
+
+@section cursor_position_layered Layered tables
+
+A layered table's positions are defined over its stable constituent when
+the table has one, and over its ingest constituent otherwise. Records
+present only in the other constituent are not part of the position
+space, but they are returned by WT_CURSOR::next and WT_CURSOR::prev after
+positioning as usual. A stable record that the ingest constituent has
+removed or hidden resolves to its nearest visible neighbor, as
+WT_CURSOR::search_near would. That resolution may read neighboring pages,
+so ::WT_POSITION_CACHE_ONLY is best-effort on layered tables.
+
+WT_CURSOR::get_position on a layered cursor positioned on an ingest-only
+record reports the position of the nearest stable record, and the cursor
+keeps its place. If the stable constituent is empty the method returns
+::WT_NOTFOUND.
+
+@section cursor_position_errors Unsupported cursors and errors
+
+- Column-store objects return ENOTSUP from both methods.
+- Cursors with bounds set, cursors configured with \c next_random and
+  bulk cursors return EINVAL from WT_CURSOR::set_position.
+- A NaN position returns EINVAL.
+- An empty object returns ::WT_NOTFOUND from WT_CURSOR::set_position,
+  except in key-only mode, which returns the empty key.
+- Index cursors and cursors on other data sources (statistics, backup,
+  metadata, log and so on) return ENOTSUP.
+
+@section cursor_position_uses Common uses
+
+Sampling an object at evenly spaced positions replaces a random cursor
+with a deterministic walk: positioning at \c i/N for \c i from 0 to \c N
+returns the samples in key order, reading one leaf page per sample in
+the common case. The walk to a visible record may continue onto a
+neighboring page, a table with several column groups searches each of
+them for the record, and a layered table resolves the record again
+through its constituents.
+
+@snippet ex_all.c Partition an object into evenly spaced samples
+
+The same loop in key-only mode yields \c N-1 page-aligned boundary keys
+without reading any leaf page, which is what a range-based truncation
+policy or a job that splits an object into ranges for parallel workers
+needs: worker \c k scans from boundary \c k inclusive to boundary \c k+1
+exclusive.
+
+A long scan can report its progress by calling WT_CURSOR::get_position
+every so often, without counting the records first. A best-effort
+background pass can save the position when it pauses and later resume
+with WT_CURSOR::set_position followed by WT_CURSOR::next; because
+positions are soft, a few records near the pause point may be visited
+twice or skipped if the tree changed in between, so this idiom suits
+statistics gathering, not anything that must visit each record exactly
+once.
+
+ */

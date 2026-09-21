@@ -297,6 +297,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor compare calls that return an error",
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
+  "cursor: cursor get position calls that return an error",
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert check calls that return an error",
@@ -318,7 +319,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor reset calls that return an error",
   "cursor: cursor search calls that return an error",
   "cursor: cursor search near calls that return an error",
+  "cursor: cursor set position calls that return an error",
   "cursor: cursor update calls that return an error",
+  "cursor: get position calls",
   "cursor: insert calls",
   "cursor: insert key and value bytes",
   "cursor: modify",
@@ -337,6 +340,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: search calls",
   "cursor: search history store calls",
   "cursor: search near calls",
+  "cursor: set position calls",
   "cursor: truncate calls",
   "cursor: update calls",
   "cursor: update key and value bytes",
@@ -799,6 +803,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_compare_error = 0;
     stats->cursor_equals_error = 0;
     stats->cursor_get_key_error = 0;
+    stats->cursor_get_position_error = 0;
     stats->cursor_get_value_error = 0;
     stats->cursor_insert_error = 0;
     stats->cursor_insert_check_error = 0;
@@ -820,7 +825,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_reset_error = 0;
     stats->cursor_search_error = 0;
     stats->cursor_search_near_error = 0;
+    stats->cursor_set_position_error = 0;
     stats->cursor_update_error = 0;
+    stats->cursor_get_position = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_modify = 0;
@@ -839,6 +846,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_search = 0;
     stats->cursor_search_hs = 0;
     stats->cursor_search_near = 0;
+    stats->cursor_set_position = 0;
     stats->cursor_truncate = 0;
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
@@ -1301,6 +1309,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_compare_error += from->cursor_compare_error;
     to->cursor_equals_error += from->cursor_equals_error;
     to->cursor_get_key_error += from->cursor_get_key_error;
+    to->cursor_get_position_error += from->cursor_get_position_error;
     to->cursor_get_value_error += from->cursor_get_value_error;
     to->cursor_insert_error += from->cursor_insert_error;
     to->cursor_insert_check_error += from->cursor_insert_check_error;
@@ -1322,7 +1331,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_reset_error += from->cursor_reset_error;
     to->cursor_search_error += from->cursor_search_error;
     to->cursor_search_near_error += from->cursor_search_near_error;
+    to->cursor_set_position_error += from->cursor_set_position_error;
     to->cursor_update_error += from->cursor_update_error;
+    to->cursor_get_position += from->cursor_get_position;
     to->cursor_insert += from->cursor_insert;
     to->cursor_insert_bytes += from->cursor_insert_bytes;
     to->cursor_modify += from->cursor_modify;
@@ -1341,6 +1352,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_search += from->cursor_search;
     to->cursor_search_hs += from->cursor_search_hs;
     to->cursor_search_near += from->cursor_search_near;
+    to->cursor_set_position += from->cursor_set_position;
     to->cursor_truncate += from->cursor_truncate;
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
@@ -1855,6 +1867,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_compare_error += WT_STAT_DSRC_READ(from, cursor_compare_error);
     to->cursor_equals_error += WT_STAT_DSRC_READ(from, cursor_equals_error);
     to->cursor_get_key_error += WT_STAT_DSRC_READ(from, cursor_get_key_error);
+    to->cursor_get_position_error += WT_STAT_DSRC_READ(from, cursor_get_position_error);
     to->cursor_get_value_error += WT_STAT_DSRC_READ(from, cursor_get_value_error);
     to->cursor_insert_error += WT_STAT_DSRC_READ(from, cursor_insert_error);
     to->cursor_insert_check_error += WT_STAT_DSRC_READ(from, cursor_insert_check_error);
@@ -1876,7 +1889,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_reset_error += WT_STAT_DSRC_READ(from, cursor_reset_error);
     to->cursor_search_error += WT_STAT_DSRC_READ(from, cursor_search_error);
     to->cursor_search_near_error += WT_STAT_DSRC_READ(from, cursor_search_near_error);
+    to->cursor_set_position_error += WT_STAT_DSRC_READ(from, cursor_set_position_error);
     to->cursor_update_error += WT_STAT_DSRC_READ(from, cursor_update_error);
+    to->cursor_get_position += WT_STAT_DSRC_READ(from, cursor_get_position);
     to->cursor_insert += WT_STAT_DSRC_READ(from, cursor_insert);
     to->cursor_insert_bytes += WT_STAT_DSRC_READ(from, cursor_insert_bytes);
     to->cursor_modify += WT_STAT_DSRC_READ(from, cursor_modify);
@@ -1895,6 +1910,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_search += WT_STAT_DSRC_READ(from, cursor_search);
     to->cursor_search_hs += WT_STAT_DSRC_READ(from, cursor_search_hs);
     to->cursor_search_near += WT_STAT_DSRC_READ(from, cursor_search_near);
+    to->cursor_set_position += WT_STAT_DSRC_READ(from, cursor_set_position);
     to->cursor_truncate += WT_STAT_DSRC_READ(from, cursor_truncate);
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
@@ -2656,6 +2672,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor create calls",
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
+  "cursor: cursor get position calls",
+  "cursor: cursor get position calls that return an error",
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
@@ -2692,6 +2710,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor search history store calls",
   "cursor: cursor search near calls",
   "cursor: cursor search near calls that return an error",
+  "cursor: cursor set position calls",
+  "cursor: cursor set position calls that return an error",
   "cursor: cursor sweep buckets",
   "cursor: cursor sweep cursors closed",
   "cursor: cursor sweep cursors examined",
@@ -3785,6 +3805,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_create = 0;
     stats->cursor_equals_error = 0;
     stats->cursor_get_key_error = 0;
+    stats->cursor_get_position = 0;
+    stats->cursor_get_position_error = 0;
     stats->cursor_get_value_error = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_error = 0;
@@ -3821,6 +3843,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_search_hs = 0;
     stats->cursor_search_near = 0;
     stats->cursor_search_near_error = 0;
+    stats->cursor_set_position = 0;
+    stats->cursor_set_position_error = 0;
     stats->cursor_sweep_buckets = 0;
     stats->cursor_sweep_closed = 0;
     stats->cursor_sweep_examined = 0;
@@ -5035,6 +5059,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_create += WT_STAT_CONN_READ(from, cursor_create);
     to->cursor_equals_error += WT_STAT_CONN_READ(from, cursor_equals_error);
     to->cursor_get_key_error += WT_STAT_CONN_READ(from, cursor_get_key_error);
+    to->cursor_get_position += WT_STAT_CONN_READ(from, cursor_get_position);
+    to->cursor_get_position_error += WT_STAT_CONN_READ(from, cursor_get_position_error);
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
     to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
@@ -5071,6 +5097,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_search_hs += WT_STAT_CONN_READ(from, cursor_search_hs);
     to->cursor_search_near += WT_STAT_CONN_READ(from, cursor_search_near);
     to->cursor_search_near_error += WT_STAT_CONN_READ(from, cursor_search_near_error);
+    to->cursor_set_position += WT_STAT_CONN_READ(from, cursor_set_position);
+    to->cursor_set_position_error += WT_STAT_CONN_READ(from, cursor_set_position_error);
     to->cursor_sweep_buckets += WT_STAT_CONN_READ(from, cursor_sweep_buckets);
     to->cursor_sweep_closed += WT_STAT_CONN_READ(from, cursor_sweep_closed);
     to->cursor_sweep_examined += WT_STAT_CONN_READ(from, cursor_sweep_examined);

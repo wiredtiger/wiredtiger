@@ -438,7 +438,8 @@ __clayered_enter_flags(
     WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
 
-    if (mode == WTI_CLAYERED_MODE_SEARCH_NEAR || mode == WTI_CLAYERED_MODE_SEARCH)
+    if (mode == WTI_CLAYERED_MODE_SEARCH_NEAR || mode == WTI_CLAYERED_MODE_SEARCH ||
+      mode == WTI_CLAYERED_MODE_POSITION)
         LF_SET(CLAYERED_ENTER_RESET);
     if (mode == WTI_CLAYERED_MODE_ITERATE || mode == WTI_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
@@ -2519,15 +2520,14 @@ err:
 }
 
 /*
- * __clayered_lookup_lazy_stable_open --
- *     Open the stable constituent an operation deferred at enter time, and hand it to the
- *     operation. The operation stays without a stable cursor if the follower has no checkpoint or
- *     the table was created inside the step-down window.
+ * __clayered_open_stable_lazy --
+ *     Open the stable constituent an earlier operation deferred. The cursor stays without a stable
+ *     constituent if the follower has no checkpoint or the table was created inside the step-down
+ *     window.
  */
 static int
-__clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
+__clayered_open_stable_lazy(WTI_CURSOR_LAYERED *clayered)
 {
-    WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
     /*
@@ -2538,10 +2538,20 @@ __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
     if (__wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created))
         return (0);
 
-    WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
+    return (__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
       __wt_atomic_load_uint64_acquire(
         &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn)));
-    op->stable = clayered->stable_cursor;
+}
+
+/*
+ * __clayered_lookup_lazy_stable_open --
+ *     Open the stable constituent for a lookup whose ingest search missed.
+ */
+static int
+__clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
+{
+    WT_RET(__clayered_open_stable_lazy(op->clayered));
+    op->stable = op->clayered->stable_cursor;
 
     return (0);
 }
@@ -2876,6 +2886,23 @@ __clayered_search_near_reset_other(WTI_CLAYERED_OP *op)
 }
 
 /*
+ * __clayered_search_near_set_key --
+ *     Give a constituent the layered cursor's search key. Key-only positioning yields the empty key
+ *     for the leftmost page; the public set_key rejects it, but it is a valid search key sorting
+ *     before every record, so the key is assigned directly.
+ */
+static int
+__clayered_search_near_set_key(WT_CURSOR *c, const WT_ITEM *key)
+{
+    WT_RET(__cursor_copy_release(c));
+    F_CLR(c, WT_CURSTD_KEY_SET);
+    c->key.data = key->data;
+    c->key.size = key->size;
+    F_SET(c, WT_CURSTD_KEY_EXT);
+    return (0);
+}
+
+/*
  * __clayered_search_near_int --
  *     search near method for the layered cursor type.
  */
@@ -2908,7 +2935,7 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
      * FIXME-WT-17967: evaluate simplifying the side-selection above.
      */
     if (op->ingest != NULL) {
-        op->ingest->set_key(op->ingest, &cursor->key);
+        WT_ERR(__clayered_search_near_set_key(op->ingest, &cursor->key));
         WT_ERR_NOTFOUND_OK(op->ingest->search_near(op->ingest, &ingest_cmp), true);
         if (ret == 0) {
             ingest_found = true;
@@ -2918,7 +2945,7 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
 
     /* If there wasn't an exact match or the value is deleted, check the stable table as well */
     if ((!ingest_found || ingest_cmp != 0 || match_deleted) && op->stable != NULL) {
-        op->stable->set_key(op->stable, &cursor->key);
+        WT_ERR(__clayered_search_near_set_key(op->stable, &cursor->key));
         WT_ERR_NOTFOUND_OK(op->stable->search_near(op->stable, &stable_cmp), true);
         if (ret == 0)
             WT_ERR_NOTFOUND_OK(__clayered_search_near_skip_truncated(op, &stable_cmp), true);
@@ -3803,6 +3830,123 @@ err:
 }
 
 /*
+ * __clayered_set_position --
+ *     WT_CURSOR->set_position method for the layered cursor type. Positions are defined over the
+ *     stable constituent when the table has one, otherwise over the ingest constituent. The record
+ *     the constituent lands on is then searched again through the search_near path: that second
+ *     search is what applies ingest precedence, tombstones and committed truncate ranges, so it is
+ *     not a redundant descent.
+ */
+static int
+__clayered_set_position(WT_CURSOR *cursor, WT_POSITION *position)
+{
+    WTI_CLAYERED_OP op;
+    WT_CURSOR *c;
+    WTI_CURSOR_LAYERED *clayered;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    bool key_only;
+
+    clayered = (WTI_CURSOR_LAYERED *)cursor;
+    key_only = F_ISSET(position, WT_POSITION_KEY_ONLY);
+
+    CURSOR_API_CALL(cursor, session, ret, set_position, clayered->dhandle);
+    if (F_ISSET(clayered, WTI_CLAYERED_RANDOM))
+        WT_ERR_MSG(session, EINVAL, "set_position is not supported by next_random cursors");
+    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    WT_ERR(__cursor_copy_release(cursor));
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_POSITION, &op));
+    /* Drop every constituent position: after key-only mode a next or prev must start afresh. */
+    WT_ERR(__clayered_reset_cursors(clayered, false));
+
+    c = op.stable != NULL ? op.stable : op.ingest;
+    WT_ASSERT(session, c != NULL);
+    WT_ERR(c->set_position(c, position));
+
+    /* Take a private copy of the key: the constituent is reset or searched again below. */
+    WT_ERR(__wt_buf_set(session, &cursor->key, c->key.data, c->key.size));
+    F_SET(cursor, WT_CURSTD_KEY_EXT);
+
+    if (key_only) {
+        WT_ERR(c->reset(c));
+        goto err;
+    }
+
+    /*
+     * Resolve the record the way search_near resolves this key: an ingest update or tombstone for
+     * it takes precedence over the stable version, and a record inside a committed truncate range
+     * is stepped over to the nearest visible neighbor.
+     */
+    WT_ERR(__clayered_search_near_int(&op, NULL));
+
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+
+err:
+    __clayered_leave(clayered);
+    if (ret == 0 && !key_only) {
+        __clayered_stable_read_value_stat(clayered, &cursor->value);
+        __clayered_decode_current(clayered, &cursor->value);
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    } else if (ret != 0) {
+        WT_TRET(__clayered_reset_cursors(clayered, false));
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    }
+    API_END_RET(session, ret);
+}
+
+/*
+ * __clayered_get_position --
+ *     WT_CURSOR->get_position method for the layered cursor type. The position of a record only the
+ *     ingest constituent holds is that of its nearest stable neighbor.
+ */
+static int
+__clayered_get_position(WT_CURSOR *cursor, double *posp)
+{
+    WT_CURSOR *ingest, *stable;
+    WTI_CURSOR_LAYERED *clayered;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    int exact;
+
+    clayered = (WTI_CURSOR_LAYERED *)cursor;
+
+    /* Read the constituents as they stand: the layered enter path could reopen them. */
+    CURSOR_API_CALL(cursor, session, ret, get_position, clayered->dhandle);
+
+    stable = clayered->stable_cursor;
+    ingest = clayered->ingest_cursor;
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        WT_ERR_MSG(session, EINVAL, "get_position requires a positioned cursor");
+
+    if (stable != NULL && F_ISSET(stable, WT_CURSTD_KEY_INT))
+        WT_ERR(stable->get_position(stable, posp));
+    else if (ingest != NULL && F_ISSET(ingest, WT_CURSTD_KEY_INT)) {
+        /* An exact search defers opening stable; the position space is stable's if it exists. */
+        if (stable == NULL) {
+            WT_ERR(__clayered_open_stable_lazy(clayered));
+            stable = clayered->stable_cursor;
+        }
+        if (stable == NULL)
+            WT_ERR(ingest->get_position(ingest, posp));
+        else {
+            stable->set_key(stable, &cursor->key);
+            ret = stable->search_near(stable, &exact);
+            if (ret == 0)
+                ret = stable->get_position(stable, posp);
+            WT_TRET(stable->reset(stable));
+            WT_ERR(ret);
+        }
+    } else
+        WT_ERR_MSG(session, EINVAL, "get_position requires a positioned cursor");
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __clayered_close_int --
  *     Close a layered cursor
  */
@@ -4283,6 +4427,8 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __clayered_reserve,                             /* reserve */
       __clayered_reconfigure,                         /* reconfigure */
       __clayered_largest_key,                         /* largest_key */
+      __clayered_set_position,                        /* set_position */
+      __clayered_get_position,                        /* get_position */
       __clayered_bound,                               /* bound */
       __clayered_cache,                               /* cache */
       __clayered_reopen,                              /* reopen */
