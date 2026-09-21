@@ -10,18 +10,22 @@
 
 static void __free_page_modify(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_col_var(WT_SESSION_IMPL *, WT_PAGE *);
-static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *);
+static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *, bool);
 static void __free_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
+static void __free_ref(WT_SESSION_IMPL *, WT_REF *, int, bool, bool);
 static void __free_skip_array(WT_SESSION_IMPL *, WT_INSERT_HEAD **, uint32_t, bool);
 static void __free_skip_list(WT_SESSION_IMPL *, WT_INSERT *, bool);
 static void __free_update(WT_SESSION_IMPL *, WT_UPDATE **, uint32_t, bool);
+static void __page_out(WT_SESSION_IMPL *, WT_PAGE **, bool);
+static void __ref_addr_free(WT_SESSION_IMPL *, WT_REF *, bool);
+static void __ref_out(WT_SESSION_IMPL *, WT_REF *, bool);
 
 /*
- * __wt_ref_out --
- *     Discard an in-memory page, freeing all memory associated with it.
+ * __ref_out --
+ *     Discard an in-memory page, optionally freeing reference addresses immediately.
  */
-void
-__wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
+static void
+__ref_out(WT_SESSION_IMPL *session, WT_REF *ref, bool free_immediately)
 {
     /*
      * A version of the page-out function that allows us to make additional diagnostic checks.
@@ -40,7 +44,27 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
       __wt_hazard_check_assert(session, ref, true),
       "Attempted to free a page with active hazard pointers");
 
-    __wt_page_out(session, &ref->page);
+    __page_out(session, &ref->page, free_immediately);
+}
+
+/*
+ * __wt_ref_out --
+ *     Discard an in-memory page, freeing all memory associated with it.
+ */
+void
+__wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    __ref_out(session, ref, false);
+}
+
+/*
+ * __wt_ref_out_discard --
+ *     Discard an in-memory page when no concurrent readers can reference its addresses.
+ */
+void
+__wt_ref_out_discard(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    __ref_out(session, ref, true);
 }
 
 /*
@@ -49,6 +73,16 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
  */
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
+{
+    __page_out(session, pagep, false);
+}
+
+/*
+ * __page_out --
+ *     Discard an in-memory page, optionally freeing reference addresses immediately.
+ */
+static void
+__page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool free_immediately)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PAGE *page;
@@ -106,7 +140,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     case WT_PAGE_ROW_INT:
         mod = page->modify;
         if (mod != NULL && mod->mod_root_split != NULL)
-            __wt_page_out(session, &mod->mod_root_split);
+            __page_out(session, &mod->mod_root_split, free_immediately);
         break;
     }
 
@@ -144,7 +178,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     switch (page->type) {
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        __free_page_int(session, page);
+        __free_page_int(session, page, free_immediately);
         break;
     case WT_PAGE_COL_VAR:
         __free_page_col_var(session, page);
@@ -299,11 +333,11 @@ __wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
 }
 
 /*
- * __wt_ref_addr_free --
- *     Free the address in a reference, if necessary.
+ * __ref_addr_free --
+ *     Free the address in a reference, optionally without generation protection.
  */
-void
-__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
+static void
+__ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref, bool free_immediately)
 {
     WT_PAGE *home;
     void *ref_addr;
@@ -338,18 +372,34 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     if (home == NULL || __wt_off_page(home, ref_addr)) {
-        __wti_ref_addr_safe_free(
-          session, ((WT_ADDR *)ref_addr)->block_cookie, ((WT_ADDR *)ref_addr)->block_cookie_size);
-        __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
+        if (free_immediately) {
+            __wt_free(session, ((WT_ADDR *)ref_addr)->block_cookie);
+            __wt_free(session, ref_addr);
+        } else {
+            __wti_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->block_cookie,
+              ((WT_ADDR *)ref_addr)->block_cookie_size);
+            __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
+        }
     }
 }
 
 /*
- * __wti_free_ref --
- *     Discard the contents of a WT_REF structure (optionally including the pages it references).
+ * __wt_ref_addr_free --
+ *     Free the address in a reference, if necessary.
  */
 void
-__wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
+__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    __ref_addr_free(session, ref, false);
+}
+
+/*
+ * __free_ref --
+ *     Discard the contents of a WT_REF structure (optionally including the pages it references).
+ */
+static void
+__free_ref(
+  WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages, bool free_immediately)
 {
     WT_IKEY *ikey;
 
@@ -372,7 +422,7 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
         WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
-        __wt_page_out(session, &ref->page);
+        __page_out(session, &ref->page, free_immediately);
     }
 
     /*
@@ -391,7 +441,7 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
     }
 
     /* Free any address allocation. */
-    __wt_ref_addr_free(session, ref);
+    __ref_addr_free(session, ref, free_immediately);
 
     /* Free any backing fast-truncate memory. */
     __wt_free(session, ref->page_del);
@@ -400,18 +450,28 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
 }
 
 /*
+ * __wti_free_ref --
+ *     Discard the contents of a WT_REF structure (optionally including the pages it references).
+ */
+void
+__wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
+{
+    __free_ref(session, ref, page_type, free_pages, false);
+}
+
+/*
  * __free_page_int --
  *     Discard a WT_PAGE_COL_INT or WT_PAGE_ROW_INT page.
  */
 static void
-__free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
+__free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page, bool free_immediately)
 {
     WT_PAGE_INDEX *pindex;
     uint32_t i;
 
     WT_INTL_INDEX_GET_SAFE(page, pindex);
     for (i = 0; i < pindex->entries; ++i)
-        __wti_free_ref(session, pindex->index[i], page->type, false);
+        __free_ref(session, pindex->index[i], page->type, false, free_immediately);
 
     __wt_free(session, pindex);
 }
