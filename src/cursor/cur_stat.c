@@ -913,6 +913,41 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         /* If the connection configures clear, so do we. */
         if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR))
             F_SET(cst, WT_STAT_CLEAR);
+
+        /*
+         * The OTel type flags have no connection-level equivalent and are parsed after the
+         * defaulting above so they can never trip the "cst->flags == 0" sentinel that decides
+         * whether to inherit the connection's type configuration.
+         */
+        if ((ret = __wt_config_subgets(session, &cval, "none", &sval)) == 0 && sval.val != 0)
+            F_SET(cst, WT_STAT_OTEL_NONE);
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "counters", &sval)) == 0 && sval.val != 0) {
+            if (FLD_ISSET(cst->flags, WT_STAT_OTEL_NONE))
+                WT_ERR_MSG(session, EINVAL,
+                  "Only one of none, counters, gauges, histograms configuration values should "
+                  "be specified");
+            F_SET(cst, WT_STAT_OTEL_COUNTERS);
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "gauges", &sval)) == 0 && sval.val != 0) {
+            if (FLD_ISSET(cst->flags, WT_STAT_OTEL_NONE | WT_STAT_OTEL_COUNTERS))
+                WT_ERR_MSG(session, EINVAL,
+                  "Only one of none, counters, gauges, histograms configuration values should "
+                  "be specified");
+            F_SET(cst, WT_STAT_OTEL_GAUGES);
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "histograms", &sval)) == 0 &&
+          sval.val != 0) {
+            if (FLD_ISSET(
+                  cst->flags, WT_STAT_OTEL_NONE | WT_STAT_OTEL_COUNTERS | WT_STAT_OTEL_GAUGES))
+                WT_ERR_MSG(session, EINVAL,
+                  "Only one of none, counters, gauges, histograms configuration values should "
+                  "be specified");
+            F_SET(cst, WT_STAT_OTEL_HISTOGRAMS);
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
 
     /*

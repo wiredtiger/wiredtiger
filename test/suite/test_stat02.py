@@ -189,6 +189,63 @@ class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
                 lambda: self.session.open_cursor(
                 'statistics:' + self.uri, None, config), msg)
 
+# Test the OTel type configuration options are accepted individually.
+class test_stat_cursor_otel_config(wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    pfx = test_name
+
+    uri = [
+        ('otel_config_1', dict(uri='file:' + pfx, dataset=SimpleDataSet)),
+        ('otel_config_2', dict(uri='table:' + pfx, dataset=SimpleDataSet)),
+        ('otel_config_3', dict(uri='table:' + pfx, dataset=ComplexDataSet)),
+    ]
+    otel = [
+        ('none', dict(otel='none')),
+        ('counters', dict(otel='counters')),
+        ('gauges', dict(otel='gauges')),
+        ('histograms', dict(otel='histograms')),
+    ]
+
+    scenarios = make_scenarios(uri, otel)
+    conn_config = 'statistics=(all)'
+
+    def test_stat_cursor_otel_config(self):
+        self.dataset(self, self.uri, 100).populate()
+        config = 'statistics=(fast,' + self.otel + ')'
+        self.session.open_cursor('statistics:' + self.uri, None, config)
+
+# Test OTel type error combinations.
+class test_stat_cursor_otel_error(wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    pfx = test_name
+
+    uri = [
+        ('otel_error_1', dict(uri='file:' + pfx, dataset=SimpleDataSet)),
+        ('otel_error_2', dict(uri='table:' + pfx, dataset=SimpleDataSet)),
+        ('otel_error_3', dict(uri='table:' + pfx, dataset=ComplexDataSet)),
+    ]
+
+    scenarios = make_scenarios(uri)
+    conn_config = 'statistics=(all)'
+
+    def test_stat_cursor_otel_error(self):
+        self.dataset(self, self.uri, 100).populate()
+        args = ['none', 'counters', 'gauges', 'histograms']
+        for i in list(itertools.permutations(args, 2)):
+            config = 'statistics=(fast,' + i[0] + ',' + i[1] + ')'
+            msg = '/Only one of/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.open_cursor(
+                'statistics:' + self.uri, None, config), msg)
+
+    def test_stat_cursor_otel_error_conn(self):
+        args = ['none', 'counters', 'gauges', 'histograms']
+        for i in list(itertools.permutations(args, 2)):
+            config = 'create,statistics=(' + i[0] + ',' + i[1] + ')'
+            msg = '/not a permitted choice|Only one of/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.wiredtiger_open('.', config), msg)
+
 # Test data-source cache walk statistics
 class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
     test_name = __qualname__

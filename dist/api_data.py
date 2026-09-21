@@ -1873,8 +1873,12 @@ methods = {
         the default configuration is the database configuration. The "clear" configuration
         resets statistics after gathering them, where appropriate (for example, a cache size
         statistic is not cleared, while the count of cursor insert operations will be cleared).
-        See @ref statistics for more information''',
-        type='list', choices=['all', 'cache_walk', 'fast', 'clear', 'size', 'tree_walk']),
+        At most one of "none", "counters", "gauges" or "histograms" may also be configured to
+        select an OTel metric type; configuring one of these currently has no effect on which
+        statistics are returned. See @ref statistics for more information''',
+        type='list',
+        choices=['all', 'cache_walk', 'clear', 'counters', 'fast', 'gauges', 'histograms', 'none',
+          'size', 'tree_walk']),
     Config('target', '', r'''
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),
