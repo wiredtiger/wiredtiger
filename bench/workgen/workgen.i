@@ -45,11 +45,13 @@
 %feature("flatnested");
 
 /*
- * Both names shadow Python built-ins, which SWIG otherwise flags as
- * Warning 321. Rename the generated Python bindings; note the actual
- * struct tag behind the WT_CURSOR typedef is __wt_cursor.
+ * WT_CURSOR is only referenced for its type below, never wrapped, so
+ * drop the unused next field rather than rename it; the actual struct
+ * tag behind the WT_CURSOR typedef is __wt_cursor.
  */
-%rename(next_op) __wt_cursor::next;
+%ignore __wt_cursor::next;
+
+/* help() shadows a Python built-in, which SWIG flags as Warning 321. */
 %rename(help_str) workgen::TableOptions::help;
 %rename(help_str) workgen::ParetoOptions::help;
 %rename(help_str) workgen::ThreadOptions::help;
