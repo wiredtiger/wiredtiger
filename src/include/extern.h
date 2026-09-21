@@ -2095,6 +2095,8 @@ static WT_INLINE bool __wt_spin_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_PAGE_INDEX *saved_pindex) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_step_down_read_lock(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_has_newest_and_visible_all(WT_SESSION_IMPL *session, uint64_t id,
   wt_timestamp_t timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_log_op_check(WT_SESSION_IMPL *session)
@@ -2377,8 +2379,8 @@ static WT_INLINE int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, W
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer,
+  bool relaxed_load_ok) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree,
   wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2663,10 +2665,9 @@ static WT_INLINE void __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
-static WT_INLINE void __wt_step_down_read_lock(WT_SESSION_IMPL *session);
-static WT_INLINE void __wt_step_down_read_unlock(WT_SESSION_IMPL *session);
-static WT_INLINE void __wt_step_down_write_lock(WT_SESSION_IMPL *session);
-static WT_INLINE void __wt_step_down_write_unlock(WT_SESSION_IMPL *session);
+static WT_INLINE void __wt_step_down_read_unlock(WT_SESSION_IMPL *session, bool lock_held);
+static WT_INLINE void __wt_step_down_timestamp_write(
+  WT_SESSION_IMPL *session, wt_timestamp_t ts, wt_timestamp_t epoch, bool set_epoch);
 static WT_INLINE void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
 static WT_INLINE void __wt_timer_evaluate_ms(
   WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff_ms);
@@ -2693,6 +2694,8 @@ static WT_INLINE wt_timestamp_t __wt_get_oldest_timestamp(WT_SESSION_IMPL *sessi
 static WT_INLINE wt_timestamp_t __wt_get_stable_disaggregated_schema_epoch(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE wt_timestamp_t __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE wt_timestamp_t __wt_step_down_timestamp_read(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE wt_timestamp_t __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

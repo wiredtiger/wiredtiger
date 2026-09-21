@@ -2053,13 +2053,16 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 
 /*
  * __wt_step_down_read_lock --
- *     Take the step-down read lock.
+ *     Take the step-down read lock if needed.
  */
-static WT_INLINE void
+static WT_INLINE bool
 __wt_step_down_read_lock(WT_SESSION_IMPL *session)
 {
-    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+    bool need_lock =
+      !F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
+    if (need_lock)
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+    return (need_lock);
 }
 
 /*
@@ -2067,32 +2070,61 @@ __wt_step_down_read_lock(WT_SESSION_IMPL *session)
  *     Release the step-down lock taken by __wt_step_down_read_lock.
  */
 static WT_INLINE void
-__wt_step_down_read_unlock(WT_SESSION_IMPL *session)
+__wt_step_down_read_unlock(WT_SESSION_IMPL *session, bool lock_held)
 {
-    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+    if (lock_held)
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
 }
 
 /*
- * __wt_step_down_write_lock --
- *     Take the step-down write lock.
+ * __wt_step_down_timestamp_write --
+ *     Publish the step-down timestamp and epoch.
+ *
+ * The publish must not be reordered against the store of the follower role, or a transaction could
+ *     observe the timestamp cleared while still reading the stale leader role, then read stable
+ *     alone and miss ingest content. The step-down write lock gives that ordering while it is held,
+ *     so relaxed stores suffice; when write mirroring elides the lock the release store pairs with
+ *     the acquire load in __wt_step_down_timestamp_read to ensure the ordering.
  */
 static WT_INLINE void
-__wt_step_down_write_lock(WT_SESSION_IMPL *session)
+__wt_step_down_timestamp_write(
+  WT_SESSION_IMPL *session, wt_timestamp_t ts, wt_timestamp_t epoch, bool set_epoch)
 {
-    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
+    bool need_lock =
+      !F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
+    if (need_lock) {
         __wt_writelock(session, &S2C(session)->txn_global.step_down_lock);
+        __wt_atomic_store_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp, ts);
+    } else
+        __wt_atomic_store_uint64_release(&S2C(session)->txn_global.step_down_timestamp, ts);
+
+    if (set_epoch)
+        __wt_atomic_store_uint64_relaxed(
+          &S2C(session)->txn_global.step_down_disaggregated_schema_epoch, epoch);
+
+    if (need_lock)
+        __wt_writeunlock(session, &S2C(session)->txn_global.step_down_lock);
 }
 
 /*
- * __wt_step_down_write_unlock --
- *     Release the step-down lock taken by __wt_step_down_write_lock.
+ * __wt_step_down_timestamp_read --
+ *     Read the step-down timestamp, ordered against the change of role to leader or follower.
+ *
+ * The step-down read lock gives that ordering while it is held, so a relaxed load suffices; when
+ *     write mirroring elides the lock the acquire load pairs with the release store in
+ *     __wt_step_down_timestamp_write to ensure the ordering.
  */
-static WT_INLINE void
-__wt_step_down_write_unlock(WT_SESSION_IMPL *session)
+static WT_INLINE wt_timestamp_t
+__wt_step_down_timestamp_read(WT_SESSION_IMPL *session)
 {
-    if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING))
-        __wt_writeunlock(session, &S2C(session)->txn_global.step_down_lock);
+    wt_timestamp_t ts;
+
+    bool lock_held = __wt_step_down_read_lock(session);
+    ts = lock_held ?
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) :
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
+    __wt_step_down_read_unlock(session, lock_held);
+    return (ts);
 }
 
 /*
@@ -2108,16 +2140,12 @@ __wt_step_down_write_unlock(WT_SESSION_IMPL *session)
  *     routes to ingest. For read operations only the assertion applies.
  */
 static WT_INLINE int
-__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
+__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer, bool relaxed_load_ok)
 {
     WT_TXN *txn = session->txn;
-    /*
-     * A relaxed load suffices: for cursor operations rejecting a straddler here is only an
-     * optimization ahead of the commit-time check, and at commit the caller holds the step-down
-     * lock, which orders this read against the timestamp being set.
-     */
-    wt_timestamp_t stepdown_ts =
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+    wt_timestamp_t stepdown_ts = relaxed_load_ok ?
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) :
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
 
     /*
      * While the step-down timestamp is set, layered operations must run in explicit snapshot
@@ -2231,18 +2259,11 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      * changes made after the step-down timestamp was set guarantees the timestamp is observed as
      * set here as well.
      *
-     * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
-     * the timestamp as set also makes the writes of transactions that committed before it was set
-     * visible.
-     *
-     * FIXME-WT-18650: Remove step_down_lock when always mirroring writes.
+     * Reading the timestamp as set also makes the writes of transactions that committed before it
+     * was set visible.
      */
-    if (__wt_conn_is_disagg(session)) {
-        __wt_step_down_read_lock(session);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
-                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
-        __wt_step_down_read_unlock(session);
-    }
+    if (__wt_conn_is_disagg(session))
+        txn->stepdown_ts_set = __wt_step_down_timestamp_read(session) != WT_TS_NONE;
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))

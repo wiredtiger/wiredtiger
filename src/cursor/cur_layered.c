@@ -589,7 +589,11 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      * result does not depend on the transaction.
      */
     if (mode != WTI_CLAYERED_MODE_LARGEST_KEY)
-        WT_RET(__wt_txn_stepdown_straddler_check(session, mode == WTI_CLAYERED_MODE_WRITE));
+        /*
+         * A relaxed load suffices: for cursor operations rejecting a straddler here is only an
+         * optimization ahead of the commit-time check.
+         */
+        WT_RET(__wt_txn_stepdown_straddler_check(session, mode == WTI_CLAYERED_MODE_WRITE, true));
 
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
