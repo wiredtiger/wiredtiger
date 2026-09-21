@@ -95,7 +95,11 @@ TEST_CASE(
 
     WT_PAGE_LOG_PUT_ARGS cache_args{};
     cache_args.lsn = lsn;
-    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
+    cache_args.backlink_lsn = 7;
+    cache_args.base_lsn = 3;
+    cache_args.backlink_checkpoint_id = 11;
+    cache_args.base_checkpoint_id = 13;
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, 99, &cache_args, &cache_buf) == 0);
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
 
     WT_ITEM results[4]{};
@@ -117,6 +121,10 @@ TEST_CASE(
     REQUIRE(n == 1);
     REQUIRE(results[0].size == std::strlen(cache_bytes));
     REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
+    REQUIRE(get_args.backlink_lsn == 7);
+    REQUIRE(get_args.base_lsn == 3);
+    REQUIRE(get_args.backlink_checkpoint_id == 11);
+    REQUIRE(get_args.base_checkpoint_id == 13);
     free_results(results, n);
 
     /* Second get reads from the store. */
