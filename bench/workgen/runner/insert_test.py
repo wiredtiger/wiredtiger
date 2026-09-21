@@ -122,4 +122,4 @@ print('RUN4')
 expectException(lambda: workload.run(conn))
 
 print('HELP:')
-print(workload.options.help_str())
+print(workload.options.help())

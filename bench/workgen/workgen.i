@@ -46,11 +46,14 @@
 
 /*
  * Both names shadow Python built-ins, which SWIG otherwise flags as
- * Warning 321. Rename the generated Python bindings only; the C/C++
- * API keeps its original name.
+ * Warning 321. Rename the generated Python bindings; note the actual
+ * struct tag behind the WT_CURSOR typedef is __wt_cursor.
  */
-%rename(next_op) next;
-%rename(help_str) help;
+%rename(next_op) __wt_cursor::next;
+%rename(help_str) workgen::TableOptions::help;
+%rename(help_str) workgen::ParetoOptions::help;
+%rename(help_str) workgen::ThreadOptions::help;
+%rename(help_str) workgen::WorkloadOptions::help;
 
 /* We only need to reference WiredTiger types. */
 %import "wiredtiger.h"
@@ -133,6 +136,24 @@ InterruptableFunction(workgen::Workload::run)
 %module workgen
 /* Parse the header to generate wrappers. */
 %include "workgen.h"
+
+/*
+ * Keep help() working for existing workload scripts written against the
+ * pre-rename API.
+ */
+%define OptionsHelpCompat(classname)
+%extend classname {
+%pythoncode %{
+    def help(self):
+        return self.help_str()
+%}
+}
+%enddef
+
+OptionsHelpCompat(workgen::TableOptions)
+OptionsHelpCompat(workgen::ParetoOptions)
+OptionsHelpCompat(workgen::ThreadOptions)
+OptionsHelpCompat(workgen::WorkloadOptions)
 
 %template(OpList) std::vector<workgen::Operation>;
 %template(ThreadList) std::vector<workgen::Thread>;
