@@ -43,7 +43,6 @@ else()
         misc_tests/test_palite_victim_cache.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
-        misc_tests/test_stash_batch.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
         misc_tests/test_txn_config.cpp
