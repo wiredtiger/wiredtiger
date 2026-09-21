@@ -32,7 +32,9 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
-# Read routing and cursor positions during a planned step-down.
+
+# test_layered_async_stepdown15.py
+#    Read routing and cursor positions during async step-down.
 @disagg_test_class
 class test_layered_async_stepdown15(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     write_modes = [
@@ -73,6 +75,7 @@ class test_layered_async_stepdown15(LayeredStepdownMixin, wttest.WiredTigerTestC
         return value
 
     def read_stat(self, operation, constituent):
+        # next_random resolves the row it picks through search_near, and has no counter of its own.
         if operation == 'next_random':
             operation = 'search_near'
         c = self.session.open_cursor('statistics:')
@@ -86,6 +89,7 @@ class test_layered_async_stepdown15(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.remove_at(self.uri, ['g'], 31)
         latest = dict(self.initial, c=b'updated', f=b'inserted')
         del latest['g']
+        # Mirroring with an existing stable constituent is the only case that reads stable alone.
         needs_ingest = not self.write_mirroring or self.window_created
 
         for read_ts, expected in ((27, self.initial), (40, latest)):
@@ -211,6 +215,8 @@ class test_layered_async_stepdown15(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     def test_chained_writes_and_remove(self):
         self.populate()
+        # Mirror-conflict detection logs this diagnostic warning when the stable value encodes
+        # into the tombstone namespace, which these values are chosen to provoke.
         self.ignoreStdoutPattern('stable table value in the tombstone namespace')
         for value in (b'plain', b'\x14\x14ab'):
             for forward in (True, False):
@@ -225,6 +231,9 @@ class test_layered_async_stepdown15(LayeredStepdownMixin, wttest.WiredTigerTestC
                 self.assertEqual(cursor.remove(), 0)
                 self.assertEqual(cursor.get_key(), 'e')
                 self.assertEqual(cursor.next() if forward else cursor.prev(), 0)
+                self.assertEqual(cursor.get_key(), 'g' if forward else 'c')
+                # Removing the key the walk sits on keeps the cursor positioned on it.
+                self.assertEqual(cursor.remove(), 0)
                 self.assertEqual(cursor.get_key(), 'g' if forward else 'c')
                 cursor.set_key('e')
                 self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)

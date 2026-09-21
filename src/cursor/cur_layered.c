@@ -454,7 +454,8 @@ __clayered_route_to_ingest(
 
     /*
      * A table created inside the step-down window has no stable constituent at all, so its cursors
-     * use ingest whenever the transaction began. 
+     * use ingest whenever the transaction began. That covers a transaction from before the
+     * timestamp was set, which would otherwise read stable alone and find nothing to open.
      */
     if (__wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created))
         return (true);
@@ -3310,24 +3311,16 @@ __clayered_ingest_tombstone(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_CURSOR *const c_ingest = op->ingest;
 
     /*
-     * Position the ingest cursor unless it is already seated on this key. A walk can leave it on
-     * the key being removed, and re-seating it would cost a search; a cursor seated anywhere else
-     * must not be written through.
+     * Position the ingest cursor unless it is already seated on this key.
      */
     if (!F_ISSET(c_ingest, WT_CURSTD_KEY_INT)) {
         c_ingest->set_key(c_ingest, key);
     } else {
         int cmp;
-
         WT_RET(__wt_compare(session, op->collator, &c_ingest->key, key, &cmp));
         if (cmp != 0)
             c_ingest->set_key(c_ingest, key);
     }
-
-    /* A mirrored remove retains stable's position at the deleted key. */
-    if (op->write_target == WTI_CLAYERED_WRITE_INGEST &&
-      !F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
-        WT_RET(__clayered_reset_cursors(clayered, true));
 
     c_ingest->set_value(c_ingest, &__wt_tombstone);
     WT_RET(c_ingest->update(c_ingest));
@@ -3372,6 +3365,13 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         if (__wt_clayered_deleted(&value))
             return (WT_NOTFOUND);
     }
+
+    /*
+     * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
+     * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
+     */
+    if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
+        WT_RET(__clayered_reset_cursors(clayered, true));
 
     /*
      * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer. Doing
@@ -3427,16 +3427,11 @@ __clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positi
      * A positioned remove leaves the cursor on the removed key, so a stable constituent already
      * seated on that key keeps the walk frontier: the mirrored tombstone leaves ingest on the same
      * key, and the next step advances both as a tie. Keep the iteration flags in that case.
-     *
-     * Against a stable position anywhere else the remove needs a search, which drops that position
-     * without recording where the frontier moved to, so the flags must go and the next step
-     * re-seats stable from the current key.
      */
     stable_on_key = positioned && clayered->current_cursor == op->stable &&
       F_ISSET(op->stable, WT_CURSTD_KEY_INT);
     if (stable_on_key) {
         int cmp;
-
         WT_RET(__wt_compare(session, op->collator, &op->stable->key, key, &cmp));
         stable_on_key = (cmp == 0);
     }
@@ -4156,12 +4151,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     WT_ERR(__clayered_modify_check(op, &cursor->key));
 
-    /* The stable write already produced the final value; a lookup could reset its position. */
-    if (mirroring) {
-        WT_ASSERT(session, clayered->current_cursor == op->stable);
-        WT_ITEM_SET(value, op->stable->value);
-    } else
-        WT_ERR(__clayered_lookup(op, &value));
+    WT_ERR(__clayered_lookup(op, &value));
 
     if (clayered->current_cursor == c_ingest)
         WT_ERR(__clayered_modify_try_ingest(op, entries, nentries, &value, &need_full_update));
@@ -4192,7 +4182,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         __clayered_assert_mirrored_values(session, &op->stable->value, &c_ingest->value);
 #endif
 
-    /* Preserve stable's matching position for mirrored writes and ongoing traversals. */
+    /* Preserve the stable cursor position for mirrored writes and ongoing traversals. */
     if (!mirroring && !F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
         WT_ERR(__clayered_reset_cursors(clayered, true));
     clayered->current_cursor = mirroring ? op->stable : c_ingest;
