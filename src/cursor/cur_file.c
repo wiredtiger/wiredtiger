@@ -1080,8 +1080,7 @@ __curfile_set_position(WT_CURSOR *cursor, WT_POSITION *position)
         WT_ERR_MSG(session, EINVAL, "set_position is not supported by next_random cursors");
     if (F_ISSET(cursor, WT_CURSTD_BULK))
         WT_ERR_MSG(session, EINVAL, "set_position is not supported by bulk cursors");
-    /* NaN is the only value that compares unequal to itself. */
-    if (!(position->pos <= 0.0 || position->pos >= 0.0))
+    if (isnan(position->pos))
         WT_ERR_MSG(session, EINVAL, "set_position requires a numeric position");
 
     WT_ERR(__cursor_copy_release(cursor));
