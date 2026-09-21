@@ -178,27 +178,20 @@
 
 /* Overwrite whether or not this is a diagnostic build. */
 #define __wt_explicit_overwrite(p, size) memset(p, WT_DEBUG_BYTE, size)
-#ifdef HAVE_DIAGNOSTIC
-#define __wt_overwrite_and_free(session, p)           \
-    do {                                              \
-        void *__p = &(p);                             \
-        if (*(void **)__p != NULL) {                  \
-            __wt_explicit_overwrite(p, sizeof(*(p))); \
-            __wt_free_int(session, __p);              \
-        }                                             \
+
+/*
+ * Poison a structure before freeing it, so that a use-after-free is loud rather than silent. The
+ * decision of whether to poison at all lives in __wt_poison_before_free.
+ */
+#define __wt_overwrite_and_free_len(session, p, len)              \
+    do {                                                          \
+        void *__p = &(p);                                         \
+        if (*(void **)__p != NULL) {                              \
+            __wt_poison_before_free(session, *(void **)__p, len); \
+            __wt_free_int(session, __p);                          \
+        }                                                         \
     } while (0)
-#define __wt_overwrite_and_free_len(session, p, len) \
-    do {                                             \
-        void *__p = &(p);                            \
-        if (*(void **)__p != NULL) {                 \
-            __wt_explicit_overwrite(p, len);         \
-            __wt_free_int(session, __p);             \
-        }                                            \
-    } while (0)
-#else
-#define __wt_overwrite_and_free(session, p) __wt_free(session, p)
-#define __wt_overwrite_and_free_len(session, p, len) __wt_free(session, p)
-#endif
+#define __wt_overwrite_and_free(session, p) __wt_overwrite_and_free_len(session, p, sizeof(*(p)))
 
 /*
  * Flag set, clear and test.

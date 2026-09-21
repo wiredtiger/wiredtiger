@@ -298,6 +298,24 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
 }
 
 /*
+ * __wt_poison_before_free --
+ *     Fill a block with a known byte pattern so that a later read of it returns obvious garbage
+ *     rather than plausible data. Diagnostic builds always do this. Release builds do it only when
+ *     configured, because it may convert a previously stale read into a crash.
+ */
+static WT_INLINE void
+__wt_poison_before_free(WT_SESSION_IMPL *session, void *p, size_t len)
+{
+#ifdef HAVE_DIAGNOSTIC
+    WT_UNUSED(session);
+    __wt_explicit_overwrite(p, len);
+#else
+    if (session != NULL && FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_OVERWRITE_FREE))
+        __wt_explicit_overwrite(p, len);
+#endif
+}
+
+/*
  * The hardware-accelerated checksum code that originally shipped on Windows did not correctly
  * handle memory that wasn't 8B aligned and a multiple of 8B. It's likely that calculations were
  * always 8B aligned, but there's some risk.

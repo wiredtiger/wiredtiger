@@ -2254,9 +2254,14 @@ struct __wt_connection {
      * WiredTiger cannot detect the difference between a system that has not yet checkpointed and
      * one that will never checkpoint\, it might discard log files before any checkpoint is done.)
      * Ignored if set to 0., an integer between \c 0 and \c 1024; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory will only
-     * provide the exact amount requested.  This will help with spotting memory allocation issues
-     * more easily., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;overwrite_free, if true\, overwrite memory with a known byte
+     * pattern before freeing it\, so that a read of freed memory is more likely to fail immediately
+     * rather than silently returning plausible data.  Always enabled in diagnostic builds.
+     * Enabling this may convert a previously stale read into a crash., a boolean flag; default \c
+     * false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory will
+     * only provide the exact amount requested.  This will help with spotting memory allocation
+     * issues more easily., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
      * realloc_malloc, if true\, every realloc call will force a new memory allocation by using
      * malloc., a boolean flag; default \c false.}
@@ -3188,6 +3193,11 @@ struct __wt_connection {
  * cannot detect the difference between a system that has not yet checkpointed and one that will
  * never checkpoint\, it might discard log files before any checkpoint is done.) Ignored if set to
  * 0., an integer between \c 0 and \c 1024; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * overwrite_free, if true\, overwrite memory with a known byte pattern before freeing it\, so that
+ * a read of freed memory is more likely to fail immediately rather than silently returning
+ * plausible data.  Always enabled in diagnostic builds.  Enabling this may convert a previously
+ * stale read into a crash., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * realloc_exact, if true\, reallocation of memory will only provide the exact amount requested.
  * This will help with spotting memory allocation issues more easily., a boolean flag; default \c

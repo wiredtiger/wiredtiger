@@ -720,6 +720,12 @@ connection_runtime_config = [
             and one that will never checkpoint, it might discard log files before any checkpoint is
             done.) Ignored if set to 0''',
             min='0', max='1024'),
+        Config('overwrite_free', 'false', r'''
+            if true, overwrite memory with a known byte pattern before freeing it, so that a
+            read of freed memory is more likely to fail immediately rather than silently
+            returning plausible data. Always enabled in diagnostic builds. Enabling this
+            may convert a previously stale read into a crash''',
+            type='boolean'),
         Config('page_history', 'false', r'''
             if true, keep track of per-page usage statistics for all pages and periodically print a
             report. Currently this works only for disaggregated storage.''',

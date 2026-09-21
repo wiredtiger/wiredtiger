@@ -32,6 +32,7 @@ else()
         misc_tests/test_modify_tombstone_namespace.cpp
         misc_tests/test_page_delta_merge_empty_value.cpp
         misc_tests/test_page_log_handle.cpp
+        misc_tests/test_poison_before_free.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
