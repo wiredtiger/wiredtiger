@@ -107,6 +107,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         self._populate()
         table_id, page_id, lsn = self._find_base_image_page()
         self.corrupt_checkpoint_metadata_page()
+
         out, err = self._run_wt(
             'page', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn))
         self.assertIn('proceeding with empty metadata', err)
@@ -118,14 +119,6 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         self.assertIn("{REDACTED}", err)
         self.assertNotIn("(chunk 2 of ", err)
 
-    def test_raw_read_after_corrupt_checkpoint_unredact(self):
-        if self.ds_name != 'palite':
-            self.skipTest('palite-only test')
-        if not wiredtiger.diagnostic_build():
-            self.skipTest('wt page requires a diagnostic build')
-        self._populate()
-        table_id, page_id, lsn = self._find_base_image_page()
-        self.corrupt_checkpoint_metadata_page()
         _, err = self._run_wt(
             'page', '-u', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn))
         self.assertIn('proceeding with empty metadata', err)

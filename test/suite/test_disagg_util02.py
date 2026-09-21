@@ -186,6 +186,7 @@ class test_disagg_wt_page(
         self._skip_if_not_diagnostic()
         self._populate()
         page = self._find_base_image_page()
+
         stdout, _ = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertEqual(self._assert_chain_header(stdout, page), 1)
@@ -194,10 +195,6 @@ class test_disagg_wt_page(
         self.assertNotIn("s3cr3t_v4lue", stdout)
         self.assertIn("{REDACTED}", stdout)
 
-    def test_full_image_unredact(self):
-        self._skip_if_not_diagnostic()
-        self._populate()
-        page = self._find_base_image_page()
         stdout, _ = self._run_wt_page(
             "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertEqual(self._assert_chain_header(stdout, page), 1)
@@ -211,17 +208,12 @@ class test_disagg_wt_page(
         page = self._find_base_image_page()
         table_id = get_table_id(self.session, self.stable_uri)
         self.corrupt_page_image_at(table_id, page.page_id, page.lsn)
+
         _, stderr = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri, failure=True)
         self.assertIn(f"page_id {page.page_id}, lsn {page.lsn}", stderr)
         self.assertIn("{REDACTED}", stderr)
 
-    def test_full_image_corrupt_unredact(self):
-        self._skip_if_not_diagnostic()
-        self._populate()
-        page = self._find_base_image_page()
-        table_id = get_table_id(self.session, self.stable_uri)
-        self.corrupt_page_image_at(table_id, page.page_id, page.lsn)
         _, stderr = self._run_wt_page(
             "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri, failure=True)
         self.assertIn(f"page_id {page.page_id}, lsn {page.lsn}", stderr)
@@ -232,6 +224,7 @@ class test_disagg_wt_page(
         self._populate()
         self._dirty_and_checkpoint()
         page = self._find_delta_page()
+
         stdout, _ = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         result_count = self._assert_chain_header(stdout, page)
@@ -245,11 +238,6 @@ class test_disagg_wt_page(
         # regardless of the delta gate).
         self.assertIn("V: {REDACTED}", stdout)
 
-    def test_delta_chain_unredact(self):
-        self._skip_if_not_diagnostic()
-        self._populate()
-        self._dirty_and_checkpoint()
-        page = self._find_delta_page()
         stdout, _ = self._run_wt_page(
             "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         result_count = self._assert_chain_header(stdout, page)
