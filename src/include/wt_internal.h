@@ -41,6 +41,7 @@ extern "C" {
 #include <io.h>
 #endif
 #include <limits.h>
+#include <math.h>
 #ifdef _WIN32
 #include <process.h>
 #else
