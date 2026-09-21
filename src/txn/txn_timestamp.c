@@ -661,7 +661,10 @@ set:
      * clears it, so it is only valid on a leader and cannot be changed while set.
      */
     if (has_step_down) {
-        __wt_step_down_timestamp_write(session, step_down_ts, step_down_epoch, has_step_down_epoch);
+        __wt_step_down_timestamp_write(session, step_down_ts);
+        if (has_step_down_epoch)
+            __wt_atomic_store_uint64_relaxed(
+              &txn_global->step_down_disaggregated_schema_epoch, step_down_epoch);
         WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 1);
         __wt_verbose_info(session, WT_VERB_TIMESTAMP, "Updated global step down timestamp to %s",
           __wt_timestamp_to_string(step_down_ts, ts_string[0]));

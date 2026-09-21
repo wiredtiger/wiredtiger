@@ -2078,32 +2078,25 @@ __wt_step_down_read_unlock(WT_SESSION_IMPL *session, bool lock_held)
 
 /*
  * __wt_step_down_timestamp_write --
- *     Publish the step-down timestamp and epoch.
+ *     Publish the step-down timestamp.
  *
  * The publish must not be reordered against the store of the follower role, or a transaction could
  *     observe the timestamp cleared while still reading the stale leader role, then read stable
  *     alone and miss ingest content. The step-down write lock gives that ordering while it is held,
- *     so relaxed stores suffice; when write mirroring elides the lock the release store pairs with
- *     the acquire load in __wt_step_down_timestamp_read to ensure the ordering.
+ *     so a relaxed store suffices; when write mirroring elides the lock the release store pairs
+ *     with the acquire load in __wt_step_down_timestamp_read to ensure the ordering.
  */
 static WT_INLINE void
-__wt_step_down_timestamp_write(
-  WT_SESSION_IMPL *session, wt_timestamp_t ts, wt_timestamp_t epoch, bool set_epoch)
+__wt_step_down_timestamp_write(WT_SESSION_IMPL *session, wt_timestamp_t ts)
 {
-    bool need_lock =
-      !F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
-    if (need_lock) {
-        __wt_writelock(session, &S2C(session)->txn_global.step_down_lock);
-        __wt_atomic_store_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp, ts);
-    } else
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING)) {
         __wt_atomic_store_uint64_release(&S2C(session)->txn_global.step_down_timestamp, ts);
+        return;
+    }
 
-    if (set_epoch)
-        __wt_atomic_store_uint64_relaxed(
-          &S2C(session)->txn_global.step_down_disaggregated_schema_epoch, epoch);
-
-    if (need_lock)
-        __wt_writeunlock(session, &S2C(session)->txn_global.step_down_lock);
+    __wt_writelock(session, &S2C(session)->txn_global.step_down_lock);
+    __wt_atomic_store_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp, ts);
+    __wt_writeunlock(session, &S2C(session)->txn_global.step_down_lock);
 }
 
 /*

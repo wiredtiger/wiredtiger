@@ -2666,8 +2666,7 @@ static WT_INLINE void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK
 static WT_INLINE void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static WT_INLINE void __wt_step_down_read_unlock(WT_SESSION_IMPL *session, bool lock_held);
-static WT_INLINE void __wt_step_down_timestamp_write(
-  WT_SESSION_IMPL *session, wt_timestamp_t ts, wt_timestamp_t epoch, bool set_epoch);
+static WT_INLINE void __wt_step_down_timestamp_write(WT_SESSION_IMPL *session, wt_timestamp_t ts);
 static WT_INLINE void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
 static WT_INLINE void __wt_timer_evaluate_ms(
   WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff_ms);

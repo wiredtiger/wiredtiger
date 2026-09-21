@@ -1909,9 +1909,12 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
      * step-down, but the ordering is still important for readers: a transaction that sees the
      * timestamp cleared must also see the earlier switch of the role to follower. Without that
      * ordering a reader could observe the stale leader role with no step-down timestamp and read
-     * only stable, missing ingest content.
+     * only stable, missing ingest content. The epoch is only read by schema operations, which the
+     * schema lock held here orders it against.
      */
-    __wt_step_down_timestamp_write(session, WT_TS_NONE, WT_SCHEMA_EPOCH_NONE, true);
+    __wt_step_down_timestamp_write(session, WT_TS_NONE);
+    __wt_atomic_store_uint64_relaxed(
+      &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
 
