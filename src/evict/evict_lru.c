@@ -568,8 +568,10 @@ __evict_tree_set_hidden(WT_SESSION_IMPL *session, WT_BTREE *btree, bool hide)
                     __evict_subqueue_set_hidden(session, subq, hide);
 
                     /*
-					 * Set the non-empty hint for the hash chain if we are unhiding this
-					 * queue.
+                     * Store 1 in this slot's maybe_nonempty again. The walk may only store 0 while
+                     * the tree is syncing because this pass runs: otherwise the 1 would come back
+                     * only in the buckets that happen to receive a new enqueue, and the pages
+                     * queued in every other bucket would never be visited again.
                      */
                     if (!hide)
                         __wt_atomic_store_uint32_relaxed(&hash_entry->maybe_nonempty, 1);
@@ -934,7 +936,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
                    bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
-    } else if (cache_pct > trigger)
+    } else
         LF_SET(WT_EVICT_CACHE_NOKEEP);
 
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT)) {
