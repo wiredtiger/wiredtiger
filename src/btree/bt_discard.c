@@ -40,6 +40,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
       __wt_hazard_check_assert(session, ref, true),
       "Attempted to free a page with active hazard pointers");
 
+    __wt_dirty_index_clear_page(session, S2BT(session), ref, ref->page);
     __wt_page_out(session, &ref->page);
 }
 
@@ -372,6 +373,7 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
         WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
+        __wt_dirty_index_clear_page(session, S2BT(session), ref, ref->page);
         __wt_page_out(session, &ref->page);
     }
 

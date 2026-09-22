@@ -851,7 +851,16 @@ struct __wt_page {
     uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
                                       but fails */
     uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
-    /* 2 uint16_t hole expected. */
+
+    /*
+     * Slot index (1-based) of this page in the btree's dirty-index ring, or one of the sentinels
+     * the eviction module defines. Stored as slot+1 so the calloc-zeroed default distinguishes a
+     * page that has never been inserted from one whose claim was released, which is what lets ref
+     * retirement skip searching the ring. Set by the producer (modify path), released by the
+     * consumer (drain), and released during page eviction so the ring entry is invalidated
+     * synchronously with page teardown.
+     */
+    wt_shared uint32_t dirty_index_slot;
 
     WT_PAGE_DISAGG_INFO *disagg_info;
 

@@ -161,6 +161,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
+    WTI_EVICT_ENTRY *evict_entry;
     WTI_EVICT_QUEUE *other_queue, *queue;
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
@@ -241,9 +242,22 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
      * If we have more entries than the maximum tracked between walks, clear them. Do this before
      * figuring out how many of the entries are candidates so we never end up with more candidates
      * than entries.
+     *
+     * A dirty leaf trimmed here is not lost: re-insert it into its btree's ring so the next drain
+     * reconsiders it. Under modified-page pressure the sort keys on update_txn, so the freshest
+     * writes -- exactly what the ring captures -- land past the trim line. The insert applies the
+     * leaf, ring-present, and ring-full gates itself and returns true only when it created a new
+     * entry, so the stat counts genuine re-inserts (a drain-origin page the drain popped and
+     * cleared) and not the no-op re-inserts for walker-origin pages still parked in the ring.
      */
-    while (entries > WTI_EVICT_WALK_BASE)
-        __evict_list_clear(session, &queue->evict_queue[--entries]);
+    while (entries > WTI_EVICT_WALK_BASE) {
+        evict_entry = &queue->evict_queue[--entries];
+        if (evict_entry->ref != NULL &&
+          __wt_dirty_index_insert(session, evict_entry->btree, evict_entry->ref))
+            WT_WITH_DHANDLE(session, evict_entry->btree->dhandle,
+              WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_trim_reinserted));
+        __evict_list_clear(session, evict_entry);
+    }
 
     queue->evict_entries = entries;
 
