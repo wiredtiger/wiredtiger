@@ -507,7 +507,7 @@ __checkpoint_parallel_thread_commit(WT_SESSION_IMPL *session, WT_THREAD *thread)
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT,
           "Checkpoint page reconciliation thread %u committing the transaction", thread->id);
-        WT_RET(__wt_txn_commit(session, NULL));
+        WT_RET(__wt_txn_commit(session, NULL, WT_TS_NONE));
     }
 
     return (0);
@@ -547,7 +547,7 @@ __checkpoint_parallel_thread_rollback(WT_SESSION_IMPL *session, WT_THREAD *threa
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT,
           "Checkpoint page reconciliation thread %u rolling back the transaction", thread->id);
-        WT_RET(__wt_txn_rollback(session, NULL, false));
+        WT_RET(__wt_txn_rollback(session, NULL, false, WT_TS_NONE));
     }
 
     return (0);

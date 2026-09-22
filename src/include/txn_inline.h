@@ -2052,6 +2052,25 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 }
 
 /*
+ * __wt_txn_stepdown_ts_read --
+ *     Read the current step-down timestamp under the step-down lock. Callers deciding a
+ *     boundary-dependent behavior (as opposed to the relaxed reads used for an early-exit
+ *     optimization elsewhere) need the lock: step_down_timestamp is set, cleared, and set again to
+ *     an unrelated value across step-down cycles, so a read with no lock protecting it risks
+ *     comparing against the wrong cycle's boundary.
+ */
+static WT_INLINE wt_timestamp_t
+__wt_txn_stepdown_ts_read(WT_SESSION_IMPL *session)
+{
+    wt_timestamp_t step_down_ts;
+
+    __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+    __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+    return (step_down_ts);
+}
+
+/*
  * __wt_txn_stepdown_straddler_check --
  *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
  *     checkpointed at that timestamp, and everything committed after it must go to the ingest
@@ -2155,6 +2174,16 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
         if (cval.len != 0) {
             WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
             WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
+
+            /*
+             * A claimed transaction is already prepared and skips the snapshot path below, but it
+             * can still resolve (commit or roll back) after this call, so it needs the same
+             * boundary-check sampling an ordinary transaction gets: without it, the durable-,
+             * prepare-, and rollback-timestamp step-down validation in txn_timestamp.c silently
+             * does not apply to it.
+             */
+            if (__wt_conn_is_disagg(session))
+                txn->stepdown_ts_set = __wt_txn_stepdown_ts_read(session) != WT_TS_NONE;
             return (0);
         }
     }
@@ -2186,17 +2215,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      * the ingest table. Since snapshots are synchronized, reading a snapshot that contains ingest
      * changes made after the step-down timestamp was set guarantees the timestamp is observed as
      * set here as well.
-     *
-     * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
-     * the timestamp as set also makes the writes of transactions that committed before it was set
-     * visible.
      */
-    if (__wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
-                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-    }
+    if (__wt_conn_is_disagg(session))
+        txn->stepdown_ts_set = __wt_txn_stepdown_ts_read(session) != WT_TS_NONE;
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
