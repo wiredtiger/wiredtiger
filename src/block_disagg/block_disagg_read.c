@@ -136,14 +136,13 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint32_t block_size_sum;
     int32_t last, result;
     uint8_t expected_magic;
-    bool from_cache, is_delta, valid;
+    bool from_cache, is_delta;
 
     /* This variable is only used in an assertion, diagnostic builders don't like this. */
     WT_UNUSED(block_size_sum);
     block_size_sum = 0;
     from_cache = false;
     time_start = __wt_clock(session);
-    valid = false;
 
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
@@ -238,8 +237,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
          * "offline", where it covers the rewritten image; there the previous_checksum field holds
          * the checksum that the internal page still references.
          */
-        valid = from_cache ? swap.previous_checksum == checksum : swap.checksum == checksum;
-        if (valid) {
+        if (from_cache ? swap.previous_checksum == checksum : swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
