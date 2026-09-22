@@ -36,16 +36,6 @@ class test_stat18(wttest.WiredTigerTestCase):
     live = b'L' * 64
     obsolete = b'O' * (50 * 1024)
 
-    def _stats(self, cfg='all'):
-        c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(' + cfg + ')')
-        s = dict(
-            analyzed=c[stat.dsrc.btree_obsolete_inline_analyzed][2],
-            bytes=c[stat.dsrc.btree_obsolete_inline_bytes][2],
-            mixed=c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2],
-            pages=c[stat.dsrc.btree_obsolete_inline_pages][2])
-        c.close()
-        return s
-
     def _set_ts(self, oldest, stable):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
             ',stable_timestamp=' + self.timestamp_str(stable))
@@ -77,15 +67,17 @@ class test_stat18(wttest.WiredTigerTestCase):
     def test_mixed_page(self):
         self._populate_mixed()
         self._set_ts(30, 30)
-        s = self._stats()
-        self.assertEqual(s['analyzed'], 1)
-        self.assertEqual(s['pages'], 1)
-        self.assertEqual(s['bytes'], len(self.obsolete))
-        self.assertEqual(s['mixed'], len(self.obsolete))
+        c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_analyzed][2], 1)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_pages][2], 1)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], len(self.obsolete))
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], len(self.obsolete))
+        c.close()
 
     def test_fully_obsolete_page(self):
         self._populate({1: self.obsolete, 2: self.obsolete}, [1, 2])
         self._set_ts(30, 30)
-        s = self._stats()
-        self.assertEqual(s['bytes'], 2 * len(self.obsolete))
-        self.assertEqual(s['mixed'], 0)
+        c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], 2 * len(self.obsolete))
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], 0)
+        c.close()
