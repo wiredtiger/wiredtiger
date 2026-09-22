@@ -1150,6 +1150,34 @@ __clayered_reopen_stable(
      */
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
         WT_ERR_NOTFOUND_OK(__wt_cursor_dup_position(old_stable, clayered->stable_cursor), true);
+        if (ret == WT_NOTFOUND) {
+            /*
+             * If the key is removed in the new checkpoint, clear the iteration flag to reposition
+             * it to the correct location.
+             */
+            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+            if (clayered->current_cursor == old_stable) {
+                WT_ASSERT_ALWAYS(session,
+                  role == WTI_CLAYERED_ROLE_FOLLOWER && clayered->ingest_cursor != NULL &&
+                    F_ISSET(
+                      &S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING),
+                  "must be stepping down and mirroring writes");
+
+                /*
+                 * When mirroring writes during step-down, the layered cursor has always been
+                 * positioned on stable. After step-down, the layered cursor now needs to be
+                 * positioned on ingest.
+                 */
+                clayered->ingest_cursor->set_key(clayered->ingest_cursor, &old_stable->key);
+                WT_ERR_NOTFOUND_OK(clayered->ingest_cursor->search(clayered->ingest_cursor), true);
+                if (ret == 0)
+                    clayered->current_cursor = clayered->ingest_cursor;
+                else {
+                    clayered->current_cursor = NULL;
+                    F_CLR(&clayered->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+                }
+            }
+        }
         /*
          * If the key is removed from the new checkpoint, the layered cursor must be positioned on
          * the ingest table.
@@ -1158,12 +1186,6 @@ __clayered_reopen_stable(
           ret == 0 || !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
             clayered->current_cursor == clayered->ingest_cursor,
           "upgrading a positioned stable cursor");
-        /*
-         * If the key is removed in the new checkpoint, clear the iteration flag to reposition it to
-         * the correct location.
-         */
-        if (ret == WT_NOTFOUND)
-            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
         if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
