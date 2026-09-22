@@ -162,10 +162,7 @@ connection_disaggregated_config_common = [
         checkpoint. At startup the mode must be off: the startup pickup populates an empty
         node from the checkpoint. Turn it on after startup, provided table creates and drops
         reach this node through replicated operations and publish() rather than through
-        pickup. After a step-down,
-        turn it off until the unpublished tables left behind (step-down discards their
-        pending metadata updates) have been dropped. Preserved across calls to reconfigure
-        that do not name it''',
+        pickup. Preserved across calls to reconfigure that do not name it''',
         choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [
@@ -176,6 +173,10 @@ disaggregated_config_common = [
 ]
 # Disaggregated options accepted only at wiredtiger_open, never at reconfigure.
 connection_disaggregated_config_open = [
+    Config('stepdown_write_mirroring', 'false', r'''
+        mirror writes to both the stable and ingest constituents during the step-down
+        window to enable early cross-constituents write conflicts detection''',
+        type='boolean', undoc=True),
     Config('legacy_tombstone_encoding_break_glass', '', r'''
         break-glass override for whether values written to the stable table that begin with
         the reserved ingest tombstone marker are escaped on disk. Do not set this in normal
