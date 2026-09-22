@@ -156,8 +156,8 @@ reconciled again. The \c btree_obsolete_inline_bytes statistics, gathered by the
 collects \c all statistics, report how many bytes of row-store value payload such retained values
 occupy; the mixed variant isolates pages that also hold a live record. Overflow values, dictionary
 copies and cell headers are not counted. The walk reads each page's cached image, so a page that
-checkpoint has reconciled but which remains in cache may be overcounted: treat the total as an
-upper bound.
+checkpoint has reconciled but which remains in cache may report values the checkpoint already
+dropped: treat the total as an upper bound.
 
 \anchor checkpoint-internal-callers
 # Internal callers #
