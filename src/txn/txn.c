@@ -2599,19 +2599,6 @@ __wt_txn_rollback(
     __wt_txn_release_snapshot(session);
 
     /*
-     * A straddling prepared rollback is only detected by comparing rollback_timestamp against the
-     * boundary below, so a prepared rollback missing it under preserve_prepared would silently skip
-     * relocation and let a still-prepared stable cell resurrect on a future step-up's discovery
-     * pass. The API documents rollback_timestamp as required in that configuration; enforce it here
-     * since nothing else does, the same way __wt_txn_commit requires durable_timestamp.
-     */
-    if (prepare && step_down_ts != WT_TS_NONE && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
-        WT_RET_MSG(session, EINVAL,
-          "rollback_timestamp is required to roll back a prepared transaction under "
-          "preserve_prepared while a step-down timestamp is set");
-
-    /*
      * Whether this transaction is a straddler needing relocation is decided once for the whole
      * rollback, not per op: step_down_ts and the transaction's own rollback timestamp don't change
      * across the loop below. Only whether a given op's own dhandle is the stable constituent is
