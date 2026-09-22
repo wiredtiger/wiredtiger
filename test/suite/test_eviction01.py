@@ -42,6 +42,10 @@ class test_eviction01(wttest.WiredTigerTestCase):
     iterations = 500
 
     def test_eviction(self):
+        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+            self.skipTest(
+                "schema epochs defer btree publication and change eviction timing, so forced "
+                "eviction may encounter uncommitted updates and increment the no-progress counter")
         uri = f"table:{self.test_name}"
         ds = SimpleDataSet(self, uri, self.nrows, key_format='S', value_format='u')
         ds.populate()

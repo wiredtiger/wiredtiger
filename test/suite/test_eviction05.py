@@ -39,6 +39,10 @@ class test_eviction05(wttest.WiredTigerTestCase):
         return config
 
     def test_eviction_page_size_stats(self):
+        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+            self.skipTest(
+                "this test requires release eviction to write pages to disk, which is not "
+                "guaranteed while btree publication is pending")
         uri = f'table:{self.test_name}'
 
         # Create a table.

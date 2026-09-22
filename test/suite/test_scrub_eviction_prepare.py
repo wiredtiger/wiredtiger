@@ -56,6 +56,10 @@ class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
         cur2.close()
 
     def test_scrub_eviction_prepare(self):
+        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+            self.skipTest(
+                "this test requires release eviction to write pages to disk, which is not "
+                "guaranteed while btree publication is pending")
         uri = f'table:{self.test_name}'
 
         # Create a table.

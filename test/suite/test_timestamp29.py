@@ -45,6 +45,9 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         Test setting and querying the stable disaggregated schema epoch, including validation of
         legal and illegal transitions and the corresponding statistics.
         '''
+        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+            self.skipTest("this test requires exclusive control of schema epoch calls")
+
         # When not yet set, querying the epoch returns 0.
         self.assertEpochEqual(0)
 

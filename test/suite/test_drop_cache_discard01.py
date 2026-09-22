@@ -123,6 +123,10 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
         A non-forced drop of a table with committed but uncheckpointed content must still fail
         with EBUSY: the fix only changes what happens to an already-clean tree.
         """
+        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+            self.skipTest(
+                "tables awaiting btree publication skip checkpoint-on-close, so untimestamped "
+                "dirty data does not guarantee EBUSY on drop")
         uri = 'table:test_drop_cache_discard01_dirty'
         self.populate(uri, 1)
 

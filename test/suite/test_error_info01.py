@@ -102,6 +102,10 @@ class test_error_info01(error_info_util, compact_util):
         self.assertEqual(self.session.drop(self.uri, None), 0)
 
     def test_ebusy_wt_dirty_data(self):
+        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+            self.skipTest(
+                "tables awaiting btree publication skip checkpoint-on-close, so untimestamped "
+                "dirty data does not guarantee EBUSY on drop")
         self.api_call_with_ebusy_wt_dirty_data()
         self.assert_error_equal(errno.EBUSY, wiredtiger.WT_DIRTY_DATA, "the table has dirty data and cannot be closed yet")
         self.assertEqual(self.session.checkpoint(), 0)

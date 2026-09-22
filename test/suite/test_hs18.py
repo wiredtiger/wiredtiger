@@ -132,6 +132,14 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     # Test that we don't get the wrong value if we read with a timestamp originally.
     def test_read_timestamp_weirdness(self):
+        if (
+            self.runningHook("disagg")
+            and self.getDisaggParameters().publish
+            and self.key_format != 'r'
+        ):
+            self.skipTest(
+                "this test requires release eviction to write pages to disk, which is not "
+                "guaranteed while btree publication is pending")
         uri = f'table:{self.test_name}'
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, format)
