@@ -29,7 +29,21 @@
 import random, string, wttest
 from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
+
+# Insert nitems random key/value pairs, each in its own transaction committed at timestamp 10.
+def insert_random_data(session, uri, nitems=1000):
+    def generate_random_string(length):
+        characters = string.ascii_letters + string.digits + string.punctuation
+        return ''.join(random.choices(characters, k=length))
+
+    cursor = session.open_cursor(uri, None, None)
+    for i in range(1, nitems):
+        session.begin_transaction()
+        cursor[generate_random_string(1000) + str(i)] = generate_random_string(1000) + str(i)
+        session.commit_transaction(f"commit_timestamp={10:x}")
+    cursor.close()
 
 # Test that a follower never use application threads to evict pages with updates and dirty pages.
 @disagg_test_class
@@ -40,13 +54,6 @@ class test_layered_eviction03(wttest.WiredTigerTestCase):
 
     conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="follower")'
 
-    nitems = 1000
-
-    def generate_random_string(self, length):
-        characters = string.ascii_letters + string.digits + string.punctuation
-        random_string = ''.join(random.choices(characters, k=length))
-        return random_string
-
     def test_follower_not_do_app_evict(self):
         uri = f"layered:{self.test_name}"
 
@@ -54,10 +61,43 @@ class test_layered_eviction03(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format=S,value_format=S')
 
         # Insert some data.
-        cursor = self.session.open_cursor(uri, None, None)
-        for i in range(1, self.nitems):
-            self.session.begin_transaction()
-            cursor[self.generate_random_string(1000) + str(i)] = self.generate_random_string(1000) + str(i)
-            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
+        insert_random_data(self.session, uri)
 
         self.assertStatGreaterSoon(stat.conn.cache_eviction_app_threads_skip_updates_dirty_page, 0)
+
+
+# A planned step-down records the writes it mirrors and the length of the step-down window.
+# In the step-down window application threads skip update and dirty eviction.
+@disagg_test_class
+class test_layered_eviction03_stepdown(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, write_modes)
+
+    conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,'
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+
+    def test_stepdown_window_skips_dirty_app_evict(self):
+        uri = f"layered:{self.test_name}"
+        self.set_global_ts(1, 1)
+        self.session.create(uri, 'key_format=S,value_format=S')
+        self.set_step_down_ts(5)
+
+        # Insert some data in the step-down window.
+        insert_random_data(self.session, uri)
+
+        self.assertStatGreaterSoon(stat.conn.cache_eviction_app_threads_skip_updates_dirty_page, 0)
+        if self.stable_has_step_down_writes():
+            self.assertStatGreaterSoon(stat.conn.disagg_step_down_mirrored_writes, 0)
+        else:
+            self.assertStatEqualSoon(stat.conn.disagg_step_down_mirrored_writes, 0)
+        self.assertStatEqualSoon(stat.conn.disagg_step_down_window_duration, 0)
+
+        self.complete_step_down(5)
+        self.assertStatGreaterSoon(stat.conn.disagg_step_down_window_duration, 0)
