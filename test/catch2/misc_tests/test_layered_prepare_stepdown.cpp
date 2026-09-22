@@ -78,8 +78,8 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
     /*
-     * Sid's straddler scenario: prepare while there is no step-down boundary yet, then the boundary
-     * is set, then commit lands above it.
+     * A straddler: prepare while there is no step-down boundary yet, then the boundary is set, then
+     * commit lands above it.
      */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "straddler");

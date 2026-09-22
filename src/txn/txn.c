@@ -1712,16 +1712,25 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     clone->upd_start_ts = orig->upd_start_ts;
     clone->prepare_state = orig->prepare_state;
 
+    /*
+     * The ingest cursor is cached and reused across ops on the same btree; a prior op's resolve
+     * call (the ordinary cursor API) can leave it positioned on a page. The row search below
+     * overwrites ingest_cbt->ref directly without releasing a page it already holds, so release it
+     * first the same way prepared-transaction discovery does when reusing a cursor across keys.
+     */
+    if (ingest_cbt->ref != NULL) {
+        WT_ERR(__wt_page_release(session, ingest_cbt->ref, 0));
+        ingest_cbt->ref = NULL;
+    }
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ingest_cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
      * A straddler's write never reached ingest under pre-boundary routing, so the key should be
-     *     absent there, or --
-     *     if a previous op for the same key already cloned a tombstone here --
-     *     carry nothing but a tombstone visible to this transaction, whether that tombstone is
-     *     still in memory or has already been written to the disk image.
+     * absent there, or, if a previous op for the same key already cloned a tombstone here, carry
+     * nothing but a tombstone visible to this transaction, whether that tombstone is still in
+     * memory or has already been written to the disk image.
      */
     if (ingest_cbt->compare == 0) {
         WT_UPDATE *existing;
@@ -1758,14 +1767,11 @@ err:
  *     A prepared op wrote to stable under pre-boundary routing, but the transaction is resolving
  *     (commit or rollback) after the step-down boundary was set. Clone the still-prepared update
  *     onto the sibling ingest table before resolution runs, then resolve both the original and the
- *     clone with the same resolution call, once each. The original stable-side update ends up
- *     resolved normally either way: for a committing straddler its commit timestamp keeps it out of
- *     the step-down checkpoint, and a rollback marks it aborted in place.
+ *     clone with the same resolution call, once each.
  *
  * The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
- *     changes --
- *     ops are already sorted by btree ID before commit/rollback walk them, so this is one cursor
- *     per table rather than open/close per key. The caller closes it once done.
+ *     changes: ops are already sorted by btree ID before commit/rollback walk them, so this is one
+ *     cursor per table rather than open/close per key. The caller closes it once done.
  */
 static int
 __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
@@ -2591,6 +2597,19 @@ __wt_txn_rollback(
      * transaction table at the end of the function.
      */
     __wt_txn_release_snapshot(session);
+
+    /*
+     * A straddling prepared rollback is only detected by comparing rollback_timestamp against the
+     * boundary below, so a prepared rollback missing it under preserve_prepared would silently skip
+     * relocation and let a still-prepared stable cell resurrect on a future step-up's discovery
+     * pass. The API documents rollback_timestamp as required in that configuration; enforce it here
+     * since nothing else does, the same way __wt_txn_commit requires durable_timestamp.
+     */
+    if (prepare && step_down_ts != WT_TS_NONE && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
+        WT_RET_MSG(session, EINVAL,
+          "rollback_timestamp is required to roll back a prepared transaction under "
+          "preserve_prepared while a step-down timestamp is set");
 
     /*
      * Whether this transaction is a straddler needing relocation is decided once for the whole

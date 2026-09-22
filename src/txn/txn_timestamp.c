@@ -906,7 +906,7 @@ static int
 __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
     WT_TXN *txn;
-    wt_timestamp_t oldest_ts, stable_ts, step_down_ts;
+    wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
@@ -956,10 +956,8 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
      * not a contradiction to reject.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE) && txn->stepdown_ts_set) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        wt_timestamp_t step_down_ts = __wt_txn_stepdown_ts_read(session);
+
         if (durable_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "durable timestamp %s must be after the step down timestamp %s",
@@ -1133,12 +1131,8 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
      * is not worth enforcing here.
      */
     if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && txn->stepdown_ts_set) {
-        wt_timestamp_t step_down_ts;
+        wt_timestamp_t step_down_ts = __wt_txn_stepdown_ts_read(session);
 
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (step_down_ts != WT_TS_NONE && prepare_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "prepare timestamp %s must be after the step down timestamp %s",
@@ -1292,12 +1286,8 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
 
     /* Same boundary rule as a prepared commit's durable timestamp, for the same reason. */
     if (txn->stepdown_ts_set) {
-        wt_timestamp_t step_down_ts;
+        wt_timestamp_t step_down_ts = __wt_txn_stepdown_ts_read(session);
 
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         if (step_down_ts != WT_TS_NONE && rollback_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "rollback timestamp %s must be after the step down timestamp %s",

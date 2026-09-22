@@ -2051,20 +2051,10 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     WT_ERR(__wt_txn_context_check(session, true));
 
     /*
-     * A transaction that began after the boundary is already ingest-routed and prepares freely. One
-     * that began before the boundary and has not yet routed a write past it can still be rolled
-     * back safely here -- prepare hasn't happened yet, so there is nothing to undo. Reuse the same
-     * straddler check ordinary writes go through rather than refusing every prepare while the
-     * window is open: refusing here only, not at commit, is what lets the commit-time relocation
-     * logic assume a transaction that does reach prepare during the window is always resolvable one
-     * way or another.
-     *
-     * Unlike the cursor-operation straddler check, this one has to be the guarantee, not just an
-     * early optimization ahead of one: once a transaction is prepared it is exempt from the
-     * commit-time check under the step-down lock, so this is the only place left that can still
-     * reject it. Take the lock the same way that check does, so a set racing this read is never
-     * missed. A transaction with nothing written has nothing to straddle, and a non-disaggregated
-     * connection has no step-down timestamp at all, so skip the lock entirely in either case.
+     * Unlike the cursor-operation straddler check, this one is the guarantee, not an early
+     * optimization ahead of one: once prepared, a transaction can no longer be rolled back, so this
+     * is the last point that can still reject a pre-boundary transaction. Take the lock the
+     * commit-time check also uses, so a set racing this read is never missed.
      */
     if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
@@ -2131,16 +2121,10 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     /*
      * Only a prepared rollback can be a step-down straddler (see __wt_txn_rollback), so only bother
-     *     reading the step-down timestamp --
-     *     under its lock, for the same reason commit does --
-     *     for one.
+     * reading the step-down timestamp, under its lock for the same reason commit does, for one.
      */
-    if (F_ISSET(txn, WT_TXN_PREPARE) && __wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-    }
+    if (F_ISSET(txn, WT_TXN_PREPARE) && __wt_conn_is_disagg(session))
+        step_down_ts = __wt_txn_stepdown_ts_read(session);
 
     WT_TRET(__wt_session_reset_cursors(session, false));
 
