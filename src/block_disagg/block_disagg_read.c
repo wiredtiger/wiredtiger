@@ -219,10 +219,16 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
              * result. Deltas on top of one would leave the checksum chain below comparing the wrong
              * field.
              *
-             * FIXME-WT-18666: This restriction will goes away once we have a dedicated field for
-             * the original page checksum.
+             * FIXME-WT-18666: This restriction will go away once we have a dedicated field for the
+             * original page checksum.
              */
-            WT_ASSERT(session, *results_count == 1);
+            if (*results_count != 1) {
+                __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+                  page_id, lsn, is_delta, result,
+                  "a page modified offline must be the only result, but %u results were returned",
+                  (u_int)*results_count);
+                goto corrupt;
+            }
             from_cache = true;
         }
 
@@ -231,7 +237,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
          * "offline", where it covers the rewritten image; there the previous_checksum field holds
          * the checksum that the internal page still references.
          */
-        if (from_cache ? swap.previous_checksum == checksum : swap.checksum == checksum) {
+        bool valid = from_cache ? swap.previous_checksum == checksum : swap.checksum == checksum;
+        if (valid) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),

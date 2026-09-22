@@ -167,7 +167,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
      * never be set during normal write path, as it indicates an offline modification outside of the
      * regular write path, e.g., by the victim block cache.
      */
-    WT_ASSERT(session, !F_ISSET(blk, WT_BLOCK_DISAGG_MODIFIED));
+    WT_ASSERT_ALWAYS(session, !F_ISSET(blk, WT_BLOCK_DISAGG_MODIFIED),
+      "the modified flag must not be set on a block written through the regular write path");
 
     /*
      * The reconciliation id stored in the block header is diagnostic, we don't care if it's
