@@ -1059,10 +1059,10 @@ struct __wt_session {
      * insert operations will be cleared). At most one of "none"\, "counters"\, "gauges" or
      * "histograms" may also be configured to select an OTel metric type; this "none" is unrelated
      * to the database-level \c statistics configuration value of the same name and does not disable
-     * statistics gathering.  These four values are accepted but do not yet affect which statistics
-     * are gathered.  See @ref statistics for more information., a list\, with values chosen from
-     * the following options: \c "all"\, \c "cache_walk"\, \c "clear"\, \c "counters"\, \c "fast"\,
-     * \c "gauges"\, \c "histograms"\, \c "none"\, \c "size"\, \c "tree_walk"; default empty.}
+     * statistics gathering.  See @ref statistics for more information., a list\, with values chosen
+     * from the following options: \c "all"\, \c "cache_walk"\, \c "clear"\, \c "counters"\, \c
+     * "fast"\, \c "gauges"\, \c "histograms"\, \c "none"\, \c "size"\, \c "tree_walk"; default
+     * empty.}
      * @config{target, if non-empty\, back up the given list of objects; valid only for a backup
      * data source., a list of strings; default empty.}
      * @configend
