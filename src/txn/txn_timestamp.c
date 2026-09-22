@@ -1298,7 +1298,7 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
         step_down_ts =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-        if (rollback_ts <= step_down_ts)
+        if (step_down_ts != WT_TS_NONE && rollback_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "rollback timestamp %s must be after the step down timestamp %s",
               __wt_timestamp_to_string(rollback_ts, ts_string[0]),

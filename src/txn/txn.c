@@ -1673,6 +1673,7 @@ static int
 __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cbt,
   WT_CURSOR_BTREE *ingest_cbt, WT_ITEM *key, WT_UPDATE *orig)
 {
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ITEM ingest_value, value;
     WT_UPDATE *clone;
@@ -1700,8 +1701,8 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
             value.data = orig->data;
             value.size = orig->size;
         }
-        WT_RET(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, NULL));
-        WT_RET(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &clone, &size));
+        WT_ERR(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, &tmp));
+        WT_ERR(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &clone, &size));
     }
 
     clone->txnid = orig->txnid;
@@ -1712,7 +1713,7 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     clone->prepare_state = orig->prepare_state;
 
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ingest_cbt, key, true, NULL, false, NULL));
-    WT_RET(ret);
+    WT_ERR(ret);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -1745,7 +1746,11 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     }
 #endif
 
-    return (__wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, true));
+    ret = __wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, true);
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -1777,8 +1782,13 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
 
     stable_uri = op->btree->dhandle->name;
 
-    /* The stable constituent of a layered table is always on-disk row-store. */
-    WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW);
+    /*
+     * The stable constituent of a layered table is always on-disk row-store; column-store layered
+     * tables have no relocation path yet (format disables prepare for them under stepdown_async).
+     * Fail hard rather than run row-store search/modify against a column-store btree.
+     */
+    WT_ASSERT_ALWAYS(session, op->type == WT_TXN_OP_BASIC_ROW,
+      "a prepared straddler on a column-store layered table has no relocation support");
 
     /*
      * Fetch the update through the same prepared-op search resolution itself uses, so it's current
@@ -2013,8 +2023,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
                      * will exclude it from stable.
                      */
                     if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
-                        /* The stable constituent of a layered table is always on-disk row-store. */
-                        WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW);
                         WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     } else
@@ -2082,8 +2090,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
          * it, and never both constituents from one transaction.
          *
          * Otherwise, after the loop we verify that stable writes were mirrored to ingest.
+         *
+         * A prepared straddler's stable op is exempt from both rules by design: its durable
+         * timestamp is required to be above the boundary (that is what makes it a straddler), and
+         * its ingest-side counterpart is a clone __txn_stepdown_resolve_straddler just inserted
+         * directly, not a transaction op this loop will ever see.
          */
-        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL) {
+        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL &&
+          !(prepare && is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name))) {
             if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
                 wrote_ingest = true;
                 WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
@@ -2643,8 +2657,6 @@ __wt_txn_rollback(
                      * resolution (here, an abort) on ingest before that can happen.
                      */
                     if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
-                        /* The stable constituent of a layered table is always on-disk row-store. */
-                        WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW);
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
                     } else
