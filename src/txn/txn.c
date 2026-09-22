@@ -1713,10 +1713,10 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     clone->prepare_state = orig->prepare_state;
 
     /*
-     * The ingest cursor is cached and reused across ops on the same btree; a prior op's resolve
-     * call (the ordinary cursor API) can leave it positioned on a page. The row search below
-     * overwrites ingest_cbt->ref directly without releasing a page it already holds, so release it
-     * first the same way prepared-transaction discovery does when reusing a cursor across keys.
+     * The low-level row search below does not release a page the cursor already holds -- that is
+     * the caller's job, normally done for us by the ordinary cursor API before it searches. This
+     * cursor is cached and reused across ops on the same btree, and a prior op's resolve call can
+     * leave it positioned, so release the page explicitly before searching directly.
      */
     if (ingest_cbt->ref != NULL) {
         WT_ERR(__wt_page_release(session, ingest_cbt->ref, 0));
