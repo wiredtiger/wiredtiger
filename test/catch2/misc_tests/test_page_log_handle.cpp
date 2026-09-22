@@ -93,9 +93,9 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
          */
         REQUIRE(conn_impl->disaggregated_storage.page_log_key_provider == nullptr);
 
-        free(conn_impl->disaggregated_storage.page_log);
-        free(conn_impl->disaggregated_storage.page_log_meta);
-        free(conn_impl->disaggregated_storage.page_log_key_provider);
+        __wt_free(session, conn_impl->disaggregated_storage.page_log);
+        __wt_free(session, conn_impl->disaggregated_storage.page_log_meta);
+        __wt_free(session, conn_impl->disaggregated_storage.page_log_key_provider);
     }
 
     SECTION("Test key provider handle is constructed")
@@ -109,9 +109,9 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_key_provider != nullptr);
 
-        free(conn_impl->disaggregated_storage.page_log);
-        free(conn_impl->disaggregated_storage.page_log_meta);
-        free(conn_impl->disaggregated_storage.page_log_key_provider);
+        __wt_free(session, conn_impl->disaggregated_storage.page_log);
+        __wt_free(session, conn_impl->disaggregated_storage.page_log_meta);
+        __wt_free(session, conn_impl->disaggregated_storage.page_log_key_provider);
     }
 
     SECTION("Test key provider and page log handle is destroyed")

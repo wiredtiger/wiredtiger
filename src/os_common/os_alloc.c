@@ -41,6 +41,91 @@
 
 #endif
 
+#ifdef HAVE_MEM_TRACK
+/*
+ * Tracked blocks carry a header in front of the pointer returned to the caller. Sixteen bytes keeps
+ * that pointer as aligned as malloc guarantees. The header stores the size the caller asked for.
+ */
+#define WT_MEM_TRACK_HEADER_SIZE 16
+
+struct __wt_mem_track_header {
+    size_t size;
+    uint8_t pad[WT_MEM_TRACK_HEADER_SIZE - sizeof(size_t)];
+};
+
+static int64_t __mem_track_null_bytes;
+
+static_assert(sizeof(struct __wt_mem_track_header) == WT_MEM_TRACK_HEADER_SIZE,
+  "tracked allocation header must be 16 bytes");
+
+/*
+ * __mem_track_header --
+ *     Return the header that precedes a tracked allocation.
+ */
+static struct __wt_mem_track_header *
+__mem_track_header(void *user)
+{
+    return ((struct __wt_mem_track_header *)((uint8_t *)user - WT_MEM_TRACK_HEADER_SIZE));
+}
+
+/*
+ * __mem_track_adjust --
+ *     Record a change in outstanding requested bytes.
+ */
+static void
+__mem_track_adjust(WT_SESSION_IMPL *session, size_t old_bytes, size_t new_bytes)
+{
+    if (new_bytes == old_bytes)
+        return;
+
+    if (session != NULL) {
+        if (new_bytes > old_bytes)
+            WT_STAT_CONN_INCRV(session, memory_bytes, new_bytes - old_bytes);
+        else
+            WT_STAT_CONN_DECRV(session, memory_bytes, old_bytes - new_bytes);
+        return;
+    }
+
+    if (new_bytes > old_bytes)
+        (void)__wt_atomic_add_int64_relaxed(
+          &__mem_track_null_bytes, (int64_t)(new_bytes - old_bytes));
+    else
+        (void)__wt_atomic_sub_int64_relaxed(
+          &__mem_track_null_bytes, (int64_t)(old_bytes - new_bytes));
+}
+
+/*
+ * __mem_track_alloc --
+ *     Allocate a tracked block and return the caller pointer.
+ */
+static int
+__mem_track_alloc(WT_SESSION_IMPL *session, size_t bytes, bool clear, void *retp)
+{
+    void *base, *user;
+
+    *(void **)retp = NULL;
+
+    if (bytes > SIZE_MAX - WT_MEM_TRACK_HEADER_SIZE)
+        WT_RET_MSG(session, ENOMEM, "memory allocation of %" WT_SIZET_FMT " bytes failed", bytes);
+
+    if (clear)
+        base = calloc(1, bytes + WT_MEM_TRACK_HEADER_SIZE);
+    else
+        base = malloc(bytes + WT_MEM_TRACK_HEADER_SIZE);
+    if (base == NULL)
+        WT_RET_MSG(
+          session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed", bytes);
+
+    if (!clear)
+        memset(base, 0, WT_MEM_TRACK_HEADER_SIZE);
+    user = (uint8_t *)base + WT_MEM_TRACK_HEADER_SIZE;
+    __mem_track_header(user)->size = bytes;
+    __mem_track_adjust(session, 0, bytes);
+    *(void **)retp = user;
+    return (0);
+}
+#endif
+
 /*
  * __wt_calloc --
  *     ANSI calloc function.
@@ -49,8 +134,6 @@ int
 __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    void *p;
-
     /*
      * Defensive: if our caller doesn't handle errors correctly, ensure a free won't fail.
      */
@@ -65,12 +148,22 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
     if (session != NULL)
         WT_STAT_CONN_INCR(session, memory_allocation);
 
-    if ((p = calloc(number, size)) == NULL)
-        WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
-          size * number);
+#ifdef HAVE_MEM_TRACK
+    if (number != 0 && size > (SIZE_MAX - WT_MEM_TRACK_HEADER_SIZE) / number)
+        WT_RET_MSG(session, ENOMEM, "memory allocation failed");
+    return (__mem_track_alloc(session, number * size, true, retp));
+#else
+    {
+        void *p;
 
-    *(void **)retp = p;
-    return (0);
+        if ((p = calloc(number, size)) == NULL)
+            WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+              size * number);
+
+        *(void **)retp = p;
+        return (0);
+    }
+#endif
 }
 
 /*
@@ -80,8 +173,6 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
 int
 __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
 {
-    void *p;
-
     /*
      * Defensive: if our caller doesn't handle errors correctly, ensure a free won't fail.
      */
@@ -96,12 +187,20 @@ __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
     if (session != NULL)
         WT_STAT_CONN_INCR(session, memory_allocation);
 
-    if ((p = malloc(bytes_to_allocate)) == NULL)
-        WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
-          bytes_to_allocate);
+#ifdef HAVE_MEM_TRACK
+    return (__mem_track_alloc(session, bytes_to_allocate, false, retp));
+#else
+    {
+        void *p;
 
-    *(void **)retp = p;
-    return (0);
+        if ((p = malloc(bytes_to_allocate)) == NULL)
+            WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+              bytes_to_allocate);
+
+        *(void **)retp = p;
+        return (0);
+    }
+#endif
 }
 
 /*
@@ -146,20 +245,45 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
      * memory, scribble over the old memory then free it.
      */
     tmpp = p;
+#ifdef HAVE_MEM_TRACK
+    if (tmpp != NULL && bytes_allocated_ret != NULL)
+        WT_ASSERT(session, bytes_allocated == __mem_track_header(tmpp)->size);
+#endif
     if (session != NULL && FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_REALLOC_MALLOC) &&
       (bytes_allocated_ret != NULL)) {
+#ifdef HAVE_MEM_TRACK
+        WT_RET(__mem_track_alloc(session, bytes_to_allocate, false, &p));
+#else
         if ((p = malloc(bytes_to_allocate)) == NULL)
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);
+#endif
         if (tmpp != NULL) {
             memcpy(p, tmpp, *bytes_allocated_ret);
             __wt_explicit_overwrite(tmpp, bytes_allocated);
             __wt_free(session, tmpp);
         }
     } else {
+#ifdef HAVE_MEM_TRACK
+        struct __wt_mem_track_header *hdr;
+        size_t old_bytes;
+
+        hdr = (tmpp == NULL) ? NULL : __mem_track_header(tmpp);
+        old_bytes = (hdr == NULL) ? 0 : hdr->size;
+        if (bytes_to_allocate > SIZE_MAX - WT_MEM_TRACK_HEADER_SIZE)
+            WT_RET_MSG(session, ENOMEM, "memory allocation of %" WT_SIZET_FMT " bytes failed",
+              bytes_to_allocate);
+        if ((p = realloc(hdr, bytes_to_allocate + WT_MEM_TRACK_HEADER_SIZE)) == NULL)
+            WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+              bytes_to_allocate);
+        p = (uint8_t *)p + WT_MEM_TRACK_HEADER_SIZE;
+        __mem_track_header(p)->size = bytes_to_allocate;
+        __mem_track_adjust(session, old_bytes, bytes_to_allocate);
+#else
         if ((p = realloc(p, bytes_to_allocate)) == NULL)
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);
+#endif
     }
 
     /*
@@ -271,5 +395,43 @@ __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg)
     if (session != NULL)
         WT_STAT_CONN_INCR(session, memory_free);
 
+#ifdef HAVE_MEM_TRACK
+    {
+        struct __wt_mem_track_header *hdr;
+
+        hdr = __mem_track_header(p);
+        __mem_track_adjust(session, hdr->size, 0);
+        free(hdr);
+    }
+#else
     free(p);
+#endif
+}
+
+/*
+ * __wt_mem_track_fold_null --
+ *     Move bytes allocated with a NULL session into the first statistics bucket.
+ */
+void
+__wt_mem_track_fold_null(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_MEM_TRACK
+    WT_CONNECTION_IMPL *conn;
+    int64_t bytes;
+
+    if (!WT_STAT_ENABLED(session))
+        return;
+
+    conn = S2C(session);
+
+    /* Exchange the NULL-session counter to zero and publish that value. */
+    bytes = __wt_atomic_load_int64_relaxed(&__mem_track_null_bytes);
+    while (!__wt_atomic_cas_int64_relaxed(&__mem_track_null_bytes, bytes, 0))
+        bytes = __wt_atomic_load_int64_relaxed(&__mem_track_null_bytes);
+
+    if (bytes != 0)
+        (void)__wt_atomic_add_int64_relaxed(&conn->stats[0]->memory_bytes, bytes);
+#else
+    WT_UNUSED(session);
+#endif
 }

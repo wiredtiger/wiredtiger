@@ -138,6 +138,7 @@
  */
 
 #include "wiredtiger.h"
+#include "wiredtiger_config.h"
 #include "wiredtiger_ext.h"
 
 #include <sqlite3.h>
@@ -267,14 +268,29 @@ verbose_item(const WT_ITEM *buf)
     return hexdump(buf->data, buf->size);
 }
 
+#ifdef HAVE_MEM_TRACK
+extern "C" int __wt_realloc_noclear(
+  WT_SESSION *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp);
+static WT_SESSION *session(WT_SESSION *s = reinterpret_cast<WT_SESSION *>(-1));
+#endif
+
 static void
 resize_item(WT_ITEM *item, size_t new_size)
 {
     if (item->memsize < new_size) {
+#ifdef HAVE_MEM_TRACK
+        /*
+         * The library frees these items with its own allocator, which expects the tracking header
+         * when that build is on.
+         */
+        if (__wt_realloc_noclear(session(), &item->memsize, new_size, &item->mem) != 0)
+            throw std::bad_alloc();
+#else
         item->mem = realloc(item->mem, new_size);
         if (item->mem == NULL)
             throw std::bad_alloc();
         item->memsize = new_size;
+#endif
     }
     item->data = item->mem;
     item->size = new_size;
@@ -480,8 +496,13 @@ template <> struct std::formatter<Config> {
 WT_SESSION *const INVALID_PTR = reinterpret_cast<WT_SESSION *>(-1);
 constexpr uint64_t INVALID_LSN = UINT64_MAX;
 
+#ifdef HAVE_MEM_TRACK
+static WT_SESSION *
+session(WT_SESSION *s)
+#else
 static WT_SESSION *
 session(WT_SESSION *s = INVALID_PTR)
+#endif
 {
     thread_local static WT_SESSION *sess = nullptr;
     return s == INVALID_PTR ? sess : (sess = s);

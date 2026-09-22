@@ -901,6 +901,7 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
     int64_t btree_open;
+    int64_t memory_bytes;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;

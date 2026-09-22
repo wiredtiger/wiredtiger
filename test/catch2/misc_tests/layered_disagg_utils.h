@@ -59,6 +59,6 @@ layered_disagg_pickup_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session
     testutil_snprintf(cfg, sizeof(cfg), "disaggregated=(checkpoint_meta=\"%.*s\")",
       (int)args.checkpoint_metadata.size, (const char *)args.checkpoint_metadata.data);
     REQUIRE(conn->reconfigure(conn, cfg) == 0);
-    free(args.checkpoint_metadata.mem);
+    __wt_buf_free((WT_SESSION_IMPL *)session, &args.checkpoint_metadata);
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }

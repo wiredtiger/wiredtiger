@@ -191,6 +191,7 @@ conn_stats = [
     ConnStat('file_open', 'files currently open', 'no_clear,no_scale'),
     ConnStat('fsync_io', 'total fsync I/Os'),
     ConnStat('memory_allocation', 'memory allocations'),
+    ConnStat('memory_bytes', 'bytes currently allocated', 'no_clear,no_scale,size'),
     ConnStat('memory_free', 'memory frees'),
     ConnStat('memory_grow', 'memory re-allocations'),
     ConnStat('no_session_sweep_5min', 'number of sessions without a sweep for 5+ minutes'),

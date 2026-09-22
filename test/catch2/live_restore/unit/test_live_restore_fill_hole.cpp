@@ -25,7 +25,7 @@ struct fill_hole_test {
         // Initialize bitmap with bits in [first_clear_bit, first_clear_bit + clear_len - 1] are
         // unset where the rest are set.
         auto bitmap_len = (nbits + 7) >> 3;
-        bitmap = (uint8_t *)malloc(bitmap_len * sizeof(uint8_t));
+        REQUIRE(__wt_calloc(nullptr, bitmap_len, sizeof(uint8_t), &bitmap) == 0);
         memset(bitmap, 0xFF, bitmap_len * sizeof(uint8_t));
         if (clear_len > 0)
             __bit_nclr(bitmap, first_clear_bit, first_clear_bit + clear_len - 1);

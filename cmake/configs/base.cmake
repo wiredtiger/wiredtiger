@@ -114,6 +114,12 @@ config_bool(
 )
 
 config_bool(
+    HAVE_MEM_TRACK
+    "Track bytes WiredTiger has requested from malloc and not yet freed."
+    DEFAULT OFF
+)
+
+config_bool(
     HAVE_CALL_LOG
     "Enable call log generation"
     DEFAULT OFF
