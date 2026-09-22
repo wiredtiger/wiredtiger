@@ -1975,8 +1975,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
      * commit, not per op: step_down_ts and the transaction's own durable timestamp don't change
      * across the loop below. Only whether a given op's own dhandle is the stable constituent is
      * genuinely per-op.
+     *
+     * A transaction that began after the boundary was already set (stepdown_ts_set) routes to
+     * ingest -- or mirrors to both constituents -- on its own, so a durable timestamp above the
+     * boundary is the ordinary case for it, not a straddle: excluding it here is what tells a
+     * genuine straddler (prepared before the boundary, landing above it only because it could not
+     * be rolled back) apart from the stable-side half of a mirrored write, which needs no
+     * relocation.
      */
-    is_straddling_commit = step_down_ts != WT_TS_NONE &&
+    is_straddling_commit = step_down_ts != WT_TS_NONE && !txn->stepdown_ts_set &&
       F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE) &&
       txn->time_point.durable_timestamp > step_down_ts;
 
@@ -2605,8 +2612,12 @@ __wt_txn_rollback(
      * genuinely per-op. rollback_timestamp is only ever set under preserve_prepared, which is also
      * the only configuration where a future step-up's prepared-discovery pass can resurrect a stale
      * on-disk prepared cell, so this is scoped to it.
+     *
+     * A transaction that began after the boundary was already set (stepdown_ts_set) routes to
+     * ingest -- or mirrors to both constituents -- on its own, so a rollback timestamp above the
+     * boundary is the ordinary case for it, not a straddle needing relocation.
      */
-    is_straddling_rollback = step_down_ts != WT_TS_NONE &&
+    is_straddling_rollback = step_down_ts != WT_TS_NONE && !txn->stepdown_ts_set &&
       F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
       F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK) &&
       txn->time_point.rollback_timestamp > step_down_ts;
