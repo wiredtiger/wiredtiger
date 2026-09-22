@@ -7,10 +7,9 @@
  */
 
 /*
- * Poisoning freed memory is only useful if it actually happens, and the point at which it happens
- * is immediately before the block is handed back to the allocator, where nothing can safely look at
- * it. These tests drive the decision and the fill directly, on a buffer the test still owns, so the
- * byte pattern can be inspected without reading freed memory.
+ * Poisoning freed memory happens immediately before the block is handed back to the allocator,
+ * where nothing can safely look at it. These tests drive the decision and the fill directly, on a
+ * buffer the test still owns, so the byte pattern can be inspected without reading freed memory.
  */
 
 #include <catch2/catch.hpp>
@@ -36,7 +35,7 @@ all_bytes_are(const uint8_t *buf, size_t len, uint8_t v)
     return (true);
 }
 
-}
+} // namespace
 
 TEST_CASE("Poison before free: fill is applied according to configuration", "[poison]")
 {
@@ -86,8 +85,8 @@ TEST_CASE("Poison before free: fill is applied according to configuration", "[po
 }
 
 /*
- * The macros take the address of their pointer argument, so an argument with a side effect would be
- * evaluated more than once if the expansion mentioned it again.
+ * These macros stand in for one another at a call site, so each must evaluate its argument exactly
+ * once, even where sizing the fill names the pointer a second time.
  */
 TEST_CASE("Poison before free: the free macros evaluate their argument once", "[poison]")
 {

@@ -179,10 +179,7 @@
 /* Overwrite whether or not this is a diagnostic build. */
 #define __wt_explicit_overwrite(p, size) memset(p, WT_DEBUG_BYTE, size)
 
-/*
- * Poison a structure before freeing it, so that a use-after-free is loud rather than silent. The
- * decision of whether to poison at all lives in __wt_poison_before_free.
- */
+/* Poison a structure before freeing it, so that a use-after-free is loud rather than silent. */
 #define __wt_overwrite_and_free_len(session, p, len)              \
     do {                                                          \
         void *__p = &(p);                                         \
