@@ -507,9 +507,16 @@ __verify_one_checkpoint(
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
             /*
              * The page discard verification routine depends on get_page_ids being implemented.
+             *
+             * FIXME-WT-18567: We opt shared metadata out of the page count check. When we create a
+             * new shared metadata root page during checkpoint, we remove the old one after the
+             * checkpoint metadata is written. But we verify at the LSN where we wrote the
+             * checkpoint metadata, so PALI doesn't "see" that discard, reports the page as live,
+             * and gives us one more page than the btree thinks it has.
              */
             WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-            if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL)
+            if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL &&
+              !F_ISSET(session->dhandle, WT_DHANDLE_DISAGG_META))
                 WT_ERR(__verify_page_discard(session, bm));
         }
 
@@ -1651,10 +1658,18 @@ __verify_page_content_leaf(
     uint32_t cell_num;
     uint8_t *p;
     char tw_string[WT_TIME_STRING_SIZE];
-    bool found_ovfl;
+    bool found_ovfl, from_delta;
 
     page = ref->page;
     dsk = page->dsk;
+    /*
+     * Tells the parent-aggregate check below that this page was rebuilt from a base image and
+     * deltas, so it may relax a start-time mismatch that a full image could not have.
+     *
+     * FIXME-WT-17968: revisit whether from_delta is still needed once the checkpoint pick-up
+     * pinned-timestamp gate is restored, rather than assuming it is.
+     */
+    from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
     rip = page->pg_row;
     tw = &unpack.tw;
     recno = ref->ref_recno;
@@ -1698,7 +1713,7 @@ __verify_page_content_leaf(
             __wt_verbose_debug3(session, WT_VERB_VERIFY, "cell num: %" PRIu32 ", time window: %s",
               cell_num - 1, __wt_time_window_to_string(tw, tw_string));
 
-            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, false)) != 0)
+            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, from_delta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
                   __verify_addr_string(session, ref, vs->tmp1));

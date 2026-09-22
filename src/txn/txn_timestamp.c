@@ -207,7 +207,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     } else if (WT_CONFIG_LIT_MATCH("last_checkpoint", cval))
         ts = __wt_atomic_load_uint64_acquire(&txn_global->last_ckpt_timestamp);
     else if (WT_CONFIG_LIT_MATCH("last_disaggregated_schema_epoch", cval))
-        ts = __wt_atomic_load_uint64_acquire(&txn_global->last_ckpt_disaggregated_schema_epoch);
+        ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_disaggregated_schema_epoch);
     else if (WT_CONFIG_LIT_MATCH("oldest_timestamp", cval) || WT_CONFIG_LIT_MATCH("oldest", cval))
         ts = __wt_get_oldest_timestamp(session);
     else if (WT_CONFIG_LIT_MATCH("oldest_reader", cval))
@@ -656,10 +656,11 @@ set:
 
     /*
      * Once the step-down timestamp is set, committed writes are directed to the ingest constituent
-     * and everything from before belongs to stable. The application is expected to step down after
-     * setting it, which clears it, so it is only valid on a leader and cannot be changed while set.
-     * The step-down epoch is stored in the same locked section so readers observe the boundary in
-     * both spaces or in neither.
+     * (or mirrored to both stable and ingest when write mirroring is enabled) and everything from
+     * before belongs to stable. The application is expected to step down after setting it, which
+     * clears it, so it is only valid on a leader and cannot be changed while set. The step-down
+     * epoch is stored in the same locked section so readers observe the boundary in both spaces or
+     * in neither.
      */
     if (has_step_down) {
         __wt_writelock(session, &txn_global->step_down_lock);
@@ -905,7 +906,7 @@ static int
 __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
     WT_TXN *txn;
-    wt_timestamp_t oldest_ts, stable_ts;
+    wt_timestamp_t oldest_ts, stable_ts, step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
@@ -955,8 +956,6 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
      * not a contradiction to reject.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE) && txn->stepdown_ts_set) {
-        wt_timestamp_t step_down_ts;
-
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
         step_down_ts =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);

@@ -111,8 +111,6 @@ spawn_node(const TEST_CONFIG *cfg, const char *self_path, uint32_t node_id, bool
     argv[n++] = pool_arg;
     if (cfg->epoch_less)
         argv[n++] = "-e";
-    if (cfg->unique_tables)
-        argv[n++] = "-q";
     /* The node bounds how far its generator runs ahead so a hand-over drains inside a period. */
     if (cfg->switch_interval != 0) {
         argv[n++] = "-s";
@@ -363,8 +361,8 @@ open_for_recovery(const TEST_CONFIG *cfg, uint32_t node_id, WT_CONNECTION **conn
     disagg_opts_init(cfg);
     cfg->opts->disagg.mode = "leader";
 
-    testutil_wiredtiger_open(cfg->opts, home_dir, "create,disaggregated=(lose_all_my_data=true)",
-      NULL, connp, true, false);
+    testutil_wiredtiger_open(
+      cfg->opts, home_dir, "create,disaggregated=(lose_all_my_data=true)", NULL, connp, true);
 }
 
 /*

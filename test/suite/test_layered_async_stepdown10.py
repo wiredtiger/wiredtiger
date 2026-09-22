@@ -48,7 +48,6 @@ class test_layered_async_stepdown10(
     table_config = 'key_format=S,value_format=S'
 
     base = 'statistics=(all),precise_checkpoint=true,cache_size=500MB,'
-    conn_config = base + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = base + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -57,7 +56,16 @@ class test_layered_async_stepdown10(
       ('epoch', dict(use_epochs=True)),
       ('legacy', dict(use_epochs=False)),
     ]
-    scenarios = make_scenarios(disagg_storages, worlds)
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, worlds, write_modes)
+
+    def conn_config(self):
+        return self.base + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},' \
+            'role="leader",lose_all_my_data=true)'
 
     # How long the workload runs against each phase of the transition.
     phase_sleep = 10.0 if wttest.islongtest() else 1.0
@@ -95,6 +103,8 @@ class test_layered_async_stepdown10(
         self.step_down_ts = None
         self.demotion_started = False
         self.done = threading.Event()
+        self.pause_requested = threading.Event()
+        self.pause_acknowledged = threading.Event()
 
     # Whether a drop is guaranteed to reach the shared metadata, so the final verification may
     # insist the table is gone from it.
@@ -354,6 +364,11 @@ class test_layered_async_stepdown10(
         try:
             while not self.done.is_set():
                 time.sleep(0.002)
+                if self.pause_requested.is_set():
+                    self.pause_acknowledged.set()
+                    while self.pause_requested.is_set():
+                        time.sleep(0.01)
+                    self.pause_acknowledged.clear()
                 op = rng.choices(list(ops), weights=[w for w, _ in ops.values()])[0]
                 ops[op][1](wsession, rng)
         except Exception:
@@ -384,9 +399,14 @@ class test_layered_async_stepdown10(
         ckpt_session.close()
         time.sleep(self.phase_sleep)
 
-        # Phase 4: demote to follower, and let the workload run against the demoted node.
+        # Phase 4: finish the current operation and pause for demotion.
+        self.pause_requested.set()
+        while not self.pause_acknowledged.is_set():
+            self.assertTrue(self.worker.is_alive(), 'workload exited before acknowledging pause')
+            self.pause_acknowledged.wait(0.01)
         self.demotion_started = True
         self.step_down()
+        self.pause_requested.clear()
         time.sleep(self.phase_sleep)
 
     # The workload must have made progress on every unconditional operation, or the stress and
@@ -465,13 +485,14 @@ class test_layered_async_stepdown10(
         self.setup_stress_state()
         self.setup_seed_tables()
 
-        worker = wtthread.Thread(target=self.workload)
-        worker.start()
+        self.worker = wtthread.Thread(target=self.workload)
+        self.worker.start()
         try:
             self.step_down_in_phases()
         finally:
             self.done.set()
-            worker.join()
+            self.pause_requested.clear()
+            self.worker.join()
 
         self.assertEqual(self.workload_errors, [])
         self.assert_workload_progress()

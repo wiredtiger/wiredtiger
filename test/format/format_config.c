@@ -55,7 +55,6 @@ static void config_pct(TABLE *);
 static void config_prefetch(void);
 static void config_run_length(void);
 static void config_statistics(void);
-static void config_tiered_storage(void);
 static void config_transaction(void);
 static bool config_var(TABLE *);
 
@@ -147,6 +146,15 @@ config_random(TABLE *table, bool table_only)
 
         /* Configure key prefixes only rarely, 5% if the length isn't set explicitly. */
         if (cp->off == V_TABLE_BTREE_PREFIX_LEN && mmrand(&g.extra_rnd, 1, 100) > 5)
+            continue;
+
+        /*
+         * The stable-dhandle delay stalls only the follower's stable checkpoint cursor opens; under
+         * multi-node the leader waits at a rendezvous for the follower to finish, so the delay can
+         * starve the follower past the task budget and hang the leader. Don't random-enable it
+         * there.
+         */
+        if (cp->off == V_GLOBAL_STRESS_DISAGG_STABLE_DHANDLE_DELAY && disagg_is_multi_node())
             continue;
 
         /*
@@ -492,7 +500,6 @@ config_run(void)
     config_off(NULL, "ops.salvage");
 
     /* Order can be important, don't shuffle without careful consideration. */
-    config_tiered_storage();                         /* Tiered storage */
     config_disagg_storage();                         /* Disaggregated storage */
     config_disagg_key_provider();                    /* Disaggregated key provider */
     config_transaction();                            /* Transactions */
@@ -1399,44 +1406,6 @@ config_statistics(void)
 }
 
 /*
- * config_tiered_storage --
- *     Tiered storage configuration.
- */
-static void
-config_tiered_storage(void)
-{
-    const char *storage_source;
-
-    storage_source = GVS(TIERED_STORAGE_STORAGE_SOURCE);
-
-    g.tiered_storage_config =
-      (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
-    if (g.tiered_storage_config) {
-        /* Tiered storage requires timestamps. */
-        config_off(NULL, "transaction.implicit");
-        config_single(NULL, "transaction.timestamps=on", true);
-
-        /* If we are flushing, we need a checkpoint thread. */
-        if (GV(TIERED_STORAGE_FLUSH_FREQUENCY) > 0)
-            config_single(NULL, "checkpoint=on", false);
-
-        /* Salvage and verify are not supported for tiered storage. */
-        config_off(NULL, "ops.salvage");
-        config_off(NULL, "ops.verify");
-
-        /* Backup is not supported for tiered tables. */
-        config_off(NULL, "backup");
-        config_off(NULL, "backup.incremental");
-
-        /* Compact is not supported for tiered tables. */
-        config_off(NULL, "ops.compaction");
-        config_off(NULL, "background_compact");
-    } else
-        /* Never try flush to tiered storage unless running with tiered storage. */
-        config_single(NULL, "tiered_storage.flush_frequency=0", true);
-}
-
-/*
  * config_disagg_storage --
  *     Disaggregated storage configuration.
  */
@@ -1531,6 +1500,15 @@ config_disagg_storage(void)
                     config_off(NULL, "ops.prepare");
                 }
             }
+
+            /*
+             * The step-down checkpoint's duration counts against the same wall clock as the drain
+             * and pause timeouts above; slowing every dirty internal page it writes can run the
+             * total past the run's abort timer with no workload progress to show for it.
+             */
+            if (config_explicit(NULL, "debug.slow_checkpoint"))
+                WARN("%s", "turning off debug.slow_checkpoint to work with disagg.stepdown_async");
+            config_off(NULL, "debug.slow_checkpoint");
         }
     } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
@@ -1555,9 +1533,6 @@ config_disagg_storage(void)
     /* Compaction is not supported for disaggregated storage. */
     config_off(NULL, "ops.compaction");
     config_off(NULL, "background_compact");
-
-    /*  Tiered storage is not supported with disagg */
-    config_single(NULL, "tiered_storage.storage_source=off", true);
 }
 
 /*

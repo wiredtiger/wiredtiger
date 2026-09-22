@@ -49,37 +49,42 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
 
     nentries = 5000
 
-    def populate(self):
-        cursor = self.session.open_cursor(self.uri, None)
+    # Printed to stdout when verify with fix_btree_size corrects a size.
+    correcting_pattern = r'WT_VERB_VERIFY.*size mismatch detected.*correcting'
+
+    def populate(self, uri=None):
+        self.ts_count = getattr(self, 'ts_count', 0) + 1
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(uri or self.uri, None)
         for i in range(self.nentries):
             cursor[str(i)] = str(i) * 100
         cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
         self.session.checkpoint()
 
-    def get_ckpt_size(self):
+    def get_ckpt_size(self, stable_uri=None):
         # Return the size= value from the stable file's most recent checkpoint metadata.
+        stable_uri = stable_uri or self.stable_uri
         cursor = self.session.open_cursor('metadata:', None)
-        cursor.set_key(self.stable_uri)
+        cursor.set_key(stable_uri)
         self.assertEqual(cursor.search(), 0)
         value = cursor.get_value()
         cursor.close()
         sizes = re.findall(r',size=(\d+),', value)
-        self.assertGreater(len(sizes), 0, f"no checkpoint size in metadata for {self.stable_uri}")
+        self.assertGreater(len(sizes), 0, f"no checkpoint size in metadata for {stable_uri}")
         return int(sizes[0])
 
-    def set_ckpt_size(self, new_size):
+    def set_ckpt_size(self, new_size, stable_uri=None):
         # Overwrite the size= value in the stable file's checkpoint metadata.
+        stable_uri = stable_uri or self.stable_uri
         cursor = self.session.open_cursor('metadata:', None, 'readonly=0')
-        cursor.set_key(self.stable_uri)
+        cursor.set_key(stable_uri)
         self.assertEqual(cursor.search(), 0)
         value = cursor.get_value()
-        cursor.close()
 
         new_value = re.sub(r',size=\d+,', f',size={new_size},', value, count=1)
         self.assertNotEqual(new_value, value, "metadata had no size= field to replace")
 
-        cursor = self.session.open_cursor('metadata:', None, 'readonly=0')
-        cursor.set_key(self.stable_uri)
         cursor.set_value(new_value)
         cursor.update()
         cursor.close()
@@ -92,6 +97,11 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
 
         real_size = self.get_ckpt_size()
         self.assertGreater(real_size, 0)
+
+        # Reopen so the stable file's dhandle is closed before it gets corrupted below: otherwise
+        # verify would keep consulting the dhandle's cached, pre-corruption checkpoint list and
+        # never see a mismatch to fix.
+        self.reopen_conn()
 
         # Corrupt the checkpoint size in the metadata.
         self.set_ckpt_size(1)
@@ -113,8 +123,8 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
             "verify without fix_btree_size must not correct the metadata")
 
         # Verify with fix_btree_size on corrects the metadata size.
-        str_pattern = r'WT_VERB_VERIFY.*size mismatch detected.*correcting'
-        with self.customStdoutPattern(lambda output: self.assertRegex(output, str_pattern)):
+        with self.customStdoutPattern(
+                lambda output: self.assertRegex(output, self.correcting_pattern)):
             self.verifyUntilSuccess(self.session, self.uri, config='strict=true,fix_btree_size=true')
         corrected_size = self.get_ckpt_size()
         self.assertEqual(corrected_size, real_size,
@@ -126,9 +136,66 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
             self.conn, f'fetch_metadata=(local=true,uri="{self.stable_uri}")')
         sizes = re.findall(r',size=(\d+),', meta)
         self.assertGreater(len(sizes), 0, f"no size in fetch_metadata output: {meta}")
-        # The last size= value is the most recent checkpoint's size.
+        # The first size= value is the checkpoint size, consistent with get_ckpt_size.
         self.assertEqual(int(sizes[0]), corrected_size,
             f"fetch_metadata size {sizes[0]} != corrected size {corrected_size}")
+
+    def test_fix_btree_size_via_repair(self):
+        # The wiredtiger_repair fix_btree_size command runs the same verify-and-correct flow,
+        # then checkpoints to persist the corrected metadata.
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.populate()
+
+        real_size = self.get_ckpt_size()
+
+        # Reopen so the stable file's dhandle is closed before it gets corrupted below: otherwise
+        # verify would keep consulting the dhandle's cached, pre-corruption checkpoint list and
+        # never see a mismatch to fix.
+        self.reopen_conn()
+        self.set_ckpt_size(1)
+
+        with self.customStdoutPattern(
+                lambda output: self.assertRegex(output, self.correcting_pattern)):
+            report = wiredtiger.wiredtiger_repair(
+                self.conn, f'fix_btree_size=(uri="{self.stable_uri}")')
+        self.assertIn(f'fix_btree_size: verifying {self.stable_uri}', report)
+        self.assertIn('checkpointing to persist corrections', report)
+        self.assertNotIn('Failed', report)
+        self.assertEqual(self.get_ckpt_size(), real_size,
+            "repair fix_btree_size should restore the size derived from the tree")
+
+    def test_fix_btree_size_no_uri_all_files(self):
+        # With no uri, repair must walk the metadata and verify every stable file, not just
+        # the first one. Create several tables, corrupt each checkpoint size differently, and
+        # confirm all of them are verified and corrected.
+        ntables = 3
+        uris = [f'layered:{self.uri_base}_{i}' for i in range(ntables)]
+        stable_uris = [f'file:{self.uri_base}_{i}.wt_stable' for i in range(ntables)]
+
+        real_sizes = []
+        for uri, stable_uri in zip(uris, stable_uris):
+            self.session.create(uri, 'key_format=S,value_format=S')
+            self.populate(uri)
+            real_sizes.append(self.get_ckpt_size(stable_uri))
+
+        # Reopen so every stable file's dhandle is closed before corruption below: otherwise
+        # verify would keep consulting a dhandle's cached, pre-corruption checkpoint list and
+        # never see a mismatch to fix.
+        self.reopen_conn()
+
+        # Corrupt each table with a distinct bogus size.
+        for i, stable_uri in enumerate(stable_uris):
+            self.set_ckpt_size(1 + i, stable_uri)
+
+        with self.customStdoutPattern(
+                lambda output: self.assertRegex(output, self.correcting_pattern)):
+            report = wiredtiger.wiredtiger_repair(self.conn, 'fix_btree_size=()')
+
+        # Every stable file must appear in the report and get its size corrected.
+        for i, stable_uri in enumerate(stable_uris):
+            self.assertIn(f'fix_btree_size: verifying {stable_uri}', report)
+            self.assertEqual(self.get_ckpt_size(stable_uri), real_sizes[i],
+                f"no-uri repair should correct {stable_uri}")
 
     def test_fix_btree_size_requires_leader(self):
         # fix_btree_size is rejected on a follower. The follower skips verify until it has picked

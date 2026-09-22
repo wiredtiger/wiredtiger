@@ -140,21 +140,20 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
         if (ret != EBUSY)
             break;
 
-        struct timespec now;
-        __wt_epoch(NULL, &now);
-        const bool timed_out = WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT;
-        /* Leader is gone, so no one produces checkpoints to unblock this operation. */
-        const bool abandoned = !state->generates && (!state->cfg->peer_alive || timed_out);
         int err, sub_err;
         const char *err_msg;
-        if (abandoned) {
+
+        /* Leader is gone, so no one produces checkpoints to unblock this operation. */
+        if (!state->generates && !state->cfg->peer_alive) {
             session->get_last_error(session, &err, &sub_err, &err_msg);
-            println("Node %" PRIu32 ": abandoning follower %s %s (%s): %s", state->cfg->node_id,
-              is_create ? "CREATE" : "DROP", ev->uri,
-              timed_out ? "no checkpoint arrived" : "peer left", err_msg);
+            println("Node %" PRIu32 ": abandoning follower %s %s (peer left): %s",
+              state->cfg->node_id, is_create ? "CREATE" : "DROP", ev->uri, err_msg);
             return (ECANCELED);
         }
-        if (timed_out) {
+
+        struct timespec now;
+        __wt_epoch(NULL, &now);
+        if (WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT) {
             session->get_last_error(session, &err, &sub_err, &err_msg);
             schema_op_stall_report(state);
             testutil_die(ETIMEDOUT, "node%" PRIu32 " %s %s %s: EBUSY for %d seconds: %s",
@@ -305,10 +304,13 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, SCHEM
         testutil_assert(!state->cfg->epoch_less);
         ev->event_ts = worker_ts(state, ev);
         schema_op_publish(ctx->session, ev->uri, ev->event_ts);
-        if (state->generates && ev->type == EVENT_PUBLISH_DROP) {
+        if (state->generates) {
             testutil_assert(ev->slot < state->cfg->pool_size);
-            __wt_atomic_store_uint64(
-              &state->workers[thread_index].table[ev->slot].drop_epoch, ev->event_ts);
+            /* Preserve the epoch of this op, so generator can pace itself. */
+            __wt_atomic_store_uint64(ev->type == EVENT_PUBLISH_DROP ?
+                &state->workers[thread_index].table[ev->slot].drop_epoch :
+                &state->workers[thread_index].table[ev->slot].create_epoch,
+              ev->event_ts);
         }
         if (relay)
             (void)pipe_relay_event(state->cfg, ev);

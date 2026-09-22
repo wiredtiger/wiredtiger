@@ -17,7 +17,7 @@
 /* The generator's state machine. */
 typedef enum {
     GEN_NORMAL,          /* the term's workload */
-    GEN_FLUSH_PUBLISHES, /* one-shot: emit the publishes a term must not end holding */
+    GEN_PUBLISH_PENDING, /* publish what the preceding workload left unpublished */
     GEN_BEGIN_STEPDOWN,  /* one-shot: emit the step-down timestamp */
     GEN_STEPDOWN,        /* the step-down: limited workload */
     GEN_SWITCH,          /* one-shot: emit the switch event that ends the stream */
@@ -38,6 +38,26 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 }
 
 /*
+ * generator_slot_droppable --
+ *     Whether this slot's table can be dropped now.
+ */
+static bool
+generator_slot_droppable(WORKLOAD_STATE *state, uint32_t t, uint32_t slot)
+{
+    if (state->workers[t].table[slot].uncovered_insert)
+        return (false);
+
+    /* Legacy mode has no epochs to cover, and a lone node or a dead peer has nobody to protect. */
+    if (state->cfg->epoch_less || node_is_lone(state->cfg) || !state->cfg->peer_alive)
+        return (true);
+
+    const uint64_t create_epoch =
+      __wt_atomic_load_uint64(&state->workers[t].table[slot].create_epoch);
+    return (create_epoch != WT_SCHEMA_EPOCH_NONE &&
+      __wt_atomic_load_uint64(&state->adopted_ckpt_epoch) >= create_epoch);
+}
+
+/*
  * generator_op --
  *     Advance one slot of the given worker thread through the table lifecycle, taking one of its
  *     state's valid moves at random. Reports whether an event was emitted; taking no move is valid,
@@ -48,22 +68,21 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 static bool
 generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
 {
-    const bool stepping_down = phase == GEN_STEPDOWN;
-    WT_RAND_STATE *rnd = &state->gen_rnd[t];
+    WT_RAND_STATE *rnd = &state->workers[t].rnd;
     const uint32_t slot = __wt_random(rnd) % state->cfg->pool_size;
     TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
+    uint64_t *create_epoch = &state->workers[t].table[slot].create_epoch;
     uint64_t *drop_epoch = &state->workers[t].table[slot].drop_epoch;
     /* Set when no checkpoint of this phase can cover the insert; such a slot is not droppable. */
     bool *uncovered_insert = &state->workers[t].table[slot].uncovered_insert;
 
+    const bool stepping_down = phase == GEN_STEPDOWN;
     SCHEMA_EVENT ev = {0}; /* EVENT_NONE until a move is taken */
     switch (*slot_state) {
     case TABLE_NONE:
         /* A legacy create is complete immediately; epoch mode publishes it in a later event. */
         ev.type = EVENT_CREATE;
         *slot_state = state->cfg->epoch_less ? TABLE_PUBLISHED : TABLE_CREATED;
-        if (state->cfg->unique_tables)
-            ++state->workers[t].table[slot].gen;
         break;
     case TABLE_CREATED:
         testutil_assert(!state->cfg->epoch_less);
@@ -84,11 +103,14 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         /* Take (more) data, drop the table, or linger. */
         if (__wt_random(rnd) % GEN_INSERT_ODDS == 0) {
             ev.type = EVENT_INSERT;
+            /* No checkpoint of this phase can cover it, so the slot stops being droppable. */
             if (stepping_down || !state->leads)
                 *uncovered_insert = true;
-        } else if (__wt_random(rnd) % GEN_DROP_ODDS == 0 && !*uncovered_insert) {
-            /* Such a drop would wait on a checkpoint this phase cannot take. */
+        } else if (__wt_random(rnd) % GEN_DROP_ODDS == 0 &&
+          generator_slot_droppable(state, t, slot)) {
             ev.type = EVENT_DROP;
+            /* Consume the create's epoch: the next table in this slot publishes its own. */
+            __wt_atomic_store_uint64(create_epoch, WT_SCHEMA_EPOCH_NONE);
             *slot_state = state->cfg->epoch_less ? TABLE_NONE : TABLE_DROPPED;
         }
         break;
@@ -101,12 +123,13 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         }
         break;
     case TABLE_REMOVED: {
-        /* Free the slot once the stable epoch passes the published drop; zero is not applied yet.
+        /*
+         * Free the slot once the stable epoch passes the published drop; zero is not applied yet.
          */
         const uint64_t published_drop = __wt_atomic_load_uint64(drop_epoch);
-        if (published_drop != 0 &&
+        if (published_drop != WT_SCHEMA_EPOCH_NONE &&
           __wt_atomic_load_uint64(&state->stable_epoch) >= published_drop) {
-            __wt_atomic_store_uint64(drop_epoch, 0);
+            __wt_atomic_store_uint64(drop_epoch, WT_SCHEMA_EPOCH_NONE);
             *slot_state = TABLE_NONE;
         }
         break;
@@ -117,8 +140,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
 
     ev.thread_id = t;
     ev.slot = slot;
-    testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot,
-      state->workers[t].table[slot].gen);
+    testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
     if (ev.type == EVENT_INSERT) {
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
@@ -192,13 +214,11 @@ generator_switch_requested(GENERATOR_PACING *pacing)
 }
 
 /*
- * generator_flush_publishes --
- *     Emit the pending publish for every slot in an unpublished state, before the role transition.
- *     FIXME-WT-18272 FIXME-WT-18284: Remove this function once these tickets are resolved.
- *     Corresponding generator state GEN_FLUSH_PUBLISHES won't be needed anymore, as well.
+ * generator_publish_pending --
+ *     Emit the pending publish for every slot in an unpublished state.
  */
 static void
-generator_flush_publishes(WORKLOAD_STATE *state)
+generator_publish_pending(WORKLOAD_STATE *state)
 {
     if (state->cfg->epoch_less)
         return;
@@ -213,8 +233,8 @@ generator_flush_publishes(WORKLOAD_STATE *state)
             ev.type = *slot_state == TABLE_CREATED ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
             ev.thread_id = t;
             ev.slot = slot;
-            testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t,
-              slot, state->workers[t].table[slot].gen);
+            testutil_snprintf(
+              ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
 
             *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_REMOVED;
             generator_emit(state, &ev);
@@ -246,26 +266,26 @@ generator_stepdown_ended(WORKLOAD_STATE *state, GENERATOR_PACING *pacing)
     const uint64_t stepdown_events = state->emitted - pacing->stepdown_emitted;
     /* Lone node exhausted step-down events or peer adopted the checkpoint. */
     const bool ended = ckpt_lsn != 0 &&
-      (lone ? stepdown_events >= GEN_STEPDOWN_MIN_EVENTS : adopted_lsn_read() >= ckpt_lsn);
+      (lone ? stepdown_events >= GEN_STEPDOWN_MIN_EVENTS : adopted_ckpt_read(NULL) >= ckpt_lsn);
 
     if (ended)
         return (true);
 
     /* Report which part of the step-down stalled. */
-    if (WT_TIMEDIFF_SEC(now, pacing->stepdown_start) > MAX_OP_WAIT) {
+    if (WT_TIMEDIFF_SEC(now, pacing->stepdown_start) > MAX_STEPDOWN_WAIT) {
         if (ckpt_lsn == 0)
             testutil_die(ETIMEDOUT,
               "Node %" PRIu32 ": the step-down checkpoint did not complete in %d seconds",
-              state->cfg->node_id, MAX_OP_WAIT);
+              state->cfg->node_id, MAX_STEPDOWN_WAIT);
         else if (lone)
             testutil_die(ETIMEDOUT,
               "Node %" PRIu32 ": the step-down emitted %" PRIu64 " of %d events in %d seconds",
-              state->cfg->node_id, stepdown_events, GEN_STEPDOWN_MIN_EVENTS, MAX_OP_WAIT);
+              state->cfg->node_id, stepdown_events, GEN_STEPDOWN_MIN_EVENTS, MAX_STEPDOWN_WAIT);
         else
             testutil_die(ETIMEDOUT,
               "Node %" PRIu32 ": peer did not adopt the step-down checkpoint (lsn %" PRIu64
               ") in %d seconds",
-              state->cfg->node_id, ckpt_lsn, MAX_OP_WAIT);
+              state->cfg->node_id, ckpt_lsn, MAX_STEPDOWN_WAIT);
     }
 
     return (false);
@@ -307,11 +327,18 @@ thread_generator_run(void *arg)
         switch (phase) {
         case GEN_NORMAL:
             progressed = generator_round(state, pacing.lead_max, GEN_NORMAL);
-            phase = generator_switch_requested(&pacing) ? GEN_FLUSH_PUBLISHES : GEN_NORMAL;
+            phase = generator_switch_requested(&pacing) ? GEN_PUBLISH_PENDING : GEN_NORMAL;
             break;
-        case GEN_FLUSH_PUBLISHES:
-            generator_flush_publishes(state);
-            phase = state->leads ? GEN_BEGIN_STEPDOWN : GEN_SWITCH;
+        case GEN_PUBLISH_PENDING:
+            /*
+             * Generator enters this state twice: before the step-down begins and after the
+             * step-down ends.
+             */
+            generator_publish_pending(state);
+            if (state->leads && __wt_atomic_load_uint64(&state->stepdown_ts) == 0)
+                phase = GEN_BEGIN_STEPDOWN;
+            else
+                phase = GEN_SWITCH;
             break;
         case GEN_BEGIN_STEPDOWN:
             /*
@@ -327,9 +354,13 @@ thread_generator_run(void *arg)
             progressed = (node_is_lone(state->cfg) || state->cfg->peer_alive) &&
               generator_round(state, pacing.lead_max, GEN_STEPDOWN);
             if (generator_stepdown_ended(state, &pacing)) {
-                println("Node %" PRIu32 ": step-down emitted %" PRIu64 " events",
-                  state->cfg->node_id, state->emitted - pacing.stepdown_emitted);
-                phase = GEN_SWITCH;
+                struct timespec now;
+                __wt_epoch(NULL, &now);
+                println("Node %" PRIu32 ": step-down emitted %" PRIu64 " events in %" PRIu64
+                        " ms (budget %d s)",
+                  state->cfg->node_id, state->emitted - pacing.stepdown_emitted,
+                  (uint64_t)WT_TIMEDIFF_MS(now, pacing.stepdown_start), MAX_STEPDOWN_WAIT);
+                phase = GEN_PUBLISH_PENDING;
             }
             break;
         case GEN_SWITCH:
