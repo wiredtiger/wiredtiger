@@ -134,7 +134,7 @@ class test_hs18(wttest.WiredTigerTestCase):
     def test_read_timestamp_weirdness(self):
         if (
             self.runningHook("disagg")
-            and self.getDisaggParameters().publish
+            and self.getDisaggParameters().schema_epochs
             and self.key_format != 'r'
         ):
             self.skipTest(

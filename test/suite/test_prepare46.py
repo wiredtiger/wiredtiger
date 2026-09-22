@@ -63,7 +63,7 @@ class test_prepare46(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
         # FIXME-WT-18705: Remove this skip once eviction preserves prepared state before publication.
-        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
             self.skipTest(
                 "eviction before btree publication can discard prepared state needed by a later checkpoint")
 

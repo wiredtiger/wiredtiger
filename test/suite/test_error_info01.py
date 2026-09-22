@@ -102,7 +102,7 @@ class test_error_info01(error_info_util, compact_util):
         self.assertEqual(self.session.drop(self.uri, None), 0)
 
     def test_ebusy_wt_dirty_data(self):
-        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
             self.skipTest(
                 "tables awaiting btree publication skip checkpoint-on-close, so untimestamped "
                 "dirty data does not guarantee EBUSY on drop")

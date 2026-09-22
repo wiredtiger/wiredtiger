@@ -249,7 +249,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     # Disaggregated storage generates some extra verbose output which must be ignored.
     disagg_ignore_expected_output(testcase)
 
-    if disagg_parameters.publish:
+    if disagg_parameters.schema_epochs:
         seed_stable_schema_epoch(result)
 
     return result
@@ -381,7 +381,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     # Creating an existing table can succeed without queuing a schema change.
     should_publish = (
-        disagg_parameters.publish
+        disagg_parameters.schema_epochs
         and (uri.startswith("layered:") or mark_table_as_layered)
         and not layered_table_exists(session_self, uri)
     )
@@ -400,7 +400,7 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
     # A forced drop of a missing table has nothing to publish.
     # Check the URI too as unrelated objects can share a layered table's name.
     should_publish = (
-        disagg_parameters.publish
+        disagg_parameters.schema_epochs
         and (uri.startswith("layered:") or uri in testcase.layered_uris)
         and layered_table_exists(session_self, uri)
     )
@@ -576,7 +576,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         self.disagg_key_provider= None
         self.disagg_page_log = None
         self.disagg_role = 'leader'
-        self.publish = False
+        self.schema_epochs = False
         self.table_prefix = 'layered'
 
         for param_key, param_value in params:
@@ -586,11 +586,11 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
                 self.disagg_key_provider = param_value
             elif param_key == 'page_log':
                 self.disagg_page_log = param_value
-            elif param_key == 'publish':
+            elif param_key == 'schema_epochs':
                 if param_value not in ('true', 'false'):
                     raise ValueError(
-                        f"hook_disagg: publish must be 'true' or 'false', got {param_value!r}")
-                self.publish = param_value == 'true'
+                        f"hook_disagg: schema_epochs must be 'true' or 'false', got {param_value!r}")
+                self.schema_epochs = param_value == 'true'
             elif param_key == 'role':
                 self.disagg_role = param_value
             elif param_key == 'table_prefix':
@@ -634,7 +634,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         result.config = self.disagg_config
         result.role = self.disagg_role
         result.page_log = self.disagg_page_log if self.disagg_page_log else WiredTigerTestCase.vars().page_log
-        result.publish = self.publish
+        result.schema_epochs = self.schema_epochs
         result.table_prefix = self.table_prefix
         result.key_provider = self.disagg_key_provider
         return result

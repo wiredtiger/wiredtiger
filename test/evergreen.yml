@@ -2884,7 +2884,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 0/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-publish-tsan-bucket01
     tags: ["pull_request", "unit_test_tsan", "python"]
@@ -2898,7 +2898,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 1/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-publish-tsan-bucket02
     tags: ["pull_request", "unit_test_tsan", "python"]
@@ -2912,7 +2912,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 2/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-publish-tsan-bucket03
     tags: ["pull_request", "unit_test_tsan", "python"]
@@ -2926,7 +2926,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 3/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-publish-tsan-bucket04
     tags: ["pull_request", "unit_test_tsan", "python"]
@@ -2940,7 +2940,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 4/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 4/5
 
   - name: unit-test-hook-disagg-follower-tsan
     tags: ["pull_request", "unit_test_tsan", "python"]
@@ -3123,7 +3123,7 @@ tasks:
           unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 0/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-publish-bucket01
     tags: ["pull_request", "python", "unit_test_disagg"]
@@ -3137,7 +3137,7 @@ tasks:
           unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 1/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-publish-bucket02
     tags: ["pull_request", "python", "unit_test_disagg"]
@@ -3151,7 +3151,7 @@ tasks:
           unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 2/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-publish-bucket03
     tags: ["pull_request", "python", "unit_test_disagg"]
@@ -3165,7 +3165,7 @@ tasks:
           unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 3/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-publish-bucket04
     tags: ["pull_request", "python", "unit_test_disagg"]
@@ -3179,7 +3179,7 @@ tasks:
           unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,publish=true)" --batch 4/5
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,schema_epochs=true)" --batch 4/5
 
   - name: unit-test-hook-disagg-follower
     tags: ["pull_request", "python"]

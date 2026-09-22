@@ -114,7 +114,7 @@ class test_hs30(wttest.WiredTigerTestCase):
         )
         if (
             self.runningHook("disagg")
-            and self.getDisaggParameters().publish
+            and self.getDisaggParameters().schema_epochs
             and self.key_format != 'r'
             and evicts_before_checkpoint
         ):

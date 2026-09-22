@@ -41,7 +41,7 @@ class test_prepare42(test_prepare_preserve_prepare_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
 
         # FIXME-WT-18704: Remove this skip once prepared rollback handles pending publication.
-        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
             self.skipTest(
                 "prepared insert rollback before btree publication can trigger an assertion during eviction")
 

@@ -36,7 +36,7 @@ class test_verify2(wttest.WiredTigerTestCase):
     # The first call to verify is expected to return to EBUSY due to the dirty content. Call
     # checkpoint to make the table clean, the next verify call should succeed.
     def test_verify_ckpt(self):
-        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
             self.skipTest(
                 "verify skips tables awaiting btree publication with no on-disk data, "
                 "so this test's EBUSY expectation does not apply")

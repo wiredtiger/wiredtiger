@@ -45,7 +45,7 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def test_app_thread_evict01(self):
-        if self.runningHook("disagg") and self.getDisaggParameters().publish:
+        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
             self.skipTest(
                 "this test requires application-thread eviction to refresh its snapshot, "
                 "which deferred btree publication does not guarantee")

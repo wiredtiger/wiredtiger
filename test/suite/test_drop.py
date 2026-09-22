@@ -106,7 +106,7 @@ class test_drop(wttest.WiredTigerTestCase):
         # FIXME-WT-18703: Investigate if this is intended behavior or not.
         if (
             self.runningHook("disagg")
-            and self.getDisaggParameters().publish
+            and self.getDisaggParameters().schema_epochs
             and self.uri == 'table:'
         ):
             self.skipTest(

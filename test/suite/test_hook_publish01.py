@@ -45,8 +45,8 @@ class test_hook_publish01(wttest.WiredTigerTestCase):
 
     def setUp(self):
         """Run only when the hook's automatic publication is enabled."""
-        if not self.runningHook("disagg") or not self.getDisaggParameters().publish:
-            self.skipTest("requires the disagg hook with publish=true")
+        if not self.runningHook("disagg") or not self.getDisaggParameters().schema_epochs:
+            self.skipTest("requires the disagg hook with schema_epochs=true")
         super().setUp()
 
     def stable_epoch(self):

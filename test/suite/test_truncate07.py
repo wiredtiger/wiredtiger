@@ -136,7 +136,7 @@ class test_truncate07(wttest.WiredTigerTestCase):
         # FIXME-WT-18706: Re-enable once debug eviction is safe across table publication.
         if (
             self.runningHook("disagg")
-            and self.getDisaggParameters().publish
+            and self.getDisaggParameters().schema_epochs
             and (self.key_format != 'r' and self.do_evict)
         ):
             self.skipTest(
