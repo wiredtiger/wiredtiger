@@ -15,6 +15,7 @@ else()
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
@@ -39,7 +40,6 @@ else()
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
-        misc_tests/test_palite_victim_cache.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
