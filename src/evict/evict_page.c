@@ -376,15 +376,16 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     F_SET(blk, WT_BLOCK_DISAGG_MODIFIED);
     /* Not encrypted in this path. */
 
+    /*
+     * Checksum after the page header is little-endian. The read path verifies the stored image
+     * before swapping the header back to native order.
+     */
+    __wt_page_header_byteswap(dsk);
+
     /* Calculate checksum following __wti_block_disagg_write_internal. */
     blk->checksum = 0;
     blk->checksum = __wt_checksum(cache_buf->data,
       data_checksum ? cache_buf->size : WT_MIN(cache_buf->size, WT_BLOCK_COMPRESS_SKIP));
-
-    /*
-     * Swap page header to little-endian for on-disk format.
-     */
-    __wt_page_header_byteswap(dsk);
 
     WT_PAGE_LOG_PUT_ARGS args = {
       .backlink_lsn = block_meta->backlink_lsn,
