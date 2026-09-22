@@ -28,7 +28,10 @@
 #
 # test_cursor_position01.py
 #   WT_CURSOR.set_position and get_position on a row-store table with several levels of pages,
-#   built in memory and read back from disk.
+#   built in memory and read back from disk. Positions describe the current tree shape, and an
+#   in-memory tree keeps splitting in the background after it is populated, so every check that
+#   compares positions or boundary keys against each other runs on the checkpointed on-disk tree
+#   only; the in-memory scenario checks the API contract and visibility.
 
 import wiredtiger, wttest
 from wiredtiger import stat
@@ -116,6 +119,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         return [i / self.nsamples for i in range(self.nsamples + 1)]
 
     def test_get_position_walk(self):
+        self.require_disk()
         keys = self.populate()
         c = self.session.open_cursor(self.uri)
         prev = -1.0
@@ -140,6 +144,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         c.close()
 
     def test_round_trip(self):
+        self.require_disk()
         keys = self.populate()
         c = self.session.open_cursor(self.uri)
         for key in keys[::97] + [keys[-1]]:
@@ -147,15 +152,11 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
             self.assertEqual(c.search(), 0)
             p = self.position(c, c.get_position())
             self.assertEqual(p.pages_skipped, 0)
-            found = self.check_record(c, keys)
-            if self.in_memory:
-                # A record not yet written to a page maps to the nearest page slot before it.
-                self.assertLessEqual(found, key)
-            else:
-                self.assertEqual(found, key)
+            self.assertEqual(self.check_record(c, keys), key)
         c.close()
 
     def test_sampling(self):
+        self.require_disk()
         keys = self.populate()
         c = self.session.open_cursor(self.uri)
         prev = None
@@ -172,8 +173,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
             self.assertEqual(self.position_key(c, pos, 0, keys), keys[0])
         for pos in (1.0, 1.001, 2.0):
             self.assertEqual(self.position_key(c, pos, LAST | PREV, keys), keys[-1])
-            if not self.in_memory:
-                self.assertEqual(self.position_key(c, pos, 0, keys), keys[-1])
+            self.assertEqual(self.position_key(c, pos, 0, keys), keys[-1])
 
         # The cursor is positioned: iteration continues from the record found.
         idx = keys.index(self.position_key(c, 0.5, 0, keys))
@@ -186,6 +186,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         c.close()
 
     def test_anchors(self):
+        self.require_disk()
         keys = self.populate()
         c = self.session.open_cursor(self.uri)
         prev_first = prev_last = None
@@ -209,6 +210,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         c.close()
 
     def test_key_only(self):
+        self.require_disk()
         keys = self.populate()
         c = self.session.open_cursor(self.uri)
         prev_boundary = None
@@ -258,6 +260,32 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
                 lambda: c.bound('bound=lower'), '/Empty keys not permitted/')
             self.assertGreater(c.search_near(), 0)
             self.assertEqual(self.check_record(c, keys), keys[0])
+        c.close()
+
+    # The contract that holds whatever shape the tree is in: a position yields a record of the
+    # table or a key without a position, and a positioned record reports a position in [0, 1].
+    def test_api_contract(self):
+        keys = self.populate()
+        c = self.session.open_cursor(self.uri)
+        for pos in (-1.0, 0.0, 0.25, 0.5, 0.75, 1.0, 2.0):
+            for flags in (0, PREV, FIRST, LAST | PREV, MIDDLE):
+                p = self.position(c, pos, flags)
+                self.assertIsInstance(p.pages_skipped, int)
+                self.check_record(c, keys)
+                reported = c.get_position()
+                self.assertGreaterEqual(reported, 0.0)
+                self.assertLessEqual(reported, 1.0)
+
+            p = self.position(c, pos, KEY_ONLY)
+            self.assertEqual(p.pages_skipped, 0)
+            boundary = c.get_key()
+            self.assertIsInstance(boundary, bytes)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: c.get_position(), '/requires a positioned cursor/')
+            if boundary != b'':
+                self.assertLessEqual(boundary, keys[-1])
+            self.assertIn(c.search_near(), (-1, 0, 1))
+            self.check_record(c, keys)
         c.close()
 
     def test_key_only_reads_no_leaf_pages(self):
