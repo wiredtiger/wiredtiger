@@ -428,6 +428,9 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
     def get_platform_api(self):
         return self.platform_api
 
+    def has_param(self, param):
+        return self.platform_api.params.get(param) == 'true'
+
     def setup_hooks(self):
         orig_session_alter = self.Session['alter']
         self.Session['alter'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
@@ -524,6 +527,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
                 self.table_prefix = param_value
             else:
                 raise Exception('hook_disagg: unknown parameter {}'.format(param_key))
+        self.params = dict(params)
 
     def setUp(self, testcase):
         # Keep a set of table uris on the test case that we have
