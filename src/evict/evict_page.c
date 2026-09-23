@@ -290,12 +290,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page = ref->page;
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
 
-    /*
-     * Time the victim-cache work - compression, checksum and put - and count the pages cached.
-     * Track totals across all threads and, separately, the share borne by application threads,
-     * which pay it on a user operation's critical path under cache pressure rather than in the
-     * background.
-     */
+    /* Time every attempt: compression and checksum are spent whether or not the put succeeds. */
     uint64_t time_start = __wt_clock(session);
 
     /*
@@ -398,8 +393,11 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       .lsn = block_meta->disagg_lsn,
     };
 
-    WT_IGNORE_RET(
-      plh->plh_cache_put(plh, &session->iface, block_meta->page_id, 0, &args, cache_buf));
+    /* Caching here is best effort, don't bubble up the error if it fails. */
+    if ((ret = plh->plh_cache_put(
+           plh, &session->iface, block_meta->page_id, 0, &args, cache_buf)) != 0)
+        __wt_err(session, ret, "victim cache: failed to cache page");
+    bool cached = ret == 0;
 
     if (compressed_buf != NULL)
         __wt_scr_free(session, &compressed_buf);
@@ -408,13 +406,17 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_page_header_byteswap(dsk);
 
     uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
-    WT_STAT_CONN_INCR(session, block_cache_puts);
     WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);
-    __wt_atomic_stats_max_uint64(&S2C(session)->evict->evict_max_victim_cache_put_us, elapsed);
-    if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
-        WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
+    if (!F_ISSET(session, WT_SESSION_INTERNAL))
         WT_STAT_CONN_INCRV(session, block_cache_app_thread_put_time, elapsed);
-    }
+    __wt_atomic_stats_max_uint64(&S2C(session)->evict->evict_max_victim_cache_put_us, elapsed);
+
+    if (cached) {
+        WT_STAT_CONN_INCR(session, block_cache_puts);
+        if (!F_ISSET(session, WT_SESSION_INTERNAL))
+            WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
+    } else
+        WT_STAT_CONN_INCR(session, block_cache_put_failures);
 }
 
 /*
