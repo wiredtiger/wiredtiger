@@ -1014,7 +1014,8 @@ __clayered_open_stable(
  * __clayered_constituent_prepare_blocked --
  *     Determine if a constituent is stopped on a prepare conflict: it holds a page reference while
  *     its key has been cleared. Either constituent can be in this state: a transaction that
- *     straddles a step-down leaves a prepared update on the stable constituent, not just ingest.
+ *     straddles a step-down, or one that writes with mirroring enabled while the step-down
+ *     timestamp is set, can leave a prepared update on the stable constituent, not just ingest.
  */
 static WT_INLINE bool
 __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
@@ -1859,9 +1860,11 @@ __clayered_select_current(WTI_CLAYERED_OP *op, WT_CURSOR **currentp, WT_CURSOR *
     WT_CURSOR *c_current;
 
     /*
-     * With no current cursor the walk is blocked by a prepared conflict: pick whichever constituent
-     * is blocked, or ingest if neither is. Otherwise the current cursor carries an internal key,
-     * unless it is itself blocked by a prepared conflict.
+     * When current_cursor is NULL the walk is blocked by a prepared conflict: pick whichever
+     * constituent is blocked, or ingest if neither is. When current_cursor is already set, reuse it
+     * as-is; it normally carries an internal key, but the previous call's own advance step can have
+     * just blocked it on a prepared conflict, in which case it still has a page reference but no
+     * key.
      */
     if (clayered->current_cursor != NULL)
         c_current = clayered->current_cursor;
@@ -1901,11 +1904,14 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
      */
     if (__clayered_constituent_prepare_blocked(c_current)) {
         /*
-         * The alternate cursor is deliberately not repositioned here: the iteration flag being set
-         * guarantees its position is still correct from the last step, and a prepared conflict on
-         * the current cursor never moves it. That position may be exhausted (the alternate ran out
-         * of keys before the current cursor), so the assert checks the flag rather than requiring
-         * the alternate to carry a key.
+         * The alternate is left untouched here: this branch only drives the current cursor again,
+         * so a conflict that persists across several calls leaves the alternate exactly where it
+         * was last positioned, however many calls ago that was. That position is still valid for
+         * the read context it was set under, but not necessarily positioned -- it may have
+         * legitimately run out of keys ahead of the current cursor -- so the assert below only
+         * confirms the context has not changed since then (the iteration flag is still set; a
+         * changed context clears it and routes through the alternate-positioning branch instead),
+         * not that the alternate carries a key.
          */
         WT_ASSERT(CUR2S(clayered),
           F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV));
@@ -2011,9 +2017,10 @@ __clayered_iterate_finish(
  *
  * Prepared transactions need special handling. Either constituent can raise a prepared conflict:
  *     the ingest cursor sees prepared updates written on this node, and the stable cursor sees
- *     those left behind by a transaction that straddles a step-down. A prepared conflict clears the
- *     constituent's WT_CURSTD_KEY_INT while leaving its page reference intact. A walk blocked this
- *     way is therefore detected through the reference rather than the key, and on the next call the
+ *     those left by a transaction that straddles a step-down, or one that writes with mirroring
+ *     enabled while the step-down timestamp is set. A prepared conflict clears the constituent's
+ *     WT_CURSTD_KEY_INT while leaving its page reference intact. A walk blocked this way is
+ *     therefore detected through the reference rather than the key, and on the next call the
  *     blocked cursor is driven again so it rechecks the key it is currently blocked on before the
  *     alternate is positioned.
  */
