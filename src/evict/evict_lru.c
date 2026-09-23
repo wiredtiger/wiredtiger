@@ -1826,17 +1826,6 @@ __evict_get_ref(
         /*
          * We only care about LRU for clean leaf pages. For other level choose a random starting
          * bucket to reduce contention.
-         *
-         * The bucket index carries the ordering. __evict_target_bucket files a clean leaf at
-         * (read_gen / WT_READGEN_STEP) * WT_EVICT_EXPECTED_CONTENTION, and
-         * __wti_evict_read_gen_bump sets a page's read generation ahead of the global one, so
-         * touching a page again re-files it further forward. Sweeping forward therefore meets the
-         * least recently used pages first, and bucket_last_considered is the position of that
-         * sweep -- a clock hand, advanced below whenever a victim is taken.
-         *
-         * Indexes wrap, and so does the hand, so the start is computed modulo the bucket count.
-         * There is no floor at zero to clamp against: a start behind the hand wraps to the top of
-         * the range, which is where the oldest pages are once the read generation has cycled.
          */
         if (i == WT_EVICT_LEVEL_CLEAN_LEAF) {
             uint32_t hand;
@@ -2694,7 +2683,8 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 static void
 __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_IGNORE_RET(__wti_evict_read_gen_bump(session, page));
+	 __wt_atomic_store_uint64_relaxed(
+		 &page->evict_data.read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
 }
 
 void
