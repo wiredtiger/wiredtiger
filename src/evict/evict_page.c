@@ -376,15 +376,16 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     F_SET(blk, WT_BLOCK_DISAGG_MODIFIED);
     /* Not encrypted in this path. */
 
+    /*
+     * Checksum after the page header is little-endian. The read path verifies the stored image
+     * before swapping the header back to native order.
+     */
+    __wt_page_header_byteswap(dsk);
+
     /* Calculate checksum following __wti_block_disagg_write_internal. */
     blk->checksum = 0;
     blk->checksum = __wt_checksum(cache_buf->data,
       data_checksum ? cache_buf->size : WT_MIN(cache_buf->size, WT_BLOCK_COMPRESS_SKIP));
-
-    /*
-     * Swap page header to little-endian for on-disk format.
-     */
-    __wt_page_header_byteswap(dsk);
 
     WT_PAGE_LOG_PUT_ARGS args = {
       .backlink_lsn = block_meta->backlink_lsn,
@@ -1337,10 +1338,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
              * that services the checkpoint, don't try again. Reconciling the page again without the
              * timestamp moving would result in the same page being written out as last time.
              */
-            wt_timestamp_t checkpoint_timestamp =
-              __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_timestamp);
-            if (checkpoint_timestamp != WT_TS_NONE &&
-              page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
+            if (__wti_evict_ckpt_ts_unmoved(session, page)) {
                 WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
                 return (__wt_set_return(session, EBUSY));
             }
