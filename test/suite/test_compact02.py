@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_compact02.py
-#   Test that compact reduces the file size.
+# Test that compact reduces the file size.
 #
 
 import time, wiredtiger
@@ -37,8 +36,9 @@ from wtscenario import make_scenarios
 # Test basic compression
 class test_compact02(compact_util):
 
+    test_name = __qualname__
     types = [
-        ('table', dict(uri='table:test_compact02')),
+        ('table', dict(uri=f'table:{test_name}')),
     ]
     cacheSize = [
         ('default', dict(cacheSize='')),
@@ -124,8 +124,7 @@ class test_compact02(compact_util):
         self.session.checkpoint()
         sz = self.get_size(self.uri)
         self.pr('After populate ' + str(sz // mb) + 'MB')
-        if not self.runningHook('tiered'):
-            self.assertGreater(sz, self.fullsize)
+        self.assertGreater(sz, self.fullsize)
 
         # 3. Delete the half of the records with the larger record size.
         c = self.session.open_cursor(self.uri, None)
@@ -161,7 +160,7 @@ class test_compact02(compact_util):
 
         statDict = self.get_compact_progress_stats(self.uri)
         # After compact, the file size should be less than half the full size.
-        if not self.runningHook('tiered') and not self.dryrun:
+        if not self.dryrun:
             self.assertLess(sz, self.fullsize // 2)
 
             # Verify compact progress stats.

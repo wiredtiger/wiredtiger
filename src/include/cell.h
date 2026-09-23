@@ -75,7 +75,7 @@
 #define WT_CELL_KEY_SHORT 0x01     /* Short key */
 #define WT_CELL_KEY_SHORT_PFX 0x02 /* Short key with prefix byte */
 #define WT_CELL_VALUE_SHORT 0x03   /* Short data */
-#define WT_CELL_SHORT_TYPE(v) ((v)&0x03U)
+#define WT_CELL_SHORT_TYPE(v) ((v) & 0x03U)
 
 #define WT_CELL_SHORT_MAX 63  /* Maximum short key/value */
 #define WT_CELL_SHORT_SHIFT 2 /* Shift for short key/value */
@@ -118,7 +118,7 @@
 #define WT_CELL_VALUE_OVFL_RM (11 << 4)        /* Overflow value (removed) */
 
 #define WT_CELL_TYPE_MASK (0x0fU << 4) /* Maximum 16 cell types */
-#define WT_CELL_TYPE(v) ((v)&WT_CELL_TYPE_MASK)
+#define WT_CELL_TYPE(v) ((v) & WT_CELL_TYPE_MASK)
 
 /*
  * When unable to create a short key or value (and where it wasn't an associated RLE or validity
@@ -252,4 +252,41 @@ struct __wt_cell_kv {
     WT_CELL cell; /* Cell and cell's length */
     size_t cell_len;
     size_t len; /* Total length of cell + data */
+};
+
+/*
+ * WTI_DELTA_INT_MERGE_STATE --
+ *	Per-stream state for progressive internal delta merging. Tracks the current position in a
+ *	single delta byte stream; the head entry is unpacked on demand via WT_CELL_DELTA_INT_UNPACK.
+ *
+ * Invariant: `cell` advances when an entry is UNPACKED (not when it is consumed). After the merge
+ *	loop emits or discards an entry it clears `unpacked` and decrements `entries` by 2 (one
+ *	count per cell: key + value). The next unpack reads from the already-advanced `cell`,
+ *	yielding the following entry without any additional pointer bookkeeping.
+ */
+struct __wti_delta_int_merge_state {
+    WT_CELL_UNPACK_DELTA_INT unpack; /* Current unpacked key+value entry */
+    const WT_PAGE_HEADER *base_dsk;  /* Base image's disk header (timestamp resolution) */
+    const WT_PAGE_HEADER *delta_dsk; /* This delta's disk header (clearing decisions) */
+    uint8_t *cell;                   /* Current position in the delta byte stream */
+    uint32_t entries;                /* Remaining cell count (key+value pairs each count as 2) */
+    bool unpacked;                   /* true when unpack holds a valid, not-yet-consumed entry */
+};
+
+/*
+ * WTI_BASE_INT_MERGE_STATE --
+ *	State for progressively merging an internal page. Tracks the current position in the base
+ *	page byte stream; the leading key+value pair is decoded lazily on first access.
+ *
+ * The read position advances when an entry is decoded, not when it is consumed. Consuming or
+ * discarding an entry resets the decoded flag and decrements the remaining count by 2, so the
+ * next decode reads the entry that follows.
+ */
+struct __wti_base_int_merge_state {
+    WT_CELL_UNPACK_ADDR unpack_key; /* Current unpacked key cell */
+    WT_CELL_UNPACK_ADDR unpack_val; /* Current unpacked value cell */
+    WT_PAGE_HEADER *dsk;            /* Base page disk header (needed by unpack calls) */
+    uint8_t *cell;                  /* Current position in the base page byte stream */
+    uint32_t entries;               /* Remaining cell count */
+    bool unpacked;                  /* true when unpack_key/unpack_val hold a valid pair */
 };

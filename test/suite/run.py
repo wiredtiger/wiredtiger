@@ -47,6 +47,8 @@ import test_util
 test_util.setup_paths()
 wt_builddir = test_util.find_build_dir()
 suitedir = sys.path[0]
+sys.path.insert(1, os.path.join(suitedir, 'helpers'))
+sys.path.insert(1, os.path.join(suitedir, 'hooks'))
 
 # unittest will be imported later, near to when it is needed.
 unittest = None
@@ -77,6 +79,8 @@ Options:\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
                                  execute every Nth (2<=N<=1000) scenario.\n\
+          | --skip-report file   if every test that ran was skipped, write the reason\n\
+                                 to file. Used by run_subprocess_function.\n\
   -s N    | --scenario N         use scenario N (N can be symbolic, number, or\n\
                                  list of numbers and ranges in the form 1,3-5,7),\n\
                                  and -1 matches tests with no scenarios.\n\
@@ -126,7 +130,7 @@ def find(topdir, filename):
 # Show an environment variable if verbose enough.
 def show_env(verbose, envvar):
     if verbose >= 2:
-        print(envvar + "=" + os.getenv(envvar))
+        print(envvar + "=" + str(os.getenv(envvar)))
 
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util
@@ -340,15 +344,13 @@ if __name__ == '__main__':
     dirarg = None
     scenario = ''
     skipFileForTests = ''
+    skipReportFile = None
     verbose = 1
     args = sys.argv[1:]
     testargs = []
     hook_names = []
     timeout = 0
     command_line_vars = dict()
-    # Generate a random string to use as a prefix for the tiered test objects to group them under
-    # the same test run.
-    ss_random_prefix = str(random.randrange(1, 2147483646))
 
     while len(args) > 0:
         arg = args.pop(0)
@@ -404,6 +406,12 @@ if __name__ == '__main__':
                     usage()
                     sys.exit(2)
                 hook_names.append(args.pop(0))
+                continue
+            if option == '-skip-report':
+                if len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                skipReportFile = args.pop(0)
                 continue
             if option == '-skip-tests-in-file' or option == 'sf':
                 if len(args) == 0:
@@ -596,6 +604,17 @@ if __name__ == '__main__':
         elif verbose >= 2:
             print('Python restarted for ASAN')
 
+    # FIXME-WT-18608: Remove this override once the requirement is enforced by default.
+    #
+    # Writes to disaggregated tables may skip the commit timestamp by default, until the
+    # applications doing so are fixed; keep the requirement enforced for our own tests. The
+    # environment outranks the connection config, so leave it alone under the disagg hook, which
+    # runs tests that predate the requirement and asks for it to be optional.
+    if not any(name.split('=', 1)[0] == 'disagg' for name in hook_names):
+        wt_config = os.environ.get('WIREDTIGER_CONFIG')
+        os.environ['WIREDTIGER_CONFIG'] = (wt_config + ',' if wt_config else '') + \
+            'debug_mode=(disagg_commit_ts_optional=false)'
+
     # We don't import wttest until after ASAN environment variables are set.
     import wttest
     # Use the same version of unittest found by wttest.py
@@ -613,7 +632,7 @@ if __name__ == '__main__':
     wttest.WiredTigerTestCase.globalSetup(command_line_vars, preserve, removeAtStart, timestamp,
                                           gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
-                                          seedw, seedz, hookmgr, ss_random_prefix, timeout)
+                                          seedw, seedz, hookmgr, timeout)
 
     skipTests = []
     if skipFileForTests:
@@ -712,6 +731,12 @@ if __name__ == '__main__':
             print(line)
     else:
         result = wttest.runsuite(tests, parallel)
+        # A caller that runs a single function in a subprocess cannot tell a skip from a pass: both
+        # exit zero, and a skipped test removes its home directory on the way out. Leave a note.
+        if skipReportFile != None and result.testsRun > 0 and \
+          len(result.skipped) == result.testsRun:
+            with open(skipReportFile, 'w') as f:
+                f.write(result.skipped[0][1].strip())
         sys.exit(0 if result.wasSuccessful() else 1)
 
     sys.exit(0)

@@ -236,6 +236,17 @@ __random_leaf_disk(WT_CURSOR_BTREE *cbt, bool *validp)
     session = CUR2S(cbt);
     entries = cbt->ref->page->entries;
 
+    /*
+     * Merging deltas into a base image drops keys whose deletes are globally visible, so a
+     * materialized row-store leaf image can legitimately have no entries. Images read off a block
+     * device always have entries.
+     */
+    if (entries == 0) {
+        WT_ASSERT(
+          session, page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0);
+        return (0);
+    }
+
     /* This is a relatively cheap test, so try several times. */
     for (retry = 0; retry < WT_RANDOM_DISK_RETRY; ++retry) {
         slot = __wt_random(&cbt->rnd) % entries;
@@ -488,7 +499,7 @@ descend:
     if (eviction && __wt_ref_is_root(current)) {
         if (--retry > 0)
             goto restart;
-        else if (S2C(session)->evict_sample_inmem && !sample_inmem_page) {
+        else if (S2C(session)->evict_config.sample_inmem && !sample_inmem_page) {
             sample_inmem_page = true;
             goto restart;
         }

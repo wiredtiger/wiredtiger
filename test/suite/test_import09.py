@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_import09.py
 # Import a table with the repair option (no exported metadata).
 
 import os, random, shutil
@@ -34,7 +33,6 @@ from test_import01 import test_import_base
 from wtscenario import make_scenarios
 import wttest
 
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_import09(test_import_base):
     nrows = 100
     ntables = 1

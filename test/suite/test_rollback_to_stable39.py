@@ -33,7 +33,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
 
-# test_rollback_to_stable39.py
 # Test to delay checkpoint and perform eviction in parallel to ensure eviction moves the content from data store to history store
 # and then checkpoint history store to see the same content in data store and history store. Later use the checkpoint to restore
 # the database which will trigger eviction to insert the same record from data store to history store.
@@ -100,9 +99,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             # Perform several updates in parallel with checkpoint.
@@ -151,9 +148,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             self.evict_cursor(uri, nrows, value_c)

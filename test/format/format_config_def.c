@@ -116,6 +116,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8, V_GLOBAL_CHECKPOINT_THREADS},
+
   {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
     V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
 
@@ -129,6 +131,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "cursor temporarily releases any page requiring forced eviction and then repositions back to "
     "the page for further operations",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_CURSOR_REPOSITION},
+
+  /* FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate. */
+  {"debug.disagg_slow_truncate_follower",
+    "follower-side layered truncate uses the slow per-record delete path", C_BOOL, 2, 0, 0,
+    V_GLOBAL_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER},
 
   {"debug.eviction",
     "modify internal algorithms to force history store eviction to happen more aggressively",
@@ -146,6 +153,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"debug.slow_checkpoint",
     "slow down checkpoint creation by slowing down internal page processing", C_BOOL, 2, 0, 0,
     V_GLOBAL_DEBUG_SLOW_CHECKPOINT},
+
+  {"debug.slow_truncate", "disable the fast-truncate page-skip optimization during range truncate",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_SLOW_TRUNCATE},
 
   {"debug.table_logging", "write transaction related information to the log for all operations",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_TABLE_LOGGING},
@@ -178,8 +188,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.page_log", "configure page log for disaggregated storage (off | palite)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
 
-  {"disagg.key_provider", "configure a key provider for disaggregated storage", C_BOOL, 20, 0, 0,
-    V_GLOBAL_DISAGG_KEY_PROVIDER},
+  {"disagg.key_provider", "key provider mode for disaggregated storage (0=off, 1=pull, 2=push)",
+    C_IGNORE, 0, 0, 2, V_GLOBAL_DISAGG_KEY_PROVIDER},
 
   {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0,
     WT_VERBOSE_DEBUG_5, V_GLOBAL_DISAGG_PAGE_LOG_VERBOSE},
@@ -189,6 +199,15 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"disagg.preserve", "preserve layered table constituents after data mismatches",
     C_IGNORE | C_BOOL, 100, 1, 0, V_GLOBAL_DISAGG_PRESERVE},
+
+  {"disagg.stepdown_async", "use async step-down instead of synchronous", C_IGNORE | C_BOOL, 0, 0,
+    0, V_GLOBAL_DISAGG_STEPDOWN_ASYNC},
+
+  {"disagg.stepdown_write_mirroring", "mirror leader step-down-window writes to both constituents",
+    C_BOOL, 50, 0, 0, V_GLOBAL_DISAGG_STEPDOWN_WRITE_MIRRORING},
+
+  {"disagg.snapshot_read", "run background transactions checking snapshot isolation on a follower",
+    C_IGNORE | C_BOOL, 0, 0, 0, V_GLOBAL_DISAGG_SNAPSHOT_READ},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
@@ -307,6 +326,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
 
+  {"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0,
+    V_GLOBAL_PREFETCH_DEFAULT},
+
   {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0, V_GLOBAL_PRECISE_CHECKPOINT},
 
   {"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0, V_GLOBAL_PRESERVE_PREPARED},
@@ -328,7 +350,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
 
-  {"runs.ops", "operations per run", 0x0, 0, M(2), M(100), V_GLOBAL_RUNS_OPS},
+  {"runs.ops", "operations per run", 0x0, 0, M(2), UINT_MAX, V_GLOBAL_RUNS_OPS},
 
   {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0,
     V_GLOBAL_RUNS_PREDICTABLE_REPLAY},
@@ -371,6 +393,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
 
   {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_COMPACT_SLOW},
+
+  {"stress.disagg_stable_dhandle_delay", "stress disagg stable dhandle delay", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_DISAGG_STABLE_DHANDLE_DELAY},
 
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},
@@ -415,14 +440,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_7},
 
   {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_8},
-
-  {"tiered_storage.flush_frequency",
-    "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
-    100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},
-
-  {"tiered_storage.storage_source",
-    "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)",
-    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_TIERED_STORAGE_STORAGE_SOURCE},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,
     100, V_GLOBAL_TRANSACTION_IMPLICIT},

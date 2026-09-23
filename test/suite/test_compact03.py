@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_compact03.py
-#   Test that compact doesn't reduce the file size when there are overflow values at the
-#   end of file.
+# Test that compact doesn't reduce the file size when there are overflow values at the
+# end of file.
 #
 
 from compact_util import compact_util
@@ -37,7 +36,8 @@ from wtscenario import make_scenarios
 # Test compact behavior with overflow values.
 class test_compact03(compact_util):
 
-    uri='table:test_compact03'
+    test_name = __qualname__
+    uri=f'table:{test_name}'
 
     fileConfig = [
         ('1KB', dict(fileConfig='allocation_size=1KB,leaf_page_max=1KB')),
@@ -80,9 +80,6 @@ class test_compact03(compact_util):
 
     # Create a table, add keys with both big and small values.
     def test_compact03(self):
-        if self.runningHook('tiered'):
-            self.skipTest("This test generates occasional rollback errors when tiered is enabled")
-
         mb = 1024 * 1024
         # 1. Create a table with relatively small page size.
         params = 'key_format=i,value_format=S,' + self.fileConfig
@@ -93,8 +90,7 @@ class test_compact03(compact_util):
         self.session.checkpoint()
         sizeWithoutOverflow = self.get_size(self.uri)
         self.pr('After populate ' + str(sizeWithoutOverflow // mb) + 'MB')
-        if not self.runningHook('tiered'):
-            self.assertGreater(sizeWithoutOverflow, self.expectedTableSize * mb)
+        self.assertGreater(sizeWithoutOverflow, self.expectedTableSize * mb)
 
         # 3. Add overflow values.
         c = self.session.open_cursor(self.uri, None)
@@ -106,8 +102,7 @@ class test_compact03(compact_util):
         self.session.checkpoint()
         sizeWithOverflow = self.get_size(self.uri)
         self.pr('After inserting overflow values ' + str(sizeWithoutOverflow // mb) + 'MB')
-        if not self.runningHook('tiered'):
-            self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
+        self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
 
         # 5. Delete middle ~90% of the normal values in the table.
         if self.do_truncate:
@@ -128,15 +123,14 @@ class test_compact03(compact_util):
         self.session.compact(self.uri)
         sizeAfterCompact = self.get_size(self.uri)
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
-        if not self.runningHook('tiered'):
-            self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
+        self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
 
-            # Verify that we did indeed rewrote some pages but that didn't help with the file size.
-            statDict = self.get_compact_progress_stats(self.uri)
-            self.assertGreater(statDict["pages_reviewed"],0)
-            self.assertGreater(statDict["pages_rewritten"],0)
-            self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
-                            statDict["pages_reviewed"])
+        # Verify that we did indeed rewrote some pages but that didn't help with the file size.
+        statDict = self.get_compact_progress_stats(self.uri)
+        self.assertGreater(statDict["pages_reviewed"],0)
+        self.assertGreater(statDict["pages_rewritten"],0)
+        self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
+                        statDict["pages_reviewed"])
 
         # 9. Insert some normal values and expect that file size won't increase as free extents
         #    in the middle of the file will be used to write new data.
@@ -155,5 +149,4 @@ class test_compact03(compact_util):
         # Test that the file size doesn't increase.
         sizeAfterNewInserts = self.get_size(self.uri)
         self.pr('After Inserting bunch of values ' + str(sizeAfterNewInserts // mb) + 'MB')
-        if not self.runningHook('tiered'):
-            self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)
+        self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_sweep01.py
 # Test lots of tables, number of open files and sweeping.  Run both
 # with and without checkpoints.
 #
@@ -38,7 +37,8 @@ from wiredtiger import stat
 import wttest
 @wttest.skip_for_hook("disagg", "Disagg doesn't sweep layered dhandles")
 class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
-    tablebase = 'test_sweep01'
+    test_name = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
     numfiles = 30
     numkv = 1000
@@ -57,10 +57,6 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(types)
 
     def test_ops(self):
-        # FIXME-WT-11367
-        if self.runningHook('tiered'):
-            self.skipTest("this test does not yet work with tiered storage")
-
         #
         # Set up numfiles with numkv entries.  We just want some data in there
         # we don't care what it is.

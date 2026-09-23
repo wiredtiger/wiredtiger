@@ -34,14 +34,15 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint10.py
 # Test what happens if we create an inconsistent checkpoint and then try to
 # open it for read. No timestamps in this version.
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
+    # checkpoint_slow can stall eviction long enough to roll back session2's held-open transaction
+    # as the oldest pinned transaction; test_checkpoint11 hits the same condition.
+    rollbacks_allowed = 10
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
@@ -145,9 +146,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             session2.commit_transaction()

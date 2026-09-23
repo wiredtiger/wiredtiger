@@ -308,7 +308,7 @@ __curstat_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, search, NULL);
 
     WT_ERR(__cursor_needkey(cursor));
-    F_CLR(cursor, WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_SET);
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     /* Initialize on demand. */
     if (cst->notinitialized) {
@@ -432,8 +432,25 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 
 retry:
     stable_uri = layered->stable_uri;
-    /* Now do the stable table. */
-    if (!S2C(session)->layered_table_manager.leader) {
+    /*
+     * Now do the stable table. A table created while the step-down timestamp was set has no stable
+     * constituent until a later step-up creates one, so it reports the same way a follower does.
+     */
+    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) ||
+      __wt_atomic_load_bool_relaxed(&layered->step_down_created)) {
+        /*
+         * Neither case has the stable's pages resident in the local cache, so its non-walk stats
+         * are ~0 - except the block size, which we read from the checkpoint metadata directly since
+         * this path never opens the stable table to obtain it. A table with no stable constituent
+         * has no metadata entry either, which reads back as a size of zero.
+         */
+        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
+            uint64_t ckpt_size = 0;
+            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+            cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
+            goto done;
+        }
+
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
@@ -456,9 +473,25 @@ retry:
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
     if (ret == EBUSY) {
-        /* FIXME-WT-16476: no need to yield if we no longer take the checkpoint lock. */
-        __wt_yield();
+        /*
+         * The retry re-fetches the checkpoint name and reallocates the scratch buffer, so release
+         * both before looping.
+         */
+        __wt_free(session, checkpoint_name);
+        __wt_scr_free(session, &stable_uri_buf);
         goto retry;
+    }
+
+    /*
+     * A reader races the role change across a step-up or step-down, so a leader can still find the
+     * stable constituent missing here. The role and the step-down mark are read above without a
+     * lock: step-down clears the mark before it publishes the follower role, and step-up publishes
+     * the leader role before it creates the stable tables a follower era left missing.
+
+     */
+    if (ret == ENOENT) {
+        ret = 0;
+        goto done;
     }
 
     WT_ERR(ret);
@@ -488,6 +521,165 @@ err:
 }
 
 /*
+ * __curstat_size_local --
+ *     Fast-path size retrieval for a local file. *was_fast is true if the lookup is successful, or
+ *     false if the file is missing.
+ */
+static int
+__curstat_size_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fastp, int64_t *sizep)
+{
+    *was_fastp = false;
+
+    bool file_exists = false;
+    WT_RET(__wt_fs_exist(session, filename, &file_exists));
+    if (!file_exists)
+        return (0);
+
+    wt_off_t size = 0;
+    const int ret = __wt_block_manager_named_size(session, filename, &size);
+
+    /* Treat a concurrent file removal the same as the file not originally existing. */
+    WT_RET_ERROR_OK(ret, ENOENT);
+    if (ret == ENOENT)
+        return (0);
+
+    *was_fastp = true;
+    *sizep = (int64_t)size;
+    return (0);
+}
+
+/*
+ * __curstat_size_shared --
+ *     Fast-path size retrieval from shared-file metadata. Metadata with no checkpoint entry has a
+ *     size of zero.
+ */
+static int
+__curstat_size_shared(WT_SESSION_IMPL *session, const char *file_config, int64_t *sizep)
+{
+    WT_ASSERT(session, file_config != NULL);
+
+    uint64_t checkpoint_size = 0;
+    WT_RET_NOTFOUND_OK(__wt_ckpt_last_size(session, file_config, &checkpoint_size));
+    *sizep = (int64_t)checkpoint_size;
+    return (0);
+}
+
+/*
+ * __curstat_file_size --
+ *     Fast-path size retrieval for a file URI. On a disaggregated connection, use file metadata to
+ *     select the size source. A missing metadata entry returns WT_NOTFOUND.
+ */
+static int
+__curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fastp, int64_t *sizep)
+{
+    const char *filename = file_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
+
+    *was_fastp = false;
+
+    WT_DECL_RET;
+    char *file_config = NULL;
+    bool shared = false;
+
+    if (__wt_conn_is_disagg(session)) {
+        WT_ERR(__wt_metadata_search(session, file_uri, &file_config));
+        const char *config[] = {WT_CONFIG_BASE(session, file_meta), file_config, NULL};
+
+        /* Use the block manager to classify if the file is disagg or not. */
+        WT_ERR(__wt_btree_shared(session, file_uri, config, &shared));
+    }
+
+    if (shared) {
+        WT_ERR(__curstat_size_shared(session, file_config, sizep));
+        *was_fastp = true;
+    } else
+        WT_ERR(__curstat_size_local(session, filename, was_fastp, sizep));
+
+err:
+    __wt_free(session, file_config);
+    return (ret);
+}
+
+/*
+ * __curstat_table_size --
+ *     Fast-path size retrieval for a simple table URI. A missing table metadata entry returns
+ *     WT_NOTFOUND.
+ */
+static int
+__curstat_table_size(
+  WT_SESSION_IMPL *session, const char *table_uri, bool *was_fastp, int64_t *sizep)
+{
+    const char *table_name = table_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, table_name, "table:");
+
+    *was_fastp = false;
+
+    WT_DECL_RET;
+    WT_CONFIG_ITEM column_config = {0};
+    WT_ITEM uri_buffer = {0};
+    bool simple = false;
+    char *stable_config = NULL;
+    char *table_config = NULL;
+
+    /* Only tables that are "simple" (no named columns) can use the fast path. */
+    WT_RET(__wt_metadata_search(session, table_uri, &table_config));
+    WT_ERR(__wt_config_getones(session, table_config, "columns", &column_config));
+    WT_ERR(__wt_is_simple_table(session, &column_config, &simple));
+    if (!simple)
+        goto err;
+
+    /* A stable file is always shared, so read its metadata directly. */
+    if (__wt_conn_is_disagg(session)) {
+        WT_ERR(__wt_buf_fmt(session, &uri_buffer, "file:%s.wt_stable", table_name));
+        ret = __wt_metadata_search(session, uri_buffer.data, &stable_config);
+        if (ret == 0) {
+            WT_ERR(__curstat_size_shared(session, stable_config, sizep));
+            *was_fastp = true;
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+    }
+
+    /* At this point, disagg or not, fall back to the local non-layered file. */
+    if (!*was_fastp) {
+        WT_ERR(__wt_buf_fmt(session, &uri_buffer, "file:%s.wt", table_name));
+        WT_ERR_NOTFOUND_OK(__curstat_file_size(session, uri_buffer.data, was_fastp, sizep), false);
+    }
+
+err:
+    __wt_free(session, stable_config);
+    __wt_free(session, table_config);
+    __wt_buf_free(session, &uri_buffer);
+    return (ret);
+}
+
+/*
+ * __curstat_size --
+ *     Fast-path size retrieval for a file or table URI.
+ */
+static int
+__curstat_size(WT_SESSION_IMPL *session, const char *uri, bool *was_fastp, int64_t *sizep)
+{
+    WT_ASSERT(session, uri != NULL);
+    WT_ASSERT(session, was_fastp != NULL);
+    WT_ASSERT(session, sizep != NULL);
+
+    *was_fastp = false;
+    *sizep = 0;
+
+    if (WT_PREFIX_MATCH(uri, "table:"))
+        return (__curstat_table_size(session, uri, was_fastp, sizep));
+
+    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
+
+    /* Checkpoint-view URIs require the slow path. */
+    if (WT_URI_IS_STABLE_CHECKPOINT(uri))
+        return (0);
+
+    return (__curstat_file_size(session, uri, was_fastp, sizep));
+}
+
+/*
  * __curstat_file_init --
  *     Initialize the statistics for a file.
  */
@@ -497,22 +689,6 @@ __curstat_file_init(
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    wt_off_t size;
-    const char *filename;
-
-    /*
-     * If we are only getting the size of the file, we don't need to open the tree. This only
-     * applies to file: types. Tiered tables need to use the dhandle.
-     */
-    if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
-        filename = uri;
-        WT_PREFIX_SKIP(filename, "file:");
-        __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        WT_RET(__wt_block_manager_named_size(session, filename, &size));
-        cst->u.dsrc_stats.block_size = size;
-        __wt_curstat_dsrc_final(cst);
-        return (0);
-    }
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));
     dhandle = session->dhandle;
@@ -533,22 +709,6 @@ __curstat_file_init(
     WT_TRET(__wt_session_release_dhandle(session));
 
     return (ret);
-}
-
-/*
- * __curstat_tiered_init --
- *     Initialize the statistics for a tiered table.
- */
-static int
-__curstat_tiered_init(
-  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
-{
-    /*
-     * This is currently just a wrapper for the file initialization to get block manager level
-     * statistics. If or when we want to collect statistics on objects then this function will need
-     * to use schema operations to work down from the active object to other flushed objects.
-     */
-    return (__curstat_file_init(session, uri, cfg, cst));
 }
 
 /*
@@ -591,8 +751,6 @@ __curstat_session_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 int
 __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
 {
-    const char *dsrc_uri;
-
     if (strcmp(uri, "statistics:") == 0) {
         __curstat_conn_init(session, cst);
         return (0);
@@ -600,7 +758,22 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
 
     /* Data source statistics are only available after recovery completes. */
     WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_RECOVERY_COMPLETE));
-    dsrc_uri = uri + strlen("statistics:");
+    const char *dsrc_uri = uri + strlen("statistics:");
+
+    /* Resolve file or simple-table sizes without opening dhandles or performing schema ops. */
+    if (F_ISSET(cst, WT_STAT_TYPE_SIZE) &&
+      (WT_PREFIX_MATCH(dsrc_uri, "file:") || WT_PREFIX_MATCH(dsrc_uri, "table:"))) {
+        bool was_fast = false;
+        int64_t size = 0;
+        WT_RET(__curstat_size(session, dsrc_uri, &was_fast, &size));
+
+        if (was_fast) {
+            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+            cst->u.dsrc_stats.block_size = size;
+            __wt_curstat_dsrc_final(cst);
+            return (0);
+        }
+    }
 
     if (strcmp(dsrc_uri, "session") == 0) {
         __curstat_session_init(session, cst);
@@ -615,8 +788,6 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         WT_RET(__curstat_layered_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
         WT_RET(__wt_curstat_table_init(session, dsrc_uri, cfg, cst));
-    else if (WT_PREFIX_MATCH(dsrc_uri, "tiered:"))
-        WT_RET(__curstat_tiered_init(session, dsrc_uri, cfg, cst));
     else
         return (__wt_bad_object_type(session, uri));
 
@@ -788,3 +959,32 @@ err:
 
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_curstat_size_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fastp, int64_t *sizep)
+{
+    return (__curstat_size_local(session, filename, was_fastp, sizep));
+}
+
+int
+__ut_curstat_size_shared(WT_SESSION_IMPL *session, const char *file_config, int64_t *sizep)
+{
+    return (__curstat_size_shared(session, file_config, sizep));
+}
+
+int
+__ut_curstat_file_size(
+  WT_SESSION_IMPL *session, const char *file_uri, bool *was_fastp, int64_t *sizep)
+{
+    return (__curstat_file_size(session, file_uri, was_fastp, sizep));
+}
+
+int
+__ut_curstat_table_size(
+  WT_SESSION_IMPL *session, const char *table_uri, bool *was_fastp, int64_t *sizep)
+{
+    return (__curstat_table_size(session, table_uri, was_fastp, sizep));
+}
+#endif

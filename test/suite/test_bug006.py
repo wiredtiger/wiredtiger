@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_bug006.py
-#       Regression tests.
+# Regression tests.
 
 import wiredtiger, wttest
 from wtdataset import simple_key, simple_value
@@ -36,15 +35,14 @@ from wtscenario import make_scenarios
 # Check that verify and salvage both raise exceptions if there is an open
 # cursor.
 class test_bug006(wttest.WiredTigerTestCase):
-    name = 'test_bug006'
+    test_name = __qualname__
+    name = test_name
     scenarios = make_scenarios([
         ('file', dict(uri='file:')),
         ('table', dict(uri='table:')),
     ])
 
     def test_bug006(self):
-        if 'tiered' in self.hook_names:
-            self.skipTest("negative tests for session APIs like drop do not work in tiered storage")
         uri = self.uri + self.name
         self.session.create(uri, 'value_format=S,key_format=S')
         cursor = self.session.open_cursor(uri, None)

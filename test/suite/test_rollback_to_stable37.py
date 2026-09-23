@@ -31,10 +31,10 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
 
-# test_rollback_to_stable37.py
 # Test that the rollback to stable to restore proper stable update from history store when a no timestamp
 # update has rewritten the history store data.
 class test_rollback_to_stable37(test_rollback_to_stable_base):
+    test_name = __qualname__
     conn_config = 'cache_size=1GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=false),verbose=(rts:5)'
 
     format_values = [
@@ -58,7 +58,7 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, dryrun_values, worker_thread_values)
 
     def test_rollback_to_stable(self):
-        uri = 'table:test_rollback_to_stable37'
+        uri = f'table:{self.test_name}'
         nrows = 1000
 
         value_a = 'a' * 10
@@ -111,8 +111,4 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
         else:
             self.check(value_c, uri, nrows, 3000)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        stat_cursor.close()
-
-        self.assertEqual(keys_removed, 0)
+        self.assertEqual(self.get_stat(stat.conn.txn_rts_keys_removed), 0)

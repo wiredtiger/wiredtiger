@@ -40,7 +40,6 @@ def mod_val(value, char, location, nbytes=1):
 def append_val(value, char):
     return value + char
 
-# test_rollback_to_stable14.py
 # Test the rollback to stable operation uses proper base update while restoring modifies from
 # history store.
 class test_rollback_to_stable14(test_rollback_to_stable_base):
@@ -117,9 +116,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             # Perform several modifies in parallel with checkpoint.
@@ -229,9 +226,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             # Perform several modifies in parallel with checkpoint.
@@ -339,9 +334,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             # Perform several modifies in parallel with checkpoint.

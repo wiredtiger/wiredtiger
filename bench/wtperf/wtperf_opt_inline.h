@@ -142,6 +142,8 @@ DEF_OPT_AS_BOOL(
 DEF_OPT_AS_UINT32(random_range, 0,
   "if non zero choose a value from within this range as the key for insert operations")
 DEF_OPT_AS_BOOL(random_value, 0, "generate random content for the value")
+DEF_OPT_AS_BOOL(
+  retry_writes, 0, "retry write operations that fail with WT_ROLLBACK instead of skipping them")
 DEF_OPT_AS_BOOL(range_partition, 0, "partition data by range (vs hash)")
 DEF_OPT_AS_UINT32(read_range, 0,
   "read a sequential range of keys upon each read operation. This value tells us how many keys "
@@ -170,6 +172,8 @@ DEF_OPT_AS_UINT32(
 DEF_OPT_AS_UINT32(scan_table_count, 0,
   "number of separate tables to be used for scanning. Zero indicates that tables are shared with "
   "other operations")
+DEF_OPT_AS_BOOL(scramble, 0,
+  "if true, apply hash to distribution output to scatter hot keys across the key space.")
 DEF_OPT_AS_BOOL(select_latest, 0,
   "in workloads that involve inserts and another type of operation,"
   "select the recently inserted records with higher probability")
@@ -197,18 +201,6 @@ DEF_OPT_AS_STRING(threads, "",
   "'modify', 'modify_delta', 'modify_distribute', 'modify_force_update', 'reopen_cursor', "
   "'updates', 'update_delta', 'truncate', 'truncate_pct' and 'truncate_count'. There are also "
   "behavior modifiers, supported modifiers are 'ops_per_txn'")
-/*
- * Note for tiered storage usage, the test expects that the bucket will be specified in the runner's
- * 'conn_config' line. Any bucket or directory listed is assumed to already exist and the test
- * program will just use it. The program does not parse the connection configuration line.
- */
-DEF_OPT_AS_STRING(
-  tiered, "none", "tiered extension.  Allowed configuration values are: 'none', 'dir_store', 's3'")
-DEF_OPT_AS_STRING(tiered_bucket, "none", "Create this bucket directory before beginning the test.")
-DEF_OPT_AS_UINT32(tiered_flush_interval, 0,
-  "Call flush_tier every interval seconds during the workload phase. "
-  "We recommend this value be larger than the checkpoint_interval. 0 to disable. The "
-  "'tiered_extension' must be set to something other than 'none'.")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
   "WT_SESSION.begin_transaction configuration string, applied during the populate phase when "
   "populate_ops_per_txn is nonzero")

@@ -26,19 +26,18 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_sweep03.py
 # Test to confirm if setting close_idle_time to 0 does not sweep old handles
 #
 
-import time
 from suite_subprocess import suite_subprocess
-import wiredtiger
+from sweep_util import sweep_util
 from wiredtiger import stat
 from wtscenario import make_scenarios
 import wttest
 
-class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablebase = 'test_sweep03'
+class test_sweep03(sweep_util, suite_subprocess):
+    test_name = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
     numfiles = 40 # Make this more than the default close_handle_minimum
     numkv = 100
@@ -62,24 +61,6 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_SWEEP')
 
-    # Wait for the sweep server to run - let it run twice, since the statistic
-    # is incremented at the start of a sweep and the test relies on sweep
-    # completing it's work.
-    def wait_for_sweep(self, baseline):
-        # Check regularly for up to 5 seconds total.
-        for i in range(10):
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            sweeps = stat_cursor[stat.conn.dh_sweeps][2]
-            stat_cursor.close()
-            if (sweeps > baseline + 1):
-                return sweeps
-            time.sleep(0.5)
-
-        # If the statistic didn't increase in 5 seconds the sweep server isn't
-        # working as expected.
-        self.assertTrue(sweeps > baseline + 1)
-        return (sweeps)
-
     def test_disable_idle_timeout1(self):
         #
         # Set up numfiles with numkv entries.  We just want some data in there
@@ -96,18 +77,16 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
         #
         # The idle timeout is disabled - we don't expect the sweep server to
-        # close any regular handles. The function returns the current sweep
-        # count to allow for incremental waits - which this test doesn't need.
+        # close any regular handles. Wait for two full sweeps: dh_sweeps is
+        # incremented at the start of a sweep, so two increments guarantee one
+        # has run to completion.
         #
-        self.wait_for_sweep(0)
+        self.wait_for_sweep(baseline=0, increment=2, timeout=5)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
-        stat_cursor.close()
+        close1 = self.get_stat(stat.conn.dh_sweep_dead_close)
         # We expect nothing to have been closed.
         self.assertEqual(close1, 0)
 
-    @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_disable_idle_timeout_drop_force(self):
         # Create a table to drop. A drop should close its associated handle
         drop_uri = '%s.%s' % (self.uri, "force_drop_test")
@@ -129,7 +108,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         # We force the drop in this case to confirm that the handle is closed
         self.dropUntilSuccess(self.session, drop_uri, "force=true")
 
-        sweep_baseline = self.wait_for_sweep(sweep_baseline)
+        sweep_baseline = self.wait_for_sweep(baseline=sweep_baseline, increment=2, timeout=5)
 
         # Grab the stats post table drop to see things have decremented
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -149,7 +128,6 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
     # FIXME-WT-16757: Enable on disagg once issue has been investigated.
     @wttest.skip_for_hook("disagg", "Fails with disagg")
-    @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_disable_idle_timeout_drop(self):
         # Create a table to drop. A drop should close its associated handles
         drop_uri = '%s.%s' % (self.uri, "drop_test")
@@ -169,7 +147,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.dropUntilSuccess(self.session, drop_uri)
 
-        sweep_baseline = self.wait_for_sweep(sweep_baseline)
+        sweep_baseline = self.wait_for_sweep(baseline=sweep_baseline, increment=2, timeout=5)
 
         # Grab the stats post table drop to see things have decremented
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -177,8 +155,9 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         close2 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
         stat_cursor.close()
 
-        # The sweep server should not be involved in regular drop cleanup
-        self.assertEqual(close2, close1)
+        # A drop of a clean tree marks its handle dead and defers the close to sweep, the same as
+        # a forced drop of a clean tree already does.
+        self.assertEqual(close2, close1 + 1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
 

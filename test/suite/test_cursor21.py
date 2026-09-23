@@ -26,15 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor21.py
-#   Test cursor reposition
+# Test cursor reposition
 
 import wttest
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
 class test_cursor21(wttest.WiredTigerTestCase):
-    uri = "table:test_cursor21"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
 
     format_values = [
         ('column', dict(key_format='r', value_format='i')),
@@ -52,17 +52,8 @@ class test_cursor21(wttest.WiredTigerTestCase):
             config += ',debug_mode=[cursor_reposition=true],timing_stress_for_test=(evict_reposition)'
         return config
 
-    def get_stat(self, stat, local_session = None):
-        if (local_session != None):
-            stat_cursor = local_session.open_cursor('statistics:')
-        else:
-            stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def check_reposition(self, count):
-        reposition_count = self.get_stat(stat.conn.cursor_reposition, self.session)
+        reposition_count = self.get_stat(stat.conn.cursor_reposition, session=self.session)
         if self.reposition:
             count = reposition_count - count
             # Ensure that the reposition stat is greater than 0, indicating that reposition happened.

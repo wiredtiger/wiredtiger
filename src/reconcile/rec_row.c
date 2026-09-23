@@ -286,8 +286,8 @@ __rec_pack_delta_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV 
         static WT_TIME_AGGREGATE local_ta;
         WT_TIME_AGGREGATE_INIT(&local_ta);
 
-        t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
+        t_kv->cell_len = __wt_cell_pack_addr(session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL,
+          WT_RECNO_OOB, NULL, &local_ta, false, 0);
         t_kv->len = t_kv->cell_len;
         WT_ASSERT(session, t_kv->len == WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN);
         __wti_rec_kv_copy(session, p, t_kv);
@@ -315,12 +315,12 @@ __rec_pack_delta_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV 
  *     Pack a delta key and a delta value for a leaf page.
  */
 int
-__wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
+__wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd,
+  WT_ITEM *key, WT_ITEM *custom_value)
 {
     WT_CURSOR_BTREE *cbt;
-    WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
-    WT_ITEM *key, value;
+    WT_ITEM value;
     WT_TIME_WINDOW *twp, tw;
     size_t custom_value_size, new_size;
     uint8_t flags, *p;
@@ -332,7 +332,6 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
     WT_CLEAR(value);
 
     /* Get the key data and pack it into a key cell. */
-    WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wti_rec_get_row_leaf_key(session, S2BT(session), r, supd->ins, supd->rip, key));
     WT_ERR(__rec_cell_build_leaf_key(session, r, key->data, key->size, true, &ovfl_key));
     WT_ASSERT(session, !ovfl_key);
@@ -371,13 +370,19 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
         twp = &tw;
     }
 
-    /* Pack the flags and delta value into a custom value. */
-    WT_ERR(
-      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
-    WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
+    /*
+     * The delta leaf value format is one raw byte followed by raw item data with no length prefix,
+     * so the encoded size is always exactly 1 + the value length. Encode directly rather than using
+     * the generic struct packing functions to avoid format string parsing and variadic argument
+     * overhead on this per-key hot path.
+     */
+    custom_value_size = 1 + value.size;
+    WT_ERR(__wt_buf_init(session, custom_value, custom_value_size));
+    p = custom_value->mem;
+    *p++ = flags;
+    if (value.size > 0)
+        memcpy(p, value.data, value.size);
     custom_value->size = custom_value_size;
-    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value_size,
-      WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
@@ -398,8 +403,6 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
     __rec_delta_cell_tw_stats(r, twp);
 
 err:
-    __wt_scr_free(session, &key);
-    __wt_scr_free(session, &custom_value);
     return (ret);
 }
 
@@ -459,7 +462,7 @@ __rec_row_merge(
          */
         if (i == 0) {
             if (*build_deltap) {
-                __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
+                __wt_ref_key_home(ref, &old_key, &old_key_size);
                 WT_RET(
                   __rec_cell_build_int_key(session, r, old_key, r->cell_zero ? 1 : old_key_size));
             } else
@@ -471,7 +474,7 @@ __rec_row_merge(
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL);
+        __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL, false);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, key->len + val->len))
@@ -531,7 +534,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     WT_PAGE_DELETED *page_del;
     WTI_REC_KV *key, *val;
     WT_REF *ref;
-    WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
+    WT_TIME_AGGREGATE *source_ta, ta;
     size_t size;
     bool build_delta, cell_zero_tmp, prev_dirty, retain_onpage;
     const void *p;
@@ -539,7 +542,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     btree = S2BT(session);
     child = NULL;
     ref = NULL;
-    WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
 
     key = &r->k;
     kpack = &_kpack;
@@ -711,13 +713,15 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page_del = NULL;
         if (__wt_off_page(page, addr)) {
             page_del = cms.state == WTI_CHILD_PROXY ? &cms.del : NULL;
-            __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
+            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+            __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del, false);
             source_ta = &addr->ta;
         } else if (cms.state == WTI_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
-            __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+            __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, false);
             source_ta = &vpack->ta;
         } else {
             retain_onpage = true;
@@ -755,7 +759,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             }
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED))
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+                /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+                __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, false);
             else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -771,15 +776,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         WT_TIME_AGGREGATE_COPY(&ta, source_ta);
 
-        /*
-         * Track the time window. The fast-truncate is a stop time window and has to be considered
-         * in the internal page's aggregate information for RTS to find it.
-         */
+        /* A fast-truncate supplies the global stop point for every record on the child page. */
         if (page_del != NULL)
-            WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
+            WT_TIME_AGGREGATE_MERGE_PAGE_DEL(&ta, page_del);
 
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
-        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
@@ -794,15 +795,20 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wti_rec_image_copy(session, r, key);
         __wti_rec_image_copy(session, r, val);
-        if (page_del != NULL)
-            WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
+
+        /*
+         * The value may point directly into the child's address cookie, which a concurrent split
+         * rewrite is free to discard once the child is unpinned, so keep the hazard pointer until
+         * the delta has taken its own copy.
+         */
+        if (build_delta && prev_dirty && !retain_onpage)
+            WT_ERR(__rec_pack_delta_row_int(session, r, key, val, &ta));
+        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
-
-        if (build_delta && prev_dirty && !retain_onpage)
-            WT_ERR(__rec_pack_delta_row_int(session, r, key, val, &ta));
 
         /*
          * Set the ref dirty state to clean if there were no concurrent changes while reconciling
@@ -1146,7 +1152,7 @@ __wti_rec_row_leaf(
              * onpage prepared update. Otherwise, we leak the prepared update.
              */
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || __wt_btree_stays_in_memory(btree) ||
                 !WT_TIME_WINDOW_HAS_PREPARE(twp),
               "leaked prepared update.");
         } else
@@ -1155,22 +1161,19 @@ __wti_rec_row_leaf(
         /*
          * If we reconcile an on disk key with a globally visible stop time point and there are no
          * new updates for that key, skip writing that key. Or if garbage collection is enabled for
-         * the table, and the value has become obsolete.
+         * the table, no MODIFY update depends on it and the value has become obsolete.
          */
         if (upd == NULL) {
-            /*
-             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
-             * we can safely discard the key if the delete operation is globally visible, even if it
-             * hasn't been included in the oldest checkpoint currently in use.
-             */
-            if (__wt_txn_tw_stop_visible_all(session, twp)) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (!upd_select.modify_needs_onpage_value &&
+                  __rec_row_garbage_collect_tw_eligible(r, twp)) {
+                    upd = &upd_tombstone;
+                    ++r->keys_removed_from_disk_image_count;
+                    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
+                }
+            } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
                 upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __rec_row_garbage_collect_tw_eligible(r, twp)) {
-                upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
+                ++r->keys_removed_from_disk_image_count;
             }
         }
 
@@ -1178,6 +1181,12 @@ __wti_rec_row_leaf(
         if (upd == NULL) {
             /* Clear the on-disk cell time window if it is obsolete. */
             __wti_rec_time_window_clear_obsolete(session, NULL, vpack, r);
+            /*
+             * A removed-overflow cell must never be written to disk: the backing block is already
+             * gone so copying its in-memory marker produces a corrupt page image.
+             */
+            WT_ASSERT(session,
+              vpack->cell == NULL || __wt_cell_type_raw(vpack->cell) != WT_CELL_VALUE_OVFL_RM);
 
             /*
              * When the page was read into memory, there may not have been a value item.
@@ -1270,7 +1279,7 @@ __wti_rec_row_leaf(
 
                 /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
-                r->key_removed_from_disk_image = true;
+                ++r->keys_removed_from_disk_image_count;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));

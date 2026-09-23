@@ -33,8 +33,7 @@
 import glob, json
 import wttest
 
-# test_stat_log02.py
-#    Statistics log sources argument and JSON testing.
+# Statistics log sources argument and JSON testing.
 class test_stat_log02(wttest.WiredTigerTestCase):
 
     # Tests need to setup the connection in their own way.
@@ -73,7 +72,6 @@ class test_stat_log02(wttest.WiredTigerTestCase):
 
         self.check_stats_file(".")
 
-    @wttest.skip_for_hook("tiered", "Tiered causes python crash")
     def test_stats_log_on_json_with_tables(self):
         self.conn = self.wiredtiger_open(None,
             "create,statistics=(fast)," +\

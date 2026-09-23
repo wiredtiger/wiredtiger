@@ -5,7 +5,7 @@
 To build with CMake we **require** the following dependencies:
 
 * A compiler that supports C11:
-  * `gcc` : Version 8.5 or later, or 
+  * `gcc` : Version 8.5 or later, or
   * `clang`: Version 7.01 or later, or
   * `Visual Studio 2022`: If compiling on Windows
   * `cmake` : Official CMake install instructions found here: https://cmake.org/install/ (*WiredTiger supports CMake 3.10+*)
@@ -57,6 +57,20 @@ choco install ccache --version=3.7.9
 choco install swig
 choco install python --pre
 ```
+
+##### Docker
+
+Alternatively, the repository ships a Dockerfile in `.devcontainer/Dockerfile`
+with all required and optional build dependencies pre-installed. Build the image
+and mount the repository:
+
+```bash
+docker build -t wiredtiger-dev .devcontainer
+docker run -it -v "$PWD":/workdir wiredtiger-dev
+```
+
+The `.devcontainer/devcontainer.json` also makes this image usable as a
+[Dev Container](https://containers.dev/) in supporting editors (e.g. VS Code).
 
 ### Building the WiredTiger Library
 
@@ -125,20 +139,20 @@ $ ccmake .
 
 ###### Switching between GCC and Clang (POSIX only)
 
-By default CMake will use your default system compiler (`cc`). If you want to use a specific toolchain you can pass a toolchain file! We have provided a toolchain file for both GCC (`cmake/toolchains/gcc.cmake`) and Clang (`cmake/toolchains/clang.cmake`). To use either toolchain you can pass the `-DCMAKE_TOOLCHAIN_FILE=` to the CMake configuration step. For example:
+By default CMake will use your default system compiler (`cc`). Select a specific compiler by setting the `CC` and `CXX` environment variables before invoking CMake:
 
-*Using the GCC Toolchain*
+*Using GCC*
 
 ```bash
 $ cd build
-$ cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake ../.
+$ CC=gcc CXX=g++ cmake ../.
 ```
 
-*Using the Clang Toolchain*
+*Using Clang*
 
 ```bash
 $ cd build
-$ cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake ../.
+$ CC=clang CXX=clang++ cmake ../.
 ```
 
 ### Running WiredTiger C Tests

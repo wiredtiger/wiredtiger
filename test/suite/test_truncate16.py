@@ -27,11 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wiredtiger import disagg_fast_truncate_build, stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
+from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate16.py
 #
 # Make sure that no shenanigans occur if we try to read from a page that's been
 # fast-truncated by a prepared transaction.
@@ -56,11 +55,6 @@ class test_truncate16(wttest.WiredTigerTestCase):
         ('checkpoint', dict(do_checkpoint=True)),
     ]
     scenarios = make_scenarios(trunc_values, format_values, checkpoint_values)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def truncate(self, session, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
@@ -140,17 +134,11 @@ class test_truncate16(wttest.WiredTigerTestCase):
         session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
 
         # Make sure we did at least one fast-delete. (Unless we specifically didn't want to)
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.runningHook('tiered'):
-            # There's no way the test can guess whether fast delete is possible when
-            # flush_tier calls are "randomly" inserted.
-            pass
-        elif self.trunc_with_remove:
+        fastdelete_pages = self.get_stat(stat.conn.rec_page_delete_fast)
+        if self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
-        stat_cursor.close()
 
         # Optionally checkpoint at this stage, just in case it breaks or trips on
         # the prepared truncation.
@@ -167,17 +155,11 @@ class test_truncate16(wttest.WiredTigerTestCase):
 
         # It should have instantiated the page under the key we read, and nothing else.
         # (But not if we weren't fast-deleting.)
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        read_deleted = stat_cursor[stat.conn.cache_read_deleted][2]
-        if self.runningHook('tiered'):
-            # There's no way the test can guess whether fast delete is possible when
-            # flush_tier calls are "randomly" inserted.
-            pass
-        elif self.trunc_with_remove:
+        read_deleted = self.get_stat(stat.conn.cache_read_deleted)
+        if self.trunc_with_remove:
             self.assertEqual(read_deleted, 0)
         else:
             self.assertEqual(read_deleted, 1)
-        stat_cursor.close()
 
         # Now toss the prepared transaction, and just for kicks make sure we can read the whole
         # table.
@@ -191,7 +173,5 @@ class test_truncate16(wttest.WiredTigerTestCase):
 
         # Unlike RTS, transaction rollback should not instantiate pages, so the number of
         # instantiated pages should remain 1.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        read_deleted_still = stat_cursor[stat.conn.cache_read_deleted][2]
+        read_deleted_still = self.get_stat(stat.conn.cache_read_deleted)
         self.assertEqual(read_deleted_still, read_deleted)
-        stat_cursor.close()

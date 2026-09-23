@@ -26,14 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare02.py
-#   Prepare : Session API usage generates expected error in prepared state.
+# Prepare : Session API usage generates expected error in prepared state.
 #
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_prepare_session_operations(self):

@@ -65,7 +65,7 @@ __cursor_copy_release(WT_CURSOR *cursor)
      * we can exit the function quickly.
      */
     if (F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE) &&
-      FLD_ISSET(S2C(CUR2S(cursor))->debug_flags, WT_CONN_DEBUG_CURSOR_COPY)) {
+      FLD_ISSET(S2C(CUR2S(cursor))->debug.flags, WT_CONN_DEBUG_CURSOR_COPY)) {
         if (F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY)) {
             WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->key));
             F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY);
@@ -227,8 +227,8 @@ __cursor_enter(WT_SESSION_IMPL *session)
      * If there are no other cursors positioned in the session, check whether the cache is full.
      */
     if (session->ncursors == 0)
-        WT_RET_ONLY(
-          __wt_evict_app_assist_worker_check(session, false, false, true, NULL), WT_ROLLBACK);
+        WT_RET_ONLY(__wt_evict_app_assist_worker_check(session, false, false, true, false, NULL),
+          WT_ROLLBACK);
     ++session->ncursors;
     return (0);
 }
@@ -378,8 +378,9 @@ __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session)
     dhandle = session->dhandle;
 
     /* If we open a handle with a time of death set, clear it. */
-    if (__wt_atomic_add_int32(&dhandle->session_inuse, 1) == 1 && dhandle->timeofdeath != 0)
-        __wt_tsan_suppress_store_uint64(&dhandle->timeofdeath, 0);
+    if (__wt_atomic_add_int32(&dhandle->session_inuse, 1) == 1 &&
+      __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) != 0)
+        __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, 0);
 }
 
 /*
@@ -398,30 +399,10 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
      * decrementing the use count, there's a chance that the data handle can be freed.
      */
     WT_ASSERT(session, __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0);
-    if (dhandle->timeofdeath != 0 && __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 1)
-        dhandle->timeofdeath = 0;
+    if (__wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) != 0 &&
+      __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 1)
+        __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, 0);
     (void)__wt_atomic_sub_int32(&dhandle->session_inuse, 1);
-}
-
-/*
- * __wt_cursor_uri_incr_use --
- *     An alternate way to mark a the data handle for a URI to be in use.
- */
-static WT_INLINE int
-__wt_cursor_uri_incr_use(WT_SESSION_IMPL *session, const char *uri, WT_DATA_HANDLE **dhandle)
-{
-    WT_DECL_RET;
-
-    *dhandle = NULL;
-    WT_WITHOUT_DHANDLE(session, {
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-        if (ret == 0) {
-            __wt_cursor_dhandle_incr_use(session);
-            *dhandle = session->dhandle;
-            WT_TRET(__wt_session_release_dhandle(session));
-        }
-    });
-    return (ret);
 }
 
 /*

@@ -26,8 +26,8 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
-            ${HAVE_LIBSNAPPY_INCLUDES}
         )
+    target_link_libraries(wiredtiger_snappy PRIVATE wt::snappy)
     target_compile_options(
         wiredtiger_snappy
         PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
@@ -36,7 +36,6 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
 endif()
 
 if(ENABLE_SNAPPY)
-    target_link_libraries(wiredtiger_snappy wt::snappy)
     install(TARGETS wiredtiger_snappy
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

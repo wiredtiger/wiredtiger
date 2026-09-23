@@ -30,12 +30,10 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint01.py
-#    Checkpoint tests
+# Checkpoint tests
 # General checkpoint test: create an object containing sets of data associated
 # with a set of checkpoints, then confirm the checkpoint's values are correct,
 # including after other checkpoints are dropped.
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 class test_checkpoint(wttest.WiredTigerTestCase):
     uris = [

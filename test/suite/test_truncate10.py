@@ -27,11 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wiredtiger import disagg_fast_truncate_build, stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
+from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate10.py
 #
 # Check that nothing comes unstuck if we commit a truncate with durable > commit.
 class test_truncate10(wttest.WiredTigerTestCase):
@@ -65,11 +64,6 @@ class test_truncate10(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(trunc_values, format_values, stable_values, checkpoint_values)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def truncate(self, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
@@ -156,11 +150,7 @@ class test_truncate10(wttest.WiredTigerTestCase):
         # Make sure we did at least one fast-delete. (Unless we specifically didn't want to)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.runningHook('tiered'):
-            # There's no way the test can guess whether fast delete is possible when
-            # flush_tier calls are "randomly" inserted.
-            pass
-        elif self.trunc_with_remove:
+        if self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)

@@ -34,7 +34,7 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
     WT_ASSERT(session, ret != 0);
 
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-    if (!F_ISSET(btree, WT_BTREE_VERIFY) && !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
+    if (!F_ISSET(btree, WT_BTREE_VERIFY) && !WT_SESSION_READ_CORRUPT_OK(session)) {
         WT_TRET(bm->corrupt(bm, session, addr, addr_size));
         WT_RET_PANIC(session, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
     }
@@ -225,6 +225,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
@@ -232,6 +236,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
+        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
     }
 
     /*
@@ -268,6 +273,19 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
               "compressed block for which no compression configured");
             /* Odd error handling structure to avoid static analyzer complaints. */
             WT_ERR(ret == 0 ? WT_ERROR : ret);
+        }
+
+        /*
+         * Bound the header's in-memory size before using it for decompression. Example in salvage,
+         * corrupted block may be too small and underflows the subtraction below.
+         */
+        if (dsk->mem_size <= WT_BLOCK_COMPRESS_SKIP) {
+            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+                __wt_errx(session,
+                  "%s: compressed block has an invalid in-memory size of %" PRIu32 "B",
+                  btree->dhandle->name, dsk->mem_size);
+            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+              "compressed block has an invalid in-memory size"));
         }
 
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
@@ -513,6 +531,10 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
+        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
@@ -521,6 +543,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
+        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
     }
 
     /* Decrypt. */
@@ -786,7 +809,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     encrypted = false;
 
     /* Optionally compress the data. */
-    WT_ERR(__wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
+    WT_ERR_MSG_CHK(session,
+      __wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed),
+      "failed to compress block before writing");
     ip = (ctmp != NULL) ? ctmp : buf;
 
     /*

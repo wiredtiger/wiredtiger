@@ -29,6 +29,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <unordered_set>
 #include <vector>
@@ -63,7 +64,7 @@ protected:
      * kv_transaction_snapshot::kv_transaction_snapshot --
      *     Create a new instance of the snapshot.
      */
-    inline kv_transaction_snapshot(){};
+    inline kv_transaction_snapshot() {};
 };
 
 /*

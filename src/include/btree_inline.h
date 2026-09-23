@@ -23,17 +23,29 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * Once a tree is no longer empty, eviction should pay attention to it, and it's no longer
      * possible to bulk-load into it.
      */
-    if (!btree->original)
+    if (!__wt_atomic_load_uint8_relaxed(&btree->original))
         return;
 
     /*
      * We use a compare-and-swap here to avoid races among the first inserts into a tree. Eviction
      * is disabled when an empty tree is opened, and it must only be enabled once.
      */
-    if (__wt_atomic_cas_uint8(&btree->original, 1, 0)) {
+    if (__wt_atomic_cas_uint8_relaxed(&btree->original, 1, 0)) {
         btree->evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
+}
+
+/*
+ * __wt_btree_is_outdated_disagg --
+ *     Return whether the current btree belongs to an outdated disaggregated generation.
+ */
+static WT_INLINE bool
+__wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
+      __wt_atomic_load_bool_relaxed(&session->dhandle->outdated));
 }
 
 /*
@@ -76,7 +88,8 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      */
     if (__wt_evict_page_is_soon_or_wont_need(page) && btree->evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
-      (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
+      (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page) ||
+        __wt_page_evict_swap(page)))
         return (true);
     return (false);
 }
@@ -107,9 +120,27 @@ __wt_page_evict_clean(WT_PAGE *page)
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
      */
-    return (page->modify == NULL ||
-      (__wt_atomic_load_uint32_relaxed(&page->modify->page_state) == WT_PAGE_CLEAN &&
-        page->modify->rec_result == 0));
+    return (
+      page->modify == NULL || (!__wt_page_is_modified(page) && page->modify->rec_result == 0));
+}
+
+/*
+ * __wt_page_evict_swap --
+ *     Check whether a page is clean with a retained reconciliation image that eviction can swap
+ *     into place as a clean in-memory image.
+ */
+static WT_INLINE bool
+__wt_page_evict_swap(WT_PAGE *page)
+{
+    WT_PAGE_MODIFY *mod;
+
+    /*
+     * The disk image shares a union with the multi-block array, so the reconciliation result has to
+     * be checked before the image pointer is read.
+     */
+    return (!WT_PAGE_IS_INTERNAL(page) && (mod = page->modify) != NULL &&
+      !__wt_page_is_modified(page) && mod->rec_result == WT_PM_REC_REPLACE &&
+      mod->mod_disk_image != NULL);
 }
 
 /*
@@ -123,9 +154,12 @@ __wt_page_is_modified(WT_PAGE *page)
      * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
+     *
+     * Without the stronger acquire used here, the reads might be from an earlier reconciliation
+     * that don't reflect the current clean in-memory state.
      */
     return (page->modify != NULL &&
-      __wt_atomic_load_uint32_relaxed(&page->modify->page_state) != WT_PAGE_CLEAN);
+      __wt_atomic_load_uint32_acquire(&page->modify->page_state) != WT_PAGE_CLEAN);
 }
 
 /*
@@ -292,50 +326,13 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
     *shared = false;
 
     WT_RET(__wt_config_gets(session, bt_cfg, "block_manager", &cval));
-    *shared = (WT_SUFFIX_MATCH(uri, ".wt_stable") || WT_CONFIG_LIT_MATCH("disagg", cval));
+    *shared = (WT_URI_IS_STABLE(uri) || WT_CONFIG_LIT_MATCH("disagg", cval));
 
     /* Ingest btrees must never be shared. */
-    WT_ASSERT_ALWAYS(session, !(*shared && WT_SUFFIX_MATCH(uri, ".wt_ingest")),
-      "Ingest btree incorrectly created as shared.");
+    WT_ASSERT_ALWAYS(
+      session, !(*shared && WT_URI_IS_INGEST(uri)), "Ingest btree incorrectly created as shared.");
 
     return (0);
-}
-
-/*
- * __wt_btree_set_size --
- *     Set the size of the tree.
- */
-static WT_INLINE void
-__wt_btree_set_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    (void)__wt_atomic_store_uint64(&S2BT(session)->bytes_total, size);
-}
-
-/*
- * __wt_btree_increase_size --
- *     Increase the size of the tree.
- */
-static WT_INLINE void
-__wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    (void)__wt_atomic_add_uint64(&S2BT(session)->bytes_total, size);
-}
-
-/*
- * __wt_btree_decrease_size --
- *     Decrease the size of the tree.
- */
-static WT_INLINE void
-__wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    /*
-     * FIXME WT-16660: re-enable this assert once the disagg delta block size accounting bug is
-     * fixed.
-     */
-    if (__wt_atomic_load_uint64(&S2BT(session)->bytes_total) < size)
-        __wt_atomic_store_uint64(&S2BT(session)->bytes_total, 0);
-    else
-        (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
 }
 
 /*
@@ -396,22 +393,13 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
 
     bool is_disagg = __wt_conn_is_disagg(session);
 
-    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem, size);
-    if (is_disagg) {
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-            (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_ingest, size);
-        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_stable, size);
-    }
-    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    WT_CACHE_INCR(is_disagg, btree, cache, bytes_inmem, size);
+    uint64_t tree_inmem = __wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    if (tree_inmem >=
+      __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_INMEM]))
+        __wt_cache_top_track(session, btree, WT_CACHE_TOP_INMEM, tree_inmem);
     if (WT_PAGE_IS_INTERNAL(page)) {
-        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_internal, size);
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_internal_ingest, size);
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_internal_stable, size);
-        }
+        WT_CACHE_INCR(is_disagg, btree, cache, bytes_internal, size);
         (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_internal, size);
     }
     (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
@@ -419,39 +407,53 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     if (__wt_tsan_suppress_load_wt_page_modify_ptr(&page->modify) != NULL) {
         __txn_incr_bytes_dirty(session, size, new_update);
         if (!WT_PAGE_IS_INTERNAL(page)) {
-            (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates, size);
-            if (is_disagg) {
-                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates_ingest, size);
-                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates_stable, size);
-            }
-            (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            WT_CACHE_INCR(is_disagg, btree, cache, bytes_updates, size);
+            uint64_t tree_updates = __wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            if (tree_updates >=
+              __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_UPDATES]))
+                __wt_cache_top_track(session, btree, WT_CACHE_TOP_UPDATES, tree_updates);
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_updates, size);
         }
         if (__wt_page_is_modified(page)) {
             if (WT_PAGE_IS_INTERNAL(page)) {
-                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_intl, size);
-                if (is_disagg) {
-                    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_intl_ingest, size);
-                    else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_intl_stable, size);
-                }
+                WT_CACHE_INCR(is_disagg, btree, cache, bytes_dirty_intl, size);
                 (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_intl, size);
             } else {
-                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_leaf, size);
-                if (is_disagg) {
-                    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_leaf_ingest, size);
-                    else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_leaf_stable, size);
-                }
-                (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                WT_CACHE_INCR(is_disagg, btree, cache, bytes_dirty_leaf, size);
+                uint64_t tree_dirty =
+                  __wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                if (tree_dirty >=
+                  __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_DIRTY]))
+                    __wt_cache_top_track(session, btree, WT_CACHE_TOP_DIRTY, tree_dirty);
             }
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
         }
     }
+}
+
+/*
+ * __wt_cache_page_footprint_incr --
+ *     Add memory to a leaf page's footprint in the cache. The dirty and updates totals are left
+ *     alone.
+ */
+static WT_INLINE void
+__wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    /* Callers reach this with nothing to move when the page has no retained image. */
+    if (size == 0)
+        return;
+
+    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page) && size < WT_EXABYTE);
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    WT_CACHE_INCR(__wt_conn_is_disagg(session), btree, cache, bytes_inmem, size);
+    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
 }
 
 /*
@@ -501,6 +503,71 @@ __wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v,
 #ifdef HAVE_DIAGNOSTIC
     __wt_abort(session);
 #endif
+}
+
+/*
+ * __wt_cache_scrub_image_incr --
+ *     Account for a clean re-instantiation image retained in cache by checkpoint scrub.
+ */
+static WT_INLINE void
+__wt_cache_scrub_image_incr(WT_SESSION_IMPL *session, uint32_t image_size)
+{
+    WT_CACHE *cache;
+
+    cache = S2C(session)->cache;
+    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_scrub_image, (uint64_t)image_size);
+    (void)__wt_atomic_add_uint64_relaxed(&cache->pages_scrub_image, 1);
+}
+
+/*
+ * __wt_cache_scrub_image_decr --
+ *     Release accounting for a checkpoint-scrub image no longer retained in cache, guarding from
+ *     underflow.
+ */
+static WT_INLINE void
+__wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size)
+{
+    WT_CACHE *cache;
+
+    cache = S2C(session)->cache;
+    __wt_cache_decr_check_uint64(
+      session, &cache->bytes_scrub_image, (uint64_t)image_size, "WT_CACHE.bytes_scrub_image");
+    __wt_cache_decr_check_uint64(
+      session, &cache->pages_scrub_image, 1, "WT_CACHE.pages_scrub_image");
+}
+
+/*
+ * __wt_cache_scrub_image_budget_ok --
+ *     Return true if the cache has room for another checkpoint-scrub image. Checkpoint checks this
+ *     immediately before reconciling a page.
+ */
+static WT_INLINE bool
+__wt_cache_scrub_image_budget_ok(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    uint64_t image_max_bytes;
+
+    cache = S2C(session)->cache;
+    image_max_bytes = (S2C(session)->cache_size / 100) *
+      __wt_atomic_load_uint8_relaxed(&cache->cache_eviction_controls.checkpoint_scrub_image_max);
+
+    return (__wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image) < image_max_bytes);
+}
+
+/*
+ * __wt_page_image_discard --
+ *     Free a page's retained re-instantiation image, releasing scrub accounting if it was tracked.
+ *     A caller whose page stays in cache must also shrink the page's footprint by the image; a page
+ *     being discarded must not, its footprint is subtracted as a whole before it is freed.
+ */
+static WT_INLINE void
+__wt_page_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
+{
+    if (mod->scrub_image_bytes != 0) {
+        __wt_cache_scrub_image_decr(session, mod->scrub_image_bytes);
+        mod->scrub_image_bytes = 0;
+    }
+    __wt_free(session, mod->mod_disk_image);
 }
 
 /*
@@ -554,29 +621,11 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
     if (WT_PAGE_IS_INTERNAL(page)) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_dirty_intl, decr, "WT_BTREE.bytes_dirty_intl");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_dirty_intl, decr, "WT_CACHE.bytes_dirty_intl");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_ingest, decr,
-                  "WT_CACHE.bytes_dirty_intl_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_stable, decr,
-                  "WT_CACHE.bytes_dirty_intl_stable");
-        }
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_intl, decr);
     } else {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_dirty_leaf, decr, "WT_BTREE.bytes_dirty_leaf");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_dirty_leaf, decr, "WT_CACHE.bytes_dirty_leaf");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_ingest, decr,
-                  "WT_CACHE.bytes_dirty_leaf_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_stable, decr,
-                  "WT_CACHE.bytes_dirty_leaf_stable");
-        }
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_leaf, decr);
     }
 }
 
@@ -610,16 +659,9 @@ __wt_cache_page_byte_updates_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_
         return;
 
     __wt_cache_decr_check_uint64(session, &btree->bytes_updates, decr, "WT_BTREE.bytes_updates");
-    __wt_cache_decr_check_uint64(session, &cache->bytes_updates, decr, "WT_CACHE.bytes_updates");
-    if (__wt_conn_is_disagg(session)) {
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_updates_ingest, decr, "WT_CACHE.bytes_updates_ingest");
-        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_updates_stable, decr, "WT_CACHE.bytes_updates_ingest");
-    }
+    WT_CACHE_DECR(session, __wt_conn_is_disagg(session), btree, cache, bytes_updates, decr);
 }
+
 /*
  * __wt_cache_page_inmem_decr --
  *     Decrement a page's memory footprint in the cache.
@@ -639,15 +681,7 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
     __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
     __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
-    __wt_cache_decr_check_uint64(session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
-    if (is_disagg) {
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_ingest, size, "WT_CACHE.bytes_inmem_ingest");
-        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_stable, size, "WT_CACHE.bytes_inmem_stable");
-    }
+    WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, size);
     if (page->modify != NULL && !WT_PAGE_IS_INTERNAL(page))
         __wt_cache_page_byte_updates_decr(session, page, size);
     if (__wt_page_is_modified(page))
@@ -656,17 +690,32 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     if (WT_PAGE_IS_INTERNAL(page)) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_internal, size, "WT_BTREE.bytes_internal");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_internal, size, "WT_CACHE.bytes_internal");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(
-                  session, &cache->bytes_internal_ingest, size, "WT_CACHE.bytes_internal_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(
-                  session, &cache->bytes_internal_stable, size, "WT_CACHE.bytes_internal_stable");
-        }
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, size);
     }
+}
+
+/*
+ * __wt_cache_page_footprint_decr --
+ *     Remove engine-owned memory from a page's footprint, reversing footprint incr.
+ */
+static WT_INLINE void
+__wt_cache_page_footprint_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    /* Callers reach this with nothing to move when the page has no retained image. */
+    if (size == 0)
+        return;
+
+    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page) && size < WT_EXABYTE);
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
+    __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
+    WT_CACHE_DECR(session, __wt_conn_is_disagg(session), btree, cache, bytes_inmem, size);
 }
 
 /*
@@ -815,11 +864,11 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_cache_page_image_decr --
- *     Decrement a page image's size to the cache.
+ * __wt_cache_image_decr --
+ *     Decrement an image's size in the cache.
  */
 static WT_INLINE void
-__wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_image_decr(WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -829,37 +878,37 @@ __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     cache = S2C(session)->cache;
     is_disagg = __wt_conn_is_disagg(session);
 
-    if (WT_PAGE_IS_INTERNAL(page)) {
+    if (WT_PAGE_TYPE_IS_INTERNAL(image_type)) {
         __wt_cache_decr_check_uint64(
-          session, &cache->bytes_image_intl, page->dsk->mem_size, "WT_CACHE.bytes_image");
+          session, &cache->bytes_image_intl, image_size, "WT_CACHE.bytes_image");
         if (is_disagg) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_image_intl_ingest,
-                  page->dsk->mem_size, "WT_CACHE.bytes_intl_image_ingest");
+                __wt_cache_decr_check_uint64(session, &cache->bytes_image_intl_ingest, image_size,
+                  "WT_CACHE.bytes_intl_image_ingest");
             else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_image_intl_stable,
-                  page->dsk->mem_size, "WT_CACHE.bytes_intl_image_stable");
+                __wt_cache_decr_check_uint64(session, &cache->bytes_image_intl_stable, image_size,
+                  "WT_CACHE.bytes_intl_image_stable");
         }
     } else {
         __wt_cache_decr_check_uint64(
-          session, &cache->bytes_image_leaf, page->dsk->mem_size, "WT_CACHE.bytes_image");
+          session, &cache->bytes_image_leaf, image_size, "WT_CACHE.bytes_image");
         if (is_disagg) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_image_leaf_ingest,
-                  page->dsk->mem_size, "WT_CACHE.bytes_leaf_image_ingest");
+                __wt_cache_decr_check_uint64(session, &cache->bytes_image_leaf_ingest, image_size,
+                  "WT_CACHE.bytes_leaf_image_ingest");
             else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_image_leaf_stable,
-                  page->dsk->mem_size, "WT_CACHE.bytes_leaf_image_stable");
+                __wt_cache_decr_check_uint64(session, &cache->bytes_image_leaf_stable, image_size,
+                  "WT_CACHE.bytes_leaf_image_stable");
         }
     }
 }
 
 /*
- * __wt_cache_page_image_incr --
- *     Increment a page image's size to the cache.
+ * __wt_cache_image_incr --
+ *     Increment an image's size in the cache.
  */
 static WT_INLINE void
-__wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_image_incr(WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -869,27 +918,43 @@ __wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
     cache = S2C(session)->cache;
     is_disagg = __wt_conn_is_disagg(session);
 
-    if (WT_PAGE_IS_INTERNAL(page)) {
-        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_intl, page->dsk->mem_size);
+    if (WT_PAGE_TYPE_IS_INTERNAL(image_type)) {
+        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_intl, image_size);
         if (is_disagg) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                (void)__wt_atomic_add_uint64_relaxed(
-                  &cache->bytes_image_intl_ingest, page->dsk->mem_size);
+                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_intl_ingest, image_size);
             else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                (void)__wt_atomic_add_uint64_relaxed(
-                  &cache->bytes_image_intl_stable, page->dsk->mem_size);
+                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_intl_stable, image_size);
         }
     } else {
-        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_leaf, page->dsk->mem_size);
+        (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_leaf, image_size);
         if (is_disagg) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                (void)__wt_atomic_add_uint64_relaxed(
-                  &cache->bytes_image_leaf_ingest, page->dsk->mem_size);
+                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_leaf_ingest, image_size);
             else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                (void)__wt_atomic_add_uint64_relaxed(
-                  &cache->bytes_image_leaf_stable, page->dsk->mem_size);
+                (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_image_leaf_stable, image_size);
         }
     }
+}
+
+/*
+ * __wt_cache_page_image_decr --
+ *     Decrement a page image's size in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    __wt_cache_image_decr(session, page->type, page->dsk->mem_size);
+}
+
+/*
+ * __wt_cache_page_image_incr --
+ *     Increment a page image's size in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    __wt_cache_image_incr(session, page->type, page->dsk->mem_size);
 }
 
 /*
@@ -933,11 +998,16 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+        return;
+
+    /* A page being instantiated ends up clean, don't dirty it. */
+    if (F_ISSET(page->modify, WT_PAGE_MODIFY_INSTANTIATING))
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -978,8 +1048,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     uint64_t dirty_leaf_pages_total =
       __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf);
     if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN && dirty_leaf_pages_total < 10 &&
-      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-        WT_IS_HS(session->dhandle))) {
+      (WT_IS_ANY_METADATA(session->dhandle) || WT_IS_HS(session->dhandle))) {
         increase_dirty_size_first = true;
         __wt_cache_dirty_incr_size(session, page_memory_footprint, false);
     }
@@ -1045,11 +1114,12 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     conn = S2C(session);
 
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
 
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -1066,11 +1136,10 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
         /*
          * We should never set a btree dirty when checkpoint is triggered by RTS, recovery or when
          * closing the connection. Those specific scenarios should always leave the database clean.
-         * The only exception is related to the metadata file: it is expected to be marked as dirty
+         * The only exception is the metadata trees: they are expected to be marked as dirty
          * whenever a btree is checkpointed.
          */
-        if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
-          !WT_IS_DISAGG_META(session->dhandle) &&
+        if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_ANY_METADATA(session->dhandle) &&
           !FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
@@ -1146,11 +1215,20 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Prepared records in the datastore require page updates, even for read-only handles, don't
      * mark the tree or page dirty.
      */
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+        return;
+
+    /*
+     * Instantiating updates onto a page that has just been read is internal bookkeeping: the page
+     * is left clean, so dirtying the tree here would cost a checkpoint of a tree with no
+     * user-visible change.
+     */
+    if (F_ISSET(page->modify, WT_PAGE_MODIFY_INSTANTIATING))
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
@@ -1186,11 +1264,12 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
 
     btree = S2BT(session);
 
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
         return (0);
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
@@ -1201,7 +1280,7 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
      * marking the original parent and all of the newly-created children as dirty. In other words,
      * if we have the wrong parent page, everything was marked dirty already.
      */
-    parent = ref->home;
+    parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
     WT_RET(__wt_page_modify_init(session, parent));
     if (page_only)
         __wt_page_only_modify_set(session, parent);
@@ -1232,6 +1311,7 @@ static WT_INLINE void
 __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 {
     uintptr_t v;
+    void *ikey;
 
 /*
  * An internal page key is in one of two places: if we instantiated the
@@ -1259,15 +1339,51 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
 #define WT_IK_DECODE_KEY_LEN(v) ((v) >> 32)
 #define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
-#define WT_IK_DECODE_KEY_OFFSET(v) (((v)&0xFFFFFFFF) >> 1)
-    v = (uintptr_t)ref->ref_ikey;
+#define WT_IK_DECODE_KEY_OFFSET(v) (((v) & 0xFFFFFFFF) >> 1)
+    /*
+     * Read the key once: both forms are valid at any instant, but the flag test and the value used
+     * have to agree. A split can instantiate the key underneath us, so a caller handed an
+     * instantiated key has to see its contents. That is consume ordering, which we spell as acquire
+     * because consume is not usable in practice; pairs with the release store that publishes an
+     * instantiated key.
+     *
+     * This says nothing about which page the key belongs to. An encoded key is an offset into the
+     * disk image of the page it was encoded from, so the caller owes us a page it is valid against.
+     */
+    ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
+    v = (uintptr_t)ikey;
     if (v & WT_IK_FLAG) {
         *(void **)keyp = WT_PAGE_REF_OFFSET(page, WT_IK_DECODE_KEY_OFFSET(v));
         *sizep = WT_IK_DECODE_KEY_LEN(v);
     } else {
-        *(void **)keyp = WT_IKEY_DATA(ref->ref_ikey);
-        *sizep = ((WT_IKEY *)ref->ref_ikey)->size;
+        *(void **)keyp = WT_IKEY_DATA(ikey);
+        *sizep = ((WT_IKEY *)ikey)->size;
     }
+}
+
+/*
+ * __wt_ref_key_home --
+ *     Return a reference to a row-store internal page key, relative to the reference's own home
+ *     page.
+ */
+static WT_INLINE void
+__wt_ref_key_home(WT_REF *ref, void *keyp, size_t *sizep)
+{
+    WT_PAGE *home;
+
+    /*
+     * A split instantiates a moved reference's key before pointing the reference at a newly created
+     * page, which has no disk image. Acquire the home page so the key cannot be read from an
+     * earlier state than it: a new home page paired with a still-encoded key decodes the offset
+     * against a NULL image and yields the offset itself as the key. The acquire belongs on this
+     * read, not on the key, because it has to keep the read that follows from moving ahead of it.
+     * Pairs with the release store that publishes a new home page.
+     *
+     * Callers holding the page a reference was encoded against decode against it directly; a stale
+     * encoded key is still correct there, so they need no ordering.
+     */
+    home = (WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home);
+    __wt_ref_key(home, ref, keyp, sizep);
 }
 
 /*
@@ -1294,13 +1410,16 @@ __wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack)
 static WT_INLINE WT_IKEY *
 __wt_ref_key_instantiated(WT_REF *ref)
 {
-    uintptr_t v;
+    void *ikey;
 
     /*
-     * See the comment in __wt_ref_key for an explanation of the magic.
+     * See the comment in __wt_ref_key for an explanation of the magic. Read once so the flag test
+     * and the returned value can't disagree, and acquire so a caller that sees the key can safely
+     * dereference it: consume ordering is what that needs, but acquire is how we spell it. Pairs
+     * with the release store that publishes an instantiated key.
      */
-    v = (uintptr_t)ref->ref_ikey;
-    return (v & WT_IK_FLAG ? NULL : (WT_IKEY *)ref->ref_ikey);
+    ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
+    return ((uintptr_t)ikey & WT_IK_FLAG ? NULL : (WT_IKEY *)ikey);
 }
 
 /*
@@ -1412,36 +1531,36 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
 
 #define WT_K_FLAG 0x02
 #define WT_K_MAX_KEY_LEN (0x80000 - 1)
-#define WT_K_DECODE_KEY_LEN(v) (((v)&0xffffe00000000000) >> 45)
+#define WT_K_DECODE_KEY_LEN(v) (((v) & 0xffffe00000000000) >> 45)
 #define WT_K_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 45)
 #define WT_K_MAX_KEY_OFFSET (0x40 - 1)
-#define WT_K_DECODE_KEY_OFFSET(v) (((v)&0x001f8000000000) >> 39)
+#define WT_K_DECODE_KEY_OFFSET(v) (((v) & 0x001f8000000000) >> 39)
 #define WT_K_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 39)
 /* Key prefix field size can hold maximum value, WT_K_MAX_KEY_PREFIX not needed. */
-#define WT_K_DECODE_KEY_PREFIX(v) (((v)&0x00007f80000000) >> 31)
+#define WT_K_DECODE_KEY_PREFIX(v) (((v) & 0x00007f80000000) >> 31)
 #define WT_K_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 31)
 /* Key cell offset field size can hold maximum value, WT_K_MAX_KEY_CELL_OFFSET not needed. */
-#define WT_K_DECODE_KEY_CELL_OFFSET(v) (((v)&0x0000007ffffffc) >> 2)
+#define WT_K_DECODE_KEY_CELL_OFFSET(v) (((v) & 0x0000007ffffffc) >> 2)
 #define WT_K_ENCODE_KEY_CELL_OFFSET(v) ((uintptr_t)(v) << 2)
 
 #define WT_KV_FLAG 0x03
 #define WT_KV_MAX_VALUE_LEN (0x2000 - 1)
-#define WT_KV_DECODE_VALUE_LEN(v) (((v)&0xfff8000000000000) >> 51)
+#define WT_KV_DECODE_VALUE_LEN(v) (((v) & 0xfff8000000000000) >> 51)
 #define WT_KV_ENCODE_VALUE_LEN(v) ((uintptr_t)(v) << 51)
 #define WT_KV_MAX_VALUE_OFFSET (0x40 - 1)
-#define WT_KV_DECODE_VALUE_OFFSET(v) (((v)&0x07e00000000000) >> 45)
+#define WT_KV_DECODE_VALUE_OFFSET(v) (((v) & 0x07e00000000000) >> 45)
 #define WT_KV_ENCODE_VALUE_OFFSET(v) ((uintptr_t)(v) << 45)
 #define WT_KV_MAX_KEY_LEN (0x1000 - 1)
-#define WT_KV_DECODE_KEY_LEN(v) (((v)&0x001ffe00000000) >> 33)
+#define WT_KV_DECODE_KEY_LEN(v) (((v) & 0x001ffe00000000) >> 33)
 #define WT_KV_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 33)
 /* Key offset encoding is the same for key and key/value forms, WT_KV_MAX_KEY_OFFSET not needed. */
-#define WT_KV_DECODE_KEY_OFFSET(v) (((v)&0x000001f8000000) >> 27)
+#define WT_KV_DECODE_KEY_OFFSET(v) (((v) & 0x000001f8000000) >> 27)
 #define WT_KV_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 27)
 /* Key prefix encoding is the same for key and key/value forms, WT_KV_MAX_KEY_PREFIX not needed. */
-#define WT_KV_DECODE_KEY_PREFIX(v) (((v)&0x00000007f80000) >> 19)
+#define WT_KV_DECODE_KEY_PREFIX(v) (((v) & 0x00000007f80000) >> 19)
 #define WT_KV_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 19)
 #define WT_KV_MAX_KEY_CELL_OFFSET (0x20000 - 1)
-#define WT_KV_DECODE_KEY_CELL_OFFSET(v) (((v)&0x0000000007fffc) >> 2)
+#define WT_KV_DECODE_KEY_CELL_OFFSET(v) (((v) & 0x0000000007fffc) >> 2)
 #define WT_KV_ENCODE_KEY_CELL_OFFSET(v) ((uintptr_t)(v) << 2)
 
     switch (v & WT_KEY_FLAG_BITS) {
@@ -1868,6 +1987,15 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 
     /* If off-page, the pointer references a WT_ADDR structure. */
     if (__wt_off_page(page, addr)) {
+        /*
+         * A zero-length address copies nothing, so the caller would proceed on whatever its buffer
+         * already held. Abort while the reference and the parent's image are still intact; the
+         * block manager only catches this several frames later, with nothing naming the reference.
+         */
+        WT_ASSERT_ALWAYS(session, addr->block_cookie_size != 0,
+          "%s: off-page ref address has zero length: ref %p, state %d",
+          session->dhandle == NULL ? "[no dhandle]" : session->dhandle->name, (void *)ref,
+          (int)WT_REF_GET_STATE(ref));
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
         copy->type = addr->type;
         memcpy(copy->addr, addr->block_cookie, copy->size = addr->block_cookie_size);
@@ -1876,6 +2004,18 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
+
+    /*
+     * As above. The address copy holds the length in a single byte, so an oversized length is
+     * silently truncated rather than rejected. Zero-length address cells exist only as
+     * WT_CELL_ADDR_DEL_VISIBLE_ALL, which the delta merge drops before the image is materialized.
+     */
+    WT_ASSERT_ALWAYS(session, unpack->size != 0 && unpack->size <= WT_ADDR_MAX_COOKIE,
+      "%s: on-page ref address cell has unusable length %" PRIu32
+      ": ref %p, state %d, cell type %" PRIu8,
+      session->dhandle == NULL ? "[no dhandle]" : session->dhandle->name, unpack->size, (void *)ref,
+      (int)WT_REF_GET_STATE(ref), unpack->raw);
+
     WT_TIME_AGGREGATE_COPY(&copy->ta, &unpack->ta);
 
     switch (unpack->raw) {
@@ -1929,10 +2069,14 @@ __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGA
 
 /*
  * __wt_ref_block_free --
- *     Free the on-disk block for a reference and clear the address.
+ *     Free the on-disk block for a reference and clear the address. A disaggregated block is only
+ *     freed when asked for, the page id is otherwise reused by the next write. When the block
+ *     survives and the caller has written a full page image, the delta chain it headed is obsolete
+ *     and its cumulative size stops counting toward the tree.
  */
 static WT_INLINE int
-__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block)
+__wt_ref_block_free(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block, bool disagg_delta_chain_end)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -1945,7 +2089,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
     else if (disagg_free_block) {
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
-        if (ref->page != NULL)
+        if (ref->page != NULL && ref->page->disagg_info != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
 
@@ -1953,6 +2097,17 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
     __wt_ref_addr_free(session, ref);
 
 err:
+    /*
+     * The chain is tracked against the page id in the shared store, so obsolete it whenever the
+     * page id survives, including for a page rebuilt in memory that carries a page id but no local
+     * address. Only adjust the accounting once nothing can fail.
+     */
+    if (ret == 0 && !disagg_free_block && disagg_delta_chain_end && ref->page != NULL &&
+      ref->page->disagg_info != NULL &&
+      ref->page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
+        __wt_block_disagg_decrease_size(
+          session, ref->page->disagg_info->block_meta.cumulative_size);
+
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (ret);
 }
@@ -2053,11 +2208,11 @@ __wt_page_del_committed_set(WT_PAGE_DELETED *page_del)
 }
 
 /*
- * __wt_btree_syncing_by_other_session --
- *     Returns true if the session's current btree is being synced by another thread.
+ * __wt_btree_syncing_by_other_sessions --
+ *     Returns true if the session's current btree is being synced, but not by the current session.
  */
 static WT_INLINE bool
-__wt_btree_syncing_by_other_session(WT_SESSION_IMPL *session)
+__wt_btree_syncing_by_other_sessions(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
 
@@ -2151,7 +2306,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 #define WT_MIN_SPLIT_MULTIPLIER 16 /* At level 2, we see 1/16th entries */
 
     for (count = 0, size = 0, ins = ins_head->head[WT_MIN_SPLIT_DEPTH]; ins != NULL;
-         ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
+      ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
 
@@ -2194,23 +2349,23 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
      * a reasonable amount of time is currently pretty arbitrary.
      */
     if (__wt_evict_aggressive(session) ||
-      mod->last_evict_pass_gen + 5 <
+      mod->rec_evict_attempt_pass_gen + 5 <
         __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen))
         return (true);
 
     /* Retry if the global transaction state has moved forward. */
     if (__wt_atomic_load_uint64_v_relaxed(&txn_global->current) ==
         __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id) ||
-      mod->last_eviction_id != __wt_txn_oldest_id(session))
+      mod->rec_evict_attempt_oldest_id != __wt_txn_oldest_id(session))
         return (true);
 
     /*
      * It is possible that we have not started using the timestamps just yet. So, check for the last
      * time we evicted only if there is a timestamp set.
      */
-    if (mod->last_eviction_timestamp != WT_TS_NONE) {
+    if (mod->rec_evict_attempt_pinned_ts != WT_TS_NONE) {
         __wt_txn_pinned_timestamp(session, &pinned_ts);
-        if (pinned_ts > mod->last_eviction_timestamp)
+        if (pinned_ts > mod->rec_evict_attempt_pinned_ts)
             return (true);
     }
 
@@ -2266,12 +2421,80 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return (true);
 
-    if (!conn->layered_table_manager.leader)
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         return (true);
 
     rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
 
     return (__wt_materialization_check(session, rec_lsn_max));
+}
+
+/*
+ * __wt_btree_disagg_checkpointed --
+ *     Return true when a disaggregated btree has been visited by the current global checkpoint and
+ *     that checkpoint is still running. While this holds, every modified page in the btree belongs
+ *     to the next checkpoint and cannot be evicted.
+ */
+static WT_INLINE bool
+__wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    return (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen) ==
+        __wt_gen(session, WT_GEN_CHECKPOINT) &&
+      __wt_atomic_load_bool_v_acquire(&S2C(session)->txn_global.checkpoint_running));
+}
+
+/*
+ * __wt_btree_advance_ingest_max --
+ *     Advance an ingest btree's upper bound on the durable timestamps it holds. Sweep uses the
+ *     bound we calculate to decide when the whole ingest table is redundant relative to the stable
+ *     table from the last checkpoint. The bound only ever advances.
+ */
+static WT_INLINE void
+__wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    /*
+     * We track the exact maximum durable timestamp. Correct for any timestamp scheme and sweeps as
+     * promptly as possible, but every advancing commit does a compare-and-swap, so it may show
+     * contention on highly concurrent workloads, especially those that stress a small number of
+     * btrees.
+     */
+    target = durable_ts;
+
+    cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    while (cur < target) {
+        if (__wt_atomic_cas_uint64(&btree->max_ingest_write_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    }
+}
+
+/*
+ * __wt_btree_update_unpublished_min --
+ *     Update an unpublished btree's lower bound on the durable timestamps it holds. We use this to
+ *     detect if the btree holds any stable data while the btree is still unpublished, which would
+ *     be an API violation.
+ */
+static WT_INLINE void
+__wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    target = durable_ts;
+    cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    while (cur == WT_TS_NONE || cur > target) {
+        if (__wt_atomic_cas_uint64(&btree->min_unpublished_durable_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    }
 }
 
 /*
@@ -2284,8 +2507,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    uint64_t checkpoint_gen;
-    bool checkpoint_running, modified;
+    bool modified;
 
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
@@ -2303,7 +2525,42 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    /*
+     * Check we are not evicting an accessible internal page with an active split generation.
+     *
+     * If a split created new internal pages, those newly created internal pages cannot be evicted
+     * until all threads are known to have exited the original parent page's index, because evicting
+     * an internal page discards its WT_REF array, and a thread traversing the original parent page
+     * index might see a freed WT_REF.
+     *
+     * There are two special cases where we know this is safe:
+     *
+     * 1. WT_DHANDLE_DEAD: The handle is dead, so no readers can be looking at an old index.
+     *
+     * 2. WT_DHANDLE_EXCLUSIVE: The session has exclusive access to the dhandle. This means no other
+     *    sessions can access this btree, so there cannot be any concurrent traversals using old
+     * page indexes. This is critical for operations (e.g., ALTER) that need to evict internal pages
+     *    while holding exclusive access.
+     *
+     *    This check is necessary because __wt_gen_active() checks split generation across all
+     *    sessions globally, without distinguishing which btree each session is operating on.
+     * Without the WT_DHANDLE_EXCLUSIVE check, a session traversing btree A could incorrectly block
+     *    eviction of internal pages in btree B during an exclusive operation. The exclusive access
+     *    guarantee ensures that no other sessions can be traversing this specific btree, making it
+     *    safe to skip the split generation check.
+     *
+     * This gate runs before the WT_BTREE_READONLY shortcut because read-only status is a property
+     * of the local btree, while split-generation safety is a global invariant about reader activity
+     * on this page's index across all sessions.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+      !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
+      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_internal_page_split);
+        return (false);
+    }
+
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
         return (true);
 
     /*
@@ -2352,8 +2609,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * historical tables, reconciliation no longer writes overflow cookies on internal pages, no
      * matter the size of the key.)
      */
-    if (__wt_btree_syncing_by_other_session(session) &&
-      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS)) {
+    if (__wt_btree_syncing_by_other_sessions(session) &&
+      F_ISSET_ATOMIC_16(
+        (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home), WT_PAGE_INTL_OVERFLOW_KEYS)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_overflow_keys);
         return (false);
     }
@@ -2372,10 +2630,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     modified = __wt_page_is_modified(page);
 
     /*
-     * Clean pages that are in front of the materialization check should not proceed to eviction.
-     * They would not go through reconciliation, but just be discarded which isn't OK.
+     * Clean pages that are in front of the materialization check should not proceed to eviction:
+     * they would be discarded without reconciliation, which is unsafe. Pages with a retained disk
+     * image are exempt because eviction re-instantiates them in cache rather than discarding.
      */
-    if (!modified && page->disagg_info != NULL &&
+    if (!modified && page->disagg_info != NULL && !__wt_page_evict_swap(page) &&
       !__wt_materialization_check(session, page->disagg_info->rec_lsn_max)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
         return (false);
@@ -2386,7 +2645,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * written and the previous version freed, that previous version might be referenced by an
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
-    if (modified && __wt_btree_syncing_by_other_session(session)) {
+    if (modified && __wt_btree_syncing_by_other_sessions(session)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
         return (false);
     }
@@ -2406,51 +2665,14 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
      * before we set the checkpoint running flag to false.
      */
-    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session)) {
-        checkpoint_gen = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen);
-        if (checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
-            checkpoint_running =
-              __wt_atomic_load_bool_v_acquire(&S2C(session)->txn_global.checkpoint_running);
-            if (checkpoint_running) {
-                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_next_checkpoint);
-                return (false);
-            }
-        }
-    }
-
-    /*
-     * Check we are not evicting an accessible internal page with an active split generation.
-     *
-     * If a split created new internal pages, those newly created internal pages cannot be evicted
-     * until all threads are known to have exited the original parent page's index, because evicting
-     * an internal page discards its WT_REF array, and a thread traversing the original parent page
-     * index might see a freed WT_REF.
-     *
-     * There are two special cases where we know this is safe:
-     *
-     * 1. WT_DHANDLE_DEAD: The handle is dead, so no readers can be looking at an old index.
-     *
-     * 2. WT_DHANDLE_EXCLUSIVE: The session has exclusive access to the dhandle. This means no other
-     *    sessions can access this btree, so there cannot be any concurrent traversals using old
-     * page indexes. This is critical for operations (e.g., ALTER) that need to evict internal pages
-     *    while holding exclusive access.
-     *
-     *    This check is necessary because __wt_gen_active() checks split generation across all
-     *    sessions globally, without distinguishing which btree each session is operating on.
-     * Without the WT_DHANDLE_EXCLUSIVE check, a session traversing btree A could incorrectly block
-     *    eviction of internal pages in btree B during an exclusive operation. The exclusive access
-     *    guarantee ensures that no other sessions can be traversing this specific btree, making it
-     *    safe to skip the split generation check.
-     */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
-      !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
-      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_internal_page_split);
+    if (modified && !WT_SESSION_BTREE_SYNC(session) &&
+      __wt_btree_disagg_checkpointed(session, btree)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_next_checkpoint);
         return (false);
     }
 
     /* If the metadata page is clean but has modifications that appear too new to evict, skip it. */
-    if (WT_IS_METADATA(btree->dhandle) && !modified &&
+    if (WT_IS_ANY_METADATA(btree->dhandle) && !modified &&
       !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_recently_modified);
         return (false);
@@ -2507,6 +2729,11 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);
         }
+    } else if (!LF_ISSET(WT_READ_NO_EVICT) &&
+      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0 &&
+      !F_ISSET(session, WT_SESSION_NO_RECONCILE) && __wt_page_evict_swap(ref->page)) {
+        WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
+        return (0);
     }
 
     return (__wt_hazard_clear(session, ref));
@@ -2524,12 +2751,12 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
     probability = WT_SKIP_PROBABILITY;
 #ifdef HAVE_DIAGNOSTIC
     /* Go from 1/4 chance of having a link to the next element to ~90%. */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
         probability = 0xe6666665; /* ~90% of the value of uint32 max. */
 #endif
 
     for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd_skiplist) < probability;
-         depth++)
+      depth++)
         ;
     return (depth);
 }
@@ -2611,7 +2838,7 @@ __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *sa
      * this code, don't re-order that acquisition with this check.
      */
     WT_COMPILER_BARRIER();
-    WT_INTL_INDEX_GET(session, ref->home, pindex);
+    WT_INTL_INDEX_GET(session, (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home), pindex);
     return (pindex != saved_pindex);
 }
 
@@ -2658,6 +2885,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         return (WT_NOTFOUND);
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
         return (WT_RESTART);
+    /*
+     * Skip-on-corrupt: treat corrupt pages as expected and return without releasing the page to
+     * advance to the next sibling.
+     */
+    if (ret == WT_ERROR && WT_READ_SKIP_CORRUPT_HIT(session, flags))
+        return (ret);
 
     /* Discard the original held page on either success or error. */
     acquired = ret == 0;
@@ -2715,6 +2948,19 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
+ * __wt_btcur_skip_page_inc --
+ *     Count a skipped deleted page as internal or leaf.
+ */
+static WT_INLINE void
+__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats)
+{
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        walk_skip_stats->total_del_internal_pages_skipped++;
+    else
+        walk_skip_stats->total_del_leaf_pages_skipped++;
+}
+
+/*
  * __wt_btcur_skip_page --
  *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
  *     traversal.
@@ -2727,6 +2973,7 @@ __wt_btcur_skip_page(
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
     WT_REF_STATE previous_state;
     WT_TIME_AGGREGATE *ta;
+    uint64_t sleep_usecs, yield_count;
     bool clean_page;
 
     WT_UNUSED(context);
@@ -2737,29 +2984,52 @@ __wt_btcur_skip_page(
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
     ta = NULL;
     clean_page = false;
+
+    /*
+     * Trees on the local block manager never skip an internal page. Reading one in is what marks it
+     * dirty for the deleted children it references, and the reconciliation that follows is what
+     * frees their blocks. The checkpoint cleanup thread is otherwise the only trigger and runs too
+     * rarely to bound the space a truncate-heavy workload holds.
+     *
+     * The btree and ref-type flags are stable without the lock.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        return (0);
+
     /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
      * our transaction. If so, we can avoid reading the records on the page and move to the next
      * page.
      *
-     * Skip this test on an internal page, as we rely on reconciliation to mark the internal page
-     * dirty. There could be a period of time when the internal page is marked clean but the leaf
-     * page is dirty and has newer data than let on by the internal page's aggregated information.
-     */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        return (0);
-
-    /*
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
      * make changes to the data structures (i.e., aggregate timestamps) we are reading.
+     *
+     * Wait for the lock rather than giving up on the skip: abandoning it does not avoid the wait,
+     * it moves the thread into the page-in path, which is more expensive. Back off while waiting
+     * rather than yielding on every iteration, which drives kernel CPU under contention.
      */
-    WT_REF_LOCK(session, ref, &previous_state);
+    for (sleep_usecs = yield_count = 0; WT_REF_TRYLOCK(session, ref, &previous_state) != 0;)
+        __wt_spin_backoff(&yield_count, &sleep_usecs);
+    if (yield_count != 0)
+        ++walk_skip_stats->total_skip_lock_contended;
+
+    /*
+     * An internal page resident in memory cannot be judged by its aggregate: a descendant may be
+     * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
+     * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
+     * describes the whole subtree, and skipping it skips the subtree.
+     *
+     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
+     * evaluated through its address cell.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
+        goto unlock;
 
     /*
      * Check the fast-truncate information; there are 3 cases:
      *
      * (1) The page is in the WT_REF_DELETED state and page_del is NULL. The page is deleted. This
-     *     case is folded into the next because __wt_page_del_visible handles it.
+     *     case is folded into the next because visibility of truncate function handles it.
      * (2) The page is in the WT_REF_DELETED state and page_del is not NULL. The page is deleted
      *     if the truncate operation is visible. Look at page_del; we could use the info from the
      *     address cell below too, but that's slower.
@@ -2767,12 +3037,12 @@ __wt_btcur_skip_page(
      *     will serve for readonly/unmodified pages, and for modified pages we can't skip the page.
      *     (This case is checked further below.)
      *
-     * In all cases, make use of the option to __wt_page_del_visible to hide prepared transactions,
+     * In all cases, make use of the option to hide prepared transactions,
      * as we shouldn't skip pages where the deletion is prepared but not committed.
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
-        walk_skip_stats->total_del_pages_skipped++;
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats);
         goto unlock;
     }
 
@@ -2784,7 +3054,7 @@ __wt_btcur_skip_page(
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
-            walk_skip_stats->total_del_pages_skipped++;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
             goto unlock;
         }
 
@@ -2797,16 +3067,20 @@ __wt_btcur_skip_page(
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            walk_skip_stats->total_del_pages_skipped++;
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate
          * information pointer because as part of the checkpoint operation, this pointer can be
          * released in parallel.
+         *
+         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
+         * use the range visibility check; it skips more pages than the snap_min bound used on the
+         * disk-address path, which only has the newest stop transaction.
          */
         *skipp = true;
         walk_skip_stats->total_inmem_del_pages_skipped++;
@@ -2839,7 +3113,7 @@ __wt_ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pinde
          * Copy the parent page's index value: the page can split at any time, but the index's value
          * is always valid, even if it's not up-to-date.
          */
-        WT_INTL_INDEX_GET(session, ref->home, pindex);
+        WT_INTL_INDEX_GET(session, (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home), pindex);
         entries = pindex->entries;
 
         /*
@@ -2857,7 +3131,7 @@ __wt_ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pinde
             goto found;
         for (start = &pindex->index[0], stop = &pindex->index[entries - 1],
             p = t = &pindex->index[slot];
-             p > start || t < stop;) {
+          p > start || t < stop;) {
             if (p > start && *--p == ref) {
                 slot = (uint32_t)(p - start);
                 goto found;
@@ -2902,7 +3176,7 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
          * Find our parent slot on the next higher internal page, the slot from which we move to a
          * next/prev slot, checking that we haven't reached the root.
          */
-        parent_ref = ref->home->pg_intl_parent_ref;
+        parent_ref = ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home))->pg_intl_parent_ref;
         if (__wt_ref_is_root(parent_ref))
             break;
         if (pindexp)
@@ -2946,9 +3220,76 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
          * our search doesn't point to the same page as that initial
          * WT_REF, there's a race and we start over again.
          */
-        if (ref->home == parent_ref->page)
+        if ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home) == parent_ref->page)
             break;
     }
 
     *refp = parent_ref;
+}
+
+/*
+ * __wt_cache_shared_dsk_inmem_incr --
+ *     Increment the shared disk in memory cache statistics.
+ */
+static WT_INLINE void
+__wt_cache_shared_dsk_inmem_incr(WT_SESSION_IMPL *session, uint8_t image_type, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, size < WT_EXABYTE);
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    if (size == 0)
+        return;
+
+    bool is_disagg = __wt_conn_is_disagg(session);
+
+    WT_CACHE_INCR(is_disagg, btree, cache, bytes_inmem, size);
+    if (WT_PAGE_TYPE_IS_INTERNAL(image_type))
+        WT_CACHE_INCR(is_disagg, btree, cache, bytes_internal, size);
+}
+
+/*
+ * __wt_cache_shared_dsk_inmem_decr --
+ *     Decrement the shared disk in memory cache statistics.
+ */
+static WT_INLINE void
+__wt_cache_shared_dsk_inmem_decr(WT_SESSION_IMPL *session, uint8_t image_type, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, size < WT_EXABYTE);
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    if (size == 0)
+        return;
+
+    bool is_disagg = __wt_conn_is_disagg(session);
+
+    WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, size);
+    if (WT_PAGE_TYPE_IS_INTERNAL(image_type))
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, size);
+}
+
+/*
+ * __wt_btree_row_leaf_entries_update --
+ *     Update the per-btree EWMA of row-store leaf page K/V pair count with a new sample. Uses
+ *     alpha=1/16: new_ewma = (15 * old + sample) / 16. Races between threads are tolerated since
+ *     the result is approximate. Left untouched at WT_LEAF_STATS_UNKNOWN until a corrective
+ *     WT_STAT_TYPE_TREE_WALK sets a real starting value.
+ */
+static WT_INLINE void
+__wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample)
+{
+    uint64_t old;
+
+    old = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
+    if (old == WT_LEAF_STATS_UNKNOWN)
+        return;
+    __wt_atomic_store_uint64_relaxed(
+      &btree->leaf_entry_ewma, old == 0 ? sample : (15 * old + sample) / 16);
 }

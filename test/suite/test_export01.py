@@ -26,27 +26,24 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_export01.py
-#   Tests basic export functionality.
-#   - Test that the WiredTiger.export file is correctly created and removed.
-#   - Test that the WiredTiger.export file contains the correct contents
-#     after performing operations on the home directory, creating a backup
-#     directory, and then performing operation on the backup directory.
+# Tests basic export functionality.
+# - Test that the WiredTiger.export file is correctly created and removed.
+# - Test that the WiredTiger.export file contains the correct contents
+#   after performing operations on the home directory, creating a backup
+#   directory, and then performing operation on the backup directory.
 
 from helper import copy_wiredtiger_home
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 import os, shutil, wttest
 
-class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
+@wttest.skip_for_hook("disagg", "backup:export is not supported with disagg storage")
+class test_export01(wttest.WiredTigerTestCase):
     dir = 'backup.dir'
 
     types = [
         ('table', dict(type = 'table:')),
     ]
-    tiered_storage_sources = gen_tiered_storage_sources()
-
-    scenarios = make_scenarios(tiered_storage_sources, types)
+    scenarios = make_scenarios(types)
 
     def test_export(self):
         uri_a = self.type + "exporta"
@@ -73,9 +70,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled)')
-
         # Open a special backup cursor for export operation.
         export_cursor = self.session.open_cursor('backup:export', None, None)
 
@@ -91,7 +85,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         # The export file should exist in the backup directory.
         self.assertTrue(os.path.isfile(os.path.join(self.dir, "WiredTiger.export")))
 
-    @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_export_restart(self):
         uri_a = self.type + "exporta"
         uri_b = self.type + "exportb"
@@ -111,9 +104,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         c5.close()
 
         self.session.checkpoint()
-
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled)')
 
         # Open a special backup cursor for export operation.
         main_cursor = self.session.open_cursor('backup:export', None, None)
@@ -139,9 +129,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         c6.close()
 
         self.session.checkpoint()
-
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled,force=true)')
 
         self.session.drop(uri_b)
 

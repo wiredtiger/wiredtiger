@@ -133,18 +133,22 @@ static int
 handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
+    WT_DECL_RET;
     char buf[256];
+    const char *msg;
 
     (void)handler;
 
     if (session->app_private != NULL) {
         testutil_snprintf(buf, sizeof(buf), "%s %s", (char *)session->app_private, operation);
-        track(buf, progress);
-        return (0);
-    }
+        msg = buf;
+    } else
+        msg = operation;
 
-    track(operation, progress);
-    return (0);
+    int bytes_written =
+      progress == 0 ? printf("%s\n", msg) : printf("%s: %" PRIu64 "\n", msg, progress);
+    ret = fflush(stdout);
+    return (bytes_written < 0 ? EIO : (ret == EOF ? errno : 0));
 }
 
 static WT_EVENT_HANDLER event_handler = {NULL, handle_message, handle_progress, NULL, NULL};
@@ -179,6 +183,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
     if (GV(STRESS_COMPACT_SLOW))
         CONFIG_APPEND(*p, ",compact_slow");
+    if (GV(STRESS_DISAGG_STABLE_DHANDLE_DELAY))
+        CONFIG_APPEND(*p, ",disagg_stable_dhandle_delay");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
     if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
@@ -248,6 +254,8 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
     if (GV(DEBUG_CURSOR_REPOSITION))
         CONFIG_APPEND(*p, ",cursor_reposition=true");
+    if (GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
+        CONFIG_APPEND(*p, ",disagg_slow_truncate_follower=true");
     if (GV(DEBUG_EVICTION))
         CONFIG_APPEND(*p, ",eviction=true");
     /*
@@ -263,6 +271,8 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",realloc_malloc=true");
     if (GV(DEBUG_SLOW_CHECKPOINT))
         CONFIG_APPEND(*p, ",slow_checkpoint=true");
+    if (GV(DEBUG_SLOW_TRUNCATE))
+        CONFIG_APPEND(*p, ",slow_truncate=true");
     if (GV(DEBUG_TABLE_LOGGING))
         CONFIG_APPEND(*p, ",table_logging=true");
     if (GV(DEBUG_UPDATE_RESTORE_EVICT))
@@ -343,52 +353,8 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
     CONFIG_APPEND(*p, ",%s", disagg_cfg);
-}
-
-/*
- * configure_tiered_storage --
- *     Configure tiered storage settings for opening a connection.
- */
-static void
-configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, size_t ext_cfg_size)
-{
-    TEST_OPTS opts;
-    char tiered_cfg[1024];
-
-    if (!g.tiered_storage_config) {
-        testutil_assert(ext_cfg_size > 0);
-        ext_cfg[0] = '\0';
-        return;
-    }
-
-    memset(&opts, 0, sizeof(opts));
-    opts.tiered_storage = true;
-
-    /*
-     * We need to cast these values. Normally, testutil allocates and fills these strings based on
-     * command line arguments and frees them when done. Format doesn't use the standard test command
-     * line parser and doesn't rely on testutil to free anything in this struct. We're only using
-     * the options struct on a temporary basis to help create the tiered storage configuration.
-     */
-    opts.tiered_storage_source = (char *)GVS(TIERED_STORAGE_STORAGE_SOURCE);
-    opts.home = (char *)home;
-    opts.build_dir = (char *)BUILDDIR;
-
-    /*
-     * Have testutil create the bucket directory for us when using the directory store.
-     */
-    opts.make_bucket_dir = true;
-
-    /*
-     * Use an absolute path for the bucket directory when using the directory store. Then we can
-     * create copies of the home directory to be used for backup, and we'll be able to find the
-     * bucket.
-     */
-    opts.absolute_bucket_dir = true;
-
-    testutil_tiered_storage_configuration(
-      &opts, home, tiered_cfg, sizeof(tiered_cfg), ext_cfg, ext_cfg_size);
-    CONFIG_APPEND(*p, ",%s", tiered_cfg);
+    CONFIG_APPEND(*p, ",disaggregated=(stepdown_write_mirroring=%s)",
+      GV(DISAGG_STEPDOWN_WRITE_MIRRORING) ? "true" : "false");
 }
 
 /*
@@ -400,7 +366,8 @@ static void
 configure_prefetch(char **p, size_t max)
 {
     if (GV(PREFETCH))
-        CONFIG_APPEND(*p, ",prefetch=(available=true,default=false)");
+        CONFIG_APPEND(
+          *p, ",prefetch=(available=true,default=%s)", GV(PREFETCH_DEFAULT) ? "true" : "false");
 }
 
 /*
@@ -432,6 +399,41 @@ configure_obsolete_cleanup(char **p, size_t max)
 }
 
 /*
+ * configure_verbose --
+ *     Configure verbose messaging. WT_VERBOSE_INFO adds the lifecycle markers that identify which
+ *     phase the run had reached.
+ */
+static void
+configure_verbose(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",verbose=[all:0]");
+}
+
+#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
+
+/*
+ * configure_extensions --
+ *     Build the list of extensions. The full list is passed on every wiredtiger_open so early-load
+ *     entries are present and so no extension goes missing on reopen.
+ */
+static void
+configure_extensions(char **p, size_t max, const char *disagg_ext_cfg)
+{
+    CONFIG_APPEND(*p,
+      ",extensions_strict=true,extensions=["
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s]",
+      /* Collators. */
+      REVERSE_PATH,
+      /* Compressors. */
+      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
+      EXTENSION_PATH(ZSTD_PATH),
+      /* Encryptors. */
+      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
+      /* Page log. */
+      disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"");
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -440,7 +442,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], disagg_ext_cfg[1024], *p, tiered_ext_cfg[1024];
+    char config[8 * 1024], disagg_ext_cfg[1024], *p;
     const char *s, *sources;
 
     p = config;
@@ -512,6 +514,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
+    CONFIG_APPEND(p, ",checkpoint_threads=%" PRIu32, GV(CHECKPOINT_THREADS));
+
     if (GV(PRECISE_CHECKPOINT))
         CONFIG_APPEND(p, ",precise_checkpoint=true");
 
@@ -531,32 +535,17 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional disaggregated storage. */
     configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
-    /* Optional tiered storage. */
-    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
-
     /* Optional prefetch. */
     configure_prefetch(&p, max);
 
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
 
-#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
-
     /* Extensions. */
-    CONFIG_APPEND(p,
-      ",extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s],",
-      /* Collators. */
-      REVERSE_PATH,
-      /* Compressors. */
-      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
-      EXTENSION_PATH(ZSTD_PATH),
-      /* Encryptors. */
-      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
-      /* Page log. */
-      disagg_ext_cfg,
-      /* Storage source. */
-      tiered_ext_cfg);
+    configure_extensions(&p, max, disagg_ext_cfg);
+
+    /* Verbose messaging. */
+    configure_verbose(&p, max);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -572,6 +561,10 @@ create_database(const char *home, WT_CONNECTION **connp)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+
+    /* Leader: seed an initial key before the create-time close checkpoint. */
+    if (g.disagg_leader)
+        disagg_key_push_initial(conn, true);
 
     *connp = conn;
 }
@@ -745,7 +738,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[1024], disagg_ext_cfg[1024], *p;
+    char config[8 * 1024], disagg_ext_cfg[1024], *p;
     const char *enc, *s;
 
     *connp = NULL;
@@ -784,6 +777,12 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
 
+    /* Extensions. */
+    configure_extensions(&p, max, disagg_ext_cfg);
+
+    /* Verbose messaging. */
+    configure_verbose(&p, max);
+
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
         conn = g.wts_conn_inmemory;
@@ -797,6 +796,8 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
             CONFIG_APPEND(p, ",%s", s);
         if (g.config_open != NULL)
             CONFIG_APPEND(p, ",%s", g.config_open);
+
+        CONFIG_APPEND(p, ",checkpoint_threads=%" PRIu32, GV(CHECKPOINT_THREADS));
 
         if (GV(PRECISE_CHECKPOINT))
             CONFIG_APPEND(p, ",precise_checkpoint=true");

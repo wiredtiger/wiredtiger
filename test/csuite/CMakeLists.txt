@@ -92,6 +92,35 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
+if(ENABLE_PALITE AND WT_POSIX)
+    create_test_executable(test_schema_disagg_abort
+        SOURCES
+            schema_disagg_abort/ckpt.c
+            schema_disagg_abort/event_pipe.c
+            schema_disagg_abort/evq.c
+            schema_disagg_abort/generator.c
+            schema_disagg_abort/main.c
+            schema_disagg_abort/node.c
+            schema_disagg_abort/parent.c
+            schema_disagg_abort/reader.c
+            schema_disagg_abort/schema_disagg_abort.h
+            schema_disagg_abort/subproc.c
+            schema_disagg_abort/subproc.h
+            schema_disagg_abort/verify.c
+            schema_disagg_abort/worker.c
+        ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/schema_disagg_abort
+    )
+    # Use C++ linker for building this target.
+    # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+    # to link against the C++ sanitizer runtimes.
+    # Some extensions (PALite) require C++ runtime to be linked
+    # for sanitizers to work correctly.
+    if(TARGET test_schema_disagg_abort)
+        set_target_properties(test_schema_disagg_abort PROPERTIES LINKER_LANGUAGE CXX)
+    endif()
+endif()
+
 define_c_test(
     TARGET test_scope
     SOURCES scope/main.c
@@ -378,6 +407,40 @@ define_c_test(
     TARGET test_wt13867_interrupt_eviction_handler
     SOURCES wt13867_interrupt_eviction_handler/main.c
     DIR_NAME wt13867_interrupt_eviction_handler
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt15907_conn_stat_race
+    SOURCES wt15907_conn_stat_race/main.c
+    DIR_NAME wt15907_conn_stat_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt16990_disagg_checkpoint_panic
+    SOURCES wt16990_disagg_checkpoint_panic/main.c
+    DIR_NAME wt16990_disagg_checkpoint_panic
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} -G
+    DEPENDS "WT_POSIX"
+    LABEL "disagg"
+)
+
+# Use C++ linker for building this target.
+# When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+# to link against the C++ sanitizer runtimes.
+# Some extensions (PALite) require C++ runtime to be linked
+# for sanitizers to work correctly.
+if(TARGET test_wt16990_disagg_checkpoint_panic)
+    set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
+endif()
+
+define_c_test(
+    TARGET test_wt17597_backup_force_stop_race
+    SOURCES wt17597_backup_force_stop_race/main.c
+    DIR_NAME wt17597_backup_force_stop_race
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )

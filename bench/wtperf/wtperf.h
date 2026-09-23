@@ -63,17 +63,6 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define ZSTD_BLK BLKCMP_PFX "zstd"
 #define ZSTD_EXT EXT_PFX EXTPATH ZSTD_PATH EXT_SFX
 
-/* Tiered Storage Extensions */
-#ifndef DIR_STORE_PATH
-#define DIR_STORE_PATH "storage_sources/dir_store/libwiredtiger_dir_store.so"
-#endif
-#ifndef S3_PATH
-#define S3_PATH "storage_sources/s3_store/libwiredtiger_s3_store.so"
-#endif
-
-#define DIR_EXT EXT_PFX EXTPATH DIR_STORE_PATH EXT_SFX
-#define S3_EXT EXT_PFX EXTPATH S3_PATH EXT_SFX
-
 #define MAX_MODIFY_PCT 10
 #define MAX_MODIFY_NUM 16
 
@@ -158,12 +147,8 @@ struct __wtperf {          /* Per-database structure */
     const char *compress_ext;   /* Compression extension for conn */
     const char *compress_table; /* Compression arg to table create */
 
-    const char *tiered_ext;   /* Tiered extension for conn */
-    const char *tiered_table; /* Tiered arg to table create */
-
     WTPERF_THREAD *backupthreads; /* Backup threads */
     WTPERF_THREAD *ckptthreads;   /* Checkpoint threads */
-    WTPERF_THREAD *flushthreads;  /* Flush_tier threads */
     WTPERF_THREAD *popthreads;    /* Populate threads */
     WTPERF_THREAD *scanthreads;   /* Scan threads */
 
@@ -177,7 +162,6 @@ struct __wtperf {          /* Per-database structure */
     /* State tracking variables. */
     uint64_t backup_ops;   /* backup operations */
     uint64_t ckpt_ops;     /* checkpoint operations */
-    uint64_t flush_ops;    /* flush operations */
     uint64_t scan_ops;     /* scan operations */
     uint64_t insert_ops;   /* insert operations */
     uint64_t modify_ops;   /* modify operations */
@@ -191,7 +175,6 @@ struct __wtperf {          /* Per-database structure */
 
     volatile bool backup;    /* backup in progress */
     volatile bool ckpt;      /* checkpoint in progress */
-    volatile bool flush;     /* flush_tier in progress */
     volatile bool scan;      /* scan in progress */
     volatile bool error;     /* thread error */
     volatile bool ckpt_stop; /* notify checkpoint thread to stop */
@@ -223,25 +206,31 @@ struct __wtperf {          /* Per-database structure */
 #define MILLION (1000000ULL)
 #define BILLION (1000000000ULL)
 
+#ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC BILLION
+#endif
+#ifndef USEC_PER_SEC
 #define USEC_PER_SEC MILLION
+#endif
+#ifndef MSEC_PER_SEC
 #define MSEC_PER_SEC THOUSAND
+#endif
 
 #define ns_to_ms(v) ((v) / MILLION)
 #define ns_to_sec(v) ((v) / BILLION)
 #define ns_to_us(v) ((v) / THOUSAND)
 
 #define us_to_ms(v) ((v) / THOUSAND)
-#define us_to_ns(v) ((v)*THOUSAND)
+#define us_to_ns(v) ((v) * THOUSAND)
 #define us_to_sec(v) ((v) / MILLION)
 
-#define ms_to_ns(v) ((v)*MILLION)
-#define ms_to_us(v) ((v)*THOUSAND)
+#define ms_to_ns(v) ((v) * MILLION)
+#define ms_to_us(v) ((v) * THOUSAND)
 #define ms_to_sec(v) ((v) / THOUSAND)
 
-#define sec_to_ns(v) ((v)*BILLION)
-#define sec_to_us(v) ((v)*MILLION)
-#define sec_to_ms(v) ((v)*THOUSAND)
+#define sec_to_ns(v) ((v) * BILLION)
+#define sec_to_us(v) ((v) * MILLION)
+#define sec_to_ms(v) ((v) * THOUSAND)
 
 typedef struct {
     /*
@@ -250,7 +239,7 @@ typedef struct {
      */
     uint64_t ops;         /* Total operations */
     uint64_t latency_ops; /* Total ops sampled for latency */
-    uint64_t latency;     /* Total latency */
+    uint64_t latency;     /* Total latency (ns) */
 
     uint64_t last_latency_ops; /* Last read by monitor thread */
     uint64_t last_latency;
@@ -259,8 +248,8 @@ typedef struct {
      * Minimum/maximum latency, shared with the monitor thread, that is, the monitor thread clears
      * it so it's recalculated again for each period.
      */
-    uint32_t min_latency; /* Minimum latency (uS) */
-    uint32_t max_latency; /* Maximum latency (uS) */
+    uint64_t min_latency; /* Minimum latency (ns) */
+    uint64_t max_latency; /* Maximum latency (ns) */
 
     /*
      * Latency buckets.
@@ -289,7 +278,6 @@ struct __wtperf_thread {    /* Per-thread structure */
 
     TRACK backup;         /* Backup operations */
     TRACK ckpt;           /* Checkpoint operations */
-    TRACK flush;          /* Flush_tier operations */
     TRACK insert;         /* Insert operations */
     TRACK modify;         /* Modify operations */
     TRACK read;           /* Read operations */
@@ -313,11 +301,11 @@ char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
 int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
 void generate_index_key(WTPERF_THREAD *, bool, char *, uint64_t);
-void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
-void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+void latency_insert(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
+void latency_modify(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
 void latency_print(WTPERF *);
-void latency_read(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
-void latency_update(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+void latency_read(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
+void latency_update(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
 int run_truncate(WTPERF *, WTPERF_THREAD *, WT_CURSOR *, WT_SESSION *, int *);
 int setup_log_file(WTPERF *);
 void setup_throttle(WTPERF_THREAD *);
@@ -327,7 +315,6 @@ void stop_idle_table_cycle(WTPERF *, wt_thread_t);
 void worker_throttle(WTPERF_THREAD *);
 uint64_t sum_backup_ops(WTPERF *);
 uint64_t sum_ckpt_ops(WTPERF *);
-uint64_t sum_flush_ops(WTPERF *);
 uint64_t sum_scan_ops(WTPERF *);
 uint64_t sum_insert_ops(WTPERF *);
 uint64_t sum_modify_ops(WTPERF *);

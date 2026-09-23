@@ -30,10 +30,10 @@ import os, shutil
 import wiredtiger, wttest
 from wiredtiger import stat
 
-# test_config04.py
-#    Individually test config options
+# Individually test config options
 class test_config04(wttest.WiredTigerTestCase):
-    table_name1 = 'test_config04'
+    test_name = __qualname__
+    table_name1 = test_name
     log1 = 'WiredTigerLog.0000000001'
     nentries = 100
 
@@ -246,9 +246,9 @@ class test_config04(wttest.WiredTigerTestCase):
             '/eviction updates target must be lower than the eviction updates trigger/')
 
     def test_invalid_config(self):
-        # The tiered/disagg hook modifies the wiredtiger_open configuration string.
+        # The disagg hook modifies the wiredtiger_open configuration string.
         # This may influence what particular error message occurs in certain cases.
-        classic = not (self.runningHook('tiered') or self.runningHook('disagg'))
+        classic = not self.runningHook('disagg')
         match_any = '/./'
 
         unbalanced_brackets = (['}', '{', '{}}', '(]}', '(create=]}', '(create='],

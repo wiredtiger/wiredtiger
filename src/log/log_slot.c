@@ -268,7 +268,10 @@ __log_slot_new(WT_SESSION_IMPL *session)
             if (pool_i >= WTI_SLOT_POOL)
                 pool_i = 0;
             slot = &log->slot_pool[pool_i];
-            if (__wt_atomic_load_int64_v_relaxed(&slot->slot_state) == WTI_LOG_SLOT_FREE) {
+            /*
+             * Guard: slot_state. Acquire-load pairs with the release-store in __wti_log_slot_free.
+             */
+            if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) == WTI_LOG_SLOT_FREE) {
                 /*
                  * Acquire our starting position in the log file. Assume the full buffer size.
                  */
@@ -499,10 +502,11 @@ int
 __wti_log_slot_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WTI_LOG *log;
     WTI_LOGSLOT *slot;
     int64_t rel;
-    int i;
+    int i, write_ret;
 
     conn = S2C(session);
     log = conn->log_mgr.log;
@@ -516,15 +520,22 @@ __wti_log_slot_destroy(WT_SESSION_IMPL *session)
               WTI_LOG_SLOT_RESERVED)) {
             rel =
               WTI_LOG_SLOT_RELEASED_BUFFERED(__wt_atomic_load_int64_v_relaxed(&slot->slot_state));
-            if (rel != 0)
+            if (rel != 0) {
                 /* Writes are not throttled. */
-                WT_RET(__wt_write(session, slot->slot_fh,
+                write_ret = __wt_write(session, slot->slot_fh,
                   __wt_atomic_load_int64_relaxed(&slot->slot_start_offset), (size_t)rel,
-                  slot->slot_buf.mem));
+                  slot->slot_buf.mem);
+                if (write_ret != 0)
+                    __wt_verbose_warning(session, WT_VERB_LOG,
+                      "log_slot_destroy: failed to write slot %d to %s: %s", i,
+                      slot->slot_fh == NULL ? "(null)" : slot->slot_fh->name,
+                      __wt_strerror(session, write_ret, NULL, 0));
+                WT_TRET(write_ret);
+            }
         }
         __wt_buf_free(session, &log->slot_pool[i].slot_buf);
     }
-    return (0);
+    return (ret);
 }
 
 /*
@@ -702,5 +713,8 @@ __wti_log_slot_free(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot)
     WT_UNUSED(session);
     __wt_atomic_store_uint16_relaxed(&slot->flags_atomic, WTI_SLOT_INIT_FLAGS);
     __wt_atomic_store_int32_relaxed(&slot->slot_error, 0);
-    __wt_atomic_store_int64_v_relaxed(&slot->slot_state, WTI_LOG_SLOT_FREE);
+    /*
+     * Guard: slot_state. Release-store pairs with the acquire-load in __log_slot_new.
+     */
+    __wt_atomic_store_int64_v_release(&slot->slot_state, WTI_LOG_SLOT_FREE);
 }

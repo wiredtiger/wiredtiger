@@ -26,16 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_bug010.py
-#       check that checkpoints don't leave files marked clean when they
-#       did not write all updates out.
+# check that checkpoints don't leave files marked clean when they
+# did not write all updates out.
 #
 
 import wttest, wtthread
 import threading
 
 class test_bug010(wttest.WiredTigerTestCase):
-    name = 'test_bug010'
+    test_name = __qualname__
+    name = test_name
     uri = 'table:' + name
     num_tables = 2000 if wttest.islongtest() else 200
 
@@ -43,8 +43,6 @@ class test_bug010(wttest.WiredTigerTestCase):
     # increase the likelihood of triggering the symptom
     conn_config = 'checkpoint_sync=false'
 
-    @wttest.skip_for_hook("disagg", "layered trees do not support opening checkpoint cursors")
-    # FIXME-WT-16532 The setup of this test with the disagg hook causes a hard-to-reproduce failure.
     def test_checkpoint_dirty(self):
         # Create a lot of tables
         # insert the same item in each

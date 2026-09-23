@@ -32,7 +32,6 @@ import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint22.py
 #
 # Test that skipping trees in checkpoints doesn't cause us to use the wrong
 # write generation.
@@ -73,7 +72,6 @@ from wtscenario import make_scenarios
 # There doesn't seem any immediate reason to think timestamps would add anything.
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [

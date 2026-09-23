@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_readonly03.py
-#   Readonly: Test connection readonly mode with modifying methods.  Confirm
-#   all return ENOTSUP.
+# Readonly: Test connection readonly mode with modifying methods.  Confirm
+# all return ENOTSUP.
 #
 
 import wiredtiger, wttest
@@ -36,14 +35,15 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 
 class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
-    uri = 'table:test_readonly03'
-    uri2 = 'table:test_readonly03_2'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
+    uri2 = f'table:{test_name}_2'
     create = True
 
     conn_params = 'create,log=(enabled),operation_tracking=(enabled=false),'
     conn_params_rd = 'readonly=true,operation_tracking=(enabled=false),'
 
-    session_ops = [ 'alter', 'create', 'compact', 'drop', 'flush_tier', 'log_flush',
+    session_ops = [ 'alter', 'create', 'compact', 'drop', 'log_flush',
         'log_printf', 'salvage', 'truncate', ]
     cursor_ops = [ 'insert', 'remove', 'update', ]
 
@@ -99,9 +99,6 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
             elif op == 'drop':
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.drop(self.uri, None), msg)
-            elif op == 'flush_tier':
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.session.checkpoint('flush_tier=(enabled)'), msg)
             elif op == 'log_flush':
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.log_flush(None), msg)

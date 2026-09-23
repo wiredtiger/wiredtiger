@@ -32,7 +32,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wtbackup import backup_base
 
-# test_live_restore02.py
 # Enable background thread migration and loop until it completes
 class test_live_restore02(backup_base):
     format_values = [
@@ -58,12 +57,6 @@ class test_live_restore02(backup_base):
             r"Live restore has finished"
         ]
         self.ignoreStdoutPattern("|".join(live_restore_patterns))
-
-    def get_stat(self, statistic):
-        stat_cursor = self.session.open_cursor("statistics:")
-        val = stat_cursor[statistic][2]
-        stat_cursor.close()
-        return val
 
     def test_live_restore02(self):
         # Live restore is not supported on Windows.

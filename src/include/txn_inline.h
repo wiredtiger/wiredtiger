@@ -54,7 +54,7 @@ __wt_txn_log_op_check(WT_SESSION_IMPL *session)
      * out almost all log records, check it first.
      */
     if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      !FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      !FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         return (false);
 
     /*
@@ -110,7 +110,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     op = txn->mod + txn->mod_count - 1;
 
     if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
-      WT_IS_METADATA(op->btree->dhandle))
+      WT_IS_ANY_METADATA(op->btree->dhandle))
         return;
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL);
@@ -144,7 +144,7 @@ __txn_op_need_set_key(WT_TXN *txn, WT_TXN_OP *op)
         return (false);
 
     /* Metadata writes cannot be prepared. */
-    if (WT_IS_METADATA(op->btree->dhandle))
+    if (WT_IS_ANY_METADATA(op->btree->dhandle))
         return (false);
 
     /* Auto transactions cannot be prepared. */
@@ -204,7 +204,15 @@ __txn_apply_prepare_state_update(
          *
          * As updating timestamp might not be an atomic operation, we will manage using state.
          */
-        __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_LOCKED);
+        __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
+        /*
+         * A release store would only prevent prior writes from being reordered after it; it would
+         * not prevent the subsequent timestamp writes from being reordered before it on
+         * weakly-ordered architectures. The explicit release barrier ensures this prepare state
+         * write is ordered before any timestamp field is modified, so a concurrent reader can never
+         * observe updated timestamps while the prepare state appears unchanged.
+         */
+        WT_RELEASE_BARRIER();
         /*
          * Ensure the transaction id from the prepared update in the ingest btree is propagated
          * during step-up in disagg to maintain correct transaction visibility both during and after
@@ -586,6 +594,38 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
+ * __txn_disagg_commit_ts_check --
+ *     Transactions committing layered content on a disaggregated connection must carry a commit
+ *     timestamp.
+ */
+static WT_INLINE int
+__txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
+{
+    /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        return (0);
+
+    if (!__wt_conn_is_disagg(session))
+        return (0);
+
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
+        return (0);
+
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+        return (0);
+
+    /* Metadata commits untimestamped by design and its transactions cannot be rolled back. */
+    if (WT_IS_ANY_METADATA(btree->dhandle))
+        return (0);
+
+    /* Only layered constituents need ordering. */
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+}
+
+/*
  * __wt_txn_timestamp_usage_check --
  *     Check if a commit will violate timestamp rules.
  */
@@ -615,6 +655,8 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
+
+    WT_RET(__txn_disagg_commit_ts_check(session, txn, btree));
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
@@ -772,13 +814,15 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     txn = session->txn;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    WT_ASSERT(
+      session, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
 
     if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
 
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
+    WT_ASSERT(session, t->txn_id == WT_TXN_NONE);
     t->txn_id = session->txn->time_point.id;
 
     op->u.follower_truncate.t = t;
@@ -824,6 +868,25 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     txn = session->txn;
 
+    /*
+     * During ingest replay there is no running transaction; timestamp the page delete directly from
+     * the replay context and skip the transaction machinery.
+     */
+    if (F_ISSET(session, WT_SESSION_INGEST_REPLAY)) {
+        ref->page_del->txnid = session->replay_trunc_ctx.txn_id;
+        ref->page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
+        ref->page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
+        ref->page_del->committed = true;
+
+        /*
+         * Fast truncate only takes pages with a disk address, which a tree awaiting publication
+         * never has, so there is no unpublished minimum to maintain here.
+         */
+        WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH),
+          "fast truncate of a table awaiting publication");
+        return (0);
+    }
+
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_REF_DELETE;
     op->u.ref = ref;
@@ -863,7 +926,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     /*
      * The metadata is tracked specially because of optimizations for checkpoints.
      */
-    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
+    if (session->dhandle != NULL && WT_IS_ANY_METADATA(session->dhandle))
         return (__wt_atomic_load_uint64_v_relaxed(&txn_global->metadata_pinned));
 
     /*
@@ -943,11 +1006,13 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
     bool has_pinned_timestamp;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
@@ -959,8 +1024,8 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     }
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
-    if (S2C(session)->version_cursor_count > 0) {
-        *pinned_tsp = txn_global->version_cursor_pinned_timestamp;
+    if (__wt_atomic_load_uint32_acquire(&conn->version_cursor_count) > 0) {
+        *pinned_tsp = __wt_atomic_load_uint64_relaxed(&txn_global->version_cursor_pinned_timestamp);
         return;
     }
 
@@ -978,13 +1043,26 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
      * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
      * we take the minimum of it with the oldest timestamp, which is what we want.
+     *
+     * On a disaggregated storage follower, cap using the last completed checkpoint timestamp to
+     * retain all data on the ingest btree up to that point.
      */
-    checkpoint_ts = txn_global->checkpoint_timestamp;
-
-    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
-        *pinned_tsp = checkpoint_ts;
-    else
-        *pinned_tsp = pinned_ts;
+    if (__wt_conn_is_disagg(session) &&
+      (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
+        F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
+        checkpoint_ts =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+        if (checkpoint_ts < pinned_ts)
+            *pinned_tsp = checkpoint_ts;
+        else
+            *pinned_tsp = pinned_ts;
+    } else {
+        checkpoint_ts = txn_global->checkpoint_timestamp;
+        if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
+            *pinned_tsp = checkpoint_ts;
+        else
+            *pinned_tsp = pinned_ts;
+    }
 }
 
 /*
@@ -1226,11 +1304,11 @@ __wt_txn_visible_id_snapshot(
 }
 
 /*
- * __txn_visible_id --
+ * __wt_txn_visible_id --
  *     Can the current transaction see the given ID?
  */
 static WT_INLINE bool
-__txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
+__wt_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 {
     WT_TXN *txn;
 
@@ -1318,6 +1396,66 @@ __wt_txn_snap_min_visible(
 }
 
 /*
+ * __wt_txn_snapshot_intersects_range --
+ *     Return whether any id in the sorted snapshot array falls within the inclusive range [lo, hi].
+ *     The array holds the concurrent (uncommitted-at-snapshot) transaction ids in ascending order.
+ */
+static WT_INLINE bool
+__wt_txn_snapshot_intersects_range(
+  uint64_t *snapshot, uint32_t snapshot_count, uint64_t lo, uint64_t hi)
+{
+    uint32_t base, indx, limit;
+
+    /* Find the lowest index whose id is not less than lo, then test it against the upper bound. */
+    for (base = 0, limit = snapshot_count; limit != 0; limit >>= 1) {
+        indx = base + (limit >> 1);
+        if (snapshot[indx] < lo) {
+            base = indx + 1;
+            --limit;
+        }
+    }
+    return (base < snapshot_count && snapshot[base] <= hi);
+}
+
+/*
+ * __wt_txn_snap_range_visible --
+ *     Can the current transaction's snapshot see an entire range of stop transactions? Used to
+ *     decide whether a fully-deleted page can be skipped during a tree walk. Unlike
+ *     __wt_txn_snap_min_visible, which only proves visibility when the whole range sits below the
+ *     smallest concurrent transaction, this also skips when the range straddles the concurrent
+ *     window but no concurrent transaction's id falls inside it. As with the snap_min variant, this
+ *     assesses broader visibility from an aggregated time window; it does not reflect whether a
+ *     specific update is visible.
+ */
+static WT_INLINE bool
+__wt_txn_snap_range_visible(WT_SESSION_IMPL *session, uint64_t oldest_id, uint64_t newest_id,
+  wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+    WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
+
+    /* A stop from a transaction not committed at snapshot time (or still in flight) blocks skip. */
+    if (newest_id >= txn->snapshot_data.snap_max)
+        return (false);
+
+    /*
+     * If the whole stop range sits below the smallest concurrent transaction, every stop committed
+     * before the snapshot and is visible. Otherwise the range overlaps the concurrent window: only
+     * proceed when no concurrent transaction's id falls within the range, which proves every stop
+     * on the page committed before the snapshot.
+     */
+    if (newest_id >= txn->snapshot_data.snap_min && txn->snapshot_data.snapshot_count != 0 &&
+      __wt_txn_snapshot_intersects_range(
+        txn->snapshot_data.snapshot, txn->snapshot_data.snapshot_count, oldest_id, newest_id))
+        return (false);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, timestamp, durable_timestamp));
+}
+
+/*
  * __wt_txn_visible --
  *     Can the current transaction see the given ID/timestamp?
  */
@@ -1325,7 +1463,7 @@ static WT_INLINE bool
 __wt_txn_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
-    if (!__txn_visible_id(session, id))
+    if (!__wt_txn_visible_id(session, id))
         return (false);
 
     /* Transactions read their writes, regardless of timestamps. */
@@ -1478,7 +1616,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         *restored_updp = NULL;
     __wt_upd_value_clear(cbt->upd_value);
 
-    for (; upd != NULL; upd = upd->next) {
+    for (; upd != NULL; upd = __wt_atomic_load_ptr_relaxed(&upd->next)) {
         /* Skip reserved place-holders, they're never visible. */
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
@@ -1708,9 +1846,9 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+    if (!__wt_btree_stays_in_memory(S2BT(session)) &&
       F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
-      !F_ISSET(session->dhandle, WT_DHANDLE_HS) && !WT_IS_METADATA(session->dhandle)) {
+      !F_ISSET(session->dhandle, WT_DHANDLE_HS) && !WT_IS_ANY_METADATA(session->dhandle)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
          * on every random 100th iteration when this is enabled.
@@ -1797,8 +1935,11 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
     if (__wt_session_gen(session, WT_GEN_EVICT) != 0)
         return;
 
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
-    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    session->txn->update_dirty_bytes += size;
+
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_SESSION_INCRV(session, txn_updates_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
 }
@@ -1812,15 +1953,26 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 {
     int64_t val;
 
-    val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    session->txn->update_dirty_bytes = 0;
+    session->txn->truncate_dirty_bytes = 0;
+
+    WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
-        WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_SESSION_SET(session, txn_updates_bytes_dirty, 0);
+    }
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV(session, cache_truncate_txn_uncommitted_bytes, val);
+        WT_STAT_SESSION_SET(session, txn_truncate_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
     if (val != 0) {
-        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_count, val);
         WT_STAT_SESSION_SET(session, txn_updates, 0);
     }
 }
@@ -1861,12 +2013,16 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 static WT_INLINE int
 __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
-    WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN *txn;
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
-    WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
+
+    /*
+     * Unlink the item before touching the transaction: nothing after this can fail, so a claim
+     * failure leaves the transaction untouched and the caller can discard its state.
+     */
+    WT_RET(__wt_prepared_discover_unlink_item(session, prepared_id, &prepared_item));
     txn->time_point.prepared_id = prepared_id;
     txn->time_point.prepare_timestamp = prepared_item->prepare_timestamp;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE);
@@ -1888,11 +2044,82 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
-    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
+    __wt_prepared_discover_free_item(session, prepared_item);
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
-    return (ret);
+    return (0);
+}
+
+/*
+ * __wt_txn_stepdown_straddler_check --
+ *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
+ *     checkpointed at that timestamp, and everything committed after it must go to the ingest
+ *     constituent to survive the role change. Transactions that begin once the timestamp is set
+ *     route their writes to ingest (mirroring to both when write mirroring is enabled). A write
+ *     transaction that began before then routed its writes to stable, so if it is still running it
+ *     "straddles" the boundary: its commit can land above the step-down timestamp, yet its content
+ *     sits in stable, where nothing above the checkpoint survives. Rather than risk losing the
+ *     writes, return WT_ROLLBACK and have the application retry it as a new transaction, which
+ *     routes to ingest. For read operations only the assertion applies.
+ */
+static WT_INLINE int
+__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
+{
+    WT_TXN *txn = session->txn;
+    /*
+     * A relaxed load suffices: for cursor operations rejecting a straddler here is only an
+     * optimization ahead of the commit-time check, and at commit the caller holds the step-down
+     * lock, which orders this read against the timestamp being set.
+     */
+    wt_timestamp_t stepdown_ts =
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+
+    /*
+     * While the step-down timestamp is set, layered operations must run in explicit snapshot
+     * transactions. Explicit, because an implicit (autocommit) transaction only begins inside the
+     * constituent operation, after this check and the constituent routing have made their
+     * decisions, so it would evade both. Snapshot, because a transaction decides once, at begin,
+     * whether its reads consult ingest, and that decision only stays correct while it keeps reading
+     * the state it saw at begin: under read-committed or read-uncommitted it would see newer
+     * commits without looking in the table they went to. The assertion comes before the early
+     * return so it also covers read operations.
+     */
+    WT_ASSERT(session,
+      stepdown_ts == WT_TS_NONE ||
+        (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
+          txn->isolation == WT_ISO_SNAPSHOT));
+
+    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->stepdown_ts_set)
+        return (0);
+
+    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
+      "step-down straddler rollback: txn began before stepdown timestamp was set %" PRIu64,
+      stepdown_ts);
+    WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
+    __wt_session_set_last_error(
+      session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
+    return (WT_ROLLBACK);
+}
+
+/*
+ * __wt_txn_config_clear --
+ *     Discard a transaction's configuration. The cache-size exemption is the only setting stored
+ *     outside the transaction, so it is dropped here, and only when the transaction claimed it
+ *     rather than the session. Clearing twice is harmless, so error paths may nest.
+ */
+static WT_INLINE void
+__wt_txn_config_clear(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE))
+        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    txn->flags = 0;
+    txn->time_point.flags = 0;
+    txn->operation_timeout_us = 0;
 }
 
 /*
@@ -1903,6 +2130,7 @@ static WT_INLINE int
 __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     WT_TXN *txn;
     uint64_t prepared_id;
 
@@ -1912,17 +2140,21 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
+    txn->stepdown_ts_set = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    WT_RET(__wt_txn_config(session, conf));
+    /* A stale exemption means an earlier transaction was abandoned without clearing its config. */
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_IGNORE_CACHE_SIZE));
+
+    WT_ERR(__wt_txn_config(session, conf));
 
     if (conf != NULL) {
-        WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
+        WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
-            WT_RET(__wt_txn_claim_prepared_txn(session, prepared_id));
+            WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
+            WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
             return (0);
         }
     }
@@ -1934,16 +2166,36 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (txn->isolation == WT_ISO_SNAPSHOT &&
       !(F_ISSET(txn, WT_TXN_AUTOCOMMIT) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
         if (session->ncursors > 0)
-            WT_RET(__wt_session_copy_values(session));
+            WT_ERR(__wt_session_copy_values(session));
 
         /*
          * Stall here if the cache is completely full. Eviction check can return rollback, but the
          * WT_SESSION.begin_transaction API can't, continue on.
          */
-        WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, true, NULL), WT_ROLLBACK);
+        WT_ERR_ERROR_OK(__wt_evict_app_assist_worker_check(session, false, true, true, false, NULL),
+          WT_ROLLBACK, false);
 
         __wt_txn_get_snapshot(session);
+    }
+
+    /*
+     * Record whether the step-down timestamp was set when this transaction started; the commit-time
+     * check rolls back write transactions that started before it was set.
+     *
+     * Read it after taking the snapshot: it is also used to determine whether cursors should access
+     * the ingest table. Since snapshots are synchronized, reading a snapshot that contains ingest
+     * changes made after the step-down timestamp was set guarantees the timestamp is observed as
+     * set here as well.
+     *
+     * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
+     * the timestamp as set also makes the writes of transactions that committed before it was set
+     * visible.
+     */
+    if (__wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
+                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     }
 
     F_SET(txn, WT_TXN_RUNNING);
@@ -1956,6 +2208,18 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     __txn_clear_bytes_dirty(session);
 
     return (0);
+
+err:
+    /*
+     * In the event that we error we should clear the flags on the transaction so they are not set
+     * in a subsequent call to transaction begin.
+     *
+     * Wiping the flags is only safe before a snapshot is allocated: the release path keys on
+     * WT_TXN_HAS_SNAPSHOT to know it must give the snapshot back.
+     */
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
+    __wt_txn_config_clear(session);
+    return (ret);
 }
 
 /*
@@ -1998,7 +2262,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID) &&
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, NULL));
+        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, false, NULL));
 
     return (0);
 }
@@ -2231,7 +2495,7 @@ __txn_modify_block(
             if (txn->snapshot_data.snapshot_count > 0) {
                 WT_ERR(__wt_buf_catfmt(session, buf, ", snapshots=["));
                 for (snap_count = 0; snap_count < txn->snapshot_data.snapshot_count - 1;
-                     ++snap_count)
+                  ++snap_count)
                     WT_ERR(__wt_buf_catfmt(
                       session, buf, "%" PRIu64 ",", txn->snapshot_data.snapshot[snap_count]));
                 WT_ERR(__wt_buf_catfmt(
@@ -2275,8 +2539,10 @@ static WT_INLINE int
 __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
   wt_timestamp_t *prev_tsp, u_int modify_type)
 {
+    WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    bool tw_found;
 
     txn = session->txn;
 
@@ -2298,10 +2564,32 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
 
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
             return (WT_NOTFOUND);
+
+        /*
+         * Getting here means the update chain has nothing left: either the key was never modified
+         * at all, or the loop above walked the chain to its end and every update on it was aborted.
+         * Either way, the on-page cell is the only remaining evidence of whether there's anything
+         * to remove. No time window at all means no on-page value either: a row-store key with an
+         * insert list of its own has no on-page row (that's what distinguishes it from an overlaid
+         * on-page row, which updates through the row's own update slot instead), and a
+         * variable-length column-store record can be a deleted placeholder because that record
+         * number never held a value. A time window with an already-visible stop means the key was
+         * already removed. Either way, reject the tombstone instead of stacking it onto nothing.
+         */
+        if (upd == NULL) {
+            tw_found = (S2BT(session)->type != BTREE_ROW || cbt->ins == NULL) &&
+              __wt_read_cell_time_window(cbt, &tw);
+
+            if (!tw_found)
+                return (WT_NOTFOUND);
+
+            if (WT_TIME_WINDOW_HAS_STOP(&tw) && __wt_txn_tw_stop_visible(session, &tw))
+                return (WT_NOTFOUND);
+        }
     }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */
-    if (!WT_IS_METADATA(cbt->dhandle)) {
+    if (!WT_IS_ANY_METADATA(cbt->dhandle)) {
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)

@@ -32,15 +32,8 @@ from wtdataset import SimpleDataSet
 from wtbackup import backup_base
 
 
-# test_live_restore06.py
 # Ensure WiredTiger cleans all 'nbits=-1' strings from file metadata during backups.
 class test_live_restore06(backup_base):
-
-    def get_stat(self, statistic):
-        stat_cursor = self.session.open_cursor("statistics:")
-        val = stat_cursor[statistic][2]
-        stat_cursor.close()
-        return val
 
     def test_live_restore06(self):
         # FIXME-WT-14051 Live restore is not supported on Windows.

@@ -11,11 +11,11 @@
 #define WT_DEFAULT_PENDING_PREPARED_DISCOVER_HASHSIZE 256
 
 /*
- * __wt_prepared_discover_find_item --
+ * __prepared_discover_find_item --
  *     Find a pending prepared item by its ID in the pending prepared items hash map.
  */
-int
-__wt_prepared_discover_find_item(
+static int
+__prepared_discover_find_item(
   WT_SESSION_IMPL *session, uint64_t prepared_id, WT_PENDING_PREPARED_ITEM **prepared_item)
 {
     WT_CONNECTION_IMPL *conn;
@@ -46,8 +46,16 @@ static int
 __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_ITEM ingest_value;
     WT_UPDATE *upd;
 
+    /*
+     * Write the out-parameters before any error path can return: the release build otherwise flags
+     * the caller's use of the update pointer as possibly uninitialized.
+     */
+    *updp = NULL;
     *sizep = 0;
     upd = NULL;
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
@@ -67,7 +75,12 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
         upd->prepare_state = WT_PREPARE_INPROGRESS;
     } else {
         WT_ASSERT(session, WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw)));
-        WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, sizep));
+        /*
+         * Restoring a stable cell into the ingest table must re-establish the ingest escape when
+         * the stable image is unescaped, the mirror of the drain conversion.
+         */
+        WT_ERR(__wt_clayered_stable_to_ingest_value(session, value, &ingest_value, &tmp));
+        WT_ERR(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &upd, sizep));
         upd->txnid = unpack->tw.start_txn;
         upd->prepared_id = unpack->tw.start_prepared_id;
         upd->prepare_ts = unpack->tw.start_prepare_ts;
@@ -76,7 +89,9 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
         upd->prepare_state = WT_PREPARE_INPROGRESS;
     }
     *updp = upd;
-    return (0);
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -115,7 +130,7 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
     WT_TXN_GLOBAL *txn_global;
     uint64_t bucket;
 
-    if (__wt_prepared_discover_find_item(session, prepared_id, prepared_item) == 0)
+    if (__prepared_discover_find_item(session, prepared_id, prepared_item) == 0)
         return (0);
 
     conn = S2C(session);
@@ -136,11 +151,13 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
 }
 
 /*
- * __wt_prepared_discover_remove_item --
- *     Find and remove a pending prepared item by its ID in the pending prepared items hash map.
+ * __wt_prepared_discover_unlink_item --
+ *     Find and unlink a pending prepared item by its ID in the pending prepared items hash map. The
+ *     caller owns the item and must free it with __wt_prepared_discover_free_item.
  */
 int
-__wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_id)
+__wt_prepared_discover_unlink_item(
+  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_PENDING_PREPARED_ITEM **prepared_item)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PENDING_PREPARED_ITEM *item;
@@ -156,16 +173,25 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
         TAILQ_FOREACH (item, &pending_prepare_items->hash[bucket], hashq) {
             if (item->prepared_id == prepared_id) {
                 TAILQ_REMOVE(&pending_prepare_items->hash[bucket], item, hashq);
-                /* Clean up memory of unclaimed mod array */
-                WT_ASSERT_ALWAYS(
-                  session, item->mod_count == 0, "Removing an unclaimed prepared item.");
-                __wt_free(session, item->mod);
-                __wt_free(session, item);
+                *prepared_item = item;
                 return (0);
             }
         }
     }
     return (WT_NOTFOUND);
+}
+
+/*
+ * __wt_prepared_discover_free_item --
+ *     Free a pending prepared item the caller has removed from the pending prepared items hash map.
+ */
+void
+__wt_prepared_discover_free_item(WT_SESSION_IMPL *session, WT_PENDING_PREPARED_ITEM *prepared_item)
+{
+    /* Clean up memory of unclaimed mod array */
+    WT_ASSERT_ALWAYS(session, prepared_item->mod_count == 0, "Freeing an unclaimed prepared item.");
+    __wt_free(session, prepared_item->mod);
+    __wt_free(session, prepared_item);
 }
 
 /*
@@ -195,57 +221,50 @@ __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *up
 }
 
 /*
+ * __prepared_discover_apply_upd_on_ingest --
+ *     Search the ingest btree for the key, write the update, and register the prepared artifact.
+ *     Must be called with session->dhandle set to the ingest btree.
+ *
+ * The cursor is reused across keys in the same walk: the row search overwrites cbt->ref without
+ *     releasing the prior hazard pointer, so it must be released here before each search.
+ *
+ * Artifact registration must run with the ingest dhandle active so that op->btree is captured as
+ *     the ingest btree; the prepared transaction commit searches that btree to resolve the op.
+ */
+static int
+__prepared_discover_apply_upd_on_ingest(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd)
+{
+    WT_DECL_RET;
+
+    if (cbt->ref != NULL) {
+        WT_RET(__wt_page_release(session, cbt->ref, 0));
+        cbt->ref = NULL;
+    }
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_RET(ret);
+    WT_RET(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+    return (__wti_prepared_discover_add_artifact_upd(session, upd, key));
+}
+
+/*
  * __wti_prepared_discover_restore_and_add_artifact_upd --
- *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
- *     prepared update needs to be restored onto ingest table so that the follower node can then
- *     commit the prepared transaction. This function opens the ingest table and inserts the update
- *     restored from disk onto the ingest table.
+ *     In disaggregated storage, follower nodes cannot modify the stable table, so a prepared update
+ *     found on disk must be restored onto the ingest table for later commit. The ingest cursor is
+ *     supplied by the caller and reused across all prepared keys in the same btree walk.
  */
 int
 __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
-  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
+  WT_CURSOR *ingest_cursor, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_UPDATE *upd;
-    uint32_t i, table_count;
-
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-
-    cursor = NULL;
-    entry = NULL;
-    conn = S2C(session);
-    manager = &conn->layered_table_manager;
-    table_count = manager->open_layered_table_count;
-    for (i = 0; i < table_count; i++) {
-        /* Find the entry with stable uri that matches the currently opened dhandle. */
-        if (manager->entries[i] != NULL) {
-            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
-                entry = manager->entries[i];
-                break;
-            }
-        }
-    }
-    WT_ASSERT_ALWAYS(
-      session, entry != NULL, "Unable to find matching ingest table to restore prepared update");
-    /* Open cursor on the ingest table */
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
     size_t size;
-    WT_ERR(__prepare_discover_alloc_upd(session, value, unpack, &upd, &size));
 
-    /* Search the page and apply the modification. */
-    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
-    WT_ERR(ret);
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
-    WT_ERR(__wti_prepared_discover_add_artifact_upd(session, upd, key));
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
+    cbt = (WT_CURSOR_BTREE *)ingest_cursor;
+    WT_RET(__prepare_discover_alloc_upd(session, value, unpack, &upd, &size));
+    WT_WITH_DHANDLE(
+      session, cbt->dhandle, ret = __prepared_discover_apply_upd_on_ingest(session, cbt, key, upd));
     return (ret);
 }

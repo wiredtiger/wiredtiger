@@ -144,6 +144,16 @@
         __wt_session_set_last_error(session, v, WT_NONE, __VA_ARGS__); \
         return (__ret);                                                \
     } while (0)
+#define WT_RET_MSG_CHK(session, v, ...)                                        \
+    do {                                                                       \
+        int __ret = (v);                                                       \
+        if (__ret != 0) {                                                      \
+            __wt_error_log_add_helper(#v, __ret, WT_NONE);                     \
+            __wt_err(session, __ret, __VA_ARGS__);                             \
+            __wt_session_set_last_error(session, __ret, WT_NONE, __VA_ARGS__); \
+            return (__ret);                                                    \
+        }                                                                      \
+    } while (0)
 #define WT_RET_SUB(session, v, sub_v, ...)                           \
     do {                                                             \
         int __ret = (v);                                             \
@@ -171,12 +181,23 @@
         WT_RET_TEST(__ret == (e), e); \
     } while (0)
 /*
+ * __WT_TRET_DOMINANT --
+ *     True when an error code can override another because it is stronger.
+ */
+#define __WT_TRET_DOMINANT(__ret) ((__ret) == WT_PANIC)
+
+/*
+ * __WT_TRET_SOFT --
+ *     True when an error code is weak enough that another can override it.
+ */
+#define __WT_TRET_SOFT(__ret) \
+    ((__ret) == 0 || (__ret) == WT_DUPLICATE_KEY || (__ret) == WT_NOTFOUND || (__ret) == WT_RESTART)
+
+/*
  * __WT_TRET_WINS --
  *     True when __ret should override the current value of ret. Requires ret to be in scope.
  */
-#define __WT_TRET_WINS(__ret)                                                          \
-    (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
-      ret == WT_RESTART)
+#define __WT_TRET_WINS(__ret) (__WT_TRET_DOMINANT(__ret) || __WT_TRET_SOFT(ret))
 
 #ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
 /* Set "ret" if not already set. */
@@ -281,20 +302,21 @@ __wt_tret_error_ok(int *pret, int a, int e)
  * TRIGGER_ABORT --
  *  Abort the program.
  *
- * When unit testing assertions we don't want to call __wt_abort, but we do want to track that we
- * should have done so.
+ * When unit testing assertions we don't want to abort, but we do want to track that we should have
+ * done so.
  */
 #ifdef HAVE_UNITTEST_ASSERTS
-#define TRIGGER_ABORT(session, exp, ...)                                                    \
-    do {                                                                                    \
-        if ((session) == NULL) {                                                            \
-            __wt_errx(                                                                      \
-              session, "A non-NULL session must be provided when unit testing assertions"); \
-            __wt_abort(session);                                                            \
-        }                                                                                   \
-        BUILD_ASSERTION_STRING(                                                             \
-          session, (session)->unittest_assert_msg, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__);   \
-        (session)->unittest_assert_hit = true;                                              \
+#define TRIGGER_ABORT(session, exp, ...)                                                      \
+    do {                                                                                      \
+        WT_SESSION_IMPL *__session = (WT_SESSION_IMPL *)(session);                            \
+        if (__session == NULL) {                                                              \
+            __wt_errx(                                                                        \
+              __session, "A non-NULL session must be provided when unit testing assertions"); \
+            __wt_abort(__session);                                                            \
+        }                                                                                     \
+        BUILD_ASSERTION_STRING(                                                               \
+          __session, __session->unittest_assert_msg, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__);   \
+        __session->unittest_assert_hit = true;                                                \
     } while (0)
 #else
 #define TRIGGER_ABORT(session, exp, ...)                                             \
@@ -351,6 +373,21 @@ __wt_tret_error_ok(int *pret, int a, int e)
         if (WT_UNLIKELY(!(exp)))                      \
             TRIGGER_ABORT(session, exp, __VA_ARGS__); \
     } while (0)
+
+/*
+ * WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP --
+ *	Application threads must not run schema operations during a step-up, because step-up code
+ *	concurrently modifies layered-table state. Step-down holds the schema lock, so schema
+ *	operations serialize with it instead. Internal sessions perform the transition and are
+ *	exempt.
+ *
+ * FIXME-WT-18240: Remove the assertion once we have asynchronous step-up.
+ */
+#define WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session)                   \
+    WT_ASSERT_ALWAYS(session,                                            \
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP) || \
+        F_ISSET(session, WT_SESSION_INTERNAL),                           \
+      "schema operation performed during step-up")
 
 /*
  * WT_ERR_ASSERT --

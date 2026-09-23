@@ -9,6 +9,26 @@
 #pragma once
 
 #include "checkpoint_private.h"
+
+/*
+ * Points at which a checkpoint can be made to crash. Everything up to and including
+ * CKPT_CRASH_BEFORE_CKPT_COMMIT precedes the checkpoint transaction commit, so the checkpoint is
+ * never recoverable; CKPT_CRASH_BEFORE_METADATA_SYNC follows both the commit and the log flush, so
+ * with logging enabled recovery always rolls the checkpoint forward. The key rotation points are
+ * taken wherever the disaggregated key provider runs, on the per-tree path as well as after the
+ * metadata sync, so they hold no position in that order.
+ */
+enum {
+    CKPT_CRASH_NONE = 0,
+    CKPT_CRASH_BEFORE_CKPT_COMMIT,
+    CKPT_CRASH_ENUM_MAY_RECOVER, /* Crash points past here may leave a recoverable checkpoint. */
+    CKPT_CRASH_BEFORE_METADATA_SYNC,
+    CKPT_CRASH_KEY_PROVIDER_BEFORE_KEY_ROTATION,
+    CKPT_CRASH_KEY_PROVIDER_DURING_KEY_ROTATION,
+    CKPT_CRASH_KEY_PROVIDER_AFTER_KEY_ROTATION,
+    CKPT_CRASH_ENUM_END,
+};
+
 /*
  * WT_CKPT_SESSION --
  *     Per-session checkpoint information.
@@ -21,20 +41,10 @@ struct __wt_ckpt_session {
     u_int handle_next;       /* Next empty slot */
     size_t handle_allocated; /* Bytes allocated */
 
-    /* Crash at a progress point in checkpoint. */
+    /* Crash before checkpointing the Nth data handle. */
     u_int crash_point;
     /* Crash at a specific point in checkpoint. */
     u_int crash_trigger_point;
-    enum {
-        CKPT_CRASH_NONE = 0,
-        CKPT_CRASH_BEFORE_METADATA_SYNC,
-        CKPT_CRASH_BEFORE_METADATA_UPDATE,
-        CKPT_CRASH_PROGRESS_ENUM_END,
-        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION,
-        KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,
-        KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION,
-        CKPT_CRASH_ENUM_END,
-    } ckpt_crash_state;
 
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *drop_list;
@@ -65,6 +75,10 @@ struct __wt_ckpt_connection {
     WTI_CKPT_TIMER ckpt_api;
     WTI_CKPT_TIMER prepare;
     WTI_CKPT_TIMER scrub;
+
+    /* Per-checkpoint reconciliation time accumulators (clock ticks, across all files). */
+    wt_shared uint64_t reconcile_time_ticks;
+    wt_shared uint64_t sync_time_ticks;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;
@@ -134,7 +148,9 @@ struct __wt_ckpt {
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */
 
-    uint64_t next_page_id; /* Next page ID available for allocation */
+    uint64_t next_page_id;      /* Next page ID available for allocation */
+    uint64_t leaf_entry_ewma;   /* Approximate avg entries per row-store leaf page */
+    uint64_t approx_leaf_pages; /* Approximate row-store leaf page count */
 
     void *bpriv; /* Block manager private */
 
@@ -166,14 +182,82 @@ struct __wt_ckpt_snapshot {
 struct __wt_checkpoint_cleanup {
     WT_SESSION_IMPL *session; /* checkpoint cleanup session */
     wt_thread_t tid;          /* checkpoint cleanup thread */
-    int tid_set;              /* checkpoint cleanup thread set */
+    wt_shared bool tid_set;   /* checkpoint cleanup thread set */
     WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
     uint64_t interval;        /* Checkpoint cleanup interval */
     uint64_t file_wait_ms;    /* Checkpoint cleanup file wait in milliseconds */
 };
 
+/*
+ * WT_CHECKPOINT_PAGE_TO_RECONCILE --
+ *     A work item for reconciling a page.
+ */
+struct __wt_checkpoint_page_to_reconcile {
+    TAILQ_ENTRY(__wt_checkpoint_page_to_reconcile) q; /* Worker unit queue */
+
+    WT_DATA_HANDLE *dhandle;
+    WT_TXN_ISOLATION isolation;
+    WT_TXN_SNAPSHOT *snapshot;
+
+    WT_REF *ref;
+    uint32_t reconcile_flags;
+    uint32_t release_flags;
+
+    int result;              /* Result - will be filled out later. */
+    uint64_t reconcile_time; /* Time spent in reconciliation. */
+};
+
+/*
+ * WT_CHECKPOINT_RECONCILE_THREADS --
+ *     Information about threads for parallel page reconciliation during a checkpoint.
+ */
+struct __wt_checkpoint_reconcile_threads {
+    WT_THREAD_GROUP thread_group;
+    uint32_t num_threads;
+
+    /* The work queue contains pages to be reconciled. */
+    TAILQ_HEAD(__wt_checkpoint_reconcile_work_qh, __wt_checkpoint_page_to_reconcile) work_qh;
+    WT_SPINLOCK work_lock;
+
+    WT_CONDVAR *work_cond;          /* Signal that work is available. */
+    wt_shared uint64_t work_pushed; /* The number of outstanding work items. */
+
+    /* The done queue contains pages that have been reconciled. */
+    TAILQ_HEAD(__wt_checkpoint_reconcile_done_qh, __wt_checkpoint_page_to_reconcile) done_qh;
+    WT_SPINLOCK done_lock;
+    WT_SEMAPHORE done_sem;
+
+    /*
+     * Private copy of the checkpoint transactions snapshot for parallel workers.
+     * checkpoint_snapshot_array is the backing buffer (capacity is entries, sized to
+     * conn->session_array.size) that holds the snapshot IDs.
+     */
+    WT_TXN_SNAPSHOT checkpoint_snapshot;
+    uint64_t *checkpoint_snapshot_array;
+    size_t checkpoint_snapshot_capacity;
+};
+
+/*
+ * WT_PARALLEL_CHECKPOINTS_ENABLED --
+ *     Check whether parallel checkpoints are enabled.
+ */
+#define WT_PARALLEL_CHECKPOINTS_ENABLED(session)                                           \
+    (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS) && \
+      (S2C(session))->ckpt_reconcile_threads->num_threads > 1)
+
+/*
+ * WT_PARALLEL_CHECKPOINTS_NUM_THREADS --
+ *     Get the number of threads for parallel checkpoints (return 1 for the single-threaded mode).
+ */
+#define WT_PARALLEL_CHECKPOINTS_NUM_THREADS(session)                                      \
+    (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS) ? \
+        (S2C(session))->ckpt_reconcile_threads->num_threads :                             \
+        1)
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern WT_CKPT_EVICTION_SNAP *__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
@@ -183,6 +267,15 @@ extern int __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool 
 extern int __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session, uint64_t *reconcile_timep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_push_work(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -196,6 +289,8 @@ extern void __wt_checkpoint_handle_stats(
   WT_SESSION_IMPL *session, uint64_t gathering_handles_time_us);
 extern void __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes);
+extern void __wt_checkpoint_rec_time_stats(
+  WT_SESSION_IMPL *session, uint64_t reconcile_time_ticks, uint64_t sync_time_ticks);
 extern void __wt_checkpoint_reset_stats(WT_CONNECTION_IMPL *conn);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_snapshot_clear(WT_CKPT_SNAPSHOT *snapshot);
@@ -207,6 +302,9 @@ extern void __wt_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep);
 extern void __wt_ckptlist_saved_free(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_UNITTEST
+extern bool __ut_checkpoint_skip_ckptlist(WT_CKPT *ckptbase)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __ut_checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session);
 
 #endif
 

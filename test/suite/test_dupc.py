@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_dupc.py
-#       test cursor duplication
+# test cursor duplication
 #
 
 import wiredtiger, wttest
@@ -67,10 +66,6 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_duplicate_cursor(self):
-        # Using column store ComplexDataStore after SimpleDataStore doesn't work with tiered tables.
-        if 'tiered' in self.hook_names:
-            self.skipTest("this test does not yet work with tiered storage")
-
         uri = self.uri + self.name
 
         # A simple, one-file file or table object.

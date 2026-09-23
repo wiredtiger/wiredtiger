@@ -16,6 +16,7 @@ set(format_sources
     format_util.c
     hs.c
     import.c
+    key_rotation.c
     kv.c
     ops.c
     random.c
@@ -40,27 +41,14 @@ create_test_executable(test_format
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.
-# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# Some extensions (PALite) require C++ runtime to be linked
 # for sanitizers to work correctly.
 set_target_properties(test_format PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_options(test_format PRIVATE -DEXT_LIBPATH="")
 
-# t uses dlopen() at runtime to load extension MODULE libraries from ../../ext/ (relative to the
-# binary). Those libraries have no link-time dependency on test_format, so they would not be built
-# as part of this target without an explicit dependency declared here. Only MODULE libraries are
-# added — builtin extensions are OBJECT libraries already compiled into libwiredtiger and do not
-# need a separate dlopen().
-foreach(ext_target
-        wiredtiger_reverse_collator
-        wiredtiger_lz4 wiredtiger_snappy wiredtiger_zlib wiredtiger_zstd
-        wiredtiger_rotn wiredtiger_sodium)
-    if(TARGET ${ext_target})
-        get_target_property(_ext_type ${ext_target} TYPE)
-        if(_ext_type STREQUAL "MODULE_LIBRARY")
-            add_dependencies(test_format ${ext_target})
-        endif()
-    endif()
-endforeach()
+# t loads extension MODULE libraries via dlopen() at runtime; pull in the umbrella target so
+# they are built whenever test_format is built.
+add_dependencies(test_format wiredtiger_ext)
 
 add_test(NAME test_format COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
 set_tests_properties(test_format PROPERTIES LABELS "check")

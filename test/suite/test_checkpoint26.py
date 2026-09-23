@@ -30,13 +30,13 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 import wttest
 
-# test_checkpoint26.py
 # Test the timing stress setting for checkpoint_evict_page.
 # The setting forces checkpoint to evict all pages that are reconciled. The debug mode is effective
 # in testing scenarios where checkpoint itself starts to evict pages. Have a big enough cache and
 # small data pages so that eviction activity is small, allowing checkpoint to reconcile and
 # evict pages.
 class test_checkpoint26(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     ckpt_precision = [
         ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
         ('precise', dict(ckpt_config='precise_checkpoint=true')),
@@ -44,7 +44,7 @@ class test_checkpoint26(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(ckpt_precision)
 
-    uri = "table:test_checkpoint26"
+    uri = f"table:{test_name}"
 
     def conn_config(self):
         return ('cache_size=1000MB,statistics=(all),eviction_dirty_target=80,' +
@@ -65,16 +65,12 @@ class test_checkpoint26(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
         # There should be no eviction activity at this point.
-        stat_cursor = self.session.open_cursor('statistics:')
-        pages_evicted_during_checkpoint = stat_cursor[stat.conn.eviction_pages_in_parallel_with_checkpoint][2]
+        pages_evicted_during_checkpoint = self.get_stat(stat.conn.eviction_pages_in_parallel_with_checkpoint)
         self.assertEqual(pages_evicted_during_checkpoint, 0)
-        stat_cursor.close()
 
         # Make checkpoint perform eviction.
         self.session.checkpoint()
 
         # Read the statistics of pages that have been evicted during checkpoint.
-        stat_cursor = self.session.open_cursor('statistics:')
-        pages_evicted_during_checkpoint = stat_cursor[stat.conn.eviction_pages_in_parallel_with_checkpoint][2]
+        pages_evicted_during_checkpoint = self.get_stat(stat.conn.eviction_pages_in_parallel_with_checkpoint)
         self.assertGreater(pages_evicted_during_checkpoint, 0)
-        stat_cursor.close()

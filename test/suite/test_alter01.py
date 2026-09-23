@@ -28,11 +28,10 @@
 
 import wttest
 from wtscenario import make_scenarios
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 
-# test_alter01.py
-#    Smoke-test the session alter operations.
-class test_alter01(TieredConfigMixin, wttest.WiredTigerTestCase):
+# Smoke-test the session alter operations.
+@wttest.skip_for_hook("disagg", "session.alter is not supported in disaggregated storage")
+class test_alter01(wttest.WiredTigerTestCase):
     name = "alter01"
     entries = 100
 
@@ -65,9 +64,7 @@ class test_alter01(TieredConfigMixin, wttest.WiredTigerTestCase):
     ]
     cache_alter=('', 'false', 'true')
 
-    # Build all scenarios
-    tiered_storage_sources = gen_tiered_storage_sources()
-    scenarios = make_scenarios(tiered_storage_sources, types, hints, resid, reopen)
+    scenarios = make_scenarios(types, hints, resid, reopen)
 
     def verify_metadata(self, metastr):
         if metastr == '':
@@ -93,9 +90,6 @@ class test_alter01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     # Alter: Change the access pattern hint after creation
     def test_alter01_access(self):
-        if self.is_tiered_scenario() and (self.uri == 'file:'):
-            self.skipTest('Tiered storage does not support file URIs.')
-
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=i,'
         complex_params = ''

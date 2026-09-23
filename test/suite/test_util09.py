@@ -29,10 +29,11 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util09.py
-#    Utilities: wt loadtext
+# Utilities: wt loadtext
+@wttest.skip_for_hook("disagg", "wt loadtext is not supported in disaggregated storage mode")
 class test_util09(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util09.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     nentries = 1000
     session_params = 'key_format=S,value_format=S'
 

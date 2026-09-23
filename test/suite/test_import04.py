@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_import04.py
 # Test success and failure scenarios for importing a table into a running database.
 # 1. Attempt to import a table into a destination database where a table object of
 #    that name already exists.
@@ -53,7 +52,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_import04(test_import_base):
     conn_config = 'cache_size=50MB'
 

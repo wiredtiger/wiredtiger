@@ -33,7 +33,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtthread import checkpoint_thread
 
-# test_hs33.py
 # Test that we can run recovery after crashing before the metadata is synced during recovery.
 # This simulates the scenario seen in WT-14376, where the eviction subsystem opened the history
 # store file before metadata recovery had completed.
@@ -105,9 +104,7 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
             ckpt_stop_timing_stress = 0
             while not ckpt_stop_timing_stress:
                 time.sleep(1)
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_stop_timing_stress = stat_cursor[stat.conn.checkpoint_stop_stress_active][2]
-                stat_cursor.close()
+                ckpt_stop_timing_stress = self.get_stat(stat.conn.checkpoint_stop_stress_active)
 
             copy_wiredtiger_home(self, '.', "RESTART")
 

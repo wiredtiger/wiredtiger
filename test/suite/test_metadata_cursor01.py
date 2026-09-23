@@ -29,15 +29,15 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_metadata_cursor01.py
-#    Metadata cursor operations
+# Metadata cursor operations
 # Basic smoke-test of metadata cursor: test backward and forward iteration
 # as well as search.
 class test_metadata_cursor01(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = 'test_metadata_cursor01'
+    test_name = __qualname__
+    table_name1 = test_name
 
     scenarios = make_scenarios([
         ('plain', {'metauri' : 'metadata:'}),
@@ -128,3 +128,9 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
         # Ensure the metadata for the table we created is found
         value = cursor['table:' + self.table_name1]
         self.assertTrue(value.find('key_format') != -1)
+
+        md = self.session.open_cursor('metadata:')
+        file_value = md['file:' + self.table_name1 + '.wt']
+        self.assertNotIn('tiered_storage=', file_value)
+        self.assertNotIn('tiered_object=', file_value)
+        md.close()

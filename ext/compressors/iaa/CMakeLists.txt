@@ -43,9 +43,9 @@ if(HAVE_BUILTIN_EXTENSION_IAA OR ENABLE_IAA)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
-            ${HAVE_LIBQPL_INCLUDES}
             iaacodec/include
         )
+    target_link_libraries(wiredtiger_iaa PRIVATE wt::qpl)
     target_compile_options(
         wiredtiger_iaa
         PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
@@ -57,23 +57,9 @@ if(ENABLE_IAA)
     if(TARGET iaacodec)
         target_link_libraries(wiredtiger_iaa PRIVATE iaacodec)
     endif()
-    if(HAVE_LIBDL)
-        target_link_libraries(wiredtiger_iaa PUBLIC ${HAVE_LIBDL})
-        if(HAVE_LIBDL_INCLUDES)
-            target_include_directories(wiredtiger_iaa PUBLIC ${HAVE_LIBDL_INCLUDES})
-        endif()
-    endif()
-    if(HAVE_LIBCXX)
-        target_link_libraries(wiredtiger_iaa PRIVATE ${HAVE_LIBCXX})
-        if(HAVE_LIBCXX_INCLUDES)
-            target_include_directories(wiredtiger_iaa PRIVATE  ${HAVE_LIBCXX_INCLUDES})
-        endif()
-    endif()
+    target_link_libraries(wiredtiger_iaa PUBLIC ${CMAKE_DL_LIBS})
     if(HAVE_LIBACCEL_CONFIG)
-        target_link_libraries(wiredtiger_iaa PRIVATE ${HAVE_LIBACCEL_CONFIG})
-        if(HAVE_LIBACCEL_CONFIG_INCLUDES)
-            target_include_directories(wiredtiger_iaa PRIVATE ${HAVE_LIBACCEL_CONFIG_INCLUDES})
-        endif()
+        target_link_libraries(wiredtiger_iaa PRIVATE wt::accel_config)
     endif()
 
     install(TARGETS wiredtiger_iaa

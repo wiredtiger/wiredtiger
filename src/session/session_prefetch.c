@@ -10,60 +10,56 @@
 
 /*
  * __wt_session_prefetch_check --
- *     Check if pre-fetching work should be performed for a given ref.
+ *     Check if pre-fetching should be triggered for a given ref. Pre-fetching is skipped for
+ *     internal sessions, internal pages, special btree handles, an overwhelmed prefetch queue, and
+ *     sessions that have not yet read enough pages from disk to justify it. Internal pages are
+ *     excluded because identifying which leaf pages to preload from an internal page traversal is
+ *     non-trivial. A session that has declared a scan skips the two checks that only exist to guess
+ *     at what it has already stated.
  */
 bool
 __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    /*
-     * Check if pre-fetching is enabled for this particular session. We don't perform pre-fetching
-     * on internal threads or internal pages (finding the right content to preload based on internal
-     * pages is hard), so check for that too. We also want to pre-fetch sessions that have read at
-     * least one page from disk. The result of this function will subsequently be checked by cursor
-     * logic to determine if pre-fetching will be performed.
-     */
-    if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED)) {
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
+    bool scan;
+
+    if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
+        return (false);
+
+    scan = session->pf.scan_hint;
+
+    WT_STAT_CONN_INCR(session, prefetch_attempts);
+
+    if (__wt_tsan_suppress_load_uint64(&S2C(session)->prefetch.queue_count) >
+      WT_MAX_PREFETCH_QUEUE) {
+        WT_STAT_CONN_INCR(session, prefetch_skipped_queue_full);
         return (false);
     }
 
-    /* Disable pre-fetch work on tiered tables. */
-    if (__wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED ||
-      __wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED_TREE)
-        return (false);
-
-    if (__wt_tsan_suppress_load_uint64(&S2C(session)->prefetch_queue_count) > WT_MAX_PREFETCH_QUEUE)
-        return (false);
-
-    if (F_ISSET(session, WT_SESSION_INTERNAL)) {
+    if (F_ISSET(session, WT_SESSION_INTERNAL) && !scan) {
         WT_STAT_CONN_INCR(session, prefetch_skipped_internal_session);
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
         return (false);
     }
 
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_STAT_CONN_INCR(session, prefetch_skipped_internal_page);
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
         return (false);
     }
 
     if (F_ISSET(S2BT(session), WT_BTREE_SPECIAL_FLAGS) &&
       !F_ISSET(S2BT(session), WT_BTREE_VERIFY)) {
         WT_STAT_CONN_INCR(session, prefetch_skipped_special_handle);
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
         return (false);
     }
 
     if (session->pf.prefetch_disk_read_count == 1)
         WT_STAT_CONN_INCR(session, prefetch_disk_one);
 
-    if (session->pf.prefetch_disk_read_count < 2) {
+    if (session->pf.prefetch_disk_read_count < 2 && !scan) {
         WT_STAT_CONN_INCR(session, prefetch_skipped_disk_read_count);
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
         return (false);
     }
 
-    WT_STAT_CONN_INCR(session, prefetch_attempts);
+    WT_STAT_CONN_INCR(session, prefetch_attempts_succeeded);
 
     return (true);
 }

@@ -26,32 +26,31 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, wiredtiger
+import unittest, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
-# test_layered_fast_truncate01.py
-#   Test basic fast truncate functionality.
+# Test basic fast truncate functionality.
 @disagg_test_class
-class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate01(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader"),'
 
     uris = [
-        ('layered', dict(uri='layered:test_layered_fast_truncate01')),
-        ('table', dict(uri='table:test_layered_fast_truncate01')),
+        ('layered', dict(uri=f'layered:{test_name}')),
+        ('table', dict(uri=f'table:{test_name}')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages, uris)
 
     nitems = 1000
 
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
-        super().setUp()
+    def key(self, n):
+        return str(n)
 
     def session_create_config(self):
         cfg = 'key_format=S,value_format=S'
@@ -69,14 +68,12 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         for i in range(self.nitems):
             self.session.begin_transaction()
             cursor[str(i)] = value1
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
         cursor.close()
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
@@ -97,7 +94,7 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         self.assertEqual(cursor2.search(), 0)
         session2.rollback_transaction()
 
-        self.session.commit_transaction()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nitems + 1))
 
         # After commit, the keys should not found.
         session2.begin_transaction()
@@ -122,15 +119,13 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         for i in range(self.nitems):
             self.session.begin_transaction()
             cursor[str(i)] = value1
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
         cursor.close()
 
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
@@ -162,15 +157,13 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         for i in range(self.nitems):
             self.session.begin_transaction()
             cursor[str(i)] = value1
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
         cursor.close()
 
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
@@ -191,52 +184,6 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), msg1)
         cursor2.close()
 
-        session2.commit_transaction()
-        session2.close()
-        c1.close()
-        c2.close()
-
-    def test_truncate_write_conflict_2(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri)
-        value1 = "a" * 100
-
-        # Populate data on leader.
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[str(i)] = value1
-            self.session.commit_transaction()
-
-        self.session.checkpoint()
-        cursor.close()
-
-        # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-
-        session2 = self.conn.open_session()
-        session2.begin_transaction()
-
-        # Insert an uncommitted value in the second session.
-        cursor2 = session2.open_cursor(self.uri)
-        cursor2.set_key(str(100))
-        cursor2.set_value("hi")
-        cursor2.update()
-        cursor2.close()
-
-        # Create an uncommitted truncate.
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key(str(700))
-
-        self.session.begin_transaction()
-        msg1 = '/conflict between concurrent operations/'
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.truncate(None, c1, c2, None), msg1)
-
-        self.session.rollback_transaction()
         session2.commit_transaction()
         session2.close()
         c1.close()

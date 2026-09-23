@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_txn02.py
-#   Transactions: commits and rollbacks
+# Transactions: commits and rollbacks
 #
 
 import fnmatch, os, time
@@ -35,10 +34,10 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wttest
 
-@wttest.skip_for_hook("tiered", "Tiered causes python crash")
 class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     logmax = "100K"
-    tablename = 'test_txn02'
+    tablename = test_name
     uri = 'table:' + tablename
     remove_list = ['true', 'false']
     conn_list = ['reopen', 'stay_open']

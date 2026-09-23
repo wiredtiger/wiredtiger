@@ -32,12 +32,10 @@ import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint15.py
 #
 # Make sure each checkpoint has its own timestamp info by writing out
 # multiple checkpoints with different times and reading all of them.
 
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 

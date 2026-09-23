@@ -31,23 +31,17 @@ from wtscenario import make_scenarios
 from wtbackup import backup_base
 from wiredtiger import stat
 
-# test_import10.py
-#    Run import/export while backup cursor is open.
+# Run import/export while backup cursor is open.
 class test_import10(backup_base):
+    test_name = __qualname__
     create_config = 'allocation_size=512,key_format=i,value_format=i'
     dir='backup.dir'                    # Backup directory name
-    uri = 'test_import10'
+    uri = test_name
 
     scenarios = make_scenarios([
         ('import_with_metadata', dict(repair=False)),
         ('import_repair', dict(repair=True)),
     ])
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def test_import_with_open_backup_cursor(self):
         # Create and populate the table.

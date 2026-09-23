@@ -26,13 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, time, errno, threading
+import wiredtiger, time, errno, wtthread, wttest
 from wttest import open_cursor
 from error_info_util import error_info_util
 
-# test_error_info03.py
-#   Test that the get_last_error() session API returns the last error to occur in the session,
-#   for the EBUSY during drop cases.
+# Test that the get_last_error() session API returns the last error to occur in the session,
+# for the EBUSY during drop cases.
+
+# FIXME-WT-14509 These tests are dependent on Session.alter being available.
+@wttest.skip_for_hook("disagg", "Session.alter is not supported yet")
 class test_error_info03(error_info_util):
     conn_config = 'timing_stress_for_test=[session_alter_slow,open_index_slow]'
     uri="table:test_error_info"
@@ -61,8 +63,8 @@ class test_error_info03(error_info_util):
         """
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        lock_thread = threading.Thread(target=self.hold_checkpoint_and_schema_locks)
-        drop_thread = threading.Thread(target=self.try_drop_no_wait)
+        lock_thread = wtthread.Thread(target=self.hold_checkpoint_and_schema_locks)
+        drop_thread = wtthread.Thread(target=self.try_drop_no_wait)
 
         lock_thread.start()
         time.sleep(1)
@@ -79,8 +81,8 @@ class test_error_info03(error_info_util):
         """
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        lock_thread = threading.Thread(target=self.hold_checkpoint_and_schema_locks)
-        drop_thread = threading.Thread(target=self.try_drop_no_wait_ignore_checkpoint_lock)
+        lock_thread = wtthread.Thread(target=self.hold_checkpoint_and_schema_locks)
+        drop_thread = wtthread.Thread(target=self.try_drop_no_wait_ignore_checkpoint_lock)
 
         lock_thread.start()
         time.sleep(1)
@@ -100,8 +102,8 @@ class test_error_info03(error_info_util):
         self.session.create(self.uri, 'key_format=S,value_format=S,columns=(k,v)')
         self.session.create('index:' + name + ':i0', 'columns=(k,v)')
 
-        lock_thread = threading.Thread(target=self.hold_table_lock)
-        drop_thread = threading.Thread(target=self.try_drop_no_wait)
+        lock_thread = wtthread.Thread(target=self.hold_table_lock)
+        drop_thread = wtthread.Thread(target=self.try_drop_no_wait)
 
         lock_thread.start()
         time.sleep(1)
@@ -149,7 +151,24 @@ class test_error_info03(error_info_util):
             cursor.set_value('value')
             self.assertEqual(cursor.update(), 0)
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
-        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and cannot be dropped yet")
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and cannot be closed yet")
+
+    def test_uncommitted_data_partial_drop(self):
+        """
+        Try to drop a table with two column groups while only the second one has uncommitted data.
+        The first column group is dropped and then restored when the second one fails.
+        """
+        self.session.create(self.uri, 'key_format=S,value_format=SS,columns=(k,a,b),colgroups=(c1,c2)')
+        colgroup_uri = self.uri.replace('table:', 'colgroup:')
+        self.session.create(colgroup_uri + ':c1', 'columns=(a)')
+        self.session.create(colgroup_uri + ':c2', 'columns=(b)')
+        with open_cursor(self.session, colgroup_uri + ':c2') as cursor:
+            self.session.begin_transaction()
+            cursor.set_key('key')
+            cursor.set_value('value')
+            self.assertEqual(cursor.update(), 0)
+        self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and cannot be closed yet")
 
     def test_dirty_data(self):
         """
@@ -166,4 +185,4 @@ class test_error_info03(error_info_util):
         # Give time for the oldest id to update before dropping the table.
         time.sleep(1)
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
-        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet")
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_DIRTY_DATA, "the table has dirty data and cannot be closed yet")

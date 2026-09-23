@@ -19,7 +19,7 @@
     "// See the README.md file in this directory for details."
   ],
   "setup_actions": [
-    "cmake -DHAVE_UNITTEST=1 -DHAVE_DIAGNOSTIC=0 -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1 -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake -DCMAKE_BUILD_TYPE=Coverage -G Ninja ../.",
+    "cmake --preset linux-gcc -DHAVE_UNITTEST=1 -DHAVE_DIAGNOSTIC=0 -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1 -DCMAKE_BUILD_TYPE=Coverage -G Ninja ../.",
     "ninja -j 16",
     "mkdir WT_HOME_COVERAGE",
     "examples/c/ex_hello/ex_hello",
@@ -41,7 +41,6 @@
     "python3 ../test/suite/run.py test_util02",
     "python3 ../test/suite/run.py test_prefetch02",
     "test/catch2/catch2-unittests",
-    "python3 ../test/suite/run.py test_tiered08",
     "python3 ../test/suite/run.py test_bulk01",
     "python3 ../test/suite/run.py test_sweep01",
     "python3 ../test/suite/run.py test_shared_cache01",
@@ -51,7 +50,6 @@
     "python3 ../test/suite/run.py log",
     "python3 ../test/suite/run.py test_log03",
     "python3 ../test/suite/run.py test_shared_cache01",
-    "python3 ../test/suite/run.py test_tiered04",
     "python3 ../test/suite/run.py test_txn15",
     "python3 ../test/suite/run.py cursor_pin",
     "python3 ../test/suite/run.py test_backup06",
@@ -250,6 +248,6 @@
     "python3 ../test/suite/run.py test_live_restore01",
     "python3 ../test/suite/run.py test_key_provider_disagg01.py",
     "python3 ../test/suite/run.py test_key_provider_disagg02.py",
-    "python3 ../test/suite/run.py --hook disagg --skip-tests-in-file ../test/suite/hook_disagg.fail base"
+    "python3 ../test/suite/run.py --hook disagg --skip-tests-in-file ../test/suite/fail_lists/hook_disagg.fail base"
   ]
 }

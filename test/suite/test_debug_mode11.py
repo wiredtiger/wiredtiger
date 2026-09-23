@@ -30,12 +30,12 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from helper import WiredTigerCursor
 
-# test_debug_mode11.py
-#   Verify shutdown checkpoint behavior with close config debug.skip_checkpoint.
+# Verify shutdown checkpoint behavior with close config debug.skip_checkpoint.
 class test_debug_mode11(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'statistics=(all)'
     create_config = 'key_format=S,value_format=S'
-    uri = 'table:test_debug_mode11'
+    uri = f'table:{test_name}'
 
     scenarios = make_scenarios([
         ('with_shutdown_checkpoint', dict(skip_shutdown_checkpoint=False, close_cfg="")),
@@ -54,7 +54,6 @@ class test_debug_mode11(wttest.WiredTigerTestCase):
                 self.assertEqual(value, exp_value,
                                 f"Expected value for key {key} to be {exp_value} but got {value}")
 
-    @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_skip_shutdown_checkpoint_restart_visibility(self):
         # Build a baseline on an explicit checkpoint.
         self.session.create(self.uri, self.create_config)

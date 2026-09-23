@@ -30,10 +30,11 @@ import os
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util15.py
-#    Utilities: wt alter
+# Utilities: wt alter
+@wttest.skip_for_hook("disagg", "wt alter is not supported in disaggregated storage mode")
 class test_util15(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util15.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
 
     def test_alter_process(self):
         """

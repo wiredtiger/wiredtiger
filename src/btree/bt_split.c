@@ -69,7 +69,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PAGE_COL_INT:
         recno = 0; /* Less than any valid record number. */
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(session, ref->home == page,
+            WT_ASSERT_ALWAYS(session, __wt_atomic_load_ptr_relaxed(&ref->home) == page,
               "Internal page in illegal state, child ref is referencing an incorrect page");
             WT_ASSERT_ALWAYS(
               session, ref->ref_recno > recno, "Out of order refs detected in parent index");
@@ -85,7 +85,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         slot = 0;
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(session, ref->home == page,
+            WT_ASSERT_ALWAYS(session, __wt_atomic_load_ptr_relaxed(&ref->home) == page,
               "Internal page in illegal state, child ref is referencing an incorrect page");
 
             /*
@@ -228,7 +228,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if ((ikey = __wt_ref_key_instantiated(ref)) == NULL) {
             __wt_ref_key(from_home, ref, &key, &size);
             WT_RET(__wti_row_ikey(session, 0, key, size, ref));
-            ikey = ref->ref_ikey;
+            /* Relaxed: this thread published the key immediately above. */
+            ikey = __wt_atomic_load_ptr_relaxed(&ref->ref_ikey);
         } else {
             WT_RET(__split_ovfl_key_cleanup(session, from_home, ref));
             *decrp += sizeof(WT_IKEY) + ikey->size;
@@ -368,10 +369,21 @@ __split_ref_prepare(
 
         WT_PAGE_LOCK(session, child);
 
-        /* Switch the WT_REF's to their new page. */
+        /*
+         * Switch the WT_REF's to their new page. The created children have no disk image, so every
+         * key must already have been instantiated: an encoded key would decode against a NULL image
+         * once a reader picks up the new home page.
+         */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
-            child_ref->home = child;
+            WT_ASSERT(session,
+              child->type != WT_PAGE_ROW_INT || __wt_ref_key_instantiated(child_ref) != NULL);
+            /*
+             * Publish the new home page with a release so a reader that picks it up also sees the
+             * key and address instantiated above; the created page has no disk image, so an on-page
+             * key or address paired with it would be decoded against nothing.
+             */
+            __wt_atomic_store_ptr_release(&child_ref->home, child);
             child_ref->pindex_hint = j++;
         }
         WT_INTL_FOREACH_END;
@@ -466,7 +478,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          * Initialize the page's child reference; we need a copy of the page's key.
          */
         ref = *alloc_refp++;
-        ref->home = root;
+        __wt_atomic_store_ptr_relaxed(&ref->home, root);
         ref->page = child;
         ref->addr = NULL;
         if (root->type == WT_PAGE_ROW_INT) {
@@ -626,7 +638,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref, true));
+    WT_TRET(__wt_ref_block_free(session, ref, true, false));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
@@ -672,7 +684,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 #endif
 
     btree = S2BT(session);
-    parent = ref->home;
+    parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
     alloc_index = pindex = NULL;
     parent_decr = 0;
@@ -698,9 +710,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * We can't do this if there is a sync running in the tree in another session: removing the refs
      * frees the blocks for the deleted pages, which can corrupt the free list calculated by the
      * sync.
+     *
+     * We can't do this at all for disaggregated trees. The parent's page-log image may already
+     * contain a proxy cell for the deleted page, either from this checkpoint or an earlier one.
+     * Freeing the block here would leave that reference dangling. Reconciliation handles this
+     * safely by dropping both the block and proxy cell together.
      */
     deleted_entries = 0;
-    if (!__wt_btree_syncing_by_other_session(session))
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !__wt_btree_syncing_by_other_sessions(session))
         for (i = 0; i < parent_entries; ++i) {
             next_ref = pindex->index[i];
             WT_ASSERT(session, WT_REF_GET_STATE(next_ref) != WT_REF_SPLIT);
@@ -766,7 +783,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         next_ref = pindex->index[i];
         if (next_ref == ref) {
             for (j = 0; j < new_entries; ++j) {
-                ref_new[j]->home = parent;
+                __wt_atomic_store_ptr_relaxed(&ref_new[j]->home, parent);
                 ref_new[j]->pindex_hint = hint++;
                 *alloc_refp++ = ref_new[j];
             }
@@ -847,12 +864,19 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
+        /* Reverse split removes a deleted/empty leaf, not a split replacement. */
+        if (new_entries == 0 && btree->type == BTREE_ROW &&
+          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
+            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
           session, next_ref, parent, &parent_decr, split_gen, exclusive));
+        if (btree->type == BTREE_ROW &&
+          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
+            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
 
     /*
@@ -1029,7 +1053,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          * Initialize the page's child reference; we need a copy of the page's key.
          */
         ref = *alloc_refp++;
-        ref->home = parent;
+        __wt_atomic_store_ptr_relaxed(&ref->home, parent);
         ref->page = child;
         ref->addr = NULL;
         if (page->type == WT_PAGE_ROW_INT) {
@@ -1221,7 +1245,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * (which causes reconciliation to loop until the exclusive lock is resolved). If we want to
      * split the parent, give up to avoid that deadlock.
      */
-    if (!trylock && __wt_btree_syncing_by_other_session(session))
+    if (!trylock && __wt_btree_syncing_by_other_sessions(session))
         return (__wt_set_return(session, EBUSY));
 
     /*
@@ -1236,7 +1260,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * to use a different lock if we have to block reconciliation anyway.
      */
     for (;;) {
-        parent = ref->home;
+        parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
         /* Encourage races. */
         __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7, NULL);
@@ -1248,7 +1272,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
             WT_RET(WT_PAGE_TRYLOCK(session, parent));
         } else
             WT_PAGE_LOCK(session, parent);
-        if (parent == ref->home)
+        if (parent == (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home))
             break;
         WT_PAGE_UNLOCK(session, parent);
     }
@@ -1443,9 +1467,9 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
      * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
      * page.
      */
-    mod->last_evict_pass_gen = orig_modify->last_evict_pass_gen;
-    mod->last_eviction_id = orig_modify->last_eviction_id;
-    mod->last_eviction_timestamp = orig_modify->last_eviction_timestamp;
+    mod->rec_evict_attempt_pass_gen = orig_modify->rec_evict_attempt_pass_gen;
+    mod->rec_evict_attempt_oldest_id = orig_modify->rec_evict_attempt_oldest_id;
+    mod->rec_evict_attempt_pinned_ts = orig_modify->rec_evict_attempt_pinned_ts;
     mod->rec_max_txn = orig_modify->rec_max_txn;
     mod->rec_max_timestamp = orig_modify->rec_max_timestamp;
     /*
@@ -1454,6 +1478,13 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
      */
     mod->rec_pinned_stable_timestamp = orig_modify->rec_pinned_stable_timestamp;
     mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
+
+    /*
+     * Inherit the checkpoint snapshot stamp so checkpoint can skip re-reconciling a page that
+     * eviction already reconciled under the checkpoint snapshot. Checkpoint verifies the page has a
+     * durable on-disk image before skipping it.
+     */
+    mod->rec_ckpt_snap_gen = orig_modify->rec_ckpt_snap_gen;
 }
 
 /*
@@ -1489,7 +1520,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
     WT_RET(__wti_page_inmem(
-      session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
+      session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, NULL, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
     /* Preserve the relevant metadata. */
@@ -1506,7 +1537,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+    if (instantiate_upd && !__wt_btree_stays_in_memory(S2BT(session)) &&
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
@@ -1515,8 +1546,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
+     *
+     * A btree awaiting publication is reconciled in memory only, so the rebuilt page would
+     * otherwise be clean and hold its only copy in an in-memory image. Keep it dirty so the
+     * checkpoint that runs once the table is published rewrites it to shared storage.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
         WT_RET(__wt_page_modify_init(session, page));
         __wt_page_modify_set(session, page);
     }
@@ -1560,61 +1596,92 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * we may still fail. If we fail, we will append them back to their original update chains.
          * Truncate before we restore them to ensure the size of the page is correct.
          */
-        if (supd->onpage_upd != NULL) {
+        if (WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw)) {
             /*
              * If we have written a prepared update, we need to retain the next update that is not a
              * tombstone. Otherwise, we don't have anything to write in the next reconciliation if
              * the prepared update is reverted. If the next value update is a modify, we need to
              * retain all the older updates until a full value is found.
              */
-            if (WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw)) {
-                for (tmp = supd->onpage_upd->next; tmp != NULL; tmp = tmp->next) {
-                    /*
-                     * We can get away not using an ordered read here as we can simply skip aborted
-                     * updates.
-                     */
-                    WT_READ_ONCE(txnid, tmp->txnid);
-                    if (txnid == WT_TXN_ABORTED)
-                        continue;
-
-                    /* Skip the update from the same prepared transaction */
-                    if (txnid == supd->tw.start_txn)
-                        continue;
-
-                    if (tmp->type == WT_UPDATE_STANDARD)
-                        break;
-                }
-
-                if (tmp != NULL) {
-                    supd->free_upds = tmp->next;
-                    tmp->next = NULL;
-                }
-            } else if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw)) {
+            WT_ASSERT(session, supd->onpage_upd != NULL);
+            for (tmp = supd->onpage_upd->next; tmp != NULL; tmp = tmp->next) {
                 /*
-                 * If we write a prepared tombstone, we still need to retain the update it deletes
-                 * on the update chain. Otherwise, if the prepared update is aborted, we will have
-                 * nothing to write in the next reconciliation. If the update is a modify, we need
-                 * to retain all the older updates until a full value is found.
+                 * We can get away not using an ordered read here as we can simply skip aborted
+                 * updates.
                  */
-                for (tmp = supd->onpage_upd; tmp != NULL; tmp = tmp->next) {
-                    if (tmp->txnid == WT_TXN_ABORTED)
-                        continue;
+                WT_READ_ONCE(txnid, tmp->txnid);
+                if (txnid == WT_TXN_ABORTED)
+                    continue;
 
-                    if (WT_UPDATE_DATA_VALUE(tmp))
+                /* Skip the update from the same prepared transaction */
+                if (txnid == supd->tw.start_txn)
+                    continue;
+
+                if (tmp->type == WT_UPDATE_STANDARD)
+                    break;
+            }
+
+            if (tmp != NULL) {
+                supd->free_upds = tmp->next;
+                tmp->next = NULL;
+            }
+        } else if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw)) {
+            WT_ASSERT(session, supd->onpage_upd != NULL);
+            /*
+             * If we write a prepared tombstone, we still need to retain the update it deletes on
+             * the update chain. Otherwise, if the prepared update is aborted, we will have nothing
+             * to write in the next reconciliation. If the update is a modify, we need to retain all
+             * the older updates until a full value is found.
+             */
+            for (tmp = supd->onpage_upd; tmp != NULL; tmp = tmp->next) {
+                if (tmp->txnid == WT_TXN_ABORTED)
+                    continue;
+
+                if (WT_UPDATE_DATA_VALUE(tmp))
+                    break;
+            }
+
+            if (tmp != NULL) {
+                supd->free_upds = tmp->next;
+                tmp->next = NULL;
+            }
+        } else {
+            bool retain_tombstone = false;
+            /*
+             * For non-prepared case, free the on-page value and the on-page tombstone if there is
+             * one.
+             */
+            tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
+
+            /*
+             * If an unresolved prepared update sits in front of an on-page tombstone that we wrote
+             * without a paired on-page value, retain the tombstone in the chain so the prepared
+             * update keeps a rollback fallback. When the prepared update is later written to disk
+             * as a prepare cell, the rollback path needs an older committed state to fall back to;
+             * with no on-page value behind the tombstone, that fallback comes from the on-disk cell
+             * preserved by row reconciliation for keys that still have an unresolved prepared value
+             * on the chain.
+             */
+            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              supd->onpage_tombstone != NULL && supd->onpage_upd == NULL) {
+                for (WT_UPDATE *scan = upd; scan != NULL && scan != supd->onpage_tombstone;
+                  scan = scan->next) {
+                    if (scan->prepared_id != WT_PREPARED_ID_NONE) {
+                        retain_tombstone = true;
                         break;
+                    }
                 }
+            }
 
-                if (tmp != NULL) {
-                    supd->free_upds = tmp->next;
-                    tmp->next = NULL;
-                }
-            } else {
+            if (retain_tombstone) {
                 /*
-                 * For non-prepared case, free the on-page value and the on-page tombstone if there
-                 * is one.
+                 * Sever after the on-page tombstone to free the on-page upd (and any intermediate
+                 * aborted updates between the tombstone and the on-page upd). The tombstone stays
+                 * attached behind the prepared update.
                  */
-                tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
-
+                supd->free_upds = supd->onpage_tombstone->next;
+                supd->onpage_tombstone->next = NULL;
+            } else if (tmp != NULL) {
                 /*
                  * We have decided to restore this update chain so it must have newer updates than
                  * the onpage value on it or we write a prepared update to disk.
@@ -1626,22 +1693,26 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                  * truncate all the updates starting from the onpage value.
                  */
                 for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
-                     prev_onpage = prev_onpage->next)
+                  prev_onpage = prev_onpage->next)
                     ;
                 WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
-                /*
-                 * During update restore eviction we remove anything older than the on-page update,
-                 * including the on-page update. However it is possible a tombstone is also written
-                 * as the stop time of the on-page value. To handle this we also need to remove the
-                 * tombstone from the update chain.
-                 *
-                 * This assertion checks that there aren't any unexpected updates between that
-                 * tombstone and the subsequent value which both make up the on-page value.
-                 */
-                for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
-                    WT_ASSERT(
-                      session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
+                if (supd->onpage_upd == NULL)
+                    WT_ASSERT(session,
+                      tmp == supd->onpage_tombstone && __wt_txn_upd_visible_all(session, tmp));
+                else
+                    /*
+                     * During update restore eviction we remove anything older than the on-page
+                     * update, including the on-page update. However it is possible a tombstone is
+                     * also written as the stop time of the on-page value. To handle this we also
+                     * need to remove the tombstone from the update chain.
+                     *
+                     * This assertion checks that there aren't any unexpected updates between that
+                     * tombstone and the subsequent value which both make up the on-page value.
+                     */
+                    for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
+                        WT_ASSERT(
+                          session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
 #endif
                 supd->free_upds = prev_onpage->next;
                 prev_onpage->next = NULL;
@@ -1714,9 +1785,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         }
     }
 
-    if (free_size > 0)
-        __wt_cache_page_inmem_decr(session, page, free_size);
-
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
      * running. However, the updates we made might be older than that. Set the first dirty
@@ -1729,6 +1797,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
+    if (free_size > 0)
+        __wt_cache_page_inmem_decr(session, page, free_size);
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 
@@ -1884,7 +1954,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     case WT_PAGE_ROW_LEAF:
         delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, page->type);
         if (delta_enabled && first) {
-            __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
+            __wt_ref_key_home(old_ref, &key, &key_size);
             WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
             if (incrp)
                 *incrp += sizeof(WT_IKEY) + key_size;
@@ -1935,7 +2005,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     } else if (delta_enabled && multi_entries == 1 && old_ref->addr != NULL) {
         old_addr = (WT_ADDR *)old_ref->addr;
-        if (!__wt_off_page(old_ref->home, old_addr))
+        if (!__wt_off_page((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&old_ref->home), old_addr))
             ref->addr = old_addr;
         else {
             WT_RET(__wt_calloc_one(session, &addr));
@@ -2014,13 +2084,13 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     parent_incr += sizeof(WT_REF);
     child = split_ref[0];
     child->page = ref->page;
-    child->home = ref->home;
+    __wt_atomic_store_ptr_relaxed(&child->home, __wt_atomic_load_ptr_relaxed(&ref->home));
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
-        __wt_ref_key(ref->home, ref, &key, &key_size);
+        __wt_ref_key_home(ref, &key, &key_size);
         WT_ERR(__wti_row_ikey(session, 0, key, key_size, child));
         parent_incr += sizeof(WT_IKEY) + key_size;
     } else
@@ -2162,8 +2232,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * must include either the original page or both new pages. The page we're splitting is dirty,
      * but that's insufficient: set the first dirty transaction to an impossibly old value so this
      * page is not skipped by a checkpoint.
+     *
+     * Clear the checkpoint snapshot stamp so checkpoint doesn't skip the page and reference that
+     * stale image, which still holds the keys now living in the new page.
      */
     page->modify->first_dirty_txn = WT_TXN_FIRST;
+    page->modify->rec_ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
     F_SET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT);
     /*
      * We modified the page above, which will have set the first dirty transaction to the last
@@ -2192,6 +2266,10 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
             WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
+        if (type == WT_PAGE_ROW_LEAF &&
+          __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) !=
+            WT_LEAF_STATS_UNKNOWN)
+            (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, 1);
         return (0);
     }
 
@@ -2279,6 +2357,9 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
 
+    if (__wt_btree_is_outdated_disagg(session))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
      * eviction, then proceed with the insert split.
@@ -2312,15 +2393,27 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * reference structures.
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
-    for (i = 0; i < new_entries; ++i)
+    for (i = 0; i < new_entries; ++i) {
         WT_ERR(__wt_multi_to_ref(session, ref, page, &mod->mod_multi[i], new_entries, &ref_new[i],
           &parent_incr, i == 0, closing));
+        /*
+         * A disaggregated child without a retained disk image has been pushed to WT_REF_DISK. Its
+         * backing block must be behind the materialization frontier so it can be read back safely.
+         */
+        WT_ASSERT(session,
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM ||
+            (mod->mod_multi[i].block_meta != NULL &&
+              __wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)));
+    }
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
+    if (page->type == WT_PAGE_ROW_LEAF && new_entries > 1 &&
+      __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
+        (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, new_entries - 1);
 
     /*
      * The split succeeded, we can no longer fail.
@@ -2391,11 +2484,14 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
-    /*
-     * Set the session split generation to ensure underlying code isn't surprised by internal page
-     * eviction, then proceed with the split.
-     */
-    WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
+    if (__wt_btree_is_outdated_disagg(session))
+        ret = __wt_set_return(session, EBUSY);
+    else
+        /*
+         * Set the session split generation to ensure underlying code isn't surprised by internal
+         * page eviction, then proceed with the split.
+         */
+        WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
 
     if (ret == EBUSY)
         WT_STAT_CONN_DSRC_INCR(session, cache_evict_split_failed_lock);
@@ -2430,6 +2526,9 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
 
+    if (__wt_btree_is_outdated_disagg(session))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
      * eviction, then proceed with the reverse split.
@@ -2440,11 +2539,10 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_split_rewrite --
- *     Rewrite an in-memory page with a new version. If the caller changes the ref state later, it
- *     should not change ref state in this function.
+ *     Rewrite an in-memory page with a new version.
  */
 int
-__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool change_ref_state)
+__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 {
     WT_ADDR *addr;
     WT_DECL_RET;
@@ -2517,8 +2615,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
     ref->page = new->page;
 
-    if (change_ref_state)
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+    WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     __wt_free(session, new);
     return (0);

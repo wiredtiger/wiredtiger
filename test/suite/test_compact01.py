@@ -33,10 +33,10 @@ from wtdataset import SimpleDataSet, ComplexDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_compact.py
-#    session level compact operation
+# session level compact operation
 class test_compact(compact_util, suite_subprocess):
-    name = 'test_compact'
+    test_name = __qualname__
+    name = test_name
 
     # We don't want to set the page size too small as compaction doesn't work on tables with many
     # overflow items, furthermore eviction can get very slow with overflow items. We don't want the
@@ -74,9 +74,7 @@ class test_compact(compact_util, suite_subprocess):
         self.reopen_conn()
 
         # Confirm the tree starts big
-        stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
-        self.assertGreater(stat_cursor[stat.dsrc.btree_row_leaf][2], self.maxpages)
-        stat_cursor.close()
+        self.assertGreater(self.get_stat(stat.dsrc.btree_row_leaf, uri), self.maxpages)
 
         # Remove most of the object.
         c1 = ds.open_cursor(uri, None)
@@ -104,7 +102,7 @@ class test_compact(compact_util, suite_subprocess):
 
         # Verify compact progress stats. We can't do this with utility method as reopening the
         # connection would reset the stats.
-        if self.utility == 0 and self.reopen == 0 and not self.runningHook('tiered'):
+        if self.utility == 0 and self.reopen == 0:
             statDict = self.get_compact_progress_stats(uri)
             self.assertGreater(statDict["pages_reviewed"],0)
             self.assertGreater(statDict["pages_rewritten"],0)
@@ -113,6 +111,4 @@ class test_compact(compact_util, suite_subprocess):
 
         # Confirm compaction worked: check the number of on-disk pages
         self.reopen_conn()
-        stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
-        self.assertLess(stat_cursor[stat.dsrc.btree_row_leaf][2], self.maxpages)
-        stat_cursor.close()
+        self.assertLess(self.get_stat(stat.dsrc.btree_row_leaf, uri), self.maxpages)

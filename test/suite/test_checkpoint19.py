@@ -32,7 +32,6 @@ import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint19.py
 #
 # Make sure that when we open a cursor we secure the proper matching
 # history store checkpoint, and don't bobble or lose it if the database
@@ -45,7 +44,6 @@ from wtscenario import make_scenarios
 # of WiredTigerCheckpoint and hanging onto it.
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 

@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint13.py: API restrictions on checkpoint cursors
+# API restrictions on checkpoint cursors
 #
 # - You may not read from a checkpoint cursor while in a transaction.
 # (The checkpoint cursor is its own private transaction.)
@@ -40,7 +40,6 @@ from wtscenario import make_scenarios
 # - You may not regen or drop a named checkpoint with a cursor open.
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 

@@ -26,17 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_truncate11.py
-#   Check for checkpoint not reading the deleted pages that are marked by
-#   a fast-truncate which is not visible to the checkpoint.
+# Check for checkpoint not reading the deleted pages that are marked by
+# a fast-truncate which is not visible to the checkpoint.
 
 import threading, time, wttest
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
-from wiredtiger import disagg_fast_truncate_build, stat
+from wiredtiger import stat
 from wtthread import checkpoint_thread
 
 class test_truncate11(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[checkpoint_slow]'
 
     format_values = [
@@ -46,15 +46,9 @@ class test_truncate11(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values)
 
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
-
-    @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
     def test_truncate11(self):
         # Create a large table with lots of pages.
-        uri = "table:test_truncate11"
+        uri = f"table:{self.test_name}"
         format = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + format)
 
@@ -90,9 +84,7 @@ class test_truncate11(wttest.WiredTigerTestCase):
             ckpt_started = 0
             while not ckpt_started:
                 time.sleep(1)
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
 
             # Start a transaction.
             self.session.begin_transaction()
@@ -113,7 +105,5 @@ class test_truncate11(wttest.WiredTigerTestCase):
             done.set()
             ckpt.join()
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        read_deleted = stat_cursor[stat.conn.cache_read_deleted][2]
+        read_deleted = self.get_stat(stat.conn.cache_read_deleted)
         self.assertLess(read_deleted, 10)
-        stat_cursor.close()

@@ -223,7 +223,7 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
      * The only way we should ever get in here without a txn id is if we are recording diagnostic
      * information. In that case, allocate an id.
      */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       txn->time_point.id == WT_TXN_NONE)
         WT_RET(__wt_txn_id_check(session));
     else
@@ -274,7 +274,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      * skip it.
      */
     if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         FLD_SET(fileid, WT_LOGOP_IGNORE);
 
     WT_RET(__txn_logrec_init(session));
@@ -429,6 +429,22 @@ __wti_txn_ts_log(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_log_cleanup --
+ *     Reset checkpoint logging state and free any allocated resources.
+ */
+static void
+__checkpoint_log_cleanup(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+    WT_INIT_LSN(&txn->ckpt_lsn);
+    txn->ckpt_nsnapshot = 0;
+    __wt_scr_free(session, &txn->ckpt_snapshot);
+    txn->full_ckpt = false;
+}
+
+/*
  * __wt_checkpoint_log --
  *     Write a log record for a checkpoint operation.
  */
@@ -548,7 +564,7 @@ __wt_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN 
          * connection close, only during a full checkpoint. A clean close may not update any
          * metadata LSN and we do not want to remove log files in that case.
          */
-        if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0 &&
+        if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 &&
           (!F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DIRTY) ||
             F_ISSET(&conn->log_mgr, WT_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
@@ -556,10 +572,7 @@ __wt_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN 
         /* FALLTHROUGH */
     case WT_TXN_LOG_CKPT_CLEANUP:
         /* Cleanup any allocated resources */
-        WT_INIT_LSN(ckpt_lsn);
-        txn->ckpt_nsnapshot = 0;
-        __wt_scr_free(session, &txn->ckpt_snapshot);
-        txn->full_ckpt = false;
+        __checkpoint_log_cleanup(session);
         break;
     default:
         WT_ERR(__wt_illegal_value(session, flags));
@@ -569,6 +582,8 @@ err:
 #ifdef HAVE_DIAGNOSTIC
     WT_CONN_CLOSE_ABORT(session, ret);
 #endif
+    if (ret != 0)
+        __checkpoint_log_cleanup(session);
     __wt_logrec_free(session, &logrec);
     return (ret);
 }
@@ -743,8 +758,6 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
         break;
 
     case WT_LOGREC_SYSTEM:
-        WT_ERR(__wt_struct_unpack(
-          session, p, WT_PTRDIFF(end, p), WT_UNCHECKED_STRING(II), &lsnfile, &lsnoffset));
         WT_ERR(__wt_fprintf(session, args->fs, "    \"type\" : \"system\",\n"));
         WT_ERR(__txn_oplist_printlog(session, &p, end, args));
         break;

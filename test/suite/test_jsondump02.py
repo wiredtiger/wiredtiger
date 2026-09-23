@@ -29,9 +29,7 @@
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 
-# test_jsondump.py
 # Test dump output from json cursors.
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
 
     table_uri1 = 'table:jsondump02a.wt'

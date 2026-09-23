@@ -30,8 +30,7 @@
 # checkpoint:history_store
 # [END_TAGS]
 #
-# test_checkpoint03.py
-#   Test that checkpoint writes out updates to the history store file.
+# Test that checkpoint writes out updates to the history store file.
 #
 
 from suite_subprocess import suite_subprocess
@@ -40,7 +39,8 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_checkpoint03'
+    test_name = __qualname__
+    tablename = test_name
     uri = 'table:' + tablename
 
     format_values = [
@@ -57,12 +57,6 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
 
     def conn_config(self):
         return 'statistics=(all),' + self.ckpt_config
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def test_checkpoint_writes_to_hs(self):
         # Create a basic table.

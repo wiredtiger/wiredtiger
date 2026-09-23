@@ -9,58 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __schema_get_tiered_uri --
- *     Get the tiered handle for the named table. This function overwrites the dhandle.
- */
-static int
-__schema_get_tiered_uri(
-  WT_SESSION_IMPL *session, const char *uri, uint32_t flags, WT_TIERED **tieredp)
-{
-    WT_DECL_RET;
-    WT_TIERED *tiered;
-
-    *tieredp = NULL;
-
-    WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
-    tiered = (WT_TIERED *)session->dhandle;
-    *tieredp = tiered;
-err:
-    return (ret);
-}
-/*
- * __wti_schema_get_tiered_uri --
- *     Get the tiered handle for the named table.
- */
-int
-__wti_schema_get_tiered_uri(
-  WT_SESSION_IMPL *session, const char *uri, uint32_t flags, WT_TIERED **tieredp)
-{
-    WT_DECL_RET;
-
-    WT_SAVE_DHANDLE(session, ret = __schema_get_tiered_uri(session, uri, flags, tieredp));
-    return (ret);
-}
-
-/*
- * __wti_schema_release_tiered --
- *     Release a tiered handle.
- */
-int
-__wti_schema_release_tiered(WT_SESSION_IMPL *session, WT_TIERED **tieredp)
-{
-    WT_DECL_RET;
-    WT_TIERED *tiered;
-
-    if ((tiered = *tieredp) == NULL)
-        return (0);
-    *tieredp = NULL;
-
-    WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_session_release_dhandle(session));
-
-    return (ret);
-}
-
-/*
  * __wt_schema_get_table_uri --
  *     Get the table handle for the named table.
  */
@@ -229,21 +177,35 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
 
 /*
  * __wt_schema_close_layered --
- *     Close a layered handle.
+ *     Close a layered handle. The dhandle may be reopened after this, so per-dhandle state (the
+ *     truncate list and its rwlock) must remain intact.
  */
 void
 __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
 {
+    if (!F_ISSET(layered, WT_LAYERED_TABLE_OPEN))
+        return;
+
     /* Remove the ingest handle from layered table manager list */
     __wt_layered_table_manager_remove_table(session, layered->ingest_btree_id);
-
-    /* Clear truncate list. */
-    __wt_layered_table_truncate_clear(session, layered);
-    __wt_rwlock_destroy(session, &layered->truncate_lock);
 
     /* Free copies of copied configuration items. */
     __wt_free(session, layered->key_format);
     __wt_free(session, layered->value_format);
     __wt_free(session, layered->ingest_uri);
     __wt_free(session, layered->stable_uri);
+
+    F_CLR(layered, WT_LAYERED_TABLE_OPEN);
+}
+
+/*
+ * __wt_schema_destroy_layered --
+ *     Destroy a layered handle. Called only when the dhandle is being freed.
+ */
+void
+__wt_schema_destroy_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
+{
+    __wt_schema_close_layered(session, layered);
+    __wt_layered_table_truncate_clear(session, layered);
+    __wt_rwlock_destroy(session, &layered->truncate_list.lock);
 }

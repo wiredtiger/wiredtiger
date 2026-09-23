@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_truncate24.py
-#   Test commit timestamp is not overwritten when the reinstantiated
-#   deletes are committed.
+# Test commit timestamp is not overwritten when the reinstantiated
+# deletes are committed.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
@@ -47,8 +46,9 @@ class test_truncate24(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(key_format_values, set_ts)
 
-    @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
     def test_truncate24(self):
+        if self.runningHook('disagg') and self.key_format == 'r':
+            self.skipTest("disagg does not support column-store")
         uri = 'table:truncate24'
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
@@ -80,10 +80,9 @@ class test_truncate24(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
         # Check stats to make sure we fast-deleted at least one page.
-        if (wiredtiger.disagg_fast_truncate_build() == 1):
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
-            self.assertGreater(fastdelete_pages, 0)
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
+        self.assertGreater(fastdelete_pages, 0)
 
         # Verify the data.
         for i in range(1, 100000):

@@ -30,16 +30,16 @@ import errno, os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_verify_disagg.py
-#    SESSION::verify() testing for disagg storage
+# SESSION::verify() testing for disagg storage
 
 @disagg_test_class
 class test_verify_disagg(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     hs = [
         ('empty', dict(fill_hs=False)),
         ('populated', dict(fill_hs=True)),
     ]
-    disagg_storages = gen_disagg_storages('test_verify_disagg', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(hs, disagg_storages)
 
     nitems = 10000
@@ -54,7 +54,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
     session_follow = None
     conn_follow = None
 
-    uri = 'layered:test_verify_disagg'
+    uri = f'layered:{test_name}'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -62,10 +62,13 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[str(i)] = value_prefix + str(i)
             self.timestamp += 1
-            # Setting the commit timestamp to fill the history store if required
-            ts_cfg = "commit_timestamp=" + self.timestamp_str(self.timestamp) if self.fill_hs else None
-            self.session.commit_transaction(ts_cfg)
+            # Writes to disaggregated tables require a commit timestamp.
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(self.timestamp))
         cursor.close()
+        # With the commits timestamped, overwritten versions would otherwise be retained in the
+        # history store at checkpoint; advance the oldest timestamp to keep it empty when requested.
+        if not self.fill_hs:
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
     def verify(self, sessions, expected_error = None):
         for session in sessions:

@@ -30,7 +30,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate19.py
 #
 # Test to mimic oplog workload in MongoDB. Ensure the deleted pages are
 # cleaned up on disk and we are not using excessive disk space.
@@ -56,7 +55,6 @@ class test_truncate19(wttest.WiredTigerTestCase):
         self.session.truncate(None, None, hicursor, None)
         self.session.commit_transaction()
 
-    @wttest.skip_for_hook("tiered", "test depends of sizes of associated file objects")
     @wttest.skip_for_hook("disagg", "test depends of sizes of associated file objects")
     def test_truncate19(self):
         uri = 'table:oplog'

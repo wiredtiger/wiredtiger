@@ -26,18 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_truncate02.py
-#       session level operations on tables
+# session level operations on tables
 #
 
 from test_truncate01 import test_truncate_base
-from wiredtiger import disagg_fast_truncate_build
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 import wttest
 
 # test_truncate_fast_delete
-#       When deleting leaf pages that aren't in memory, we set transactional
+# When deleting leaf pages that aren't in memory, we set transactional
 # information in the page's WT_REF structure, which results in interesting
 # issues.
 class test_truncate_fast_delete(test_truncate_base):
@@ -95,11 +93,6 @@ class test_truncate_fast_delete(test_truncate_base):
 
     scenarios = make_scenarios(types, keyfmt, overflow, reads, writes, txn,
                                prune=20, prunelong=1000)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     # Return the number of records visible to the cursor; test both forward
     # and backward iteration, they are different code paths in this case.

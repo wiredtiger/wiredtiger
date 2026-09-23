@@ -32,22 +32,22 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 import wiredtiger
 
-# test_leaf_delta_disagg01.py
 # Test we can build leaf delta disk image from base image and deltas correctly, the test covers
 # different scenarios, where the k/v pair on latest delta should overwrite the same k/v pair for
 # earlier delta, the unpacking during merging process for delta and base image should work properly.
 @disagg_test_class
 class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     prefix_compression = [
         ('enabled', dict(prefix_config='prefix_compression=true', prefix_enabled=True)),
         ('disabled', dict(prefix_config='prefix_compression=false', prefix_enabled=False)),
     ]
     conn_base_config = 'cache_size=32MB,transaction_sync=(enabled,method=fsync),statistics=(all),' \
-    'statistics_log=(wait=1,json=true,on_close=true),page_delta=(delta_pct=100),'
+    'statistics_log=(wait=1,json=true,on_close=true),page_delta=(delta_pct=100,delete_pct=100),'
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(internal_page_delta=true,leaf_page_delta=true),'
-    disagg_storages = gen_disagg_storages('test_layered54', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri='layered:test_leaf_delta_disagg01'
+    uri=f'layered:{test_name}'
     init_key = "abc"
 
     scenarios = make_scenarios(disagg_storages, prefix_compression)
@@ -71,19 +71,14 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + self.conn_delta_config
 
-    def get_stat(self, stat, uri = None):
-        if not uri:
-            uri = ''
-        stat_cursor = self.session.open_cursor(f'statistics:{uri}', None, None)
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def insert_or_update(self, ids, vals):
+        self.ts_count = getattr(self, 'ts_count', 0) + 1
+        self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri, None, None)
         for id, val in zip(ids, vals):
             cursor[self.init_key * id] = val.encode()
         cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
 
     def verify(self, dict):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -94,11 +89,14 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         cursor.close()
 
     def delete(self, ids):
+        self.ts_count = getattr(self, 'ts_count', 0) + 1
+        self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in ids:
             cursor.set_key(self.init_key * i)
             cursor.remove()
         cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
         self.session.checkpoint()
 
     def verify_delete(self, ids):
@@ -116,7 +114,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.insert_or_update(self.base_ids, self.base_vals)
         self.session.checkpoint()
         if (self.prefix_enabled):
-            self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
+            self.assertStatGreaterSoon(stat.dsrc.rec_prefix_compression_full, 0, uri=self.uri)
         else:
             self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
         self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 0)
@@ -140,7 +138,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         # There should be 3 deltas generated for the page.
         self.assertEqual(delta_cnt, 3)
         if (self.prefix_enabled):
-            self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
+            self.assertStatGreaterSoon(stat.dsrc.rec_prefix_compression_delta, 0, uri=self.uri)
         else:
             self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
 

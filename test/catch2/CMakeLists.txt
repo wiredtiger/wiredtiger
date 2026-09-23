@@ -1,27 +1,55 @@
 # Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
-    set(unittests misc_tests/test_assertions.cpp)
+    set(unittests
+        misc_tests/test_assertions.cpp
+        misc_tests/test_single_thread_check.cpp
+    )
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
+        misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
+        misc_tests/test_checkpoint_log_cleanup.cpp
+        misc_tests/test_checkpoint_skip.cpp
+        misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_dhandle_close_action.cpp
+        misc_tests/test_dhandle_ebusy.cpp
+        misc_tests/test_disagg_block_header_version.cpp
+        misc_tests/test_disagg_block_read_checksum.cpp
         misc_tests/test_disagg_meta_config.cpp
+        misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
+        misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_disagg_cache_eligible.cpp
+        misc_tests/test_evict_disagg_cache_source.cpp
+        misc_tests/test_evict_needed_pct_full.cpp
+        misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_modify_tombstone_namespace.cpp
+        misc_tests/test_page_delta_merge_empty_value.cpp
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_layered_incomplete_table.cpp
+        misc_tests/test_layered_ingest_uri.cpp
+        misc_tests/test_layered_snapshot_pickup.cpp
+        misc_tests/test_layered_snapshot_stress.cpp
+        misc_tests/test_palite_victim_cache.cpp
+        misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_txn_config.cpp
+        misc_tests/test_txn_pinned_timestamp_stat.cpp
+        misc_tests/test_verify_compare_page_id_lists.cpp
+        misc_tests/test_verify_progress.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
@@ -37,15 +65,22 @@ else()
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_put.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        cursors/unit/test_curstat_size.cpp
+        cursors/unit/test_layered_op.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
         ext/test_checkpoint_meta_version.cpp
+        ext/test_compressor_stored_length.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
+        sub_level_error/unit/test_sub_level_error_nested_api_calls.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
         sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
         sub_level_error/unit/test_sub_level_error_drop_uncommitted_dirty.cpp
@@ -53,10 +88,16 @@ else()
         sub_level_error/unit/test_sub_level_error_msg_macros.cpp
         sub_level_error/unit/test_sub_level_error_rollback.cpp
         sub_level_error/unit/test_sub_level_error_session_set_last_error.cpp
+        truncate/test_truncate_visible_check.cpp
+        truncate/test_layered_truncate_visibility.cpp
+        truncate/test_layered_table_truncate_clear.cpp
+        truncate/test_layered_table_truncate_gc.cpp
+        truncate/test_layered_table_truncate_rollback.cpp
     )
 endif()
 
 # FIXME-WT-14051: Live restore is not supported on Windows
+# Palite extension tests require shared library loading not supported on Windows
 if(NOT WT_WIN)
     set(live_restore_sources
         live_restore/live_restore_test_env.cpp
@@ -75,6 +116,8 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_compute_read_end_bit.cpp
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
+        truncate/test_insert_truncate_entry.cpp
+        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 
@@ -83,13 +126,16 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    cross_checkpoint_caching/cross_checkpoint_caching_test_env.cpp
     sub_level_error/utils_sub_level_error.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp
     wrappers/item_wrapper.cpp
     wrappers/mock_connection.cpp
+    wrappers/mock_metadata_cursor.cpp
     wrappers/mock_session.cpp
+    truncate/truncate_list_helpers.cpp
     ${unittests}
     ${live_restore_sources}
 )
@@ -114,8 +160,29 @@ if(NOT HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
     )
 endif()
 
-if(WT_POSIX)
-    add_dependencies(catch2-unittests wiredtiger_dir_store)
+# The compressor tests load whichever compressors this build has, and skip the rest.
+if(ENABLE_SNAPPY)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            SNAPPY_EXTENSION="$<TARGET_FILE:wiredtiger_snappy>"
+    )
+    add_dependencies(catch2-unittests wiredtiger_snappy)
+endif()
+
+if(ENABLE_ZSTD)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            ZSTD_EXTENSION="$<TARGET_FILE:wiredtiger_zstd>"
+    )
+    add_dependencies(catch2-unittests wiredtiger_zstd)
+endif()
+
+if(ENABLE_LZ4)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            LZ4_EXTENSION="$<TARGET_FILE:wiredtiger_lz4>"
+    )
+    add_dependencies(catch2-unittests wiredtiger_lz4)
 endif()
 
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)

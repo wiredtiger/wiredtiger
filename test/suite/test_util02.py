@@ -32,15 +32,16 @@ from suite_subprocess import suite_subprocess
 from wtdataset import ComplexDataSet
 from wtscenario import make_scenarios
 
-# test_util02.py
-#    Utilities: wt load
+# Utilities: wt load
+@wttest.skip_for_hook("disagg", "wt load is not supported in disaggregated storage mode")
 class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
     """
     Test wt load
     """
+    test_name = __qualname__
 
-    tablename = 'test_util02.a'
-    tablename2 = 'test_util02.b'
+    tablename = f'{test_name}.a'
+    tablename2 = f'{test_name}.b'
     nentries = 1000
     stringclass = ''.__class__
 
@@ -164,6 +165,7 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
 
 # test_load_commandline --
 #       Test the command-line processing.
+@wttest.skip_for_hook("disagg", "wt load is not supported in disaggregated storage mode")
 class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
     uri = "table:command_line"
 

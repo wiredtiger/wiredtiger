@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_compat05.py
 # Check log.archive compatibility API
 
 import os, time
@@ -35,8 +34,8 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     remove_values = [
         ('archive-false', dict(remove_arg = 'archive=false', removed = False)),
         ('archive-true', dict(remove_arg = 'archive=true', removed = True)),
@@ -70,7 +69,7 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
     # Run a single test.
     def test_compat05(self):
         # Populate the database to create some log files.
-        uri = 'table:test_compat05'
+        uri = f'table:{self.test_name}'
         ds = SimpleDataSet(self, uri, 10000, key_format='S', value_format='S')
         ds.populate()
 

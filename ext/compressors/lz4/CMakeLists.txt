@@ -27,8 +27,8 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
-            ${HAVE_LIBLZ4_INCLUDES}
         )
+    target_link_libraries(wiredtiger_lz4 PRIVATE wt::lz4)
     target_compile_options(
         wiredtiger_lz4
         PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
@@ -38,7 +38,6 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
 endif()
 
 if(ENABLE_LZ4)
-    target_link_libraries(wiredtiger_lz4 wt::lz4)
     install(TARGETS wiredtiger_lz4
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

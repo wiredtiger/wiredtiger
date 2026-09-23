@@ -69,9 +69,9 @@ def custom_validator(data):
     if not found:
         raise Exception('Failed to find "{}" in stdout'.format(needle))
 
-# test_rollback_to_stable42.py
 # Test that rollback to stable on a missing file complains and bails.
 class test_rollback_to_stable42(test_rollback_to_stable_base):
+    test_name = __qualname__
     def conn_config(self):
         return 'verbose=(rts:1)'
 
@@ -85,8 +85,6 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values)
 
     def test_reopen_after_delete(self):
-        if 'tiered' in self.hook_names:
-            self.skipTest("We cannot reliably remove specific file names under tiered storage")
         if os.name == 'nt':
             self.skipTest("Windows doesn't like removing a file with another process using it")
 
@@ -94,7 +92,7 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         # remove the file that needs rollback.
         self.ignoreTearDownLogs = True
 
-        uri = 'table:test_rollback_to_stable42'
+        uri = f'table:{self.test_name}'
         nrows = 1000
 
         value = 'a' * 10
@@ -108,7 +106,7 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         self.large_updates(uri, value, ds, nrows, False, 60)
         self.session.checkpoint()
 
-        os.remove('test_rollback_to_stable42.wt')
+        os.remove(f'{self.test_name}.wt')
 
         # RTS runs at shutdown and startup, and we need WiredTiger to
         # see that the file was deleted from under it (it might all be

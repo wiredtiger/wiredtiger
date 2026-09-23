@@ -38,8 +38,7 @@ try:
 except:
     None
 
-# test_backup06.py
-#    Test that opening a backup cursor does not open file handles.
+# Test that opening a backup cursor does not open file handles.
 class test_backup06(backup_base):
     conn_config = 'statistics=(fast)'
     # This will create several hundred tables.
@@ -89,13 +88,9 @@ class test_backup06(backup_base):
 
         # Confirm that opening a backup cursor does not open
         # file handles.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        dh_before = stat_cursor[stat.conn.dh_conn_handle_count][2]
-        stat_cursor.close()
+        dh_before = self.get_stat(stat.conn.dh_conn_handle_count)
         cursor = self.session.open_cursor('backup:', None, None)
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        dh_after = stat_cursor[stat.conn.dh_conn_handle_count][2]
-        stat_cursor.close()
+        dh_after = self.get_stat(stat.conn.dh_conn_handle_count)
         if (dh_before != dh_after):
             print("Dhandles open before backup open: " + str(dh_before))
             print("Dhandles open after backup open: " + str(dh_after))

@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_encrypt06.py
-#   Test that encryption is effective, it leaves no clear text
+# Test that encryption is effective, it leaves no clear text
 #
 
 import os
@@ -35,7 +34,6 @@ import wttest
 from wtscenario import make_scenarios
 
 # Test encryption, when on, does not leak any information
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_encrypt06(wttest.WiredTigerTestCase):
     # To test the sodium encryptor, we use secretkey= rather than
     # setting a keyid, because for a "real" (vs. test-only) encryptor,
@@ -48,6 +46,7 @@ class test_encrypt06(wttest.WiredTigerTestCase):
     #
     # It expects secretkey= to provide a hex-encoded 256-bit chacha20 key.
     # This key will serve for testing purposes.
+    test_name = __qualname__
     sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
     key11 = ',keyid=11,secretkey=XYZ'
@@ -156,8 +155,8 @@ class test_encrypt06(wttest.WiredTigerTestCase):
 
     # Create a table, add key/values with specific lengths, then verify them.
     def test_encrypt(self):
-        name0 = 'test_encrypt06-0'
-        name1 = 'test_encrypt06-1'
+        name0 = f'{self.test_name}-0'
+        name1 = f'{self.test_name}-1'
 
         enc0 = self.encrypt_table_params(self.table0_encrypt,
                                         self.table0_encrypt_args)

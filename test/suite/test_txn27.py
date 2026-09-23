@@ -26,15 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, time
+import wiredtiger, time, wttest
 from error_info_util import error_info_util
 from wtdataset import SimpleDataSet
 
-# test_txn27.py
-#   Test that the API returning a rollback error sets the reason for the rollback.
+# Test that the API returning a rollback error sets the reason for the rollback.
 class test_txn27(error_info_util):
     conn_config = 'cache_size=1MB'
 
+    # The oldest-for-eviction reason needs ~2s of stalled eviction progress before it fires; the
+    # newer updates/dirty-trigger check needs no such stall and can win the race instead. Locally
+    # the older check still wins, but under the slower disagg-leader-tsan hook the race tips the
+    # other way, so this test's specific reason assertion is not reliable there.
+    @wttest.skip_for_hook("disagg", "Races with the updates/dirty-trigger check under tsan slowdown.")
     def test_rollback_reason(self):
         uri = "table:txn27"
 

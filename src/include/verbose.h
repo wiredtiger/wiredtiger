@@ -25,12 +25,14 @@ struct __wt_verbose_message_info {
     "WT_VERB_BACKUP", \
     "WT_VERB_BLKCACHE", \
     "WT_VERB_BLOCK", \
+    "WT_VERB_CACHE_TOP", \
     "WT_VERB_CHECKPOINT", \
     "WT_VERB_CHECKPOINT_CLEANUP", \
     "WT_VERB_CHECKPOINT_PROGRESS", \
     "WT_VERB_COMPACT", \
     "WT_VERB_COMPACT_PROGRESS", \
     "WT_VERB_CONFIGURATION", \
+    "WT_VERB_CROSS_CHECKPOINT_CACHE", \
     "WT_VERB_DEFAULT", \
     "WT_VERB_DISAGGREGATED_STORAGE", \
     "WT_VERB_ERROR_RETURNS", \
@@ -62,7 +64,6 @@ struct __wt_verbose_message_info {
     "WT_VERB_SWEEP", \
     "WT_VERB_TEMPORARY", \
     "WT_VERB_THREAD_GROUP", \
-    "WT_VERB_TIERED", \
     "WT_VERB_TIMESTAMP", \
     "WT_VERB_TRANSACTION", \
     "WT_VERB_VERIFY", \
@@ -324,6 +325,6 @@ struct __wt_verbose_multi_category {
  */
 #define WT_CONFIG_DEBUG(session, fmt, ...)                                          \
     do {                                                                            \
-        if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CONFIGURATION))      \
+        if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_CONFIGURATION))      \
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION, fmt, __VA_ARGS__); \
     } while (0)

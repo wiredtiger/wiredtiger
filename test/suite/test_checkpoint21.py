@@ -32,7 +32,6 @@ import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint21.py
 #
 # Test reading a checkpoint that contains data from a committed but not
 # durable transaction.
@@ -57,7 +56,6 @@ from wtscenario import make_scenarios
 # rest, and checks that it is all visible by reading the checkpoint.
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [

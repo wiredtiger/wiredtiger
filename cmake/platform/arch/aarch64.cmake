@@ -1,0 +1,20 @@
+include(CheckCCompilerFlag)
+include(cmake/rcpc_test.cmake)
+
+# ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC.
+# If the compilation check in rcpc_test passes also turn on the RCpc instructions.
+if(HAVE_RCPC)
+    add_compile_options(-march=armv8.2-a+rcpc+crc)
+else()
+    add_compile_options(-march=armv8-a+crc)
+endif()
+
+# moutline-atomics preserves backwards compatibility with Arm v8.0 systems but also supports
+# using Arm v8.1 atomics. The latter can massively improve performance on larger Arm systems.
+# The flag was back ported to gcc8, 9 and is the default in gcc10+. See if the compiler supports
+# the flag.
+check_c_compiler_flag("-moutline-atomics" has_moutline_atomics)
+if(has_moutline_atomics)
+    add_compile_options(-moutline-atomics)
+endif()
+unset(has_moutline_atomics CACHE)

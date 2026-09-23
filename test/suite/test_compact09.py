@@ -32,30 +32,24 @@ from wiredtiger import stat
 
 megabyte = 1024 * 1024
 
-# test_compact09.py
 # This test creates tables with the first 90% of keys deleted.
 #
 # It checks that background compaction only compacts a table when it is not part of the exclude
 # list.
 class test_compact09(compact_util):
+    test_name = __qualname__
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     conn_config = 'cache_size=100MB,statistics=(all),debug_mode=(background_compact)'
-    uri_prefix = 'table:test_compact09'
+    uri_prefix = f'table:{test_name}'
 
     table_numkv = 100 * 1000
     n_tables = 2
 
     def get_bg_compaction_files_excluded(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        files = stat_cursor[stat.conn.background_compact_skipped_exclude][2]
-        stat_cursor.close()
-        return files
+        return self.get_stat(stat.conn.background_compact_skipped_exclude)
 
     # Test the exclude list functionality of the background compaction server.
     def test_compact09(self):
-        if self.runningHook('tiered'):
-            self.skipTest("Tiered tables do not support compaction")
-
         # Create and populate tables.
         uris = []
         for i in range(self.n_tables):
@@ -77,10 +71,7 @@ class test_compact09(compact_util):
         # Enable background compaction and exclude the two tables. Use run once to be able to
         # track the stats easily.
         exclude_list = f'["{self.uri_prefix}_0.wt", "{self.uri_prefix}_1.wt"]'
-        config = f'background=true,free_space_target=1MB,exclude={exclude_list},run_once=true'
-        # Don't use the helper function as the server may go to sleep before we have the time to
-        # check it is actually running.
-        self.session.compact(None, config)
+        self.turn_on_bg_compact(f'free_space_target=1MB,exclude={exclude_list},run_once=true')
 
         # Background compaction should exclude all files.
         while self.get_bg_compaction_files_excluded() < self.n_tables:
@@ -95,8 +86,7 @@ class test_compact09(compact_util):
 
         # Enable background compaction and exclude only one table.
         exclude_list = f'["{self.uri_prefix}_0.wt"]'
-        config = f'background=true,free_space_target=1MB,exclude={exclude_list},run_once=true'
-        self.session.compact(None, config)
+        self.turn_on_bg_compact(f'free_space_target=1MB,exclude={exclude_list},run_once=true')
 
         # Background compaction should exclude only one file now. Since the stats are cumulative, we
         # need to take into account the previous check.

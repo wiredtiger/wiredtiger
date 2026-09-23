@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -24,7 +24,7 @@
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_LOGOP_IGNORE 0x80000000
-#define WT_LOGOP_IS_IGNORED(val) ((val)&WT_LOGOP_IGNORE)
+#define WT_LOGOP_IS_IGNORED(val) ((val) & WT_LOGOP_IGNORE)
 
 /*
  * WT_LSN --

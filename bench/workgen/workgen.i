@@ -38,6 +38,12 @@
 %include "attribute.i"
 %include "carrays.i"
 
+/*
+ * SWIG doesn't support nested classes when bridging to Python.
+ * Use 'flatnested' feature to generate a non-nested proxy class.
+ */
+%feature("flatnested");
+
 /* We only need to reference WiredTiger types. */
 %import "wiredtiger.h"
 
@@ -55,12 +61,12 @@
 %}
 
 %exception {
-	try {
-		$action
-	}
-	catch (workgen::WorkgenException &wge) {
-		SWIG_exception_fail(SWIG_RuntimeError, wge._str.c_str());
-	}
+    try {
+        $action
+    }
+    catch (workgen::WorkgenException &wge) {
+        SWIG_exception_fail(SWIG_RuntimeError, wge._str.c_str());
+    }
 }
 
 /*
@@ -72,14 +78,14 @@
  */
 %define InterruptableFunction(funcname)
 %exception funcname {
-	try {
-		void (*savesig)(int) = signal(SIGINT, SIG_DFL);
-		$action
-		(void)signal(SIGINT, savesig);
-	}
-	catch (workgen::WorkgenException &wge) {
-		SWIG_exception_fail(SWIG_RuntimeError, wge._str.c_str());
-	}
+    try {
+        void (*savesig)(int) = signal(SIGINT, SIG_DFL);
+        $action
+        (void)signal(SIGINT, savesig);
+    }
+    catch (workgen::WorkgenException &wge) {
+        SWIG_exception_fail(SWIG_RuntimeError, wge._str.c_str());
+    }
 }
 %enddef
 
@@ -88,11 +94,11 @@
  */
 %define WorkgenClass(classname)
 %extend workgen::classname {
-	const std::string __str__() {
-		std::ostringstream out;
-		$self->describe(out);
-		return out.str();
-	}
+    const std::string __str__() {
+        std::ostringstream out;
+        $self->describe(out);
+        return out.str();
+    }
 };
 %enddef
 

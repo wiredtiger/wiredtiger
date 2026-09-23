@@ -28,11 +28,10 @@
 
 import wttest
 from helper import simulate_crash_restart
-from wiredtiger import disagg_fast_truncate_build, stat, WT_NOTFOUND
+from wiredtiger import stat, WT_NOTFOUND
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate14.py
 # Generate very large namespace gaps with truncate.
 class test_truncate14(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
@@ -56,11 +55,6 @@ class test_truncate14(wttest.WiredTigerTestCase):
         ('checkpoint-visible', dict(action='checkpoint-visible')),
     ]
     scenarios = make_scenarios(trunc_values, format_values, action_values)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     # Make all the values different to avoid having VLCS RLE condense the table.
     def mkdata(self, basevalue, i):
@@ -208,11 +202,7 @@ class test_truncate14(wttest.WiredTigerTestCase):
         # (Except if we're running with trunc_with_remove.)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.runningHook('tiered'):
-            # There's no way the test can guess whether fast delete is possible when
-            # flush_tier calls are "randomly" inserted.
-            pass
-        elif self.trunc_with_remove:
+        if self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)

@@ -35,13 +35,13 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from wtbackup import backup_base
 
-# test_checkpoint_snapshot05.py
-#   This test is to run checkpoint and eviction in parallel with timing
-#   stress for checkpoint and let eviction write more data than checkpoint
-#   after a bulk load on a table to check the backup recovery.
+# This test is to run checkpoint and eviction in parallel with timing
+# stress for checkpoint and let eviction write more data than checkpoint
+# after a bulk load on a table to check the backup recovery.
 class test_checkpoint_snapshot05(backup_base):
     # Create a table.
-    uri = "table:test_checkpoint_snapshot05"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
     backup_dir = "BACKUP"
 
     format_values = [
@@ -149,6 +149,5 @@ class test_checkpoint_snapshot05(backup_base):
         # Check the table contains the last checkpointed value.
         self.check(self.valuea, self.uri, self.nrows)
 
-        with open_cursor(self.session, 'statistics:') as stat_cursor:
-            self.assertGreater(stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2], 0)
-            self.assertEqual(stat_cursor[stat.conn.txn_rts_keys_removed][2], 0)
+        self.assertStatGreaterSoon(stat.conn.txn_rts_inconsistent_ckpt, 0)
+        self.assertEqual(self.get_stat(stat.conn.txn_rts_keys_removed), 0)

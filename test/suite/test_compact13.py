@@ -32,21 +32,18 @@ from compact_util import compact_util
 
 megabyte = 1024 * 1024
 
-# test_compact13.py
 # This test checks that background compaction resets statistics after being disabled.
 class test_compact13(compact_util):
+    test_name = __qualname__
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     conn_config = 'cache_size=100MB,statistics=(all)'
-    uri_prefix = 'table:test_compact13'
+    uri_prefix = f'table:{test_name}'
 
     table_numkv = 100 * 1000
     n_tables = 2
 
     # Test background compaction stats are reset when after being disabled.
     def test_compact13(self):
-        if self.runningHook('tiered'):
-            self.skipTest("Tiered tables do not support compaction")
-
         # Create and populate tables.
         uris = []
         for i in range(self.n_tables):
@@ -59,7 +56,7 @@ class test_compact13(compact_util):
         self.session.checkpoint()
 
         # Enable background compaction.
-        bg_compact_config = 'background=true,free_space_target=1MB'
+        bg_compact_config = 'free_space_target=1MB'
         self.turn_on_bg_compact(bg_compact_config)
 
         # Nothing should be compacted.

@@ -19,11 +19,11 @@ __block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
 }
 
 /*
- * __wti_block_disagg_header_byteswap_copy --
+ * __wt_block_disagg_header_byteswap_copy --
  *     Place holder - might be necessary to handle network order.
  */
 void
-__wti_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
+__wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
 {
     *to = *from;
 }
@@ -117,8 +117,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     page_id = block_meta->page_id;
 
     /* Check that we are the leader (only leaders can write). */
-    WT_ASSERT_ALWAYS(
-      session, conn->layered_table_manager.leader, "Trying to write the page from a follower");
+    WT_ASSERT_ALWAYS(session, __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader),
+      "Trying to write the page from a follower");
 
     /*
      * Update the block's checksum: if our caller specifies, checksum the complete data, otherwise
@@ -162,6 +162,15 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
 
     /*
+     * Ensure that we don't accidentally write a block with flags that should not be written out to
+     * stable storage, even though we just constructed the flags above. The "modified" flag should
+     * never be set during normal write path, as it indicates an offline modification outside of the
+     * regular write path, e.g., by the victim block cache.
+     */
+    WT_ASSERT_ALWAYS(session, !F_ISSET(blk, WT_BLOCK_DISAGG_MODIFIED),
+      "the modified flag must not be set on a block written through the regular write path");
+
+    /*
      * The reconciliation id stored in the block header is diagnostic, we don't care if it's
      * truncated.
      */
@@ -183,6 +192,10 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         F_SET(&put_args, WT_PAGE_LOG_COLD);
 
     /* Write the block. */
+    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT, 100)) {
+        WT_STAT_CONN_DSRC_INCR(session, disagg_block_plh_put_failed);
+        return (EBUSY);
+    }
     WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
@@ -200,9 +213,9 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     __wt_stat_usecs_hist_incr_disaggbmwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     __wt_verbose(session, WT_VERB_WRITE,
-      "page_id %" PRIu64 ", size %" WT_SIZET_FMT ", checksum %" PRIx32 ", lsn %" PRIu64
-      ", page_image_size %" WT_SIZET_FMT,
-      page_id, buf->size, checksum, put_args.lsn, page_image_size);
+      "page_id %" PRIu64 ", table_id %" PRIu64 ", size %" WT_SIZET_FMT ", checksum %" PRIx32
+      ", lsn %" PRIu64 ", page_image_size %" WT_SIZET_FMT,
+      page_id, block_disagg->tableid, buf->size, checksum, put_args.lsn, page_image_size);
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
@@ -246,9 +259,6 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
       page_image_size, &size, &checksum, data_checksum, checkpoint_io));
 
-    /* Update the btree's running total of bytes. */
-    __wt_btree_increase_size(session, size);
-
     __wt_page_header_byteswap(buf->mem);
 
     WT_CLEAR(cookie);
@@ -271,6 +281,14 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
+    /*
+     * The size is increased by the size of the current write. If there is a error path for this
+     * function, we should decrease the size back to the previous value, same as at the beginning of
+     * this function. This is important for the correctness of the size tracking, and to avoid
+     * potential issues with the block manager's size accounting.
+     */
+    __wti_block_disagg_increase_size(block_disagg, size);
+
     return (0);
 }
 
@@ -287,9 +305,10 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     __wt_verbose(session, WT_VERB_BLOCK,
-      "block free: page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64
-      ", size %" PRIu32 ", checksum %" PRIx32,
-      cookie.page_id, cookie.flags, cookie.lsn, cookie.base_lsn, cookie.size, cookie.checksum);
+      "block free: page_id %" PRIu64 ", table_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
+      ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+      cookie.page_id, block_disagg->tableid, cookie.flags, cookie.lsn, cookie.base_lsn, cookie.size,
+      cookie.checksum);
 
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
@@ -303,12 +322,12 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
      * than what was written to metadata, causing verify to fail.
      *
      * Second, to account for the above, __bmd_checkpoint_pack_raw explicitly manages root page size
-     * transitions in btree->bytes_total: it subtracts the previous root size and adds the current
+     * transitions in block_disagg->size: it subtracts the previous root size and adds the current
      * root size at the moment the checkpoint size is computed. Decrementing here as well would
      * cause the old root page size to be subtracted twice.
      */
     if (!is_root)
-        __wt_btree_decrease_size(session, cookie.size);
+        __wti_block_disagg_decrease_size(session, block_disagg, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {

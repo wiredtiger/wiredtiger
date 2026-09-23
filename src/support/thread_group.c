@@ -71,7 +71,6 @@ static int
 __thread_group_shrink(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
 {
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_THREAD *thread;
     uint32_t current_slot;
 
@@ -120,8 +119,7 @@ __thread_group_shrink(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         if (thread == NULL)
             continue;
         WT_ASSERT(session, thread->session != NULL);
-        wt_session = (WT_SESSION *)thread->session;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(thread->session));
         thread->session = NULL;
         __wt_free(session, thread);
         group->threads[current_slot] = NULL;
@@ -140,7 +138,6 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_THREAD *thread;
     size_t alloc;
     uint32_t i, session_flags;
@@ -225,10 +222,8 @@ err:
      * memory situation. Do real cleanup just in case that changes in the future.
      */
     if (thread != NULL) {
-        if (thread->session != NULL) {
-            wt_session = (WT_SESSION *)thread->session;
-            WT_TRET(wt_session->close(wt_session, NULL));
-        }
+        if (thread->session != NULL)
+            WT_TRET(__wt_session_close_internal(thread->session));
         __wt_cond_destroy(session, &thread->pause_cond);
         __wt_free(session, thread);
     }
@@ -392,4 +387,37 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
         __wt_cond_signal(session, thread->pause_cond);
     }
     __wt_writeunlock(session, &group->lock);
+}
+
+/*
+ * __wt_thread_group_foreach --
+ *     Perform an action for each thread in the group. It must be called while the threads are not
+ *     doing any work. If any threads are running, the behavior is undefined.
+ */
+int
+__wt_thread_group_foreach(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
+  int (*func)(WT_SESSION_IMPL *session, WT_THREAD *context))
+{
+    WT_DECL_RET;
+    uint32_t i;
+
+    __wt_verbose(
+      session, WT_VERB_THREAD_GROUP, "Performing action for each thread in group: %s", group->name);
+
+    __wt_readlock(session, &group->lock);
+
+    for (i = 0; i < group->max; i++) {
+        WT_THREAD *thread = group->threads[i];
+        if (thread == NULL)
+            continue;
+
+        /*
+         * TODO: Enforce that the threads are not running. This may be hard, as the checkpoint
+         * reconciliation threads do their own locking.
+         */
+        WT_TRET(func(thread->session, thread));
+    }
+
+    __wt_readunlock(session, &group->lock);
+    return (ret);
 }

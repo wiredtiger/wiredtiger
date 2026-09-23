@@ -129,6 +129,10 @@ testutil_deduce_build_dir(TEST_OPTS *opts)
     char *token;
     int index;
 
+    /* Nothing to deduce if the caller already specified the build directory (e.g. via -b). */
+    if (opts->build_dir != NULL)
+        return;
+
     if (getcwd(pwd, sizeof(pwd)) == NULL)
         testutil_die(ENOENT, "No such directory");
 
@@ -218,7 +222,6 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->progress_file_name);
     free(opts->home);
     free(opts->build_dir);
-    free(opts->tiered_storage_source);
 }
 
 /*
@@ -364,38 +367,21 @@ testutil_print_command_line(int argc, char *const *argv)
 }
 
 /*
- * testutil_is_dir_store --
- *     Check if the external storage is dir_store.
- */
-bool
-testutil_is_dir_store(TEST_OPTS *opts)
-{
-    bool dir_store;
-
-    dir_store = strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? true : false;
-    return (dir_store);
-}
-
-/*
  * testutil_wiredtiger_open --
- *     Call wiredtiger_open with the tiered storage configuration if enabled.
+ *     Call wiredtiger_open, appending disaggregated storage configuration when enabled.
  */
 void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
-  WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
+  WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun)
 {
-    char buf[1024], disagg_cfg[512], disagg_ext_cfg[512], tiered_cfg[512], tiered_ext_cfg[512];
+    char buf[1024], disagg_cfg[512], disagg_ext_cfg[512];
 
-    opts->local_retention = benchmarkrun ? 0 : 2;
     testutil_disagg_storage_configuration(
       opts, home, disagg_cfg, sizeof(disagg_cfg), disagg_ext_cfg, sizeof(disagg_ext_cfg));
-    testutil_tiered_storage_configuration(
-      opts, home, tiered_cfg, sizeof(tiered_cfg), tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s%s,extensions=[%s,%s]",
-      config == NULL ? "" : config, (rerun ? TESTUTIL_ENV_CONFIG_REC : ""),
-      (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""), disagg_cfg, tiered_cfg, disagg_ext_cfg,
-      tiered_ext_cfg);
+    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s]", config == NULL ? "" : config,
+      (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
+      disagg_cfg, disagg_ext_cfg);
 
     if (opts->verbose)
         printf("wiredtiger_open configuration: %s\n", buf);
@@ -439,7 +425,7 @@ testutil_timeout_wait(uint32_t timeout_seconds, pid_t pid)
     }
     testutil_assert_errno(kill(pid, SIGKILL) == 0);
     testutil_assert_errno(waitpid(pid, &status, 0) != -1);
-    testutil_die(EINVAL, "child process %d killed, timed out after " PRIu32 " seconds\n", (int)pid,
+    testutil_die(EINVAL, "child process %d killed, timed out after %" PRIu32 " seconds\n", (int)pid,
       timeout_seconds);
 }
 
@@ -505,6 +491,40 @@ testutil_pareto(uint64_t rand, uint64_t range, u_int skew)
     if (rand > range)
         rand = 0;
     return (rand);
+}
+
+/*
+ * testutil_fnv1a_init --
+ *     Initialize a 64-bit FNV-1a hash.
+ */
+uint64_t
+testutil_fnv1a_init(void)
+{
+    return (UINT64_C(0xcbf29ce484222325));
+}
+
+/*
+ * testutil_fnv1a_add_bytes --
+ *     Update a 64-bit FNV-1a hash with an arbitrary run of bytes.
+ */
+uint64_t
+testutil_fnv1a_add_bytes(uint64_t hash, const uint8_t *data, size_t sz)
+{
+    for (size_t i = 0; i < sz; i++) {
+        hash ^= data[i];
+        hash *= UINT64_C(0x00000100000001b3);
+    }
+    return (hash);
+}
+
+/*
+ * testutil_fnvhash64 --
+ *     FNV-1a 64-bit hash of a uint64 value.
+ */
+uint64_t
+testutil_fnvhash64(uint64_t val)
+{
+    return (testutil_fnv1a_add_bytes(testutil_fnv1a_init(), (const uint8_t *)&val, sizeof(val)));
 }
 
 /*

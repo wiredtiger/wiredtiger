@@ -27,11 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import os, wttest
 from test_cc01 import test_cc_base
-from wiredtiger import disagg_fast_truncate_build, stat
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate20.py
 #
 # Test to mimic oplog workload in MongoDB. Ensure the deleted pages are
 # cleaned up on disk and we are not using excessive disk space.
@@ -44,11 +43,6 @@ class test_truncate20(test_cc_base):
         ('row_string', dict(key_format='S', value_format='S')),
     ]
     scenarios = make_scenarios(format_values)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def append_rows(self, uri, ds, start_row, nrows, value):
         cursor = self.session.open_cursor(uri)

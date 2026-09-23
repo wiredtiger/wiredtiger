@@ -162,7 +162,7 @@ static struct {
  * timestamp for that use.
  */
 #define RESERVED_TIMESTAMPS_FOR_ITERATION(td, iter) \
-    ((uint64_t)WT_BILLION * (td)->workload_iteration + ((iter)*nth + (td)->threadnum) * 3 + 1)
+    ((uint64_t)WT_BILLION * (td)->workload_iteration + ((iter) * nth + (td)->threadnum) * 3 + 1)
 
 /* The index of a backup. */
 #define BACKUP_INDEX(td, sequence_number) \
@@ -404,20 +404,6 @@ thread_ts_run(void *arg)
 }
 
 /*
- * set_flush_tier_delay --
- *     Set up a random delay for the next flush_tier.
- */
-static void
-set_flush_tier_delay(WT_RAND_STATE *rnd)
-{
-    /*
-     * We are checkpointing with a random interval up to MAX_CKPT_INVL seconds, and we'll do a flush
-     * tier randomly every 0-10 seconds.
-     */
-    opts->tiered_flush_interval_us = __wt_random(rnd) % (10 * WT_MILLION + 1);
-}
-
-/*
  * backup_create_full --
  *     Perform a full backup.
  */
@@ -476,20 +462,14 @@ thread_ckpt_run(void *arg)
     wt_timestamp_t stable;
     uint32_t sleep_time;
     int i;
-    char ckpt_config[128], ckpt_flush_config[128];
-    bool first_ckpt, flush_tier;
+    char ckpt_config[128];
+    bool first_ckpt;
     char ts_string[WT_TS_HEX_STRING_SIZE];
 
     td = (THREAD_DATA *)arg;
-    flush_tier = false;
-    memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
     memset(ckpt_config, 0, sizeof(ckpt_config));
 
     testutil_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true");
-    testutil_snprintf(
-      ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force),%s", ckpt_config);
-
-    set_flush_tier_delay(&td->extra_rnd);
 
     /*
      * Keep a separate file with the records we wrote for checking.
@@ -511,29 +491,15 @@ thread_ckpt_run(void *arg)
     first_ckpt = true;
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
-        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
+        __wt_sleep(sleep_time, 0);
         /*
          * Since this is the default, send in this string even if running without timestamps.
          */
-        printf("Checkpoint %d start: Flush: %s.\n", i, flush_tier ? "YES" : "NO");
-        testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
+        printf("Checkpoint %d start.\n", i);
+        testutil_check(session->checkpoint(session, ckpt_config));
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
-        printf("Checkpoint %d complete: Flush: %s, at stable %" PRIu64 ".\n", i,
-          flush_tier ? "YES" : "NO", stable);
-
-        if (flush_tier) {
-            /*
-             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
-             * to set up a general event handler and catch that notification, so we can pass the
-             * flush_tier "cookie" to the test utility function.
-             */
-            testutil_tiered_flush_complete(opts, session, NULL);
-            flush_tier = false;
-            printf("Finished a flush_tier\n");
-
-            set_flush_tier_delay(&td->extra_rnd);
-        }
+        printf("Checkpoint %d complete: at stable %" PRIu64 ".\n", i, stable);
 
         /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
@@ -664,6 +630,7 @@ thread_run(void *arg)
     memset(kname, 0, sizeof(kname));
 
     prepared_session = NULL;
+    cur_local = cur_oplog = NULL;
     td = (THREAD_DATA *)arg;
 
     /*
@@ -713,14 +680,16 @@ thread_run(void *arg)
     else
         testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_shadow));
 
-    testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_local);
-    if (use_prep)
-        testutil_check(
-          prepared_session->open_cursor(prepared_session, uri, NULL, NULL, &cur_local));
-    else
-        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_local));
-    testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog);
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_oplog));
+    if (!opts->disagg.is_enabled) {
+        testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_local);
+        if (use_prep)
+            testutil_check(
+              prepared_session->open_cursor(prepared_session, uri, NULL, NULL, &cur_local));
+        else
+            testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_local));
+        testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog);
+        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_oplog));
+    }
 
     /*
      * Write our portion of the key space until we're killed.
@@ -749,15 +718,19 @@ thread_run(void *arg)
 
         if (columns) {
             cur_coll->set_key(cur_coll, i + 1);
-            cur_local->set_key(cur_local, i + 1);
-            cur_oplog->set_key(cur_oplog, i + 1);
             cur_shadow->set_key(cur_shadow, i + 1);
+            if (!opts->disagg.is_enabled) {
+                cur_local->set_key(cur_local, i + 1);
+                cur_oplog->set_key(cur_oplog, i + 1);
+            }
         } else {
             testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, i);
             cur_coll->set_key(cur_coll, kname);
-            cur_local->set_key(cur_local, kname);
-            cur_oplog->set_key(cur_oplog, kname);
             cur_shadow->set_key(cur_shadow, kname);
+            if (!opts->disagg.is_enabled) {
+                cur_local->set_key(cur_local, kname);
+                cur_oplog->set_key(cur_oplog, kname);
+            }
         }
         /*
          * Put an informative string into the value so that it can be viewed well in a binary dump.
@@ -787,12 +760,14 @@ thread_run(void *arg)
         if ((ret = cur_shadow->insert(cur_shadow)) == WT_ROLLBACK)
             goto rollback;
         testutil_check(ret);
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
-        data.data = obuf;
-        cur_oplog->set_value(cur_oplog, &data);
-        if ((ret = cur_oplog->insert(cur_oplog)) == WT_ROLLBACK)
-            goto rollback;
-        testutil_check(ret);
+        if (!opts->disagg.is_enabled) {
+            data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+            data.data = obuf;
+            cur_oplog->set_value(cur_oplog, &data);
+            if ((ret = cur_oplog->insert(cur_oplog)) == WT_ROLLBACK)
+                goto rollback;
+            testutil_check(ret);
+        }
         if (use_prep) {
             /*
              * Run with prepare every once in a while. And also yield after prepare sometimes too.
@@ -826,10 +801,12 @@ thread_run(void *arg)
          * timestamp transaction, not before, because of the possibility of rollback in the
          * transaction. The local table must stay in sync with the other tables.
          */
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
-        data.data = lbuf;
-        cur_local->set_value(cur_local, &data);
-        testutil_check(cur_local->insert(cur_local));
+        if (!opts->disagg.is_enabled) {
+            data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+            data.data = lbuf;
+            cur_local->set_value(cur_local, &data);
+            testutil_check(cur_local->insert(cur_local));
+        }
 
         /*
          * Save the timestamps and key separately for checking later. Optionally use our third
@@ -954,7 +931,16 @@ run_workload(uint32_t workload_iteration)
     if (!opts->compat && !opts->inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &other_event, &conn, false, false);
+    /*
+     * In disaggregated mode, discard local-only WT files (turtle, WiredTiger.wt, log) on every
+     * open. The disaggregated tables are reconstructed from the shared page log, which is the
+     * source of truth for a leader; the local turtle file can lag behind after a crash between the
+     * metadata btree checkpoint and the page-log checkpoint commit.
+     */
+    if (opts->disagg.is_enabled)
+        strcat(envconf, ",disaggregated=(lose_all_my_data=true)");
+
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &other_event, &conn, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -978,10 +964,17 @@ run_workload(uint32_t workload_iteration)
         testutil_check(session->create(session, uri, table_config_nolog));
         testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_shadow);
         testutil_check(session->create(session, uri, table_config_nolog));
-        testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_local);
-        testutil_check(session->create(session, uri, table_config));
-        testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog);
-        testutil_check(session->create(session, uri, table_config));
+        /*
+         * The local and oplog tables live on local disk; in disaggregated mode the lose_all_my_data
+         * option wipes them on every open, so they would not survive across iterations. Skip
+         * creating them in that case.
+         */
+        if (!opts->disagg.is_enabled) {
+            testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_local);
+            testutil_check(session->create(session, uri, table_config));
+            testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog);
+            testutil_check(session->create(session, uri, table_config));
+        }
     }
 
     /*
@@ -991,11 +984,6 @@ run_workload(uint32_t workload_iteration)
     testutil_check(session->close(session, NULL));
 
     opts->conn = conn;
-
-    if (opts->tiered_storage) {
-        set_flush_tier_delay(&opts->extra_rnd);
-        testutil_tiered_begin(opts);
-    }
 
     opts->running = true;
     /* Initialize cond variables. */
@@ -1167,7 +1155,15 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
      */
     if (backup_index == 0) {
         testutil_snprintf(verify_dir, sizeof(verify_dir), "%s", WT_HOME_DIR);
-        testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
+        /*
+         * In disaggregated mode, wipe local-only WT files on this open as well, so recovery derives
+         * state from the page log rather than a possibly stale local turtle file. Pass create=true
+         * so the connection can rebuild the local catalog from the page log after the wipe
+         * (lose_all_my_data deletes WiredTiger.wt and the turtle file).
+         */
+        testutil_wiredtiger_open(opts, verify_dir,
+          opts->disagg.is_enabled ? "create=true,disaggregated=(lose_all_my_data=true)" : NULL,
+          &reopen_event, &conn, true);
         printf("Connection open and recovery complete. Verify content\n");
         /*
          * Only call this when index is 0 because it calls back into here to verify a specific
@@ -1195,7 +1191,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          * statistics thread at a time.
          */
         printf("Recover_and_verify: Open %s with config %s\n", verify_dir, open_cfg);
-        testutil_wiredtiger_open(opts, verify_dir, open_cfg, &other_event, &conn, true, false);
+        testutil_wiredtiger_open(opts, verify_dir, open_cfg, &other_event, &conn, true);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
@@ -1203,23 +1199,30 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
-     * Open a cursor on all the tables.
+     * Open a cursor on all the tables. The local and oplog tables are not present in disaggregated
+     * mode (see run_workload).
      */
+    cur_local = cur_oplog = NULL;
     testutil_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_collection);
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_coll));
     testutil_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_shadow);
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_shadow));
-    testutil_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_local);
-    testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_local));
-    testutil_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog);
-    testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
+    if (!opts->disagg.is_enabled) {
+        testutil_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_local);
+        testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_local));
+        testutil_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog);
+        testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
+    }
 
     /*
-     * Find the biggest stable timestamp value that was saved.
+     * Find the biggest stable timestamp value that was saved. In disaggregated mode,
+     * lose_all_my_data wipes WAL state, so "get=recovery" returns zero. The page-log recovery path
+     * sets last_ckpt_timestamp from the disagg checkpoint metadata, so use that instead.
      */
     stable_val = WT_TS_NONE;
     if (use_ts) {
-        testutil_check(conn->query_timestamp(conn, ts_string, "get=recovery"));
+        testutil_check(conn->query_timestamp(
+          conn, ts_string, opts->disagg.is_enabled ? "get=last_checkpoint" : "get=recovery"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable_val) == 1);
         printf("Got stable_val %" PRIu64 "\n", stable_val);
     }
@@ -1276,15 +1279,19 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
 
             if (columns) {
                 cur_coll->set_key(cur_coll, key + 1);
-                cur_local->set_key(cur_local, key + 1);
-                cur_oplog->set_key(cur_oplog, key + 1);
                 cur_shadow->set_key(cur_shadow, key + 1);
+                if (!opts->disagg.is_enabled) {
+                    cur_local->set_key(cur_local, key + 1);
+                    cur_oplog->set_key(cur_oplog, key + 1);
+                }
             } else {
                 testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, key);
                 cur_coll->set_key(cur_coll, kname);
-                cur_local->set_key(cur_local, kname);
-                cur_oplog->set_key(cur_oplog, kname);
                 cur_shadow->set_key(cur_shadow, kname);
+                if (!opts->disagg.is_enabled) {
+                    cur_local->set_key(cur_local, kname);
+                    cur_oplog->set_key(cur_oplog, kname);
+                }
             }
 
             /*
@@ -1344,42 +1351,44 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
                 testutil_die(ret, "shadow search failure");
 
             /*
-             * The local table should always have all data.
+             * The local and oplog tables should always have all data, but they are not present in
+             * disaggregated mode (lose_all_my_data wipes them on every open).
              */
-            if ((ret = cur_local->search(cur_local)) != 0) {
-                if (ret != WT_NOTFOUND)
-                    testutil_die(ret, "search");
-                if (!opts->inmem)
-                    printf("%s: LOCAL no record with key %" PRIu64 "\n", fname, key);
-                absent_local++;
-                if (l_rep[i].first_miss == INVALID_KEY)
-                    l_rep[i].first_miss = key;
-                l_rep[i].absent_key = key;
-            } else if (l_rep[i].absent_key != INVALID_KEY && l_rep[i].exist_key == INVALID_KEY) {
-                /*
-                 * We should never find an existing key after we have detected one missing.
-                 */
-                l_rep[i].exist_key = key;
-                fatal = true;
-            }
-            /*
-             * The oplog table should always have all data.
-             */
-            if ((ret = cur_oplog->search(cur_oplog)) != 0) {
-                if (ret != WT_NOTFOUND)
-                    testutil_die(ret, "search");
-                if (!opts->inmem)
-                    printf("%s: OPLOG no record with key %" PRIu64 "\n", fname, key);
-                absent_oplog++;
-                if (o_rep[i].first_miss == INVALID_KEY)
-                    o_rep[i].first_miss = key;
-                o_rep[i].absent_key = key;
-            } else if (o_rep[i].absent_key != INVALID_KEY && o_rep[i].exist_key == INVALID_KEY) {
-                /*
-                 * We should never find an existing key after we have detected one missing.
-                 */
-                o_rep[i].exist_key = key;
-                fatal = true;
+            if (!opts->disagg.is_enabled) {
+                if ((ret = cur_local->search(cur_local)) != 0) {
+                    if (ret != WT_NOTFOUND)
+                        testutil_die(ret, "search");
+                    if (!opts->inmem)
+                        printf("%s: LOCAL no record with key %" PRIu64 "\n", fname, key);
+                    absent_local++;
+                    if (l_rep[i].first_miss == INVALID_KEY)
+                        l_rep[i].first_miss = key;
+                    l_rep[i].absent_key = key;
+                } else if (l_rep[i].absent_key != INVALID_KEY &&
+                  l_rep[i].exist_key == INVALID_KEY) {
+                    /*
+                     * We should never find an existing key after we have detected one missing.
+                     */
+                    l_rep[i].exist_key = key;
+                    fatal = true;
+                }
+                if ((ret = cur_oplog->search(cur_oplog)) != 0) {
+                    if (ret != WT_NOTFOUND)
+                        testutil_die(ret, "search");
+                    if (!opts->inmem)
+                        printf("%s: OPLOG no record with key %" PRIu64 "\n", fname, key);
+                    absent_oplog++;
+                    if (o_rep[i].first_miss == INVALID_KEY)
+                        o_rep[i].first_miss = key;
+                    o_rep[i].absent_key = key;
+                } else if (o_rep[i].absent_key != INVALID_KEY &&
+                  o_rep[i].exist_key == INVALID_KEY) {
+                    /*
+                     * We should never find an existing key after we have detected one missing.
+                     */
+                    o_rep[i].exist_key = key;
+                    fatal = true;
+                }
             }
         }
         c_rep[i].last_key = last_key;
@@ -1390,7 +1399,14 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         print_missing(&l_rep[i], fname, "LOCAL");
         print_missing(&o_rep[i], fname, "OPLOG");
     }
-    testutil_check(conn->close(conn, NULL));
+    /*
+     * In disaggregated mode, skip the shutdown checkpoint. After lose_all_my_data wipes local
+     * state, the connection's stable timestamp is reset to zero, but precise_checkpoint (which is
+     * always on for disagg) requires a non-zero stable. The verifier does not write data, so the
+     * shutdown checkpoint adds no value here.
+     */
+    testutil_check(
+      conn->close(conn, opts->disagg.is_enabled ? "debug=(skip_checkpoint=true)" : NULL));
     if (!opts->inmem && absent_coll) {
         printf("COLLECTION: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_coll, count);
         fatal = true;
@@ -1456,7 +1472,7 @@ main(int argc, char *argv[])
     pid_t pid;
     uint32_t iteration, num_iterations, rand_value, timeout, tmp;
     int ch, ret, status, wait_time;
-    char buf[PATH_MAX], bucket[512];
+    char buf[PATH_MAX];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
     bool rand_th, rand_time, verify_only;
 
@@ -1611,11 +1627,6 @@ main(int argc, char *argv[])
         if (use_lazyfs)
             testutil_lazyfs_setup(&lazyfs, home);
 
-        if (opts->tiered_storage) {
-            testutil_snprintf(bucket, sizeof(bucket), "%s/%s/bucket", home, WT_HOME_DIR);
-            testutil_mkdir(bucket);
-        }
-
         if (rand_time) {
             timeout = __wt_random(&opts->extra_rnd) % MAX_TIME;
             if (timeout < MIN_TIME)
@@ -1648,13 +1659,12 @@ main(int argc, char *argv[])
                ", force stop interval: %" PRIu32 "\n",
           use_backups ? "true" : "false", backup_full_interval, backup_force_stop_interval);
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
           progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
           opts->disagg.is_enabled ? " -G" : "", use_lazyfs ? " -l" : "", verify_model ? " -M" : "",
-          opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "", stress ? " -s" : "",
-          !use_ts ? " -z" : "", backup_full_interval, opts->home, num_iterations, nth, timeout,
-          opts->data_seed, opts->extra_seed);
+          opts->inmem ? " -m" : "", stress ? " -s" : "", !use_ts ? " -z" : "", backup_full_interval,
+          opts->home, num_iterations, nth, timeout, opts->data_seed, opts->extra_seed);
 
         /*
          * Go inside the home directory (typically WT_TEST), but not all the way into the database's

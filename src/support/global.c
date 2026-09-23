@@ -26,6 +26,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
    */
   {"aggressive_stash_free", WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE},
   {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
+  {"backup_blkmod_delay", WT_TIMING_STRESS_BACKUP_BLKMOD_DELAY},
   {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
   {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
@@ -34,10 +35,16 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
+  {"disagg_stable_dhandle_delay", WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY},
+  {"disagg_role_transition", WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
+  {"failpoint_disagg_checkpoint_apply", WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY},
+  {"failpoint_disagg_checkpoint_queue_drain",
+    WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
+  {"failpoint_page_log_handle_put", WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT},
   {"failpoint_rec_before_wrapup", WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP},
   {"failpoint_rec_split_write", WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE},
   {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
@@ -55,8 +62,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
   {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
   {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
-  {"split_7", WT_TIMING_STRESS_SPLIT_7}, {"split_8", WT_TIMING_STRESS_SPLIT_8},
-  {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
+  {"split_7", WT_TIMING_STRESS_SPLIT_7}, {"split_8", WT_TIMING_STRESS_SPLIT_8}, {NULL, 0}};
 
 /*
  * __endian_check --
@@ -348,15 +354,6 @@ __global_once(void)
     __wt_process.checksum_with_seed = wiredtiger_crc32c_with_seed_func();
 
     __global_setup_clock();
-
-    /* Run-time configuration. */
-#ifdef WT_STANDALONE_BUILD
-    __wt_process.tiered_shared_2023 = true;
-#endif
-
-#ifdef WT_DISAGG_FAST_TRUNCATE_BUILD
-    __wt_process.disagg_fast_truncate_2026 = true;
-#endif
 }
 
 /*

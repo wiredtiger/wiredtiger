@@ -30,20 +30,17 @@ import time
 from wiredtiger import stat
 from compact_util import compact_util
 
-# test_compact14.py
 # This test checks that background compaction skips small files.
 class test_compact14(compact_util):
+    test_name = __qualname__
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     conn_config = 'cache_size=100MB,statistics=(all)'
 
     table_numkv = 1
 
     def test_compact14(self):
-        if self.runningHook('tiered'):
-            self.skipTest("Tiered tables do not support compaction")
-
         # Create an table and populate small amount of data.
-        uri = "table:test_compact14"
+        uri = f"table:{self.test_name}"
         self.session.create(uri, self.create_params)
         self.populate(uri, 0, self.table_numkv)
 
@@ -51,7 +48,7 @@ class test_compact14(compact_util):
         self.session.checkpoint()
 
         # Enable background compaction.
-        bg_compact_config = 'background=true,free_space_target=1MB'
+        bg_compact_config = 'free_space_target=1MB'
         self.turn_on_bg_compact(bg_compact_config)
 
         while self.get_bg_compaction_files_skipped() == 0:
