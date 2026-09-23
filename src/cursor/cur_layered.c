@@ -1846,17 +1846,16 @@ err:
 
 /*
  * __clayered_any_constituent_positioned --
- *     Return whether either constituent is positioned. A constituent blocked by a prepared conflict
- *     keeps a page reference while its key is cleared, so the reference rather than the key is the
- *     reliable signal for both. Both constituents must exist.
+ *     Return whether either constituent is positioned, including a constituent blocked by a
+ *     prepared conflict: the page reference is set whenever WT_CURSTD_KEY_INT is, so the reference
+ *     alone is the reliable signal for both. Both constituents must exist.
  */
 static WT_INLINE bool
 __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
 {
     WT_ASSERT(CUR2S(op->clayered), op->ingest != NULL && op->stable != NULL);
-    return (F_ISSET(op->stable, WT_CURSTD_KEY_INT) ||
-      __clayered_constituent_prepare_blocked(op->stable) ||
-      ((WT_CURSOR_BTREE *)op->ingest)->ref != NULL);
+    return (
+      ((WT_CURSOR_BTREE *)op->stable)->ref != NULL || ((WT_CURSOR_BTREE *)op->ingest)->ref != NULL);
 }
 
 /*
