@@ -1145,8 +1145,8 @@ __clayered_reopen_stable(
      * If the old cursor has a position, copy it to the newly opened cursor. A cursor stalled on a
      * prepare conflict carries a page reference no key describes, so there is nothing to search
      * with and its position cannot transfer. The checkpoint advance declines to reopen in that
-     * state; a role change still can, and drops the position along with the conflict that the
-     * superseded content raised.
+     * state; a role change still reopens regardless, discarding the old cursor and the prepare
+     * conflict it was stalled on along with it.
      */
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
         WT_ERR_NOTFOUND_OK(__wt_cursor_dup_position(old_stable, clayered->stable_cursor), true);
