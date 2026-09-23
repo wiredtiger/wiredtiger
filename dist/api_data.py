@@ -162,10 +162,7 @@ connection_disaggregated_config_common = [
         checkpoint. At startup the mode must be off: the startup pickup populates an empty
         node from the checkpoint. Turn it on after startup, provided table creates and drops
         reach this node through replicated operations and publish() rather than through
-        pickup. After a step-down,
-        turn it off until the unpublished tables left behind (step-down discards their
-        pending metadata updates) have been dropped. Preserved across calls to reconfigure
-        that do not name it''',
+        pickup. Preserved across calls to reconfigure that do not name it''',
         choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [
@@ -717,6 +714,11 @@ connection_runtime_config = [
             if true, follower-side layered-table truncate uses the slow per-record delete path
             instead of the optimized range delete. Intended for debugging the disaggregated
             slow/fast truncate split; leader always uses fast truncate.''',
+            type='boolean', undoc=True),
+        # FIXME-WT-18723: remove once prepared transactions are supported across a step-down.
+        Config('disagg_stepdown_prepare', 'false', r'''
+            !!! FOR INTERNAL TESTING ONLY. If true, bypass the asserts that otherwise abort a
+            prepared transaction while the step-down timestamp is set.''',
             type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction

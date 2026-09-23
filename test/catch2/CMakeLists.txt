@@ -19,6 +19,7 @@ else()
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_size.cpp
         misc_tests/test_disagg_block_header_version.cpp
+        misc_tests/test_disagg_block_read_checksum.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
