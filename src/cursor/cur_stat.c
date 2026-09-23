@@ -915,9 +915,8 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
             F_SET(cst, WT_STAT_CLEAR);
 
         /*
-         * The OTel type flags have no connection-level equivalent and are parsed after the
-         * defaulting above so they can never trip the "cst->flags == 0" sentinel that decides
-         * whether to inherit the connection's type configuration.
+         * Parse the OTel-specific statistics type flags after inheriting the connection's
+         * configurations.
          */
         if ((ret = __wt_config_subgets(session, &cval, "none", &sval)) == 0 && sval.val != 0)
             F_SET(cst, WT_STAT_OTEL_NONE);

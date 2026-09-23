@@ -259,23 +259,18 @@ class test_stat_cursor_otel_inherits_default(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(uri)
-    conn_config = 'statistics=(all)'
+    conn_config = 'statistics=(tree_walk)'
 
     def test_stat_cursor_otel_inherits_default(self):
         self.dataset(self, self.uri, 100).populate()
 
-        # Open the OTel-only cursor first, before any other statistics cursor
-        # for this object: a cursor that fails to inherit the connection's
-        # default type reports zero rather than whatever an earlier cursor
-        # already computed, so going first is what makes the failure visible.
+        # btree_entries is used across counters, so we open the stat cursor with OTel config first
+        # to make sure that it doesn't give a stale value from a previous cursor's walk.
         cursor = self.session.open_cursor(
             'statistics:' + self.uri, None, 'statistics=(counters)')
         otel_entries = cursor[stat.dsrc.btree_entries][2]
         cursor.close()
 
-        # A cursor with no "statistics" configuration at all inherits the
-        # connection's default type ("all" here), which includes tree-walk
-        # statistics such as btree_entries.
         cursor = self.session.open_cursor('statistics:' + self.uri, None, None)
         default_entries = cursor[stat.dsrc.btree_entries][2]
         cursor.close()
