@@ -152,6 +152,9 @@ _sub_error_numbers = {
     'WT_MODIFY_READ_UNCOMMITTED': -32012,
     'WT_CONFLICT_LIVE_RESTORE': -32013,
     'WT_CONFLICT_DISAGG': -32014,
+    'WT_STEP_DOWN': -32015,
+    'WT_TXN_TOO_LARGE_FOR_CACHE': -32016,
+    'WT_VERIFY_PAGE_ID_MISMATCH': -32017,
 }
 
 # To ensure our sub-level error returns do not conflict with any other
@@ -219,17 +222,17 @@ sub_errors_def = [
         "Conflict with disaggregated storage", '''
         This sub-level error indicates that an operation or configuration conflicts with
         disaggregated storage.'''),
-    Error('WT_STEP_DOWN', -32015,
+    ('WT_STEP_DOWN',
         "Write transaction straddled the step-down timestamp setting boundary", '''
         This sub-level error indicates that a transaction was rolled back because it was in
         flight when the step-down timestamp was set.'''),
-    Error('WT_TXN_TOO_LARGE_FOR_CACHE', -32016,
+    ('WT_TXN_TOO_LARGE_FOR_CACHE',
         "Transaction dirty content alone exceeds the eviction updates or dirty trigger", '''
         This sub-level error indicates that a single transaction has dirtied more cache
         than the eviction updates trigger or the eviction dirty trigger allows. Eviction
         cannot reclaim content pinned by an uncommitted transaction, so the transaction
         cannot succeed against the configured cache size and has been rolled back.'''),
-    Error('WT_VERIFY_PAGE_ID_MISMATCH', -32017,
+    ('WT_VERIFY_PAGE_ID_MISMATCH',
         "Verify found a mismatch between the btree and PALI page ID lists", '''
         This sub-level error indicates that the disaggregated-storage verify pass found
         one or more page IDs present in the btree walk but absent from the page log (or
