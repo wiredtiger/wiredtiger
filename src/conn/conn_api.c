@@ -2763,10 +2763,15 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE;
     else if (WT_CONFIG_LIT_MATCH("incompatible", cval))
         block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE;
+    else if (WT_CONFIG_LIT_MATCH("v1_oversized", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED;
     else
         WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_block_header_upgrade: '%.*s'",
           (int)cval.len, cval.str);
     conn->debug.disagg_block_header_upgrade = block_header_upgrade;
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_block_header_v1_ignore_size", &cval));
+    conn->debug.disagg_block_header_v1_ignore_size = cval.val != 0;
 
     return (0);
 }

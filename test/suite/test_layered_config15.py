@@ -91,8 +91,9 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(cursor[f'key{i:04}'], self.value(i, i < num_modified))
         cursor.close()
 
-    def debug_config(self, mode):
-        return self.conn_config() + f',debug_mode=(disagg_block_header_upgrade={mode})'
+    def debug_config(self, mode, v1_ignore_size=False):
+        return self.conn_config() + f',debug_mode=(disagg_block_header_upgrade={mode},' + \
+            f'disagg_block_header_v1_ignore_size={str(v1_ignore_size).lower()})'
 
     def test_larger_block_header_is_readable(self):
         """
@@ -125,6 +126,45 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
         self.restart_without_local_files(config=self.debug_config('compatible'))
         self.check_all(self.num_modify * 2)
 
+    v1_size_warning = 'version 1 block header has combined header size'
+
+    def test_v1_block_header_ignore_size(self):
+        """
+        With version 1 header sizes ignored, reading a version 1 block whose header is not the
+        version 1 size warns, while correctly sized version 1 blocks and larger newer-version blocks
+        do not. The option is reconfigurable, so it is switched on at runtime.
+        """
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        self.session.create(self.uri, self.session_create_config())
+        self.populate(self.num_items, 1)
+
+        # Correctly sized version 1 blocks do not warn.
+        self.restart_without_local_files(config=self.debug_config('none'))
+        self.conn.reconfigure('debug_mode=(disagg_block_header_v1_ignore_size=true)')
+        self.check_all(0)
+
+        # Larger headers written under a newer version do not warn.
+        self.restart_without_local_files(config=self.debug_config('compatible'))
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        self.populate(self.num_modify, 2, modified=True)
+        self.restart_without_local_files(config=self.debug_config('none'))
+        self.conn.reconfigure('debug_mode=(disagg_block_header_v1_ignore_size=true)')
+        self.check_all(self.num_modify)
+
+        # Version 1 blocks that record a wrong header size warn, and are read using the version 1
+        # size. Such blocks are unreadable without the option, and the writer reads them back too,
+        # so every node has the option enabled from the start.
+        with self.expectedStdoutPattern(self.v1_size_warning):
+            self.restart_without_local_files(
+                config=self.debug_config('v1_oversized', v1_ignore_size=True))
+            self.conn.reconfigure('disaggregated=(role="leader")')
+            self.populate(self.num_modify * 2, 3, modified=True, start=self.num_modify)
+            self.restart_without_local_files(config=self.debug_config('none', v1_ignore_size=True))
+            self.check_all(self.num_modify * 2)
+
+        # The blocks are read again when the test closes the connection.
+        self.ignoreStdoutPattern(self.v1_size_warning)
+
     def subprocess_incompatible_block_header_refused(self):
         """Subprocess body: reading a block that demands a newer reader fails."""
         self.conn.reconfigure('disaggregated=(role="leader")')
@@ -142,16 +182,10 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_incompatible_block_header_refused(self):
         """
-        A block whose compatible version exceeds the reader's version cannot be interpreted, and
-        the read path refuses it down the same route it refuses corruption, which takes the
-        connection down. The refusal is fatal during checkpoint pickup, so it runs in a subprocess.
-
-        This asserts the consequence rather than the reported reason: the refusal surfaces on a
-        session that tolerates corruption, which reports the reason at verbose level instead of as
-        an error. The version comparison itself is covered by the
-        "disagg block header version compatibility" unit test, and
-        test_larger_block_header_is_readable runs the same sequence with a compatible version and
-        expects it to succeed, so a failure here is specific to the version being rejected.
+        A block whose compatible version exceeds the reader's version is refused as corrupt, which
+        is fatal, so this runs in a subprocess. The reason is only reported at verbose level, so
+        this asserts the failure rather than the message; test_larger_block_header_is_readable is
+        the same sequence with a compatible version, and expects success.
         """
         # Set timestamps so the fixture can close the parent connection cleanly.
         self.conn.set_timestamp(

@@ -489,7 +489,7 @@ __wt_debug_disagg_page_id(
     const WT_PAGE_HEADER *base_display, *delta_display;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t size;
-    uint8_t expected_magic;
+    uint8_t expected_magic, recorded_header_size;
     u_int count, i;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
@@ -544,6 +544,12 @@ __wt_debug_disagg_page_id(
             WT_TRET(WT_ERROR);
             continue;
         }
+
+        if ((recorded_header_size = __wt_block_disagg_header_v1_size_fix(session, blk, &swap)) != 0)
+            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "wt page: result %u: version 1 block header has combined header size %" PRIu8
+              ", using %d",
+              i, recorded_header_size, WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE);
 
         /* Everything below walks the image with this size, so it has to describe the headers. */
         if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {

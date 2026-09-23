@@ -37,8 +37,11 @@ __wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DI
 u_int
 __wti_block_disagg_header_write_size(WT_SESSION_IMPL *session)
 {
+    /* The oversized version 1 mode keeps the version 1 layout and only records a wrong size. */
     if (S2C(session)->debug.disagg_block_header_upgrade ==
-      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE)
+        WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE ||
+      S2C(session)->debug.disagg_block_header_upgrade ==
+        WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED)
         return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
 
     /* Stand in for a future writer that appended fields to the header. */
@@ -78,6 +81,9 @@ __wti_block_disagg_header_init(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER 
         /* A newer writer whose blocks this build's readers must refuse. */
         blk->version = WT_BLOCK_DISAGG_VERSION + 1;
         blk->compatible_version = WT_BLOCK_DISAGG_VERSION + 1;
+        break;
+    case WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED:
+        /* Recorded only in the written block; see __wti_block_disagg_write_internal. */
         break;
     }
 }
@@ -134,11 +140,13 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_PAGE_HEADER *header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
     uint64_t page_id, time_start, time_stop;
     uint32_t checksum;
+    uint8_t combined_header_size;
 
     time_start = __wt_clock(session);
     btree = S2BT(session);
@@ -217,6 +225,15 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
      */
     blk->previous_checksum = block_meta->checksum;
     blk->checksum = 0;
+
+    /*
+     * Stand in for a version 1 writer that recorded the wrong header size. Only the stored block
+     * carries it: the in-memory image may be walked after the write and must keep the true size.
+     */
+    combined_header_size = blk->combined_header_size;
+    if (conn->debug.disagg_block_header_upgrade ==
+      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED)
+        blk->combined_header_size += WT_BLOCK_DISAGG_HEADER_DEBUG_EXTRA_SIZE;
     __block_disagg_header_byteswap(blk);
     blk->checksum = checksum = __wt_checksum(
       buf->mem, data_checksum ? buf->size : WT_MIN(buf->size, WT_BLOCK_COMPRESS_SKIP));
@@ -237,7 +254,9 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         WT_STAT_CONN_DSRC_INCR(session, disagg_block_plh_put_failed);
         return (EBUSY);
     }
-    WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));
+    ret = plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf);
+    blk->combined_header_size = combined_header_size;
+    WT_RET(ret);
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);

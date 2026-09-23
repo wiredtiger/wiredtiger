@@ -699,8 +699,15 @@ connection_runtime_config = [
             type='boolean', undoc=True),
         Config('disagg_block_header_upgrade', 'none', r'''
             modify the disaggregated block manager to pretend that it writes a newer, larger block
-            header, to test upgrade/downgrade of block headers.''',
-            choices=['none', 'compatible', 'incompatible'], undoc=True),
+            header, to test upgrade/downgrade of block headers. The \c v1_oversized choice keeps
+            the version 1 header but records a larger header size in it, to exercise
+            \c disagg_block_header_v1_ignore_size.''',
+            choices=['none', 'compatible', 'incompatible', 'v1_oversized'], undoc=True),
+        Config('disagg_block_header_v1_ignore_size', 'false', r'''
+            if true, when reading a disaggregated block whose header version is 1 but whose
+            recorded header size is not the version 1 size, print a verbose warning and read the
+            block using the version 1 size.''',
+            type='boolean', undoc=True),
         # FIXME-WT-18608: Set default to false once we fix all the issues on the MongoDB side.
         Config('disagg_commit_ts_optional', 'true', r'''
             !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated

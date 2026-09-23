@@ -853,7 +853,8 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 typedef enum __wt_conn_debug_disagg_block_header_upgrade {
     WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE = 0,
     WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE,
-    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED
 } WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE;
 
 /*
@@ -898,6 +899,7 @@ struct __wt_conn_debug {
 
     /* The debug mode for upgrade/downgrade of the disaggregated storage block header. */
     WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE disagg_block_header_upgrade;
+    bool disagg_block_header_v1_ignore_size;
 };
 
 /*

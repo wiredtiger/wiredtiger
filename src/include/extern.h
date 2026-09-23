@@ -1742,6 +1742,9 @@ extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base) WT_GCC_F
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wti_block_disagg_get_size(WT_BLOCK_DISAGG *block_disagg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint8_t __wt_block_disagg_header_v1_size_fix(
+  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk, WT_BLOCK_DISAGG_HEADER *swap)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void *__wt_ext_scr_alloc(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, size_t size);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));

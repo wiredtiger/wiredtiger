@@ -135,6 +135,31 @@ __wt_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block
 }
 
 /*
+ * __wt_block_disagg_header_v1_size_fix --
+ *     If version 1 header sizes are being ignored and a version 1 block records a header size other
+ *     than the version 1 size, correct the size in both the image and its byte-swapped copy,
+ *     returning the size originally recorded. Version 1 predates headers growing, so its layout is
+ *     always the minimum size whatever the header claims. Return 0 if nothing was changed.
+ */
+uint8_t
+__wt_block_disagg_header_v1_size_fix(
+  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk, WT_BLOCK_DISAGG_HEADER *swap)
+{
+    uint8_t recorded;
+
+    if (!(S2C(session)->debug.disagg_block_header_v1_ignore_size && swap->version == 1 &&
+          swap->combined_header_size != WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE))
+        return (0);
+
+    recorded = swap->combined_header_size;
+
+    /* The size is a single-byte field, so the image needs no byte-swapping. */
+    blk->combined_header_size = swap->combined_header_size =
+      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE;
+    return (recorded);
+}
+
+/*
  * __block_disagg_read_multiple --
  *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
  *     page id, checkpoint id pair.
@@ -151,7 +176,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint64_t time_start, time_stop;
     uint32_t block_size_sum;
     int32_t last, result;
-    uint8_t expected_magic;
+    uint8_t expected_magic, recorded_header_size;
     bool from_cache, is_delta;
 
     /* This variable is only used in an assertion, diagnostic builders don't like this. */
@@ -256,6 +281,15 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       swap.compatible_version, WT_BLOCK_DISAGG_VERSION);
                     goto corrupt;
                 }
+
+                if ((recorded_header_size =
+                        __wt_block_disagg_header_v1_size_fix(session, blk, &swap)) != 0)
+                    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "%s: table_id %" PRIu64 ", page_id %" PRIu64 ", lsn %" PRIu64
+                      ", %s: version 1 block header has combined header size %" PRIu8 ", using %d",
+                      block_disagg->name, block_disagg->tableid, page_id, lsn,
+                      is_delta ? "delta" : "base page", recorded_header_size,
+                      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE);
 
                 if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {
                     __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
