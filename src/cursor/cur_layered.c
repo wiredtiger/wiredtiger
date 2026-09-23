@@ -1831,7 +1831,7 @@ __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
 {
     WT_ASSERT(CUR2S(op->clayered), op->ingest != NULL && op->stable != NULL);
     return (
-      ((WT_CURSOR_BTREE *)op->stable)->ref != NULL || ((WT_CURSOR_BTREE *)op->ingest)->ref != NULL);
+      ((WT_CURSOR_BTREE *)op->ingest)->ref != NULL || ((WT_CURSOR_BTREE *)op->stable)->ref != NULL);
 }
 
 /*
