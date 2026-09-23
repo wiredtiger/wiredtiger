@@ -55,7 +55,7 @@
  *
  */
 #define WT_STAT_CONN_COUNTER_SLOTS 23
-#define WT_STAT_DSRC_COUNTER_SLOTS 3
+#define WT_STAT_DSRC_COUNTER_SLOTS 4
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
