@@ -1122,8 +1122,12 @@ __clayered_reopen_stable(
 
     /*
      * If the old cursor has a position, copy it to the newly opened cursor. A cursor blocked on a
-     * prepare conflict has no key to search with, so its position cannot transfer: a role change
-     * drops it, unlike the checkpoint advance, which declines to reopen in that state instead.
+     * prepare conflict has no key to search with, so its position cannot transfer. Dropping it here
+     * is safe: the iface key is cleared on any error return, including a prepare conflict, so by
+     * the time a role change can happen the layered cursor already reports itself as unpositioned,
+     * which is all the role-change invariants require. The checkpoint advance is different: it can
+     * run while the iface cursor is still positioned on this same blocked constituent, so it
+     * declines to reopen in that state instead of losing the position.
      */
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
         WT_ERR_NOTFOUND_OK(__wt_cursor_dup_position(old_stable, clayered->stable_cursor), true);
