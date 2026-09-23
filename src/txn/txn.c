@@ -1681,10 +1681,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
     uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC
-    wt_timestamp_t step_down_ts;
     uint32_t prepare_count;
-    bool wrote_ingest, wrote_stable;
-    bool mirroring;
 #endif
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
@@ -1697,9 +1694,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
-    wrote_ingest = wrote_stable = false;
-    mirroring = F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     recno = WT_RECNO_OOB;
@@ -1847,33 +1841,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
 
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * While the step-down timestamp is set, different invariants apply depending on whether
-         * mirroring is enabled.
-         *
-         * If mirroring is disabled, a committing transaction's layered content must sit on one side
-         * of the boundary: ingest content strictly above the timestamp, stable content at or below
-         * it, and never both constituents from one transaction.
-         *
-         * Otherwise, after the loop we verify that stable writes were mirrored to ingest.
-         */
-        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL) {
-            if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
-                wrote_ingest = true;
-                WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
-            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
-                if (!mirroring) {
-                    wrote_stable = true;
-                    WT_ASSERT(session, txn->time_point.durable_timestamp <= step_down_ts);
-                } else if (txn->time_point.durable_timestamp > step_down_ts)
-                    wrote_stable = true;
-            }
-            if (!mirroring)
-                WT_ASSERT(session, !(wrote_ingest && wrote_stable));
-        }
-#endif
-
         /* If we used the cursor to resolve prepared updates, free and clear the key. */
         if (cursor != NULL)
             __wt_buf_free(session, &cursor->key);
@@ -1887,13 +1854,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, txn->prepare_count == prepare_count);
     txn->prepare_count = 0;
-
-    /*
-     * While the step-down timestamp is set, a transaction that wrote a stable constituent above the
-     * boundary must also have written an ingest constituent if mirroring writes.
-     */
-    if (mirroring)
-        WT_ASSERT(session, step_down_ts == WT_TS_NONE || !wrote_stable || wrote_ingest);
 #endif
 
     /* Add a 2 second wait to simulate commit transaction slowness. */
@@ -2142,16 +2102,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
-
-    /*
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down.
-     */
-    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
-        WT_ASSERT_ALWAYS(session,
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
-            WT_TS_NONE,
-          "prepared transactions are not supported while the step-down timestamp is set");
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
@@ -2740,7 +2690,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
-    WT_RET(__wt_rwlock_init(session, &txn_global->step_down_lock));
 
     WT_RET(__wt_calloc_def(session, conn->session_array.size, &txn_global->txn_shared_list));
 
@@ -2771,7 +2720,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 
     __wt_rwlock_destroy(session, &txn_global->rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
-    __wt_rwlock_destroy(session, &txn_global->step_down_lock);
     __wt_free(session, txn_global->txn_shared_list);
 }
 

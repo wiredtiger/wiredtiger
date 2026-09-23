@@ -204,7 +204,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
     __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
-    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_SKIP_CKPT);
+    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_SKIP_CKPT | WT_BTREE_DISAGG_FROZEN);
 
     /* Set the data handle first, our called functions reasonably use it. */
     btree->dhandle = dhandle;

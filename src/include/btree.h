@@ -351,6 +351,12 @@ struct __wt_btree {
      */
     WT_SPINLOCK flush_lock; /* Lock to flush the tree's pages */
 
+    /*
+     * Highest durable timestamp committed into this tree before demote froze it. Zero unless
+     * WT_BTREE_DISAGG_FROZEN is set. Cleared with the rest of the non-persistent prefix on reopen.
+     */
+    wt_timestamp_t disagg_frozen_max_ts;
+
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
@@ -415,8 +421,9 @@ struct __wt_btree {
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BTREE_AWAITS_PUBLISH 0x1u /* An unpublished btree, which will be published later */
-#define WT_BTREE_READONLY 0x2u       /* Handle is readonly */
-#define WT_BTREE_SKIP_CKPT 0x4u      /* Handle skipped checkpoint */
+#define WT_BTREE_DISAGG_FROZEN 0x2u  /* Demoted live tree, readable until pickup supersedes it */
+#define WT_BTREE_READONLY 0x4u       /* Handle is readonly */
+#define WT_BTREE_SKIP_CKPT 0x8u      /* Handle skipped checkpoint */
                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
 };

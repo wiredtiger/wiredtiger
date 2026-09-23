@@ -1013,10 +1013,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    wt_timestamp_t step_down_ts;
     char *meta_value;
     char *tablecfg;
-    char ts_string[WT_TS_INT_STRING_SIZE];
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
@@ -1107,24 +1105,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     stable_cfg[3] = "block_manager=disagg,log=(enabled=false)";
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
 
-    /*
-     * A table created inside the step-down window is marked step_down_created, which sends every
-     * write to the ingest constituent and never mirrors, so its stable constituent would stay
-     * empty. Create the table in the follower shape instead, and the next step-up creates the
-     * missing constituent. A leader checkpoint therefore covers only the tables created below the
-     * boundary. The schema lock held here serializes the timestamp, making the relaxed load safe.
-     */
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
-    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
-        if (step_down_ts == WT_TS_NONE) {
-            WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
-        } else {
-            WT_STAT_CONN_INCR(session, disagg_step_down_window_creates);
-            __wt_verbose_info(session, WT_VERB_LAYERED,
-              "%s: created without a stable constituent, the step-down timestamp %s is set", uri,
-              __wt_timestamp_to_string(step_down_ts, ts_string));
-        }
-    }
+    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
 
     /*
      * Update the shared metadata for the disaggregated storage.

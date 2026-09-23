@@ -327,11 +327,9 @@ disagg_stepdown_drain_dump_stragglers(wt_timestamp_t step_down_ts)
  * disagg_async_stepdown --
  *     Perform an async step-down while worker threads are still live:
  *     1. Stop the checkpoint and timestamp threads so they cannot interfere.
- *     2. Write lock: capture step_down_ts, advance g.timestamp past it, and notify WT via
- *        set_timestamp(step_down_timestamp) - all under the lock so WT begins enforcing the
- *        boundary before any new timestamps are handed out. WT rolls back in-flight write
- *        transactions while setting the stepdown_ts; threads unblocked from the write lock get ts
- *        values > step_down_ts.
+ *     2. Write lock: capture the boundary timestamp and advance g.timestamp past it. Threads
+ *        unblocked from the write lock get timestamps above that boundary. Writes stay on the
+ *        live stable tree; demote freezes it.
  *     3. Drain: wait until every worker has committed or rolled back at or below step_down_ts.
  *     4. Let the workers keep writing above the boundary for a window, exercising post-step-down
  *        leader writes.
@@ -375,21 +373,14 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     }
 
     /*
-     * Write lock: prevents any new timestamp from being allocated while we capture step_down_ts,
-     * bump g.timestamp past it, and notify WT. Holding the lock through the set_timestamp call
-     * ensures WT begins enforcing the boundary before any new allocations are handed out. Threads
-     * currently holding the read lock (mid-allocation) finish first; threads waiting for the read
-     * lock unblock after we release and get ts values strictly above step_down_ts.
+     * Write lock: prevents any new timestamp from being allocated while we capture the boundary
+     * and bump g.timestamp past it. Threads currently holding the read lock finish first; threads
+     * waiting for the read lock unblock after we release and get timestamps strictly above it.
      */
     lock_writelock(session, &g.timestamp_lock);
     step_down_ts = g.timestamp;
-    /*
-     * Reserve step_down_ts + 1 and step_down_ts + 2 as a gap; all allocations now yield ts >
-     * step_down_ts.
-     */
+    /* Reserve a gap so later allocations sit strictly above the boundary. */
     g.timestamp += 2;
-    testutil_snprintf(config, sizeof(config), "step_down_timestamp=%" PRIx64, step_down_ts);
-    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
     lock_writeunlock(session, &g.timestamp_lock);
 
     track_msg(

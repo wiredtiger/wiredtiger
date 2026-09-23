@@ -43,10 +43,6 @@ reader_step_down(WORKLOAD_STATE *state, uint64_t ts)
     while (__wt_atomic_load_bool(&state->ts_busy))
         __wt_sleep(0, WT_THOUSAND);
 
-    /*
-     * FIXME-WT-18314: Once the ticket is fixed, the `-e` mode with role switches becomes illegal.
-     */
-    set_ts(state->cfg, state->conn, TS_STEPDOWN, ts);
     workload_set_frontier(state, ts);
 
     /* Signal the checkpoint thread to resume and run the step-down checkpoint. */

@@ -794,14 +794,59 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
 }
 
 /*
+ * __disagg_assert_frozen_checkpoint --
+ *     A frozen live tree holds every commit up to the durable timestamp recorded at demote. The
+ *     checkpoint that supersedes it has to cover that timestamp; anything older is a missing
+ *     prefix and reading on would drop acknowledged writes.
+ */
+static int
+__disagg_assert_frozen_checkpoint(
+  WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t checkpoint_timestamp)
+{
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle, *saved;
+    WT_DECL_RET;
+    wt_timestamp_t frozen_max_ts;
+    bool frozen;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+
+    frozen = false;
+    frozen_max_ts = WT_TS_NONE;
+    saved = session->dhandle;
+    session->dhandle = NULL;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_find(session, uri, NULL);
+      if (ret == 0) {
+          dhandle = session->dhandle;
+          if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
+            !__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
+              btree = dhandle->handle;
+              if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN)) {
+                  frozen = true;
+                  frozen_max_ts = btree->disagg_frozen_max_ts;
+              }
+          }
+          WT_DHANDLE_CLEAR(session);
+      } else if (ret == WT_NOTFOUND) ret = 0;);
+    session->dhandle = saved;
+    WT_RET(ret);
+
+    if (frozen && checkpoint_timestamp < frozen_max_ts)
+        WT_RET(__wt_panic(session, WT_PANIC,
+          "picked up checkpoint timestamp %s is below the frozen tree's max timestamp %s (%s)",
+          __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(frozen_max_ts, ts_string[1]), uri));
+    return (0);
+}
+
+/*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated. The caller has already parsed
  *     both entries and validated their identity; md_value must outlive the metadata update.
  */
 static int
-__disagg_update_file_meta(
-  WT_SESSION_IMPL *session, const char *file_key, const WT_DISAGG_FILE_ENTRY *entry)
+__disagg_update_file_meta(WT_SESSION_IMPL *session, const char *file_key,
+  const WT_DISAGG_FILE_ENTRY *entry, wt_timestamp_t checkpoint_timestamp)
 {
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
@@ -850,7 +895,11 @@ __disagg_update_file_meta(
      * after step-up.
      *
      * FIXME-WT-17772: This is better done at step-up or step-down to force close all live btrees.
+     *
+     * A frozen handle is this node's commits above its last checkpoint. Superseding it with an
+     * older checkpoint would drop those commits, so fail before the outdated mark.
      */
+    WT_ERR(__disagg_assert_frozen_checkpoint(session, file_key, checkpoint_timestamp));
     WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, file_key));
     WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"", file_key);
 
@@ -867,7 +916,7 @@ err:
  */
 static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
-  wt_timestamp_t ckpt_schema_epoch, bool is_startup)
+  wt_timestamp_t ckpt_schema_epoch, wt_timestamp_t checkpoint_timestamp, bool is_startup)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
@@ -1091,8 +1140,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * The file already exists in the local metadata, so we just pick up its latest
                  * checkpoint without changing its other metadata.
                  */
-                WT_ERR(
-                  __disagg_update_file_meta(session, sh_keys[WT_DISAGG_CURSOR_FILE], &file_entry));
+                WT_ERR(__disagg_update_file_meta(session, sh_keys[WT_DISAGG_CURSOR_FILE], &file_entry,
+                  checkpoint_timestamp));
             else {
                 /*
                  * FIXME-WT-18284: A create queued above the checkpoint's schema epoch means the
@@ -1279,8 +1328,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * local metadata with any new checkpoint information from the shared metadata, and
                  * mark any old checkpoints as discarded.
                  */
-                WT_ERR(
-                  __disagg_update_file_meta(session, sh_keys[WT_DISAGG_CURSOR_FILE], &file_entry));
+                WT_ERR(__disagg_update_file_meta(session, sh_keys[WT_DISAGG_CURSOR_FILE], &file_entry,
+                  checkpoint_timestamp));
                 ++existing_tables;
             } else if (!sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE])
                 /*
@@ -1775,7 +1824,8 @@ __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_ERR(__disagg_save_checkpoint_meta_local(session, metadata));
 
     /* Apply the metadata for the other tables from the shared metadata table. */
-    WT_ERR(__disagg_apply_checkpoint_meta(session, ckpt_meta, metadata->schema_epoch, is_startup));
+    WT_ERR(__disagg_apply_checkpoint_meta(
+      session, ckpt_meta, metadata->schema_epoch, metadata->checkpoint_timestamp, is_startup));
 
 err:
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));

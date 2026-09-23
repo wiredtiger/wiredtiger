@@ -51,10 +51,6 @@ timestamp_name(uint8_t bit)
         return ("stable_timestamp");
     case TS_STABLE_SCHEMA_EPOCH:
         return ("stable_disaggregated_schema_epoch");
-    case TS_STEPDOWN_TIMESTAMP:
-        return ("step_down_timestamp");
-    case TS_STEPDOWN_SCHEMA_EPOCH:
-        return ("step_down_disaggregated_schema_epoch");
     case TS_LAST_SCHEMA_EPOCH:
         return ("last_disaggregated_schema_epoch");
     case TS_LAST_CHECKPOINT:

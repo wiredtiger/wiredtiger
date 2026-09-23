@@ -1037,7 +1037,6 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_time;
-    int64_t disagg_step_down_window_creates;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1462,8 +1461,6 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_disagg_epoch;
     int64_t txn_set_ts_stable_disagg_epoch_upd;
     int64_t txn_set_ts_stable_upd;
-    int64_t txn_stepdown_epoch_set;
-    int64_t txn_stepdown_ts_set;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_global_checkpoint_timestamp;
@@ -1489,7 +1486,6 @@ struct __wt_connection_stats {
     int64_t txn_rollback_too_large_for_cache;
     int64_t txn_truncate_dirty_cache_rollback;
     int64_t txn_update_conflict;
-    int64_t txn_rollback_stepdown;
 };
 
 /*

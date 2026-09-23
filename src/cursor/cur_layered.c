@@ -435,7 +435,6 @@ static WT_INLINE uint32_t
 __clayered_enter_flags(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
 {
-    WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
 
     if (mode == WTI_CLAYERED_MODE_SEARCH_NEAR || mode == WTI_CLAYERED_MODE_SEARCH)
@@ -450,22 +449,8 @@ __clayered_enter_flags(
         LF_SET(
           role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
 
-    /*
-     * A transaction that started with the step-down timestamp set mirrors leader writes to both
-     * constituents to detect write conflicts when write mirroring is enabled; otherwise it routes
-     * them to ingest. Reads behave like a follower: it reads the ingest constituent over the
-     * still-live stable table.
-     *
-     * A table created inside the step-down window has no stable constituent at all, so its cursors
-     * use ingest whenever the transaction began. That covers a transaction from before the
-     * timestamp was set, which would otherwise read stable alone and find nothing to open.
-     *
-     * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
-     * by contract.
-     */
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
-      __wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) ||
-      mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+    /* largest_key ignores visibility and always consults ingest. */
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER || mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
@@ -474,38 +459,25 @@ __clayered_enter_flags(
 /*
  * __clayered_write_target_for_op --
  *     Resolve which constituent or constituents receive a layered-table write. A read has no
- *     target. A follower, or a table created inside the step-down window, writes ingest alone; a
- *     leader writing under the step-down timestamp may mirror both depending on configuration; a
- *     leader outside it writes stable alone.
+ *     target. A follower writes ingest alone. A leader writes stable alone.
  */
 static WT_INLINE WTI_CLAYERED_WRITE_TARGET
 __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op,
   WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
 {
-    WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
-
     /* Only the diagnostic assertions consume op. */
     WT_UNUSED(op);
-
-    bool step_down_created = __wt_atomic_load_bool_relaxed(&table->step_down_created);
-    bool is_mirroring =
-      F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 
     if (mode != WTI_CLAYERED_MODE_WRITE)
         return (WTI_CLAYERED_WRITE_NONE);
 
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || step_down_created) {
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER) {
         WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
         return (WTI_CLAYERED_WRITE_INGEST);
     }
 
     WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
-
-    if (!CUR2S(clayered)->txn->stepdown_ts_set)
-        return (WTI_CLAYERED_WRITE_STABLE);
-
-    WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-    return (is_mirroring ? WTI_CLAYERED_WRITE_BOTH : WTI_CLAYERED_WRITE_INGEST);
+    return (WTI_CLAYERED_WRITE_STABLE);
 }
 
 /*
@@ -588,9 +560,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      * largest_key is exempt: it ignores visibility by contract and always consults ingest, so its
      * result does not depend on the transaction.
      */
-    if (mode != WTI_CLAYERED_MODE_LARGEST_KEY)
-        WT_RET(__wt_txn_stepdown_straddler_check(session, mode == WTI_CLAYERED_MODE_WRITE));
-
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
      * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
@@ -839,6 +808,36 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
 }
 
 /*
+ * __clayered_live_stable_is_frozen --
+ *     Return whether the layered table's live stable handle is a demoted tree that pickup has not
+ *     superseded. The handle list lock covers the lookup; the caller's dhandle is restored.
+ */
+static int
+__clayered_live_stable_is_frozen(WT_SESSION_IMPL *session, const char *stable_uri, bool *frozenp)
+{
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle, *saved;
+    WT_DECL_RET;
+
+    *frozenp = false;
+    saved = session->dhandle;
+    session->dhandle = NULL;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_find(session, stable_uri, NULL);
+      if (ret == 0) {
+          dhandle = session->dhandle;
+          if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
+            !__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
+              btree = dhandle->handle;
+              *frozenp = F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+                F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
+          }
+          WT_DHANDLE_CLEAR(session);
+      } else if (ret == WT_NOTFOUND) ret = 0;);
+    session->dhandle = saved;
+    return (ret);
+}
+
+/*
  * __clayered_open_stable_follower --
  *     Open the stable table cursor on the newest available checkpoint. In some cases it's fine to
  *     not have a checkpoint (e.g. when we open it for the first time) - leave the cursor
@@ -854,8 +853,39 @@ __clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_ex
     size_t checkpoint_pickup_races_count = 0;
     const char *checkpoint_name = NULL;
     const char *stable_uri = layered->stable_uri;
+    bool frozen_stable = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &last_ckpt_uri));
+
+    /*
+     * A demoted node's live stable tree still holds commits from after its last checkpoint. Bind
+     * that handle until pickup marks it outdated; a follower-era snapshot is consistent with it,
+     * and a snapshot from the previous role fails the same check as a checkpoint bind.
+     */
+    WT_ERR(__clayered_live_stable_is_frozen(session, stable_uri, &frozen_stable));
+    if (frozen_stable) {
+        if (__clayered_stable_bind_check_needed(session)) {
+            WT_ERR(__clayered_stable_bind_check_role_change(session, false));
+            __clayered_stable_bind_check(session);
+        }
+        ret = __clayered_open_stable_int(clayered, stable_uri);
+        if (ret == 0) {
+            WT_FULL_BARRIER();
+            if (__wt_atomic_load_bool_relaxed(
+                  &((WT_CURSOR_BTREE *)clayered->stable_cursor)->dhandle->outdated)) {
+                WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
+                clayered->stable_cursor = NULL;
+            } else if (__clayered_stable_bind_check_needed(session) &&
+              __wt_gen(session, WT_GEN_DISAGG_ROLE) !=
+                __wt_session_gen(session, WT_GEN_DISAGG_ROLE)) {
+                WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
+                clayered->stable_cursor = NULL;
+                WT_ERR(__clayered_stable_bind_refuse(session));
+            } else
+                goto opened;
+        } else if (ret != EBUSY)
+            WT_ERR(ret);
+    }
 
 retry:
     __wt_free(session, checkpoint_name);
@@ -934,6 +964,7 @@ retry:
     WT_STAT_CONN_DSRC_INCRV(
       session, layered_curs_open_stable_ckpt_pickup_race, checkpoint_pickup_races_count);
 
+opened:
     /*
      * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a
      * read timestamp below it: reads silently lose keys whose newest visible version was removed as
@@ -946,7 +977,8 @@ retry:
      * make the comparison stricter, against an oldest timestamp the reader must satisfy on its next
      * advance anyway.
      */
-    if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ)) {
+    if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) &&
+      !F_ISSET_ATOMIC_32(CUR2BT(clayered->stable_cursor), WT_BTREE_DISAGG_FROZEN)) {
         WT_ASSERT_ALWAYS(session,
           WT_SESSION_TXN_SHARED(session)->read_timestamp >=
             __wt_atomic_load_uint64_acquire(
@@ -1350,9 +1382,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
 
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed, unless the constituent does not exist yet. */
-        if (!__wt_atomic_load_bool_relaxed(
-              &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
-          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
+        if (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
@@ -1721,10 +1751,6 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     /* These should have been initialized upstream. */
     WT_ASSERT(session, trunc_info->start != NULL);
     WT_ASSERT(session, trunc_info->stop != NULL);
-
-    WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE,
-      "truncate is not supported while the step-down timestamp is set");
 
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower
@@ -2521,22 +2547,13 @@ err:
 /*
  * __clayered_lookup_lazy_stable_open --
  *     Open the stable constituent an operation deferred at enter time, and hand it to the
- *     operation. The operation stays without a stable cursor if the follower has no checkpoint or
- *     the table was created inside the step-down window.
+ *     operation. The operation stays without a stable cursor if the follower has no checkpoint.
  */
 static int
 __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
-
-    /*
-     * A leader's table created inside the step-down window deferred the open because it has no
-     * stable constituent at all, not because it is waiting on a checkpoint: opening as a follower
-     * would refuse the bind against the leader-era snapshot.
-     */
-    if (__wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created))
-        return (0);
 
     WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
       __wt_atomic_load_uint64_acquire(
@@ -3244,21 +3261,7 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
     /* A read timestamp can position reads below committed updates. */
-    bool has_read_ts = F_ISSET(session->txn, WT_TXN_SHARED_TS_READ);
-    /*
-     * On a leader with the step-down timestamp set, a transaction writing ingest can face live
-     * content about to be committed on stable, unlike a follower whose stable is untouched locally.
-     * That content may be invisible to this snapshot and shares no update chain with the write. The
-     * step-down lock does not close this window: it is acquired separately from taking the
-     * snapshot, so a stable commit can still be invisible to it, and this check remains necessary.
-     *
-     * When step-down writes are mirrored to stable there is no need to probe, and this function
-     * exits early from the previous write_target check.
-     */
-    bool stepdown_ts_set = session->txn->stepdown_ts_set;
-
-    /* Otherwise every snapshot-visible update is current; there is nothing to check. */
-    if (!has_read_ts && !stepdown_ts_set)
+    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         return (0);
 
     /*

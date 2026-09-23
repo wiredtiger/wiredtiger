@@ -49,6 +49,22 @@ __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_is_frozen_disagg --
+ *     Return whether the current btree is a demoted live tree that has not yet been superseded.
+ *     Outdated wins: once pickup marks the handle, eviction discards it instead of pinning it.
+ */
+static WT_INLINE bool
+__wt_btree_is_frozen_disagg(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+    return (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN) &&
+      !__wt_atomic_load_bool_relaxed(&btree->dhandle->outdated));
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
