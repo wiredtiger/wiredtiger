@@ -139,6 +139,9 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         self.run_method_on_branch(self.newer_branch, 'on_newer_branch_verify_and_mutate(0)')
         self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate(1)')
         self.run_method_on_branch(self.newer_branch, 'on_newer_branch_final_verify')
+        if not self.delete_all:
+            self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate(2)')
+            self.run_method_on_branch(self.newer_branch, 'on_newer_branch_final_verify(3)')
 
     def test_downgrade_develop_to_9_0(self):
         self.run_method_on_branch(self.newer_branch, 'on_newer_branch_create')
@@ -164,8 +167,8 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         self._mutate_pages(rounds, self.newer)
         self._verify_file(self.newer_branch)
 
-    def on_newer_branch_final_verify(self):
-        self._verify_pages(2, self.newer)
+    def on_newer_branch_final_verify(self, rounds=2):
+        self._verify_pages(rounds, self.newer)
         self._verify_file(self.newer_branch)
 
     def on_older_branch_final_verify(self):
