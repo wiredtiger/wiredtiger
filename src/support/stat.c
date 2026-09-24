@@ -2747,6 +2747,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step up frozen trees discarded after adopting another leader's checkpoint",
   "disagg: step up in progress",
   "disagg: step up ingest table clear truncates retried after a conflict",
   "disagg: step up most recent time (msecs)",
@@ -3873,6 +3874,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    stats->disagg_step_up_frozen_after_foreign_adoption = 0;
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_time = 0;
@@ -5135,6 +5137,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_up_frozen_after_foreign_adoption +=
+      WT_STAT_CONN_READ(from, disagg_step_up_frozen_after_foreign_adoption);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_clear_ingest_retry +=
       WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_retry);

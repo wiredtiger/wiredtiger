@@ -321,6 +321,7 @@ struct __wt_disaggregated_storage {
     uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */
 
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
+    wt_shared uint64_t own_checkpoint_meta_lsn;  /* The LSN of this node's last own checkpoint. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     /*
