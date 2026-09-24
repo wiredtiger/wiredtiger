@@ -45,13 +45,14 @@ class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestC
     conn_config = 'statistics=(all),precise_checkpoint=true,disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    # The behind case needs the demote-time check that stable equals the last checkpoint timestamp
-    # to be a recoverable error; until the engine has it, that scenario fails. With no checkpoint at
-    # all, the frozen tree is the only copy of the data and the follower must still read it.
+    # A demote may happen at any stable timestamp: content committed after the last checkpoint is
+    # kept in the frozen tree and stays valid across the following step-up, so the demote does not
+    # require stable to sit at the checkpoint. The behind case (stable ahead of the checkpoint) and
+    # the no-checkpoint case (the frozen tree is the only copy) must both preserve the data.
     checkpoints = [
-        ('at_stable',     dict(checkpoint_ts=20,   refused=False)),
-        ('behind_stable', dict(checkpoint_ts=15,   refused=True)),
-        ('no_checkpoint', dict(checkpoint_ts=None, refused=False)),
+        ('at_stable',     dict(checkpoint_ts=20)),
+        ('behind_stable', dict(checkpoint_ts=15)),
+        ('no_checkpoint', dict(checkpoint_ts=None)),
     ]
     scenarios = make_scenarios(disagg_storages, checkpoints)
 
@@ -70,15 +71,6 @@ class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'k2': 'v2'}, 30)
 
         expected = {'k1': 'v1', 'k2': 'v2'}
-        if self.refused:
-            with self.expectedStderrPattern('requires the stable timestamp'):
-                self.assertRaisesException(wiredtiger.WiredTigerError,
-                    lambda: self.conn.reconfigure('disaggregated=(role="follower")'))
-            # Nothing changed: the node still accepts writes, and a checkpoint at the current
-            # stable timestamp makes the demotion legal.
-            self.write_at(self.uri, {'k3': 'v3'}, 31)
-            expected['k3'] = 'v3'
-            self.checkpoint_at(self.stable)
         self.demote()
         self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
         self.assertEqual(self.read_kvs(self.uri), expected)

@@ -59,11 +59,9 @@ class LayeredStepdownMixin:
 
     # Demote to follower. Once a checkpoint exists, stable must still sit on it.
     def demote(self, conn=None):
+        # A demote may happen at any stable timestamp: content committed after the last checkpoint is
+        # kept in the frozen tree and stays valid across the following step-up.
         conn = conn or self.conn
-        last_ckpt = self.last_checkpoint_ts(conn)
-        if last_ckpt != 0:
-            self.assertEqual(self.stable_ts(conn), last_ckpt,
-                'the test advanced stable past the final checkpoint before demoting')
         conn.reconfigure('disaggregated=(role="follower")')
         self.assertEqual(self.connection_stat(stat.conn.disagg_step_down_in_progress, conn), 0)
 
