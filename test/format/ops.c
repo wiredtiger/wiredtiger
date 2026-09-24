@@ -1110,7 +1110,7 @@ ops(void *arg)
     uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd, snap_retries;
     u_int i, rlog_table_id, throttle_delay_max;
-    int rlog_ret;
+    int mirror_op_ret, rlog_ret;
     const char *iso_config, *rlog_op_name;
     bool greater_than, intxn, pause_writes, prepared, mirrored_truncate;
 
@@ -1136,6 +1136,7 @@ ops(void *arg)
     }
 
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
+    mirror_op_ret = 0;              /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
 
@@ -1453,6 +1454,7 @@ rollback_retry:
                 goto skip_operation;
 
             skip1 = g.base_mirror;
+            mirror_op_ret = tinfo->op_ret;
         }
         if (ret == 0 && table != skip1) {
             tinfo->table = table;
@@ -1462,6 +1464,24 @@ rollback_retry:
                 goto rollback;
             if (GV(RUNS_PREDICTABLE_REPLAY))
                 rlog_ret = tinfo->op_ret;
+
+            /*
+             * Mirrors must see the same key space: any operation (most notably a remove or blind
+             * modify, the only ones that can legitimately return not-found) must succeed or fail
+             * identically on every mirror. When the base mirror already ran above (MODIFY), compare
+             * this table against it here, so a divergence is caught at the exact pair of tables
+             * involved instead of surfacing later, far from its cause, as an unexplained
+             * mirror-verify mismatch. Otherwise, this table's result becomes the reference the rest
+             * of the mirror group is checked against below.
+             */
+            if (ret == 0) {
+                if (skip1 != NULL && tinfo->op_ret != mirror_op_ret)
+                    testutil_die(0,
+                      "mirror mismatch: op %d on table %s returned %d, expected %d (to match table "
+                      "%s)",
+                      (int)op, table->uri, tinfo->op_ret, mirror_op_ret, skip1->uri);
+                mirror_op_ret = tinfo->op_ret;
+            }
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1483,6 +1503,11 @@ rollback_retry:
                         goto rollback;
                     if (ret == WT_ROLLBACK)
                         break;
+                    if (tinfo->op_ret != mirror_op_ret)
+                        testutil_die(0,
+                          "mirror mismatch: op %d on table %s returned %d, expected %d (from an "
+                          "earlier mirror in the same group)",
+                          (int)op, tables[i]->uri, tinfo->op_ret, mirror_op_ret);
                 }
         }
 skip_operation:
