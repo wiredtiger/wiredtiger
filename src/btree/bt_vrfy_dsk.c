@@ -469,7 +469,12 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            WT_ERR(__verify_dsk_addr_validity(unpack, vi));
+            /*
+             * The aggregate in a fast-truncate address predates the deletion. Its effective
+             * aggregate is checked with the page-delete information below.
+             */
+            if (cell_type != WT_CELL_ADDR_DEL || !F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE))
+                WT_ERR(__verify_dsk_addr_validity(unpack, vi));
             break;
         }
 
@@ -782,7 +787,11 @@ __verify_dsk_col_int(WT_VERIFY_INFO *vi)
         WT_RET(__err_cell_type(unpack->type, vi));
 
         /* Check the validity window. */
-        WT_RET(__verify_dsk_addr_validity(unpack, vi));
+        if (unpack->type == WT_CELL_ADDR_DEL && F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE))
+            WT_RET(__verify_dsk_addr_page_del(
+              vi->session, unpack, vi->dsk->u.entries - i + 1, vi->page_addr, vi->tag));
+        else
+            WT_RET(__verify_dsk_addr_validity(unpack, vi));
 
         /* Check if any referenced item is entirely in the file. */
         ret = bm->addr_invalid(bm, vi->session, unpack->data, unpack->size);

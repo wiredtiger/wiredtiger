@@ -285,8 +285,11 @@ TEST_CASE("Cell Fast Truncate: effective aggregate is required by a tightened pa
     WT_TIME_AGGREGATE_COPY(&tightened_parent, &effective_ta);
 
     CHECK(unpack.ta.newest_stop_ts == WT_TS_MAX);
+    CHECK(unpack.ta.newest_stop_txn == WT_TXN_MAX);
     CHECK(effective_ta.newest_stop_ts == 20);
+    CHECK(effective_ta.newest_stop_txn == 10);
     CHECK(tightened_parent.newest_stop_ts == 20);
+    CHECK(tightened_parent.newest_stop_txn == 10);
     CHECK(__wt_time_aggregate_validate(session, &unpack.ta, &tightened_parent, true) == EINVAL);
     CHECK(__wt_time_aggregate_validate(session, &effective_ta, &tightened_parent, true) == 0);
 }
