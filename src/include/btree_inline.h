@@ -998,7 +998,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
-    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+    /* Frozen trees stay read-only, but a resolved prepare has to pin its page. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+      !F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
         return;
 
     /* A page being instantiated ends up clean, don't dirty it. */
@@ -1006,7 +1008,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN) ||
         __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
@@ -1213,10 +1215,20 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * Prepared records in the datastore require page updates, even for read-only handles, don't
-     * mark the tree or page dirty.
+     * mark the tree or page dirty. A frozen tree is the exception: the resolved value exists only
+     * in memory until a later checkpoint, so the page has to stay dirty or clean eviction drops it.
+     * Checkpoint skips the tree while it is read-only; the modified flag makes the post-step-up
+     * checkpoint write the page.
      */
-    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY)) {
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN) && page->modify != NULL &&
+          !F_ISSET(page->modify, WT_PAGE_MODIFY_INSTANTIATING)) {
+            btree->modified = true;
+            WT_FULL_BARRIER();
+            __wt_page_only_modify_set(session, page);
+        }
         return;
+    }
 
     /*
      * Instantiating updates onto a page that has just been read is internal bookkeeping: the page

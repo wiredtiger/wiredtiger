@@ -84,8 +84,6 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
 {
     WT_DECL_ITEM(ckpt_uri);
     WT_DECL_RET;
-    wt_timestamp_t step_down_ts;
-    char ts_string[WT_TS_INT_STRING_SIZE];
     const char *checkpoint_name = NULL;
     bool leader;
 
@@ -98,20 +96,6 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
         /* Verify the stable table of the layered table. */
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
-
-        /*
-         * A table created after the step-down timestamp was set has no stable constituent, so there
-         * is nothing on the stable side to verify. The schema lock held here serializes the
-         * timestamp, making the relaxed load safe.
-         */
-        step_down_ts =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        if (ret == ENOENT && step_down_ts != WT_TS_NONE) {
-            __wt_verbose_info(session, WT_VERB_LAYERED,
-              "%s: no stable constituent to verify, the step-down timestamp %s is set", stable_uri,
-              __wt_timestamp_to_string(step_down_ts, ts_string));
-            ret = 0;
-        }
     } else {
         WT_ERR(__wt_scr_alloc(session, 0, &ckpt_uri));
 
@@ -160,13 +144,6 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
 
     /* We don't verify the ingest table on a follower. */
     if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
-        return (0);
-
-    /*
-     * While a step-down timestamp is set, the leader directs writes to ingest, so it is expected to
-     * hold the post-cutoff content rather than be empty.
-     */
-    if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
         return (0);
 
     /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */

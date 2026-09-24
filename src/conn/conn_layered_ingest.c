@@ -30,25 +30,20 @@ __layered_assert_stable_btree_state(
         /* No on-page value to check; rely solely on visibility. */
         has_value = false;
     } else {
-        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
-          "The stable btree should not contain inserts prior to draining");
-
-        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+        /*
+         * The key may already be an in-memory insert on a tree kept across demote. Aborted updates
+         * on that chain are invisible, so skip them and check the first update a reader would see.
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         else
             upd = NULL;
 
-        /*
-         * Walk the chain: assert no unresolved preserved prepared update exists, and advance past
-         * any rolled-back preserved prepared updates to find the first visible update.
-         */
         for (; upd != NULL; upd = upd->next) {
-            if (upd->txnid == WT_TXN_ABORTED) {
-                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "During ingest drain, aborted updates on the stable btree must be "
-                  "rolled-back preserved prepared transactions");
+            if (upd->txnid == WT_TXN_ABORTED)
                 continue;
-            }
 
             WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
               "During ingest drain, found an unresolved prepared update on the stable btree; "

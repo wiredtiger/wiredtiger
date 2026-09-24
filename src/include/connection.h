@@ -206,9 +206,6 @@ struct __wt_disagg_metadata_op {
     /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
 
-    /* The operation was issued inside the step-down window, so it belongs to the next era. */
-    bool in_step_down_window;
-
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
@@ -299,11 +296,15 @@ struct __wt_repair {
 /*
  * WT_DISAGG_DEFERRED_CKPT --
  *      A checkpoint whose adoption is deferred while transactional snapshots that predate it are
- *      active.
+ *      active, or because it does not cover a frozen live tree.
  */
 struct __wt_disagg_deferred_ckpt {
     uint64_t lsn; /* Checkpoint metadata LSN */
     char *meta;   /* Checkpoint metadata configuration */
+
+    /* Pickup found the checkpoint, at this timestamp, below a frozen tree. */
+    bool not_covering;
+    wt_timestamp_t not_covering_ts;
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
@@ -320,6 +321,7 @@ struct __wt_disaggregated_storage {
     uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */
 
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
+    wt_shared uint64_t own_checkpoint_meta_lsn;  /* The LSN of this node's last own checkpoint. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     /*
@@ -446,11 +448,10 @@ struct __wt_disaggregated_storage {
     bool deferred_pickup_tid_set;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_NO_LOCAL_DURABILITY 0x01u
-#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING 0x02u
-#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED 0x04u
-#define WT_DISAGG_STEPDOWN_WRITE_MIRRORING 0x08u
-#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x10u
+#define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING 0x2u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED 0x4u
+#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -869,17 +870,16 @@ struct __wt_conn_debug {
 #define WT_CONN_DEBUG_CURSOR_REPOSITION 0x000100u
 #define WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL 0x000200u
 #define WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER 0x000400u
-#define WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE 0x000800u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x001000u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x002000u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x004000u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x008000u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x010000u
-#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x020000u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x040000u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x080000u
-#define WT_CONN_DEBUG_TIMING_STRESS_FORCE 0x100000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x200000u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x000800u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x001000u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x002000u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x004000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x008000u
+#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x010000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x020000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x040000u
+#define WT_CONN_DEBUG_TIMING_STRESS_FORCE 0x080000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x100000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

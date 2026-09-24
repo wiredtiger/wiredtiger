@@ -456,6 +456,19 @@ retry:
         }
 
         /*
+         * A frozen live tree is pinned for its dirty pages. Walk it only when clean pages are
+         * eligible; dirty candidates would return EBUSY from eviction.
+         */
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+          F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN) &&
+          !__wt_atomic_load_bool_relaxed(&dhandle->outdated) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
+            __evict_disagg_btree_skip_count(session, btree);
+            continue;
+        }
+
+        /*
          * Skip stable checkpoint handles on followers unless we are looking for clean pages.
          * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
          * with dedicated handling instead of matching the stable checkpoint URI.
@@ -1311,6 +1324,12 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * The walk itself holds one session_inuse reference on the tree it is currently visiting, so a
      * genuine external reader shows up as a count greater than one.
      */
+    if ((__wt_layered_frozen_live(session) && !__wt_page_evict_clean(page)) ||
+      __wt_layered_frozen_page_pinned(session, page)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_stale_disagg_pages);
+        return;
+    }
+
     if (__wt_btree_is_outdated_disagg(session) && !__wt_page_evict_clean(page) &&
       __wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 1) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_stale_disagg_pages);

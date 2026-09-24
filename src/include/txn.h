@@ -33,8 +33,6 @@
     "A newer checkpoint was adopted after the transaction snapshot was established"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "Transaction has the oldest pinned transaction ID"
-#define WT_TXN_ROLLBACK_REASON_STEP_DOWN \
-    "Write transaction straddled the step-down timestamp setting boundary"
 #define WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE \
     "Transaction dirty content alone exceeds the eviction updates or dirty trigger"
 #define WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY \
@@ -211,8 +209,6 @@ struct __wt_txn_global {
     wt_timestamp_t recovery_timestamp;
     wt_shared wt_timestamp_t stable_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t stable_timestamp;
-    wt_shared wt_timestamp_t step_down_disaggregated_schema_epoch;
-    wt_shared wt_timestamp_t step_down_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
@@ -228,15 +224,6 @@ struct __wt_txn_global {
 
     /* Protects logging, checkpoints and transaction visibility. */
     WT_RWLOCK visibility_rwlock;
-
-    /*
-     * Protects the step-down timestamp and the step-down disaggregated schema epoch: writers set or
-     * clear them together, readers sample the timestamp at transaction begin and check it when a
-     * write transaction commits. A committing write transaction either observes the timestamp and
-     * rolls back, or its writes happen before the timestamp store and are visible to every
-     * transaction that begins with the timestamp set.
-     */
-    WT_RWLOCK step_down_lock;
 
     /*
      * Track information about the running checkpoint. The transaction snapshot used when
@@ -449,12 +436,6 @@ struct __wt_txn {
      */
     wt_timestamp_t first_commit_timestamp;
 
-    /*
-     * True if the step-down timestamp was set when this transaction began. Used to redirect the
-     * transaction's writes to the ingest constituent (or mirrored to both stable and ingest when
-     * write mirroring is enabled), to include ingest in its reads, and to detect straddlers.
-     */
-    bool stepdown_ts_set;
     /*
      * The disaggregated role observed when the snapshot was established; the role-change generation
      * it was established under is published in the session's generation slot. A snapshot

@@ -1962,34 +1962,6 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
         WT_ERR_MSG(session, EINVAL, "failed %s transaction requires rollback",
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
-    /*
-     * The step-down rollback below cannot apply to a prepared transaction: failing a prepared
-     * commit fails the system. Catch a transaction that prepared before the timestamp was set with
-     * a clear message instead.
-     *
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down.
-     */
-    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
-        WT_ASSERT_ALWAYS(session,
-          !F_ISSET(txn, WT_TXN_PREPARE) ||
-            __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
-              WT_TS_NONE,
-          "prepared transactions are not supported while the step-down timestamp is set");
-
-    /*
-     * The straddler checks at cursor operations are only an optimization to roll back early: they
-     * read the step-down timestamp without taking the step-down lock and may miss it even when it
-     * is set. This check is the guarantee: under the step-down lock it always observes a set
-     * timestamp, so no straddler commits after the timestamp is in place.
-     */
-    if (txn->mod_count != 0 && !txn->stepdown_ts_set && __wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        ret = __wt_txn_stepdown_straddler_check(session, true);
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-        WT_ERR(ret);
-    }
-
 err:
     /*
      * We might have failed because an illegal configuration was specified or because there wasn't a

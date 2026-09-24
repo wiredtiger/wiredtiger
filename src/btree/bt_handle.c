@@ -204,7 +204,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
     __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
-    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_SKIP_CKPT);
+    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_SKIP_CKPT | WT_BTREE_DISAGG_FROZEN);
 
     /* Set the data handle first, our called functions reasonably use it. */
     btree->dhandle = dhandle;
@@ -391,6 +391,13 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     }
 
     F_SET(btree, WT_BTREE_CLOSED);
+
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN)) {
+        F_CLR_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
+        WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+        WT_STAT_CONN_DECRV(session, disagg_frozen_prepared_pending,
+          __wt_atomic_load_uint32_relaxed(&btree->disagg_frozen_prepared));
+    }
 
     /*
      * Verify the history store state. If the history store is open and this btree has history store
