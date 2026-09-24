@@ -293,3 +293,28 @@ TEST_CASE("Cell Fast Truncate: effective aggregate is required by a tightened pa
     CHECK(__wt_time_aggregate_validate(session, &unpack.ta, &tightened_parent, true) == EINVAL);
     CHECK(__wt_time_aggregate_validate(session, &effective_ta, &tightened_parent, true) == 0);
 }
+
+TEST_CASE("Cell Fast Truncate: untimestamped page delete preserves newest durable time",
+  "[cell][fast_truncate][time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+
+    WT_PAGE_DELETED page_del;
+    memset(&page_del, 0, sizeof(page_del));
+    page_del.txnid = 20;
+    page_del.pg_del_start_ts = WT_TS_NONE;
+    page_del.pg_del_durable_ts = WT_TS_NONE;
+
+    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE_INIT_MERGE(&ta);
+    ta.newest_durable_ts = 50;
+    ta.oldest_start_ts = 50;
+    ta.newest_txn = 10;
+
+    WT_TIME_AGGREGATE_MERGE_PAGE_DEL(&ta, &page_del);
+
+    CHECK(ta.newest_durable_ts == 50);
+    CHECK(ta.newest_page_stop_durable_ts == WT_TS_NONE);
+    CHECK(__wt_time_aggregate_validate(session, &ta, NULL, true) == 0);
+}

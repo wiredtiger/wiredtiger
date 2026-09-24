@@ -18,6 +18,7 @@ else()
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_version.cpp
+        misc_tests/test_disagg_block_read_checksum.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
@@ -35,11 +36,13 @@ else()
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
+        misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
+        misc_tests/test_palite_victim_cache.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp

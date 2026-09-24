@@ -213,12 +213,23 @@ __verify_dsk_addr_validity(WT_CELL_UNPACK_ADDR *unpack, WT_VERIFY_INFO *vi)
 {
     WT_ADDR *addr;
     WT_DECL_RET;
+    WT_TIME_AGGREGATE effective_ta, *ta;
 
     addr = vi->page_addr;
 
-    if ((ret = __wt_time_aggregate_validate(vi->session, &unpack->ta,
-           addr != NULL ? &addr->ta : NULL, F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) ==
-      0)
+    /*
+     * The aggregate in a deleted-address cell predates the truncate, so validate the effective
+     * aggregate: the unpacked one with the page deletion applied as its stop point.
+     */
+    ta = &unpack->ta;
+    if (unpack->type == WT_CELL_ADDR_DEL && F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE)) {
+        WT_TIME_AGGREGATE_COPY(&effective_ta, &unpack->ta);
+        WT_TIME_AGGREGATE_MERGE_PAGE_DEL(&effective_ta, &unpack->page_del);
+        ta = &effective_ta;
+    }
+
+    if ((ret = __wt_time_aggregate_validate(vi->session, ta, addr != NULL ? &addr->ta : NULL,
+           F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
         return (0);
 
     WT_RET_VRFY_RETVAL(vi->session, ret,
@@ -251,11 +262,9 @@ __verify_dsk_value_validity(WT_CELL_UNPACK_KV *unpack, WT_VERIFY_INFO *vi)
  *     Verify a deleted-page address cell's page delete information.
  */
 static int
-__verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack, uint32_t cell_num,
-  WT_ADDR *addr, const char *tag)
+__verify_dsk_addr_page_del(
+  WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack, uint32_t cell_num, const char *tag)
 {
-    WT_DECL_RET;
-    WT_TIME_AGGREGATE ta_with_delete;
     char time_string[WT_TIME_STRING_SIZE];
 
     /* The durable timestamp in the page_delete info should not be before its commit timestamp. */
@@ -300,24 +309,6 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
           "; time aggregate %s",
           cell_num - 1, tag, unpack->page_del.txnid,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));
-
-    /*
-     * Merge this information into the aggregate and verify the results, against the parent if
-     * possible.
-     */
-    WT_TIME_AGGREGATE_COPY(&ta_with_delete, &unpack->ta);
-    ta_with_delete.newest_durable_ts =
-      WT_MAX(ta_with_delete.newest_durable_ts, unpack->page_del.pg_del_durable_ts);
-    ta_with_delete.newest_page_stop_durable_ts = unpack->page_del.pg_del_durable_ts;
-    ta_with_delete.newest_txn = unpack->page_del.txnid;
-    ta_with_delete.newest_stop_ts = unpack->page_del.pg_del_start_ts;
-    ta_with_delete.newest_stop_txn = unpack->page_del.txnid;
-    ret = __wt_time_aggregate_validate(session, &ta_with_delete, addr != NULL ? &addr->ta : NULL,
-      F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE));
-    if (ret != 0)
-        WT_RET_VRFY_RETVAL(session, ret,
-          "fast-delete cell %" PRIu32 " on page at %s failed adjusted timestamp validation",
-          cell_num - 1, tag);
 
     /*
      * The other elements of the structure are not stored on disk and are set unconditionally by the
@@ -469,12 +460,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            /*
-             * The aggregate in a fast-truncate address predates the deletion. Its effective
-             * aggregate is checked with the page-delete information below.
-             */
-            if (cell_type != WT_CELL_ADDR_DEL || !F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE))
-                WT_ERR(__verify_dsk_addr_validity(unpack, vi));
+            WT_ERR(__verify_dsk_addr_validity(unpack, vi));
             break;
         }
 
@@ -493,8 +479,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
 
         /* Check that any fast-delete info is consistent with the validity window. */
         if (cell_type == WT_CELL_ADDR_DEL && F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE))
-            WT_ERR(
-              __verify_dsk_addr_page_del(vi->session, unpack, cell_num, vi->page_addr, vi->tag));
+            WT_ERR(__verify_dsk_addr_page_del(vi->session, unpack, cell_num, vi->tag));
 
         /*
          * Remaining checks are for key order. If this cell isn't a key, we're done, move to the
@@ -787,11 +772,7 @@ __verify_dsk_col_int(WT_VERIFY_INFO *vi)
         WT_RET(__err_cell_type(unpack->type, vi));
 
         /* Check the validity window. */
-        if (unpack->type == WT_CELL_ADDR_DEL && F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE))
-            WT_RET(__verify_dsk_addr_page_del(
-              vi->session, unpack, vi->dsk->u.entries - i + 1, vi->page_addr, vi->tag));
-        else
-            WT_RET(__verify_dsk_addr_validity(unpack, vi));
+        WT_RET(__verify_dsk_addr_validity(unpack, vi));
 
         /* Check if any referenced item is entirely in the file. */
         ret = bm->addr_invalid(bm, vi->session, unpack->data, unpack->size);
