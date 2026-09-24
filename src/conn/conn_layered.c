@@ -1445,6 +1445,7 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 
     F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
     __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
+    WT_STAT_CONN_DECR(session, disagg_frozen_handles);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     return (0);
@@ -1647,6 +1648,7 @@ __disagg_mark_btree_readonly_and_outdated(
          */
         __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, frozen_max_ts);
         F_SET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
+        WT_STAT_CONN_INCR(session, disagg_frozen_handles);
     } else
         /*
          * Mark the handle outdated so that if we step back up as leader in the future, we open a

@@ -2735,6 +2735,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: frozen live tree handles not yet closed",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
   "disagg: most recently adopted checkpoint metadata LSN",
   "disagg: most recently delivered checkpoint metadata LSN",
@@ -3860,6 +3861,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
+    /* not clearing disagg_frozen_handles */
     stats->disagg_ingest_stable_tombstone_stripped = 0;
     /* not clearing disagg_checkpoint_meta_lsn */
     /* not clearing disagg_checkpoint_delivered_lsn */
@@ -5117,6 +5119,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_frozen_handles += WT_STAT_CONN_READ(from, disagg_frozen_handles);
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
     to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
