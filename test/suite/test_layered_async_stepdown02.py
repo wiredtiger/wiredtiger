@@ -33,68 +33,63 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # test_layered_async_stepdown02.py
-#    Read semantics: iteration across the step-down timestamp, merged lookups, a per-timestamp
-#    oracle and a randomized stress phase.
+#    Read semantics across a step-down: iteration spanning the demotion, merged lookups over ingest
+#    and the frozen stable table, a per-timestamp oracle and a randomized stress phase.
 @disagg_test_class
 class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
     conn_base_config = \
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
-    ]
     def conn_config(self):
-        return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+        return self.conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
-    # A scan interrupted by the step-down timestamp re-seats and still yields its own snapshot
-    # exactly once, in order, whatever the concurrent writer does to the keys underneath it.
-    def test_iteration_across_step_down_ts(self):
+    # A timestamped scan positioned before the demotion continues across it and still yields its
+    # own snapshot exactly once, in order, whatever later writers do to the keys underneath it.
+    def test_iteration_across_step_down(self):
         uri = f'layered:{self.test_name}_iter'
         self.set_global_ts(1, 1)
         self.session.create(uri, 'key_format=S,value_format=S')
 
-        # Even-numbered keys form the stable content the scan snapshot will see.
-        stable_keys = [f'k{i:02d}' for i in range(0, 20, 2)]
-        self.write_at(uri, {k: 'v' for k in stable_keys}, 10)
+        # Keys divisible by three form the content the scan snapshot will see.
+        snapshot_keys = [f'k{i:02d}' for i in range(0, 30, 3)]
+        self.write_at(uri, {k: 'v' for k in snapshot_keys}, 10)
 
-        # Use a second session for the concurrent writer so the scan's transaction stays untouched.
-        wsession = self.conn.open_session()
-
-        # Read below the concurrent writer's later commit.
         cursor = self.session.open_cursor(uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
-
-        # Walk part way, then set the timestamp mid-iteration.
         seen = []
         for _ in range(4):
             self.assertEqual(cursor.next(), 0)
             seen.append(cursor.get_key())
-        self.set_step_down_ts(50)
 
-        # The concurrent transaction interleaves new odd-numbered keys into ingest both behind and
-        # ahead of the scan position, and also updates and removes stable keys the scan has not
-        # reached yet: an invisible update or tombstone must not disturb the walk either.
-        updated = stable_keys[6]
-        removed = stable_keys[8]
+        # Above the final checkpoint the leader interleaves keys behind and ahead of the scan
+        # position into the live stable table, and updates a key the scan has not reached.
+        updated = snapshot_keys[6]
+        removed = snapshot_keys[8]
+        self.checkpoint_at(20)
+        wsession = self.conn.open_session()
         wcur = wsession.open_cursor(uri, None, None)
         wsession.begin_transaction()
-        for i in range(1, 20, 2):
+        for i in range(1, 30, 3):
+            wcur[f'k{i:02d}'] = 'window'
+        wcur[updated] = 'window-update'
+        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+
+        self.demote()
+
+        # After the demotion a follower writer interleaves more keys into ingest and removes a key
+        # the scan has not reached.
+        wsession.begin_transaction()
+        for i in range(2, 30, 3):
             wcur[f'k{i:02d}'] = 'ingest'
-        wcur[updated] = 'ingest-update'
         wcur.set_key(removed)
         self.assertEqual(wcur.remove(), 0)
         wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(60))
         wcur.close()
         wsession.close()
 
-        # Finish the walk. Setting the step-down timestamp forces a re-seat; none of the ingest
-        # records are visible to the scan's snapshot, so the rest must still come back in order
-        # with no duplicates, and the shadowed keys must keep their stable values.
         kvs = []
         while cursor.next() == 0:
             seen.append(cursor.get_key())
@@ -102,40 +97,40 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-        self.assertEqual(seen, stable_keys,
+        self.assertEqual(seen, snapshot_keys,
             'the scan must yield exactly the snapshot keys once, in order')
         self.assertIn((updated, 'v'), kvs, 'the invisible update must not reach this snapshot')
         self.assertIn((removed, 'v'), kvs, 'the invisible tombstone must not reach this snapshot')
 
-        # A fresh scan above the ingest commit sees the merge: interleaved keys, the update
-        # applied and the removed key gone.
-        expected = {f'k{i:02d}': 'ingest' for i in range(1, 20, 2)}
-        expected.update({k: 'v' for k in stable_keys})
-        expected[updated] = 'ingest-update'
+        # A fresh scan above both writers sees the merge.
+        expected = {k: 'v' for k in snapshot_keys}
+        expected.update({f'k{i:02d}': 'window' for i in range(1, 30, 3)})
+        expected.update({f'k{i:02d}': 'ingest' for i in range(2, 30, 3)})
+        expected[updated] = 'window-update'
         del expected[removed]
         self.assertEqual(self.read_kvs_at(uri, 70), expected)
-        self.complete_step_down(50)
+        self.assertEqual(self.read_kvs(uri), expected)
 
-    # Point/range lookups merge ingest over stable.
+    # Point and range lookups merge ingest over the frozen stable table.
     def test_search_and_search_near_merged(self):
         uri = f'layered:{self.test_name}_search'
         self.set_global_ts(1, 1)
         self.session.create(uri, 'key_format=S,value_format=S')
 
-        # These keys go to stable; the interleaved ones written later go to ingest.
-        self.write_at(uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
-        self.set_step_down_ts(20)
+        self.write_at(uri, {'b': 's', 'd': 's'}, 10)
+        self.checkpoint_at(20)
+        self.write_at(uri, {'f': 'w'}, 25)
+        self.demote()
         self.write_at(uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
-        expected_stable = {'a', 'b', 'c', 'd', 'e', 'f'} if self.stable_has_step_down_writes() \
-            else {'b', 'd', 'f'}
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri), 40), expected_stable)
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(uri), 40), {'b', 'd'})
 
         cursor = self.session.open_cursor(uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
 
-        # Exact search finds keys from both constituents.
+        # Exact search finds keys from every layer.
         self.assertEqual(cursor['c'], 'i')
         self.assertEqual(cursor['d'], 's')
+        self.assertEqual(cursor['f'], 'w')
 
         # A miss is a miss across the merged view.
         cursor.set_key('z')
@@ -146,6 +141,9 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         cmp = cursor.search_near()
         self.assertNotEqual(cmp, wiredtiger.WT_NOTFOUND)
         self.assertIn(cursor.get_key(), ('c', 'd'))
+        cursor.set_key('ee')
+        self.assertNotEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        self.assertIn(cursor.get_key(), ('e', 'f'))
 
         # Full merged order interleaves the two constituents.
         cursor.reset()
@@ -155,39 +153,38 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(order, ['a', 'b', 'c', 'd', 'e', 'f'])
         self.session.rollback_transaction()
         cursor.close()
-        self.complete_step_down(20)
 
-    # A write to ingest is visible to a later read in the same transaction.
-    def test_read_your_own_writes_after_step_down_ts(self):
+    # A follower write to ingest is visible to a later read in the same transaction.
+    def test_read_your_own_writes_after_step_down(self):
         uri = f'layered:{self.test_name}_ryow'
         self.set_global_ts(1, 1)
         self.session.create(uri, 'key_format=S,value_format=S')
         self.write_at(uri, {'old': 'stable'}, 10)
-
-        self.set_step_down_ts(20)
+        self.checkpoint_at(20)
+        self.write_at(uri, {'win': 'window'}, 25)
+        self.demote()
 
         wcur = self.session.open_cursor(uri, None, None)
         rcur = self.session.open_cursor(uri, None, None)
         self.session.begin_transaction()
         wcur['fresh'] = 'ingest'
         wcur['old'] = 'ingest'
-        # Same transaction sees its own ingest writes merged over stable.
+        wcur['win'] = 'ingest'
+        # The same transaction sees its own ingest writes merged over stable.
         self.assertEqual(rcur['fresh'], 'ingest')
         self.assertEqual(rcur['old'], 'ingest')
+        self.assertEqual(rcur['win'], 'ingest')
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         wcur.close()
         rcur.close()
 
-        self.assertEqual(self.read_kvs_at(uri, 40), {'old': 'ingest', 'fresh': 'ingest'})
+        self.assertEqual(self.read_kvs_at(uri, 40),
+            {'old': 'ingest', 'fresh': 'ingest', 'win': 'ingest'})
+        self.assertEqual(self.read_kvs_at(uri, 28), {'old': 'stable', 'win': 'window'})
 
-        expected_stable = {'old': 'ingest', 'fresh': 'ingest'} if self.stable_has_step_down_writes() \
-            else {'old': 'stable'}
-        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 40), expected_stable)
-        self.complete_step_down(20)
-
-    # Reverse iteration and largest_key on either side of the step-down timestamp; largest_key is
+    # Reverse iteration and largest_key on either side of the demotion; largest_key is
     # non-transactional.
-    def test_prev_and_largest_key_across_step_down_ts(self):
+    def test_prev_and_largest_key_across_step_down(self):
         uri = f'layered:{self.test_name}_revscan'
         self.set_global_ts(1, 1)
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -211,21 +208,24 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
             c.close()
             return key
 
-        # Stable only.
         self.assertEqual(reverse_keys(15), ['f', 'd', 'b'])
         self.assertEqual(largest(), 'f')
 
-        self.set_step_down_ts(20)
+        self.checkpoint_at(20)
+        self.write_at(uri, {'g': 'w'}, 25)
+        self.assertEqual(largest(), 'g')
+        self.demote()
+        self.assertEqual(largest(), 'g')
+
         # The merged maximum lives in ingest.
         self.write_at(uri, {'a': 'i', 'c': 'i', 'e': 'i', 'z': 'i'}, 30)
-
-        # Reverse merged order across both constituents.
-        self.assertEqual(reverse_keys(40), ['z', 'f', 'e', 'd', 'c', 'b', 'a'])
+        self.assertEqual(reverse_keys(40), ['z', 'g', 'f', 'e', 'd', 'c', 'b', 'a'])
+        self.assertEqual(reverse_keys(25), ['g', 'f', 'd', 'b'])
         self.assertEqual(largest(), 'z')
-        self.complete_step_down(20)
 
-    # Read ops through straddling reader: snapshot pins stable; ingest invisible except largest_key.
-    def test_read_ops_across_step_down_ts(self):
+    # Read ops through a timestamped reader spanning the demotion: later writes stay invisible to
+    # it, except to largest_key.
+    def test_read_ops_across_step_down(self):
         uri = f'layered:{self.test_name}_readops'
         self.set_global_ts(1, 1)
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -235,10 +235,12 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
         self.assertEqual(rcur['d'], 's')
 
-        self.set_step_down_ts(20)
-
-        # A concurrent transaction interleaves ingest keys, including a new maximum.
         wsession = self.conn.open_session()
+        self.checkpoint_at(20)
+        self.write_at(uri, {'g': 'w'}, 25, wsession)
+        self.demote()
+
+        # A follower writer interleaves ingest keys, including a new maximum.
         wcur = wsession.open_cursor(uri, None, None)
         wsession.begin_transaction()
         for k in ('a', 'c', 'e', 'z'):
@@ -247,12 +249,13 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         wcur.close()
         wsession.close()
 
-        # search: stable hit still works, the invisible ingest key is a miss.
+        # search: a stable hit still works, the invisible keys are misses.
         self.assertEqual(rcur['d'], 's')
-        rcur.set_key('a')
-        self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
+        for k in ('a', 'g'):
+            rcur.set_key(k)
+            self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
 
-        # search_near: lands on a visible stable neighbor, never the invisible ingest 'c'.
+        # search_near lands on a visible stable neighbor, never the invisible ingest 'c'.
         rcur.set_key('c')
         cmp = rcur.search_near()
         self.assertNotEqual(cmp, wiredtiger.WT_NOTFOUND)
@@ -272,44 +275,32 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.session.rollback_transaction()
         rcur.close()
-        self.complete_step_down(20)
 
-    # Check every read op against a per-timestamp oracle: tombstone/re-insert/straddler merges.
+    # Check every read op against a per-timestamp oracle, with tombstones and re-inserts spread over
+    # the checkpointed stable content, the frozen window and ingest.
     def test_oracle_reads_merges(self):
         uri = f'layered:{self.test_name}_oracle'
         self.set_global_ts(1, 1)
         self.session.create(uri, 'key_format=S,value_format=S')
 
-        universe = {'gone', 'reborn', 'upd', 'keep', 'straddle', 'new'}
-        cursor = self.session.open_cursor(uri, None, None)
+        universe = {'gone', 'reborn', 'upd', 'keep', 'new', 'late'}
 
-        # Stable phase: four keys at 10, then 'reborn' is deleted in stable at 12.
+        # Below the checkpoint: four keys at 10, then 'reborn' is deleted at 12.
         self.write_at(uri, {'gone': 's', 'reborn': 's', 'upd': 's', 'keep': 's'}, 10)
         self.remove_at(uri, ['reborn'], 12)
+        self.checkpoint_at(20)
 
-        # A straddler writes beforehand and rolls back: 'straddle' must leave no trace.
-        self.session.begin_transaction()
-        cursor['straddle'] = 'never'
-        self.set_step_down_ts(20)
-        self.assert_step_down_rollback(
-            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25)))
-        cursor.close()
-
-        # Ingest phase: a tombstone over the stable value of 'gone', a re-insert of the key deleted
-        # in stable, an overwrite of a stable value, and a key that never existed in stable at all.
+        # Above the checkpoint, frozen at demotion: a tombstone over 'gone' and a re-insert of the
+        # key deleted below the checkpoint.
         self.remove_at(uri, ['gone'], 30)
-        self.write_at(uri, {'reborn': 'i'}, 35)
-        self.write_at(uri, {'upd': 'i2'}, 40)
-        self.write_at(uri, {'new': 'i'}, 45)
+        self.write_at(uri, {'reborn': 'w'}, 35)
 
         oracle = {
             10: {'gone': 's', 'reborn': 's', 'upd': 's', 'keep': 's'},
             12: {'gone': 's', 'upd': 's', 'keep': 's'},
             25: {'gone': 's', 'upd': 's', 'keep': 's'},
             30: {'upd': 's', 'keep': 's'},
-            35: {'reborn': 'i', 'upd': 's', 'keep': 's'},
-            40: {'reborn': 'i', 'upd': 'i2', 'keep': 's'},
-            45: {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i'},
+            35: {'reborn': 'w', 'upd': 's', 'keep': 's'},
         }
 
         # Verify every read op against the oracle at every timestamp: full forward scan, point
@@ -340,19 +331,30 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
                 rc.close()
 
         check_oracle('leader')
+        self.demote()
+        check_oracle('demoted')
 
-        expected_stable = {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i'} \
-            if self.stable_has_step_down_writes() else {'gone': 's', 'upd': 's', 'keep': 's'}
-        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 50), expected_stable)
-        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 50),
-            {'gone', 'reborn', 'upd', 'new'})
-
-        # Every timestamp must answer identically after the completed step-down.
-        self.complete_step_down(20)
+        # Follower writes in ingest: an overwrite of a checkpointed value, a key that never existed,
+        # and a tombstone over a key only the frozen tree holds, re-inserted later.
+        self.write_at(uri, {'upd': 'i2'}, 40)
+        self.write_at(uri, {'new': 'i'}, 45)
+        self.remove_at(uri, ['reborn'], 47)
+        self.write_at(uri, {'late': 'i', 'reborn': 'i'}, 49)
+        oracle.update({
+            40: {'reborn': 'w', 'upd': 'i2', 'keep': 's'},
+            45: {'reborn': 'w', 'upd': 'i2', 'keep': 's', 'new': 'i'},
+            47: {'upd': 'i2', 'keep': 's', 'new': 'i'},
+            49: {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i', 'late': 'i'},
+        })
         check_oracle('follower')
 
-    # Randomized ops split either side of the step-down timestamp, with the merged view checked
-    # against a shadow map.
+        self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(uri), 50),
+            {'gone': 's', 'upd': 's', 'keep': 's'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 50),
+            {'upd', 'new', 'reborn', 'late'})
+
+    # Randomized ops on the leader either side of the final checkpoint, then as a follower, with
+    # the merged view checked against a shadow map.
     #
     # FIXME-WT-18209: extend the layered cursor stress test to cover async step-down and retire this.
     def test_stress_random_ops(self):
@@ -421,33 +423,35 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
                         f'table does not match expected: seed={seed} op={i + 1} ts={self.ts}')
                     check_point_reads(self.ts)
 
-        # Phase 1: churn before the step-down timestamp, everything routed to stable.
+        # Phase 1: leader churn up to the final checkpoint.
         run_ops(120, verify_every=40)
-        self.assertEqual(self.read_kvs_at(uri, self.ts), dict(expected))
-        snapshot_ts = self.ts
-        snapshot = dict(expected)
+        checkpoint_ts = self.ts
+        checkpoint_view = dict(expected)
+        self.checkpoint_at(checkpoint_ts)
 
-        # Set the cutoff at the current frontier (the last committed timestamp), so every later
-        # commit sits strictly above it. Phase 2: churn routed to ingest.
-        self.set_step_down_ts(self.ts)
+        # Phase 2: leader churn above the checkpoint, frozen by the demotion.
+        run_ops(60, verify_every=20)
+        demote_ts = self.ts
+        demote_view = dict(expected)
+        cursor.close()
+        self.demote()
+        self.assertEqual(self.read_kvs_at(uri, demote_ts), demote_view,
+            'the demoted node must serve every leader commit')
+        self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(uri), checkpoint_ts),
+            checkpoint_view)
+
+        # Phase 3: follower churn into ingest.
+        cursor = self.session.open_cursor(uri, None, None)
         run_ops(120, verify_every=40)
-
-        # The merged view reflects every operation across both constituents.
-        self.assertEqual(self.read_kvs_at(uri, self.ts), dict(expected),
-            'the merged view must match the expected contents')
-        check_point_reads(self.ts)
-
-        # Time-travel: the view at that boundary is unchanged by the later ingest writes.
-        self.assertEqual(self.read_kvs_at(uri, snapshot_ts), snapshot,
-            'reading at the old frontier must be unaffected by the later writes')
-
-        expected_stable = dict(expected) if self.stable_has_step_down_writes() else snapshot
-        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), self.ts), expected_stable)
-
         cursor.close()
 
-        # The merged view and point reads survive the completed step-down.
-        self.complete_step_down(snapshot_ts)
+        # The merged view reflects every operation across the layers.
         self.assertEqual(self.read_kvs_at(uri, self.ts), dict(expected),
-            'merged layered view must match the expected contents after the step-down')
+            'the merged view must match the expected contents')
+        self.assertEqual(self.read_kvs(uri), dict(expected))
         check_point_reads(self.ts)
+
+        # Time travel: the views at the checkpoint and at the demotion are unchanged by later
+        # writes.
+        self.assertEqual(self.read_kvs_at(uri, checkpoint_ts), checkpoint_view)
+        self.assertEqual(self.read_kvs_at(uri, demote_ts), demote_view)

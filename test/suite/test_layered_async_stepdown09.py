@@ -27,52 +27,61 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_async_stepdown09.py
-#   A planned step-down requires the step-down checkpoint to land on the step-down timestamp,
-#   because that checkpoint is what the next leader picks up. A mismatch is a protocol violation
-#   and aborts, so each case runs in a subprocess and is judged by its exit status.
+#   A planned step-down holds stable at the final checkpoint until the demotion, so the commits above
+#   that checkpoint stay out of it and the demoted node serves them from its frozen tree. Demoting
+#   with stable past the last checkpoint is refused and leaves the node a working leader.
 
-import signal, wttest
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
+# Each case runs in a subprocess and is judged by its exit status, because a refused demotion that
+# is not recoverable takes the process down.
 @disagg_test_class
 class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestCase,
                                     suite_subprocess):
-    conn_config = 'precise_checkpoint=true,disaggregated=(role="leader")'
+    conn_config = 'statistics=(all),precise_checkpoint=true,disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
+    # The behind case needs the demote-time check that stable equals the last checkpoint timestamp
+    # to be a recoverable error; until the engine has it, that scenario fails. With no checkpoint at
+    # all, the frozen tree is the only copy of the data and the follower must still read it.
     checkpoints = [
-        ('at_cutoff',     dict(checkpoint_ts=20,   expect_abort=False)),
-        ('before_cutoff', dict(checkpoint_ts=15,   expect_abort=True)),
-        ('no_checkpoint', dict(checkpoint_ts=None, expect_abort=True)),
+        ('at_stable',     dict(checkpoint_ts=20,   refused=False)),
+        ('behind_stable', dict(checkpoint_ts=15,   refused=True)),
+        ('no_checkpoint', dict(checkpoint_ts=None, refused=False)),
     ]
     scenarios = make_scenarios(disagg_storages, checkpoints)
 
     test_name = __qualname__
 
     uri = f'layered:{test_name}'
-    cutoff = 20
+    stable = 20
 
-    # Step down with stable at the cutoff, varying only where the last checkpoint sits.
-    def _step_down_with_checkpoint_at(self, checkpoint_ts):
+    def subprocess_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v1'}, 10)
+        if self.checkpoint_ts is not None:
+            self.checkpoint_at(self.checkpoint_ts)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable))
+        self.write_at(self.uri, {'k2': 'v2'}, 30)
 
-        self.set_step_down_ts(self.cutoff)
-        if checkpoint_ts is not None:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(checkpoint_ts))
-            ckpt_session = self.conn.open_session()
-            ckpt_session.checkpoint()
-            ckpt_session.close()
-
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.cutoff))
-        self.conn.reconfigure('disaggregated=(role="follower")')
-
-    def subprocess_step_down(self):
-        self._step_down_with_checkpoint_at(self.checkpoint_ts)
+        expected = {'k1': 'v1', 'k2': 'v2'}
+        if self.refused:
+            with self.expectedStderrPattern('requires the stable timestamp'):
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: self.conn.reconfigure('disaggregated=(role="follower")'))
+            # Nothing changed: the node still accepts writes, and a checkpoint at the current
+            # stable timestamp makes the demotion legal.
+            self.write_at(self.uri, {'k3': 'v3'}, 31)
+            expected['k3'] = 'v3'
+            self.checkpoint_at(self.stable)
+        self.demote()
+        self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
+        self.assertEqual(self.read_kvs(self.uri), expected)
 
     def test_step_down_checkpoint_boundary(self):
         # Precise checkpoint requires a stable timestamp when the parent connection closes.
@@ -82,8 +91,4 @@ class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestC
             'test_layered_async_stepdown09.test_layered_async_stepdown09.subprocess_step_down',
             silent=True,
             scenario=self.scenario_name)
-        if self.expect_abort:
-            self.assertEqual(rc, -signal.SIGABRT,
-                f'expected the step down to abort (rc={-signal.SIGABRT}) but got rc={rc}')
-        else:
-            self.assertEqual(rc, 0, f'expected the step down to succeed but got rc={rc}')
+        self.assertEqual(rc, 0, f'the step-down case failed in the subprocess, rc={rc}')

@@ -64,7 +64,6 @@ class test_layered_follower22(wttest.WiredTigerTestCase):
 
         # Step down. No checkpoint has been delivered, so the newest checkpoint this node knows of
         # is still its own.
-        self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(10))
         self.conn.reconfigure('disaggregated=(role="follower")')
 
         # A snapshot established now pins the node's newest checkpoint, so binding the stable

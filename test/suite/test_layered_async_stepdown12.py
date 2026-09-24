@@ -28,9 +28,7 @@
 
 # test_layered_async_stepdown12.py
 #    A leader-era layered table whose stable constituent has gone missing must report the failed
-#    open. Tolerating it would leave the cursor with no constituent at all: only a table created
-#    inside the step-down window legitimately has no stable constituent, and such a table never
-#    attempts the open.
+#    open. Tolerating it would leave the cursor with no constituent at all.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -48,25 +46,27 @@ class test_layered_async_stepdown12(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    # The open must fail rather than be tolerated on the strength of the step-down timestamp.
-    def test_missing_stable_with_step_down_ts_set(self):
+    # The open must fail rather than be tolerated.
+    def test_missing_stable_open_fails(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, self.table_config)
         # Reopen so the stable handle is not cached and its open consults the metadata.
         self.reopen_conn()
 
-        # Open the cursor before the step-down timestamp is set, so the handle carries no window
-        # mark and the first operation goes to the stable constituent.
         cursor = self.session.open_cursor(self.uri, None, None)
 
         metadata = self.session.open_cursor('file:WiredTiger.wt')
         metadata.set_key(self.stable_uri(self.uri))
+        self.assertEqual(metadata.search(), 0)
+        saved = metadata.get_value()
         self.assertEqual(metadata.remove(), 0)
-        metadata.close()
 
         self.session.begin_transaction()
-        self.set_step_down_ts(20)
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next(),
             '/No such file or directory/')
         self.session.rollback_transaction()
         cursor.close()
+
+        # Put the row back so the teardown verification can open the table.
+        metadata[self.stable_uri(self.uri)] = saved
+        metadata.close()
