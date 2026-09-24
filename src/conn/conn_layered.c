@@ -1993,7 +1993,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (!reconfig)
         WT_ERR(__disagg_config_tombstone_encoding_break_glass(session, cfg));
 
-    if (!reconfig)
     /* Reconfigure-only settings. */
     if (reconfig) {
         WT_STAT_CONN_INCR(session, disagg_conn_reconfig);

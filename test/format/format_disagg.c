@@ -373,8 +373,8 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     }
 
     /*
-     * Write lock: prevents any new timestamp from being allocated while we capture the boundary
-     * and bump g.timestamp past it. Threads currently holding the read lock finish first; threads
+     * Write lock: prevents any new timestamp from being allocated while we capture the boundary and
+     * bump g.timestamp past it. Threads currently holding the read lock finish first; threads
      * waiting for the read lock unblock after we release and get timestamps strictly above it.
      */
     lock_writelock(session, &g.timestamp_lock);

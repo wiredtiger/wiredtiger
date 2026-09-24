@@ -2051,7 +2051,6 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     return (0);
 }
 
-
 /*
  * __wt_txn_config_clear --
  *     Discard a transaction's configuration. The cache-size exemption is the only setting stored

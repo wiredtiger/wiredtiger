@@ -822,8 +822,8 @@ __clayered_live_stable_is_frozen(WT_SESSION_IMPL *session, const char *stable_ur
     *frozenp = false;
     saved = session->dhandle;
     session->dhandle = NULL;
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_find(session, stable_uri, NULL);
-      if (ret == 0) {
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      session, ret = __wt_conn_dhandle_find(session, stable_uri, NULL); if (ret == 0) {
           dhandle = session->dhandle;
           if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
             !__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {

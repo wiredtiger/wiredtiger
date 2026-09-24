@@ -245,8 +245,8 @@ __drop_layered(
 
     /*
      * Drop the layered table constituents. A follower may have no local stable table. A leader
-     * always has the constituent, so treat ENOENT as an error there. The shared metadata removal
-     * is handled by the enqueued REMOVE operation.
+     * always has the constituent, so treat ENOENT as an error there. The shared metadata removal is
+     * handled by the enqueued REMOVE operation.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
     if (WT_CHECK_AND_RESET(ret, ENOENT) &&
