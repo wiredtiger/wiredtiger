@@ -655,6 +655,7 @@ conn_stats = [
     DisaggStat('disagg_victim_cache_app_thread_put_time', 'time application threads spent adding pages to the victim cache (usecs)'),
     DisaggStat('disagg_victim_cache_app_thread_puts', 'pages added to the victim cache by application threads'),
     DisaggStat('disagg_victim_cache_cold_not_cached', 'cold collection pages not added to the victim cache during eviction'),
+    DisaggStat('disagg_victim_cache_put_failures', 'failed page inserts into the victim cache'),
     DisaggStat('disagg_victim_cache_put_time', 'time spent adding pages to the victim cache (usecs)'),
     DisaggStat('disagg_victim_cache_put_time_max', 'maximum time spent adding a single page to the victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
     DisaggStat('disagg_victim_cache_puts', 'pages added to the victim cache'),

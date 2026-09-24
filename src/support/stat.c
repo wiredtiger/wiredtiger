@@ -2107,6 +2107,7 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
   "block-cache: evicted blocks",
+  "block-cache: failed page inserts into the disaggregated victim cache",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
   "block-cache: number of blocks not evicted due to overhead",
@@ -3285,6 +3286,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
     stats->block_cache_blocks_evicted = 0;
+    stats->block_cache_put_failures = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
     stats->block_cache_not_evicted_overhead = 0;
@@ -4382,6 +4384,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
+    to->block_cache_put_failures += WT_STAT_CONN_READ(from, block_cache_put_failures);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
     to->block_cache_not_evicted_overhead +=
