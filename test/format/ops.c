@@ -213,6 +213,7 @@ tinfo_teardown(void)
 
         __wt_buf_free(NULL, &tinfo->moda);
         __wt_buf_free(NULL, &tinfo->modb);
+        __wt_buf_free(NULL, &tinfo->mirror_value);
 
         snap_teardown(tinfo);
         key_gen_teardown(tinfo->key);
@@ -963,8 +964,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pau
     case READ:
         ++tinfo->search;
 
+        tinfo->op_bound_read = false;
         if (!positioned && GV(OPS_BOUND_CURSOR) && mmrand(&tinfo->extra_rnd, 1, 2) == 1) {
             bound_set = true;
+            tinfo->op_bound_read = true;
             /*
              * FIXME-WT-9883: It is possible that the underlying cursor is still positioned even
              * though the positioned variable is false. Reset the position through reset for now.
@@ -1112,7 +1115,7 @@ ops(void *arg)
     u_int i, rlog_table_id, throttle_delay_max;
     int mirror_op_ret, rlog_ret;
     const char *iso_config, *rlog_op_name;
-    bool greater_than, intxn, pause_writes, prepared, mirrored_truncate;
+    bool greater_than, intxn, mirror_ref_valid, pause_writes, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1434,6 +1437,7 @@ rollback_retry:
 
         ret = 0;
         skip1 = skip2 = NULL;
+        mirror_ref_valid = false;
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
@@ -1455,6 +1459,7 @@ rollback_retry:
 
             skip1 = g.base_mirror;
             mirror_op_ret = tinfo->op_ret;
+            mirror_ref_valid = true;
         }
         if (ret == 0 && table != skip1) {
             tinfo->table = table;
@@ -1484,6 +1489,19 @@ rollback_retry:
              * verification below (mirrored_truncate), since truncate returns a whole key range as
              * its result, not a single found/not-found answer.
              *
+             * A snapshot-isolation read that found the key on every mirror so far must also see the
+             * identical value: unlike the periodic, whole-table mirror verify, this catches a
+             * divergence at the exact operation that exposed it, without waiting for a later
+             * checkpoint or role-switch pass to notice.
+             *
+             * A bounded read is excluded from both checks: apply_bounds derives its window from the
+             * table's own row count and re-randomizes on every call, so the same key can fall inside
+             * one mirror's bound and outside the bound of another mirror, making a
+             * found/not-found (or value) disagreement expected rather than a sign of divergence.
+             * mirror_ref_valid tracks whether mirror_op_ret/mirror_value hold a comparable
+             * reference, so a bounded read never compares against (or overwrites) it with something
+             * incomparable.
+             *
              * When the base mirror already ran above (MODIFY), compare this table against it here,
              * so a genuine divergence is caught at the exact pair of tables involved instead of
              * surfacing later, far from its cause, as an unexplained mirror-verify mismatch.
@@ -1491,13 +1509,23 @@ rollback_retry:
              * mirror group is checked against below.
              */
             if (ret == 0 &&
-              (op == MODIFY || op == REMOVE || (op == READ && iso_level == ISOLATION_SNAPSHOT))) {
-                if (skip1 != NULL && tinfo->op_ret != mirror_op_ret)
+              (op == MODIFY || op == REMOVE ||
+                (op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read))) {
+                if (mirror_ref_valid && tinfo->op_ret != mirror_op_ret)
                     testutil_die(0,
                       "mirror mismatch: op %d on table %s returned %d, expected %d (to match table "
                       "%s)",
                       (int)op, table->uri, tinfo->op_ret, mirror_op_ret, skip1->uri);
+                if (mirror_ref_valid && op == READ && tinfo->op_ret == 0 &&
+                  (tinfo->value->size != tinfo->mirror_value.size ||
+                    memcmp(tinfo->value->data, tinfo->mirror_value.data, tinfo->value->size) != 0))
+                    testutil_die(0, "mirror value mismatch: READ on table %s differs from table %s",
+                      table->uri, skip1->uri);
                 mirror_op_ret = tinfo->op_ret;
+                mirror_ref_valid = true;
+                if (op == READ && tinfo->op_ret == 0)
+                    testutil_check(__wt_buf_set(
+                      NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
             }
             skip2 = table;
         }
@@ -1520,13 +1548,27 @@ rollback_retry:
                         goto rollback;
                     if (ret == WT_ROLLBACK)
                         break;
-                    if ((op == MODIFY || op == REMOVE ||
-                          (op == READ && iso_level == ISOLATION_SNAPSHOT)) &&
-                      tinfo->op_ret != mirror_op_ret)
-                        testutil_die(0,
-                          "mirror mismatch: op %d on table %s returned %d, expected %d (from an "
-                          "earlier mirror in the same group)",
-                          (int)op, tables[i]->uri, tinfo->op_ret, mirror_op_ret);
+                    if (op == MODIFY || op == REMOVE ||
+                      (op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read)) {
+                        if (mirror_ref_valid && tinfo->op_ret != mirror_op_ret)
+                            testutil_die(0,
+                              "mirror mismatch: op %d on table %s returned %d, expected %d (from an "
+                              "earlier mirror in the same group)",
+                              (int)op, tables[i]->uri, tinfo->op_ret, mirror_op_ret);
+                        if (mirror_ref_valid && op == READ && tinfo->op_ret == 0 &&
+                          (tinfo->value->size != tinfo->mirror_value.size ||
+                            memcmp(tinfo->value->data, tinfo->mirror_value.data,
+                              tinfo->value->size) != 0))
+                            testutil_die(0,
+                              "mirror value mismatch: READ on table %s differs from an earlier "
+                              "mirror in the same group",
+                              tables[i]->uri);
+                        mirror_op_ret = tinfo->op_ret;
+                        mirror_ref_valid = true;
+                        if (op == READ && tinfo->op_ret == 0)
+                            testutil_check(__wt_buf_set(
+                              NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
+                    }
                 }
         }
 skip_operation:
@@ -1704,6 +1746,13 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     switch (ret) {
     case 0:
         testutil_check(cursor->get_value(cursor, value));
+        /*
+         * Cursors can return a pointer into the underlying page, and the cursor is reset after this
+         * function returns (one in twenty times with forced eviction), which can invalidate that
+         * memory. Making the value local to the buffer ensures mirror value checks and trace logging
+         * don't read freed or poisoned memory.
+         */
+        testutil_check(__wt_buf_set(NULL, value, value->data, value->size));
         break;
     case WT_NOTFOUND:
         break;
