@@ -694,8 +694,7 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
-        # FIXME-WT-18608: Set default to false once we fix all the issues on the MongoDB side.
-        Config('disagg_commit_ts_optional', 'true', r'''
+        Config('disagg_commit_ts_optional', 'false', r'''
             !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated
             tables are not required to carry a commit timestamp.''',
             type='boolean', undoc=True),
@@ -703,6 +702,11 @@ connection_runtime_config = [
             if true, follower-side layered-table truncate uses the slow per-record delete path
             instead of the optimized range delete. Intended for debugging the disaggregated
             slow/fast truncate split; leader always uses fast truncate.''',
+            type='boolean', undoc=True),
+        # FIXME-WT-18723: remove once prepared transactions are supported across a step-down.
+        Config('disagg_stepdown_prepare', 'false', r'''
+            !!! FOR INTERNAL TESTING ONLY. If true, bypass the asserts that otherwise abort a
+            prepared transaction while the step-down timestamp is set.''',
             type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
