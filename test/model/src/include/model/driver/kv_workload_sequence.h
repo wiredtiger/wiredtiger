@@ -176,9 +176,9 @@ public:
      *     Check whether this sequence overlaps in any key ranges with the other sequence.
      */
     inline bool
-    overlaps_with(std::shared_ptr<kv_workload_sequence> other) const
+    overlaps_with(const std::shared_ptr<kv_workload_sequence> &other) const
     {
-        return overlaps_with(*other.get());
+        return overlaps_with(*other);
     }
 
     /*
@@ -241,7 +241,7 @@ public:
     inline bool
     ordered_before(const std::shared_ptr<kv_workload_sequence> &other) const noexcept
     {
-        return ordered_before(*other.get());
+        return ordered_before(*other);
     }
 
 protected:
