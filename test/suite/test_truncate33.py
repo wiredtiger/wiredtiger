@@ -95,7 +95,7 @@ class test_truncate33(wttest.WiredTigerTestCase, suite_subprocess):
         for line in open(dumpfile).readlines():
             if 'row-store internal' not in line:
                 continue
-            durable_match = re.search(r'newest_durable: \(\d+, \d+\)/\((\d+), (\d+)\)', line)
+            durable_match = re.search(r'newest_page_stop: \((\d+), (\d+)\)', line)
             match = re.search(r'newest_stop: \((\d+), (\d+)\)', line)
             if durable_match:
                 durable_stops.append((int(durable_match.group(1)) << 32) +
