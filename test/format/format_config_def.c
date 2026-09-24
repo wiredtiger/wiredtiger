@@ -209,6 +209,13 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.snapshot_read", "run background transactions checking snapshot isolation on a follower",
     C_IGNORE | C_BOOL, 0, 0, 0, V_GLOBAL_DISAGG_SNAPSHOT_READ},
 
+  {"disagg.victim_cache", "enable the page log victim cache", C_BOOL, 50, 0, 0,
+    V_GLOBAL_DISAGG_VICTIM_CACHE},
+
+  {"disagg.victim_cache.max_entries",
+    "victim cache entries per page log handle (derived from the run's page sizes)", C_IGNORE, 0, 0,
+    1000000, V_GLOBAL_DISAGG_VICTIM_CACHE_MAX_ENTRIES},
+
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
 

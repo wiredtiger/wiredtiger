@@ -38,6 +38,7 @@ static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_disagg_key_provider(void);
 static void config_disagg_storage(void);
+static void config_disagg_victim_cache(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
@@ -518,6 +519,9 @@ config_run(void)
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
 
+    /* The victim cache is sized against the page sizes the table configuration settled on. */
+    config_disagg_victim_cache();
+
     /* Adjust run length if needed. */
     config_run_length();
 
@@ -680,6 +684,7 @@ config_backward_compatible(void)
 
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
     BC_CHECK("block_cache", BLOCK_CACHE);
+    BC_CHECK("disagg.victim_cache", DISAGG_VICTIM_CACHE);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
@@ -1515,6 +1520,101 @@ config_disagg_storage(void)
     /* Compaction is not supported for disaggregated storage. */
     config_off(NULL, "ops.compaction");
     config_off(NULL, "background_compact");
+}
+
+/*
+ * The page log bounds its victim cache by entry count, per handle, and format varies the leaf page
+ * size by a factor of 256 between runs, so a fixed count commits wildly different memory from one
+ * run to the next. Derive the count from a byte budget instead.
+ *
+ * TODO: review this budget against what a test host can spare; it is a conservative guess rather
+ * than a measured number. A byte bound in the page log would remove the need to estimate it.
+ */
+#define VICTIM_CACHE_BUDGET_MB 128
+
+/* Per-entry bookkeeping beyond the image: key, restored metadata, vector and hash table nodes. */
+#define VICTIM_CACHE_ENTRY_OVERHEAD 128
+
+/*
+ * Above this page size the budget buys too few entries to behave like a cache, so decline rather
+ * than report one that is nominally enabled.
+ *
+ * TODO: review this ceiling once the per-run statistics show how many entries a run needs to see a
+ * hit.
+ */
+#define VICTIM_CACHE_MAX_PAGE_SIZE (256 * WT_KILOBYTE)
+
+#define VICTIM_CACHE_MIN_ENTRIES 16
+#define VICTIM_CACHE_MAX_ENTRIES (50 * WT_THOUSAND)
+
+/*
+ * config_disagg_victim_cache --
+ *     Page log victim cache configuration.
+ *
+ * The cache is not named in the connection string: WiredTiger enables it whenever the page log
+ *     reports one is available, which the page log does whenever its entry count is non-zero, so
+ *     the count derived here is the whole of the switch.
+ */
+static void
+config_disagg_victim_cache(void)
+{
+    uint64_t budget, entries, handles, image_size, max_leaf_page;
+    char buf[64];
+
+    /* Only the PALite page log implements the caching hooks. */
+    if (!g.disagg_storage_config || strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("%s",
+              "turning off disagg.victim_cache, only the palite page log implements a victim "
+              "cache");
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    /* Eviction does not offer pages to the victim cache in an in-memory run. */
+    if (GV(RUNS_IN_MEMORY)) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("%s", "turning off disagg.victim_cache to work with runs.in_memory");
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    if (GV(DISAGG_VICTIM_CACHE)) {
+        max_leaf_page = (uint64_t)1 << table_maxv(V_TABLE_BTREE_LEAF_PAGE_MAX);
+
+        if (max_leaf_page > VICTIM_CACHE_MAX_PAGE_SIZE) {
+            WARN("turning off disagg.victim_cache, a %" PRIu64
+                 "KB leaf page leaves too few entries in the budget to be worth caching",
+              max_leaf_page / WT_KILOBYTE);
+            config_off(NULL, "disagg.victim_cache");
+        } else {
+            /*
+             * Images are compressed before caching, so this sizing stays under the budget rather
+             * than over it.
+             */
+            image_size = max_leaf_page + VICTIM_CACHE_ENTRY_OVERHEAD;
+            handles = (ntables == 0 ? 1 : ntables) + 3;
+            budget = (uint64_t)VICTIM_CACHE_BUDGET_MB * WT_MEGABYTE;
+            entries = budget / (handles * image_size);
+
+            /*
+             * Raising a count the budget cannot pay for would spend whatever the table count
+             * demands, which is the failure this budget exists to prevent, so decline instead.
+             */
+            if (entries < VICTIM_CACHE_MIN_ENTRIES) {
+                WARN("turning off disagg.victim_cache, %u tables of %" PRIu64
+                     "KB leaves room for only %" PRIu64 " entries per handle",
+                  ntables, max_leaf_page / WT_KILOBYTE, entries);
+                config_off(NULL, "disagg.victim_cache");
+            } else {
+                entries = WT_MIN(entries, VICTIM_CACHE_MAX_ENTRIES);
+                testutil_snprintf(
+                  buf, sizeof(buf), "disagg.victim_cache.max_entries=%" PRIu64, entries);
+                config_single(NULL, buf, false);
+            }
+        }
+    }
+
+    if (!GV(DISAGG_VICTIM_CACHE))
+        config_off(NULL, "disagg.victim_cache.max_entries");
 }
 
 /*
