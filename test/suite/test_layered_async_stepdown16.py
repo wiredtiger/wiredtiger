@@ -58,11 +58,19 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         ('prev', dict(forward=False)),
     ]
 
+    # Whether a separate, ordinary key is shared by both constituents. On a tie the walk always
+    # advances ingest as current and steps stable in lock-step as the alternate, which is otherwise
+    # never exercised here: every other key in this test belongs to exactly one constituent.
+    tie_scenarios = [
+        ('no_tie', dict(with_tie=False)),
+        ('with_tie', dict(with_tie=True)),
+    ]
+
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, prepare_targets, directions)
+    scenarios = make_scenarios(disagg_storages, prepare_targets, directions, tie_scenarios)
 
     test_name = __qualname__
     uri = f'layered:{test_name}'
@@ -99,9 +107,8 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
 
     # Walk the whole table, tolerating the prepare conflict on the blocked key. Resolve the
     # blocking transaction by rollback on the first conflict, then keep walking: this is what
-    # exercises resuming from a blocked position. (Committing a straddling prepared transaction
-    # panics the process by design, which is a separate, correct guard unrelated to this bug, so
-    # this test resolves via rollback instead.)
+    # exercises resuming from a blocked position. Committing a straddling prepared transaction
+    # panics the process by design, so this test resolves via rollback instead.
     def walk_resolving_conflict(self, cursor, resolve):
         step = cursor.next if self.forward else cursor.prev
         seen = []
@@ -136,9 +143,15 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         keys = self.keys()
         blocked_key = keys[self.blocked_index]
 
+        # A key distinct from every other key in the walk, given to both constituents so the walk
+        # ties on it: the ingest copy shadows the stable one, like an ordinary layered-table update.
+        tie_key = 'keytie'
+
         # Populate half the keys and make them stable, so a walk reads them from the stable
         # constituent.
         self.write_at(self.uri, {k: 'v-initial' for k in self.stable_keys()}, 10)
+        if self.with_tie:
+            self.write_at(self.uri, {tie_key: 'v-stable-original'}, 10)
         self.set_global_ts(1, 10)
 
         # A prepare before the announcement has to sit below it, like every write that precedes a
@@ -162,6 +175,8 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         # constituent. The walk needs a position in both constituents to consult either.
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(step_down_ts))
         self.write_at(self.uri, {k: 'v-initial' for k in self.ingest_keys()}, 20)
+        if self.with_tie:
+            self.write_at(self.uri, {tie_key: 'v-ingest'}, 20)
 
         if not self.prepare_before_step_down:
             prepare()
@@ -189,7 +204,10 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
 
         # The prepared transaction is rolled back rather than committed, uncovering the original
         # value underneath: every key is returned exactly once, in order, including the blocked one.
-        expected = keys if self.forward else list(reversed(keys))
+        # The tie key sorts after every other key, so it trails the walk in either direction.
+        expected = keys + [tie_key] if self.with_tie else keys
+        if not self.forward:
+            expected = list(reversed(expected))
         self.assertEqual(seen, expected)
 
 if __name__ == '__main__':
