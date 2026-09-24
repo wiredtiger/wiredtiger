@@ -2019,6 +2019,8 @@ static WT_INLINE bool __wt_btree_can_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_btree_is_frozen_disagg(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_syncing_by_other_sessions(WT_SESSION_IMPL *session)
@@ -2553,6 +2555,7 @@ static WT_INLINE void __wt_btcur_skip_page_inc(
   WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats);
 static WT_INLINE void __wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts);
 static WT_INLINE void __wt_btree_disable_bulk(WT_SESSION_IMPL *session);
+static WT_INLINE void __wt_btree_frozen_max_ts_raise(WT_BTREE *btree, wt_timestamp_t ts);
 static WT_INLINE void __wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample);
 static WT_INLINE void __wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts);
 static WT_INLINE void __wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf);

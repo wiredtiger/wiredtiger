@@ -1473,12 +1473,12 @@ config_disagg_storage(void)
                 config_single(NULL, "ops.throttle.sleep_us=1000", false);
 
             /*
-             * Prepared and truncate operations aren't accounted for by the async step-down drain,
-             * so either could straddle step_down_ts and break the checkpoint's boundary guarantee.
+             * Truncate is not accounted for by the async step-down drain. An explicit prepare
+             * request is kept: the drain still waits out each worker's last commit, and a run can
+             * ask to resolve prepares across the step-down.
              */
-            if (config_explicit(NULL, "ops.prepare"))
-                WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
-            config_off(NULL, "ops.prepare");
+            if (!config_explicit(NULL, "ops.prepare"))
+                config_off(NULL, "ops.prepare");
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");

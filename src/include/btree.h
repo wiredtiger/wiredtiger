@@ -352,10 +352,13 @@ struct __wt_btree {
     WT_SPINLOCK flush_lock; /* Lock to flush the tree's pages */
 
     /*
-     * Highest durable timestamp committed into this tree before demote froze it. Zero unless
-     * WT_BTREE_DISAGG_FROZEN is set. Cleared with the rest of the non-persistent prefix on reopen.
+     * Highest durable timestamp a frozen tree must still cover. Set from the connection durable
+     * timestamp at demote, then advanced when a prepared transaction is resolved into the tree, so
+     * a checkpoint from between the prepare and that resolution is not treated as covering. Zero
+     * unless WT_BTREE_DISAGG_FROZEN is set. Cleared with the rest of the non-persistent prefix on
+     * reopen.
      */
-    wt_timestamp_t disagg_frozen_max_ts;
+    wt_shared wt_timestamp_t disagg_frozen_max_ts;
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything

@@ -1444,7 +1444,7 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     WT_RET(ret);
 
     F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
-    btree->disagg_frozen_max_ts = WT_TS_NONE;
+    __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     return (0);
@@ -1452,7 +1452,7 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 
 /*
  * __disagg_unfreeze_live_btrees --
- *     Un-freeze every demoted live tree that pickup has not superseded. The caller holds the
+ *     Release every demoted live tree that pickup has not superseded. The caller holds the
  *     handle-list lock.
  */
 static int
@@ -1645,7 +1645,7 @@ __disagg_mark_btree_readonly_and_outdated(
          * Keep the resident pages. They are this node's committed state above its last checkpoint,
          * and the follower reads them in place until pickup marks the handle outdated.
          */
-        btree->disagg_frozen_max_ts = frozen_max_ts;
+        __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, frozen_max_ts);
         F_SET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
     } else
         /*
@@ -1734,6 +1734,13 @@ __disagg_assert_no_active_writes_callback(
 {
     WT_UNUSED(exit_walkp);
     WT_UNUSED(cookiep);
+
+    /*
+     * A prepared transaction is quiescent: it cannot start another write, and the follower resolves
+     * it in memory on the frozen tree.
+     */
+    if (F_ISSET(txn_session->txn, WT_TXN_PREPARE))
+        return (0);
 
     if (txn_session->txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL,
