@@ -1765,35 +1765,6 @@ __disagg_assert_no_active_writes_callback(
 }
 
 /*
- * __disagg_step_down_check_stable --
- *     Require the stable timestamp to sit at the last checkpoint. The server holds stable there
- *     until demote, which keeps the window's commits unstable: reconciliation leaves them in memory
- *     and the frozen tree's page addresses stay inside the checkpoint lineage. A server that let
- *     stable advance must fail here, loudly, rather than freeze a tree the successor abandons.
- */
-static int
-__disagg_step_down_check_stable(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-
-    wt_timestamp_t last_ckpt_ts =
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
-    if (last_ckpt_ts == WT_TS_NONE)
-        return (0);
-
-    wt_timestamp_t stable_ts = __wt_atomic_load_uint64_acquire(&conn->txn_global.stable_timestamp);
-    if (stable_ts == last_ckpt_ts)
-        return (0);
-
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-    WT_RET_MSG(session, EINVAL,
-      "disaggregated step-down requires the stable timestamp %s to equal the last checkpoint "
-      "timestamp %s",
-      __wt_timestamp_to_string(stable_ts, ts_string[0]),
-      __wt_timestamp_to_string(last_ckpt_ts, ts_string[1]));
-}
-
-/*
  * __disagg_step_down_int --
  *     Step down to the follower mode. The session must hold the checkpoint and schema locks.
  */
@@ -1830,8 +1801,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
     ret = __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL);
     __wt_spin_unlock(session, &conn->api_lock);
     WT_ERR(ret);
-
-    WT_ERR(__disagg_step_down_check_stable(session));
 
     /*
      * The refusal checks are done and nothing has changed yet. From here the transition mutates
