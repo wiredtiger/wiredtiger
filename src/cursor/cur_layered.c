@@ -1145,10 +1145,19 @@ __clayered_reopen_stable(
          */
         if (ret == WT_NOTFOUND)
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    } else if (__clayered_constituent_prepare_blocked(old_stable))
-        /* The dropped position leaves nothing for a later step to resume from. */
-        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
+    } else if (__clayered_constituent_prepare_blocked(old_stable)) {
+        /*
+         * The dropped position leaves nothing for a later step to resume from. If the blocked
+         * cursor was current, the alternate may still be genuinely positioned; leaving it that way
+         * would have the next call reuse the now-unpositioned new stable cursor as current while
+         * treating the alternate as trustworthy, which it no longer is once the walk restarts here.
+         * Reset both so the walk restarts from scratch instead of resuming from a mismatched pair.
+         */
+        if (clayered->current_cursor == old_stable)
+            WT_ERR(__clayered_reset_cursors(clayered, false));
+        else
+            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
         if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
             WT_ITEM_SET(clayered->stable_cursor->value, old_stable->value);
