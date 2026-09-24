@@ -614,7 +614,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * complete checkpoint to be read back from, so keep them resident until pickup supersedes the
      * tree. Clean pages still name an address and may be evicted.
      */
-    if (__wt_btree_is_frozen_disagg(session) && !__wt_page_evict_clean(page)) {
+    if (__wt_layered_frozen_live(session) && !__wt_page_evict_clean(page)) {
         ret = __wt_set_return(session, EBUSY);
         goto err;
     }

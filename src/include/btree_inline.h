@@ -49,42 +49,6 @@ __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_is_frozen_disagg --
- *     Return whether the current btree is a demoted live tree that has not yet been superseded.
- *     Outdated wins: once pickup marks the handle, eviction discards it instead of pinning it.
- */
-static WT_INLINE bool
-__wt_btree_is_frozen_disagg(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-    return (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN) &&
-      !__wt_atomic_load_bool_relaxed(&btree->dhandle->outdated));
-}
-
-/*
- * __wt_btree_frozen_max_ts_raise --
- *     Advance the timestamp a frozen tree must cover. The bound only ever moves forward.
- */
-static WT_INLINE void
-__wt_btree_frozen_max_ts_raise(WT_BTREE *btree, wt_timestamp_t ts)
-{
-    wt_timestamp_t cur;
-
-    if (ts == WT_TS_NONE || !F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
-        return;
-
-    cur = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
-    while (cur < ts) {
-        if (__wt_atomic_cas_uint64(&btree->disagg_frozen_max_ts, cur, ts))
-            break;
-        cur = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
-    }
-}
-
-/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */

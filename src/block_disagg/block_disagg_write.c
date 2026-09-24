@@ -293,31 +293,6 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 }
 
 /*
- * __block_disagg_discard_issue --
- *     Send a discard of the page version an address cookie names to the page log.
- */
-static int
-__block_disagg_discard_issue(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  const WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
-{
-    WT_PAGE_LOG_DISCARD_ARGS discard_args;
-    WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
-
-    WT_CLEAR(discard_args);
-
-    /* Set the base LSN to the last full page image. */
-    bool is_delta = FLD_ISSET(cookie->flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA);
-    discard_args.base_lsn = is_delta ? cookie->base_lsn : cookie->lsn;
-
-    /* Set the backlink LSN to the LSN of the last page version. */
-    discard_args.backlink_lsn = cookie->lsn;
-
-    WT_STAT_CONN_INCR(session, disagg_block_page_discard);
-
-    return (plhandle->plh_discard(plhandle, &session->iface, cookie->page_id, 0, &discard_args));
-}
-
-/*
  * __wti_block_disagg_page_discard --
  *     Discard a page.
  */
@@ -361,5 +336,17 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
         return (0);
     }
 
-    return (__block_disagg_discard_issue(session, block_disagg, &cookie));
+    WT_PAGE_LOG_DISCARD_ARGS discard_args;
+    WT_CLEAR(discard_args);
+
+    /* Set the base LSN to the last full page image. */
+    bool is_delta = FLD_ISSET(cookie.flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA);
+    discard_args.base_lsn = is_delta ? cookie.base_lsn : cookie.lsn;
+
+    /* Set the backlink LSN to the LSN of the last page version. */
+    discard_args.backlink_lsn = cookie.lsn;
+
+    WT_STAT_CONN_INCR(session, disagg_block_page_discard);
+
+    return (plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, 0, &discard_args));
 }

@@ -1336,7 +1336,7 @@ __txn_raise_frozen_max_for_prepare(
             }
     }
 
-    __wt_btree_frozen_max_ts_raise(btree, ts);
+    __wt_layered_frozen_max_ts_raise(btree, ts);
 }
 
 /*

@@ -46,6 +46,42 @@ __wti_layered_frozen_handle(WT_DATA_HANDLE *dhandle, wt_timestamp_t *max_tsp)
 }
 
 /*
+ * __wt_layered_frozen_live --
+ *     Return whether the session's current btree is a live frozen tree. Eviction asks this to keep
+ *     a frozen tree's dirty pages resident: they are commits from after the last checkpoint with no
+ *     complete checkpoint to be read back from. Outdated wins: once pickup marks the handle,
+ *     eviction discards those pages instead of pinning them.
+ */
+bool
+__wt_layered_frozen_live(WT_SESSION_IMPL *session)
+{
+    return (__wti_layered_frozen_handle(S2BT(session)->dhandle, NULL));
+}
+
+/*
+ * __wt_layered_frozen_max_ts_raise --
+ *     Advance the timestamp a frozen tree must be covered up to. A prepared transaction resolved on
+ *     a frozen tree gives its updates a commit timestamp assigned after the demote, above the bound
+ *     recorded then; a checkpoint must reach that timestamp before it may supersede the tree. The
+ *     bound only ever moves forward.
+ */
+void
+__wt_layered_frozen_max_ts_raise(WT_BTREE *btree, wt_timestamp_t ts)
+{
+    wt_timestamp_t cur;
+
+    if (ts == WT_TS_NONE || !F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
+        return;
+
+    cur = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
+    while (cur < ts) {
+        if (__wt_atomic_cas_uint64(&btree->disagg_frozen_max_ts, cur, ts))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
+    }
+}
+
+/*
  * __wt_layered_frozen_lookup --
  *     Look a stable URI up in the handle list and report whether it names a live frozen tree, and
  *     its covering bound. A URI with no handle, or a handle that is not open, reports not frozen:

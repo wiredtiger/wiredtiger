@@ -1324,7 +1324,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * The walk itself holds one session_inuse reference on the tree it is currently visiting, so a
      * genuine external reader shows up as a count greater than one.
      */
-    if (__wt_btree_is_frozen_disagg(session) && !__wt_page_evict_clean(page)) {
+    if (__wt_layered_frozen_live(session) && !__wt_page_evict_clean(page)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_stale_disagg_pages);
         return;
     }
