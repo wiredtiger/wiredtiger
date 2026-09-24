@@ -1025,6 +1025,8 @@ struct __wt_connection_stats {
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_frozen_handles;
+    int64_t disagg_frozen_pages_pinned;
+    int64_t disagg_frozen_pages_rewritten;
     int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_checkpoint_meta_lsn;
     int64_t disagg_checkpoint_delivered_lsn;

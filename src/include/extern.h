@@ -43,6 +43,8 @@ extern bool __wt_is_valid_sub_level_error(int sub_level_err)
 extern bool __wt_ispo2(uint32_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_layered_frozen_live(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_layered_frozen_page_pinned(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_metadata_btree_ids_find_duplicate(uint32_t *btree_ids, size_t count,
   uint32_t *dup_idp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_modify_idempotent(const void *modify)
@@ -1595,6 +1597,10 @@ extern int __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_frozen_assert_covered(WT_SESSION_IMPL *session, const char *uri,
   wt_timestamp_t checkpoint_ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_layered_frozen_fault_in(WT_SESSION_IMPL *session, WT_BTREE *btree)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
   uint64_t *complete_checkpoint_lsn, wt_timestamp_t *complete_checkpoint_timestamp,
   WT_ITEM *complete_checkpoint_metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1998,7 +2004,6 @@ extern void __wti_free_ref_index(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages);
 extern void __wti_layered_frozen_freeze(
   WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t max_ts);
-extern void __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree);
 extern void __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 extern void __wti_layered_table_truncate_rollback_apply(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TXN_OP *op);

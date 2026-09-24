@@ -1439,11 +1439,11 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint6
     WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
     WT_RET(ret);
 
-    __wti_layered_frozen_unfreeze(session, btree);
+    ret = __wti_layered_frozen_unfreeze(session, btree);
     ++*countp;
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1658,6 +1658,9 @@ __disagg_mark_btree_readonly_and_outdated(
         __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+
+    if (freeze_handle)
+        ret = __wti_layered_frozen_fault_in(session, btree);
     return (ret);
 }
 

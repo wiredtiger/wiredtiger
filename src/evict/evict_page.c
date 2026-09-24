@@ -612,9 +612,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /*
      * A frozen tree's dirty pages are the commits from after the last checkpoint. They have no
      * complete checkpoint to be read back from, so keep them resident until pickup supersedes the
-     * tree. Clean pages still name an address and may be evicted.
+     * tree. Clean pages written after that checkpoint are kept too: another node's abandon may
+     * delete them from the page log. Other clean pages may be evicted.
      */
-    if (__wt_layered_frozen_live(session) && !__wt_page_evict_clean(page)) {
+    if ((__wt_layered_frozen_live(session) && !__wt_page_evict_clean(page)) ||
+      __wt_layered_frozen_page_pinned(session, page)) {
         ret = __wt_set_return(session, EBUSY);
         goto err;
     }

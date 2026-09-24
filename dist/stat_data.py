@@ -644,6 +644,8 @@ conn_stats = [
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_frozen_handles', 'frozen live tree handles not yet closed', 'no_clear,no_scale'),
+    DisaggStat('disagg_frozen_pages_pinned', 'frozen tree pages above the last checkpoint kept resident at step-down'),
+    DisaggStat('disagg_frozen_pages_rewritten', 'frozen tree pages above the last checkpoint rewritten as full images after step-up'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
