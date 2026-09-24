@@ -656,12 +656,9 @@ conn_stats = [
         'stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped',
         'no_clear,no_scale'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
-    DisaggStat('disagg_step_down_out_of_lineage_pinned', 'step down pages written after the last checkpoint pinned in a frozen tree'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_clear_ingest_retry', 'step up ingest table clear truncates retried after a conflict'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
-    DisaggStat('disagg_step_up_lineage_discards_replayed', 'step up discards inside the checkpoint lineage re-issued after the abandon'),
-    DisaggStat('disagg_step_up_out_of_lineage_rebased', 'step up pages written after the last checkpoint re-based to a new page id'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 
     ##########################################

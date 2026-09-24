@@ -485,17 +485,6 @@ struct __wt_block_disagg {
     uint64_t previous_root_size; /* Size of previous root page */
     uint64_t root_size_gen;      /* Checkpoint generation of the last root size update */
 
-    /*
-     * Discards of pages inside the lineage of the last complete checkpoint, made since it
-     * completed. Abandoning back to that checkpoint deletes the discards with everything else
-     * written after it, so a step-up re-issues them from here.
-     */
-    WT_SPINLOCK lineage_discard_lock;
-    uint64_t lineage_discard_ckpt_lsn; /* Checkpoint metadata LSN the discards follow */
-    WT_BLOCK_DISAGG_ADDRESS_COOKIE *lineage_discards;
-    size_t lineage_discards_entries;
-    size_t lineage_discards_allocated;
-
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLOCK_DISAGG_HS 0x1u
     /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */

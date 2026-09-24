@@ -202,11 +202,6 @@ extern int __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *sess
 extern int __wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t table_id,
   uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
   u_int *results_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_disagg_lineage_discard_add(
-  WT_SESSION_IMPL *session, const WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie, uint64_t ckpt_lsn)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_disagg_lineage_discard_replay(WT_SESSION_IMPL *session, uint64_t ckpt_lsn,
-  uint64_t *countp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_manager_create(WT_SESSION_IMPL *session, const char *filename)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_manager_open(WT_SESSION_IMPL *session, const char *uri,
