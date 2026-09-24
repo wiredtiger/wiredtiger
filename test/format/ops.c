@@ -1466,15 +1466,32 @@ rollback_retry:
                 rlog_ret = tinfo->op_ret;
 
             /*
-             * Mirrors must see the same key space: any operation (most notably a remove or blind
-             * modify, the only ones that can legitimately return not-found) must succeed or fail
-             * identically on every mirror. When the base mirror already ran above (MODIFY), compare
-             * this table against it here, so a divergence is caught at the exact pair of tables
-             * involved instead of surfacing later, far from its cause, as an unexplained
-             * mirror-verify mismatch. Otherwise, this table's result becomes the reference the rest
-             * of the mirror group is checked against below.
+             * Mirrors must see the same key space, so a remove or blind modify -- the only
+             * operations whose result varies with whether the key exists (not-found vs success) --
+             * must return the same result on every mirror. A read must too, but only under snapshot
+             * isolation: all mirror tables share one session, so a snapshot-isolation transaction
+             * reads (or writes) every mirror table through the identical snapshot, on a disagg
+             * follower included, since a snapshot's consistency point (the pinned checkpoint
+             * generation, or the history store for a timestamped reader) is connection-wide, not
+             * per-table. Read-committed/read-uncommitted have no such fixed point: each read call
+             * can observe a different, more-recent commit, so a read racing a concurrent remove can
+             * legitimately see one mirror still holding the key and another not -- that case is
+             * intentionally left unchecked.
+             *
+             * Insert, truncate, and update need no equivalent check here: insert and update can
+             * only reach this point having returned 0 (any real failure returns or dies inside
+             * OP_FAILED before this code runs), and truncate has its own range-based mirror
+             * verification below (mirrored_truncate), since truncate returns a whole key range as
+             * its result, not a single found/not-found answer.
+             *
+             * When the base mirror already ran above (MODIFY), compare this table against it here,
+             * so a genuine divergence is caught at the exact pair of tables involved instead of
+             * surfacing later, far from its cause, as an unexplained mirror-verify mismatch.
+             * Otherwise (READ, REMOVE), this table's result becomes the reference the rest of the
+             * mirror group is checked against below.
              */
-            if (ret == 0) {
+            if (ret == 0 &&
+              (op == MODIFY || op == REMOVE || (op == READ && iso_level == ISOLATION_SNAPSHOT))) {
                 if (skip1 != NULL && tinfo->op_ret != mirror_op_ret)
                     testutil_die(0,
                       "mirror mismatch: op %d on table %s returned %d, expected %d (to match table "
@@ -1503,7 +1520,9 @@ rollback_retry:
                         goto rollback;
                     if (ret == WT_ROLLBACK)
                         break;
-                    if (tinfo->op_ret != mirror_op_ret)
+                    if ((op == MODIFY || op == REMOVE ||
+                          (op == READ && iso_level == ISOLATION_SNAPSHOT)) &&
+                      tinfo->op_ret != mirror_op_ret)
                         testutil_die(0,
                           "mirror mismatch: op %d on table %s returned %d, expected %d (from an "
                           "earlier mirror in the same group)",
