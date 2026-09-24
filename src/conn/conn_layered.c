@@ -1660,6 +1660,10 @@ __disagg_frozen_lineage(WT_SESSION_IMPL *session, bool step_up)
     WT_BTREE *btree;
     uint64_t count;
 
+    /* EXPERIMENT(prevent): the same-node step-up no longer abandons its own lineage, so pages
+     * written after the last checkpoint are never deleted and need no pin or re-base. */
+    return (0);
+
     btree = S2BT(session);
 
     /* With no checkpoint there is no lineage for a step-up to abandon back to. */
@@ -1682,7 +1686,7 @@ __disagg_frozen_lineage(WT_SESSION_IMPL *session, bool step_up)
  *     superseded it, and step-up must open a fresh tree rather than reuse those pages.
  */
 static int
-__disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint64_t *countp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1698,16 +1702,17 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
     WT_RET(ret);
 
-    /* Re-base before the tree is writable: the step-up abandons writes above the checkpoint. */
-    WT_WITH_BTREE(session, btree, ret = __disagg_frozen_lineage(session, true));
-    if (ret == 0) {
-        F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
-        __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
-        WT_STAT_CONN_DECR(session, disagg_frozen_handles);
-    }
+    /*
+     * The tree is this node's own again. Its pages written after the last checkpoint are kept: the
+     * step-up continues this lineage and does not abandon back past them, so they need no re-base.
+     */
+    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
+    __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
+    WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+    ++*countp;
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1716,7 +1721,7 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
  *     handle-list lock.
  */
 static int
-__disagg_unfreeze_live_btrees(WT_SESSION_IMPL *session)
+__disagg_unfreeze_live_btrees(WT_SESSION_IMPL *session, uint64_t *countp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -1725,56 +1730,16 @@ __disagg_unfreeze_live_btrees(WT_SESSION_IMPL *session)
     conn = S2C(session);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
 
+    *countp = 0;
     for (dhandle = NULL;;) {
         WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
         if (dhandle == NULL)
             break;
-        ret = __disagg_unfreeze_btree(session, dhandle);
+        ret = __disagg_unfreeze_btree(session, dhandle, countp);
         if (ret != 0) {
             WT_DHANDLE_RELEASE(dhandle);
             return (ret);
         }
-    }
-    return (0);
-}
-
-/*
- * __disagg_frozen_discards_replay --
- *     Re-issue, for every tree step-up un-froze, the discards inside its checkpoint lineage that
- *     the checkpoint abandon just deleted. The caller holds the handle-list lock.
- */
-static int
-__disagg_frozen_discards_replay(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
-    uint64_t count;
-
-    conn = S2C(session);
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
-
-    for (dhandle = NULL;;) {
-        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
-        if (dhandle == NULL)
-            break;
-        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-            continue;
-        btree = (WT_BTREE *)dhandle->handle;
-        if (btree->disagg_frozen_ckpt_lsn == WT_DISAGG_LSN_NONE ||
-          F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
-            continue;
-
-        WT_WITH_BTREE(session, btree,
-          ret = __wt_block_disagg_lineage_discard_replay(
-            session, btree->disagg_frozen_ckpt_lsn, &count));
-        if (ret != 0) {
-            WT_DHANDLE_RELEASE(dhandle);
-            return (ret);
-        }
-        btree->disagg_frozen_ckpt_lsn = WT_DISAGG_LSN_NONE;
-        WT_STAT_CONN_INCRV(session, disagg_step_up_lineage_discards_replayed, count);
     }
     return (0);
 }
@@ -1789,7 +1754,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     struct timespec tsp;
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session = NULL;
-    uint64_t now;
+    uint64_t now, unfrozen;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
@@ -1865,20 +1830,23 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * discarded.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(
-      internal_session, ret = __disagg_unfreeze_live_btrees(internal_session));
+      internal_session, ret = __disagg_unfreeze_live_btrees(internal_session, &unfrozen));
     WT_ERR(ret);
 
     /*
-     * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
-     * before draining the ingest tables, so that the updates to the stable tables will be correctly
-     * included in the new checkpoint.
+     * Begin the next checkpoint before draining the ingest tables so the drained updates land in
+     * it.
+     *
+     * Abandon first only when this node adopted another leader's checkpoint (a pickup superseded
+     * and dropped every frozen tree, so nothing un-froze): its own records above that checkpoint
+     * would fork the adopted lineage. When frozen trees un-froze, this node is continuing its own
+     * lineage; abandoning would delete the committed pages those trees still reference, so begin
+     * without it and let this checkpoint capture them.
      */
-    WT_ERR(__disagg_restart_checkpoint(session));
-
-    /* The abandon deleted the discards the un-frozen trees made since their checkpoint. */
-    WT_WITH_HANDLE_LIST_READ_LOCK(
-      internal_session, ret = __disagg_frozen_discards_replay(internal_session));
-    WT_ERR(ret);
+    if (unfrozen == 0)
+        WT_ERR(__disagg_restart_checkpoint(session));
+    else
+        WT_ERR(__disagg_begin_checkpoint(session));
 
     /*
      * We might not need to hold a checkpoint lock below this point, but we will keep it just to be

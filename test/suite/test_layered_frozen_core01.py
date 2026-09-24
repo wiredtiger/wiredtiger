@@ -102,18 +102,15 @@ class test_layered_frozen_core01(wttest.WiredTigerTestCase):
         self.evict_all(stable_uri)
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.rec_page_full_image_leaf), writes)
 
-        pinned = self.get_stat(wiredtiger.stat.conn.disagg_step_down_out_of_lineage_pinned)
+        # Demote freezes the live tree; the window's split pages stay resident, in lineage.
         self.conn.reconfigure('disaggregated=(role="follower")')
-        self.assertGreater(
-            self.get_stat(wiredtiger.stat.conn.disagg_step_down_out_of_lineage_pinned), pinned)
         total = self.nstable + self.nwindow - (self.nwindow + stride - 1) // stride
         self.assertEqual(self.count(uri, 20), total)
 
-        # No pickup: step straight back up and checkpoint the window's commits.
-        rebased = self.get_stat(wiredtiger.stat.conn.disagg_step_up_out_of_lineage_rebased)
+        # No pickup: step straight back up. Continuing this node's own lineage, step-up does not
+        # abandon the pages the window wrote, so the next checkpoint captures them. Before the fix
+        # this reconfigure aborted in the page log's full-page backlink check.
         self.conn.reconfigure('disaggregated=(role="leader")')
-        self.assertGreater(
-            self.get_stat(wiredtiger.stat.conn.disagg_step_up_out_of_lineage_rebased), rebased)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.session.checkpoint()
         self.assertEqual(self.count(uri, 20), total)
