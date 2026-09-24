@@ -965,6 +965,8 @@ extern int __wt_realloc(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
   size_t bytes_to_allocate, void *retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_realloc_noclear(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
   size_t bytes_to_allocate, void *retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ref_addr_replace(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *buf)
