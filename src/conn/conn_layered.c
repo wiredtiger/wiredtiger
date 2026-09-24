@@ -2092,13 +2092,17 @@ __disagg_step_down_check_stable(WT_SESSION_IMPL *session)
  *     Step down to the follower mode. The session must hold the checkpoint and schema locks.
  */
 static int
-__disagg_step_down_int(WT_SESSION_IMPL *session)
+__disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
 {
     struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Any failure up to the first state change below is a refusal the caller can recover from. */
+    *refusedp = true;
+
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -2122,6 +2126,12 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     WT_ERR(ret);
 
     WT_ERR(__disagg_step_down_check_stable(session));
+
+    /*
+     * The refusal checks are done and nothing has changed yet. From here the transition mutates
+     * shared state, so a later failure is unrecoverable rather than a refusal the caller can retry.
+     */
+    *refusedp = false;
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
@@ -2155,10 +2165,13 @@ err:
  *     Step down to the follower mode on a dedicated internal session.
  */
 static int
-__disagg_step_down(WT_SESSION_IMPL *session)
+__disagg_step_down(WT_SESSION_IMPL *session, bool *refusedp)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session;
+
+    /* A failure before the transition mutates state (e.g. opening the session) is recoverable. */
+    *refusedp = true;
 
     /*
      * The default session calling this function is shared between threads: it must not open data
@@ -2182,7 +2195,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * follower that nothing ever marks.
      */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
-      WT_WITH_SCHEMA_LOCK(internal_session, ret = __disagg_step_down_int(internal_session)));
+      WT_WITH_SCHEMA_LOCK(
+        internal_session, ret = __disagg_step_down_int(internal_session, refusedp)));
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
@@ -2303,12 +2317,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
     uint64_t retries, time_start, time_stop;
-    bool leader, picked_up, was_leader;
+    bool leader, picked_up, step_down_refused, was_leader;
 
     conn = S2C(session);
     leader = was_leader = __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
     npage_log = NULL;
     picked_up = false;
+    step_down_refused = false;
 
     WT_CLEAR(complete_checkpoint_meta);
 
@@ -2433,7 +2448,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Leader step-down. */
         time_start = __wt_clock(session);
-        ret = __disagg_step_down(session);
+        ret = __disagg_step_down(session, &step_down_refused);
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
 
@@ -2599,8 +2614,17 @@ err:
      */
     if (ret != 0 && reconfig && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
-    if (ret != 0 && reconfig && was_leader && !leader)
+    if (ret != 0 && reconfig && was_leader && !leader) {
+        /*
+         * A step-down refused before any state changed leaves a working leader: the caller issued
+         * the demote out of order (an active write transaction, or stable not at the last
+         * checkpoint) and can retry. A failure once the transition began is half-transitioned and
+         * unrecoverable.
+         */
+        if (step_down_refused)
+            return (ret);
         return (__wt_panic(session, ret, "failed to step-down as primary"));
+    }
     return (ret);
 }
 
