@@ -5794,7 +5794,7 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
-/*! bypass any block cache when serving the read */
+/*! bypass the victim cache when serving the read */
 #define WT_PAGE_LOG_CACHE_BYPASS 0x40u
 
 /*!
@@ -5864,7 +5864,7 @@ struct __wt_page_log_put_args {
        uint64_t lsn; /* LSN assigned to this write. */
 
        /*
-        * Arguments used by the block cache
+        * Arguments used by the victim cache
         */
        uint64_t delta_count; /* Number of deltas in the chain, including this write. */
 };
@@ -5900,7 +5900,7 @@ struct __wt_page_log_get_args {
        uint64_t base_checkpoint_id;
 
        /*
-        * Arguments used by the block cache
+        * Arguments used by the victim cache
         */
        uint64_t delta_count; /* Number of deltas in the chain for the returned page. */
 };
@@ -6075,7 +6075,7 @@ struct __wt_page_log_handle {
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
 
     /*!
-     * Query if the block cache is available.
+     * Query if the victim cache is available.
      *
      * @param plh the WT_PAGE_LOG_HANDLE
      * @param session the current WiredTiger session

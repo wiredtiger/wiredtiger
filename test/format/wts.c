@@ -959,7 +959,7 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
         return;
     }
 
-    /* These are still named for the block cache they were borrowed from; read them in one place. */
+    /* Read the victim cache statistics in one place. */
     wt_wrap_open_cursor(session, "statistics:", NULL, &cursor);
     puts = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUTS);
     app_puts = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUTS);
