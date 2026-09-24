@@ -96,11 +96,11 @@ __compact_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 }
 
 /*
- * __compact_page_replace_addr --
- *     Replace a page's WT_ADDR.
+ * __wt_ref_addr_replace --
+ *     Replace a page's WT_ADDR. The caller holds the tree's flush lock and the WT_REF locked.
  */
-static int
-__compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
+int
+__wt_ref_addr_replace(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK_ADDR unpack;
@@ -209,7 +209,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
         if (!*skipp) {
             copy.size = (uint8_t)addr_size;
-            WT_ERR(__compact_page_replace_addr(session, ref, &copy));
+            WT_ERR(__wt_ref_addr_replace(session, ref, &copy));
         }
     }
 

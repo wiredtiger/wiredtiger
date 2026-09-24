@@ -364,6 +364,18 @@ struct __wt_btree {
      */
     wt_shared uint32_t disagg_frozen_prepared;
 
+    /*
+     * Metadata LSN of the last complete checkpoint when the tree froze. A successor that promotes
+     * without a frozen tree abandons every page-log record above the newest complete checkpoint,
+     * whichever node wrote it. That checkpoint's completion record is written after its metadata
+     * page, so a page at or below this LSN survives the abandon and a page above it may not: the
+     * frozen tree keeps such pages resident, and a step-up rewrites them. Zero if no checkpoint had
+     * completed, as an abandon then has nothing beneath the tree to delete and any later checkpoint
+     * is above all of its pages, and whenever WT_BTREE_DISAGG_FROZEN is clear. Cleared with the
+     * rest of the non-persistent prefix on reopen.
+     */
+    wt_shared uint64_t disagg_frozen_ckpt_lsn;
+
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
