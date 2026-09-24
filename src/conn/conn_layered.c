@@ -1432,24 +1432,14 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint6
     WT_BTREE *btree;
     WT_DECL_RET;
 
-    if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-      __wt_atomic_load_bool_relaxed(&dhandle->outdated))
+    if (!__wti_layered_frozen_handle(dhandle, NULL))
         return (0);
-
     btree = (WT_BTREE *)dhandle->handle;
-    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
-        return (0);
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
     WT_RET(ret);
 
-    /*
-     * The tree is this node's own again. Its pages written after the last checkpoint are kept: the
-     * step-up continues this lineage and does not abandon back past them, so they need no re-base.
-     */
-    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
-    __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
-    WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+    __wti_layered_frozen_unfreeze(session, btree);
     ++*countp;
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
@@ -1655,15 +1645,9 @@ __disagg_mark_btree_readonly_and_outdated(
     /* Mark the disaggregated as readonly. */
     F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
-    if (freeze_handle) {
-        /*
-         * Keep the resident pages. They are this node's committed state above its last checkpoint,
-         * and the follower reads them in place until pickup marks the handle outdated.
-         */
-        __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, frozen_max_ts);
-        F_SET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
-        WT_STAT_CONN_INCR(session, disagg_frozen_handles);
-    } else
+    if (freeze_handle)
+        __wti_layered_frozen_freeze(session, btree, frozen_max_ts);
+    else
         /*
          * Mark the handle outdated so that if we step back up as leader in the future, we open a
          * fresh one rather than reusing this handle's resident pages. Carrying those pages into a

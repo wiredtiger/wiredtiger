@@ -794,51 +794,6 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
 }
 
 /*
- * __disagg_frozen_ts_uncovered --
- *     Return whether a checkpoint timestamp falls below a frozen tree's bound. A tree with no bound
- *     was demoted before any durable timestamp was set, so it holds no timestamped commit, and
- *     layered tables take no untimestamped writes: any checkpoint covers it. A checkpoint with no
- *     timestamp holds every commit in its snapshot rather than a timestamp prefix, so it cannot be
- *     compared against the bound and is adopted. Both are decisions about those states, not the
- *     check being skipped.
- */
-static WT_INLINE bool
-__disagg_frozen_ts_uncovered(wt_timestamp_t checkpoint_timestamp, wt_timestamp_t frozen_max_ts)
-{
-    return (checkpoint_timestamp != WT_TS_NONE && frozen_max_ts != WT_TS_NONE &&
-      checkpoint_timestamp < frozen_max_ts);
-}
-
-/*
- * __disagg_frozen_uncovered --
- *     Return whether a checkpoint at the given timestamp fails to cover some frozen live tree, and
- *     the newest timestamp the frozen trees hold. A frozen tree holds every commit up to the
- *     durable timestamp recorded at demote; superseding it with an older checkpoint would drop
- *     acknowledged writes. The caller holds the handle-list lock.
- */
-static bool
-__disagg_frozen_uncovered(
-  WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp, wt_timestamp_t *frozen_max_tsp)
-{
-    WT_DATA_HANDLE *dhandle;
-
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
-
-    wt_timestamp_t frozen_max_ts = WT_TS_NONE;
-    TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q) {
-        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_load_bool_relaxed(&dhandle->outdated))
-            continue;
-        WT_BTREE *btree = (WT_BTREE *)dhandle->handle;
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
-            frozen_max_ts =
-              WT_MAX(frozen_max_ts, __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts));
-    }
-    *frozen_max_tsp = frozen_max_ts;
-    return (__disagg_frozen_ts_uncovered(checkpoint_timestamp, frozen_max_ts));
-}
-
-/*
  * __disagg_assert_frozen_checkpoint --
  *     A frozen live tree holds every commit up to the durable timestamp recorded at demote. The
  *     checkpoint that supersedes it has to cover that timestamp; anything older is a missing prefix
@@ -848,34 +803,13 @@ static int
 __disagg_assert_frozen_checkpoint(
   WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t checkpoint_timestamp)
 {
-    WT_BTREE *btree;
-    WT_DATA_HANDLE *dhandle, *saved;
-    WT_DECL_RET;
     wt_timestamp_t frozen_max_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool frozen;
 
-    frozen = false;
-    frozen_max_ts = WT_TS_NONE;
-    saved = session->dhandle;
-    session->dhandle = NULL;
-    WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, ret = __wt_conn_dhandle_find(session, uri, NULL); if (ret == 0) {
-          dhandle = session->dhandle;
-          if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
-            !__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
-              btree = dhandle->handle;
-              if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN)) {
-                  frozen = true;
-                  frozen_max_ts = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
-              }
-          }
-          WT_DHANDLE_CLEAR(session);
-      } else if (ret == WT_NOTFOUND) ret = 0;);
-    session->dhandle = saved;
-    WT_RET(ret);
+    WT_RET(__wt_layered_frozen_lookup(session, uri, &frozen, &frozen_max_ts));
 
-    if (frozen && __disagg_frozen_ts_uncovered(checkpoint_timestamp, frozen_max_ts))
+    if (frozen && __wti_layered_frozen_uncovered(checkpoint_timestamp, frozen_max_ts))
         WT_RET(__wt_panic(session, WT_PANIC,
           "picked up checkpoint timestamp %s is below the frozen tree's max timestamp %s (%s)",
           __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
@@ -1816,8 +1750,8 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
      * checkpoint supersedes it, the frozen tree goes away, or step-up forces the decision.
      */
     if (!force && not_covering) {
-        WT_WITH_HANDLE_LIST_READ_LOCK(
-          session, uncovered = __disagg_frozen_uncovered(session, not_covering_ts, &frozen_max_ts));
+        WT_WITH_HANDLE_LIST_READ_LOCK(session,
+          uncovered = __wti_layered_frozen_any_uncovered(session, not_covering_ts, &frozen_max_ts));
         if (uncovered) {
             __wt_free(session, meta_copy);
             return (0);
@@ -1950,7 +1884,8 @@ __disagg_pick_up_frozen_check(
     *not_coveringp = false;
 
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      uncovered = __disagg_frozen_uncovered(session, checkpoint_timestamp, &frozen_max_ts));
+      uncovered =
+        __wti_layered_frozen_any_uncovered(session, checkpoint_timestamp, &frozen_max_ts));
     if (!uncovered)
         return (0);
 

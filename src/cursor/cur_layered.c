@@ -770,37 +770,6 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
 }
 
 /*
- * __clayered_live_stable_is_frozen --
- *     Return whether the layered table's live stable handle is a demoted tree that pickup has not
- *     superseded. The handle list lock covers the lookup; the caller's dhandle is restored. A
- *     handle that is not open reports not frozen: either way there is no frozen content to bind.
- */
-static int
-__clayered_live_stable_is_frozen(WT_SESSION_IMPL *session, const char *stable_uri, bool *frozenp)
-{
-    WT_BTREE *btree;
-    WT_DATA_HANDLE *dhandle, *saved;
-    WT_DECL_RET;
-
-    *frozenp = false;
-    saved = session->dhandle;
-    session->dhandle = NULL;
-    WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, ret = __wt_conn_dhandle_find(session, stable_uri, NULL); if (ret == 0) {
-          dhandle = session->dhandle;
-          if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
-            !__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
-              btree = (WT_BTREE *)dhandle->handle;
-              *frozenp = F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-                F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
-          }
-          WT_DHANDLE_CLEAR(session);
-      } else if (ret == WT_NOTFOUND) ret = 0;);
-    session->dhandle = saved;
-    return (ret);
-}
-
-/*
  * __clayered_open_stable_follower --
  *     Open the stable table cursor on the newest available checkpoint. In some cases it's fine to
  *     not have a checkpoint (e.g. when we open it for the first time) - leave the cursor
@@ -825,7 +794,7 @@ __clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_ex
      * that handle until pickup marks it outdated; a follower-era snapshot is consistent with it,
      * and a snapshot from the previous role fails the same check as a checkpoint bind.
      */
-    WT_ERR(__clayered_live_stable_is_frozen(session, stable_uri, &frozen_stable));
+    WT_ERR(__wt_layered_frozen_lookup(session, stable_uri, &frozen_stable, NULL));
     if (frozen_stable) {
         if (__clayered_stable_bind_check_needed(session)) {
             WT_ERR(__clayered_stable_bind_check_role_change(session, false));
@@ -1311,8 +1280,8 @@ __clayered_open_stable_first(
     /* A node demoted before it ever checkpointed has no LSN, but its frozen tree is readable. */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER && conn_lsn == WT_DISAGG_LSN_NONE) {
         bool frozen;
-        WT_RET(__clayered_live_stable_is_frozen(
-          session, ((WT_LAYERED_TABLE *)clayered->dhandle)->stable_uri, &frozen));
+        WT_RET(__wt_layered_frozen_lookup(
+          session, ((WT_LAYERED_TABLE *)clayered->dhandle)->stable_uri, &frozen, NULL));
         if (!frozen)
             return (0);
     }
