@@ -1726,7 +1726,11 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
 
 /*
  * __disagg_assert_no_active_writes_callback --
- *     Session array walk callback to reject an active write during step-down.
+ *     Session array walk callback to reject an active write during step-down. The reads of another
+ *     session's transaction state are not ordered against its commit or rollback, so the check is
+ *     best-effort: a stale read either refuses a demote the caller retries, or passes a transaction
+ *     that is already resolving. It cannot miss a writer the application was required not to start,
+ *     and no ordering here could, since a writer may begin right after the walk.
  */
 static int
 __disagg_assert_no_active_writes_callback(
