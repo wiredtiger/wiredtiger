@@ -26,19 +26,6 @@ typedef enum {
 } WTI_CLAYERED_PUT_OP;
 
 /*
- * __clayered_assert_mirrored_write --
- *     Transaction rollback marks writes aborted sequentially. The stable leg can succeed upon
- *     observing another transaction's write as aborted while the ingest leg still sees the
- *     corresponding write as a conflict and rolls back.
- */
-static WT_INLINE void
-__clayered_assert_mirrored_write(WT_SESSION_IMPL *session, int ret)
-{
-    WT_ASSERT_ALWAYS(session, ret == 0 || ret == WT_ROLLBACK,
-      "mirrored write must succeed after stable write succeeds");
-}
-
-/*
  * Increment the ingest or stable variant of a read statistic according to which constituent cursor
  * holds the result. Call only on the success path of a read, once the operation has positioned the
  * cursor; the assert enforces that.
@@ -170,27 +157,6 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value, bool from_st
         --value->size;
     }
 }
-
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __clayered_assert_mirrored_values --
- *     Check that stable and ingest contain the same logical value.
- */
-static WT_INLINE void
-__clayered_assert_mirrored_values(
-  WT_SESSION_IMPL *session, const WT_ITEM *stable_value, const WT_ITEM *ingest_value)
-{
-    WT_ITEM stable_decoded = *stable_value;
-    WT_ITEM ingest_decoded = *ingest_value;
-
-    __clayered_deleted_decode(session, &stable_decoded, true);
-    __clayered_deleted_decode(session, &ingest_decoded, false);
-    WT_ASSERT(session,
-      stable_decoded.size == ingest_decoded.size &&
-        (stable_decoded.size == 0 ||
-          memcmp(stable_decoded.data, ingest_decoded.data, stable_decoded.size) == 0));
-}
-#endif
 
 /*
  * __clayered_decode_current --
@@ -3084,16 +3050,6 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
     }
 
     if (c == op->ingest) {
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * When mirroring writes, the stable table is always written to first. After writing the
-         * ingest table, check that both tables have the same logical value before resetting the
-         * stable cursor.
-         */
-        if (op->write_target == WTI_CLAYERED_WRITE_BOTH && put_op != WTI_CLAYERED_PUT_RESERVE)
-            __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
-#endif
-
         /*
          * Clear the stable cursor position. Keep the cursor position if we are in the middle of a
          * cursor traversal.
@@ -3110,55 +3066,13 @@ __clayered_put_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, const WT_ITEM *key
 }
 
 /*
- * __clayered_put_both --
- *     Put an entry into both constituent trees.
- */
-static WT_INLINE int
-__clayered_put_both(
-  WTI_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WTI_CLAYERED_PUT_OP put_op)
-{
-    WT_DECL_ITEM(ingest_buf);
-    WT_DECL_ITEM(stable_buf);
-    WT_ITEM ingest_value, stable_value;
-    WT_SESSION_IMPL *session = CUR2S(op->clayered);
-    WT_DECL_RET;
-
-    WT_CLEAR(ingest_value);
-    WT_CLEAR(stable_value);
-
-    /*
-     * Build both table-specific encodings before writing either table. The stable write may consume
-     * the input value, so the ingest encoding must already be available. A reserve has no value to
-     * encode, but must still be installed on both update chains.
-     */
-    if (put_op != WTI_CLAYERED_PUT_RESERVE) {
-        WT_ERR(__clayered_deleted_encode(session, value, true, &stable_value, &stable_buf));
-        WT_ERR(__clayered_deleted_encode(session, value, false, &ingest_value, &ingest_buf));
-    }
-
-    /* Write to stable first to detect conflict and exit early. */
-    WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
-    ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
-    __clayered_assert_mirrored_write(session, ret);
-    WT_ERR(ret);
-
-err:
-    __wt_scr_free(session, &ingest_buf);
-    __wt_scr_free(session, &stable_buf);
-    return (ret);
-}
-
-/*
  * __clayered_put --
- *     Put an entry into the constituent or constituents selected for the operation.
+ *     Put an entry into the constituent selected for the operation.
  */
 static WT_INLINE int
 __clayered_put(
   WTI_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WTI_CLAYERED_PUT_OP put_op)
 {
-    if (op->write_target == WTI_CLAYERED_WRITE_BOTH)
-        return (__clayered_put_both(op, key, value, put_op));
-
     WT_CURSOR *c;
     WT_DECL_ITEM(buf);
     WT_ITEM encoded;
@@ -3382,27 +3296,6 @@ __clayered_remove_from_stable(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 }
 
 /*
- * __clayered_remove_from_both --
- *     Remove an entry from the stable table and mirror the tombstone to the ingest table.
- */
-static WT_INLINE int
-__clayered_remove_from_both(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
-{
-    WT_SESSION_IMPL *session = CUR2S(op->clayered);
-    WT_DECL_RET;
-
-    /* Ensure the stable cursor position is not reused incorrectly after a mirrored remove. */
-    F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-
-    /* Write to stable first to detect conflict and exit early. */
-    WT_RET(__clayered_remove_from_stable(
-      op, key, positioned && op->clayered->current_cursor == op->stable));
-    ret = __clayered_ingest_tombstone(op, key);
-    __clayered_assert_mirrored_write(session, ret);
-    return (ret);
-}
-
-/*
  * __clayered_remove_int --
  *     Remove an entry from the desired tree.
  */
@@ -3414,8 +3307,6 @@ __clayered_remove_int(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
         return (__clayered_remove_from_stable(op, key, positioned));
     case WTI_CLAYERED_WRITE_INGEST:
         return (__clayered_remove_from_ingest(op, key, positioned));
-    case WTI_CLAYERED_WRITE_BOTH:
-        return (__clayered_remove_from_both(op, key, positioned));
     case WTI_CLAYERED_WRITE_NONE:
         break;
     }
@@ -3457,8 +3348,7 @@ __clayered_needs_pre_lookup(WTI_CLAYERED_OP *op)
 {
     /*
      * The ingest cursor is always in overwrite mode so insert() can write over an ingest tombstone,
-     * which means non-overwrite duplicate detection has to happen here instead, unless writes are
-     * mirrored to both stable and ingest and write conflicts are detected already on stable.
+     * which means non-overwrite duplicate detection has to happen here instead.
      */
     return (op->write_target == WTI_CLAYERED_WRITE_INGEST &&
       !F_ISSET(&op->clayered->iface, WT_CURSTD_OVERWRITE));
@@ -4087,8 +3977,7 @@ __clayered_modify_try_ingest(
 
 /*
  * __clayered_modify_ingest --
- *     Apply modifications to ingest. If mirroring stable write, take care to avoid applying the
- *     modifications twice.
+ *     Apply modifications to ingest.
  */
 static int
 __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
@@ -4099,7 +3988,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_CURSOR *c_ingest = op->ingest;
     WT_CURSOR *c_stable;
     bool need_full_update = false;
-    bool mirroring = op->write_target == WTI_CLAYERED_WRITE_BOTH;
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
@@ -4115,15 +4003,11 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     c_stable = op->stable;
     if (clayered->current_cursor == c_stable) {
-        /*
-         * Cursor is positioned on the stable table. Compute a full value first unless stable
-         * already contains it, then write it to ingest.
-         */
+        /* The base is in the stable view: compute the full value and write it to ingest. */
         c_ingest->set_key(c_ingest, &cursor->key);
         __clayered_decode_current(clayered, &value);
         WT_ITEM_SET(c_ingest->value, value);
-        if (!mirroring)
-            WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
+        WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
         need_full_update = true;
     }
 
@@ -4133,11 +4017,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_ingest->update(c_ingest));
     }
-
-#ifdef HAVE_DIAGNOSTIC
-    if (mirroring)
-        __clayered_assert_mirrored_values(session, &op->stable->value, &c_ingest->value);
-#endif
 
     /*
      * Clear the stable cursor position. Keep the cursor position if we are in the middle of a
@@ -4155,23 +4034,6 @@ err:
 }
 
 /*
- * __clayered_modify_both --
- *     Apply a set of modifications to the stable table and mirror to the ingest table.
- */
-static int
-__clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
-{
-    WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_DECL_RET;
-
-    /* Write to stable first to detect conflict and exit early. */
-    WT_RET(__clayered_modify_stable(op, entries, nentries));
-    ret = __clayered_modify_ingest(op, entries, nentries);
-    __clayered_assert_mirrored_write(CUR2S(clayered), ret);
-    return (ret);
-}
-
-/*
  * __clayered_modify_int --
  *     Dispatch a modify call based on the selected write target.
  */
@@ -4183,8 +4045,6 @@ __clayered_modify_int(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         return (__clayered_modify_stable(op, entries, nentries));
     case WTI_CLAYERED_WRITE_INGEST:
         return (__clayered_modify_ingest(op, entries, nentries));
-    case WTI_CLAYERED_WRITE_BOTH:
-        return (__clayered_modify_both(op, entries, nentries));
     case WTI_CLAYERED_WRITE_NONE:
         break;
     }
