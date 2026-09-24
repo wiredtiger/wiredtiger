@@ -40,14 +40,15 @@ class test_timestamp29(wttest.WiredTigerTestCase):
             self.timestamp_str(expected_ts))
 
 
+    @wttest.skip_for_hook(
+        "disagg",
+        "this test requires exclusive control of schema epoch calls",
+        param="schema_epochs")
     def test_base(self):
         '''
         Test setting and querying the stable disaggregated schema epoch, including validation of
         legal and illegal transitions and the corresponding statistics.
         '''
-        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
-            self.skipTest("this test requires exclusive control of schema epoch calls")
-
         # When not yet set, querying the epoch returns 0.
         self.assertEpochEqual(0)
 

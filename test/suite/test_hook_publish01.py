@@ -32,6 +32,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 
+@wttest.only_for_hook("disagg", "checks the hook's schema epoch publication", param="schema_epochs")
 class test_hook_publish01(wttest.WiredTigerTestCase):
     """Check which schema operations the hook publishes and how it assigns epochs."""
 
@@ -42,12 +43,6 @@ class test_hook_publish01(wttest.WiredTigerTestCase):
             ("explicit", dict(uri="layered:test_hook_publish01")),
         ]
     )
-
-    def setUp(self):
-        """Run only when the hook's automatic publication is enabled."""
-        if not self.runningHook("disagg") or not self.getDisaggParameters().schema_epochs:
-            self.skipTest("requires the disagg hook with schema_epochs=true")
-        super().setUp()
 
     def stable_epoch(self):
         """Return the connection's stable schema epoch."""

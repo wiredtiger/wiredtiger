@@ -38,11 +38,10 @@ class test_eviction05(wttest.WiredTigerTestCase):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
+    @wttest.skip_for_hook(
+        "disagg", "release eviction may not write pages before deferred btree publication",
+        param="schema_epochs")
     def test_eviction_page_size_stats(self):
-        if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
-            self.skipTest(
-                "this test requires release eviction to write pages to disk, which is not "
-                "guaranteed while btree publication is pending")
         uri = f'table:{self.test_name}'
 
         # Create a table.

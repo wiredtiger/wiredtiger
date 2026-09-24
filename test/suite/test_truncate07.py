@@ -140,8 +140,7 @@ class test_truncate07(wttest.WiredTigerTestCase):
             and (self.key_format != 'r' and self.do_evict)
         ):
             self.skipTest(
-                "debug eviction bypasses the eviction guard for tables awaiting publication "
-                "and can race with publication")
+                "debug eviction bypasses the eviction guard and can race with btree publication")
 
         # Write a bunch of data at time 10.
         cursor = self.session.open_cursor(ds.uri)

@@ -184,8 +184,7 @@ class test_checkpoint_scrub_evict(eviction_util):
             self.conn.set_timestamp('stable_timestamp=1')
             if self.runningHook("disagg") and self.getDisaggParameters().schema_epochs:
                 self.skipTest(
-                    "this workload does not reliably trigger the expected scrub-restore activity "
-                    "when schema epochs change the initial page layout")
+                    "scrub-restore is unreliable when schema epochs change the page layout")
 
         nrows = 5000
 

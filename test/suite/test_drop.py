@@ -110,8 +110,7 @@ class test_drop(wttest.WiredTigerTestCase):
             and self.uri == 'table:'
         ):
             self.skipTest(
-                "a drop returning EBUSY can still discard untimestamped data with schema epochs "
-                "enabled instead of preserving the table's contents")
+                "a drop returning EBUSY can still discard untimestamped data with schema epochs")
         cnt = 0
         # SimpleDataSet: Simple file or table object.
         # Try all combinations except dropping the index, the simple

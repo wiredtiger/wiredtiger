@@ -118,9 +118,7 @@ class test_hs30(wttest.WiredTigerTestCase):
             and self.key_format != 'r'
             and evicts_before_checkpoint
         ):
-            self.skipTest(
-                "this test requires release eviction to write pages to disk, which is not "
-                "guaranteed while btree publication is pending")
+            self.skipTest("release eviction may not write pages before deferred btree publication")
         uri = f'table:{self.test_name}'
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         logging = 'log=(enabled={})'.format('true' if self.logging else 'false')
