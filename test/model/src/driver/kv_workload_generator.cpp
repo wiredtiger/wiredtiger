@@ -717,9 +717,9 @@ kv_workload_generator::run()
         if (_sequences[i]->type() == kv_workload_sequence_type::rollback_to_stable) {
             /* Add the outgoing edges first, so that the preceding sequences inherit them. */
             for (size_t j = i + 1; j < _sequences.size(); j++)
-                _sequences[i]->must_finish_before(_sequences[j].get());
+                _sequences[i]->must_finish_before(_sequences[j]);
             for (size_t j = 0; j < i; j++)
-                _sequences[j]->must_finish_before(_sequences[i].get());
+                _sequences[j]->must_finish_before(_sequences[i]);
         }
 
     /*
