@@ -230,11 +230,7 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    /*
-     * Only the leader can issue a trim command, and only for a constituent that exists: a table
-     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
-     * held here serializes the timestamp, making the relaxed loads safe.
-     */
+    /* Only the leader can issue a trim command, and a leader always has the stable constituent. */
     if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
         if (WT_CHECK_AND_RESET(ret, ENOENT))

@@ -470,8 +470,8 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
  * __clayered_assert_role_change --
  *     Assert the role-change invariants: a step-up requires an unpositioned cursor (ingest drains
  *     under the position) and no spanning snapshot (it cannot be consistent with the drained and
- *     adopted stable content); a step-down requires only writes to be unpositioned, since the
- *     stable tree after it matches the step-down checkpoint.
+ *     adopted stable content); a step-down requires only writes to be unpositioned, since readers
+ *     keep the same live stable tree, frozen.
  */
 static WT_INLINE void
 __clayered_assert_role_change(
@@ -522,10 +522,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 
     __clayered_assert_role_change(clayered, mode, role, flags);
 
-    /*
-     * largest_key is exempt: it ignores visibility by contract and always consults ingest, so its
-     * result does not depend on the transaction.
-     */
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
      * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
@@ -1286,14 +1282,8 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
 
     /*
      * A leader-mode open misses legitimately only when a step-down ran in between: the failed open
-     * acquired the schema lock, so the follower role is published by now. A table created inside
-     * the step-down window is marked at handle open and never attempts this open, so any other miss
-     * is a genuinely missing constituent and must be reported.
-     *
-     * The step-down mark does not close this window: step-down clears it before publishing the
-     * follower role, so a cursor that read the mark as clear can still resolve the leader role and
-     * attempt the open.
-
+     * acquired the schema lock, so the follower role is published by now. Any other miss is a
+     * genuinely missing constituent and must be reported.
      */
     return (role == WTI_CLAYERED_ROLE_LEADER &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
@@ -1320,7 +1310,6 @@ __clayered_open_stable_first(
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     ret = __clayered_open_stable(clayered, false, role);
-    /* A leader can miss here legitimately: a table created after the step-down has no stable. */
     if (__clayered_ignore_missing_stable(session, role, ret))
         ret = 0;
     WT_RET(ret);

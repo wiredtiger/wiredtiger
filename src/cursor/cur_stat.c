@@ -480,10 +480,8 @@ retry:
 
     /*
      * A reader races the role change across a step-up or step-down, so a leader can still find the
-     * stable constituent missing here. The role and the step-down mark are read above without a
-     * lock: step-down clears the mark before it publishes the follower role, and step-up publishes
-     * the leader role before it creates the stable tables a follower era left missing.
-
+     * stable constituent missing here: step-up publishes the leader role before it creates the
+     * stable tables a follower era left missing.
      */
     if (ret == ENOENT) {
         ret = 0;
