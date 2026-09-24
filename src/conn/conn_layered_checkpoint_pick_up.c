@@ -1876,6 +1876,11 @@ __disagg_pick_up_frozen_check(
      * the newly opened live tree before draining ingest, instead of failing the step-up.
      */
     char ts_string[3][WT_TS_INT_STRING_SIZE];
+    if (frozen_max_ts == WT_TS_MAX)
+        WT_RET_MSG(session, EINVAL,
+          "step-up cannot adopt checkpoint timestamp %s: a frozen tree holds unresolved prepared "
+          "updates that no checkpoint covers",
+          __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]));
     WT_RET_MSG(session, EINVAL,
       "step-up cannot adopt checkpoint timestamp %s: it does not cover the frozen trees' max "
       "timestamp %s, and this node's last checkpoint timestamp %s is from an older lineage",

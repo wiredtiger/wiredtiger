@@ -1800,6 +1800,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
     WT_WITH_HANDLE_LIST_READ_LOCK(
       session, ret = __disagg_mark_btrees_readonly_and_outdated_then_step_down(session));
     WT_ERR(ret);
+    __wti_layered_frozen_count_prepared(session);
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had

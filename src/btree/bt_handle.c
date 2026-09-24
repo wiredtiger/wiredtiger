@@ -395,6 +395,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN)) {
         F_CLR_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
         WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+        WT_STAT_CONN_DECRV(session, disagg_frozen_prepared_pending,
+          __wt_atomic_load_uint32_relaxed(&btree->disagg_frozen_prepared));
     }
 
     /*

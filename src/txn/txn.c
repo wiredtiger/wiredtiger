@@ -1828,6 +1828,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                         recno = op->u.op_col.recno;
                     WT_ERR(__wt_txn_resolve_prepared_op(
                       session, op->btree, &txn->time_point, key, recno, true, &cursor));
+                    WT_ERR(
+                      __wt_layered_frozen_prepared_resolved(session, op, &txn->time_point, true));
                 }
 
                 /*
@@ -2382,6 +2384,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                         recno = op->u.op_col.recno;
                     WT_TRET(__wt_txn_resolve_prepared_op(
                       session, op->btree, &txn->time_point, key, recno, false, &cursor));
+                    WT_TRET(
+                      __wt_layered_frozen_prepared_resolved(session, op, &txn->time_point, false));
                 }
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;

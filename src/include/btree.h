@@ -360,6 +360,12 @@ struct __wt_btree {
      */
     wt_shared wt_timestamp_t disagg_frozen_max_ts;
 
+    /*
+     * Unresolved prepared operations, one per prepared key, that were live in the tree when it
+     * froze. While non-zero no checkpoint covers the tree: their outcome is not in any checkpoint.
+     */
+    wt_shared uint32_t disagg_frozen_prepared;
+
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.

@@ -21,7 +21,8 @@
  *     Return whether a data handle is a live frozen tree: open, a disaggregated btree, frozen, and
  *     not yet superseded by a pickup. Optionally return its covering bound. An outdated handle is
  *     not live even while its frozen flag is still set: pickup has replaced it and step-up must
- *     open a fresh tree rather than reuse its pages.
+ *     open a fresh tree rather than reuse its pages. A tree holding unresolved prepared operations
+ *     reports a bound of WT_TS_MAX, which no checkpoint covers.
  */
 bool
 __wti_layered_frozen_handle(WT_DATA_HANDLE *dhandle, wt_timestamp_t *max_tsp)
@@ -41,7 +42,9 @@ __wti_layered_frozen_handle(WT_DATA_HANDLE *dhandle, wt_timestamp_t *max_tsp)
         return (false);
 
     if (max_tsp != NULL)
-        *max_tsp = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
+        *max_tsp = __wt_atomic_load_uint32_acquire(&btree->disagg_frozen_prepared) > 0 ?
+          WT_TS_MAX :
+          __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
     return (true);
 }
 
@@ -120,6 +123,7 @@ __wti_layered_frozen_freeze(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timest
 {
     WT_ASSERT(session, F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY));
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN));
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&btree->disagg_frozen_prepared) == 0);
 
     __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, max_ts);
     F_SET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
@@ -140,6 +144,99 @@ __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree)
     F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
     __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
     WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+
+    /* Prepared operations still open resolve in the live tree like any other. */
+    WT_STAT_CONN_DECRV(session, disagg_frozen_prepared_pending,
+      __wt_atomic_load_uint32_relaxed(&btree->disagg_frozen_prepared));
+    __wt_atomic_store_uint32_relaxed(&btree->disagg_frozen_prepared, 0);
+}
+
+/*
+ * __layered_frozen_prepared_op --
+ *     Return whether a transaction operation is a prepared key update tracked on a frozen tree. A
+ *     transaction updating a key more than once resolves all of that key's updates through its
+ *     first operation (the others are flagged key-repeated), so each key is counted once.
+ */
+static bool
+__layered_frozen_prepared_op(WT_TXN_OP *op)
+{
+    if (op->type != WT_TXN_OP_BASIC_COL && op->type != WT_TXN_OP_BASIC_ROW &&
+      op->type != WT_TXN_OP_INMEM_COL && op->type != WT_TXN_OP_INMEM_ROW)
+        return (false);
+    return (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED) &&
+      F_ISSET_ATOMIC_32(op->btree, WT_BTREE_DISAGG_FROZEN));
+}
+
+/*
+ * __layered_frozen_count_prepared_callback --
+ *     Session array walk callback counting a prepared transaction's operations on frozen trees.
+ */
+static int
+__layered_frozen_count_prepared_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, bool *exit_walkp, void *cookiep)
+{
+    WT_TXN *txn = txn_session->txn;
+    uint32_t *countp = cookiep;
+
+    WT_UNUSED(session);
+    WT_UNUSED(exit_walkp);
+
+    if (!F_ISSET(txn, WT_TXN_PREPARE))
+        return (0);
+
+    for (u_int i = 0; i < txn->mod_count; i++)
+        if (__layered_frozen_prepared_op(&txn->mod[i])) {
+            (void)__wt_atomic_add_uint32(&txn->mod[i].btree->disagg_frozen_prepared, 1);
+            ++*countp;
+        }
+    return (0);
+}
+
+/*
+ * __wti_layered_frozen_count_prepared --
+ *     Count, per frozen tree, the prepared operations a demote left open. The session lock keeps
+ *     each transaction structure alive, and a prepared transaction adds no operations. Nothing
+ *     resolves them concurrently: the application does not commit or roll back a prepared
+ *     transaction across a role change, and the caller still holds the checkpoint and schema locks
+ *     of the step-down.
+ */
+void
+__wti_layered_frozen_count_prepared(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    uint32_t count = 0;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    __wt_spin_lock(session, &conn->api_lock);
+    WT_IGNORE_RET(
+      __wt_session_array_walk(session, __layered_frozen_count_prepared_callback, false, &count));
+    __wt_spin_unlock(session, &conn->api_lock);
+    WT_STAT_CONN_INCRV(session, disagg_frozen_prepared_pending, count);
+}
+
+/*
+ * __wt_layered_frozen_prepared_resolved --
+ *     Account for a prepared operation on a frozen tree whose updates have just been resolved. Call
+ *     once per operation, after its resolution. Until the last one is resolved no checkpoint may
+ *     supersede the tree.
+ */
+int
+__wt_layered_frozen_prepared_resolved(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_TXN_TIME_POINT *tp, bool commit)
+{
+    WT_UNUSED(tp);
+    WT_UNUSED(commit);
+
+    if (!__layered_frozen_prepared_op(op))
+        return (0);
+
+    WT_ASSERT_ALWAYS(session, __wt_atomic_load_uint32_relaxed(&op->btree->disagg_frozen_prepared) > 0,
+      "a prepared operation resolved on a frozen tree that was not counted when it froze");
+    (void)__wt_atomic_sub_uint32(&op->btree->disagg_frozen_prepared, 1);
+    WT_STAT_CONN_DECR(session, disagg_frozen_prepared_pending);
+    return (0);
 }
 
 /*
@@ -149,13 +246,15 @@ __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree)
  *     layered tables took no timestamped writes and any checkpoint covers it. A checkpoint with no
  *     timestamp holds every commit in its snapshot rather than a timestamp prefix, so it cannot be
  *     compared against the bound and is treated as covering. Both are decisions about those states,
- *     not the check being skipped.
+ *     not the check being skipped. A bound of WT_TS_MAX marks unresolved prepared operations, whose
+ *     outcome no checkpoint holds, timestamped or not.
  */
 static bool
 __layered_frozen_uncovered(wt_timestamp_t checkpoint_ts, wt_timestamp_t frozen_max_ts)
 {
-    return (
-      checkpoint_ts != WT_TS_NONE && frozen_max_ts != WT_TS_NONE && checkpoint_ts < frozen_max_ts);
+    return (frozen_max_ts == WT_TS_MAX ||
+      (checkpoint_ts != WT_TS_NONE && frozen_max_ts != WT_TS_NONE &&
+        checkpoint_ts < frozen_max_ts));
 }
 
 /*
