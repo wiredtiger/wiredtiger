@@ -451,8 +451,6 @@ def canned_callgraph(drop_anchor=None, drop_lines=(), extra=()):
         lines += [f"{target} <- {c}" for c in sorted(callers)]
     lines.append("__clayered_deleted_encode <- __clayered_modify_ingest"
                  " <- __clayered_modify_int <- __clayered_modify")
-    lines.append("__clayered_deleted_encode <- __clayered_modify_ingest"
-                 " <- __clayered_modify_both <- __clayered_modify_int <- __clayered_modify")
     lines.append("__clayered_deleted_encode <- __clayered_put <- __clayered_insert")
     lines.append("__clayered_deleted_encode <- __clayered_put <- __clayered_update")
     return "\n".join([l for l in lines if l not in drop_lines] + list(extra)) + "\n"
@@ -463,7 +461,7 @@ def canned_callgraph(drop_anchor=None, drop_lines=(), extra=()):
 PROMOTERS = sorted(
     ste.CALLGRAPH_GOLDEN_CALLERS[ste.DECODE_CURRENT_FN] | {"__clayered_insert"})
 STORERS = sorted(
-    {"__clayered_modify_both", "__clayered_modify_stable", "__clayered_modify_ingest"}
+    {"__clayered_modify_stable", "__clayered_modify_ingest"}
     | set(ste.CALLGRAPH_ENCODE_EXEMPT))
 
 
@@ -503,15 +501,12 @@ expect_callgraph("callgraph missing anchor", 1,
     contains="__clayered_put_constituent() was not found",
     main_out=canned_callgraph(drop_anchor="__clayered_put_constituent"))
 
-# Severing both paths from the modify entry point to the encode helper is caught. The body storer
-# finding is expected as well because the severed function no longer reaches the encoder.
-expect_callgraph("callgraph severed reachability", 2,
+# Severing the path from the modify entry point to the encode helper is caught.
+expect_callgraph("callgraph severed reachability", 1,
     contains="__clayered_modify() no longer reaches __clayered_deleted_encode()",
     main_out=canned_callgraph(drop_lines=(
         "__clayered_deleted_encode <- __clayered_modify_ingest"
-        " <- __clayered_modify_int <- __clayered_modify",
-        "__clayered_deleted_encode <- __clayered_modify_ingest"
-        " <- __clayered_modify_both <- __clayered_modify_int <- __clayered_modify")))
+        " <- __clayered_modify_int <- __clayered_modify",)))
 
 # A caller absent from the golden inventory is reported for review.
 expect_callgraph("callgraph new caller", 1,

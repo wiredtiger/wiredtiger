@@ -407,9 +407,8 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
       (120 * WT_THOUSAND / 250 - drain_polls) * 250);
 
     /*
-     * Let the workers keep writing above the boundary for a window: post-step-down leader writes
-     * are routed either to ingest or to both and this exercises either one of the configurations
-     * before the checkpoint.
+     * Let the workers keep writing above the boundary for a window, so the live stable tree frozen
+     * at demote holds uncheckpointed leader writes.
      */
     track_msg("[stepdown] post-drain ingest write window");
     __wt_sleep(DISAGG_STEPDOWN_INGEST_WINDOW_SEC, 0);

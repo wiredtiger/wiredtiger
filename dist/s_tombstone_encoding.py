@@ -230,10 +230,10 @@ CALLGRAPH_REACHABILITY = (
 CALLGRAPH_GOLDEN_CALLERS = {
     ENCODE_FN: frozenset({
         "__clayered_modify_ingest", "__clayered_modify_stable", "__clayered_put",
-        "__clayered_put_both", STABLE_TO_INGEST_FN}),
+        STABLE_TO_INGEST_FN}),
     DECODE_FN: frozenset({
-        "__clayered_assert_mirrored_values", "__clayered_decode_current", "__clayered_insert",
-        "__clayered_modify_stable", "__clayered_modify_try_ingest", INGEST_TO_STABLE_FN}),
+        "__clayered_decode_current", "__clayered_insert", "__clayered_modify_stable",
+        "__clayered_modify_try_ingest", INGEST_TO_STABLE_FN}),
     DECODE_CURRENT_FN: frozenset({
         "__clayered_copy_duplicate_kv", "__clayered_iterate", "__clayered_modify",
         "__clayered_modify_ingest", "__clayered_next_random", "__clayered_search",
@@ -242,8 +242,7 @@ CALLGRAPH_GOLDEN_CALLERS = {
     STABLE_TO_INGEST_FN: frozenset({"__prepare_discover_alloc_upd"}),
     # Not a conversion helper: it stores bytes its callers already encoded, so it is exempt from
     # rule D4 and its caller set is pinned here instead.
-    "__clayered_put_constituent": frozenset({
-        "__clayered_put", "__clayered_put_both"}),
+    "__clayered_put_constituent": frozenset({"__clayered_put"}),
 }
 
 # Rules D3/D4 anchor on behavior rather than names, using the tool's ///content-regex form: every
