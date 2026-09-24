@@ -69,7 +69,9 @@ __wti_evict_queue_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_EVICT *evict;
 
-    WT_ASSERT(session, __wt_ref_is_root(ref) || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+      __wt_ref_is_root(ref) || WT_REF_GET_STATE(ref) == WT_REF_LOCKED,
+      "Clearing the eviction queue entry of a reference that is not locked");
 
     /* Fast path: if the page isn't in the queue, don't bother searching. */
     if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))

@@ -24,7 +24,9 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 static WT_INLINE void
 __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state)
 {
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL);
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+      WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL,
+      "Releasing exclusive access to a reference that is not locked or has no page");
 
     WT_REF_SET_STATE(ref, previous_state);
 }
@@ -36,7 +38,9 @@ __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE prev
 static WT_INLINE int
 __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+      WT_REF_GET_STATE(ref) == WT_REF_LOCKED,
+      "Acquiring exclusive access to a reference that is not locked");
 
     /*
      * Check for a hazard pointer indicating another thread is using the page, meaning the page
@@ -666,14 +670,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     ebusy_only = true;
 
     /*
-     * Check we are not evicting an accessible internal page with an active split generation. We
-     * should be able to evict anything if we are closing the dhandle, when the dhandle is already
-     * dead, or when we have exclusive access to the dhandle.
+     * Anything can be evicted when closing the dhandle, when the dhandle is already dead, or when
+     * we have exclusive access to it.
      */
-    WT_ASSERT(session,
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
       closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
-        !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
+        !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen),
+      "Evicting an accessible internal page with an active split generation");
 
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -781,10 +785,9 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
                 }
                 WT_RET_BUSY_OK(ret);
 
-                /*
-                 * The child must be locked after a failed reverse split.
-                 */
-                WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+                WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+                  WT_REF_GET_STATE(ref) == WT_REF_LOCKED,
+                  "Child reference is not locked after a failed reverse split");
             }
         }
     }

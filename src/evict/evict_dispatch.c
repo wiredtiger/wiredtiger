@@ -218,7 +218,8 @@ __wti_evict_page(WT_SESSION_IMPL *session, bool is_server)
     WT_TRACK_OP_INIT(session);
 
     WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref, &previous_state));
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+      WT_REF_GET_STATE(ref) == WT_REF_LOCKED, "Evicting a page whose reference is not locked");
 
     time_start = 0;
 

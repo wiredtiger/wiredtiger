@@ -26,9 +26,12 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * A version of the page-out function that allows us to make additional diagnostic checks.
      *
-     * The WT_REF cannot be the eviction thread's location.
+     * The btree is checked for NULL because this runs on release builds, where a caller without a
+     * btree dhandle would otherwise fault inside the check itself.
      */
-    WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref);
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+      S2BT_SAFE(session) == NULL || __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref,
+      "Discarding the page the eviction walk is positioned on");
 
     /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
