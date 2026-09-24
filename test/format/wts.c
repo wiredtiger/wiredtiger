@@ -133,14 +133,19 @@ static int
 handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
+    SAP *sap;
     WT_DECL_RET;
     char buf[256];
     const char *msg;
 
     (void)handler;
 
-    if (session->app_private != NULL) {
-        testutil_snprintf(buf, sizeof(buf), "%s %s", (char *)session->app_private, operation);
+    /*
+     * Session application private information holds the operation's tracking tag, not a string
+     * itself.
+     */
+    if ((sap = session->app_private) != NULL && sap->track != NULL) {
+        testutil_snprintf(buf, sizeof(buf), "%s %s", sap->track, operation);
         msg = buf;
     } else
         msg = operation;
