@@ -113,10 +113,8 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         # conflict.
         self.complete_step_down(15)
 
-        # Resume the walk. Before the fix this crashes: the stale current_cursor pairing left the
-        # new, unpositioned stable cursor as current while treating the still-positioned ingest
-        # cursor as a trustworthy alternate. With the fix, losing the blocked position on the stable
-        # side discards the whole pairing, so the walk restarts from the first key.
+        # Resume the walk. The role change discarded the blocked position, so the walk restarts
+        # from the first key rather than resuming where it left off.
         seen = []
         while cursor.next() == 0:
             seen.append(cursor.get_key())

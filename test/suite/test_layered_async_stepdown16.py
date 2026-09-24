@@ -58,9 +58,9 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         ('prev', dict(forward=False)),
     ]
 
-    # Whether a separate, ordinary key is shared by both constituents. On a tie the walk always
-    # advances ingest as current and steps stable in lock-step as the alternate, which is otherwise
-    # never exercised here: every other key in this test belongs to exactly one constituent.
+    # Whether a separate, ordinary key exists in both constituents at once, so the walk must step
+    # past it without returning it twice. Every other key in this test belongs to exactly one
+    # constituent, so without this a duplicate key is never part of the walk.
     tie_scenarios = [
         ('no_tie', dict(with_tie=False)),
         ('with_tie', dict(with_tie=True)),
@@ -84,9 +84,7 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
     def keys(self):
         return [f'key{i:04d}' for i in range(self.nrows)]
 
-    # The walk tracks a position in each constituent, and only consults the one it is not
-    # currently returning from once that one is also positioned. Interleaving the two constituents'
-    # keys keeps both positioned across the whole walk.
+    # Interleaving the two constituents' keys keeps both populated across the whole walk.
     def stable_keys(self):
         return [k for i, k in enumerate(self.keys()) if i % 2 == 0]
 
