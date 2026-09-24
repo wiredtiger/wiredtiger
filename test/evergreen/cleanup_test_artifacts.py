@@ -123,13 +123,26 @@ def make_writable(path):
             make_writable(os.path.join(path, name))
 
 
-def remove_tree(path):
-    """Remove a directory, clearing the read-only permissions some tests set on their data."""
-    try:
-        shutil.rmtree(path)
-    except OSError:
-        make_writable(path)
-        shutil.rmtree(path)
+def remove_entry(path):
+    """Remove a test data entry, which is either a database directory or a leftover file.
+
+    Tests leave files as well as directories (for example the profiling data of a fuzz run), and
+    some set read-only permissions on their data, so clear those and retry if the first attempt
+    fails.
+    """
+    is_directory = os.path.isdir(path) and not os.path.islink(path)
+    if is_directory:
+        try:
+            shutil.rmtree(path)
+        except OSError:
+            make_writable(path)
+            shutil.rmtree(path)
+    else:
+        try:
+            os.remove(path)
+        except OSError:
+            os.chmod(path, stat.S_IRWXU)
+            os.remove(path)
 
 
 def read_failed_tests(path):
@@ -220,7 +233,7 @@ def main():
         for entry in data_entries(working_dir):
             print(f"{'Would remove' if args.dry_run else 'Removing'} {entry}")
             if not args.dry_run:
-                remove_tree(entry)
+                remove_entry(entry)
             removed += 1
 
     print(
