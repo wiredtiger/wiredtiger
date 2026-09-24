@@ -1020,9 +1020,11 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_storage_version;
     int64_t disagg_checkpoint_binary_version;
     int64_t disagg_checkpoint_defer;
+    int64_t disagg_checkpoint_defer_not_covering;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
+    int64_t disagg_frozen_handles;
     int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_checkpoint_meta_lsn;
     int64_t disagg_checkpoint_delivered_lsn;
@@ -1034,9 +1036,12 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_down_out_of_lineage_pinned;
+    int64_t disagg_step_up_lineage_discards_replayed;
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_time;
+    int64_t disagg_step_up_out_of_lineage_rebased;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;

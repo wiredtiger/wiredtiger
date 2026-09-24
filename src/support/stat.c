@@ -2731,9 +2731,11 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoint metadata version of the most recently picked up checkpoint: 0 none",
   "disagg: checkpoint metadata version this binary writes",
   "disagg: checkpoint pick-ups deferred for active transaction snapshots",
+  "disagg: checkpoint pick-ups deferred for not covering a frozen tree",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: frozen live tree handles not yet closed",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
   "disagg: most recently adopted checkpoint metadata LSN",
   "disagg: most recently delivered checkpoint metadata LSN",
@@ -2745,9 +2747,12 @@ static const char *const __stats_connection_desc[] = {
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step down pages written after the last checkpoint pinned in a frozen tree",
+  "disagg: step up discards inside the checkpoint lineage re-issued after the abandon",
   "disagg: step up in progress",
   "disagg: step up ingest table clear truncates retried after a conflict",
   "disagg: step up most recent time (msecs)",
+  "disagg: step up pages written after the last checkpoint re-based to a new page id",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -3855,9 +3860,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_storage_version */
     /* not clearing disagg_checkpoint_binary_version */
     stats->disagg_checkpoint_defer = 0;
+    stats->disagg_checkpoint_defer_not_covering = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
+    /* not clearing disagg_frozen_handles */
     stats->disagg_ingest_stable_tombstone_stripped = 0;
     /* not clearing disagg_checkpoint_meta_lsn */
     /* not clearing disagg_checkpoint_delivered_lsn */
@@ -3869,9 +3876,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    stats->disagg_step_down_out_of_lineage_pinned = 0;
+    stats->disagg_step_up_lineage_discards_replayed = 0;
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_time = 0;
+    stats->disagg_step_up_out_of_lineage_rebased = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -5109,10 +5119,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_binary_version +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_binary_version);
     to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
+    to->disagg_checkpoint_defer_not_covering +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_not_covering);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_frozen_handles += WT_STAT_CONN_READ(from, disagg_frozen_handles);
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
     to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
@@ -5128,10 +5141,16 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_down_out_of_lineage_pinned +=
+      WT_STAT_CONN_READ(from, disagg_step_down_out_of_lineage_pinned);
+    to->disagg_step_up_lineage_discards_replayed +=
+      WT_STAT_CONN_READ(from, disagg_step_up_lineage_discards_replayed);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_clear_ingest_retry +=
       WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_retry);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
+    to->disagg_step_up_out_of_lineage_rebased +=
+      WT_STAT_CONN_READ(from, disagg_step_up_out_of_lineage_rebased);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);

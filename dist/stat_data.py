@@ -632,6 +632,7 @@ conn_stats = [
     DisaggStat('disagg_checkpoint_binary_version',
         'checkpoint metadata version this binary writes', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_defer', 'checkpoint pick-ups deferred for active transaction snapshots'),
+    DisaggStat('disagg_checkpoint_defer_not_covering', 'checkpoint pick-ups deferred for not covering a frozen tree'),
     DisaggStat('disagg_checkpoint_delivered_lsn', 'most recently delivered checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_meta_lsn', 'most recently adopted checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_storage_compatible_version',
@@ -642,6 +643,7 @@ conn_stats = [
         'no_clear,no_scale'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
+    DisaggStat('disagg_frozen_handles', 'frozen live tree handles not yet closed', 'no_clear,no_scale'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
@@ -654,9 +656,12 @@ conn_stats = [
         'stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped',
         'no_clear,no_scale'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
+    DisaggStat('disagg_step_down_out_of_lineage_pinned', 'step down pages written after the last checkpoint pinned in a frozen tree'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_clear_ingest_retry', 'step up ingest table clear truncates retried after a conflict'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
+    DisaggStat('disagg_step_up_lineage_discards_replayed', 'step up discards inside the checkpoint lineage re-issued after the abandon'),
+    DisaggStat('disagg_step_up_out_of_lineage_rebased', 'step up pages written after the last checkpoint re-based to a new page id'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 
     ##########################################

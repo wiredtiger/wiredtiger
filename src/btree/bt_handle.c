@@ -392,6 +392,11 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 
     F_SET(btree, WT_BTREE_CLOSED);
 
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN)) {
+        F_CLR_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
+        WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+    }
+
     /*
      * Verify the history store state. If the history store is open and this btree has history store
      * entries, it can't be a metadata file, nor can it be the history store file.

@@ -296,11 +296,15 @@ struct __wt_repair {
 /*
  * WT_DISAGG_DEFERRED_CKPT --
  *      A checkpoint whose adoption is deferred while transactional snapshots that predate it are
- *      active.
+ *      active, or because it does not cover a frozen live tree.
  */
 struct __wt_disagg_deferred_ckpt {
     uint64_t lsn; /* Checkpoint metadata LSN */
     char *meta;   /* Checkpoint metadata configuration */
+
+    /* Pickup found the checkpoint, at this timestamp, below a frozen tree. */
+    bool not_covering;
+    wt_timestamp_t not_covering_ts;
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 

@@ -141,6 +141,19 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 }
 
 /*
+ * __sweep_superseded_disagg_tree --
+ *     Return whether a tree is a read-only disaggregated tree that a picked-up checkpoint
+ *     superseded and that no session holds.
+ */
+static bool
+__sweep_superseded_disagg_tree(WT_DATA_HANDLE *dhandle, WT_BTREE *btree)
+{
+    return (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+      __wt_atomic_load_bool_relaxed(&dhandle->outdated) &&
+      __wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0);
+}
+
+/*
  * __sweep_close_dhandle_locked --
  *     Close write-locked dhandle.
  */
@@ -164,10 +177,13 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
         return (0);
 
     /*
-     * Sweep only closes clean trees, with one exception: an ingest btree whose entire contents are
-     * known to be durable in the stable table.
+     * Sweep only closes clean trees, with two exceptions: an ingest btree whose entire contents are
+     * known to be durable in the stable table, and a read-only disaggregated tree a picked-up
+     * checkpoint superseded. The latter's dirty pages can never be written and, with no session
+     * holding the handle, nothing reads them again; the dead handle's pages are discarded without
+     * reconciliation, as eviction already discards them one at a time.
      */
-    if (btree != NULL && btree->modified) {
+    if (btree != NULL && btree->modified && !__sweep_superseded_disagg_tree(dhandle, btree)) {
         /*
          * We check that there are no cursors open that can be adding new content, and we hold the
          * dhandle write lock, which blocks new opens. Open transaction modifications also bump the

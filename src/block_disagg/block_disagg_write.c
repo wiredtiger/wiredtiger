@@ -293,6 +293,97 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 }
 
 /*
+ * __block_disagg_discard_issue --
+ *     Send a discard of the page version an address cookie names to the page log.
+ */
+static int
+__block_disagg_discard_issue(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
+  const WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
+{
+    WT_PAGE_LOG_DISCARD_ARGS discard_args;
+    WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
+
+    WT_CLEAR(discard_args);
+
+    /* Set the base LSN to the last full page image. */
+    bool is_delta = FLD_ISSET(cookie->flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA);
+    discard_args.base_lsn = is_delta ? cookie->base_lsn : cookie->lsn;
+
+    /* Set the backlink LSN to the LSN of the last page version. */
+    discard_args.backlink_lsn = cookie->lsn;
+
+    WT_STAT_CONN_INCR(session, disagg_block_page_discard);
+
+    return (plhandle->plh_discard(plhandle, &session->iface, cookie->page_id, 0, &discard_args));
+}
+
+/*
+ * __block_disagg_lineage_discard_add --
+ *     Remember a discard of a page version inside the lineage of the given checkpoint, for a
+ *     step-up that abandons back to it to re-issue. Discards remembered for an older checkpoint are
+ *     inside the lineage now and are dropped.
+ */
+static int
+__block_disagg_lineage_discard_add(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
+  const WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie, uint64_t ckpt_lsn)
+{
+    WT_DECL_RET;
+
+    __wt_spin_lock(session, &block_disagg->lineage_discard_lock);
+    if (block_disagg->lineage_discard_ckpt_lsn != ckpt_lsn) {
+        block_disagg->lineage_discard_ckpt_lsn = ckpt_lsn;
+        block_disagg->lineage_discards_entries = 0;
+    }
+    WT_ERR(__wt_realloc_def(session, &block_disagg->lineage_discards_allocated,
+      block_disagg->lineage_discards_entries + 1, &block_disagg->lineage_discards));
+    block_disagg->lineage_discards[block_disagg->lineage_discards_entries++] = *cookie;
+
+err:
+    __wt_spin_unlock(session, &block_disagg->lineage_discard_lock);
+    return (ret);
+}
+
+/*
+ * __wt_block_disagg_lineage_discard_add --
+ *     Remember a page version inside the given checkpoint's lineage that the tree no longer
+ *     references, to be discarded after a step-up abandons back to that checkpoint.
+ */
+int
+__wt_block_disagg_lineage_discard_add(
+  WT_SESSION_IMPL *session, const WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie, uint64_t ckpt_lsn)
+{
+    return (__block_disagg_lineage_discard_add(
+      session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, cookie, ckpt_lsn));
+}
+
+/*
+ * __wt_block_disagg_lineage_discard_replay --
+ *     Re-issue the discards remembered since the given checkpoint, once a step-up has abandoned
+ *     everything written after it. The tree's size already excludes the discarded versions.
+ */
+int
+__wt_block_disagg_lineage_discard_replay(
+  WT_SESSION_IMPL *session, uint64_t ckpt_lsn, uint64_t *countp)
+{
+    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)S2BT(session)->bm->block;
+    WT_DECL_RET;
+    size_t i;
+
+    *countp = 0;
+    __wt_spin_lock(session, &block_disagg->lineage_discard_lock);
+    if (block_disagg->lineage_discard_ckpt_lsn == ckpt_lsn &&
+      block_disagg->plhandle->plh_discard != NULL)
+        for (i = 0; i < block_disagg->lineage_discards_entries; ++i, ++*countp)
+            WT_ERR(__block_disagg_discard_issue(
+              session, block_disagg, &block_disagg->lineage_discards[i]));
+    block_disagg->lineage_discards_entries = 0;
+
+err:
+    __wt_spin_unlock(session, &block_disagg->lineage_discard_lock);
+    return (ret);
+}
+
+/*
  * __wti_block_disagg_page_discard --
  *     Discard a page.
  */
@@ -336,17 +427,16 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
         return (0);
     }
 
-    WT_PAGE_LOG_DISCARD_ARGS discard_args;
-    WT_CLEAR(discard_args);
+    WT_RET(__block_disagg_discard_issue(session, block_disagg, &cookie));
 
-    /* Set the base LSN to the last full page image. */
-    bool is_delta = FLD_ISSET(cookie.flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA);
-    discard_args.base_lsn = is_delta ? cookie.base_lsn : cookie.lsn;
-
-    /* Set the backlink LSN to the LSN of the last page version. */
-    discard_args.backlink_lsn = cookie.lsn;
-
-    WT_STAT_CONN_INCR(session, disagg_block_page_discard);
-
-    return (plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, 0, &discard_args));
+    /*
+     * A discard of a version inside the last checkpoint's lineage is lost if a step-up abandons
+     * back to that checkpoint. Only a leader discards, and only its own checkpoint can be the one
+     * abandoned back to.
+     */
+    uint64_t ckpt_lsn = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
+    if (!is_root && ckpt_lsn != WT_DISAGG_LSN_NONE && cookie.lsn <= ckpt_lsn)
+        WT_RET(__block_disagg_lineage_discard_add(session, block_disagg, &cookie, ckpt_lsn));
+    return (0);
 }
