@@ -1024,6 +1024,18 @@ __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
 }
 
 /*
+ * __clayered_constituent_needs_reset --
+ *     Determine if a constituent has state a reset must clear: either an application-set external
+ *     key with no page reference yet (WT_CURSTD_KEY_SET without a search having run), or a page
+ *     reference from a prior position, including one left by a prepare conflict.
+ */
+static WT_INLINE bool
+__clayered_constituent_needs_reset(const WT_CURSOR *c)
+{
+    return (c != NULL && (F_ISSET(c, WT_CURSTD_KEY_SET) || ((WT_CURSOR_BTREE *)c)->ref != NULL));
+}
+
+/*
  * __clayered_can_advance_stable --
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
@@ -1045,8 +1057,11 @@ __clayered_can_advance_stable(
         return (false);
 
     /*
-     * Do not advance while either constituent is blocked on a prepare conflict: reopening stable
-     * would discard the blocked cursor's position, which the retry has to return to.
+     * Do not advance while either constituent is blocked on a prepare conflict. If stable is the
+     * blocked one, reopening it discards the position the retry has to return to. If ingest is the
+     * blocked one, stable's reopen has no ingest key to anchor its new position to and can land on
+     * an arbitrary key in the new checkpoint instead, skipping visible keys between the old and new
+     * positions.
      */
     if (__clayered_constituent_prepare_blocked(clayered->ingest_cursor) ||
       __clayered_constituent_prepare_blocked(clayered->stable_cursor))
@@ -1210,8 +1225,8 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
      * If the transaction context has changed since the last call (different read timestamp or a new
      * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
      * flags to force a re-search under the new context. A blocked alternate is not a problem here:
-     * clearing the flags routes the next call through __clayered_position_alternate, which
-     * re-searches it fresh from the current key regardless of its prior state.
+     * clearing the flags routes the next call through a fresh search from the current key,
+     * regardless of the alternate's prior state.
      *
      * FIXME-WT-17960: a context change while the current cursor is stalled on a prepare conflict
      * leaves the alternate parked under the old context with no anchor to re-search it from.
@@ -2191,18 +2206,12 @@ __clayered_reset_cursors(WTI_CURSOR_LAYERED *clayered, bool skip_ingest)
     WT_CURSOR *c;
     WT_DECL_RET;
 
-    /*
-     * Reset constituents that are positioned. Check both KEY_SET and the btree ref, because a
-     * prepare conflict clears KEY_SET while leaving the btree cursor positioned (ref != NULL).
-     * Either constituent can be left in that state.
-     */
     c = clayered->stable_cursor;
-    if (c != NULL && (F_ISSET(c, WT_CURSTD_KEY_SET) || ((WT_CURSOR_BTREE *)c)->ref != NULL))
+    if (__clayered_constituent_needs_reset(c))
         WT_TRET(c->reset(c));
 
     c = clayered->ingest_cursor;
-    if (!skip_ingest && c != NULL &&
-      (F_ISSET(c, WT_CURSTD_KEY_SET) || ((WT_CURSOR_BTREE *)c)->ref != NULL))
+    if (!skip_ingest && __clayered_constituent_needs_reset(c))
         WT_TRET(c->reset(c));
 
     clayered->current_cursor = NULL;
