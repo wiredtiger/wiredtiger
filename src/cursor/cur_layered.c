@@ -772,7 +772,8 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
 /*
  * __clayered_live_stable_is_frozen --
  *     Return whether the layered table's live stable handle is a demoted tree that pickup has not
- *     superseded. The handle list lock covers the lookup; the caller's dhandle is restored.
+ *     superseded. The handle list lock covers the lookup; the caller's dhandle is restored. A
+ *     handle that is not open reports not frozen: either way there is no frozen content to bind.
  */
 static int
 __clayered_live_stable_is_frozen(WT_SESSION_IMPL *session, const char *stable_uri, bool *frozenp)
@@ -1292,10 +1293,10 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
 /*
  * __clayered_open_stable_first --
  *     Open the stable constituent for the first time and record its checkpoint LSN. A follower the
- *     table has no checkpoint for leaves the stable cursor NULL. The caller reads the connection's
- *     LSN before the open, so a checkpoint picked up in between makes the recorded LSN older than
- *     the checkpoint actually opened: that only costs a later reopen, it never claims a newer
- *     checkpoint than the cursor holds.
+ *     table has no checkpoint or frozen live tree for leaves the stable cursor NULL. The caller
+ *     reads the connection's LSN before the open, so a checkpoint picked up in between makes the
+ *     recorded LSN older than the checkpoint actually opened: that only costs a later reopen, it
+ *     never claims a newer checkpoint than the cursor holds.
  */
 static int
 __clayered_open_stable_first(
@@ -1304,9 +1305,17 @@ __clayered_open_stable_first(
     WT_DECL_RET;
     WT_SESSION_IMPL *const session = CUR2S(clayered);
 
-    if (clayered->stable_cursor != NULL ||
-      (role == WTI_CLAYERED_ROLE_FOLLOWER && conn_lsn == WT_DISAGG_LSN_NONE))
+    if (clayered->stable_cursor != NULL)
         return (0);
+
+    /* A node demoted before it ever checkpointed has no LSN, but its frozen tree is readable. */
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER && conn_lsn == WT_DISAGG_LSN_NONE) {
+        bool frozen;
+        WT_RET(__clayered_live_stable_is_frozen(
+          session, ((WT_LAYERED_TABLE *)clayered->dhandle)->stable_uri, &frozen));
+        if (!frozen)
+            return (0);
+    }
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     ret = __clayered_open_stable(clayered, false, role);
