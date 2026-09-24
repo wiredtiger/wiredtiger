@@ -2092,7 +2092,7 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
         (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
           txn->isolation == WT_ISO_SNAPSHOT));
 
-    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->stepdown_ts_set)
+    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->step_down_armed)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
@@ -2142,7 +2142,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
-    txn->stepdown_ts_set = false;
+    txn->step_down_armed = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -2195,8 +2195,10 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      */
     if (__wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
-                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
+        txn->step_down_armed =
+          __wt_atomic_load_bool_acquire(&S2C(session)->disaggregated_storage.step_down_armed) ||
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) !=
+            WT_TS_NONE;
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     }
 

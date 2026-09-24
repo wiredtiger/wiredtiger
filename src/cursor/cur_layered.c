@@ -463,7 +463,7 @@ __clayered_enter_flags(
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
      * by contract.
      */
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->step_down_armed ||
       __wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) ||
       mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
@@ -501,7 +501,7 @@ __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op
 
     WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
 
-    if (!CUR2S(clayered)->txn->stepdown_ts_set)
+    if (!CUR2S(clayered)->txn->step_down_armed)
         return (WTI_CLAYERED_WRITE_STABLE);
 
     WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
@@ -3255,10 +3255,10 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
      * When step-down writes are mirrored to stable there is no need to probe, and this function
      * exits early from the previous write_target check.
      */
-    bool stepdown_ts_set = session->txn->stepdown_ts_set;
+    bool step_down_armed = session->txn->step_down_armed;
 
     /* Otherwise every snapshot-visible update is current; there is nothing to check. */
-    if (!has_read_ts && !stepdown_ts_set)
+    if (!has_read_ts && !step_down_armed)
         return (0);
 
     /*

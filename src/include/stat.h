@@ -1030,6 +1030,7 @@ struct __wt_connection_stats {
     int64_t disagg_role_leader;
     int64_t disagg_snapshot_rebuild;
     int64_t disagg_stable_tombstone_encoding;
+    int64_t disagg_step_down_armed;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_in_progress;

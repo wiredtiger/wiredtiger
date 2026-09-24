@@ -808,7 +808,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
          */
         step_down_ts =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        if (txn->stepdown_ts_set && commit_ts <= step_down_ts)
+        if (txn->step_down_armed && commit_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "commit timestamp %s must be after the step down timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
@@ -953,7 +953,7 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
      * or below it is a contradiction.
      */
     step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-    if (txn->stepdown_ts_set && durable_ts <= step_down_ts)
+    if (txn->step_down_armed && durable_ts <= step_down_ts)
         WT_RET_MSG(session, EINVAL, "durable timestamp %s must be after the step down timestamp %s",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));

@@ -653,6 +653,7 @@ conn_stats = [
     DisaggStat('disagg_stable_tombstone_encoding',
         'stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped',
         'no_clear,no_scale'),
+    DisaggStat('disagg_step_down_armed', 'step down armed', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_down_window_creates', 'tables created without a stable constituent while the step-down timestamp is set'),

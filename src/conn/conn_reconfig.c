@@ -499,7 +499,7 @@ done:
      * parameters that should not be preserved across calls to reconfigure.
      */
     WT_ERR(__wt_config_merge(
-      session, cfg, "disaggregated=(checkpoint_meta=,last_materialized_lsn=)", &p));
+      session, cfg, "disaggregated=(checkpoint_meta=,last_materialized_lsn=,step_down_arm=)", &p));
     __wt_free(session, conn->cfg);
     conn->cfg = p;
 

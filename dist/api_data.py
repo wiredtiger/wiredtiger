@@ -214,10 +214,21 @@ file_disaggregated_config = [
     ),
 ]
 wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config
+# Disaggregated options accepted only at reconfigure, never at wiredtiger_open.
+connection_disaggregated_config_reconfigure = [
+    Config('step_down_arm', 'false', r'''
+        arm (true) or disarm (false) a planned step-down on a leader. While armed, write
+        transactions that begin afterwards mirror their layered-table writes to the ingest
+        constituent, so the node can step down once a checkpoint covers every commit that
+        was not mirrored. Stepping down clears it; disarming abandons the planned step-down.
+        Not preserved across calls to reconfigure''',
+        type='boolean', undoc=True),
+]
 connection_reconfigure_disaggregated_configuration = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this connection''',
-        type='category', subconfig=connection_disaggregated_config_common),
+        type='category', subconfig=connection_disaggregated_config_common +\
+              connection_disaggregated_config_reconfigure),
 ]
 wiredtiger_open_page_delta_configuration = connection_page_delta_config
 connection_reconfigure_page_delta_configuration = connection_page_delta_config

@@ -450,11 +450,10 @@ struct __wt_txn {
     wt_timestamp_t first_commit_timestamp;
 
     /*
-     * True if the step-down timestamp was set when this transaction began. Used to redirect the
-     * transaction's writes to the ingest constituent (or mirrored to both stable and ingest when
-     * write mirroring is enabled), to include ingest in its reads, and to detect straddlers.
+     * True if a step-down was armed when this transaction began. Its layered writes are mirrored to
+     * the ingest constituent and its reads include ingest.
      */
-    bool stepdown_ts_set;
+    bool step_down_armed;
     /*
      * The disaggregated role observed when the snapshot was established; the role-change generation
      * it was established under is published in the session's generation slot. A snapshot

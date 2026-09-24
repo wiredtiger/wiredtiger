@@ -365,6 +365,12 @@ struct __wt_disaggregated_storage {
     wt_shared wt_timestamp_t last_checkpoint_schema_epoch;
 
     /*
+     * A planned step-down is armed: write transactions that begin while it is set mirror their
+     * layered writes to ingest. Changed under the checkpoint and schema locks.
+     */
+    wt_shared bool step_down_armed;
+
+    /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
      * track back links between the subsequent versions of the metadata pages. Protected by the
      * checkpoint lock.

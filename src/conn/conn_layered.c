@@ -1933,7 +1933,9 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     __wt_atomic_store_uint64_relaxed(
       &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
+    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, false);
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+    WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
 
@@ -1975,6 +1977,51 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
       WT_WITH_SCHEMA_LOCK(internal_session, ret = __disagg_step_down_int(internal_session)));
+    WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
+ * __disagg_step_down_arm_int --
+ *     Arm or disarm a planned step-down. The session must hold the checkpoint and schema locks.
+ */
+static int
+__disagg_step_down_arm_int(WT_SESSION_IMPL *session, bool arm)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+        WT_RET_MSG(session, EINVAL, "step_down_arm is only valid on a disaggregated leader");
+
+    if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed) == arm)
+        return (0);
+
+    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, arm);
+    WT_STAT_CONN_SET(session, disagg_step_down_armed, arm ? 1 : 0);
+    __wt_verbose_info(
+      session, WT_VERB_DISAGGREGATED_STORAGE, "step-down %s", arm ? "armed" : "disarmed");
+    return (0);
+}
+
+/*
+ * __disagg_step_down_arm --
+ *     Arm or disarm a planned step-down on a dedicated internal session.
+ */
+static int
+__disagg_step_down_arm(WT_SESSION_IMPL *session, bool arm)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    WT_RET(__wt_open_internal_session(
+      S2C(session), "disagg-step-down-arm", false, 0, 0, &internal_session));
+
+    /* The schema lock keeps a schema operation entirely on one side of the change. */
+    WT_WITH_CHECKPOINT_LOCK(internal_session,
+      WT_WITH_SCHEMA_LOCK(
+        internal_session, ret = __disagg_step_down_arm_int(internal_session, arm)));
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
@@ -2166,6 +2213,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                   "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             }
         }
+
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_gets(session, cfg, "disaggregated.step_down_arm", &cval), true);
+        if (ret == 0)
+            WT_ERR(__disagg_step_down_arm(session, cval.val != 0));
     }
 
     /* Common settings between initial connection config and reconfig. */
