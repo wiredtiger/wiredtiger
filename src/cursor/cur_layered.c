@@ -1209,15 +1209,15 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
     /*
      * If the transaction context has changed since the last call (different read timestamp or a new
      * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
-     * flags to force a re-search under the new context.
+     * flags to force a re-search under the new context. A blocked alternate is not a problem here:
+     * clearing the flags routes the next call through __clayered_position_alternate, which
+     * re-searches it fresh from the current key regardless of its prior state.
      *
-     * FIXME-WT-17960: a context change while a constituent is stalled on a prepare conflict leaves
-     * the other parked under the old context with no anchor to re-search it from.
+     * FIXME-WT-17960: a context change while the current cursor is stalled on a prepare conflict
+     * leaves the alternate parked under the old context with no anchor to re-search it from.
      */
     if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp) {
-        WT_ASSERT(session,
-          !__clayered_constituent_prepare_blocked(clayered->ingest_cursor) &&
-            !__clayered_constituent_prepare_blocked(clayered->stable_cursor));
+        WT_ASSERT(session, !__clayered_constituent_prepare_blocked(clayered->current_cursor));
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     }
 
