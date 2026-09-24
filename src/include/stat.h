@@ -1036,9 +1036,12 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_down_out_of_lineage_pinned;
+    int64_t disagg_step_up_lineage_discards_replayed;
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_time;
+    int64_t disagg_step_up_out_of_lineage_rebased;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;

@@ -1422,6 +1422,261 @@ err:
 }
 
 /*
+ * __disagg_cookie_above --
+ *     Return whether a disaggregated address cookie names a page log write above the given LSN.
+ */
+static int
+__disagg_cookie_above(
+  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, uint64_t lsn, bool *abovep)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    *abovep = cookie.lsn > lsn;
+    return (0);
+}
+
+/*
+ * __disagg_cookie_forget --
+ *     Stop accounting for an abandoned write that is dropped without a discard: the tree's size
+ *     counts the chain a cookie names until the chain is discarded.
+ */
+static int
+__disagg_cookie_forget(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    __wt_block_disagg_decrease_size(session, cookie.size);
+    return (0);
+}
+
+/*
+ * __disagg_ref_out_of_lineage --
+ *     Return whether a ref, or the resident page under it, depends on a page log write above the
+ *     checkpoint LSN: its address, the page's block metadata, or a reconciliation result the page
+ *     still holds.
+ */
+static int
+__disagg_ref_out_of_lineage(WT_SESSION_IMPL *session, WT_REF *ref, uint64_t ckpt_lsn, bool *outp)
+{
+    WT_ADDR_COPY addr;
+    WT_MULTI *multi;
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    uint32_t i;
+
+    *outp = false;
+    if (__wt_ref_addr_copy(session, ref, &addr)) {
+        WT_RET(__disagg_cookie_above(session, addr.addr, addr.size, ckpt_lsn, outp));
+        if (*outp)
+            return (0);
+    }
+
+    if (WT_REF_GET_STATE(ref) != WT_REF_MEM)
+        return (0);
+    page = ref->page;
+    if (page->disagg_info != NULL &&
+      page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+      page->disagg_info->block_meta.disagg_lsn > ckpt_lsn) {
+        *outp = true;
+        return (0);
+    }
+
+    if ((mod = page->modify) == NULL)
+        return (0);
+    if (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL)
+        return (__disagg_cookie_above(session, mod->mod_replace.block_cookie,
+          mod->mod_replace.block_cookie_size, ckpt_lsn, outp));
+    if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries && !*outp; ++multi, ++i)
+            if (multi->addr.block_cookie != NULL)
+                WT_RET(__disagg_cookie_above(session, multi->addr.block_cookie,
+                  multi->addr.block_cookie_size, ckpt_lsn, outp));
+    return (0);
+}
+
+/*
+ * __disagg_frozen_page_orphan --
+ *     A page that keeps its page id across a write after the checkpoint leaves that id's versions
+ *     inside the lineage unreferenced once the page moves to a new id: have the step-up discard
+ *     them. The backlink of the page's latest write names the last such version only if that was
+ *     its first write after the checkpoint.
+ *
+ * FIXME-WT-XXXX: with more than one write after the checkpoint the last version inside the lineage
+ *     is unknown, and the page id is never discarded.
+ */
+static int
+__disagg_frozen_page_orphan(
+  WT_SESSION_IMPL *session, const WT_PAGE_BLOCK_META *block_meta, uint64_t ckpt_lsn)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE prev;
+
+    if (block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID || block_meta->disagg_lsn <= ckpt_lsn ||
+      block_meta->backlink_lsn == WT_DISAGG_LSN_NONE || block_meta->backlink_lsn > ckpt_lsn)
+        return (0);
+
+    WT_CLEAR(prev);
+    prev.page_id = block_meta->page_id;
+    prev.lsn = block_meta->backlink_lsn;
+    if (block_meta->delta_count > 1) {
+        prev.flags = WT_BLOCK_DISAGG_ADDR_FLAG_DELTA;
+        prev.base_lsn = block_meta->base_lsn;
+    }
+    return (__wt_block_disagg_lineage_discard_add(session, &prev, ckpt_lsn));
+}
+
+/*
+ * __disagg_frozen_page_detach --
+ *     Detach a resident page from page log writes a step-up is about to abandon. The abandoned
+ *     records will be gone, so they are not discarded: forget the addresses and the delta chain,
+ *     and leave the page dirty so its next reconciliation writes a full image under a new page id,
+ *     which starts a fresh chain with no backlink.
+ */
+static int
+__disagg_frozen_page_detach(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *parent, uint64_t ckpt_lsn)
+{
+    WT_ADDR_COPY addr;
+    WT_MULTI *multi;
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    uint32_t i;
+    bool above;
+
+    page = ref->page;
+
+    if (__wt_ref_addr_copy(session, ref, &addr)) {
+        WT_RET(__disagg_cookie_above(session, addr.addr, addr.size, ckpt_lsn, &above));
+        if (above) {
+            WT_RET(__disagg_cookie_forget(session, addr.addr, addr.size));
+            __wt_ref_addr_free(session, ref);
+        }
+    }
+
+    if (page->disagg_info != NULL) {
+        WT_RET(__disagg_frozen_page_orphan(session, &page->disagg_info->block_meta, ckpt_lsn));
+        WT_CLEAR(page->disagg_info->block_meta);
+        page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    }
+
+    if ((mod = page->modify) != NULL) {
+        if (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL) {
+            WT_RET(__disagg_cookie_above(session, mod->mod_replace.block_cookie,
+              mod->mod_replace.block_cookie_size, ckpt_lsn, &above));
+            if (above) {
+                WT_RET(__disagg_cookie_forget(
+                  session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+                __wt_free(session, mod->mod_replace.block_cookie);
+                mod->mod_replace.block_cookie_size = 0;
+            }
+        } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
+            for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+                if (multi->addr.block_cookie == NULL)
+                    continue;
+                WT_RET(__disagg_cookie_above(session, multi->addr.block_cookie,
+                  multi->addr.block_cookie_size, ckpt_lsn, &above));
+                if (above) {
+                    WT_RET(__disagg_cookie_forget(
+                      session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+                    __wt_free(session, multi->addr.block_cookie);
+                    multi->addr.block_cookie_size = 0;
+                }
+            }
+    }
+
+    /* The parent's next image must name the page's new address. */
+    WT_RET(__wt_page_modify_init(session, page));
+    __wt_page_modify_set(session, page);
+    WT_RET(__wt_page_modify_init(session, parent));
+    __wt_page_modify_set(session, parent);
+    return (0);
+}
+
+/*
+ * __disagg_frozen_lineage_walk --
+ *     Visit every child of a resident internal page of a frozen tree that depends on a page log
+ *     write above the checkpoint LSN, reading it in if it is not resident. At demote the page is
+ *     pinned; at step-up it is re-based. A child address can only be above the checkpoint if its
+ *     parent was modified in memory after writing it, so only resident internal pages are searched.
+ *     Eviction is exclusive and the tree is read-only, so no split replaces a page index here.
+ */
+static int
+__disagg_frozen_lineage_walk(
+  WT_SESSION_IMPL *session, WT_PAGE *parent, uint64_t ckpt_lsn, bool step_up, uint64_t *countp)
+{
+    WT_DECL_RET;
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t i;
+    uint8_t state;
+    bool out;
+
+    WT_INTL_INDEX_GET_SAFE(parent, pindex);
+    for (i = 0; i < pindex->entries; ++i) {
+        ref = pindex->index[i];
+        state = WT_REF_GET_STATE(ref);
+        if (state != WT_REF_DISK && state != WT_REF_MEM)
+            continue;
+
+        WT_WITH_PAGE_INDEX(
+          session, ret = __disagg_ref_out_of_lineage(session, ref, ckpt_lsn, &out));
+        WT_RET(ret);
+        if (!out) {
+            if (state == WT_REF_MEM && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+                WT_RET(__disagg_frozen_lineage_walk(session, ref->page, ckpt_lsn, step_up, countp));
+            continue;
+        }
+
+        /*
+         * At demote, keep the page resident while the tree is frozen: a successor may abandon the
+         * write it was read from. Marking it dirty is the least invasive pin, the frozen eviction
+         * gate already holds dirty pages, and a page with no pending update reconciles to the same
+         * content once the tree is a leader's again.
+         */
+        WT_RET(__wt_page_in(session, ref, WT_READ_NO_EVICT));
+        if (step_up) {
+            WT_WITH_PAGE_INDEX(
+              session, ret = __disagg_frozen_page_detach(session, ref, parent, ckpt_lsn));
+        } else if ((ret = __wt_page_modify_init(session, ref->page)) == 0)
+            __wt_page_modify_set(session, ref->page);
+        if (ret == 0 && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+            ret = __disagg_frozen_lineage_walk(session, ref->page, ckpt_lsn, step_up, countp);
+        ++*countp;
+        WT_TRET(__wt_page_release(session, ref, WT_READ_NO_EVICT));
+        WT_RET(ret);
+    }
+    return (0);
+}
+
+/*
+ * __disagg_frozen_lineage --
+ *     Pin or re-base the pages of a frozen tree written after its last checkpoint. The caller holds
+ *     the tree's eviction exclusive.
+ */
+static int
+__disagg_frozen_lineage(WT_SESSION_IMPL *session, bool step_up)
+{
+    WT_BTREE *btree;
+    uint64_t count;
+
+    btree = S2BT(session);
+
+    /* With no checkpoint there is no lineage for a step-up to abandon back to. */
+    if (btree->disagg_frozen_ckpt_lsn == WT_DISAGG_LSN_NONE || btree->root.page == NULL)
+        return (0);
+
+    count = 0;
+    WT_RET(__disagg_frozen_lineage_walk(
+      session, btree->root.page, btree->disagg_frozen_ckpt_lsn, step_up, &count));
+    if (step_up)
+        WT_STAT_CONN_INCRV(session, disagg_step_up_out_of_lineage_rebased, count);
+    else
+        WT_STAT_CONN_INCRV(session, disagg_step_down_out_of_lineage_pinned, count);
+    return (0);
+}
+
+/*
  * __disagg_unfreeze_btree --
  *     Make a frozen live tree writable again. An outdated handle stays frozen: pickup already
  *     superseded it, and step-up must open a fresh tree rather than reuse those pages.
@@ -1443,12 +1698,16 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
     WT_RET(ret);
 
-    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
-    __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
-    WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+    /* Re-base before the tree is writable: the step-up abandons writes above the checkpoint. */
+    WT_WITH_BTREE(session, btree, ret = __disagg_frozen_lineage(session, true));
+    if (ret == 0) {
+        F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_DISAGG_FROZEN);
+        __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, WT_TS_NONE);
+        WT_STAT_CONN_DECR(session, disagg_frozen_handles);
+    }
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1475,6 +1734,47 @@ __disagg_unfreeze_live_btrees(WT_SESSION_IMPL *session)
             WT_DHANDLE_RELEASE(dhandle);
             return (ret);
         }
+    }
+    return (0);
+}
+
+/*
+ * __disagg_frozen_discards_replay --
+ *     Re-issue, for every tree step-up un-froze, the discards inside its checkpoint lineage that
+ *     the checkpoint abandon just deleted. The caller holds the handle-list lock.
+ */
+static int
+__disagg_frozen_discards_replay(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    uint64_t count;
+
+    conn = S2C(session);
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
+
+    for (dhandle = NULL;;) {
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        if (dhandle == NULL)
+            break;
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+            continue;
+        btree = (WT_BTREE *)dhandle->handle;
+        if (btree->disagg_frozen_ckpt_lsn == WT_DISAGG_LSN_NONE ||
+          F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
+            continue;
+
+        WT_WITH_BTREE(session, btree,
+          ret = __wt_block_disagg_lineage_discard_replay(
+            session, btree->disagg_frozen_ckpt_lsn, &count));
+        if (ret != 0) {
+            WT_DHANDLE_RELEASE(dhandle);
+            return (ret);
+        }
+        btree->disagg_frozen_ckpt_lsn = WT_DISAGG_LSN_NONE;
+        WT_STAT_CONN_INCRV(session, disagg_step_up_lineage_discards_replayed, count);
     }
     return (0);
 }
@@ -1575,6 +1875,11 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     WT_ERR(__disagg_restart_checkpoint(session));
 
+    /* The abandon deleted the discards the un-frozen trees made since their checkpoint. */
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      internal_session, ret = __disagg_frozen_discards_replay(internal_session));
+    WT_ERR(ret);
+
     /*
      * We might not need to hold a checkpoint lock below this point, but we will keep it just to be
      * safe. If this becomes a problem, we can revisit whether we really need to hold the lock for
@@ -1647,8 +1952,11 @@ __disagg_mark_btree_readonly_and_outdated(
          * and the follower reads them in place until pickup marks the handle outdated.
          */
         __wt_atomic_store_uint64_relaxed(&btree->disagg_frozen_max_ts, frozen_max_ts);
+        btree->disagg_frozen_ckpt_lsn = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
         F_SET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
         WT_STAT_CONN_INCR(session, disagg_frozen_handles);
+        WT_WITH_BTREE(session, btree, ret = __disagg_frozen_lineage(session, false));
     } else
         /*
          * Mark the handle outdated so that if we step back up as leader in the future, we open a
@@ -1660,7 +1968,7 @@ __disagg_mark_btree_readonly_and_outdated(
         __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
 
     WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    return (0);
+    return (ret);
 }
 
 /*

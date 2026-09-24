@@ -47,6 +47,8 @@ __block_disagg_destroy(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg)
     WT_CONN_BLOCK_REMOVE(conn, block_disagg, bucket);
 
     __wt_free(session, block_disagg->name);
+    __wt_free(session, block_disagg->lineage_discards);
+    __wt_spin_destroy(session, &block_disagg->lineage_discard_lock);
 
     if (block_disagg->plhandle != NULL)
         WT_TRET(block_disagg->plhandle->plh_close(block_disagg->plhandle, &session->iface));
@@ -119,6 +121,8 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
         F_SET(block_disagg, WT_BLOCK_DISAGG_HS);
 
     block_disagg->tableid = tableid;
+    WT_ERR(__wt_spin_init(
+      session, &block_disagg->lineage_discard_lock, "block disagg lineage discards"));
 
     WT_ERR(S2BT(session)->page_log->pl_open_handle(
       S2BT(session)->page_log, &session->iface, tableid, &block_disagg->plhandle));

@@ -360,6 +360,12 @@ struct __wt_btree {
      */
     wt_shared wt_timestamp_t disagg_frozen_max_ts;
 
+    /*
+     * Metadata LSN of the last complete checkpoint when the tree was frozen. A page log write above
+     * it is outside the checkpoint lineage a step-up abandons back to.
+     */
+    uint64_t disagg_frozen_ckpt_lsn;
+
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
