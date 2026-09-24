@@ -32,7 +32,8 @@ Every CTest test runs in its own working directory and leaves its WiredTiger dat
 there when it finishes. Transaction logs are preallocated, so a full 'make check' run
 leaves several gigabytes that are then packaged into the CI artifacts. The database is
 only useful for a test that failed, so remove it for the tests that passed and keep it
-for the ones that failed.
+for the ones that failed. Directories that other test commands share with CTest are left
+alone, as a failure of one of those is not recorded in the CTest results.
 
 The script is deliberately conservative: if it cannot tell which working directory a
 failed test used, it removes nothing.
@@ -170,6 +171,21 @@ def collect_tests(ctest_dirs):
     return tests, by_working_dir
 
 
+def is_ctest_only(working_dir):
+    """Whether a working directory belongs to CTest alone.
+
+    Some Evergreen tasks run test binaries directly in the same directories as CTest, for example
+    the format, many dbs and thread tests that run after 'make check all'. Those commands write
+    there too, and a failure of one of them is not recorded in the CTest results, so only the
+    directories that exist purely for a CTest test - the per-variant test directories and the
+    example directories - can be cleaned safely.
+    """
+    name = os.path.basename(working_dir.rstrip("/\\"))
+    return name.endswith("_test_dir") or "examples" in working_dir.replace(
+        "\\", "/"
+    ).split("/")
+
+
 def data_entries(working_dir):
     """Return the test database entries left in a working directory."""
     try:
@@ -228,7 +244,9 @@ def main():
 
     removed = 0
     for working_dir, names in sorted(by_working_dir.items()):
-        if any(name in failed for name in names):
+        # Keep the data of a failed test, and leave the directories that other test commands
+        # share with CTest alone.
+        if any(name in failed for name in names) or not is_ctest_only(working_dir):
             continue
         for entry in data_entries(working_dir):
             print(f"{'Would remove' if args.dry_run else 'Removing'} {entry}")
