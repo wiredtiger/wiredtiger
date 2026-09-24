@@ -771,6 +771,8 @@ extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype
 extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_frozen_lookup(WT_SESSION_IMPL *session, const char *uri, bool *frozenp,
   wt_timestamp_t *max_tsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_frozen_prepared_resolved(WT_SESSION_IMPL *session, WT_TXN_OP *op,
+  WT_TXN_TIME_POINT *tp, bool commit) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *session,
@@ -1856,7 +1858,6 @@ extern void __wt_hazard_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp);
 extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
-extern void __wt_layered_frozen_max_ts_raise(WT_BTREE *btree, wt_timestamp_t ts);
 extern void __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id);
 extern void __wt_layered_table_truncate_clear(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table);
@@ -1994,6 +1995,7 @@ extern void __wti_disagg_shared_metadata_queue_prune(
 extern void __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages);
 extern void __wti_free_ref_index(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages);
+extern void __wti_layered_frozen_count_prepared(WT_SESSION_IMPL *session);
 extern void __wti_layered_frozen_freeze(
   WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t max_ts);
 extern void __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree);

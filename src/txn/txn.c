@@ -1302,44 +1302,6 @@ __txn_resolve_prepared_update_chain(
 }
 
 /*
- * __txn_raise_frozen_max_for_prepare --
- *     A checkpoint taken between prepare and resolution does not contain the outcome. Advance the
- *     frozen tree's bound so pickup defers that checkpoint instead of discarding the resolution.
- */
-static void
-__txn_raise_frozen_max_for_prepare(
-  WT_BTREE *btree, WT_TXN_TIME_POINT *tp, WT_UPDATE *upd, bool commit)
-{
-    WT_UPDATE *u;
-    wt_timestamp_t cur, ts;
-
-    if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
-        return;
-
-    if (commit)
-        ts = F_ISSET(tp, WT_TXN_TIME_POINT_HAS_TS_DURABLE) && tp->durable_timestamp != WT_TS_NONE ?
-          tp->durable_timestamp :
-          tp->commit_timestamp;
-    else {
-        ts = F_ISSET(tp, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK) ? tp->rollback_timestamp :
-                                                              tp->prepare_timestamp;
-        for (u = upd; u != NULL; u = u->next)
-            if (F_ISSET(u, WT_UPDATE_PREPARE_RESTORED_FROM_DS)) {
-                /*
-                 * The checkpoint that froze this tree can already hold the prepared cell. A pickup
-                 * at that timestamp would discard the rollback.
-                 */
-                cur = __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts);
-                if (cur < WT_TS_MAX && ts <= cur)
-                    ts = cur + 1;
-                break;
-            }
-    }
-
-    __wt_layered_frozen_max_ts_raise(btree, ts);
-}
-
-/*
  * __wt_txn_resolve_prepared_op --
  *     Resolve a transaction's operations indirect references.
  */
@@ -1544,7 +1506,6 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
 
     /* Mark the page dirty once the prepared updates are resolved. */
     __wt_page_modify_set(session, page);
-    __txn_raise_frozen_max_for_prepare(btree, txn_time_point, head_upd, commit);
 
 prepare_verify:
     /*
@@ -1828,6 +1789,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                         recno = op->u.op_col.recno;
                     WT_ERR(__wt_txn_resolve_prepared_op(
                       session, op->btree, &txn->time_point, key, recno, true, &cursor));
+                    WT_ERR(
+                      __wt_layered_frozen_prepared_resolved(session, op, &txn->time_point, true));
                 }
 
                 /*
@@ -2382,6 +2345,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                         recno = op->u.op_col.recno;
                     WT_TRET(__wt_txn_resolve_prepared_op(
                       session, op->btree, &txn->time_point, key, recno, false, &cursor));
+                    WT_TRET(
+                      __wt_layered_frozen_prepared_resolved(session, op, &txn->time_point, false));
                 }
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
