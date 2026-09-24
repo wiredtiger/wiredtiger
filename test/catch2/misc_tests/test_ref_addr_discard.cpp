@@ -98,7 +98,7 @@ TEST_CASE(
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     stashed = stash_live(session);
 
-    __wt_ref_out_discard(session, &root);
+    __wt_ref_out_exclusive(session, &root);
 
     REQUIRE(root.page == nullptr);
     REQUIRE(__wt_gen(session, WT_GEN_SPLIT) == split_gen);

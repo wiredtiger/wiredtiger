@@ -58,11 +58,11 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_ref_out_discard --
+ * __wt_ref_out_exclusive --
  *     Discard an in-memory page when no concurrent readers can reference its addresses.
  */
 void
-__wt_ref_out_discard(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_ref_out_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     __ref_out(session, ref, true);
 }
@@ -339,8 +339,8 @@ __wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
 static void
 __ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref, bool exclusive)
 {
+    WT_ADDR *ref_addr;
     WT_PAGE *home;
-    void *ref_addr;
 
     /*
      * In order to free the WT_REF.addr field we need to read and clear the address without a race.
@@ -373,11 +373,11 @@ __ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref, bool exclusive)
 
     if (home == NULL || __wt_off_page(home, ref_addr)) {
         if (exclusive) {
-            __wt_free(session, ((WT_ADDR *)ref_addr)->block_cookie);
-            __wt_free(session, ref_addr);
+            __wt_overwrite_and_free_len(
+              session, ref_addr->block_cookie, ref_addr->block_cookie_size);
+            __wt_overwrite_and_free(session, ref_addr);
         } else {
-            __wti_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->block_cookie,
-              ((WT_ADDR *)ref_addr)->block_cookie_size);
+            __wti_ref_addr_safe_free(session, ref_addr->block_cookie, ref_addr->block_cookie_size);
             __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
         }
     }
