@@ -1424,10 +1424,17 @@ err:
 /*
  * __disagg_unfreeze_btree --
  *     Make a frozen live tree writable again. An outdated handle stays frozen: pickup already
- *     superseded it, and step-up must open a fresh tree rather than reuse those pages.
+ *     superseded it, and step-up must open a fresh tree rather than reuse those pages. After
+ *     adopting another leader's checkpoint, the adopted lineage is authoritative: a frozen tree
+ *     pickup left in place is one whose checkpoint that leader did not change, or one for a table
+ *     it does not list (dropped, or local-only). Mark it outdated instead; its pages sit in the
+ *     lineage the step-up abandons. Only a modified one holds commits the adopted checkpoint lacks.
+ *     A tree awaiting publication has written nothing to that lineage and holds its table's only
+ *     copy, so it un-freezes either way.
  */
 static int
-__disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint64_t *countp)
+__disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool foreign,
+  uint64_t *countp, uint64_t *discardedp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1435,6 +1442,21 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint6
     if (!__wti_layered_frozen_handle(dhandle, NULL))
         return (0);
     btree = (WT_BTREE *)dhandle->handle;
+
+    if (foreign && !__wt_btree_stays_in_memory(btree)) {
+        if (__wt_atomic_load_bool_relaxed(&btree->modified))
+            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "step-up after adopting another leader's checkpoint discards modified frozen tree %s",
+              dhandle->name);
+        else
+            __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "step-up after adopting another leader's checkpoint discards frozen tree %s",
+              dhandle->name);
+        __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
+        WT_STAT_CONN_INCR(session, disagg_step_up_frozen_after_foreign_adoption);
+        ++*discardedp;
+        return (0);
+    }
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
     WT_RET(ret);
@@ -1448,11 +1470,13 @@ __disagg_unfreeze_btree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint6
 
 /*
  * __disagg_unfreeze_live_btrees --
- *     Release every demoted live tree that pickup has not superseded. The caller holds the
- *     handle-list lock.
+ *     Release every demoted live tree that pickup has not superseded, or, when the step-up follows
+ *     another leader's checkpoint, discard those that may have written to the abandoned lineage.
+ *     The caller holds the handle-list lock.
  */
 static int
-__disagg_unfreeze_live_btrees(WT_SESSION_IMPL *session, uint64_t *countp)
+__disagg_unfreeze_live_btrees(
+  WT_SESSION_IMPL *session, bool foreign, uint64_t *countp, uint64_t *discardedp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -1461,12 +1485,12 @@ __disagg_unfreeze_live_btrees(WT_SESSION_IMPL *session, uint64_t *countp)
     conn = S2C(session);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
 
-    *countp = 0;
+    *countp = *discardedp = 0;
     for (dhandle = NULL;;) {
         WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
         if (dhandle == NULL)
             break;
-        ret = __disagg_unfreeze_btree(session, dhandle, countp);
+        ret = __disagg_unfreeze_btree(session, dhandle, foreign, countp, discardedp);
         if (ret != 0) {
             WT_DHANDLE_RELEASE(dhandle);
             return (ret);
@@ -1485,7 +1509,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     struct timespec tsp;
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session = NULL;
-    uint64_t now, unfrozen;
+    uint64_t discarded, last_lsn, now, own_lsn, unfrozen;
+    bool foreign;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
@@ -1556,25 +1581,41 @@ __disagg_step_up(WT_SESSION_IMPL *session)
         __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
 
     /*
-     * A demote that did not mark the live trees outdated left them read-only. They are this node's
-     * tree again. Pickup of another leader's checkpoint marks them outdated first, and those stay
-     * discarded.
+     * The newest complete checkpoint is foreign when this node adopted another leader's checkpoint
+     * since it last wrote its own. Both LSNs are only stored under the checkpoint lock held here.
+     * Counting un-frozen trees cannot tell the two apart: pickup leaves the frozen tree of a table
+     * the adopted checkpoint does not list in place.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(
-      internal_session, ret = __disagg_unfreeze_live_btrees(internal_session, &unfrozen));
+    last_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    own_lsn = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.own_checkpoint_meta_lsn);
+    WT_ASSERT(session, own_lsn <= last_lsn);
+    foreign = last_lsn != own_lsn;
+
+    /*
+     * A demote that did not mark the live trees outdated left them read-only. They are this node's
+     * tree again, unless the step-up follows another leader's checkpoint. Trees a pickup superseded
+     * are already outdated and stay discarded.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(internal_session,
+      ret = __disagg_unfreeze_live_btrees(internal_session, foreign, &unfrozen, &discarded));
     WT_ERR(ret);
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Step-up: last checkpoint lsn=%" PRIu64 ", own checkpoint lsn=%" PRIu64 ", un-froze %" PRIu64
+      ", discarded %" PRIu64 " frozen trees",
+      last_lsn, own_lsn, unfrozen, discarded);
 
     /*
      * Begin the next checkpoint before draining the ingest tables so the drained updates land in
      * it.
      *
-     * Abandon first only when this node adopted another leader's checkpoint (a pickup superseded
-     * and dropped every frozen tree, so nothing un-froze): its own records above that checkpoint
-     * would fork the adopted lineage. When frozen trees un-froze, this node is continuing its own
-     * lineage; abandoning would delete the committed pages those trees still reference, so begin
-     * without it and let this checkpoint capture them.
+     * Abandon first when this node adopted another leader's checkpoint: its own records above that
+     * checkpoint would fork the adopted lineage. When frozen trees un-froze, this node is
+     * continuing its own lineage; abandoning would delete the committed pages those trees still
+     * reference, so begin without it and let this checkpoint capture them. With nothing un-frozen
+     * no tree references those records, so abandon them.
      */
-    if (unfrozen == 0)
+    if (foreign || unfrozen == 0)
         WT_ERR(__disagg_restart_checkpoint(session));
     else
         WT_ERR(__disagg_begin_checkpoint(session));
@@ -2210,6 +2251,16 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
+
+        /*
+         * A node opening as leader abandoned everything above the checkpoint it started from, so
+         * the lineage it continues from there is its own.
+         */
+        if (leader)
+            WT_WITH_CHECKPOINT_LOCK(session,
+              __wt_atomic_store_uint64_release(&conn->disaggregated_storage.own_checkpoint_meta_lsn,
+                __wt_atomic_load_uint64_acquire(
+                  &conn->disaggregated_storage.last_checkpoint_meta_lsn)));
 
         /*
          * If the picked-up checkpoint predates the write generation high-water mark in the
