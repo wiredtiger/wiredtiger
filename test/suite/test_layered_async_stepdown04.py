@@ -39,16 +39,11 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
     # No periodic statistics-logging thread: it would race with the cursor-cache reopen checks
     # below, which read a connection-wide stat over a narrow window.
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
-    ]
     def conn_config(self):
-        return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+        return self.conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     test_name = __qualname__
 
@@ -71,86 +66,61 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
             'the layered cursor must be served from the session cursor cache')
         return cursor
 
-    # A table created while the timestamp is set routes its writes to ingest, builds no stable
-    # constituent, and survives the demotion.
-    def test_create_while_step_down_ts_set(self):
+    # A table created above the final checkpoint has a stable constituent with no checkpoint. The
+    # frozen tree is the only copy of its rows, and the demoted node serves them.
+    def test_create_above_final_checkpoint(self):
         self.set_global_ts(1, 1)
-        self.set_step_down_ts(20)
+        self.checkpoint_at(20)
 
         uri = f'layered:{self.test_name}_create'
         self.session.create(uri, 'key_format=S,value_format=S')
         self.write_at(uri, {'k1': 'v', 'k2': 'v'}, 30)
+        self.assertTrue(self.stable_constituent_exists(self.conn, uri))
+        self.assertFalse(self.stable_is_checkpointed(self.conn, uri))
+        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 40), set())
 
-        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 40), {'k1', 'k2'})
-        # No transaction can write the stable constituent, so the create skips building it.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(self.stable_uri(uri), None, None))
-        self.assertEqual(self.read_keys_at(uri, 40), {'k1', 'k2'})
-
-        # The table has no stable content at all, so the demotion is its first checkpoint.
-        self.complete_step_down(20)
+        self.demote()
         self.assertEqual(self.read_kvs_at(uri, 40), {'k1': 'v', 'k2': 'v'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 40), {'k1', 'k2'})
+        self.assertEqual(self.read_kvs(uri), {'k1': 'v', 'k2': 'v'})
 
         # A follower write reaches the same table.
         self.write_at(uri, {'k3': 'v'}, 50)
         self.assertEqual(self.read_keys_at(uri, 60), {'k1', 'k2', 'k3'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 60), {'k3'})
 
-    # A table with stable content can be dropped while the timestamp is set.
-    def test_drop_while_step_down_ts_set(self):
+    # A table with checkpointed content can be dropped above the final checkpoint, and the drop is
+    # not undone by the demotion.
+    def test_drop_above_final_checkpoint(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v'}, 10)
+        self.checkpoint_at(20)
 
-        self.set_step_down_ts(20)
-        # Keep the cutoff armed while allowing the drop retry to checkpoint the stable content.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        # The drop retries take checkpoints at the unchanged stable timestamp, so stable still sits
+        # on the last checkpoint afterwards.
         self.dropUntilSuccess(self.session, self.uri)
-
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
-        # The drop is not undone by the demotion.
-        self.complete_step_down(20)
+        self.demote()
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
-
-    # A cursor reused from the cache picks up the configured routing.
-    def test_cached_cursor_reuse_across_step_down_ts(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-        cursor['k1'] = 'stable'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-        cursor.close()
-
-        self.set_step_down_ts(20)
-
-        cursor = self.open_cached_cursor(self.uri)
-
-        self.session.begin_transaction()
-        cursor['k2'] = 'ingest'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cursor.close()
-
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
-        expected_stable = {'k1', 'k2'} if self.stable_has_step_down_writes() else {'k1'}
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
-        self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
-        self.complete_step_down(20)
 
     # A cursor closed before the demotion and reopened afterwards serves the surviving content.
     def test_cached_cursor_reuse_across_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'pre': 'stable'}, 10)
+        self.checkpoint_at(20)
 
-        self.set_step_down_ts(20)
-        self.write_at(self.uri, {'post': 'ingest'}, 30)
+        # Cache a cursor on the leader, and commit through it above the final checkpoint.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['post'] = 'window'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
 
-        self.complete_step_down(20)
+        self.demote()
 
         cursor = self.open_cached_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -172,8 +142,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertIn('follower', self.read_keys_at(self.ingest_uri(self.uri), 60))
         self.assertEqual(self.read_keys_at(self.uri, 60), {'pre', 'post', 'follower'})
 
-    # Bounds set before the timestamp apply to keys from both constituents.
-    def test_bounded_cursor_across_step_down_ts(self):
+    # Bounds set before the final checkpoint apply to keys from every layer.
+    def test_bounded_cursor_across_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
@@ -184,8 +154,10 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.set_key('e')
         self.assertEqual(cursor.bound('action=set,bound=upper'), 0)
 
-        self.set_step_down_ts(20)
-        self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
+        self.checkpoint_at(20)
+        wsession = self.conn.open_session()
+        self.write_at(self.uri, {'a': 'w', 'c': 'w', 'e': 'w'}, 30, wsession)
+        wsession.close()
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
         seen = []
@@ -194,11 +166,11 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
 
         self.assertEqual(seen, ['b', 'c', 'd', 'e'],
-            'a bounded scan must respect its bounds on both constituents')
+            'a bounded scan must respect its bounds above and below the checkpoint')
 
         # Walking out of the bounds resets the cursor, which clears them, so the same bounds are
         # applied again for the post-demotion walk.
-        self.complete_step_down(20)
+        self.demote()
         cursor.set_key('b')
         self.assertEqual(cursor.bound('action=set,bound=lower'), 0)
         cursor.set_key('e')
@@ -231,19 +203,19 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(seen, ['b', 'c', 'cc', 'd', 'e'],
             'the bounds must clamp content written after the demotion')
 
-    # A readonly cursor reads the merged view and still rejects writes.
-    def test_readonly_cursor_while_step_down_ts_set(self):
+    # A readonly cursor reads content on both sides of the final checkpoint and still rejects
+    # writes, before and after the demotion.
+    def test_readonly_cursor_across_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
-
-        self.set_step_down_ts(20)
-        self.write_at(self.uri, {'k2': 'ingest'}, 30)
+        self.checkpoint_at(20)
+        self.write_at(self.uri, {'k2': 'window'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, 'readonly=true')
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
         self.assertEqual(cursor['k1'], 'stable')
-        self.assertEqual(cursor['k2'], 'ingest')
+        self.assertEqual(cursor['k2'], 'window')
         self.session.rollback_transaction()
 
         self.session.begin_transaction()
@@ -253,11 +225,11 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.insert())
         self.session.rollback_transaction()
 
-        self.complete_step_down(20)
+        self.demote()
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
         self.assertEqual(cursor['k1'], 'stable')
-        self.assertEqual(cursor['k2'], 'ingest')
+        self.assertEqual(cursor['k2'], 'window')
         self.session.rollback_transaction()
 
         self.session.begin_transaction()
@@ -268,17 +240,17 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-    # A sample only ever comes from the visible merged view: never a removed key, and never a key
-    # from outside the table. Which constituent a sample is drawn from is not part of the contract,
-    # so the observed split is reported rather than asserted.
-    def test_next_random_while_step_down_ts_set(self):
+    # On the demoted node a sample only ever comes from the visible merged view: never a removed
+    # key, and never a key from outside the table. Which layer a sample is drawn from is not part
+    # of the contract, so the observed split is reported rather than asserted.
+    def test_next_random_with_follower_writes(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         stable_keys = {f's{i:02d}' for i in range(10)}
         self.write_at(self.uri, {k: 's' for k in stable_keys}, 10)
-
-        self.set_step_down_ts(20)
+        self.checkpoint_at(20)
+        self.demote()
 
         ingest_keys = {f'i{i:02d}' for i in range(10)}
         self.write_at(self.uri, {k: 'i' for k in ingest_keys}, 30)
@@ -323,10 +295,10 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
         cursor.close()
-        self.complete_step_down(20)
 
-    # The demotion happens with the table still holding an ingest/stable mix, so sampling afterwards
-    # is bound by the same contract: only visible merged keys come back.
+    # The demotion happens with the table holding content on both sides of the final checkpoint,
+    # including a removal above it, so sampling afterwards is bound by the same contract: only
+    # visible keys come back.
     def test_next_random_after_step_down(self):
         uri = f'layered:{self.test_name}_random_after'
         self.set_global_ts(1, 1)
@@ -334,17 +306,16 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         stable_keys = {f's{i:02d}' for i in range(10)}
         self.write_at(uri, {k: 's' for k in stable_keys}, 10)
+        self.checkpoint_at(20)
 
-        self.set_step_down_ts(20)
+        window_keys = {f'w{i:02d}' for i in range(10)}
+        self.write_at(uri, {k: 'w' for k in window_keys}, 30)
 
-        ingest_keys = {f'i{i:02d}' for i in range(10)}
-        self.write_at(uri, {k: 'i' for k in ingest_keys}, 30)
-
-        removed = {'s00', 'i00'}
+        removed = {'s00', 'w00'}
         self.remove_at(uri, sorted(removed), 40)
 
-        visible = (stable_keys | ingest_keys) - removed
-        self.complete_step_down(20)
+        visible = (stable_keys | window_keys) - removed
+        self.demote()
         self.assertEqual(self.read_keys_at(uri, 50), visible,
             'the merged view must be unchanged by the demotion')
 

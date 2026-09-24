@@ -32,36 +32,68 @@
 import errno, os, re, wiredtiger
 from wiredtiger import stat
 
-# Shared helpers for the layered async step-down test suite.
+# Shared helpers for the layered async step-down test suite. A planned step-down is: take a
+# checkpoint with stable at S, keep stable pinned at S while writes continue above it, stop writing,
+# then demote. The demoted node keeps serving the commits above S from its frozen live tree.
 class LayeredStepdownMixin:
-    # Whether leader writes in the step-down window are mirrored to stable.
-    def stable_has_step_down_writes(self):
-        return self.write_mirroring
-
     # Set the global oldest and stable timestamps.
     def set_global_ts(self, oldest, stable):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
                                 ',stable_timestamp=' + self.timestamp_str(stable))
 
-    # Set the planned step-down timestamp at the given cutoff. When schema epochs are in use the
-    # boundary must be declared in epoch space too, so pass the step-down epoch alongside.
-    def set_step_down_ts(self, ts, epoch=None):
-        config = 'step_down_timestamp=' + self.timestamp_str(ts)
-        if epoch is not None:
-            config += ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(epoch)
-        self.conn.set_timestamp(config)
+    # Advance stable to ts and checkpoint there. As the final checkpoint of a step-down, stable
+    # must then stay at ts until the demotion.
+    def checkpoint_at(self, ts, conn=None):
+        conn = conn or self.conn
+        conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
+        ckpt_session = conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
 
-    # Complete a planned step-down: advance stable to the cutoff, and the stable schema epoch to
-    # the boundary when given, take the step-down checkpoint and demote to follower.
+    # The connection's last checkpoint and stable timestamps as integers.
+    def last_checkpoint_ts(self, conn=None):
+        return int((conn or self.conn).query_timestamp('get=last_checkpoint'), 16)
+
+    def stable_ts(self, conn=None):
+        return int((conn or self.conn).query_timestamp('get=stable_timestamp'), 16)
+
+    # Demote to follower. Once a checkpoint exists, stable must still sit on it.
+    def demote(self, conn=None):
+        conn = conn or self.conn
+        last_ckpt = self.last_checkpoint_ts(conn)
+        if last_ckpt != 0:
+            self.assertEqual(self.stable_ts(conn), last_ckpt,
+                'the test advanced stable past the final checkpoint before demoting')
+        conn.reconfigure('disaggregated=(role="follower")')
+        self.assertEqual(self.connection_stat(stat.conn.disagg_step_down_in_progress, conn), 0)
+
+    def promote(self, conn=None):
+        (conn or self.conn).reconfigure('disaggregated=(role="leader")')
+
+    # Complete a planned step-down with no writes between the final checkpoint and the demotion:
+    # advance the stable schema epoch when given, checkpoint at the cutoff and demote.
     def complete_step_down(self, cutoff, epoch=None):
         if epoch is not None:
             self.conn.set_timestamp(
                 'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(cutoff))
-        ckpt_session = self.conn.open_session()
-        ckpt_session.checkpoint()
-        ckpt_session.close()
-        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.checkpoint_at(cutoff)
+        self.demote()
+
+    # A connection-wide statistic.
+    def connection_stat(self, key, conn=None):
+        session = (conn or self.conn).open_session('')
+        stat_cursor = session.open_cursor('statistics:', None, None)
+        value = stat_cursor[key][2]
+        stat_cursor.close()
+        session.close()
+        return value
+
+    # Counters that must not move on a demoted node reading its frozen tree: a refused live open
+    # means a reader fell back to opening the live tree as a follower, and a refused stable bind
+    # means a reader was turned away.
+    def refusal_counts(self, conn=None):
+        return (self.connection_stat(stat.conn.layered_stable_live_open_refused, conn),
+                self.connection_stat(stat.conn.layered_curs_open_stable_refused, conn))
 
     # The file URI of a layered table's ingest constituent.
     def ingest_uri(self, uri):
@@ -130,22 +162,24 @@ class LayeredStepdownMixin:
         return int(self.conn.query_timestamp('get=all_durable'), 16)
 
     # Write k/v pairs (dict) to a table in one transaction committed at commit_ts.
-    def write_at(self, uri, items, commit_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction()
+    def write_at(self, uri, items, commit_ts, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
         for k, v in items.items():
             cursor[k] = v
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     # Remove keys (iterable) from a table in one transaction committed at commit_ts.
-    def remove_at(self, uri, keys, commit_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction()
+    def remove_at(self, uri, keys, commit_ts, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
         for k in keys:
             cursor.set_key(k)
             self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     # The key/value map visible through a cursor on uri at read_ts.
@@ -160,38 +194,29 @@ class LayeredStepdownMixin:
         cursor.close()
         return kv
 
-    # The set of keys visible through a cursor on uri at read_ts.
-    def read_keys_at(self, uri, read_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
-        keys = set()
+    # The key/value map visible through a cursor on uri with no read timestamp.
+    def read_kvs(self, uri, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
+        kv = {}
         while cursor.next() == 0:
-            keys.add(cursor.get_key())
-        self.session.rollback_transaction()
+            kv[cursor.get_key()] = cursor.get_value()
+        session.rollback_transaction()
         cursor.close()
-        return keys
+        return kv
 
-    # Whether the connection currently has a step-down timestamp set. This is the only external
-    # view of the timestamp, so it is also the only way to see that the demotion cleared it.
-    def step_down_ts_is_set(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat.conn.txn_stepdown_ts_set][2]
-        stat_cursor.close()
-        return value
+    # The set of keys visible through a cursor on uri at read_ts.
+    def read_keys_at(self, uri, read_ts, session=None):
+        return set(self.read_kvs_at(uri, read_ts, session))
 
-    # Whether the connection currently has a step-down disaggregated schema epoch set.
-    def step_down_epoch_is_set(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat.conn.txn_stepdown_epoch_set][2]
-        stat_cursor.close()
-        return value
-
-    # The connection-wide count of step-down transaction rollbacks.
-    def get_step_down_rollback_count(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        count = stat_cursor[stat.conn.txn_rollback_stepdown][2]
-        stat_cursor.close()
-        return count
+    # Open a second node on the shared page log, in the given role.
+    def open_node(self, home, role='follower', config=''):
+        if not os.path.exists(home):
+            os.mkdir(home)
+            os.symlink('../kv_home', os.path.join(home, 'kv_home'), target_is_directory=True)
+        return self.wiredtiger_open(home, self.extensionsConfig() + ',create,' + config +
+            f'disaggregated=(role="{role}")')
 
     # Whether an exception is a WT_ROLLBACK, of any reason. Classifies the exception itself so
     # it works before deciding whether to roll back, when get_last_error is not yet safe to call.
@@ -209,19 +234,8 @@ class LayeredStepdownMixin:
             wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
 
     # Run op and expect a WT_ROLLBACK that is a genuine write conflict.
-    def expect_conflict_rollback(self, op):
-        before = self.get_step_down_rollback_count()
+    def expect_conflict_rollback(self, op, session=None):
         self.expect_rollback(op)
-        self.assertEqual(self.get_step_down_rollback_count(), before,
-            'the rollback came from the step-down guard, not from conflict detection')
-
-    # Run op and expect a WT_ROLLBACK carrying the step-down reason.
-    def assert_step_down_rollback(self, op, session=None):
-        before = self.get_step_down_rollback_count()
-        self.assertRaisesException(wiredtiger.WiredTigerError, op,
-            wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
         err, _, err_msg = (session or self.session).get_last_error()
         self.assertEqual(err, wiredtiger.WT_ROLLBACK)
-        self.assertTrue('straddled the step-down timestamp setting boundary' in err_msg,
-            'expected a step-down rollback reason, got: ' + err_msg)
-        self.assertEqual(self.get_step_down_rollback_count(), before + 1)
+        self.assertIn('Write conflict', err_msg)
