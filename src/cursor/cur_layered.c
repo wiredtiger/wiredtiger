@@ -827,7 +827,7 @@ __clayered_live_stable_is_frozen(WT_SESSION_IMPL *session, const char *stable_ur
           dhandle = session->dhandle;
           if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
             !__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
-              btree = dhandle->handle;
+              btree = (WT_BTREE *)dhandle->handle;
               *frozenp = F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
                 F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN);
           }
