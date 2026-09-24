@@ -13,7 +13,7 @@ static int __disagg_check_meta_fields(
   WT_SESSION_IMPL *, const char *, const char *, WT_CONFIG *, WT_CONFIG *);
 #endif
 
-static int __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *, const char *, size_t);
+static int __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *, const char *, size_t, bool);
 
 #define WT_DISAGG_URI_IS_SYSTEM(uri) (WT_IS_URI_METADATA(uri) || WT_IS_URI_HS(uri))
 
@@ -794,6 +794,51 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
 }
 
 /*
+ * __disagg_frozen_ts_uncovered --
+ *     Return whether a checkpoint timestamp falls below a frozen tree's bound. A tree with no bound
+ *     was demoted before any durable timestamp was set, so it holds no timestamped commit, and
+ *     layered tables take no untimestamped writes: any checkpoint covers it. A checkpoint with no
+ *     timestamp holds every commit in its snapshot rather than a timestamp prefix, so it cannot be
+ *     compared against the bound and is adopted. Both are decisions about those states, not the
+ *     check being skipped.
+ */
+static WT_INLINE bool
+__disagg_frozen_ts_uncovered(wt_timestamp_t checkpoint_timestamp, wt_timestamp_t frozen_max_ts)
+{
+    return (checkpoint_timestamp != WT_TS_NONE && frozen_max_ts != WT_TS_NONE &&
+      checkpoint_timestamp < frozen_max_ts);
+}
+
+/*
+ * __disagg_frozen_uncovered --
+ *     Return whether a checkpoint at the given timestamp fails to cover some frozen live tree, and
+ *     the newest timestamp the frozen trees hold. A frozen tree holds every commit up to the
+ *     durable timestamp recorded at demote; superseding it with an older checkpoint would drop
+ *     acknowledged writes. The caller holds the handle-list lock.
+ */
+static bool
+__disagg_frozen_uncovered(
+  WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp, wt_timestamp_t *frozen_max_tsp)
+{
+    WT_DATA_HANDLE *dhandle;
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
+
+    wt_timestamp_t frozen_max_ts = WT_TS_NONE;
+    TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q) {
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+          __wt_atomic_load_bool_relaxed(&dhandle->outdated))
+            continue;
+        WT_BTREE *btree = (WT_BTREE *)dhandle->handle;
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_DISAGG_FROZEN))
+            frozen_max_ts =
+              WT_MAX(frozen_max_ts, __wt_atomic_load_uint64_relaxed(&btree->disagg_frozen_max_ts));
+    }
+    *frozen_max_tsp = frozen_max_ts;
+    return (__disagg_frozen_ts_uncovered(checkpoint_timestamp, frozen_max_ts));
+}
+
+/*
  * __disagg_assert_frozen_checkpoint --
  *     A frozen live tree holds every commit up to the durable timestamp recorded at demote. The
  *     checkpoint that supersedes it has to cover that timestamp; anything older is a missing prefix
@@ -830,7 +875,7 @@ __disagg_assert_frozen_checkpoint(
     session->dhandle = saved;
     WT_RET(ret);
 
-    if (frozen && checkpoint_timestamp < frozen_max_ts)
+    if (frozen && __disagg_frozen_ts_uncovered(checkpoint_timestamp, frozen_max_ts))
         WT_RET(__wt_panic(session, WT_PANIC,
           "picked up checkpoint timestamp %s is below the frozen tree's max timestamp %s (%s)",
           __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
@@ -896,8 +941,10 @@ __disagg_update_file_meta(WT_SESSION_IMPL *session, const char *file_key,
      *
      * FIXME-WT-17772: This is better done at step-up or step-down to force close all live btrees.
      *
-     * A frozen handle is this node's commits above its last checkpoint. Superseding it with an
-     * older checkpoint would drop those commits, so fail before the outdated mark.
+     * A frozen handle is this node's commits above its last checkpoint. Pickup already deferred a
+     * checkpoint that does not cover the frozen trees, so this only fires if a prepared commit
+     * raised a tree's bound since. Handles marked outdated earlier in this merge stay marked across
+     * an unroll and would then open older content, so this cannot fail softly.
      */
     WT_ERR(__disagg_assert_frozen_checkpoint(session, file_key, checkpoint_timestamp));
     WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, file_key));
@@ -1423,12 +1470,13 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 
 /*
  * __disagg_defer_checkpoint --
- *     Remember a checkpoint whose adoption is deferred while transactional snapshots that predate
- *     it are active, taking ownership of the metadata copy. The queue has its own lock, so
- *     deliveries never wait behind an adoption.
+ *     Remember a checkpoint whose adoption is deferred, taking ownership of the metadata copy:
+ *     while transactional snapshots that predate it are active, or while it does not cover a frozen
+ *     live tree. The queue has its own lock, so deliveries never wait behind an adoption.
  */
 static int
-__disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t lsn)
+__disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t lsn,
+  bool not_covering, wt_timestamp_t not_covering_ts)
 {
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *newest;
@@ -1450,13 +1498,42 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->lsn = lsn;
     entry->meta = *meta_strp;
+    entry->not_covering = not_covering;
+    entry->not_covering_ts = not_covering_ts;
     *meta_strp = NULL;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
-    WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
+    if (!not_covering)
+        WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
+    else
+        WT_STAT_CONN_INCR(session, disagg_checkpoint_defer_not_covering);
 
 err:
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (ret);
+}
+
+/*
+ * __disagg_deferred_mark_not_covering --
+ *     Record that a queued checkpoint, retried after its snapshots finished, does not cover a
+ *     frozen live tree, so later retries can skip fetching it until the frozen state changes.
+ */
+static void
+__disagg_deferred_mark_not_covering(
+  WT_SESSION_IMPL *session, uint64_t lsn, wt_timestamp_t not_covering_ts)
+{
+    WT_DISAGG_DEFERRED_CKPT *entry;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
+        if (entry->lsn == lsn) {
+            if (!entry->not_covering)
+                WT_STAT_CONN_INCR(session, disagg_checkpoint_defer_not_covering);
+            entry->not_covering = true;
+            entry->not_covering_ts = not_covering_ts;
+            break;
+        }
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
 }
 
 /*
@@ -1665,7 +1742,8 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
  *     behind an adoption. Returns WT_NOTFOUND when no entry may be adopted.
  */
 static int
-__disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp)
+__disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp,
+  bool *not_coveringp, wt_timestamp_t *not_covering_tsp)
 {
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *selected;
@@ -1674,6 +1752,8 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
+    *not_coveringp = false;
+    *not_covering_tsp = WT_TS_NONE;
 
     /*
      * The oldest pin decides the whole queue, so scan the sessions once, before taking the queue
@@ -1694,6 +1774,8 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
         ret = WT_NOTFOUND;
     else {
         *lsnp = selected->lsn;
+        *not_coveringp = selected->not_covering;
+        *not_covering_tsp = selected->not_covering_ts;
         /*
          * Copy the metadata: the adoption runs without this lock, and a concurrent adoption's
          * pruning may free the entry meanwhile.
@@ -1706,8 +1788,9 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
 
 /*
  * __wti_disagg_deferred_pickup_retry --
- *     Retry adopting a checkpoint whose pickup was deferred for active snapshots. Called
- *     periodically so a deferred checkpoint is adopted once the snapshots that blocked it end.
+ *     Retry adopting a checkpoint whose pickup was deferred. Called periodically so a deferred
+ *     checkpoint is adopted once whatever blocked it clears, and forced by step-up, which adopts
+ *     the newest one regardless.
  */
 int
 __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
@@ -1715,17 +1798,33 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
     uint64_t deferred_lsn;
+    wt_timestamp_t frozen_max_ts, not_covering_ts;
     char *meta_copy = NULL;
+    bool not_covering, uncovered;
 
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
     /* Having nothing to adopt is the common case, not a failure. */
-    ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn);
+    ret = __disagg_deferred_copy(
+      session, force, &meta_copy, &deferred_lsn, &not_covering, &not_covering_ts);
     if (ret == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
 
-    ret = __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy));
+    /*
+     * A checkpoint known not to cover a frozen tree is not fetched again until a covering
+     * checkpoint supersedes it, the frozen tree goes away, or step-up forces the decision.
+     */
+    if (!force && not_covering) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(
+          session, uncovered = __disagg_frozen_uncovered(session, not_covering_ts, &frozen_max_ts));
+        if (uncovered) {
+            __wt_free(session, meta_copy);
+            return (0);
+        }
+    }
+
+    ret = __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy), force);
 
     /*
      * A concurrent pickup may have adopted this checkpoint, or a newer one, between the copy above
@@ -1833,13 +1932,59 @@ err:
 }
 
 /*
- * __disagg_pick_up_checkpoint --
- *     Pick up a new checkpoint. A caller that raced another adoption expects to find the checkpoint
- *     superseded and says so, which reports that outcome quietly rather than as an error.
+ * __disagg_pick_up_frozen_check --
+ *     Decide whether a checkpoint may supersede the frozen live trees. One that does not cover them
+ *     is left for a later, covering checkpoint: its timestamp is returned and nothing is adopted.
+ *     At step-up there is no later checkpoint to wait for, and such a checkpoint cannot be skipped
+ *     either: it is another leader's, newer than this node's own (which is never queued, pickup
+ *     treats it as already adopted), and continuing from the older lineage would fork the shared
+ *     checkpoint history. Fail the step-up instead.
  */
 static int
-__disagg_pick_up_checkpoint(
-  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, bool superseded_ok)
+__disagg_pick_up_frozen_check(
+  WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp, bool step_up, bool *not_coveringp)
+{
+    wt_timestamp_t frozen_max_ts;
+    bool uncovered;
+
+    *not_coveringp = false;
+
+    WT_WITH_HANDLE_LIST_READ_LOCK(session,
+      uncovered = __disagg_frozen_uncovered(session, checkpoint_timestamp, &frozen_max_ts));
+    if (!uncovered)
+        return (0);
+
+    if (!step_up) {
+        *not_coveringp = true;
+        return (0);
+    }
+
+    /*
+     * FIXME-WT-XXXX: another leader checkpointed at a stable timestamp below this node's last
+     * committed write. Adopt the checkpoint and move the frozen content above its timestamp into
+     * the newly opened live tree before draining ingest, instead of failing the step-up.
+     */
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
+    WT_RET_MSG(session, EINVAL,
+      "step-up cannot adopt checkpoint timestamp %s: it does not cover the frozen trees' max "
+      "timestamp %s, and this node's last checkpoint timestamp %s is from an older lineage",
+      __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
+      __wt_timestamp_to_string(frozen_max_ts, ts_string[1]),
+      __wt_timestamp_to_string(__wt_atomic_load_uint64_acquire(
+                                 &S2C(session)->disaggregated_storage.last_checkpoint_timestamp),
+        ts_string[2]));
+}
+
+/*
+ * __disagg_pick_up_checkpoint --
+ *     Pick up a new checkpoint. A caller that raced another adoption expects to find the checkpoint
+ *     superseded and says so, which reports that outcome quietly rather than as an error. A
+ *     checkpoint that does not cover the frozen live trees is not adopted and its timestamp is
+ *     returned instead.
+ */
+static int
+__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  bool superseded_ok, bool step_up, bool *not_coveringp, wt_timestamp_t *not_covering_tsp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1855,6 +2000,8 @@ __disagg_pick_up_checkpoint(
     WT_CLEAR(ts_string);
     WT_CLEAR(metadata_buf);
     WT_CLEAR(metadata);
+    *not_coveringp = false;
+    *not_covering_tsp = WT_TS_NONE;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -1932,6 +2079,20 @@ __disagg_pick_up_checkpoint(
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
       metadata.schema_epoch, __wt_timestamp_to_string(metadata.schema_epoch, ts_string[2]),
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
+
+    WT_ERR(__disagg_pick_up_frozen_check(
+      session, metadata.checkpoint_timestamp, step_up, not_coveringp));
+    if (*not_coveringp) {
+        *not_covering_tsp = metadata.checkpoint_timestamp;
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Deferring checkpoint metadata_lsn=%" PRIu64
+          " at timestamp %s: it does not cover the "
+          "frozen trees",
+          ckpt_meta->metadata_lsn,
+          __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]));
+        __wt_buf_free(session, &metadata_buf);
+        return (0);
+    }
 
     /*
      * Adopt the high-water mark of write generations the checkpoint's writer (the leader) recorded,
@@ -2088,22 +2249,27 @@ err:
 
 /*
  * __disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from metadata config, shared by the loud and the racing callers.
+ *     Pick up a new checkpoint from metadata config, shared by fresh deliveries and by adoptions of
+ *     deferred checkpoints, which may race another adoption. A step-up adoption must settle the
+ *     frozen trees rather than defer.
  */
 static int
 __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
-  size_t meta_data_size, bool force, bool superseded_ok)
+  size_t meta_data_size, bool force, bool deferred, bool step_up)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
     WT_SESSION_IMPL *internal_session;
+    wt_timestamp_t not_covering_ts;
     uint64_t metadata_checksum, pending_lsn;
     char *meta_str;
-    bool encoding, prev_adopted, prev_encoding;
+    bool encoding, not_covering, prev_adopted, prev_encoding;
 
     WT_CLEAR(ckpt_meta);
+    not_covering = false;
+    not_covering_ts = WT_TS_NONE;
     disagg = &S2C(session)->disaggregated_storage;
     meta_str = NULL;
     internal_session = NULL;
@@ -2184,7 +2350,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     if (!force &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
       __wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
-        WT_ERR(__disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn));
+        WT_ERR(
+          __disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn, false, WT_TS_NONE));
         /* Wake the pickup server: the delivery may already be adoptable. */
         __wt_disagg_deferred_pickup_signal(session, 0);
         goto err;
@@ -2194,8 +2361,22 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     /* Now actually pick up the checkpoint. */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
-      ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta, superseded_ok));
+      ret = __disagg_pick_up_checkpoint(
+        internal_session, &ckpt_meta, deferred, step_up, &not_covering, &not_covering_ts));
     WT_ERR(ret);
+
+    /*
+     * A checkpoint below a frozen tree waits in the deferred queue for a covering checkpoint to
+     * supersede it; one already queued is only marked, so retries stop fetching it again.
+     */
+    if (not_covering) {
+        if (deferred)
+            __disagg_deferred_mark_not_covering(session, ckpt_meta.metadata_lsn, not_covering_ts);
+        else
+            WT_ERR(__disagg_defer_checkpoint(
+              session, &meta_str, ckpt_meta.metadata_lsn, true, not_covering_ts));
+        goto err;
+    }
 
     /* Record the picked-up checkpoint's version fields; a failed pickup leaves them unchanged. */
     WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta.version);
@@ -2230,7 +2411,8 @@ int
 __wti_disagg_pick_up_checkpoint_meta(
   WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool force)
 {
-    return (__disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, force, false));
+    return (
+      __disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, force, false, false));
 }
 
 /*
@@ -2242,9 +2424,10 @@ __wti_disagg_pick_up_checkpoint_meta(
  */
 static int
 __disagg_adopt_deferred_checkpoint_meta(
-  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size)
+  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool step_up)
 {
-    return (__disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, true, true));
+    return (
+      __disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, true, true, step_up));
 }
 
 #ifdef HAVE_UNITTEST

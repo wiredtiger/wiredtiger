@@ -1020,6 +1020,7 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_storage_version;
     int64_t disagg_checkpoint_binary_version;
     int64_t disagg_checkpoint_defer;
+    int64_t disagg_checkpoint_defer_not_covering;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;

@@ -2731,6 +2731,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoint metadata version of the most recently picked up checkpoint: 0 none",
   "disagg: checkpoint metadata version this binary writes",
   "disagg: checkpoint pick-ups deferred for active transaction snapshots",
+  "disagg: checkpoint pick-ups deferred for not covering a frozen tree",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
@@ -3855,6 +3856,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_storage_version */
     /* not clearing disagg_checkpoint_binary_version */
     stats->disagg_checkpoint_defer = 0;
+    stats->disagg_checkpoint_defer_not_covering = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
@@ -5109,6 +5111,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_binary_version +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_binary_version);
     to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
+    to->disagg_checkpoint_defer_not_covering +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_not_covering);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
