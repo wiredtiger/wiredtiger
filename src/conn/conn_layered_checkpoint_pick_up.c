@@ -794,30 +794,6 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
 }
 
 /*
- * __disagg_assert_frozen_checkpoint --
- *     A frozen live tree holds every commit up to the durable timestamp recorded at demote. The
- *     checkpoint that supersedes it has to cover that timestamp; anything older is a missing prefix
- *     and reading on would drop acknowledged writes.
- */
-static int
-__disagg_assert_frozen_checkpoint(
-  WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t checkpoint_timestamp)
-{
-    wt_timestamp_t frozen_max_ts;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool frozen;
-
-    WT_RET(__wt_layered_frozen_lookup(session, uri, &frozen, &frozen_max_ts));
-
-    if (frozen && __wti_layered_frozen_uncovered(checkpoint_timestamp, frozen_max_ts))
-        WT_RET(__wt_panic(session, WT_PANIC,
-          "picked up checkpoint timestamp %s is below the frozen tree's max timestamp %s (%s)",
-          __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(frozen_max_ts, ts_string[1]), uri));
-    return (0);
-}
-
-/*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated. The caller has already parsed
@@ -880,7 +856,7 @@ __disagg_update_file_meta(WT_SESSION_IMPL *session, const char *file_key,
      * raised a tree's bound since. Handles marked outdated earlier in this merge stay marked across
      * an unroll and would then open older content, so this cannot fail softly.
      */
-    WT_ERR(__disagg_assert_frozen_checkpoint(session, file_key, checkpoint_timestamp));
+    WT_ERR(__wti_layered_frozen_assert_covered(session, file_key, checkpoint_timestamp));
     WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, file_key));
     WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"", file_key);
 

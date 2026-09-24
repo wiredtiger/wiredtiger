@@ -143,7 +143,7 @@ __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __wti_layered_frozen_uncovered --
+ * __layered_frozen_uncovered --
  *     Return whether a checkpoint at the given timestamp fails to cover a frozen tree with the
  *     given bound. A bound of none means the tree recorded no durable timestamp at demote, so its
  *     layered tables took no timestamped writes and any checkpoint covers it. A checkpoint with no
@@ -151,11 +151,36 @@ __wti_layered_frozen_unfreeze(WT_SESSION_IMPL *session, WT_BTREE *btree)
  *     compared against the bound and is treated as covering. Both are decisions about those states,
  *     not the check being skipped.
  */
-bool
-__wti_layered_frozen_uncovered(wt_timestamp_t checkpoint_ts, wt_timestamp_t frozen_max_ts)
+static bool
+__layered_frozen_uncovered(wt_timestamp_t checkpoint_ts, wt_timestamp_t frozen_max_ts)
 {
     return (
       checkpoint_ts != WT_TS_NONE && frozen_max_ts != WT_TS_NONE && checkpoint_ts < frozen_max_ts);
+}
+
+/*
+ * __wti_layered_frozen_assert_covered --
+ *     Panic unless a checkpoint at the given timestamp covers the named tree, if it is frozen. A
+ *     frozen tree holds every commit up to the bound recorded at demote, so an older checkpoint is
+ *     a missing prefix. This runs mid-merge after handles have already been marked outdated, and
+ *     those marks survive an unroll, so a soft failure would leave the node reading older content.
+ */
+int
+__wti_layered_frozen_assert_covered(
+  WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t checkpoint_ts)
+{
+    wt_timestamp_t frozen_max_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool frozen;
+
+    WT_RET(__wt_layered_frozen_lookup(session, uri, &frozen, &frozen_max_ts));
+
+    if (frozen && __layered_frozen_uncovered(checkpoint_ts, frozen_max_ts))
+        WT_RET(__wt_panic(session, WT_PANIC,
+          "picked up checkpoint timestamp %s is below the frozen tree's max timestamp %s (%s)",
+          __wt_timestamp_to_string(checkpoint_ts, ts_string[0]),
+          __wt_timestamp_to_string(frozen_max_ts, ts_string[1]), uri));
+    return (0);
 }
 
 /*
@@ -179,5 +204,5 @@ __wti_layered_frozen_any_uncovered(
             max_ts = WT_MAX(max_ts, tree_max_ts);
 
     *frozen_max_tsp = max_ts;
-    return (__wti_layered_frozen_uncovered(checkpoint_ts, max_ts));
+    return (__layered_frozen_uncovered(checkpoint_ts, max_ts));
 }
