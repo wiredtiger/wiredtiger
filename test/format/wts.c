@@ -950,7 +950,7 @@ static void
 stats_victim_cache_print(WT_SESSION *session, FILE *fp)
 {
     WT_CURSOR *cursor;
-    int64_t app_puts, cold_skipped, put_time_max, puts;
+    int64_t app_puts, cold_skipped, put_failures, put_time_max, puts;
 
     testutil_assert(fprintf(fp, "\n\n====== Victim cache:\n") >= 0);
 
@@ -964,25 +964,27 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
     puts = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUTS);
     app_puts = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUTS);
     cold_skipped = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_COLD_NOT_CACHED);
+    put_failures = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_FAILURES);
     put_time_max = stats_conn_value(cursor, WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME_MAX);
     testutil_check(cursor->close(cursor));
 
-    testutil_assert(
-      fprintf(fp,
-        "enabled, %" PRIu32 " entries per handle\n"
-        "pages cached=%" PRId64 "\n"
-        "pages cached by application threads=%" PRId64 "\n"
-        "cold pages not cached=%" PRId64 "\n"
-        "maximum single put=%" PRId64 "us\n",
-        GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES), puts, app_puts, cold_skipped, put_time_max) >= 0);
+    testutil_assert(fprintf(fp,
+                      "enabled, %" PRIu32 " entries per handle\n"
+                      "pages cached=%" PRId64 "\n"
+                      "pages cached by application threads=%" PRId64 "\n"
+                      "cold pages not cached=%" PRId64 "\n"
+                      "failed page inserts=%" PRId64 "\n"
+                      "maximum single put=%" PRId64 "us\n",
+                      GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES), puts, app_puts, cold_skipped,
+                      put_failures, put_time_max) >= 0);
 
     /*
      * Repeat it on stdout, deliberately ignoring quiet: format.sh always runs quiet and redirects
      * each job to its own log, which is the file a failure is triaged from.
      */
     printf("--- victim cache: %" PRIu32 " entries/handle, %" PRId64 " pages cached (%" PRId64
-           " by application threads), max put %" PRId64 "us ---\n",
-      GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES), puts, app_puts, put_time_max);
+           " by application threads), %" PRId64 " failed, max put %" PRId64 "us ---\n",
+      GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES), puts, app_puts, put_failures, put_time_max);
     if (puts == 0)
         printf("--- victim cache: enabled but never populated, this run gave it no coverage ---\n");
 }

@@ -1613,8 +1613,23 @@ config_disagg_victim_cache(void)
         }
     }
 
-    if (!GV(DISAGG_VICTIM_CACHE))
+    if (!GV(DISAGG_VICTIM_CACHE)) {
         config_off(NULL, "disagg.victim_cache.max_entries");
+        return;
+    }
+
+    /*
+     * The victim cache writes the page image without encrypting it, and eviction does not gate on
+     * the btree's encryptor, so an encrypted table reads back a block the read path rejects as
+     * corrupt. Turn off encryption rather than the cache, so the run still exercises the cache.
+     *
+     * TODO: remove this once eviction skips encrypted tables.
+     */
+    if (strcmp(GVS(DISK_ENCRYPTION), "off") != 0) {
+        if (config_explicit(NULL, "disk.encryption"))
+            WARN("%s", "turning off disk.encryption to work with disagg.victim_cache");
+        config_off(NULL, "disk.encryption");
+    }
 }
 
 /*

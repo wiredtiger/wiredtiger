@@ -445,7 +445,6 @@ struct __wt_connection_stats {
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
-    int64_t block_cache_put_failures;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
     int64_t block_cache_not_evicted_overhead;
@@ -1016,6 +1015,7 @@ struct __wt_connection_stats {
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
+    int64_t disagg_victim_cache_put_failures;
     int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_victim_cache_put_time_max;
     int64_t disagg_checkpoint_meta_lsn;
