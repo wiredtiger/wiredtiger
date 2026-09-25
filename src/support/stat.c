@@ -3136,6 +3136,7 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: pages skipped during read due to deleted state",
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
+  "transaction: Number of prepared updates left unresolved on a stepped-down live stable table",
   "transaction: Number of prepared updates repeated on the same key",
   "transaction: Number of prepared updates rolled back",
   "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
@@ -4259,6 +4260,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->page_read_skip_deleted = 0;
     stats->txn_prepared_updates = 0;
     stats->txn_prepared_updates_committed = 0;
+    stats->txn_prepared_updates_stepped_down = 0;
     stats->txn_prepared_updates_key_repeated = 0;
     stats->txn_prepared_updates_rolledback = 0;
     stats->txn_read_race_prepare_commit = 0;
@@ -5654,6 +5656,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->page_read_skip_deleted += WT_STAT_CONN_READ(from, page_read_skip_deleted);
     to->txn_prepared_updates += WT_STAT_CONN_READ(from, txn_prepared_updates);
     to->txn_prepared_updates_committed += WT_STAT_CONN_READ(from, txn_prepared_updates_committed);
+    to->txn_prepared_updates_stepped_down +=
+      WT_STAT_CONN_READ(from, txn_prepared_updates_stepped_down);
     to->txn_prepared_updates_key_repeated +=
       WT_STAT_CONN_READ(from, txn_prepared_updates_key_repeated);
     to->txn_prepared_updates_rolledback += WT_STAT_CONN_READ(from, txn_prepared_updates_rolledback);

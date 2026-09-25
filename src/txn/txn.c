@@ -1328,6 +1328,19 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
 #define RESOLVE_IN_MEMORY 2
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
+    /*
+     * A step-down left this live stable tree read-only and outdated: nothing reads it again and its
+     * dirty pages are discarded, so it cannot be searched for the update. Only an armed transaction
+     * is prepared across a step-down, and it mirrored the update to ingest, which the follower
+     * serves and resolves. The operation's reference keeps the outdated handle from being swept.
+     */
+    if (WT_URI_IS_STABLE(btree->dhandle->name) &&
+      __wt_atomic_load_bool_relaxed(&btree->dhandle->outdated)) {
+        WT_ASSERT(session, session->txn->step_down_armed);
+        WT_STAT_CONN_INCR(session, txn_prepared_updates_stepped_down);
+        return (0);
+    }
+
     WT_RET(__txn_search_prepared_op(session, btree, key, recno, cursorp, &upd));
 
     if (commit)

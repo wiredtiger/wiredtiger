@@ -1416,6 +1416,7 @@ struct __wt_connection_stats {
     int64_t page_read_skip_deleted;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
+    int64_t txn_prepared_updates_stepped_down;
     int64_t txn_prepared_updates_key_repeated;
     int64_t txn_prepared_updates_rolledback;
     int64_t txn_read_race_prepare_commit;

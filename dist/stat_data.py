@@ -1004,6 +1004,7 @@ conn_stats = [
     TxnStat('txn_prepared_updates_committed', 'Number of prepared updates committed'),
     TxnStat('txn_prepared_updates_key_repeated', 'Number of prepared updates repeated on the same key'),
     TxnStat('txn_prepared_updates_rolledback', 'Number of prepared updates rolled back'),
+    TxnStat('txn_prepared_updates_stepped_down', 'Number of prepared updates left unresolved on a stepped-down live stable table'),
     TxnStat('txn_query_ts', 'query timestamp calls'),
     TxnStat('txn_rollback', 'transactions rolled back'),
     TxnStat('txn_rollback_oldest_id', 'oldest transaction ID rolled back for eviction'),
