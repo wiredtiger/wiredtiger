@@ -258,8 +258,6 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, u_int cell_typ
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_txn - ta->newest_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
-    if (cell_type == WT_CELL_ADDR_INT && ta->newest_page_stop_durable_ts == WT_TS_NONE)
-        LF_SET(WT_CELL_INT_NO_PAGE_STOP);
     if (newest_page_stop_durable_ts != WT_TS_NONE) {
         WT_ASSERT(session,
           ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts <= newest_page_stop_durable_ts);
@@ -1177,12 +1175,11 @@ __cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_
         }
         ta->newest_durable_ts = WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts);
         /*
-         * Internal cells use the durable-stop field as a compatibility bound. The marker bit
-         * distinguishes bounds that do not represent fully deleted descendants; older cells lack
-         * the bit and must be treated conservatively.
+         * Internal cells use the durable-stop field as a compatibility bound, not as a marker that
+         * the subtree is fully deleted. Preserve the bound in newest_durable_ts, but clear it from
+         * newest_page_stop_durable_ts when the stop aggregate is open.
          */
-        if ((unpack_addr->raw == WT_CELL_ADDR_INT && LF_ISSET(WT_CELL_INT_NO_PAGE_STOP)) ||
-          (unpack_addr->raw != WT_CELL_ADDR_INT && ta->newest_stop_ts == WT_TS_MAX)) {
+        if (ta->newest_stop_ts == WT_TS_MAX) {
             __wt_verbose_debug1(session, WT_VERB_RECONCILE,
               "resetting non-page-stop durable timestamp: cell_type=%u, stop_ts=%" PRIu64
               ", page_stop_durable_ts=%" PRIu64,

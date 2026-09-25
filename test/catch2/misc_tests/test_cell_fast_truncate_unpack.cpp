@@ -352,7 +352,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Cell time aggregate: deleted child marker survives newer live sibling", "[cell][time_aggregate]")
+  "Cell time aggregate: newer live child retains legacy durable bound", "[cell][time_aggregate]")
 {
     auto session_mock = setup_mock_session();
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
@@ -396,6 +396,6 @@ TEST_CASE(
     __wt_cell_unpack_addr(session, &dsk, &cell, &unpack);
 
     CHECK(unpack.ta.newest_durable_ts == 64);
-    CHECK(unpack.ta.newest_page_stop_durable_ts == 64);
+    CHECK(unpack.ta.newest_page_stop_durable_ts == WT_TS_NONE);
     CHECK_FALSE(WT_TIME_AGGREGATE_HAS_STOP(&unpack.ta));
 }

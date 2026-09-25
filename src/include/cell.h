@@ -68,8 +68,7 @@
  * the next byte after the initial cell byte is an additional description byte.
  * The bottom bit in this additional byte indicates that the cell is part of a
  * prepared, and not yet committed transaction. The next 6 bits describe a validity
- * and durability window of timestamp/transaction IDs. The top bit marks an internal address cell
- * with no fully deleted descendants.
+ * and durability window of timestamp/transaction IDs.  The top bit is currently unused.
  *
  * Bits 5-8 are cell "types".
  */
@@ -91,7 +90,6 @@
 #define WT_CELL_TS_STOP 0x10          /* Newest-stop timestamp */
 #define WT_CELL_TXN_START 0x20        /* Oldest-start txn ID */
 #define WT_CELL_TXN_STOP 0x40         /* Newest-stop txn ID */
-#define WT_CELL_INT_NO_PAGE_STOP 0x80 /* No fully deleted descendants */
 
 /*
  * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf block location, and

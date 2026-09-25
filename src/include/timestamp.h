@@ -46,10 +46,10 @@ struct __wt_time_window {
  *
  * - newest_durable_ts - Newest valid durable timestamp across all modifications (inserts,
  *                       updates, and deletes)
- * - newest_page_stop_durable_ts - Maximum durable stop timestamp among fully deleted pages
- *                                 represented by the aggregate. A leaf sets it only when all
- *                                 entries are deleted; an internal page retains the maximum from
- *                                 any fully deleted descendant. Does not include WT_TS_MAX
+ * - newest_page_stop_durable_ts - Newest durable stop timestamp; non-zero only when all entries
+ *                                 in the aggregate are deleted, either via a fast page delete or
+ *                                 because every individual key has a tombstone. Does not include
+ *                                 WT_TS_MAX
  * - oldest_start_ts         - Oldest start commit timestamp
  * - newest_txn              - Newest valid start/stop commit transaction doesn't include
  *                             WT_TXN_MAX
