@@ -831,6 +831,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
     WT_CURSOR_STAT *cst;
     WT_DECL_RET;
     size_t i;
+    uint32_t otel_flags;
 
     WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_STAT);
 
@@ -913,6 +914,31 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         /* If the connection configures clear, so do we. */
         if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR))
             F_SET(cst, WT_STAT_CLEAR);
+
+        /*
+         * Parse the OTel-specific statistics type flags after inheriting the connection's
+         * configurations.
+         */
+        otel_flags = 0;
+        if ((ret = __wt_config_subgets(session, &cval, "none", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_NONE;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "counters", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_COUNTERS;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "gauges", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_GAUGES;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "histograms", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_HISTOGRAMS;
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Clearing the lowest set bit leaves a nonzero result only if more than one was set. */
+        if ((otel_flags & (otel_flags - 1)) != 0)
+            WT_ERR_MSG(session, EINVAL,
+              "Only one of none, counters, gauges, histograms configuration values should be "
+              "specified");
+        F_SET(cst, otel_flags);
     }
 
     /*
