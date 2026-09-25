@@ -36,7 +36,8 @@ from wtscenario import make_scenarios
 
 
 class test_schema_epoch(compatibility_test.CompatibilityTestCase):
-    """Upgrade and downgrade a disaggregated database between releases using schema epochs.
+    """
+    Upgrade and downgrade a disaggregated database between releases using schema epochs.
 
     Each node takes over from the last checkpoint, checks every earlier table, adds one and
     hands off. Nodes using epochs set the schema epoch to the stable timestamp, as MongoDB
@@ -80,16 +81,15 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
         """Set the stable timestamp and, with epochs on, the schema epoch to match it."""
         session.connection.set_timestamp(f"stable_timestamp={timestamp:x}")
         if use_epochs:
-            # We will directly assign the stable epoch to the be the same as the stable timestamp.
             session.connection.set_timestamp(f"stable_disaggregated_schema_epoch={timestamp:x}")
 
-    def pick_up_last_checkpoint(self, session, use_epochs):
-        """Pick up the last checkpoint in the shared page log and set stable to its timestamp."""
+    def pick_up_last_checkpoint(self, session):
+        """Pick up the last checkpoint in the shared page log and return its timestamp."""
         page_log = session.connection.get_page_log("palite")
         _, _, timestamp, metadata = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session)
         session.connection.reconfigure(f'disaggregated=(checkpoint_meta="{metadata}")')
-        self.set_stable(session, timestamp, use_epochs)
+        return timestamp
 
     def expected_rows(self, uri):
         """Return the rows a table should hold, with values unique to that table."""
@@ -112,17 +112,15 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
 
     def run_leader(self, branch_name, home, commit_timestamp, use_epochs):
         """Take over from the last checkpoint, check earlier tables, add one and hand off."""
+        table_uri = f"layered:{home}"
         with self.open_follower(branch_name, home) as session:
-            if self.created_table_uris:
-                self.pick_up_last_checkpoint(session, use_epochs)
-            else:
-                # The first node creates the database, so it starts before any commit.
-                self.set_stable(session, timestamp=1, use_epochs=use_epochs)
+            # The first node has no checkpoint to pick up, so default to a value of one.
+            timestamp = self.pick_up_last_checkpoint(session) if self.created_table_uris else 1
+            self.set_stable(session, timestamp, use_epochs)
             session.connection.reconfigure("disaggregated=(role=leader)")
 
             self.verify_rows(session, self.created_table_uris)
 
-            table_uri = f"layered:{home}"
             self.create_populated_table(session, table_uri, commit_timestamp)
             if use_epochs:
                 session.publish(table_uri, f"disaggregated=(schema_epoch={commit_timestamp:x})")
