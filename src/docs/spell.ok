@@ -15,6 +15,7 @@ BLRrVv
 BLmRrSVv
 CAS
 CFLAGS
+CLAYERED
 CMake
 CONF
 COV
@@ -29,6 +30,7 @@ CXX
 Cheng
 Christoph
 Chunkcache
+Cj
 Collet's
 Coverity
 Coverity's
@@ -73,8 +75,10 @@ FlameGraphs
 FlexeLint
 FreeBSD
 FreeBSD's
+GC
 GCC
 GCP
+GCed
 GPL
 Gawlick
 Gimpel
@@ -122,9 +126,11 @@ Mewhort
 MongoDB
 MongoDB's
 Multithreaded
+NN
 NOTFOUND
 NSEC
 NUMA
+Namespaces
 NoSQL
 OOP
 OPTYPE
@@ -139,6 +145,7 @@ PROFDATA
 Powershell
 Pseudocode
 README
+RECONFIGURING
 REFs
 RLE
 RNG
@@ -153,6 +160,7 @@ SDK
 SDK's
 SDKs
 SLS
+SU
 SYSV
 Sanitizer
 Seward's
@@ -172,6 +180,7 @@ UNC
 URIs
 VV
 Valgrind
+WAL
 WILLNEED
 WiredTiger
 WiredTiger's
@@ -229,6 +238,7 @@ benchmarking
 bigram
 bindir
 bitstring
+bitwise
 bm
 bokeh
 bool
@@ -266,6 +276,7 @@ checksums
 chunkcache
 ckp
 ckpt
+clayered
 clickable
 cmake
 colgroup
@@ -278,6 +289,7 @@ compressibility
 cond
 conf
 config
+configs
 configurign
 conn
 const
@@ -424,6 +436,7 @@ fuzzers
 fuzzutil
 fvisibility
 fxray
+gc
 gcc
 gcov
 gcp
@@ -457,6 +470,7 @@ iface
 ifdef
 iflag
 img
+impl
 incr
 indices
 init
@@ -563,6 +577,7 @@ mvcc
 mygcc
 mytable
 namespace
+namespaces
 nav
 ndary
 ndbm
@@ -640,6 +655,7 @@ putValue
 putValueString
 px
 py
+qh
 qnx
 qpl
 qqq
@@ -657,6 +673,7 @@ recno
 recnoN
 recnum
 reconfig
+reconfigurations
 recoverability
 recs
 rectype
@@ -773,6 +790,7 @@ typedef
 uint
 ul
 umask
+un
 unallocated
 undef
 unencoded
@@ -794,6 +812,7 @@ valign
 valuefmt
 valuev
 vcxproj
+ve
 vec
 versa
 viewable
