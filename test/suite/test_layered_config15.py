@@ -58,6 +58,12 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(encrypt, compress, disagg_storages)
 
+    def setUp(self):
+        # The block header upgrade debug mode is only available in diagnostic builds.
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('requires a diagnostic build')
+        super().setUp()
+
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="follower"),' + \
             'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
@@ -150,10 +156,6 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
         self.restart_without_local_files(config=self.debug_config('none'))
         self.conn.reconfigure('debug_mode=(disagg_block_header_v1_ignore_size=true)')
         self.check_all(self.num_modify)
-
-        # Writing version 1 blocks with a wrong header size is only possible in diagnostic builds.
-        if not wiredtiger.diagnostic_build():
-            return
 
         # Version 1 blocks that record a wrong header size warn, and are read using the version 1
         # size. Such blocks are unreadable without the option, and the writer reads them back too,

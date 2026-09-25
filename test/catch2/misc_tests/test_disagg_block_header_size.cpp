@@ -126,6 +126,7 @@ TEST_CASE_METHOD(block_header_size_fixture,
       WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 TEST_CASE_METHOD(block_header_size_fixture,
   "disagg block header size: the debug mode widens the header this build writes", "[block_disagg]")
 {
@@ -148,6 +149,7 @@ TEST_CASE_METHOD(block_header_size_fixture,
     S2C(session)->debug.disagg_block_header_upgrade =
       WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE;
 }
+#endif
 
 TEST_CASE("disagg block header size: the bound admits growth", "[block_disagg]")
 {
