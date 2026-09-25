@@ -1609,6 +1609,189 @@ err:
 }
 
 /*
+ * !!!
+ * Step-down ordering contracts.
+ *
+ * - Role era before role publish: a role change bumps the role generation before the release store
+ *   of the role, which pairs with the acquire in the role read a stable bind dispatches on.
+ * - Armed flag before an armed transaction: arming is a release store and transaction begin latches
+ *   the flag with an acquire load. Stepping down clears the flag with a release store after the
+ *   follower role is published, so a transaction latching the cleared flag observes the follower
+ *   role.
+ * - Disarm against a latch: a transaction that finds the flag set publishes its latch and issues a
+ *   full barrier before reading the flag again; a disarm clears the flag and issues a full barrier
+ *   before reading every latch. Either the disarm sees the transaction or the transaction sees the
+ *   flag cleared.
+ */
+
+/*
+ * __wt_disagg_raise_plain_high --
+ *     Raise the newest durable timestamp of stable content that was not mirrored to ingest.
+ */
+void
+__wt_disagg_raise_plain_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    /*
+     * No ordering beyond the compare-and-swap is needed. A step-down reads the value under the
+     * checkpoint lock only once writers are quiesced, which orders every completed raise before it,
+     * and it refuses while a commit is still in flight. The value only rises, so a raise cannot
+     * undo one the step-down relies on.
+     */
+    for (wt_timestamp_t cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high);
+      durable_ts > cur; cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high))
+        if (__wt_atomic_cas_uint64(&disagg->plain_high, cur, durable_ts)) {
+            WT_STAT_CONN_SET(session, disagg_plain_high, durable_ts);
+            break;
+        }
+}
+
+/*
+ * __disagg_armed_txn_check --
+ *     Session array walk callback refusing a disarm while a transaction that latched the armed flag
+ *     is in flight: it may still write or read ingest.
+ */
+static int
+__disagg_armed_txn_check(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, bool *exit_walkp, void *cookiep)
+{
+    WT_UNUSED(exit_walkp);
+    WT_UNUSED(cookiep);
+
+    if (__wt_atomic_load_bool_relaxed(&txn_session->txn->step_down_armed))
+        WT_RET_MSG(session, EBUSY, "disarm refused: an armed transaction is in flight");
+    return (0);
+}
+
+/*
+ * __layered_armed_create_check --
+ *     Refuse a disarm while a layered table has no stable constituent. On a leader only a create
+ *     while armed leaves one, and its content lives in ingest alone, which the disarm clears.
+ */
+static int
+__layered_armed_create_check(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR *cursor_check, *cursor_scan;
+    WT_DECL_RET;
+    char *stable_uri;
+    const char *layered_cfg, *layered_uri;
+
+    cursor_check = cursor_scan = NULL;
+    stable_uri = NULL;
+
+    WT_ERR(__wt_metadata_cursor(session, &cursor_check));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
+
+    cursor_scan->set_key(cursor_scan, "layered:");
+    WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
+    while ((ret = cursor_scan->next(cursor_scan)) == 0) {
+        WT_ERR(cursor_scan->get_key(cursor_scan, &layered_uri));
+        if (!WT_PREFIX_MATCH(layered_uri, "layered:"))
+            break;
+        WT_ERR(cursor_scan->get_value(cursor_scan, &layered_cfg));
+        WT_ERR(__wt_config_getones(session, layered_cfg, "stable", &cval));
+        WT_ERR(__wt_strndup(session, cval.str, cval.len, &stable_uri));
+        cursor_check->set_key(cursor_check, stable_uri);
+        WT_ERR_NOTFOUND_OK(cursor_check->search(cursor_check), true);
+        if (ret == WT_NOTFOUND)
+            WT_ERR_MSG(session, EINVAL,
+              "disarm refused: \"%s\" was created while armed and has no stable constituent",
+              layered_uri);
+        __wt_free(session, stable_uri);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    __wt_free(session, stable_uri);
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_check));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_scan));
+    return (ret);
+}
+
+/*
+ * __disagg_step_down_disarm --
+ *     Abandon a planned step-down. A leader reads stable alone, so the mirrored ingest copies must
+ *     go: a later arm would otherwise leave them under newer stable writes.
+ */
+static int
+__disagg_step_down_disarm(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DECL_RET;
+
+    WT_RET(__layered_armed_create_check(session));
+
+    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, false);
+    WT_FULL_BARRIER();
+
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    __wt_spin_lock(session, &conn->api_lock);
+    ret = __wt_session_array_walk(session, __disagg_armed_txn_check, true, NULL);
+    __wt_spin_unlock(session, &conn->api_lock);
+    if (ret != 0) {
+        __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, true);
+        return (ret);
+    }
+    WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
+
+    /* A partial clear leaves stale mirrored copies that a later arm would expose. */
+    if ((ret = __wti_layered_clear_ingest_tables(session)) != 0)
+        return (__wt_panic(session, ret, "failed to clear the ingest tables at disarm"));
+
+    __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "step-down disarmed");
+    return (0);
+}
+
+/*
+ * __disagg_step_down_arm_int --
+ *     Arm or disarm a planned step-down. The session must hold the checkpoint and schema locks.
+ */
+static int
+__disagg_step_down_arm_int(WT_SESSION_IMPL *session, bool arm)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+        WT_RET_MSG(session, EINVAL, "step_down_arm is only valid on a disaggregated leader");
+
+    if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed) == arm)
+        return (0);
+
+    if (!arm)
+        return (__disagg_step_down_disarm(session));
+
+    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, true);
+    WT_STAT_CONN_SET(session, disagg_step_down_armed, 1);
+    __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "step-down armed");
+    return (0);
+}
+
+/*
+ * __disagg_step_down_arm --
+ *     Arm or disarm a planned step-down on a dedicated internal session.
+ */
+static int
+__disagg_step_down_arm(WT_SESSION_IMPL *session, bool arm)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    WT_RET(__wt_open_internal_session(
+      S2C(session), "disagg-step-down-arm", false, 0, 0, &internal_session));
+
+    /* The schema lock keeps a schema operation entirely on one side of the change. */
+    WT_WITH_CHECKPOINT_LOCK(internal_session,
+      WT_WITH_SCHEMA_LOCK(
+        internal_session, ret = __disagg_step_down_arm_int(internal_session, arm)));
+    WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
  * __disagg_mark_btree_readonly_and_outdated --
  *     Drain eviction from an open disaggregated btree, make it read-only and mark its dhandle
  *     outdated. Eviction can then discard dirty pages without reconciliation.
@@ -1732,7 +1915,7 @@ __disagg_step_down_writer_check(
      * raises plain_high.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
-        if (txn->step_down_armed)
+        if (__wt_atomic_load_bool_relaxed(&txn->step_down_armed))
             return (0);
         WT_STAT_CONN_INCR(session, disagg_step_down_refused_prepared);
         WT_RET_MSG(session, EINVAL,
@@ -1840,6 +2023,18 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
     __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, false);
     WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
 
+    /*
+     * Ingest at or below the checkpoint duplicates what the checkpoint holds, and a leader's own
+     * checkpoint is never picked up, so nothing else prunes it. Pruning is garbage collection:
+     * failing to prune leaves duplicates the drain skips anyway.
+     */
+    if ((ret = __wti_layered_iterate_ingest_tables_for_gc_pruning(session, ckpt_ts)) != 0) {
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "failed to prune ingest at the step-down checkpoint %s: %s",
+          __wt_timestamp_to_string(ckpt_ts, ts_string[0]), __wt_strerror(session, ret, NULL, 0));
+        ret = 0;
+    }
+
 err:
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 0);
     return (ret);
@@ -1882,74 +2077,6 @@ __disagg_step_down(WT_SESSION_IMPL *session, bool *refusedp)
     WT_WITH_CHECKPOINT_LOCK(internal_session,
       WT_WITH_SCHEMA_LOCK(
         internal_session, ret = __disagg_step_down_int(internal_session, refusedp)));
-    WT_TRET(__wt_session_close_internal(internal_session));
-    return (ret);
-}
-
-/*
- * __wt_disagg_raise_plain_high --
- *     Raise the newest durable timestamp of stable content that was not mirrored to ingest.
- */
-void
-__wt_disagg_raise_plain_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
-{
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-
-    /*
-     * No ordering beyond the compare-and-swap is needed. A step-down reads the value under the
-     * checkpoint lock only once writers are quiesced, which orders every completed raise before it,
-     * and it refuses while a commit is still in flight. The value only rises, so a raise cannot
-     * undo one the step-down relies on.
-     */
-    for (wt_timestamp_t cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high);
-      durable_ts > cur; cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high))
-        if (__wt_atomic_cas_uint64(&disagg->plain_high, cur, durable_ts)) {
-            WT_STAT_CONN_SET(session, disagg_plain_high, durable_ts);
-            break;
-        }
-}
-
-/*
- * __disagg_step_down_arm_int --
- *     Arm or disarm a planned step-down. The session must hold the checkpoint and schema locks.
- */
-static int
-__disagg_step_down_arm_int(WT_SESSION_IMPL *session, bool arm)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
-
-    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
-        WT_RET_MSG(session, EINVAL, "step_down_arm is only valid on a disaggregated leader");
-
-    if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed) == arm)
-        return (0);
-
-    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, arm);
-    WT_STAT_CONN_SET(session, disagg_step_down_armed, arm ? 1 : 0);
-    __wt_verbose_info(
-      session, WT_VERB_DISAGGREGATED_STORAGE, "step-down %s", arm ? "armed" : "disarmed");
-    return (0);
-}
-
-/*
- * __disagg_step_down_arm --
- *     Arm or disarm a planned step-down on a dedicated internal session.
- */
-static int
-__disagg_step_down_arm(WT_SESSION_IMPL *session, bool arm)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
-
-    WT_RET(__wt_open_internal_session(
-      S2C(session), "disagg-step-down-arm", false, 0, 0, &internal_session));
-
-    /* The schema lock keeps a schema operation entirely on one side of the change. */
-    WT_WITH_CHECKPOINT_LOCK(internal_session,
-      WT_WITH_SCHEMA_LOCK(
-        internal_session, ret = __disagg_step_down_arm_int(internal_session, arm)));
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }

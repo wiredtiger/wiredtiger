@@ -163,23 +163,49 @@ class LayeredStepdownMixin:
         return int(self.conn.query_timestamp('get=all_durable'), 16)
 
     # Write k/v pairs (dict) to a table in one transaction committed at commit_ts.
-    def write_at(self, uri, items, commit_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction()
+    def write_at(self, uri, items, commit_ts, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
         for k, v in items.items():
             cursor[k] = v
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     # Remove keys (iterable) from a table in one transaction committed at commit_ts.
-    def remove_at(self, uri, keys, commit_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction()
+    def remove_at(self, uri, keys, commit_ts, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
         for k in keys:
             cursor.set_key(k)
             self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
+
+    # The key/value map visible through a cursor on uri with no read timestamp.
+    def read_kvs(self, uri, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction()
+        kv = {}
+        while cursor.next() == 0:
+            kv[cursor.get_key()] = cursor.get_value()
+        session.rollback_transaction()
+        cursor.close()
+        return kv
+
+    # Open another node on the shared page log, in the given role.
+    def open_node(self, home, role='follower', config=''):
+        if not os.path.exists(home):
+            os.mkdir(home)
+            os.symlink('../kv_home', os.path.join(home, 'kv_home'), target_is_directory=True)
+        self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+        return self.wiredtiger_open(home, self.extensionsConfig() + ',create,' + config +
+            f'disaggregated=(role="{role}")')
+
+    def promote(self, conn=None):
+        (conn or self.conn).reconfigure('disaggregated=(role="leader")')
 
     # The key/value map visible through a cursor on uri at read_ts.
     def read_kvs_at(self, uri, read_ts, session=None):

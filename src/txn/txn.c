@@ -1011,6 +1011,7 @@ __txn_release(WT_SESSION_IMPL *session)
      */
     __wt_txn_config_clear(session);
     txn->time_point.prepare_timestamp = WT_TS_NONE;
+    __wt_atomic_store_bool_relaxed(&txn->step_down_armed, false);
 
     /* Reset the dirty footprint tracking */
     __txn_clear_bytes_dirty(session);

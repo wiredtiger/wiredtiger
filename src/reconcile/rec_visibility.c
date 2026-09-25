@@ -1224,10 +1224,12 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         } else if (first_pruned_update != NULL) {
             if (*first_txn_updp != first_pruned_update)
                 *has_newer_updatesp = true;
-            else if (WT_REC_HAS_ON_DISK(vpack))
+            else if (WT_REC_HAS_ON_DISK(vpack) && !*has_newer_updatesp)
                 /*
                  * If we choose to garbage collect the key and it has an associated on-page value,
-                 * ensure that the on-page value is forcefully deleted as well.
+                 * ensure that the on-page value is forcefully deleted as well. A retained newer
+                 * update, such as a rolled-back prepared update, keeps the key: its chain is
+                 * restored, and the tombstone chosen here is not on it.
                  */
                 upd_select->upd = &upd_tombstone;
         } else

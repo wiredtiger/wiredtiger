@@ -1061,6 +1061,55 @@ err:
 }
 
 /*
+ * __wti_layered_clear_ingest_tables --
+ *     Clear every open ingest table. Ingest content is only written through an open handle, so the
+ *     open handles cover it, as they do for the step-up drain.
+ */
+int
+__wti_layered_clear_ingest_tables(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    size_t alloc = 0, count = 0, i;
+    char **uris = NULL;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /* Truncate opens cursors, which cannot happen under the handle list lock: collect first. */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        for (dhandle = NULL;;) {
+            WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+            if (dhandle == NULL)
+                break;
+            if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD) || !WT_URI_IS_INGEST(dhandle->name))
+                continue;
+            if ((ret = __wt_realloc_def(session, &alloc, count + 1, &uris)) != 0)
+                break;
+            if ((ret = __wt_strdup(session, dhandle->name, &uris[count])) != 0)
+                break;
+            ++count;
+        }
+    });
+    WT_ERR(ret);
+
+    for (i = 0; i < count; ++i) {
+        WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, uris[i]),
+          "Failed to clear ingest table \"%s\"", uris[i]);
+#ifdef HAVE_DIAGNOSTIC
+        WT_ERR(__layered_assert_ingest_table_empty(session, uris[i]));
+#endif
+    }
+
+err:
+    for (i = 0; i < count; ++i)
+        __wt_free(session, uris[i]);
+    __wt_free(session, uris);
+    return (ret);
+}
+
+/*
  * __layered_update_ingest_table_prune_timestamp --
  *     Update the prune timestamp of the specified ingest table.
  *

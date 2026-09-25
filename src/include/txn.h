@@ -440,7 +440,7 @@ struct __wt_txn {
      * True if a step-down was armed when this transaction began. Its layered writes are mirrored to
      * the ingest constituent and its reads include ingest.
      */
-    bool step_down_armed;
+    wt_shared bool step_down_armed;
     /*
      * The disaggregated role observed when the snapshot was established; the role-change generation
      * it was established under is published in the session's generation slot. A snapshot
