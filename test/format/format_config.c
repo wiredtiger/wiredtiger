@@ -1472,15 +1472,6 @@ config_disagg_storage(void)
             if (!config_explicit(NULL, "ops.throttle.sleep_us"))
                 config_single(NULL, "ops.throttle.sleep_us=1000", false);
 
-            /*
-             * FIXME-WT-18723: an armed transaction iterating a layered table walks the live stable
-             * tree, and the merge cursor cannot resume a walk blocked by a prepare conflict there.
-             * The step-down still holds an unarmed prepared transaction of its own across the arm.
-             */
-            if (config_explicit(NULL, "ops.prepare"))
-                WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
-            config_off(NULL, "ops.prepare");
-
             /* Truncate is not supported while a step-down is armed. */
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
