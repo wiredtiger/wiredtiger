@@ -18,6 +18,9 @@ post:
   - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
   - func: "upload stat files"
+  # Drop the test databases of tests that passed before packaging the artifacts. This must run
+  # after the functions above, which still need the test output.
+  - func: "cleanup test artifacts"
   - func: "upload artifact"
     vars:
       postfix: -${execution}
@@ -1285,6 +1288,17 @@ functions:
         content_type: application/tar
         display_name: WT_TEST
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
+  "cleanup test artifacts":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        # Never fail the task on cleanup: keeping the test data is the safe outcome.
+        ${python_binary|python3} ../test/evergreen/cleanup_test_artifacts.py 2>&1 ||
+          echo "Test artifact cleanup failed, keeping all test data."
   "cleanup":
     command: shell.exec
     type: setup
