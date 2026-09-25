@@ -3127,6 +3127,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     bool disagg_delta_chain_end;
     bool disagg_page_free_required;
     bool disagg_page_is_valid;
+    bool skipped_write;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -3305,6 +3306,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
       (void *)ref, r->multi_next);
 
+    /*
+     * Decide whether the page kept its existing block before the multi array is handed to the page:
+     * the fast-truncate state below is only discarded once a new image exists on disk.
+     */
+    skipped_write = r->multi_next == 1 && F_ISSET(r->multi, WT_MULTI_SKIP_WRITE);
+
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
@@ -3437,8 +3444,12 @@ split:
      * will wait for it; and if we are checkpointing the leaf, we can't simultaneously be
      * checkpointing the parent, and we can't be evicting the parent either because internal pages
      * can't be evicted while they have in-memory children.
+     *
+     * A reconciliation that skipped the write is the exception: the on-disk image still predates
+     * the instantiation and the parent's cell may still be a fast-truncate proxy cell, so the
+     * page-delete information stays until an image is actually written.
      */
-    if (mod->instantiated) {
+    if (mod->instantiated && !skipped_write) {
         /*
          * Unfortunately, it seems we need to lock the ref at this point. Ultimately the page_del
          * structure and the instantiated flag need to both be cleared simultaneously (otherwise

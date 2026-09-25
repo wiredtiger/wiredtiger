@@ -520,7 +520,7 @@ struct __wt_page_modify {
 
     /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
-     * set until the page is reconciled successfully; this indicates that the page_del information
+     * set until a reconciliation writes a new image of the page; this indicates that the page_del
      * in the ref remains valid. The update list remains set (if set at all) until the transaction
      * that deleted the page is resolved. These transitions are independent; that is, the first
      * reconciliation can happen either before or after the delete transaction resolves.
@@ -1314,10 +1314,12 @@ struct __wt_ref {
      * operation subsequently resolves. (The page can split, so there needs to be some way to find
      * all of the update structures.)
      *
-     * After instantiation, the page_del structure is kept until the instantiated page is next
-     * reconciled. This is because in some cases reconciliation of the parent internal page may need
-     * to write out a reference to the pre-instantiated on-disk page, at which point the page_del
-     * information is needed to build the correct reference.
+     * After instantiation, the page_del structure is kept until a reconciliation of the
+     * instantiated page writes a new image. This is because in some cases reconciliation of the
+     * parent internal page may need to write out a reference to the pre-instantiated on-disk page,
+     * at which point the page_del information is needed to build the correct reference. A
+     * reconciliation that skips the write leaves that on-disk page in place, so the structure
+     * survives it, as does an in-memory rewrite of the page that produced no new address.
      *
      * If the ref is in WT_REF_DELETED state, all actions besides checking whether page_del is NULL
      * require that the WT_REF be locked. There are two reasons for this: first, the page might be
