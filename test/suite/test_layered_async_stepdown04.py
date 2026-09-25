@@ -41,11 +41,10 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     def conn_config(self):
         return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+            f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, write_modes)

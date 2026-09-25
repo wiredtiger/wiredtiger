@@ -41,11 +41,10 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     def conn_config(self):
         return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+            f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, write_modes)
@@ -440,11 +439,10 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     def conn_config(self):
         return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+            f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, _straddler_ops, write_modes)
@@ -483,11 +481,10 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     def conn_config(self):
         return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
+            f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, write_modes)

@@ -57,13 +57,12 @@ class test_layered_async_stepdown08(
     ]
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     scenarios = make_scenarios(disagg_storages, worlds, write_modes)
 
     def conn_config(self):
         return self.base + self.leader + \
-            f',disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()})'
+            f''
 
     def uri(self, name):
         return f'layered:{self.test_name}_{name}'

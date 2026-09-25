@@ -1699,7 +1699,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     prepare_count = 0;
     step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
     wrote_ingest = wrote_stable = false;
-    mirroring = F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
+    mirroring = true;
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     recno = WT_RECNO_OOB;

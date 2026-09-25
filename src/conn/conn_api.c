@@ -2842,7 +2842,6 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
       "compatibility=(release=),"
       "config_base=,"
       "create=,"
-      "disaggregated=(stepdown_write_mirroring=),"
       "encryption=(secretkey=),"
       "error_prefix=,"
       "exclusive=,"

@@ -451,14 +451,13 @@ __clayered_enter_flags(
           role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
 
     /*
-     * A transaction that started with the step-down timestamp set mirrors leader writes to both
-     * constituents to detect write conflicts when write mirroring is enabled; otherwise it routes
-     * them to ingest. Reads behave like a follower: it reads the ingest constituent over the
+     * A transaction that began while a step-down was armed mirrors leader writes to both
+     * constituents. Reads behave like a follower: it reads the ingest constituent over the
      * still-live stable table.
      *
-     * A table created inside the step-down window has no stable constituent at all, so its cursors
-     * use ingest whenever the transaction began. That covers a transaction from before the
-     * timestamp was set, which would otherwise read stable alone and find nothing to open.
+     * A table created while armed has no stable constituent at all, so its cursors use ingest
+     * whenever the transaction began. That covers a transaction from before the arm, which would
+     * otherwise read stable alone and find nothing to open.
      *
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
      * by contract.
@@ -474,9 +473,8 @@ __clayered_enter_flags(
 /*
  * __clayered_write_target_for_op --
  *     Resolve which constituent or constituents receive a layered-table write. A read has no
- *     target. A follower, or a table created inside the step-down window, writes ingest alone; a
- *     leader writing under the step-down timestamp may mirror both depending on configuration; a
- *     leader outside it writes stable alone.
+ *     target. A follower, or a table created while a step-down was armed, writes ingest alone; an
+ *     armed leader transaction mirrors to both; any other leader transaction writes stable alone.
  */
 static WT_INLINE WTI_CLAYERED_WRITE_TARGET
 __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op,
@@ -488,8 +486,6 @@ __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op
     WT_UNUSED(op);
 
     bool step_down_created = __wt_atomic_load_bool_relaxed(&table->step_down_created);
-    bool is_mirroring =
-      F_ISSET(&S2C(CUR2S(clayered))->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 
     if (mode != WTI_CLAYERED_MODE_WRITE)
         return (WTI_CLAYERED_WRITE_NONE);
@@ -505,7 +501,7 @@ __clayered_write_target_for_op(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op
         return (WTI_CLAYERED_WRITE_STABLE);
 
     WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
-    return (is_mirroring ? WTI_CLAYERED_WRITE_BOTH : WTI_CLAYERED_WRITE_INGEST);
+    return (WTI_CLAYERED_WRITE_BOTH);
 }
 
 /*
@@ -3245,16 +3241,6 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 
     /* A read timestamp can position reads below committed updates. */
     bool has_read_ts = F_ISSET(session->txn, WT_TXN_SHARED_TS_READ);
-    /*
-     * On a leader with the step-down timestamp set, a transaction writing ingest can face live
-     * content about to be committed on stable, unlike a follower whose stable is untouched locally.
-     * That content may be invisible to this snapshot and shares no update chain with the write. The
-     * step-down lock does not close this window: it is acquired separately from taking the
-     * snapshot, so a stable commit can still be invisible to it, and this check remains necessary.
-     *
-     * When step-down writes are mirrored to stable there is no need to probe, and this function
-     * exits early from the previous write_target check.
-     */
     bool step_down_armed = session->txn->step_down_armed;
 
     /* Otherwise every snapshot-visible update is current; there is nothing to check. */

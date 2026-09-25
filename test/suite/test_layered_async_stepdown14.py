@@ -46,7 +46,6 @@ class test_layered_async_stepdown14(LayeredStepdownMixin, wttest.WiredTigerTestC
     ]
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     values = [
         ('collide',  dict(value=b'\x14\x14')),       # exactly the tombstone
@@ -61,7 +60,7 @@ class test_layered_async_stepdown14(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     def conn_config(self):
         return self.conn_base_config + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},' \
+            f'disaggregated=(' \
             f'legacy_tombstone_encoding_break_glass={self.encoding},role="leader")'
 
     def setUp(self):

@@ -58,13 +58,12 @@ class test_layered_async_stepdown10(
     ]
     write_modes = [
         ('mirrored', dict(write_mirroring=True)),
-        ('ingest_only', dict(write_mirroring=False)),
     ]
     scenarios = make_scenarios(disagg_storages, worlds, write_modes)
 
     def conn_config(self):
         return self.base + \
-            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},' \
+            f'disaggregated=(' \
             'role="leader",lose_all_my_data=true)'
 
     # How long the workload runs against each phase of the transition.
