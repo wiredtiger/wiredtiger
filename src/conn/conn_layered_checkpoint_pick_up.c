@@ -1730,8 +1730,6 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
-    __wt_atomic_store_uint64_relaxed(
-      &conn->txn_global.last_ckpt_disaggregated_schema_epoch, metadata->schema_epoch);
     /* Release store to pair with the acquire load in sweep. */
     __wt_atomic_store_uint64_release(
       &conn->txn_global.last_ckpt_timestamp, metadata->checkpoint_timestamp);
@@ -1756,13 +1754,13 @@ err:
 }
 
 /*
- * __disagg_adopt_checkpoint_meta --
+ * __disagg_merge_checkpoint_meta --
  *     Merge the checkpoint's metadata into the local metadata as one tracked unit: on failure the
  *     tracking unrolls every update already made, including any ingest tables created along the
  *     way, so the merge either completes or leaves no trace.
  */
 static int
-__disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+__disagg_merge_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   const WT_DISAGG_METADATA *metadata, bool is_startup)
 {
     WT_DECL_RET;
@@ -1780,6 +1778,46 @@ __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 err:
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
     return (ret);
+}
+
+/* !!!
+ * __disagg_adopt_checkpoint_meta --
+ *     Adopt the checkpoint metadata into the local state:
+ *
+ *       1. Merge the checkpoint metadata,
+ *       2. Record its schema epoch,
+ *       3. Prune the shared metadata queue entries it covers.
+ *
+ *     Publish also holds the schema lock, so it sees either none of these steps or all of them.
+ */
+static int
+__disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  const WT_DISAGG_METADATA *metadata, bool is_startup)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    WT_RET(__disagg_merge_checkpoint_meta(session, ckpt_meta, metadata, is_startup));
+
+    WT_ASSERT(session,
+      /* In an epoch-world, metadata must have a valid schema epoch. */
+      metadata->schema_epoch != WT_SCHEMA_EPOCH_NONE ||
+        /* In a no-epoch checkpoint, the schema epoch is unset. */
+        __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE);
+
+    /*
+     * Update the last checkpoint disaggregated schema epoch. It will be used to determine which
+     * entries in the shared metadata queue are covered by this checkpoint.
+     */
+    __wt_atomic_store_uint64_relaxed(
+      &S2C(session)->txn_global.last_ckpt_disaggregated_schema_epoch, metadata->schema_epoch);
+
+    /* Prune the shared metadata queue entries covered by this checkpoint. */
+    __wti_disagg_shared_metadata_queue_prune(session,
+      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE ?
+        WT_SCHEMA_EPOCH_NONE :
+        metadata->schema_epoch);
+
+    return (0);
 }
 
 /*
@@ -1915,36 +1953,13 @@ __disagg_pick_up_checkpoint(
       "Failed to load encryption keys for checkpoint %" PRIu64, ckpt_meta->metadata_lsn);
 
     /*
-     * Part 2: Merge the checkpoint's metadata into the local metadata. The merge runs under
-     * metadata tracking, so a failure unrolls the updates already made and leaves the node on its
-     * previous checkpoint, retryable; a crash mid-merge relies on the node discarding its local
-     * state on restart. Data handles marked outdated along the way stay marked across an unroll,
-     * which only costs reopening them.
+     * Part 2: Merge the checkpoint's metadata into the local metadata and prune the shared metadata
+     * queue. The schema lock protects the shared metadata queue from concurrent publish operations.
      */
     WT_WITH_SCHEMA_LOCK(
       session, ret = __disagg_adopt_checkpoint_meta(session, ckpt_meta, &metadata, is_startup));
     WT_ERR_MSG_CHK(session, ret, "Failed to merge checkpoint %" PRIu64 " into local metadata",
       ckpt_meta->metadata_lsn);
-
-    /*
-     * A no-epoch checkpoint clears the whole queue. An epoch-world node never picks up a no-epoch
-     * checkpoint, so its live stable epoch is unset here and the queue holds no published entries
-     * to lose.
-     */
-    WT_ASSERT(session,
-      metadata.schema_epoch != WT_SCHEMA_EPOCH_NONE ||
-        __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE);
-
-    /*
-     * Part 3: Do the bookkeeping.
-     *
-     * A node with no live stable epoch is not gating schema operations, so the adopted checkpoint
-     * covers the whole queue and it is cleared.
-     */
-    __wti_disagg_shared_metadata_queue_prune(session,
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE ?
-        WT_SCHEMA_EPOCH_NONE :
-        metadata.schema_epoch);
 
     /*
      * The merge is complete: a failure from here leaves the local metadata resolving to the new
