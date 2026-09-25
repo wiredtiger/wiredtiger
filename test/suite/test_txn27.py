@@ -26,15 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, time, wttest
+import wiredtiger, wttest
 from error_info_util import error_info_util
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
 # Test that the API returning a rollback error sets the reason for the rollback.
 class test_txn27(error_info_util):
-    conn_config = 'cache_size=1MB'
+    # statistics_log wait=0: the default log thread can reset the eviction stuck score.
+    conn_config = 'cache_size=1MB,statistics=(all),statistics_log=(wait=0)'
 
-    # The oldest-for-eviction reason needs ~2s of stalled eviction progress before it fires; the
+    # The oldest-for-eviction reason needs stalled eviction progress before it fires; the
     # newer updates/dirty-trigger check needs no such stall and can win the race instead. Locally
     # the older check still wins, but under the slower disagg-leader-tsan hook the race tips the
     # other way, so this test's specific reason assertion is not reliable there.
@@ -68,19 +70,28 @@ class test_txn27(error_info_util):
         self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
         session1.rollback_transaction()
 
-        # Start a new transaction and insert a value far too large for cache.
+        # Pin uncommitted updates across several small transactions so eviction rolls back the
+        # oldest without overflowing the cache.
         session1.begin_transaction()
         cursor1.set_key(ds.key(1))
-        cursor1.set_value("a"*1024*5000)
+        cursor1.set_value("a" * 1024)
         self.assertEqual(0, cursor1.update())
 
-        # Let WiredTiger's accounting catch up.
-        time.sleep(2)
+        pin_sessions = []
+        value = "x" * (40 * 1024)
+        for i in range(8):
+            pin_session = self.conn.open_session('ignore_cache_size=true')
+            pin_cursor = pin_session.open_cursor(uri)
+            pin_session.begin_transaction()
+            pin_cursor["pin-%d" % i] = value
+            pin_cursor.close()
+            pin_sessions.append(pin_session)
 
-        # Attempt to insert another value with the same transaction. This will result in the
-        # application thread being pulled into eviction and getting rolled back.
+        self.assertStatGreaterSoon(
+            stat.conn.eviction_aggressive_set, 99, session=pin_sessions[0], timeout=10)
+
         cursor1.set_key(ds.key(2))
-        cursor1.set_value("b"*1024)
+        cursor1.set_value("b" * 1024)
 
         # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.update(), msg1)
@@ -88,3 +99,6 @@ class test_txn27(error_info_util):
         # Expect the last saved error to give us the true reason for the rollback.
         self.session = session1
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
+
+        for s in pin_sessions:
+            s.close()
