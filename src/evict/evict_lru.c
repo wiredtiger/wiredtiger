@@ -13,6 +13,7 @@ static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
+static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *levels, u_int n);
 static bool __evict_skip_tree(
   WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level, bool *clear_maybe_nonemptyp);
 static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed);
@@ -1301,6 +1302,10 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
                 WT_STAT_CONN_SET(session, eviction_bucket_clean_internal_items,
                                  __wt_atomic_load_uint64_relaxed(&conn->evict->evict_bucketset[i].bucketset_num_items));
                 break;
+            case WT_EVICT_LEVEL_PENDING_SPLIT_LEAF:
+                WT_STAT_CONN_SET(session, eviction_bucket_pending_split_leaf_items,
+                                 __wt_atomic_load_uint64_relaxed(&conn->evict->evict_bucketset[i].bucketset_num_items));
+                break;
             default:
                 WT_ASSERT(session, 0);
             }
@@ -1616,6 +1621,52 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
 
 
 /*
+ * __evict_stat_eligible_levels --
+ *     Count, per bucketset level, how often it was in the eligible set of a call to get a page.
+ */
+static void
+__evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *levels, u_int n)
+{
+    u_int k;
+
+    for (k = 0; k < n; k++)
+        switch (levels[k]) {
+        case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
+            WT_STAT_CONN_INCR(session, eviction_eligible_wont_need_clean_leaf);
+            break;
+        case WT_EVICT_LEVEL_CLEAN_LEAF:
+            WT_STAT_CONN_INCR(session, eviction_eligible_clean_leaf);
+            break;
+        case WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF:
+            WT_STAT_CONN_INCR(session, eviction_eligible_wont_need_dirty_leaf);
+            break;
+        case WT_EVICT_LEVEL_DIRTY_LEAF:
+            WT_STAT_CONN_INCR(session, eviction_eligible_dirty_leaf);
+            break;
+        case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
+            WT_STAT_CONN_INCR(session, eviction_eligible_wont_need_internal);
+            break;
+        case WT_EVICT_LEVEL_DIRTY_INTERNAL:
+            WT_STAT_CONN_INCR(session, eviction_eligible_dirty_internal);
+            break;
+        case WT_EVICT_LEVEL_UPDATES_LEAF:
+            WT_STAT_CONN_INCR(session, eviction_eligible_updates_leaf);
+            break;
+        case WT_EVICT_LEVEL_UPDATES_INTERNAL:
+            WT_STAT_CONN_INCR(session, eviction_eligible_updates_internal);
+            break;
+        case WT_EVICT_LEVEL_CLEAN_INTERNAL:
+            WT_STAT_CONN_INCR(session, eviction_eligible_clean_internal);
+            break;
+        case WT_EVICT_LEVEL_PENDING_SPLIT_LEAF:
+            WT_STAT_CONN_INCR(session, eviction_eligible_pending_split_leaf);
+            break;
+        default:
+            WT_ASSERT(session, 0);
+        }
+}
+
+/*
  * __evict_eligible_levels --
  *     Build the set of bucketset levels eligible for eviction given the current pressure flags.
  */
@@ -1650,6 +1701,13 @@ __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         levels[n++] = WT_EVICT_LEVEL_UPDATES_LEAF;
     }
+
+    /*
+     * Realizing a pending split writes nothing and releases a stale image, so it is worth doing
+     * whenever eviction is running at all. During a checkpoint the syncing tree's subqueues at this
+     * level are hidden and skipped like the dirty levels.
+     */
+    levels[n++] = WT_EVICT_LEVEL_PENDING_SPLIT_LEAF;
 
     return (n);
 }
@@ -1731,6 +1789,7 @@ __evict_get_ref(
         eligible[0] = WT_EVICT_LEVEL_CLEAN_LEAF;
         n_eligible = 1;
     }
+    __evict_stat_eligible_levels(session, eligible, n_eligible);
 
     /* Choose the starting level in proportion to how many pages each level holds. */
     total_items = 0;
@@ -1758,39 +1817,6 @@ __evict_get_ref(
     }
 
     WT_ASSERT(session, start < n_eligible);
-
-    /* Keep track of the starting bucket where we look for pages to evict */
-    switch (eligible[start]) {
-    case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_clean_leaf);
-        break;
-    case WT_EVICT_LEVEL_CLEAN_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_clean_leaf);
-        break;
-    case WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_dirty_leaf);
-        break;
-    case WT_EVICT_LEVEL_DIRTY_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_dirty_leaf);
-        break;
-    case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_internal);
-        break;
-    case WT_EVICT_LEVEL_DIRTY_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_dirty_internal);
-        break;
-    case WT_EVICT_LEVEL_UPDATES_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_updates_leaf);
-        break;
-    case WT_EVICT_LEVEL_UPDATES_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_updates_internal);
-        break;
-    case WT_EVICT_LEVEL_CLEAN_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_min_bucket_clean_internal);
-        break;
-    default:
-        WT_ASSERT(session, 0);
-    }
 
     /*
      * Get the snapshot for the eviction server when we want to evict dirty content under cache

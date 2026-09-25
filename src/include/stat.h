@@ -573,6 +573,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_tolerance_level;
+    int64_t cache_eviction_blocked_checkpoint_pending_split;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_bytes_hs_dirty;
@@ -587,6 +588,7 @@ struct __wt_connection_stats {
     int64_t eviction_bucket_clean_leaf_items;
     int64_t eviction_bucket_dirty_internal_items;
     int64_t eviction_bucket_dirty_leaf_items;
+    int64_t eviction_bucket_pending_split_leaf_items;
     int64_t eviction_bucket_updates_internal_items;
     int64_t eviction_bucket_updates_leaf_items;
     int64_t eviction_bucket_wont_need_clean_leaf_items;
@@ -598,6 +600,16 @@ struct __wt_connection_stats {
     int64_t eviction_get_ref_iterations;
     int64_t eviction_aggressive_set;
     int64_t cache_eviction_blocked_no_progress;
+    int64_t eviction_eligible_clean_internal;
+    int64_t eviction_eligible_clean_leaf;
+    int64_t eviction_eligible_dirty_internal;
+    int64_t eviction_eligible_dirty_leaf;
+    int64_t eviction_eligible_pending_split_leaf;
+    int64_t eviction_eligible_updates_internal;
+    int64_t eviction_eligible_updates_leaf;
+    int64_t eviction_eligible_wont_need_clean_leaf;
+    int64_t eviction_eligible_wont_need_dirty_leaf;
+    int64_t eviction_eligible_wont_need_internal;
     int64_t eviction_reconcile_cannot_evict;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
@@ -608,6 +620,7 @@ struct __wt_connection_stats {
     int64_t eviction_target_bucket_clean_leaf;
     int64_t eviction_target_bucket_dirty_internal;
     int64_t eviction_target_bucket_dirty_leaf;
+    int64_t eviction_target_bucket_pending_split_leaf;
     int64_t eviction_target_bucket_updates_internal;
     int64_t eviction_target_bucket_updates_leaf;
     int64_t eviction_target_bucket_wont_need_clean_leaf;
@@ -641,15 +654,6 @@ struct __wt_connection_stats {
     int64_t eviction_skip_page_last_running;
     int64_t eviction_skip_pages_retry;
     int64_t eviction_skip_checkpointing_trees;
-    int64_t eviction_min_bucket_clean_internal;
-    int64_t eviction_min_bucket_clean_leaf;
-    int64_t eviction_min_bucket_dirty_internal;
-    int64_t eviction_min_bucket_dirty_leaf;
-    int64_t eviction_min_bucket_updates_internal;
-    int64_t eviction_min_bucket_updates_leaf;
-    int64_t eviction_min_bucket_wont_need_clean_leaf;
-    int64_t eviction_min_bucket_wont_need_dirty_leaf;
-    int64_t eviction_min_bucket_wont_need_internal;
     int64_t eviction_state;
     int64_t eviction_target_strategy_both_clean_and_dirty;
     int64_t eviction_threshold_cache_full_target;
@@ -1508,6 +1512,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
+    int64_t cache_eviction_blocked_checkpoint_pending_split;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t eviction_fail;

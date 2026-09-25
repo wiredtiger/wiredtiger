@@ -20,8 +20,10 @@
 #define WT_EVICT_LEVEL_WONT_NEED_INTERNAL 6
 #define WT_EVICT_LEVEL_UPDATES_INTERNAL 7
 #define WT_EVICT_LEVEL_CLEAN_INTERNAL 8
+/* Clean leaf pages whose last reconciliation produced a multi-block split not yet realized. */
+#define WT_EVICT_LEVEL_PENDING_SPLIT_LEAF 9
 
-#define WT_EVICT_LEVELS WT_EVICT_LEVEL_CLEAN_INTERNAL + 1
+#define WT_EVICT_LEVELS WT_EVICT_LEVEL_PENDING_SPLIT_LEAF + 1
 
 /*
  * Connection evict data.

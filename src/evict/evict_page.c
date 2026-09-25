@@ -247,6 +247,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     case WT_EVICT_LEVEL_CLEAN_INTERNAL:
         WT_STAT_CONN_INCR(session, eviction_target_bucket_clean_internal);
         break;
+    case WT_EVICT_LEVEL_PENDING_SPLIT_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_pending_split_leaf);
+        break;
     default:
         WT_ASSERT(session, 0);
     }

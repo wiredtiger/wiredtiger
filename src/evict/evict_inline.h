@@ -14,6 +14,7 @@
 
 #define EVICT_DEBUG_PRINT 0
 
+static WT_INLINE bool __evict_page_has_pending_split(WT_PAGE *page);
 static WT_INLINE bool __evict_page_updates_candidate(WT_PAGE *page);
 
 /*
@@ -158,6 +159,8 @@ __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
         return WT_EVICT_LEVEL_DIRTY_LEAF;
     else if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
         return WT_EVICT_LEVEL_DIRTY_INTERNAL;
+    else if (!WT_PAGE_IS_INTERNAL(page) && __evict_page_has_pending_split(page))
+        return WT_EVICT_LEVEL_PENDING_SPLIT_LEAF;
     else if (__evict_page_updates_candidate(page)) {
         if (WT_PAGE_IS_INTERNAL(page))
             return WT_EVICT_LEVEL_UPDATES_INTERNAL;
@@ -1217,6 +1220,21 @@ __wt_evict_app_assist_worker_check(
     return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible));
 }
 
+/*
+ * __evict_page_has_pending_split --
+ *     Return true if the page's last reconciliation produced a multi-block split that has not been
+ *     realized in memory. Only eviction can realize it, and not while another session is
+ *     checkpointing the tree.
+ */
+static WT_INLINE bool
+__evict_page_has_pending_split(WT_PAGE *page)
+{
+    WT_PAGE_MODIFY *mod;
+
+    mod = page->modify;
+    return (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi_entries > 1);
+}
+
 static WT_INLINE bool
 __evict_page_updates_candidate(WT_PAGE *page)
 {
@@ -1241,10 +1259,9 @@ __evict_page_updates_candidate(WT_PAGE *page)
 
 /*
  * __evict_level_holds_modified --
- *     Return true if this bucketset level holds pages that __wt_page_is_modified reports as
- *     modified. This mirrors the test in __wt_page_can_evict, which refuses a modified page in a
- *     tree another session is checkpointing, and so identifies the levels at which walking a
- *     syncing tree cannot produce a victim.
+ *     Return true if this bucketset level holds pages that __wt_page_can_evict refuses in a tree
+ *     another session is checkpointing: modified pages, and clean pages with a pending multi-block
+ *     split. These are the levels at which walking a syncing tree cannot produce a victim.
  *
  *     The updates levels are deliberately excluded. A page reaches those only after failing the
  *     modified tests in __evict_target_bucketset_level, so page_state is WT_PAGE_CLEAN and the
@@ -1258,7 +1275,7 @@ static WT_INLINE bool
 __evict_level_holds_modified(int level)
 {
     return (level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF || level == WT_EVICT_LEVEL_DIRTY_LEAF ||
-      level == WT_EVICT_LEVEL_DIRTY_INTERNAL);
+      level == WT_EVICT_LEVEL_DIRTY_INTERNAL || level == WT_EVICT_LEVEL_PENDING_SPLIT_LEAF);
 }
 
 /*

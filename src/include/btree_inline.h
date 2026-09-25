@@ -2368,11 +2368,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     /*
      * Likewise for a clean page with a pending multi-block split: realizing it needs
-     * __wt_split_multi, which is refused while another session is checkpointing the tree.
+     * __wt_split_multi, which is refused while another session is checkpointing the tree. Such
+     * pages sit in WT_EVICT_LEVEL_PENDING_SPLIT_LEAF, hidden from the sweep during a checkpoint, so
+     * this is normally reached only through forced eviction or a race with the sync starting.
      */
     if (mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi_entries > 1 &&
       __wt_btree_syncing_by_other_session(session)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint_pending_split);
         return (false);
     }
 
