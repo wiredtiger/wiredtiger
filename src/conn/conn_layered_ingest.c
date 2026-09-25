@@ -445,6 +445,7 @@ __layered_copy_ingest_table(
   WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts, wt_timestamp_t to_ts)
 {
     WT_BTREE *ingest_btree, *stable_btree;
+    WT_CKPT ckpt;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
@@ -476,6 +477,17 @@ __layered_copy_ingest_table(
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+
+    /*
+     * A stable constituent with no checkpointed content, such as one step-up created for a table
+     * created while a step-down was armed, holds nothing the last checkpoint covers: drain all of
+     * its ingest, and expect no prepared cell in it.
+     */
+    WT_ERR(__wt_meta_checkpoint(session, stable_uri_buf->data, NULL, &ckpt, NULL));
+    if (ckpt.addr.size == 0)
+        last_checkpoint_timestamp = WT_TS_NONE;
+    __wt_checkpoint_free(session, &ckpt);
+
     WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     stable_btree = CUR2BT(cbt);
