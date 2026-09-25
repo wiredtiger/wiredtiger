@@ -95,7 +95,11 @@ TEST_CASE(
 
     WT_PAGE_LOG_PUT_ARGS cache_args{};
     cache_args.lsn = lsn;
-    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
+    cache_args.backlink_lsn = 7;
+    cache_args.base_lsn = 3;
+    cache_args.backlink_checkpoint_id = 11;
+    cache_args.base_checkpoint_id = 13;
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, 99, &cache_args, &cache_buf) == 0);
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
 
     WT_ITEM results[4]{};
@@ -117,6 +121,10 @@ TEST_CASE(
     REQUIRE(n == 1);
     REQUIRE(results[0].size == std::strlen(cache_bytes));
     REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
+    REQUIRE(get_args.backlink_lsn == 7);
+    REQUIRE(get_args.base_lsn == 3);
+    REQUIRE(get_args.backlink_checkpoint_id == 11);
+    REQUIRE(get_args.base_checkpoint_id == 13);
     free_results(results, n);
 
     /* Second get reads from the store. */
@@ -173,6 +181,53 @@ TEST_CASE(
             ++cached;
     }
     REQUIRE(cached == 2);
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
+TEST_CASE("Palite victim cache discard drops the cached copy", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_max_entries=10000").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+
+    const uint64_t page_id = 22;
+    const char *cache_bytes = "cached-page";
+    WT_ITEM cache_buf = item_from_string(cache_bytes);
+
+    WT_PAGE_LOG_PUT_ARGS put_args{};
+    REQUIRE(handle->plh_put(handle, session, page_id, 0, &put_args, &cache_buf) == 0);
+    const uint64_t lsn = put_args.lsn;
+
+    WT_PAGE_LOG_PUT_ARGS cache_args{};
+    cache_args.lsn = lsn;
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+
+    WT_PAGE_LOG_DISCARD_ARGS discard_args{};
+    discard_args.backlink_lsn = lsn;
+    discard_args.base_lsn = lsn;
+    REQUIRE(handle->plh_discard(handle, session, page_id, 0, &discard_args) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
+
+    /* The image at that LSN is still in the store. */
+    WT_ITEM results[1]{};
+    uint32_t n = 1;
+    WT_PAGE_LOG_GET_ARGS get_args{};
+    get_args.lsn = lsn;
+    REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
+    REQUIRE(n == 1);
+    REQUIRE(results[0].size == std::strlen(cache_bytes));
+    REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
+    free_results(results, n);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);
