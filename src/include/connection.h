@@ -374,6 +374,12 @@ struct __wt_disaggregated_storage {
     wt_shared wt_timestamp_t plain_high;
 
     /*
+     * The newest durable timestamp of a commit that mirrored stable writes to ingest. A disarm
+     * discards the ingest copies and raises plain_high to it. Never decreases.
+     */
+    wt_shared wt_timestamp_t armed_high;
+
+    /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
      * track back links between the subsequent versions of the metadata pages. Protected by the
      * checkpoint lock.

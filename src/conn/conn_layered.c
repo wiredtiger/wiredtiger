@@ -1625,26 +1625,44 @@ err:
  */
 
 /*
+ * __disagg_raise_ts --
+ *     Raise a monotonic timestamp, returning whether this call raised it.
+ */
+static bool
+__disagg_raise_ts(wt_timestamp_t *tsp, wt_timestamp_t ts)
+{
+    /*
+     * No ordering beyond the compare-and-swap is needed. A step-down or disarm reads the value
+     * under the checkpoint lock only once writers are quiesced, which orders every completed raise
+     * before it, and it refuses while a commit is still in flight. The value only rises, so a raise
+     * cannot undo one the reader relies on.
+     */
+    for (wt_timestamp_t cur = __wt_atomic_load_uint64_relaxed(tsp); ts > cur;
+      cur = __wt_atomic_load_uint64_relaxed(tsp))
+        if (__wt_atomic_cas_uint64(tsp, cur, ts))
+            return (true);
+    return (false);
+}
+
+/*
  * __wt_disagg_raise_plain_high --
  *     Raise the newest durable timestamp of stable content that was not mirrored to ingest.
  */
 void
 __wt_disagg_raise_plain_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    if (__disagg_raise_ts(&S2C(session)->disaggregated_storage.plain_high, durable_ts))
+        WT_STAT_CONN_SET(session, disagg_plain_high, durable_ts);
+}
 
-    /*
-     * No ordering beyond the compare-and-swap is needed. A step-down reads the value under the
-     * checkpoint lock only once writers are quiesced, which orders every completed raise before it,
-     * and it refuses while a commit is still in flight. The value only rises, so a raise cannot
-     * undo one the step-down relies on.
-     */
-    for (wt_timestamp_t cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high);
-      durable_ts > cur; cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high))
-        if (__wt_atomic_cas_uint64(&disagg->plain_high, cur, durable_ts)) {
-            WT_STAT_CONN_SET(session, disagg_plain_high, durable_ts);
-            break;
-        }
+/*
+ * __wt_disagg_raise_armed_high --
+ *     Raise the newest durable timestamp of stable content that was mirrored to ingest.
+ */
+void
+__wt_disagg_raise_armed_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+{
+    (void)__disagg_raise_ts(&S2C(session)->disaggregated_storage.armed_high, durable_ts);
 }
 
 /*
@@ -1735,6 +1753,16 @@ __disagg_step_down_disarm(WT_SESSION_IMPL *session)
         return (ret);
     }
     WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
+
+    /*
+     * Clearing ingest leaves every mirrored commit in stable alone, so a later step-down needs a
+     * checkpoint covering them. Raise to the newest mirrored commit rather than the global durable
+     * timestamp: that one can be moved backwards by the application, and over-approximating would
+     * refuse step-downs no commit requires. The walk above found no armed transaction in flight, so
+     * every mirrored commit has raised armed_high already.
+     */
+    __wt_disagg_raise_plain_high(
+      session, __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.armed_high));
 
     /* A partial clear leaves stale mirrored copies that a later arm would expose. */
     if ((ret = __wti_layered_clear_ingest_tables(session)) != 0)

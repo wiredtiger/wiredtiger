@@ -81,6 +81,29 @@ class test_layered_arm03(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.assertEqual(self.read_kvs(self.uri), expected)
         self.assertEqual(self.read_kvs_at(self.uri, 36), self.rows('after'))
 
+    def test_disarm_then_rearm_covers_mirrored(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, self.rows('base'), 10)
+        self.checkpoint_at(10)
+
+        # Armed writes lose their ingest copies at the disarm and are left in stable alone.
+        self.arm()
+        self.write_at(self.uri, self.rows('mirrored'), 20)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        self.disarm()
+
+        self.arm()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure('disaggregated=(role="follower")'),
+            '/step-down refused: last checkpoint .* is below the newest unmirrored commit/')
+        self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_refused_plain_high), 1)
+        self.expect_demote_refused(stat.conn.disagg_step_down_refused_plain_high)
+
+        self.checkpoint_at(20)
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.assertEqual(self.read_kvs(self.uri), self.rows('mirrored'))
+
     def test_disarm_refused_with_armed_transaction(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
