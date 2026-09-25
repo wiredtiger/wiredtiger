@@ -248,9 +248,9 @@ __wt_time_aggregate_validate(
      *    newest_durable_ts - The default value is WT_TS_NONE. It tracks the maximum durable
      timestamp of all modifications (inserts, updates, and deletes) performed on a page.
      *    newest_page_stop_durable_ts - The default value is WT_TS_NONE. It tracks the maximum
-     durable stop timestamp, but is only non-zero when all entries in the aggregate are deleted -
-     either via a fast page delete (WT_TIME_AGGREGATE_UPDATE_PAGE_DEL) or because every individual
-     key has a tombstone. It is WT_TS_NONE whenever any live (non-deleted) key is present.
+     durable stop timestamp among fully deleted pages in the aggregate. For a leaf page, it is
+     non-zero only when all entries are deleted; an internal page retains the maximum from any fully
+     deleted child.
      *    oldest_start_ts - The default value is WT_TS_NONE. It tracks the minimum commit timestamp
      of any inserts performed on a page.
      *    newest_txn - The default value is WT_TXN_NONE. It tracks the maximum transaction id of any
@@ -286,8 +286,8 @@ __wt_time_aggregate_validate(
      * Scenario 3 - Some entries are deleted, but not all.
      *    newest_durable_ts will be some valid value (not WT_TS_MAX or WT_TS_NONE)
      *    oldest_start_ts will be the minimum commit timestamp of any inserts performed on a page.
-     *    newest_page_stop_durable_ts will be WT_TS_NONE due to not all keys are being deleted on
-     the page.
+     *    newest_page_stop_durable_ts will be WT_TS_NONE because not all keys are deleted on the
+     leaf page.
      *    newest_stop_ts can be WT_TS_MAX or any valid value
      *    newest_txn will be the maximum transaction id of any modification (insert/delete)
      performed on a page.
