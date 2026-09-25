@@ -27,63 +27,51 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_async_stepdown09.py
-#   A planned step-down requires the step-down checkpoint to land on the step-down timestamp,
-#   because that checkpoint is what the next leader picks up. A mismatch is a protocol violation
-#   and aborts, so each case runs in a subprocess and is judged by its exit status.
+#   A step-down requires the last checkpoint to cover every commit that was not mirrored to ingest,
+#   because that checkpoint is what the next leader picks up. Without one the step-down is refused,
+#   the node stays a working leader, and a retry after a covering checkpoint succeeds.
 
-import signal, wttest
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
-from suite_subprocess import suite_subprocess
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestCase,
-                                    suite_subprocess):
+class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_config = 'precise_checkpoint=true,disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     checkpoints = [
-        ('at_cutoff',     dict(checkpoint_ts=20,   expect_abort=False)),
-        ('before_cutoff', dict(checkpoint_ts=15,   expect_abort=True)),
-        ('no_checkpoint', dict(checkpoint_ts=None, expect_abort=True)),
+        ('above_commit',  dict(checkpoint_ts=20,   refused=False)),
+        ('at_commit',     dict(checkpoint_ts=10,   refused=False)),
+        ('below_commit',  dict(checkpoint_ts=5,    refused=True)),
+        ('no_checkpoint', dict(checkpoint_ts=None, refused=True)),
     ]
     scenarios = make_scenarios(disagg_storages, checkpoints)
 
-    test_name = __qualname__
+    uri = 'layered:test_layered_async_stepdown09'
 
-    uri = f'layered:{test_name}'
-    cutoff = 20
-
-    # Step down with stable at the cutoff, varying only where the last checkpoint sits.
-    def _step_down_with_checkpoint_at(self, checkpoint_ts):
+    def test_step_down_checkpoint_boundary(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v1'}, 10)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 10)
 
-        self.set_step_down_ts(self.cutoff)
-        if checkpoint_ts is not None:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(checkpoint_ts))
-            ckpt_session = self.conn.open_session()
-            ckpt_session.checkpoint()
-            ckpt_session.close()
+        self.arm()
+        if self.checkpoint_ts is not None:
+            self.checkpoint_at(self.checkpoint_ts)
 
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.cutoff))
+        if self.refused:
+            self.expect_demote_refused(stat.conn.disagg_step_down_refused_plain_high)
+            self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_armed), 1)
+            # The leader keeps accepting writes after a refusal.
+            self.write_at(self.uri, {'k2': 'v2'}, 12)
+            self.checkpoint_at(12)
+
         self.conn.reconfigure('disaggregated=(role="follower")')
+        self.assertEqual(self.conn_stat(stat.conn.disagg_role_leader), 0)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_armed), 0)
 
-    def subprocess_step_down(self):
-        self._step_down_with_checkpoint_at(self.checkpoint_ts)
-
-    def test_step_down_checkpoint_boundary(self):
-        # Precise checkpoint requires a stable timestamp when the parent connection closes.
-        self.set_global_ts(1, 1)
-        rc, _ = self.run_subprocess_function(
-            'SUBPROCESS',
-            'test_layered_async_stepdown09.test_layered_async_stepdown09.subprocess_step_down',
-            silent=True,
-            scenario=self.scenario_name)
-        if self.expect_abort:
-            self.assertEqual(rc, -signal.SIGABRT,
-                f'expected the step down to abort (rc={-signal.SIGABRT}) but got rc={rc}')
-        else:
-            self.assertEqual(rc, 0, f'expected the step down to succeed but got rc={rc}')
+if __name__ == '__main__':
+    wttest.run()

@@ -2747,6 +2747,9 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step down armed",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step down refused because a prepared transaction that is not armed is unresolved",
+  "disagg: step down refused because a write transaction is active",
+  "disagg: step down refused because the last checkpoint is below the newest unmirrored commit",
   "disagg: step up in progress",
   "disagg: step up ingest table clear truncates retried after a conflict",
   "disagg: step up most recent time (msecs)",
@@ -3878,6 +3881,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_step_down_armed */
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    stats->disagg_step_down_refused_prepared = 0;
+    stats->disagg_step_down_refused_writer = 0;
+    stats->disagg_step_down_refused_plain_high = 0;
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_time = 0;
@@ -5143,6 +5149,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_step_down_armed += WT_STAT_CONN_READ(from, disagg_step_down_armed);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_down_refused_prepared +=
+      WT_STAT_CONN_READ(from, disagg_step_down_refused_prepared);
+    to->disagg_step_down_refused_writer += WT_STAT_CONN_READ(from, disagg_step_down_refused_writer);
+    to->disagg_step_down_refused_plain_high +=
+      WT_STAT_CONN_READ(from, disagg_step_down_refused_plain_high);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_clear_ingest_retry +=
       WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_retry);

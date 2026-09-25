@@ -1790,44 +1790,60 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
     return (0);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
- * __disagg_assert_no_active_writes_callback --
- *     Session array walk callback to assert no active writes.
+ * __disagg_step_down_writer_check --
+ *     Session array walk callback refusing a step-down while a write transaction is active. The
+ *     reads of another session's transaction state are not ordered against its commit or rollback,
+ *     so the check is best-effort: the application is required to quiesce writers first, and a
+ *     stale read either refuses a step-down the caller retries or passes a transaction that is
+ *     already resolving.
  */
 static int
-__disagg_assert_no_active_writes_callback(
+__disagg_step_down_writer_check(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, bool *exit_walkp, void *cookiep)
 {
     WT_UNUSED(exit_walkp);
     WT_UNUSED(cookiep);
 
+    WT_TXN *txn = txn_session->txn;
+    if (txn->mod_count == 0)
+        return (0);
+
     /*
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down. A prepared transaction from before the step-down timestamp was set keeps mod_count
-     * nonzero until it resolves, and is exactly the case this flag exists to exercise.
+     * An armed prepared transaction mirrored its updates and can resolve on the follower. An
+     * unarmed one has stable-only updates whose durable timestamp is unknown until it commits and
+     * raises plain_high.
      */
-    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
-        WT_ASSERT_ALWAYS(session, txn_session->txn->mod_count == 0,
-          "application write transaction is active during disaggregated step-down");
-    return (0);
+    if (F_ISSET(txn, WT_TXN_PREPARE)) {
+        if (txn->step_down_armed)
+            return (0);
+        WT_STAT_CONN_INCR(session, disagg_step_down_refused_prepared);
+        WT_RET_MSG(session, EINVAL,
+          "step-down refused: a prepared transaction that is not armed is unresolved");
+    }
+
+    WT_STAT_CONN_INCR(session, disagg_step_down_refused_writer);
+    WT_RET_MSG(session, EINVAL, "step-down refused: an application write transaction is active");
 }
-#endif
 
 /*
  * __disagg_step_down_int --
  *     Step down to the follower mode. The session must hold the checkpoint and schema locks.
  */
 static int
-__disagg_step_down_int(WT_SESSION_IMPL *session)
+__disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
 {
     struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
-    wt_timestamp_t ckpt_ts, stable_epoch, stable_ts, step_down_epoch, step_down_ts;
+    wt_timestamp_t ckpt_ts, plain_high, step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Any failure up to the first state change below is a refusal the caller can recover from. */
+    *refusedp = true;
+
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -1839,19 +1855,41 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
-#ifdef HAVE_DIAGNOSTIC
     /*
-     * Assert that there are no concurrent or uncommitted write transactions during step-down.
-     *
-     * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
-     * session open/close to ensure we don't race.
+     * Refuse while a write transaction is active. WT_TXN structures are allocated and freed as
+     * sessions are activated and closed, so lock session open/close for the walk.
      */
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     __wt_spin_lock(session, &conn->api_lock);
-    ret = __wt_session_array_walk(session, __disagg_assert_no_active_writes_callback, true, NULL);
+    ret = __wt_session_array_walk(session, __disagg_step_down_writer_check, true, NULL);
     __wt_spin_unlock(session, &conn->api_lock);
     WT_ERR(ret);
-#endif
+
+    /*
+     * Every commit since the arm is in ingest; every earlier or straddling one is stable-only and
+     * at or below plain_high. The checkpoint the next leader picks up must cover the latter. An
+     * unplanned step-down, one never armed, gives up the commits above the checkpoint. Without a
+     * stable timestamp a checkpoint is not bounded by a timestamp, it holds whatever committed
+     * before it began, so there is nothing to compare.
+     */
+    ckpt_ts =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+    plain_high = __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.plain_high);
+    if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed) &&
+      __wt_atomic_load_bool_acquire(&conn->txn_global.has_stable_timestamp) &&
+      ckpt_ts < plain_high) {
+        WT_STAT_CONN_INCR(session, disagg_step_down_refused_plain_high);
+        WT_ERR_MSG(session, EINVAL,
+          "step-down refused: last checkpoint %s is below the newest unmirrored commit %s",
+          __wt_timestamp_to_string(ckpt_ts, ts_string[0]),
+          __wt_timestamp_to_string(plain_high, ts_string[1]));
+    }
+
+    /*
+     * The refusal checks are done and nothing has changed yet. From here the transition mutates
+     * shared state, so a later failure is unrecoverable rather than a refusal the caller can retry.
+     */
+    *refusedp = false;
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
@@ -1875,51 +1913,9 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     if (shared_dsk_cache->hash != NULL)
         __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
 
-    /*
-     * If a step-down timestamp was set, the step-down checkpoint must have landed exactly on it:
-     * the application advances stable to the step-down timestamp so the checkpoint holds everything
-     * up to that point and nothing newer. A mismatch means the checkpoint captured a different
-     * boundary than the one writes were split on; advancing stable is the application's
-     * responsibility, so treat a mismatch as a fatal protocol violation.
-     */
     step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
-    if (step_down_ts != WT_TS_NONE) {
-        stable_ts = __wt_get_stable_timestamp(session);
-        WT_ASSERT_ALWAYS(session, stable_ts == step_down_ts,
-          "stable timestamp %s does not match the step down timestamp %s at step down",
-          __wt_timestamp_to_string(stable_ts, ts_string[0]),
-          __wt_timestamp_to_string(step_down_ts, ts_string[1]));
-
-        /*
-         * The same holds in epoch space: the stable epoch must have been advanced to meet the
-         * boundary so the step-down checkpoint covers every published operation of this era.
-         */
-        step_down_epoch =
-          __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
-        if (step_down_epoch != WT_SCHEMA_EPOCH_NONE) {
-            stable_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
-            WT_ASSERT_ALWAYS(session, stable_epoch == step_down_epoch,
-              "stable disaggregated schema epoch %s does not match the step down disaggregated "
-              "schema epoch %s at step down",
-              __wt_timestamp_to_string(stable_epoch, ts_string[0]),
-              __wt_timestamp_to_string(step_down_epoch, ts_string[1]));
-        }
-
-        /* Window creates only exist while the timestamp is set. */
+    if (step_down_ts != WT_TS_NONE)
         WT_ERR(__layered_assert_step_down_created(session));
-
-        /*
-         * Stable reaching the boundary is not enough: the checkpoint written at that boundary is
-         * what the next leader picks up, so a checkpoint behind the step-down timestamp leaves the
-         * writes in between only on this node.
-         */
-        ckpt_ts =
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
-        WT_ASSERT_ALWAYS(session, ckpt_ts == step_down_ts,
-          "last checkpoint timestamp %s does not match the step down timestamp %s at step down",
-          __wt_timestamp_to_string(ckpt_ts, ts_string[0]),
-          __wt_timestamp_to_string(step_down_ts, ts_string[1]));
-    }
 
     /*
      * Clear the step-down timestamp and epoch. No write transaction runs concurrently with the
@@ -1949,10 +1945,13 @@ err:
  *     Step down to the follower mode on a dedicated internal session.
  */
 static int
-__disagg_step_down(WT_SESSION_IMPL *session)
+__disagg_step_down(WT_SESSION_IMPL *session, bool *refusedp)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session;
+
+    /* A failure before the transition mutates state (e.g. opening the session) is recoverable. */
+    *refusedp = true;
 
     /*
      * The default session calling this function is shared between threads: it must not open data
@@ -1976,7 +1975,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * follower that nothing ever marks.
      */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
-      WT_WITH_SCHEMA_LOCK(internal_session, ret = __disagg_step_down_int(internal_session)));
+      WT_WITH_SCHEMA_LOCK(
+        internal_session, ret = __disagg_step_down_int(internal_session, refusedp)));
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
@@ -2165,12 +2165,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
     uint64_t retries, time_start, time_stop;
-    bool leader, picked_up, was_leader;
+    bool leader, picked_up, step_down_refused, was_leader;
 
     conn = S2C(session);
     leader = was_leader = __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
     npage_log = NULL;
-    picked_up = false;
+    picked_up = step_down_refused = false;
 
     WT_CLEAR(complete_checkpoint_meta);
 
@@ -2300,8 +2300,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Leader step-down. */
         time_start = __wt_clock(session);
-        ret = __disagg_step_down(session);
+        ret = __disagg_step_down(session, &step_down_refused);
         time_stop = __wt_clock(session);
+        if (ret != 0 && step_down_refused)
+            WT_TRET(__wt_checkpoint_cleanup_start(session));
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
 
         /* A follower needs the deferred pickup server again. */
@@ -2466,8 +2468,16 @@ err:
      */
     if (ret != 0 && reconfig && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
-    if (ret != 0 && reconfig && was_leader && !leader)
+    if (ret != 0 && reconfig && was_leader && !leader) {
+        /*
+         * A step-down refused before any state changed leaves a working leader: a precondition did
+         * not hold and the caller can retry. A failure once the transition began is
+         * half-transitioned and unrecoverable.
+         */
+        if (step_down_refused)
+            return (ret);
         return (__wt_panic(session, ret, "failed to step-down as primary"));
+    }
     return (ret);
 }
 

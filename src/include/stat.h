@@ -1034,6 +1034,9 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_armed;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_down_refused_prepared;
+    int64_t disagg_step_down_refused_writer;
+    int64_t disagg_step_down_refused_plain_high;
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_time;

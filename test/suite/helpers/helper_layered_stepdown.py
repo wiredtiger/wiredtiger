@@ -63,6 +63,55 @@ class LayeredStepdownMixin:
         ckpt_session.close()
         self.conn.reconfigure('disaggregated=(role="follower")')
 
+    # A connection statistic's current value.
+    def conn_stat(self, key, conn=None):
+        session = (conn or self.conn).open_session('')
+        stat_cursor = session.open_cursor('statistics:', None, None)
+        value = stat_cursor[key][2]
+        stat_cursor.close()
+        session.close()
+        return value
+
+    # Arm or disarm a planned step-down.
+    def arm(self, conn=None):
+        (conn or self.conn).reconfigure('disaggregated=(step_down_arm=true)')
+
+    def disarm(self, conn=None):
+        (conn or self.conn).reconfigure('disaggregated=(step_down_arm=false)')
+
+    # Advance stable to ts and take a checkpoint there.
+    def checkpoint_at(self, ts, conn=None):
+        conn = conn or self.conn
+        conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
+        ckpt_session = conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+
+    # Demote and expect a refusal counted by the given statistic. The leader is left unchanged.
+    def expect_demote_refused(self, refusal_stat, conn=None):
+        conn = conn or self.conn
+        before = self.conn_stat(refusal_stat, conn)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: conn.reconfigure('disaggregated=(role="follower")'), '/step-down refused/')
+        self.assertEqual(self.conn_stat(refusal_stat, conn), before + 1)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_role_leader, conn), 1)
+
+    # The planned step-down: arm, checkpoint at ts, then demote, retrying after a fresh checkpoint
+    # while it is refused for want of a covering checkpoint.
+    def demote(self, ts, conn=None, retries=10):
+        conn = conn or self.conn
+        self.arm(conn)
+        for _ in range(retries):
+            self.checkpoint_at(ts, conn)
+            try:
+                conn.reconfigure('disaggregated=(role="follower")')
+                return
+            except wiredtiger.WiredTigerError as e:
+                if os.strerror(errno.EINVAL) not in str(e):
+                    raise
+                self.ignoreStderrPatternIfExists('step-down refused')
+        self.fail(f'step-down still refused after {retries} checkpoints at {ts}')
+
     # The file URI of a layered table's ingest constituent.
     def ingest_uri(self, uri):
         return 'file:' + uri.split(':', 1)[1] + '.wt_ingest'
