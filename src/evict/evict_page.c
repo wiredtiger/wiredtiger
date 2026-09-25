@@ -304,8 +304,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       .memsize = disk_image->mem_size,
       .flags = 0,
     };
-    WT_ITEM *cache_buf = &buf_orig;
-    WT_ITEM *compressed_buf = NULL;
+    WT_ITEM *cache_buf = NULL;
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     bool compressed = false;
@@ -320,12 +319,25 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      * abandon the put. We deliberately don't propagate it - this is optional cache population, not
      * an operation worth failing.
      */
-    if ((ret = __wt_blkcache_compress(
-           session, &buf_orig, false, &compressed_buf, NULL, &compressed)) != 0)
+    if ((ret = __wt_blkcache_compress(session, &buf_orig, false, &cache_buf, NULL, &compressed)) !=
+      0) {
         __wt_err(session, ret,
           "victim cache: failed to compress block before caching, caching uncompressed");
-    if (compressed_buf != NULL)
-        cache_buf = compressed_buf;
+        ret = 0;
+        WT_UNUSED(ret); /* Quiet clang analyzer. */
+    }
+
+    /* We want a copy because eviction owns the page but not the disk image. */
+    if (cache_buf == NULL) {
+        if ((ret = __wt_scr_alloc(session, buf_orig.size, &cache_buf)) == 0)
+            ret = __wt_buf_set(session, cache_buf, buf_orig.data, buf_orig.size);
+        if (ret != 0) {
+            __wt_err(
+              session, ret, "victim cache: failed to copy the page image, skipping insertion");
+            __wt_scr_free(session, &cache_buf);
+            return;
+        }
+    }
 
     /* Point dsk to the cache buffer's page header. */
     dsk = (WT_PAGE_HEADER *)cache_buf->mem;
@@ -349,13 +361,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * Update the disagg block header following the pattern from __wti_block_disagg_write_internal.
+     * Fill in the disagg block header following the pattern from __wti_block_disagg_write_internal.
      * The disagg block header is at WT_BLOCK_HEADER_REF (after the page header).
-     *
-     * The image is the one whichever node laid it out produced, and compression preserves the bytes
-     * the headers occupy, so the fields describing the header are already correct here. Only the
-     * fields caching changes are rewritten: stamping this node's header size over an image a node
-     * with a different header size wrote would point every reader at the wrong first data byte.
      */
     WT_BLOCK_DISAGG_HEADER *blk = WT_BLOCK_HEADER_REF(cache_buf->data);
     WT_ASSERT(session,
@@ -399,11 +406,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_err(session, ret, "victim cache: failed to cache page");
     bool cached = ret == 0;
 
-    if (compressed_buf != NULL)
-        __wt_scr_free(session, &compressed_buf);
-    else
-        /* Swap page header back to native order. */
-        __wt_page_header_byteswap(dsk);
+    __wt_scr_free(session, &cache_buf);
 
     uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
     WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);

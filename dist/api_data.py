@@ -705,8 +705,7 @@ connection_runtime_config = [
             recorded header size is not the version 1 size, print a verbose warning and read the
             block using the version 1 size.''',
             type='boolean', undoc=True),
-        # FIXME-WT-18608: Set default to false once we fix all the issues on the MongoDB side.
-        Config('disagg_commit_ts_optional', 'true', r'''
+        Config('disagg_commit_ts_optional', 'false', r'''
             !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated
             tables are not required to carry a commit timestamp.''',
             type='boolean', undoc=True),
