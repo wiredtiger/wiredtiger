@@ -177,7 +177,7 @@ struct __wti_log {
                                    /*
                                     * Log file information
                                     */
-    uint32_t fileid;               /* Current log file number */
+    wt_shared uint32_t fileid;     /* Current log file number */
     uint32_t prep_fileid;          /* Pre-allocated file number */
     wt_shared uint32_t tmp_fileid; /* Temporary file number */
 #ifdef HAVE_DIAGNOSTIC
