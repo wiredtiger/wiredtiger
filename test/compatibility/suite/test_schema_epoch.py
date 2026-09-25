@@ -32,38 +32,39 @@ from pathlib import Path
 import compatibility_test
 import wiredtiger
 from compatibility_version import WTVersion
+from wtscenario import make_scenarios
 
 
 class test_schema_epoch(compatibility_test.CompatibilityTestCase):
-    """Hand a disaggregated database between releases with schema epochs off and on.
+    """Upgrade and downgrade a disaggregated database between releases using schema epochs.
 
-    Each step is a fresh node that picks up the previous leader's checkpoint, sets its
-    stable timestamp and steps up. Newer nodes also set the schema epoch to the stable
-    timestamp, as MongoDB does. Older nodes never set it.
+    Each node takes over from the last checkpoint, checks every earlier table, adds one and
+    hands off. Nodes using epochs set the schema epoch to the stable timestamp, as MongoDB
+    does. Newer nodes always use epochs, older nodes only when the scenario says so.
 
-    The database starts on the older branch, because it cannot open one created on the
-    newer branch.
+    The database starts on the older branch, because it cannot open one created on the newer
+    branch.
     """
 
-    checkpoint_metadata_path = Path("checkpoint_meta.txt")
-
-    legacy_uri = "layered:legacy"
-    upgrade_uri = "layered:upgrade"
-    downgrade_uri = "layered:downgrade"
-    reupgrade_uri = "layered:reupgrade"
+    older_version_epochs = [
+        ("older_without_epochs", dict(older_use_epochs=False)),
+        ("older_with_epochs", dict(older_use_epochs=True)),
+    ]
+    scenarios = make_scenarios(older_version_epochs)
 
     def setUp(self):
         if self.older_branch < WTVersion("mongodb-9.0"):
             self.skipTest(f"{self.older_branch.name} does not support disaggregated storage")
         super().setUp()
+        self.created_table_uris = []
 
     @contextmanager
-    def open_follower(self, branch, home):
+    def open_follower(self, branch_name, home):
         """Open a fresh follower on the shared page log and yield a session."""
         Path("shared").mkdir(exist_ok=True)
         Path(home).mkdir()
         Path(home, "kv_home").symlink_to("../shared")
-        build_path = Path(self.branch_build_path(branch.name))
+        build_path = Path(self.branch_build_path(branch_name))
         palite_path = build_path / "ext/page_log/palite/libwiredtiger_palite.so"
         config = (
             f'create,extensions=["{palite_path}"],'
@@ -75,28 +76,20 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
         ):
             yield session
 
-    def pick_up_checkpoint(self, session):
-        """Pick up the checkpoint the previous leader saved."""
-        checkpoint_meta = self.checkpoint_metadata_path.read_text(encoding="utf-8")
-        session.connection.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+    def set_stable(self, session, timestamp, use_epochs):
+        """Set the stable timestamp and, with epochs on, the schema epoch to match it."""
+        session.connection.set_timestamp(f"stable_timestamp={timestamp:x}")
+        if use_epochs:
+            # We will directly assign the stable epoch to the be the same as the stable timestamp.
+            session.connection.set_timestamp(f"stable_disaggregated_schema_epoch={timestamp:x}")
 
-    def set_stable(self, session, timestamp, schema_epoch=None):
-        """Set the stable timestamp and, if given, the stable schema epoch."""
-        config = f"stable_timestamp={timestamp:x}"
-        if schema_epoch is not None:
-            config += f",stable_disaggregated_schema_epoch={schema_epoch:x}"
-        session.connection.set_timestamp(config)
-
-    def checkpoint_and_store_metadata(self, session):
-        """Checkpoint, step down and save the checkpoint metadata."""
-        session.checkpoint()
-
-        # Step down so closing the node does not checkpoint past the handoff.
-        session.connection.reconfigure("disaggregated=(role=follower)")
+    def pick_up_last_checkpoint(self, session, use_epochs):
+        """Pick up the last checkpoint in the shared page log and set stable to its timestamp."""
         page_log = session.connection.get_page_log("palite")
-        *_, checkpoint_meta = page_log.pl_get_complete_checkpoint(session)
+        _, _, timestamp, metadata = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session)
-        self.checkpoint_metadata_path.write_text(checkpoint_meta, encoding="utf-8")
+        session.connection.reconfigure(f'disaggregated=(checkpoint_meta="{metadata}")')
+        self.set_stable(session, timestamp, use_epochs)
 
     def expected_rows(self, uri):
         """Return the rows a table should hold, with values unique to that table."""
@@ -111,70 +104,49 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
                 cursor[key] = value
             session.commit_transaction(f"commit_timestamp={commit_timestamp:x}")
 
-    def verify_rows(self, session, *uris):
+    def verify_rows(self, session, uris):
         """Assert that each table holds exactly its expected rows."""
         for uri in uris:
             with closing(session.open_cursor(uri)) as cursor:
                 self.assertEqual(dict(cursor), self.expected_rows(uri), uri)
 
-    def create_legacy_database(self):
-        """Create the database on the older branch, with no schema epoch."""
-        with self.open_follower(self.older_branch, "legacy") as session:
-            session.connection.reconfigure("disaggregated=(role=leader)")
-            self.create_populated_table(session, self.legacy_uri, commit_timestamp=10)
-            self.set_stable(session, timestamp=10)
-            self.checkpoint_and_store_metadata(session)
-
-    def upgrade(self):
-        """Take over the legacy database on the newer branch and publish a new table."""
-        with self.open_follower(self.newer_branch, "upgrade") as session:
-            self.pick_up_checkpoint(session)
-            self.set_stable(session, timestamp=10, schema_epoch=10)
+    def run_leader(self, branch_name, home, commit_timestamp, use_epochs):
+        """Take over from the last checkpoint, check earlier tables, add one and hand off."""
+        with self.open_follower(branch_name, home) as session:
+            if self.created_table_uris:
+                self.pick_up_last_checkpoint(session, use_epochs)
+            else:
+                # The first node creates the database, so it starts before any commit.
+                self.set_stable(session, timestamp=1, use_epochs=use_epochs)
             session.connection.reconfigure("disaggregated=(role=leader)")
 
-            self.verify_rows(session, self.legacy_uri)
+            self.verify_rows(session, self.created_table_uris)
 
-            self.create_populated_table(session, self.upgrade_uri, commit_timestamp=20)
-            session.publish(self.upgrade_uri, f"disaggregated=(schema_epoch={20:x})")
-            self.set_stable(session, timestamp=20, schema_epoch=20)
+            table_uri = f"layered:{home}"
+            self.create_populated_table(session, table_uri, commit_timestamp)
+            if use_epochs:
+                session.publish(table_uri, f"disaggregated=(schema_epoch={commit_timestamp:x})")
+            self.set_stable(session, commit_timestamp, use_epochs)
 
-            self.checkpoint_and_store_metadata(session)
+            session.checkpoint()
+            session.connection.reconfigure("disaggregated=(role=follower)")
 
-    def downgrade(self):
-        """Take over on the older branch and create a table without publishing it."""
-        with self.open_follower(self.older_branch, "downgrade") as session:
-            self.pick_up_checkpoint(session)
-            self.set_stable(session, timestamp=20)
-            session.connection.reconfigure("disaggregated=(role=leader)")
-
-            self.verify_rows(session, self.legacy_uri, self.upgrade_uri)
-
-            self.create_populated_table(session, self.downgrade_uri, commit_timestamp=30)
-            self.set_stable(session, timestamp=30)
-
-            self.checkpoint_and_store_metadata(session)
-
-    def reupgrade(self):
-        """Take over again on the newer branch and publish another table."""
-        with self.open_follower(self.newer_branch, "reupgrade") as session:
-            self.pick_up_checkpoint(session)
-            self.set_stable(session, timestamp=30, schema_epoch=30)
-            session.connection.reconfigure("disaggregated=(role=leader)")
-
-            self.verify_rows(session, self.legacy_uri, self.upgrade_uri, self.downgrade_uri)
-
-            self.create_populated_table(session, self.reupgrade_uri, commit_timestamp=40)
-            session.publish(self.reupgrade_uri, f"disaggregated=(schema_epoch={40:x})")
-            self.set_stable(session, timestamp=40, schema_epoch=40)
-
-            self.checkpoint_and_store_metadata(session)
+    def run_leader_on(self, branch, home, commit_timestamp):
+        """Run a leader with the branch's build, then record the table it added."""
+        use_epochs = branch == self.newer_branch or self.older_use_epochs
+        self.run_method_on_branch(
+            branch,
+            f"run_leader(branch_name={branch.name!r}, home={home!r}, "
+            f"commit_timestamp={commit_timestamp}, use_epochs={use_epochs})",
+        )
+        self.created_table_uris.append(f"layered:{home}")
 
     def test_schema_epoch_compatibility(self):
         """Upgrade, downgrade and re-upgrade, checking each node reads earlier tables."""
-        self.run_method_on_branch(self.older_branch, "create_legacy_database")
-        self.run_method_on_branch(self.newer_branch, "upgrade")
-        self.run_method_on_branch(self.older_branch, "downgrade")
-        self.run_method_on_branch(self.newer_branch, "reupgrade")
+        self.run_leader_on(self.older_branch, home="legacy", commit_timestamp=10)
+        self.run_leader_on(self.newer_branch, home="upgrade", commit_timestamp=20)
+        self.run_leader_on(self.older_branch, home="downgrade", commit_timestamp=30)
+        self.run_leader_on(self.newer_branch, home="reupgrade", commit_timestamp=40)
 
 
 if __name__ == "__main__":
