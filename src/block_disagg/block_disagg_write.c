@@ -39,10 +39,13 @@ __wti_block_disagg_header_write_size(WT_SESSION_IMPL *session)
 {
     /* The oversized version 1 mode keeps the version 1 layout and only records a wrong size. */
     if (S2C(session)->debug.disagg_block_header_upgrade ==
-        WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE ||
-      S2C(session)->debug.disagg_block_header_upgrade ==
-        WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED)
+      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE)
         return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+#ifdef HAVE_DIAGNOSTIC
+    if (S2C(session)->debug.disagg_block_header_upgrade ==
+      WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED)
+        return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE);
+#endif
 
     /* Stand in for a future writer that appended fields to the header. */
     return (WT_BLOCK_DISAGG_HEADER_WRITE_SIZE + WT_BLOCK_DISAGG_HEADER_DEBUG_EXTRA_SIZE);
@@ -82,9 +85,11 @@ __wti_block_disagg_header_init(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER 
         blk->version = WT_BLOCK_DISAGG_VERSION + 1;
         blk->compatible_version = WT_BLOCK_DISAGG_VERSION + 1;
         break;
+#ifdef HAVE_DIAGNOSTIC
     case WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED:
         /* Recorded only in the written block; see __wti_block_disagg_write_internal. */
         break;
+#endif
     }
 }
 
@@ -236,13 +241,15 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     blk->checksum = 0;
 
     /*
-     * Stand in for a version 1 writer that recorded the wrong header size. Only the stored block
-     * carries it: the in-memory image may be walked after the write and must keep the true size.
+     * For testing record the wrong header size in the block. Only the stored block carries it: the
+     * in-memory image may be walked after the write and must keep the true size.
      */
     combined_header_size = blk->combined_header_size;
+#ifdef HAVE_DIAGNOSTIC
     if (conn->debug.disagg_block_header_upgrade ==
       WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED)
         blk->combined_header_size += WT_BLOCK_DISAGG_HEADER_DEBUG_EXTRA_SIZE;
+#endif
     __block_disagg_header_byteswap(blk);
     blk->checksum = checksum = __wt_checksum(
       buf->mem, data_checksum ? buf->size : WT_MIN(buf->size, WT_BLOCK_COMPRESS_SKIP));

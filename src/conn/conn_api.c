@@ -2771,7 +2771,12 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else if (WT_CONFIG_LIT_MATCH("incompatible", cval))
         block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE;
     else if (WT_CONFIG_LIT_MATCH("v1_oversized", cval))
+#ifdef HAVE_DIAGNOSTIC
         block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED;
+#else
+        WT_RET_MSG(session, ENOTSUP,
+          "debug.disagg_block_header_upgrade=v1_oversized requires a diagnostic build");
+#endif
     else
         WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_block_header_upgrade: '%.*s'",
           (int)cval.len, cval.str);

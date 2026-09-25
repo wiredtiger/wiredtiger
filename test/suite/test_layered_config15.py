@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wttest
+import os, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -150,6 +150,10 @@ class test_layered_config15(wttest.WiredTigerTestCase, suite_subprocess):
         self.restart_without_local_files(config=self.debug_config('none'))
         self.conn.reconfigure('debug_mode=(disagg_block_header_v1_ignore_size=true)')
         self.check_all(self.num_modify)
+
+        # Writing version 1 blocks with a wrong header size is only possible in diagnostic builds.
+        if not wiredtiger.diagnostic_build():
+            return
 
         # Version 1 blocks that record a wrong header size warn, and are read using the version 1
         # size. Such blocks are unreadable without the option, and the writer reads them back too,

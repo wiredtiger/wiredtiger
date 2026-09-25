@@ -698,7 +698,7 @@ connection_runtime_config = [
             modify the disaggregated block manager to pretend that it writes a newer, larger block
             header, to test upgrade/downgrade of block headers. The \c v1_oversized choice keeps
             the version 1 header but records a larger header size in it, to exercise
-            \c disagg_block_header_v1_ignore_size.''',
+            \c disagg_block_header_v1_ignore_size; it is only available in diagnostic builds.''',
             choices=['none', 'compatible', 'incompatible', 'v1_oversized'], undoc=True),
         Config('disagg_block_header_v1_ignore_size', 'false', r'''
             if true, when reading a disaggregated block whose header version is 1 but whose
