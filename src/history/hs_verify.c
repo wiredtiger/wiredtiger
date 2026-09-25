@@ -75,9 +75,8 @@ __hs_verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, const char *ke
 
 /*
  * __hs_verify_ds_search --
- *     Search the data store for a history store key, and optionally read back the time window of
- *     the value found there. A row-store key is used directly; a column-store key is unpacked to
- *     the record number.
+ *     Check the data store for a history store key. If data store entry is found and its timestamp
+ *     window is needed to check for overlaps with the history store entry, read it back.
  */
 static int
 __hs_verify_ds_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_ITEM *key,
@@ -113,10 +112,9 @@ __hs_verify_ds_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_ITEM
 
 /*
  * __hs_verify_chain_close --
- *     Close out the records sharing one key: confirm the newest of them doesn't overlap the data
- *     table's current value. The data store's own search for this key normally handed back the
- *     value's time window on the way past; a key whose every record was excused was never searched
- *     for, so search now.
+ *     Verify a key's latest history store entry time window against the corresponding data store
+ *     entry's current time window, if a corresponding data store entry exists. This check doesn't
+ *     verify whether a data store entry should exist, so a missing entry is not an error.
  */
 static int
 __hs_verify_chain_close(
@@ -143,7 +141,6 @@ __hs_verify_chain_close(
     if (!chain->searched)
         WT_RET(__hs_verify_ds_search(session, ds_cbt, chain->key, true, chain));
 
-    /* A key found missing is the existence check's business; there is nothing to compare. */
     if (!chain->live_valid)
         return (0);
 
@@ -167,8 +164,10 @@ __hs_verify_chain_close(
 /*
  * __hs_verify_id --
  *     Verify the history store for a single btree. Given a cursor to the tree, walk all history
- *     store keys. This function assumes any caller has already opened a cursor to the history
- *     store. Records for a key are grouped as they are walked.
+ *     store keys. History store records for a key are grouped as they are walked. For each group,
+ *     compare the timestamp ranges of adjacent history store records to check for overlaps, and
+ *     verify consistency with the data store. This function assumes any caller has already opened a
+ *     cursor to the history store.
  */
 static int
 __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *ds_cbt,
@@ -200,9 +199,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
      * If using standard cursors, we need to skip the non-globally visible tombstones in the data
      * table to verify the corresponding entries in the history store are too present in the data
      * store. Though this is not required currently as we are directly searching btree cursors,
-     * leave it here in case we switch to standard cursors. The per-key checks need it as the data
-     * table's current tombstone is one of the values they compare against, so it must not be hidden
-     * from them.
+     * leave it here in case we switch to standard cursors.
      */
     F_SET(&ds_cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
@@ -281,14 +278,11 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
               hs_tw->stop_ts, stable_timestamp, tmp));
 
         /*
-         * Check the key can be found in the data store. One record for the key answers that for all
-         * of them, so the search only runs until it does.
-         *
          * A follower's own oldest timestamp trails the one that wrote the checkpoint, so its cursor
          * still hands back records that reconciliation had already written off when it dropped
-         * their keys from the page image. Skip those, as the writer's own cursor did. A record
-         * excused here leaves the key unchecked, so that any remaining record for it is judged on
-         * its own window rather than excused by this one.
+         * their keys from the page image. Skip those, as the writer's own cursor did. The last
+         * checked key is left alone so that any remaining record for this key is judged on its own
+         * window rather than excused by this one.
          */
         if (!chain.exists && !__hs_verify_obsolete(hs_tw, checkpoint_oldest_ts)) {
             WT_ERR(__hs_verify_ds_search(session, ds_cbt, &key, check_data_store, &chain));
@@ -298,7 +292,8 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
              * The history store cursor judged this record live before we searched the data store,
              * but global visibility only ever advances: a record that has since become obsolete was
              * never an orphan, the two checks simply straddled the change. Recheck it, and leave
-             * the key unchecked as above.
+             * the last checked key alone so that any remaining record for this key is judged on its
+             * own window rather than excused by this one.
              */
             if (!chain.exists && !__wt_txn_tw_stop_visible_all(session, hs_tw)) {
                 F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
@@ -314,9 +309,6 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 
-    /*
-     * Close out the last group.
-     */
     if (chain.open && per_key_checks)
         WT_TRET(__hs_verify_chain_close(session, ds_cbt, &chain, tmp));
 

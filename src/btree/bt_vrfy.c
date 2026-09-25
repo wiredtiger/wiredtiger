@@ -1585,7 +1585,6 @@ __verify_page_content_leaf(
           F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
             __wt_clayered_stable_value_stat(session, unpack.data, unpack.size);
 
-        /* Column-store record accounting; per-key history-store checks run separately, once. */
         if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
             vs->records_so_far += rle;

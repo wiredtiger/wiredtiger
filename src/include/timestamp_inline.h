@@ -353,8 +353,9 @@ __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
 
 /*
  * __wt_ts_stable_violation --
- *     Check a start/stop timestamp pair against the stable timestamp. Return true and set the
- *     failing side and value when either is past it.
+ *     Check that a start/stop timestamp pair is not greater than the global stable timestamp. This
+ *     check is done only when verify is configured with "stable_timestamp" (verify is called
+ *     post-RTS) so every record beyond the stable timestamp should have been rolled back already.
  */
 static WT_INLINE bool
 __wt_ts_stable_violation(wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
