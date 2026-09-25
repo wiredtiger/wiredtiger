@@ -196,13 +196,21 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, bool e
  *     Pack the validity window for an address.
  */
 static WT_INLINE void
-__cell_pack_addr_validity(
-  WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREGATE *ta, bool is_prepared_fast_truncate)
+__cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, u_int cell_type,
+  WT_TIME_AGGREGATE *ta, bool is_prepared_fast_truncate)
 {
+    wt_timestamp_t newest_page_stop_durable_ts;
     uint8_t flags, *flagsp;
 
     /* A prepared fast-truncate and a prepared time aggregate cannot be on the same page. */
     WT_ASSERT(session, !(ta->prepare && is_prepared_fast_truncate));
+    newest_page_stop_durable_ts = ta->newest_page_stop_durable_ts;
+    /*
+     * Legacy WT validates this field as the maximum durable stop time across children, so internal
+     * cells must retain a conservative bound even when none of their child pages is fully deleted.
+     */
+    if (cell_type == WT_CELL_ADDR_INT)
+        newest_page_stop_durable_ts = WT_MAX(newest_page_stop_durable_ts, ta->newest_durable_ts);
 
     if (WT_TIME_AGGREGATE_IS_EMPTY(ta) && !is_prepared_fast_truncate) {
         ++*pp;
@@ -250,9 +258,9 @@ __cell_pack_addr_validity(
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_txn - ta->newest_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
-    if (ta->newest_page_stop_durable_ts != WT_TS_NONE) {
+    if (newest_page_stop_durable_ts != WT_TS_NONE) {
         WT_ASSERT(session,
-          ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts <= ta->newest_page_stop_durable_ts);
+          ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts <= newest_page_stop_durable_ts);
 
         /*
          * Store differences, not absolutes.
@@ -263,7 +271,7 @@ __cell_pack_addr_validity(
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_page_stop_durable_ts - ta->newest_stop_ts));
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, newest_page_stop_durable_ts - ta->newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     if (ta->prepare || is_prepared_fast_truncate)
@@ -602,7 +610,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_addr_validity(session, &p, ta, is_prepared_fast_truncate);
+    __cell_pack_addr_validity(session, &p, cell_type, ta, is_prepared_fast_truncate);
 
     /*
      * If passed fast-delete information, append the fast-delete information after the aggregated
@@ -1167,13 +1175,13 @@ __cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_
         }
         ta->newest_durable_ts = WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts);
         /*
-         * Legacy leaf cells used the durable stop field for deleted values even when the page was
-         * only partially deleted. Preserve that value for internal cells because it aggregates
-         * child pages, but normalize it for leaf cells when live values remain.
+         * Internal cells use the durable-stop field as a compatibility bound, not as a marker that
+         * the subtree is fully deleted. Preserve the bound in newest_durable_ts, but clear it from
+         * newest_page_stop_durable_ts when the stop aggregate is open.
          */
-        if (unpack_addr->raw != WT_CELL_ADDR_INT && ta->newest_stop_ts == WT_TS_MAX) {
+        if (ta->newest_stop_ts == WT_TS_MAX) {
             __wt_verbose_debug1(session, WT_VERB_RECONCILE,
-              "resetting legacy page stop durable timestamp: cell_type=%u, stop_ts=%" PRIu64
+              "resetting non-page-stop durable timestamp: cell_type=%u, stop_ts=%" PRIu64
               ", page_stop_durable_ts=%" PRIu64,
               unpack_addr->raw, ta->newest_stop_ts, ta->newest_page_stop_durable_ts);
             ta->newest_page_stop_durable_ts = WT_TS_NONE;

@@ -39,20 +39,27 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
     older = 'mongodb-9.0'
     newer = 'develop'
     scenarios = make_scenarios([
-        ('partial', dict(delete_all=False)),
-        ('full', dict(delete_all=True)),
+        ('partial', dict(delete_all=False, mixed_children=False)),
+        ('full', dict(delete_all=True, mixed_children=False)),
+        ('mixed_children', dict(delete_all=False, mixed_children=True)),
     ])
     uri = 'table:wt13076'
     nrows = 10000
     table_config = 'key_format=i,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512'
 
     def _deleted_keys(self, start, count):
+        if self.mixed_children:
+            if start == 0:
+                return range(start, start + count // 2)
+            return range(start, start + count)
         if self.delete_all:
             return range(start, start + count)
         return range(start, start + count, 2)
 
     def _log_scenario(self, branch_name, operation):
         pattern = 'all keys' if self.delete_all else 'alternating keys'
+        if self.mixed_children:
+            pattern = 'lower half deleted, upper half live at a newer timestamp'
         self.prhead(
             'WT-13076 {} on {}: rows={}, delete_pattern={}, page_config={}'.format(
                 operation, branch_name, self.nrows, pattern, self.table_config))
@@ -77,6 +84,11 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
             cursor.set_key(key)
             self.assertEqual(cursor.remove(), 0)
             session.commit_transaction('commit_timestamp=20')
+        if self.mixed_children:
+            session.begin_transaction()
+            for key in range(self.nrows // 2, self.nrows):
+                cursor[key] = 'newer'
+            session.commit_transaction('commit_timestamp=30')
         session.checkpoint()
         cursor.close()
         session.close()
@@ -99,7 +111,8 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
                 self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
             else:
                 self.assertEqual(ret, 0)
-                self.assertEqual(cursor.get_value(), 'value')
+                value = 'newer' if self.mixed_children and key < self.nrows else 'value'
+                self.assertEqual(cursor.get_value(), value)
         cursor.close()
         session.checkpoint()
         session.close()
