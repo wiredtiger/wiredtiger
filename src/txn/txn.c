@@ -1861,7 +1861,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 wrote_ingest = true;
             else if (!wrote_stable && F_ISSET(op->btree, WT_BTREE_DISAGGREGATED) &&
               !WT_IS_ANY_METADATA(op->btree->dhandle) && !WT_IS_HS(op->btree->dhandle) &&
-              WT_URI_IS_STABLE(op->btree->dhandle->name))
+              WT_URI_IS_STABLE(op->btree->dhandle->name) &&
+              !__wt_atomic_load_bool_relaxed(&op->btree->dhandle->outdated))
                 wrote_stable = true;
         }
 
@@ -1881,15 +1882,20 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 #endif
 
-    /* An armed transaction mirrors every stable write to ingest. */
-    WT_ASSERT(session, !txn->step_down_armed || !wrote_stable || wrote_ingest);
+    /*
+     * An armed transaction mirrors every stable write to ingest, unless it was prepared across a
+     * step-down and a later step-up drained its ingest updates into stable: its stable writes to
+     * the stepped-down trees do not count, the drained ones are all it has left.
+     */
+    WT_ASSERT(session, !txn->step_down_armed || !wrote_stable || wrote_ingest || prepare);
 
     /*
      * A stable write that was not mirrored survives a step-down only through a checkpoint that
      * covers it. That includes a prepared transaction resolving ingest content a step-up drained
-     * into stable while it was unresolved.
+     * into stable while it was unresolved, armed or not.
      */
-    if (!txn->step_down_armed && (wrote_stable || (prepare && wrote_ingest)))
+    if (!txn->step_down_armed ? (wrote_stable || (prepare && wrote_ingest)) :
+                                (wrote_stable && !wrote_ingest))
         __wt_disagg_raise_plain_high(session, txn->time_point.durable_timestamp);
     else if (txn->step_down_armed && wrote_stable)
         __wt_disagg_raise_armed_high(session, txn->time_point.durable_timestamp);
