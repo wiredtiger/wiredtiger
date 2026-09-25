@@ -1614,14 +1614,11 @@ err:
  *
  * - Role era before role publish: a role change bumps the role generation before the release store
  *   of the role, which pairs with the acquire in the role read a stable bind dispatches on.
- * - Armed flag before an armed transaction: arming is a release store and transaction begin latches
- *   the flag with an acquire load. Stepping down clears the flag with a release store after the
- *   follower role is published, so a transaction latching the cleared flag observes the follower
- *   role.
- * - Disarm against a latch: a transaction that finds the flag set publishes its latch and issues a
- *   full barrier before reading the flag again; a disarm clears the flag and issues a full barrier
- *   before reading every latch. Either the disarm sees the transaction or the transaction sees the
- *   flag cleared.
+ * - The armed flag is not a lock-free contract: transaction begin latches it, and arm, disarm and
+ *   step-down change it, all under txn_global.step_down_lock (begin in read mode, the rest in write
+ * mode). The walk a disarm makes of in-flight transactions therefore sees every latch taken before
+ * the flag was cleared, and a transaction that latches the flag cleared by a step-down runs after
+ * the follower role was published.
  */
 
 /*
@@ -1741,17 +1738,18 @@ __disagg_step_down_disarm(WT_SESSION_IMPL *session)
 
     WT_RET(__layered_armed_create_check(session));
 
-    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, false);
-    WT_FULL_BARRIER();
-
+    /* Hold the lock across the walk so no transaction latches the flag while it is decided. */
+    __wt_writelock(session, &conn->txn_global.step_down_lock);
+    __wt_atomic_store_bool_relaxed(&conn->disaggregated_storage.step_down_armed, false);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     __wt_spin_lock(session, &conn->api_lock);
     ret = __wt_session_array_walk(session, __disagg_armed_txn_check, true, NULL);
     __wt_spin_unlock(session, &conn->api_lock);
-    if (ret != 0) {
-        __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, true);
+    if (ret != 0)
+        __wt_atomic_store_bool_relaxed(&conn->disaggregated_storage.step_down_armed, true);
+    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+    if (ret != 0)
         return (ret);
-    }
     WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
 
     /*
@@ -1792,7 +1790,9 @@ __disagg_step_down_arm_int(WT_SESSION_IMPL *session, bool arm)
     if (!arm)
         return (__disagg_step_down_disarm(session));
 
-    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, true);
+    __wt_writelock(session, &conn->txn_global.step_down_lock);
+    __wt_atomic_store_bool_relaxed(&conn->disaggregated_storage.step_down_armed, true);
+    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, disagg_step_down_armed, 1);
     __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "step-down armed");
     return (0);
@@ -2048,7 +2048,9 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
      * Disarm after publishing the follower role: a transaction that latches the cleared flag then
      * observes the follower role and reads ingest.
      */
-    __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, false);
+    __wt_writelock(session, &conn->txn_global.step_down_lock);
+    __wt_atomic_store_bool_relaxed(&conn->disaggregated_storage.step_down_armed, false);
+    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
 
     /*

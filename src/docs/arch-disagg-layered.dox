@@ -84,7 +84,8 @@ maintained in sync with implementation changes.
 
 @subsection layered-planned-step-down Planned step-down
 A leader that is about to hand over is first armed with the connection reconfiguration
-`disaggregated=(step_down_arm=true)`. A write transaction latches the armed flag when it begins,
+`disaggregated=(step_down_arm=true)`. A write transaction latches the armed flag when it begins (under the same lock that arms,
+disarms and steps down, so the latch and the flag never disagree),
 and a transaction that began armed mirrors every layered write to both the stable and the ingest
 table, reading ingest over the still-live stable table. Write conflicts are detected on the stable
 table, which every writer shares.

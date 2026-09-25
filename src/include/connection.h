@@ -363,7 +363,10 @@ struct __wt_disaggregated_storage {
 
     /*
      * A planned step-down is armed: write transactions that begin while it is set mirror their
-     * layered writes to ingest. Changed under the checkpoint and schema locks.
+     * layered writes to ingest. Latched at transaction begin under txn_global.step_down_lock in
+     * read mode; arm, disarm and step-down change it in write mode, so the latch and the flag never
+     * disagree and the walk a disarm makes of in-flight transactions sees every latch taken before
+     * the flag was cleared.
      */
     wt_shared bool step_down_armed;
 

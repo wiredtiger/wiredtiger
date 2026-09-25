@@ -2129,17 +2129,12 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
         __wt_txn_get_snapshot(session);
     }
 
-    /*
-     * Latch whether a step-down is armed; the acquire pairs with the release store that arms it. A
-     * latch that finds the flag set is published before the flag is read again, see the step-down
-     * ordering contracts.
-     */
-    if (__wt_conn_is_disagg(session) &&
-      __wt_atomic_load_bool_acquire(&S2C(session)->disaggregated_storage.step_down_armed)) {
-        __wt_atomic_store_bool_relaxed(&txn->step_down_armed, true);
-        WT_FULL_BARRIER();
+    /* Latch whether a step-down is armed; arm, disarm and step-down hold the lock in write mode. */
+    if (__wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
         __wt_atomic_store_bool_relaxed(&txn->step_down_armed,
-          __wt_atomic_load_bool_acquire(&S2C(session)->disaggregated_storage.step_down_armed));
+          __wt_atomic_load_bool_relaxed(&S2C(session)->disaggregated_storage.step_down_armed));
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     }
 
     F_SET(txn, WT_TXN_RUNNING);

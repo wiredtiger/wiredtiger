@@ -226,6 +226,12 @@ struct __wt_txn_global {
     WT_RWLOCK visibility_rwlock;
 
     /*
+     * Serializes a transaction's latch of the step-down armed flag (read mode) against arming,
+     * disarming and stepping down (write mode).
+     */
+    WT_RWLOCK step_down_lock;
+
+    /*
      * Track information about the running checkpoint. The transaction snapshot used when
      * checkpointing are special. Checkpoints can run for a long time so we keep them out of regular
      * visibility checks. Eviction and checkpoint operations know when they need to be aware of
