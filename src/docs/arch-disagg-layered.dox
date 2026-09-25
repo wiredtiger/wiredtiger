@@ -101,6 +101,19 @@ since the arm, so the demoted node serves every commit and keeps nothing above i
 next step-up always abandons. The demotion clears the armed flag and prunes ingest at or below the
 checkpoint.
 
+A prepared transaction that began before the arm has stable-only updates whose durable timestamp is
+unknown until it resolves, so it blocks the demotion until it commits or rolls back; a commit raises
+`plain_high`, and the demotion then also needs a checkpoint covering it. A prepared transaction that
+began armed has its prepared updates in both tables and does not block the demotion: it may stay
+open across it and be resolved on the follower, which resolves its ingest updates and leaves its
+updates in the stepped-down stable tree unresolved, since that tree is never read again. The
+demotion checkpoint holds no committed version of its updates; with `preserve_prepared` it holds
+them as prepared, and the successor resolves them when it resolves its own copy of the
+transaction. If it is still unresolved when the demoted node takes the lead again, the drain moves
+its ingest updates into stable and its commit is stable only, raising `plain_high`. An armed reader
+can meet a prepared update in either table: a scan returns `WT_PREPARE_CONFLICT`, possibly before
+keys that precede the prepared key, and resumes after it without skipping or repeating a key.
+
 A table created while armed has no stable constituent until the next step-up creates one; its
 writes go to ingest alone. Disarming (`step_down_arm=false`) abandons the planned step-down: it is
 refused while an armed transaction is in flight or while such a table exists, and otherwise clears
