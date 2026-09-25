@@ -40,8 +40,8 @@ import wttest
 @disagg_test_class
 class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
     """
-    Write conflict detection for follower fast truncate (truncate-truncate
-    conflicts only).
+    Write conflict detection for follower fast truncate: truncates against
+    other truncates and against ingest writes.
     """
 
     uris = [
@@ -54,6 +54,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
     conn_config = 'disaggregated=(role="leader"),'
 
     CONFLICT_MSG = "/conflict between concurrent operations/"
+    WARNING_MSG = 'conflicts with an uncommitted ingest update'
 
     # These helpers are local to 18 because they all take an explicit session
     # (the conflict tests drive two sessions concurrently). The equivalent
@@ -219,6 +220,138 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
                 commit_timestamp=20),
         ):
             self.truncate_on(session_b, 40, 70)
+
+    def write_on(self, session, key, value='w'):
+        with self.cursor_on(session) as cursor:
+            cursor[key] = value
+
+    def test_truncate_over_uncommitted_ingest_insert_conflicts(self):
+        # A follower with stable keys 1-100; key 45 has no ingest content.
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        # txn A writes key 45 into ingest and leaves it uncommitted.
+        session_a = self.session
+        session_a.begin_transaction()
+        self.write_on(session_a, 45)
+
+        # txn B truncates 30-60, which covers the pending write, and gets
+        # WT_ROLLBACK.
+        with self.expectedStdoutPattern(self.WARNING_MSG):
+            with (
+                self.auto_closing_session() as session_b,
+                self.transaction(session=session_b, rollback=True),
+            ):
+                self.assertRaisesException(
+                    WiredTigerError,
+                    lambda: self.truncate_on(session_b, 30, 60),
+                    self.CONFLICT_MSG,
+                )
+
+    def test_truncate_over_stable_only_uncommitted_remove_conflicts(self):
+        # Key 45 lives only in stable; the follower has no ingest content for it.
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        # txn A removes key 45; ingest holds only the uncommitted tombstone.
+        session_a = self.session
+        session_a.begin_transaction()
+        with self.cursor_on(session_a) as cursor:
+            cursor.set_key(45)
+            cursor.remove()
+
+        # txn B truncates 30-60, which covers the pending remove, and gets
+        # WT_ROLLBACK.
+        with self.expectedStdoutPattern(self.WARNING_MSG):
+            with (
+                self.auto_closing_session() as session_b,
+                self.transaction(session=session_b, rollback=True),
+            ):
+                self.assertRaisesException(
+                    WiredTigerError,
+                    lambda: self.truncate_on(session_b, 30, 60),
+                    self.CONFLICT_MSG,
+                )
+
+    def test_truncate_start_boundary_uncommitted_insert_conflicts(self):
+        # The pending key sits exactly on the truncate start bound.
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        session_a = self.session
+        session_a.begin_transaction()
+        self.write_on(session_a, 30)
+
+        with self.expectedStdoutPattern(self.WARNING_MSG):
+            with (
+                self.auto_closing_session() as session_b,
+                self.transaction(session=session_b, rollback=True),
+            ):
+                self.assertRaisesException(
+                    WiredTigerError,
+                    lambda: self.truncate_on(session_b, 30, 60),
+                    self.CONFLICT_MSG,
+                )
+
+    def test_truncate_beside_uncommitted_ingest_insert_no_conflict(self):
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        session_a = self.session
+        session_a.begin_transaction()
+        self.write_on(session_a, 45)
+
+        # txn B truncates 50-80, which does not cover key 45, and commits.
+        with (
+            self.auto_closing_session() as session_b,
+            self.transaction(session=session_b, commit_timestamp=20),
+        ):
+            self.truncate_on(session_b, 50, 80)
+
+    def test_write_inside_uncommitted_truncate_conflicts(self):
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        # txn A truncates 30-60 and leaves it uncommitted.
+        session_a = self.session
+        session_a.begin_transaction()
+        self.truncate_on(session_a, 30, 60)
+
+        # txn B writes key 45 inside the pending range and gets WT_ROLLBACK.
+        with (
+            self.auto_closing_session() as session_b,
+            self.transaction(session=session_b, rollback=True),
+        ):
+            self.assertRaisesException(
+                WiredTigerError,
+                lambda: self.write_on(session_b, 45),
+                self.CONFLICT_MSG,
+            )
+
+    def test_same_txn_write_then_truncate_no_self_conflict(self):
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        with self.transaction(commit_timestamp=20):
+            self.write_on(self.session, 45)
+            self.truncate_on(self.session, 30, 60)
+
+        self.assertFalse(self.key_exists(45))
+
+    def test_truncate_after_rolled_back_ingest_insert_no_conflict(self):
+        self.setup_leader(keys=range_inclusive(1, 100))
+        self.setup_follower()
+
+        # txn A writes key 45 then rolls back.
+        with self.transaction(rollback=True):
+            self.write_on(self.session, 45)
+
+        # txn B truncates 30-60 and commits without WT_ROLLBACK.
+        with (
+            self.auto_closing_session() as session_b,
+            self.transaction(session=session_b, commit_timestamp=20),
+        ):
+            self.truncate_on(session_b, 30, 60)
 
 
 if __name__ == "__main__":
