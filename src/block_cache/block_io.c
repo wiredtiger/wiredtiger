@@ -549,7 +549,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     /* Decrypt. */
     ip_orig = ip;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
-        WT_ERR(__wt_scr_alloc(session, 0, &etmp));
+        /* Pre-size to the leaf page max to avoid realloc on typical pages (WT-17097). */
+        WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &etmp));
         WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
     }
@@ -568,7 +569,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
-        WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
+        WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &ctmp));
         WT_ERR(__read_decompress(session, dsk, dsk->mem_size, ctmp, addr, addr_size));
         ip = ctmp;
     }
@@ -615,13 +616,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
-            WT_ERR(__wt_scr_alloc(session, 0, &etmp));
+            WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &etmp));
             WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
             ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
             dsk = ip->data;
-            WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
+            WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &ctmp));
             WT_ERR(__read_decompress(session, ip->data, dsk->mem_size, ctmp, addr, addr_size));
             ip = ctmp;
         }
