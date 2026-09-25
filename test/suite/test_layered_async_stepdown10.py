@@ -56,10 +56,7 @@ class test_layered_async_stepdown10(
       ('epoch', dict(use_epochs=True)),
       ('legacy', dict(use_epochs=False)),
     ]
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
-    scenarios = make_scenarios(disagg_storages, worlds, write_modes)
+    scenarios = make_scenarios(disagg_storages, worlds)
 
     def conn_config(self):
         return self.base + \
@@ -82,10 +79,8 @@ class test_layered_async_stepdown10(
             return next(self.ts_counter)
 
     def setup_stress_state(self):
-        # Commit timestamps and the step-down timestamp come from one counter and every
-        # timestamp call happens under one lock, so a commit can never trail the step-down or
-        # stable timestamp. The only legal commit failure is the straddle rollback: the engine
-        # rolling back a transaction that was in flight when the step-down timestamp landed.
+        # Commit timestamps and the arm timestamp come from one counter and every timestamp call
+        # happens under one lock, so a commit can never trail the stable timestamp.
         self.ts_lock = threading.Lock()
         self.ts_counter = itertools.count(self.initial_stable_epoch)
         # Publish epochs stay above the initial stable epoch, so every publish is legal.
@@ -255,17 +250,13 @@ class test_layered_async_stepdown10(
             # A failed commit has already resolved the transaction, an earlier failure has not.
             if not resolved:
                 wsession.rollback_transaction()
-            # A write may only be rolled back by the transition itself: a straddle of the
-            # step-down boundary, or the demotion adopting the step-down checkpoint underneath a
-            # transaction begun before it.
-            if 'straddled the step-down timestamp' in message:
-                self.op_counts['straddle_rollbacks'] += 1
-            else:
-                self.assertIn('A newer checkpoint was adopted', message,
-                    f'write to {uri} rolled back with unexpected reason: {message}')
-                self.assertTrue(self.demotion_started,
-                    f'write to {uri} hit a checkpoint adoption before the demotion')
-                self.op_counts['adoption_rollbacks'] += 1
+            # A write may only be rolled back by the demotion adopting the step-down checkpoint
+            # underneath a transaction begun before it.
+            self.assertIn('A newer checkpoint was adopted', message,
+                f'write to {uri} rolled back with unexpected reason: {message}')
+            self.assertTrue(self.demotion_started,
+                f'write to {uri} hit a checkpoint adoption before the demotion')
+            self.op_counts['adoption_rollbacks'] += 1
         cursor.close()
         if ts is not None:
             self.tables[uri]['history'].append((ts, kvs))
@@ -381,10 +372,10 @@ class test_layered_async_stepdown10(
         # Phase 0: a plain leader.
         time.sleep(self.phase_sleep)
 
-        # Phase 1: open the window by setting the step-down timestamp.
+        # Phase 1: open the window by arming the step-down.
         with self.ts_lock:
             self.step_down_ts = next(self.ts_counter)
-            self.set_step_down_ts(self.step_down_ts)
+            self.arm()
         time.sleep(self.phase_sleep)
 
         # Phase 2: advance stable to the cutoff.
@@ -398,11 +389,17 @@ class test_layered_async_stepdown10(
         ckpt_session.close()
         time.sleep(self.phase_sleep)
 
-        # Phase 4: finish the current operation and pause for demotion.
+        # Phase 4: finish the current operation and pause for demotion. A transaction in flight at
+        # the arm commits stable only, possibly above the cutoff; the demotion then needs a
+        # checkpoint that covers it, so the cutoff moves up to meet it.
         self.pause_requested.set()
         while not self.pause_acknowledged.is_set():
             self.assertTrue(self.worker.is_alive(), 'workload exited before acknowledging pause')
             self.pause_acknowledged.wait(0.01)
+        plain_high = self.conn_stat(wiredtiger.stat.conn.disagg_plain_high)
+        if plain_high > self.step_down_ts:
+            self.step_down_ts = plain_high
+            self.checkpoint_at(self.step_down_ts)
         self.demotion_started = True
         self.step_down()
         self.pause_requested.clear()
@@ -415,9 +412,6 @@ class test_layered_async_stepdown10(
                 f'drops to verify: {len(self.drops_to_verify)}')
         for counter in ('commits', 'verified_reads', 'creates', 'window_creates', 'drops'):
             self.assertGreater(self.op_counts[counter], 0, f'workload made no {counter}')
-        # The engine and the workload must agree on which rollbacks were straddles.
-        self.assertEqual(self.get_step_down_rollback_count(),
-            self.op_counts['straddle_rollbacks'])
 
     # Verify the step-down checkpoint itself, before this node steps back up and re-covers
     # everything: a fresh follower must serve exactly the pre-window rows at the step-down
@@ -445,7 +439,7 @@ class test_layered_async_stepdown10(
     def step_up_and_cover(self):
         self.step_up()
         # The demotion must have cleared the step-down timestamp.
-        self.assertEqual(self.step_down_ts_is_set(), 0)
+        self.assertEqual(self.step_down_is_armed(), 0)
         if self.use_epochs:
             self.set_stable_epoch(next(self.epoch_counter))
         final_ts = self.alloc_ts()

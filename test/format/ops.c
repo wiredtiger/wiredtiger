@@ -420,13 +420,12 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     for (;;) {
         /*
          * When the timer expires during an async disagg leader phase, spawn the step-down in a
-         * background thread. The step-down joins the checkpoint/timestamp threads, drains in-flight
-         * transactions, pauses worker writes, takes the step-down checkpoint and completes the
-         * transition to follower. Running it in a separate thread keeps the spin loop ticking
-         * (track_ops) so terminal output stays live during the drain (up to 60 s). fourths is
-         * paused at -1 while the thread runs; once it signals done, fourths is reset to grant the
-         * workers a follower window before operations() returns. disagg_switch_roles() in t.c then
-         * performs the step-up.
+         * background thread. The step-down joins the checkpoint/timestamp threads, arms, pauses
+         * worker writes, takes the step-down checkpoint and completes the transition to follower.
+         * Running it in a separate thread keeps the spin loop ticking (track_ops) so terminal
+         * output stays live meanwhile. fourths is paused at -1 while the thread runs; once it
+         * signals done, fourths is reset to grant the workers a follower window before operations()
+         * returns. disagg_switch_roles() in t.c then performs the step-up.
          */
         if (fourths == 0 && !stepdown_triggered && disagg_is_mode_switch() && g.disagg_leader &&
           GV(DISAGG_STEPDOWN_ASYNC)) {
@@ -659,19 +658,13 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
 
 /*
  * next_timestamp --
- *     Allocate the next global timestamp under the step-down read lock. The write lock is held
- *     exclusively during step-down notification; threads blocked here unblock with values strictly
- *     above step_down_ts, sending their writes to ingest (mirrored to both when configured).
+ *     Allocate the next global timestamp.
  */
 uint64_t
 next_timestamp(WT_SESSION *session)
 {
-    uint64_t ts;
-
-    lock_readlock(session, &g.timestamp_lock);
-    ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
-    lock_readunlock(session, &g.timestamp_lock);
-    return (ts);
+    WT_UNUSED(session);
+    return (__wt_atomic_add_uint64_v(&g.timestamp, 1));
 }
 
 /*

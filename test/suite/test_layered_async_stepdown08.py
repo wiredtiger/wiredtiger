@@ -55,10 +55,7 @@ class test_layered_async_stepdown08(
       ('epoch', dict(use_epochs=True)),
       ('legacy', dict(use_epochs=False)),
     ]
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
-    scenarios = make_scenarios(disagg_storages, worlds, write_modes)
+    scenarios = make_scenarios(disagg_storages, worlds)
 
     def conn_config(self):
         return self.base + self.leader + \
@@ -81,16 +78,6 @@ class test_layered_async_stepdown08(
         super().set_stable_epoch(epoch, conn)
         self.stable_epoch = epoch
 
-    def set_step_down_ts(self, ts):
-        """
-        Open the step-down window, declaring the boundary in epoch space too in the epoch world.
-        Using the current stable epoch means the demotion needs no further epoch movement.
-        """
-        if self.use_epochs:
-            super().set_step_down_ts(ts, self.stable_epoch)
-        else:
-            super().set_step_down_ts(ts)
-
     def publish_if_epochs(self, uri, epoch):
         """Publish a create, which the epoch-less world has no notion of."""
         if self.use_epochs:
@@ -105,7 +92,7 @@ class test_layered_async_stepdown08(
     def enter_window(self):
         """Set up the world, then open the step-down window by setting the timestamp."""
         self.setup_world()
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
 
     def step_down_checkpoint(self):
         """
@@ -157,7 +144,7 @@ class test_layered_async_stepdown08(
         before, before_rows = self.create_with_rows('before', 2)
         self.publish_and_make_stable(before, 20)
 
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
         after, after_rows = self.create_with_rows('after', 6)
         self.publish_if_epochs(after, 40)
 
@@ -179,12 +166,12 @@ class test_layered_async_stepdown08(
         uri, rows = self.create_with_rows('existing', 2)
         self.publish_and_make_stable(uri, 20)
 
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
         self.write_at(uri, {'window': 'window'}, 6)
 
         expected = {**rows, 'window': 'window'}
         self.assertEqual(self.read_kvs_at(uri, 7), expected)
-        expected_stable = expected if self.stable_has_step_down_writes() else rows
+        expected_stable = expected
         self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 7), expected_stable)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(uri), 7), {'window': 'window'})
 
@@ -217,7 +204,7 @@ class test_layered_async_stepdown08(
             self.session.create(unpublished, self.table_config)
             tables['unpublished'] = (unpublished, {})
 
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
 
         # Created after the step-down timestamp. Its publish epoch has to exceed the stable schema
         # epoch the covered table advanced to, so the epoch world defers this entry by epoch and the
@@ -319,7 +306,7 @@ class test_layered_async_stepdown08(
         # Published below the cutoff, so the step-down checkpoint covers it and its rows.
         self.publish_and_make_stable(before, 20)
 
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
         after, after_rows = self.create_with_rows('after', 6)
         self.publish_if_epochs(after, 40)
         self.assertTrue(self.stable_constituent_exists(self.conn, before))
@@ -353,7 +340,7 @@ class test_layered_async_stepdown08(
         follower_keys = sorted(self.local_metadata_keys(conn_follow, uri))
         self.close_follower(conn_follow, session_follow)
 
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
         self.session.create(uri, self.table_config)
         self.assertEqual(sorted(self.local_metadata_keys(self.conn, uri)), follower_keys)
         self.complete_step_down(self.cutoff_ts)
@@ -412,7 +399,7 @@ class test_layered_async_stepdown08(
         reader = self.conn.open_session('')
         reader.begin_transaction()
 
-        self.set_step_down_ts(self.cutoff_ts)
+        self.arm()
         uri, rows = self.create_with_rows('window_reader', 6)
         self.assertFalse(self.stable_constituent_exists(self.conn, uri))
 
@@ -453,7 +440,7 @@ class test_layered_async_stepdown08(
         thread = threading.Thread(target=create_tables)
         thread.start()
         try:
-            self.set_step_down_ts(self.cutoff_ts)
+            self.arm()
         except Exception as e:
             errors.append(e)
         thread.join()

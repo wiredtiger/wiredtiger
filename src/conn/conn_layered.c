@@ -505,12 +505,6 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     entry->metadata_op = metadata_op;
     entry->schema_epoch = schema_epoch;
     /*
-     * Record which side of the step-down boundary the operation was issued on. The schema lock held
-     * here serializes the boundary, making the relaxed load safe.
-     */
-    entry->in_step_down_window =
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE;
-    /*
      * A table created before the stable schema epoch is set never awaits publication. The epoch
      * cannot be unset again, so NONE here means it was NONE when the table was created.
      */
@@ -1122,13 +1116,13 @@ __wt_disagg_shared_metadata_queue_process(
     }
 
     /*
-     * A parked CREATE left while a step-down timestamp is set belongs to the era the pending
-     * step-down begins, so put it back for a later leader era to complete. A violation parked
-     * meanwhile is caught by the next era's drain. The schema lock held here serializes the
-     * timestamp, making the relaxed load safe. Anything else is an API violation.
+     * A parked CREATE left while a step-down is armed belongs to the era the pending step-down
+     * begins, so put it back for a later leader era to complete. A violation parked meanwhile is
+     * caught by the next era's drain. The schema lock held here serializes the arm, making the
+     * relaxed load safe. Anything else is an API violation.
      */
     if (!TAILQ_EMPTY(&skipped_creates)) {
-        if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+        if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed))
             __disagg_requeue_skipped_creates(session, &skipped_creates);
         else
             WT_ERR(
@@ -1147,46 +1141,6 @@ err:
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     return (ret);
-}
-
-/*
- * __disagg_publish_check_step_down --
- *     Check a publish epoch against the step-down boundary: a table whose latest operation was
- *     issued before the boundary must be published at or below it, so the step-down checkpoint
- *     carries it, while one whose latest operation was issued inside the window belongs to the next
- *     era and can only be published above it. The caller holds the schema and queue locks.
- */
-static int
-__disagg_publish_check_step_down(
-  WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t schema_epoch)
-{
-    WT_DISAGG_METADATA_OP *latest;
-    wt_timestamp_t step_down_epoch;
-    bool in_step_down_window;
-
-    /* The schema lock held by the caller serializes the boundary, making the relaxed load safe. */
-    step_down_epoch = __wt_atomic_load_uint64_relaxed(
-      &S2C(session)->txn_global.step_down_disaggregated_schema_epoch);
-    if (step_down_epoch == WT_SCHEMA_EPOCH_NONE)
-        return (0);
-
-    latest = __wt_disagg_table_latest_create_remove(session, table_name);
-    in_step_down_window = latest != NULL && latest->in_step_down_window;
-
-    if (in_step_down_window && schema_epoch <= step_down_epoch)
-        WT_RET_MSG(session, EINVAL,
-          "Cannot publish for table \"%s\" at schema epoch %" PRIu64
-          " at or below the step down boundary %" PRIu64,
-          table_name, schema_epoch, step_down_epoch);
-    if (!in_step_down_window && schema_epoch > step_down_epoch)
-        WT_RET_MSG(session, EINVAL,
-          "Cannot publish for table \"%s\" at schema epoch %" PRIu64
-          " above the step down boundary %" PRIu64
-          ": the table's latest schema operation predates the boundary, so the step down "
-          "checkpoint has to carry it",
-          table_name, schema_epoch, step_down_epoch);
-
-    return (0);
 }
 
 /*
@@ -1244,7 +1198,7 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
     /* Only the leader publishes, and only outside a role transition. */
     if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
       F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+      __wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed))
         return;
 
     __wt_disagg_btree_publish_if_covered(
@@ -1288,7 +1242,6 @@ __wt_disagg_shared_metadata_queue_publish(
                   "Publish requires table \"%s\" to be created after the stable disaggregated "
                   "schema epoch is set",
                   table_name);
-            WT_ERR(__disagg_publish_check_step_down(session, table_name, schema_epoch));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
@@ -1493,7 +1446,7 @@ err:
 
 /*
  * __layered_assert_step_down_created --
- *     Assert a table created inside the step-down window has no stable constituent in the local
+ *     Assert a table created while a step-down was armed has no stable constituent in the local
  *     metadata. A table missing from the check would send every cursor to an open that cannot
  *     succeed, and one wrongly included would hide the constituent it has.
  */
@@ -1503,19 +1456,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metadata_cursor;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t step_down_epoch;
-    bool legacy;
 
     conn = S2C(session);
-
-    /*
-     * In legacy mode the step-down checkpoint consumed every create that built a constituent, so
-     * every queued create must be a window create. With schema epochs, uncovered creates
-     * legitimately remain queued, so only window creates are checked.
-     */
-    legacy = __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
-    step_down_epoch =
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
 
     WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
 
@@ -1523,23 +1465,6 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
-
-        if (legacy)
-            WT_ASSERT_ALWAYS(session, entry->stable_value == NULL,
-              "create for \"%s\" with a stable constituent still queued at step-down",
-              entry->stable_uri);
-
-        /*
-         * A create missing its stable table at or below the boundary claims coverage by a
-         * checkpoint that had nothing to write for it.
-         */
-        if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && entry->stable_value == NULL)
-            WT_ASSERT_ALWAYS(session,
-              entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
-                entry->schema_epoch > step_down_epoch,
-              "create for \"%s\" with no stable constituent published at epoch %" PRIu64
-              " at or below the step down boundary %" PRIu64,
-              entry->stable_uri, entry->schema_epoch, step_down_epoch);
 
         /*
          * A window create is the table's newest create, unpublished and missing its stable table.
@@ -1594,18 +1519,10 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
-    /*
-     * The step-down timestamp and epoch never survive into a step-up: completing the step-down is
-     * the only way they clear, so finding either set here means the role state machine was
-     * violated.
-     */
+    /* Only a leader arms, and stepping down clears it. */
     WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) == WT_TS_NONE,
-      "stepping up while the step-down timestamp is set");
-    WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch) ==
-        WT_SCHEMA_EPOCH_NONE,
-      "stepping up while the step-down disaggregated schema epoch is set");
+      !__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed),
+      "stepping up while a step-down is armed");
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
@@ -1836,7 +1753,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
     struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
-    wt_timestamp_t ckpt_ts, plain_high, step_down_ts;
+    wt_timestamp_t ckpt_ts, plain_high;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -1913,27 +1830,15 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
     if (shared_dsk_cache->hash != NULL)
         __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
 
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
-    if (step_down_ts != WT_TS_NONE)
+    if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed))
         WT_ERR(__layered_assert_step_down_created(session));
 
     /*
-     * Clear the step-down timestamp and epoch. No write transaction runs concurrently with the
-     * step-down, but the lock is still required for readers: transaction begin reads the step-down
-     * timestamp under it, so a transaction that sees the timestamp cleared is guaranteed to also
-     * see the earlier switch of the role to follower. Without that ordering a reader could observe
-     * the stale leader role with no step-down timestamp and read only stable, missing ingest
-     * content.
+     * Disarm after publishing the follower role: a transaction that latches the cleared flag then
+     * observes the follower role and reads ingest.
      */
-    __wt_writelock(session, &conn->txn_global.step_down_lock);
-    __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
-    __wt_atomic_store_uint64_relaxed(
-      &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
     __wt_atomic_store_bool_release(&conn->disaggregated_storage.step_down_armed, false);
-    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, disagg_step_down_armed, 0);
-    WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
-    WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
 
 err:
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 0);

@@ -710,11 +710,6 @@ connection_runtime_config = [
             instead of the optimized range delete. Intended for debugging the disaggregated
             slow/fast truncate split; leader always uses fast truncate.''',
             type='boolean', undoc=True),
-        # FIXME-WT-18723: remove once prepared transactions are supported across a step-down.
-        Config('disagg_stepdown_prepare', 'false', r'''
-            !!! FOR INTERNAL TESTING ONLY. If true, bypass the asserts that otherwise abort a
-            prepared transaction while the step-down timestamp is set.''',
-            type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
             to happen more aggressively. This includes but is not limited to not skewing newest,
@@ -2319,25 +2314,6 @@ methods = {
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
-    Config('step_down_disaggregated_schema_epoch', '', r'''
-        the schema epoch that marks the planned step-down boundary in disaggregated storage.
-        May only be supplied together with \c step_down_timestamp, and should accompany it
-        whenever schema epochs are in use. Schema operations published at or below this epoch
-        are covered by the final checkpoint taken before the step-down; operations published
-        above it are deferred until after the next step-up. The value must not be older than
-        the current stable disaggregated schema epoch, and before stepping down the application
-        must advance the stable disaggregated schema epoch to equal it. Cannot be changed while
-        set'''),
-    Config('step_down_timestamp', '', r'''
-        the timestamp that prepares for a planned step-down in disaggregated storage. The
-        application must ensure the timestamp is newer than every commit timestamp
-        already allocated, and that no new timestamp is allocated until this call returns. Once
-        set, write transactions that start after it is set are kept locally so their content
-        survives the step-down, and their commit timestamps must be after this timestamp;
-        in-flight write transactions are rolled back for the application to retry. Before stepping
-        down, the application must advance the stable timestamp to equal it and checkpoint at that
-        boundary. When schema epochs are in use, \c step_down_disaggregated_schema_epoch should
-        be supplied in the same call. Cannot be changed while set; only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([

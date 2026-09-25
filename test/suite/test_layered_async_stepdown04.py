@@ -39,15 +39,12 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
     # No periodic statistics-logging thread: it would race with the cursor-cache reopen checks
     # below, which read a connection-wide stat over a narrow window.
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     def conn_config(self):
         return self.conn_base_config + \
             f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     test_name = __qualname__
 
@@ -74,7 +71,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
     # constituent, and survives the demotion.
     def test_create_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
-        self.set_step_down_ts(20)
+        self.arm()
 
         uri = f'layered:{self.test_name}_create'
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -101,7 +98,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         # Keep the cutoff armed while allowing the drop retry to checkpoint the stable content.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.dropUntilSuccess(self.session, self.uri)
@@ -125,7 +122,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         cursor.close()
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.open_cached_cursor(self.uri)
 
@@ -135,7 +132,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
-        expected_stable = {'k1', 'k2'} if self.stable_has_step_down_writes() else {'k1'}
+        expected_stable = {'k1', 'k2'}
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
         self.complete_step_down(20)
@@ -146,7 +143,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'pre': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'post': 'ingest'}, 30)
 
         self.complete_step_down(20)
@@ -183,7 +180,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.set_key('e')
         self.assertEqual(cursor.bound('action=set,bound=upper'), 0)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -236,7 +233,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'k2': 'ingest'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, 'readonly=true')
@@ -277,7 +274,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         stable_keys = {f's{i:02d}' for i in range(10)}
         self.write_at(self.uri, {k: 's' for k in stable_keys}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         ingest_keys = {f'i{i:02d}' for i in range(10)}
         self.write_at(self.uri, {k: 'i' for k in ingest_keys}, 30)
@@ -334,7 +331,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         stable_keys = {f's{i:02d}' for i in range(10)}
         self.write_at(uri, {k: 's' for k in stable_keys}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         ingest_keys = {f'i{i:02d}' for i in range(10)}
         self.write_at(uri, {k: 'i' for k in ingest_keys}, 30)

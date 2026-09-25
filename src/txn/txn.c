@@ -2126,16 +2126,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
 
     /*
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down.
-     */
-    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
-        WT_ASSERT_ALWAYS(session,
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
-            WT_TS_NONE,
-          "prepared transactions are not supported while the step-down timestamp is set");
-
-    /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
      * turned on.
      */
@@ -2722,7 +2712,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
-    WT_RET(__wt_rwlock_init(session, &txn_global->step_down_lock));
 
     WT_RET(__wt_calloc_def(session, conn->session_array.size, &txn_global->txn_shared_list));
 
@@ -2753,7 +2742,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 
     __wt_rwlock_destroy(session, &txn_global->rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
-    __wt_rwlock_destroy(session, &txn_global->step_down_lock);
     __wt_free(session, txn_global->txn_shared_list);
 }
 

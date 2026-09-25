@@ -38,15 +38,12 @@ from wtscenario import make_scenarios
 class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = \
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     def conn_config(self):
         return self.conn_base_config + \
             f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     test_name = __qualname__
 
@@ -65,7 +62,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(t_pre, {'a': 'stable'}, 10)
         self.write_at(t_both, {'a': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         self.write_at(t_post, {'b': 'ingest'}, 30)
         self.write_at(t_both, {'b': 'ingest'}, 30)
@@ -98,7 +95,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         pre = {'pre' + str(i) for i in range(5)}
         self.write_at(self.uri, {k: 'stable' for k in pre}, 10)
-        self.set_step_down_ts(20)
+        self.arm()
         post = {'post' + str(i) for i in range(5)}
         self.write_at(self.uri, {k: 'ingest' for k in post}, 30)
 
@@ -128,7 +125,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
             self.assertIn(cursor.get_key(), keys)
 
         sample()
-        self.set_step_down_ts(20)
+        self.arm()
         sample()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         sample()
@@ -148,7 +145,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i', 'z': 'i'}, 30)
 
         rcur = self.session.open_cursor(self.uri, None, None)
@@ -230,7 +227,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(rcur.get_key(), 'b')
 
         # The cursor stays positioned across the cutoff being set.
-        self.set_step_down_ts(20)
+        self.arm()
         self.assertEqual(rcur.next(), 0)
         self.assertEqual(rcur.get_key(), 'd')
 
@@ -320,7 +317,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(rcur['k1'], 'old', 'the snapshot must exclude the concurrent commit')
         rcur.reset()
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.complete_step_down(20)
 
         # Both a fresh cursor and the original one must still answer from the snapshot. An
@@ -372,7 +369,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # The leader commits above the reader's view and completes the step-down.
         self.write_at(self.uri, {'k1': 'new'}, 15)
-        self.set_step_down_ts(20)
+        self.arm()
         self.complete_step_down(20)
 
         # The follower picks up the step-down checkpoint under the open snapshot; an
@@ -406,7 +403,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
@@ -433,7 +430,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'a': 'stable'}, 10)
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'b': 'window'}, 30)
         self.complete_step_down(20)
 
@@ -485,19 +482,19 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.checkpoint()
 
     # Once the step-down completes the node is a follower; setting the cutoff again is rejected.
-    def test_step_down_ts_after_step_down_rejected(self):
+    def test_arm_after_step_down_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'pre': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
-        self.assertEqual(self.step_down_ts_is_set(), 1)
+        self.arm()
+        self.assertEqual(self.step_down_is_armed(), 1)
         self.complete_step_down(20)
 
-        # The demotion clears the cutoff.
-        self.assertEqual(self.step_down_ts_is_set(), 0)
+        # The demotion disarms, and a follower cannot arm.
+        self.assertEqual(self.step_down_is_armed(), 0)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.set_step_down_ts(30), '/can only be set on a disaggregated leader/')
+            lambda: self.arm(), '/only valid on a disaggregated leader/')
 
     # Two full step-down/step-up cycles: the promotion drains ingest into stable and the node is
     # fully reusable, including setting the cutoff again.
@@ -507,7 +504,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # Cycle 1: stable content, then ingest content, then complete the step-down.
         self.write_at(self.uri, {'a': 'cycle1-stable'}, 10)
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'b': 'cycle1-ingest'}, 30)
         self.complete_step_down(20)
 
@@ -528,7 +525,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # Cycle 2: setting the cutoff again must succeed and route new writes to ingest (mirrored
         # to both when enabled).
-        self.set_step_down_ts(60)
+        self.arm()
         self.write_at(self.uri, {'d': 'cycle2-ingest'}, 70)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 80), {'d'},
             'a later write in the second cycle must reach ingest')

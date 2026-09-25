@@ -96,14 +96,11 @@
 #define TS_OLDEST 0x01u
 #define TS_STABLE 0x02u
 #define TS_STABLE_SCHEMA_EPOCH 0x04u
-#define TS_STEPDOWN_TIMESTAMP 0x08u
-#define TS_STEPDOWN_SCHEMA_EPOCH 0x10u
 #define TS_LAST_SCHEMA_EPOCH 0x20u
 #define TS_LAST_CHECKPOINT 0x40u
 #define TS_FRONTIER (TS_OLDEST | TS_STABLE | TS_STABLE_SCHEMA_EPOCH)
-#define TS_STEPDOWN (TS_STEPDOWN_TIMESTAMP | TS_STEPDOWN_SCHEMA_EPOCH)
-/* The epoch bits set_ts drops when epochs are off; setting either one leaves legacy mode. */
-#define TS_SCHEMA_EPOCHS (TS_STABLE_SCHEMA_EPOCH | TS_STEPDOWN_SCHEMA_EPOCH)
+/* The epoch bits set_ts drops when epochs are off; setting one leaves legacy mode. */
+#define TS_SCHEMA_EPOCHS TS_STABLE_SCHEMA_EPOCH
 
 /* Which process this instance of the binary is. */
 typedef enum { ROLE_PARENT = 0, ROLE_NODE } TEST_ROLE;

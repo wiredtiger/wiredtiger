@@ -2054,57 +2054,6 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 }
 
 /*
- * __wt_txn_stepdown_straddler_check --
- *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
- *     checkpointed at that timestamp, and everything committed after it must go to the ingest
- *     constituent to survive the role change. Transactions that begin once the timestamp is set
- *     route their writes to ingest (mirroring to both when write mirroring is enabled). A write
- *     transaction that began before then routed its writes to stable, so if it is still running it
- *     "straddles" the boundary: its commit can land above the step-down timestamp, yet its content
- *     sits in stable, where nothing above the checkpoint survives. Rather than risk losing the
- *     writes, return WT_ROLLBACK and have the application retry it as a new transaction, which
- *     routes to ingest. For read operations only the assertion applies.
- */
-static WT_INLINE int
-__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
-{
-    WT_TXN *txn = session->txn;
-    /*
-     * A relaxed load suffices: for cursor operations rejecting a straddler here is only an
-     * optimization ahead of the commit-time check, and at commit the caller holds the step-down
-     * lock, which orders this read against the timestamp being set.
-     */
-    wt_timestamp_t stepdown_ts =
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-
-    /*
-     * While the step-down timestamp is set, layered operations must run in explicit snapshot
-     * transactions. Explicit, because an implicit (autocommit) transaction only begins inside the
-     * constituent operation, after this check and the constituent routing have made their
-     * decisions, so it would evade both. Snapshot, because a transaction decides once, at begin,
-     * whether its reads consult ingest, and that decision only stays correct while it keeps reading
-     * the state it saw at begin: under read-committed or read-uncommitted it would see newer
-     * commits without looking in the table they went to. The assertion comes before the early
-     * return so it also covers read operations.
-     */
-    WT_ASSERT(session,
-      stepdown_ts == WT_TS_NONE ||
-        (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
-          txn->isolation == WT_ISO_SNAPSHOT));
-
-    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->step_down_armed)
-        return (0);
-
-    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-      "step-down straddler rollback: txn began before stepdown timestamp was set %" PRIu64,
-      stepdown_ts);
-    WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
-    __wt_session_set_last_error(
-      session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
-    return (WT_ROLLBACK);
-}
-
-/*
  * __wt_txn_config_clear --
  *     Discard a transaction's configuration. The cache-size exemption is the only setting stored
  *     outside the transaction, so it is dropped here, and only when the transaction claimed it
@@ -2180,27 +2129,10 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
         __wt_txn_get_snapshot(session);
     }
 
-    /*
-     * Record whether the step-down timestamp was set when this transaction started; the commit-time
-     * check rolls back write transactions that started before it was set.
-     *
-     * Read it after taking the snapshot: it is also used to determine whether cursors should access
-     * the ingest table. Since snapshots are synchronized, reading a snapshot that contains ingest
-     * changes made after the step-down timestamp was set guarantees the timestamp is observed as
-     * set here as well.
-     *
-     * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
-     * the timestamp as set also makes the writes of transactions that committed before it was set
-     * visible.
-     */
-    if (__wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+    /* Latch whether a step-down is armed; the acquire pairs with the release store that arms it. */
+    if (__wt_conn_is_disagg(session))
         txn->step_down_armed =
-          __wt_atomic_load_bool_acquire(&S2C(session)->disaggregated_storage.step_down_armed) ||
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) !=
-            WT_TS_NONE;
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-    }
+          __wt_atomic_load_bool_acquire(&S2C(session)->disaggregated_storage.step_down_armed);
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))

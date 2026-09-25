@@ -248,21 +248,6 @@ disagg_is_mode_switch(void)
 }
 
 /*
- * stepdown_workers_drained --
- *     Return true once every worker's most recent commit is past step_down_ts, proving no worker
- *     can commit at or below the boundary again. Only commits the workers have completed count:
- *     querying WT's all_durable would miss a timestamp a worker has allocated but not yet given to
- *     timestamp_transaction, letting the drain finish early and that commit land behind stable.
- *     Timer-based runs are required (enforced at configuration): a worker that exhausts its
- *     operation count stops committing and would stall the drain.
- */
-static bool
-stepdown_workers_drained(wt_timestamp_t step_down_ts)
-{
-    return (timestamp_minimum_committed() >= step_down_ts);
-}
-
-/*
  * stepdown_writers_paused --
  *     Return true once every worker has acknowledged the write pause. An acknowledgment is only
  *     published with no transaction in flight, so once all workers have acknowledged, no write is
@@ -302,125 +287,130 @@ stepdown_pause_worker_writes(void)
 }
 
 /*
- * disagg_stepdown_drain_dump_stragglers --
- *     On drain timeout, dump each worker's last published commit timestamp relative to step_down_ts
- *     so a genuinely hung worker can be told apart from one still slowly committing under load.
+ * stepdown_stat --
+ *     Return a connection statistic.
+ */
+static int64_t
+stepdown_stat(WT_SESSION *session, int key)
+{
+    WT_CURSOR *cursor;
+    int64_t value;
+    const char *desc, *pvalue;
+
+    testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
+    cursor->set_key(cursor, key);
+    testutil_check(cursor->search(cursor));
+    testutil_check(cursor->get_value(cursor, &desc, &pvalue, &value));
+    testutil_check(cursor->close(cursor));
+    return (value);
+}
+
+/*
+ * stepdown_stable_at_committed --
+ *     With the workers paused, advance stable to cover every committed timestamp.
  */
 static void
-disagg_stepdown_drain_dump_stragglers(wt_timestamp_t step_down_ts)
+stepdown_stable_at_committed(WT_SESSION *session)
 {
-    TINFO **tlp;
-    wt_timestamp_t commit_ts;
+    char config[64];
 
-    if (tinfo_list == NULL)
-        return;
-    for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
-        commit_ts = __wt_atomic_load_uint64_acquire(&(*tlp)->commit_ts);
-        if (commit_ts == WT_TS_NONE || commit_ts < step_down_ts)
-            track_msg("[stepdown] straggler: thread %d commit_ts=%" PRIu64 " (step_down_ts=%" PRIu64
-                      ")",
-              (*tlp)->id, commit_ts, step_down_ts);
-    }
+    timestamp_sync_threads_commit_ts();
+    g.stable_timestamp = timestamp_minimum_committed();
+    testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, g.stable_timestamp);
+    lock_writelock(session, &g.prepare_commit_lock);
+    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
+    lock_writeunlock(session, &g.prepare_commit_lock);
+}
+
+/*
+ * stepdown_demote_refused --
+ *     Attempt the demotion and require it to be refused and counted by the given statistic.
+ */
+static void
+stepdown_demote_refused(WT_SESSION *session, int refusal_stat, const char *why)
+{
+    int64_t before;
+
+    before = stepdown_stat(session, refusal_stat);
+    testutil_assert(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)") == EINVAL);
+    testutil_assertfmt(stepdown_stat(session, refusal_stat) == before + 1,
+      "step-down refusal for %s was not counted", why);
+    testutil_assert(stepdown_stat(session, WT_STAT_CONN_DISAGG_ROLE_LEADER) == 1);
+    track_msg("[stepdown] demotion refused as expected: %s", why);
+}
+
+/*
+ * stepdown_prepared_begin --
+ *     Begin a write transaction before the arm on a table of its own, so it stays unarmed.
+ */
+static void
+stepdown_prepared_begin(WT_SESSION *session, WT_CURSOR **cursorp)
+{
+    static const char *uri = "layered:stepdown_prepared";
+    WT_CURSOR *cursor;
+    char key[32];
+
+    testutil_check(session->create(session, uri, "key_format=S,value_format=S"));
+    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->begin_transaction(session, NULL));
+    testutil_snprintf(key, sizeof(key), "%" PRIu64, __wt_atomic_load_uint64_acquire(&g.timestamp));
+    cursor->set_key(cursor, key);
+    cursor->set_value(cursor, "unarmed");
+    testutil_check(cursor->insert(cursor));
+    *cursorp = cursor;
 }
 
 /* !!!
  * disagg_async_stepdown --
- *     Perform an async step-down while worker threads are still live:
+ *     Perform a planned step-down while worker threads are still live:
  *     1. Stop the checkpoint and timestamp threads so they cannot interfere.
- *     2. Write lock: capture step_down_ts, advance g.timestamp past it, and notify WT via
- *        set_timestamp(step_down_timestamp) - all under the lock so WT begins enforcing the
- *        boundary before any new timestamps are handed out. WT rolls back in-flight write
- *        transactions while setting the stepdown_ts; threads unblocked from the write lock get ts
- *        values > step_down_ts.
- *     3. Drain: wait until every worker has committed or rolled back at or below step_down_ts.
- *     4. Let the workers keep writing above the boundary for a window, exercising post-step-down
- *        leader writes.
+ *     2. Begin a write transaction that is still open at the arm.
+ *     3. Arm the step-down. Transactions in flight commit stable only; later ones mirror their
+ *        writes to ingest.
+ *     4. Let the workers keep writing for a window, exercising armed leader writes.
  *     5. Pause worker writes and wait for every worker to acknowledge, guaranteeing no writer is
- *        still active.
- *     6. Pin stable at step_down_ts and take the step-down checkpoint; with writes paused it sees
- *        only the bounded set of pages at the boundary.
- *     7. Complete the transition: reconfigure to follower, re-enable worker writes (now follower
- *        writes) and read the latest checkpoint.
+ *        still active, then advance stable over every commit and checkpoint.
+ *     6. Prepare the unarmed transaction: the demotion must be refused while it is unresolved,
+ *        and again after it commits until a checkpoint covers the commit.
+ *     7. Demote, retrying after a fresh checkpoint while refused, re-enable worker writes (now
+ *        follower writes) and read the latest checkpoint.
  */
 void
 disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
 {
     SAP sap;
-    WT_SESSION *session;
-    wt_timestamp_t stable_after, step_down_ts;
-    uint64_t drain_polls;
-    char config[128];
+    WT_CURSOR *prepared_cursor;
+    WT_DECL_RET;
+    WT_SESSION *prepared_session, *session;
+    uint64_t drain_polls, prepared_id, ts;
+    u_int retries;
 
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
 
     track_msg("[stepdown] stopping checkpoint and timestamp threads");
 
-    /*
-     * Stop the checkpoint thread before notifying WT. An uncontrolled checkpoint taken after
-     * notification could land stable at the wrong boundary.
-     */
+    /* Stop the checkpoint thread: the step-down takes its own checkpoints with writers paused. */
     if (g.checkpoint_config == CHECKPOINT_ON) {
         __wt_atomic_store_bool_v_relaxed(&g.checkpoint_quit, true);
         testutil_check(__wt_thread_join(NULL, checkpoint_tid));
     }
 
-    /*
-     * Stop the timestamp thread before notifying WT. It must not advance stable past step_down_ts
-     * after we pin it below.
-     */
+    /* Stop the timestamp thread: the step-down moves stable itself. */
     if (g.transaction_timestamps_config) {
         __wt_atomic_store_bool_v_relaxed(&g.timestamp_quit, true);
         testutil_check(__wt_thread_join(NULL, timestamp_tid));
     }
 
-    /*
-     * Write lock: prevents any new timestamp from being allocated while we capture step_down_ts,
-     * bump g.timestamp past it, and notify WT. Holding the lock through the set_timestamp call
-     * ensures WT begins enforcing the boundary before any new allocations are handed out. Threads
-     * currently holding the read lock (mid-allocation) finish first; threads waiting for the read
-     * lock unblock after we release and get ts values strictly above step_down_ts.
-     */
-    lock_writelock(session, &g.timestamp_lock);
-    step_down_ts = g.timestamp;
-    /*
-     * Reserve step_down_ts + 1 and step_down_ts + 2 as a gap; all allocations now yield ts >
-     * step_down_ts.
-     */
-    g.timestamp += 2;
-    testutil_snprintf(config, sizeof(config), "step_down_timestamp=%" PRIx64, step_down_ts);
-    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
-    lock_writeunlock(session, &g.timestamp_lock);
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &prepared_session);
+    stepdown_prepared_begin(prepared_session, &prepared_cursor);
 
-    track_msg(
-      "[stepdown] notified WT at ts=%" PRIu64 "; draining in-flight transactions", step_down_ts);
+    track_msg("[stepdown] arming");
+    testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(step_down_arm=true)"));
+    testutil_assert(stepdown_stat(session, WT_STAT_CONN_DISAGG_STEP_DOWN_ARMED) == 1);
 
-    /*
-     * Drain: wait until every in-flight transaction at or below step_down_ts has committed or been
-     * rolled back. A worker that grabbed a commit timestamp before the boundary but is still
-     * inside WT's commit path (e.g. stalled making room in a full cache) holds up the whole drain,
-     * so the budget has to cover a slow commit under load, not just message latency. Timeout after
-     * 120 seconds; a permanently hung worker is caught by the 15-minute abort in the outer spin
-     * loop.
-     */
-    for (drain_polls = 120 * WT_THOUSAND / 250; drain_polls > 0; --drain_polls) {
-        if (stepdown_workers_drained(step_down_ts))
-            break;
-        __wt_sleep(0, 250 * WT_THOUSAND);
-    }
-    if (drain_polls == 0)
-        disagg_stepdown_drain_dump_stragglers(step_down_ts);
-    testutil_assertfmt(
-      drain_polls > 0, "step-down drain timed out at step_down_ts=%" PRIu64, step_down_ts);
-    track_msg("[stepdown] drain complete after %" PRIu64 "ms",
-      (120 * WT_THOUSAND / 250 - drain_polls) * 250);
-
-    /*
-     * Let the workers keep writing above the boundary for a window: post-step-down leader writes
-     * are routed either to ingest or to both and this exercises either one of the configurations
-     * before the checkpoint.
-     */
-    track_msg("[stepdown] post-drain ingest write window");
+    track_msg("[stepdown] armed write window");
     __wt_sleep(DISAGG_STEPDOWN_INGEST_WINDOW_SEC, 0);
 
     /*
@@ -434,34 +424,38 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
             break;
         __wt_sleep(0, 250 * WT_THOUSAND);
     }
-    testutil_assertfmt(
-      drain_polls > 0, "step-down write pause timed out at step_down_ts=%" PRIu64, step_down_ts);
+    testutil_assert(drain_polls > 0);
     track_msg(
       "[stepdown] writes paused after %" PRIu64 "ms", (60 * WT_THOUSAND / 250 - drain_polls) * 250);
 
-    /*
-     * Pin stable at exactly step_down_ts. Use prepare_commit_lock consistent with timestamp_once().
-     * The subsequent checkpoint captures exactly this boundary.
-     */
-    testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, step_down_ts);
-    lock_writelock(session, &g.prepare_commit_lock);
-    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
-    lock_writeunlock(session, &g.prepare_commit_lock);
-    g.stable_timestamp = step_down_ts;
+    stepdown_stable_at_committed(session);
 
-    /*
-     * Step-down checkpoint: worker writes are paused and stable is pinned at step_down_ts, so the
-     * checkpoint captures exactly the content up to the cut-over with no concurrent writes
-     * competing for cache.
-     */
-    track_msg("[stepdown] taking step-down checkpoint");
+    /* The prepare timestamp lands above stable, as the workers' prepares do. */
+    prepared_id = __wt_atomic_add_uint64_v(&g.prepared_id, 1);
+    ts = next_timestamp(prepared_session);
+    testutil_check(
+      prepared_session->timestamp_transaction_uint(prepared_session, WT_TS_TXN_TYPE_PREPARE, ts));
+    testutil_check(prepared_session->prepared_id_transaction_uint(prepared_session, prepared_id));
+    testutil_check(prepared_session->prepare_transaction(prepared_session, NULL));
+
     testutil_check(session->checkpoint(session, NULL));
+    stepdown_demote_refused(
+      session, WT_STAT_CONN_DISAGG_STEP_DOWN_REFUSED_PREPARED, "unarmed prepared transaction");
 
-    testutil_check(timestamp_query("get=stable", &stable_after));
-    testutil_assertfmt(stable_after == step_down_ts,
-      "step-down checkpoint: stable=%" PRIu64 " != step_down_ts=%" PRIu64, stable_after,
-      step_down_ts);
-    track_msg("[stepdown] checkpoint verified");
+    /* The commit lands above the checkpoint, stable only. */
+    ts = next_timestamp(prepared_session);
+    lock_readlock(prepared_session, &g.prepare_commit_lock);
+    testutil_check(
+      prepared_session->timestamp_transaction_uint(prepared_session, WT_TS_TXN_TYPE_COMMIT, ts));
+    testutil_check(
+      prepared_session->timestamp_transaction_uint(prepared_session, WT_TS_TXN_TYPE_DURABLE, ts));
+    testutil_check(prepared_session->commit_transaction(prepared_session, NULL));
+    lock_readunlock(prepared_session, &g.prepare_commit_lock);
+    testutil_check(prepared_cursor->close(prepared_cursor));
+    wt_wrap_close_session(prepared_session);
+    testutil_assert((uint64_t)stepdown_stat(session, WT_STAT_CONN_DISAGG_PLAIN_HIGH) >= ts);
+    stepdown_demote_refused(session, WT_STAT_CONN_DISAGG_STEP_DOWN_REFUSED_PLAIN_HIGH,
+      "checkpoint below the resolved prepared commit");
 
     /*
      * Reset the leader-side KEK push history. This races with disagg_key_rotation() appending to or
@@ -469,10 +463,26 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
      */
     disagg_key_history_clear();
 
-    /* Complete the role transition while the workers are read-only. */
+    /*
+     * Complete the role transition while the workers are read-only. Every commit is at or below
+     * stable, so the checkpoint covers plain_high and the first attempt is expected to succeed.
+     */
     track_msg("[role change] leader -> follower (async)");
     __wt_atomic_store_bool_v_release(&g.disagg_leader, false);
-    testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
+    for (retries = 0;; ++retries) {
+        stepdown_stable_at_committed(session);
+        testutil_check(session->checkpoint(session, NULL));
+        testutil_assertfmt(
+          (uint64_t)stepdown_stat(session, WT_STAT_CONN_DISAGG_PLAIN_HIGH) <= g.stable_timestamp,
+          "plain_high above stable %" PRIu64 " with writers paused", g.stable_timestamp);
+        ret = g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)");
+        if (ret == 0)
+            break;
+        testutil_assert(ret == EINVAL && retries < 10);
+    }
+    testutil_assert(stepdown_stat(session, WT_STAT_CONN_DISAGG_STEP_DOWN_ARMED) == 0);
+    track_msg("[stepdown] demoted with plain_high %" PRId64 " and stable %" PRIu64,
+      stepdown_stat(session, WT_STAT_CONN_DISAGG_PLAIN_HIGH), g.stable_timestamp);
 
     /*
      * Pick up the latest checkpoint while workers are still paused; it reconfigures the connection.
@@ -492,8 +502,8 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
 /*
  * disagg_stepdown_thread --
  *     Thread wrapper for disagg_async_stepdown(). Runs the step-down in the background so the
- *     operations() spin loop continues ticking (track_ops) while the drain proceeds. Sets
- *     args->done under a release barrier once the step-down and role transition are complete.
+ *     operations() spin loop continues ticking (track_ops) while it proceeds. Sets args->done under
+ *     a release barrier once the step-down and role transition are complete.
  */
 WT_THREAD_RET
 disagg_stepdown_thread(void *arg)

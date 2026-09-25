@@ -1448,9 +1448,9 @@ config_disagg_storage(void)
             config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
 
         /*
-         * The async step-down fires off the timer, and its drain needs the workers to keep
-         * committing until it completes. Anything that stops them early stalls the drain: an
-         * operation count, or the global stop timestamp predictable replay posts as it winds down.
+         * The async step-down fires off the timer and needs the workers running until it pauses
+         * them. Anything that stops them early stalls it: an operation count, or the global stop
+         * timestamp predictable replay posts as it winds down.
          */
         if (GV(DISAGG_STEPDOWN_ASYNC)) {
             if (GV(RUNS_PREDICTABLE_REPLAY))
@@ -1473,20 +1473,23 @@ config_disagg_storage(void)
                 config_single(NULL, "ops.throttle.sleep_us=1000", false);
 
             /*
-             * Prepared and truncate operations aren't accounted for by the async step-down drain,
-             * so either could straddle step_down_ts and break the checkpoint's boundary guarantee.
+             * FIXME-WT-18723: an armed transaction iterating a layered table walks the live stable
+             * tree, and the merge cursor cannot resume a walk blocked by a prepare conflict there.
+             * The step-down still holds an unarmed prepared transaction of its own across the arm.
              */
             if (config_explicit(NULL, "ops.prepare"))
                 WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
             config_off(NULL, "ops.prepare");
+
+            /* Truncate is not supported while a step-down is armed. */
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");
 
             /*
-             * The step-down checkpoint's duration counts against the same wall clock as the drain
-             * and pause timeouts above; slowing every dirty internal page it writes can run the
-             * total past the run's abort timer with no workload progress to show for it.
+             * The step-down checkpoint's duration counts against the same wall clock as the pause
+             * timeout; slowing every dirty internal page it writes can run the total past the run's
+             * abort timer with no workload progress to show for it.
              */
             if (config_explicit(NULL, "debug.slow_checkpoint"))
                 WARN("%s", "turning off debug.slow_checkpoint to work with disagg.stepdown_async");

@@ -54,7 +54,7 @@ class test_layered_cursor26(
     def create_with_step_down_ts_set(self):
         """Set the step-down timestamp, then create and populate a table under it."""
         self.set_global_ts(1, 1)
-        self.set_step_down_ts(self.cutoff)
+        self.arm()
 
         self.session.create(self.table_uri, self.table_config)
         # Rows written once the timestamp is set commit above the cutoff and belong to the follower

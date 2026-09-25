@@ -581,11 +581,17 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     __clayered_assert_role_change(clayered, mode, role, flags);
 
     /*
-     * largest_key is exempt: it ignores visibility by contract and always consults ingest, so its
-     * result does not depend on the transaction.
+     * While a step-down is armed, layered operations must run in explicit snapshot transactions. An
+     * implicit transaction only begins inside the constituent operation, after the routing below
+     * has read the latch, so it would route to stable alone yet latch armed and skip plain_high. A
+     * transaction decides at begin whether its reads consult ingest, which stays correct only while
+     * it reads the state it saw at begin. largest_key ignores visibility by contract.
      */
-    if (mode != WTI_CLAYERED_MODE_LARGEST_KEY)
-        WT_RET(__wt_txn_stepdown_straddler_check(session, mode == WTI_CLAYERED_MODE_WRITE));
+    WT_ASSERT(session,
+      mode == WTI_CLAYERED_MODE_LARGEST_KEY ||
+        !__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed) ||
+        (F_ISSET(session->txn, WT_TXN_RUNNING) && !F_ISSET(session->txn, WT_TXN_AUTOCOMMIT) &&
+          session->txn->isolation == WT_ISO_SNAPSHOT));
 
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
@@ -1719,8 +1725,8 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_ASSERT(session, trunc_info->stop != NULL);
 
     WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE,
-      "truncate is not supported while the step-down timestamp is set");
+      !__wt_atomic_load_bool_relaxed(&S2C(session)->disaggregated_storage.step_down_armed),
+      "truncate is not supported while a step-down is armed");
 
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower

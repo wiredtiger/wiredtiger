@@ -33,21 +33,18 @@ from wtscenario import make_scenarios
 
 # test_layered_async_stepdown07.py
 #    Supplementary coverage: cursor lifecycle across the step-down, search_near and largest_key
-#    corners, the step-down checkpoint, and write conflicts between constituents. The straddler
-#    operation matrix and the write-conflict cases have their own classes at the end of the file.
+#    corners, the step-down checkpoint, and write conflicts between constituents. The write-conflict
+#    cases have their own class at the end of the file.
 @disagg_test_class
 class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = \
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     def conn_config(self):
         return self.conn_base_config + \
             f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     test_name = __qualname__
 
@@ -64,7 +61,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(c1['b'], 's')
         c1.close()
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         wsession = self.conn.open_session()
         wcur = wsession.open_cursor(self.uri, None, None)
@@ -96,7 +93,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.get_key(), 'b')
         self.session.rollback_transaction()
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 30)
         self.complete_step_down(20)
 
@@ -127,7 +124,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.open_cursor(None, c1, None))
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         with self.expectedStderrPattern('unsupported object operation'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -149,7 +146,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.write_at(self.uri, {'below': 'v'}, 19)
         self.write_at(self.uri, {'at': 'v'}, 20)
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'above': 'v'}, 21)
         self.complete_step_down(20)
 
@@ -161,8 +158,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30), {'below', 'at'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
 
-    # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
-    # same key, which routes to ingest with no shared update chain.
+    # Set up a straddler's uncommitted delete on stable and probe it with a later armed remove of
+    # the same key, which mirrors to stable and meets the delete on the stable chain.
     def probe_remove_against_straddler_delete(self, read_config=None):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -179,10 +176,10 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         straddler_cursor.set_key('victim')
         self.assertEqual(straddler_cursor.remove(), 0)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
-        # The probing snapshot excludes the straddler, so the conflict check must reach across to
-        # the uncommitted delete on stable.
+        # The probing snapshot excludes the straddler, so the conflict comes from the uncommitted
+        # delete on stable.
         self.session.begin_transaction(read_config)
         cursor.set_key('victim')
         self.expect_conflict_rollback(cursor.remove)
@@ -190,29 +187,29 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         return cursor, straddler_session, straddler_cursor
 
-    # The conflict is caught with no read timestamp, and once the straddler is gone the retry
-    # commits into ingest.
+    # The conflict is caught with no read timestamp, and once the straddler commits the retry finds
+    # the key gone.
     def test_remove_conflicts_with_uncommitted_straddler_delete(self):
         cursor, straddler_session, straddler_cursor = \
             self.probe_remove_against_straddler_delete()
 
-        # The straddler dies at commit.
-        self.assert_step_down_rollback(lambda: straddler_session.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(15)), session=straddler_session)
+        # The straddler's delete commits, stable only.
+        straddler_session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
         straddler_cursor.close()
         straddler_session.close()
 
-        # With the straddler resolved, the retry commits into ingest.
+        # The retry finds the key already gone: exactly one delete happened.
         self.session.begin_transaction()
         cursor.set_key('victim')
-        self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
         cursor.close()
 
-        # Exactly one delete happened.
-        self.assertEqual(self.read_kvs_at(self.uri, 25), {'victim': 'alive'})
+        self.assertEqual(self.read_kvs_at(self.uri, 12), {'victim': 'alive'})
         self.assertEqual(self.read_kvs_at(self.uri, 35), {})
         self.complete_step_down(20)
+        self.assertEqual(self.read_kvs_at(self.uri, 12), {'victim': 'alive'})
+        self.assertEqual(self.read_kvs_at(self.uri, 35), {})
 
     # The same conflict with a read timestamp stays caught.
     def test_remove_conflicts_with_read_timestamp(self):
@@ -233,7 +230,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -265,11 +262,11 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session.create(empty_uri, 'key_format=S,value_format=S')
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         self.write_at(self.uri, {'b': 'i', 'd': 'i'}, 30)
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40),
-            {'b', 'd'} if self.stable_has_step_down_writes() else set())
+            {'b', 'd'})
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -299,7 +296,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         def largest():
             c = self.session.open_cursor(self.uri, None, None)
@@ -345,7 +342,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         for _ in range(4):
             self.assertEqual(cursor.prev(), 0)
             seen.append(cursor.get_key())
-        self.set_step_down_ts(50)
+        self.arm()
 
         # Interleave ingest keys both behind and ahead of the scan position, and update and remove
         # stable keys the backward walk has not reached yet.
@@ -383,7 +380,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 30)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -434,60 +431,16 @@ _straddler_ops = [
 # test_layered_async_stepdown03.py. This lives in its own class so the operation axis does not
 # multiply the tests above.
 @disagg_test_class
-class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = \
-        'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
-    def conn_config(self):
-        return self.conn_base_config + \
-            f'disaggregated=(role="leader")'
-
-    disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, _straddler_ops, write_modes)
-
-    test_name = __qualname__
-
-    uri = f'layered:{test_name}'
-
-    # A transaction that began before the cutoff was set rolls back on its first write, whichever
-    # write it is, and leaves nothing behind in either constituent.
-    def test_straddler_write_rolls_back(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'base'}, 10)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-
-        self.set_step_down_ts(20)
-
-        self.assert_step_down_rollback(lambda: self.do_op(cursor, 'k1'))
-        self.session.rollback_transaction()
-        cursor.close()
-
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'base'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
-        self.complete_step_down(20)
-
-# Write-conflict detection around the cutoff and the demotion, plus a checkpoint taken while the
-# cutoff is set.
-@disagg_test_class
 class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
                                                    wttest.WiredTigerTestCase):
     conn_base_config = \
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     def conn_config(self):
         return self.conn_base_config + \
             f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     test_name = __qualname__
 
@@ -499,7 +452,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
@@ -526,7 +479,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.complete_step_down(20)
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -555,7 +508,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.write_at(self.uri, {'k1': 'old'}, 10)
         self.write_at(self.uri, {'k1': 'newer'}, 15)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         # The transaction begins after the cutoff, so it is not a straddler, but it reads below the
         # stable update at 15.
@@ -586,7 +539,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-        self.set_step_down_ts(30)
+        self.arm()
         self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 40)
 
         before = self.read_kvs_at(self.uri, 50)
@@ -609,8 +562,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(checkpointed, {'b': 's', 'd': 's'})
 
         self.assertEqual(self.read_kvs_at(self.uri, 50), before)
-        expected_stable = {'a', 'b', 'd', 'z'} if self.stable_has_step_down_writes() \
-            else {'b', 'd'}
+        expected_stable = {'a', 'b', 'd', 'z'}
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), expected_stable)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'a', 'z'})
 
@@ -627,7 +579,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         # Writer A holds an uncommitted modify of k1.
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -652,7 +604,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         # A's modified value survives.
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'Xase'})
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': 'Xase'})
-        expected_stable = {'k1': 'Xase'} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        expected_stable = {'k1': 'Xase'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)
 
@@ -663,7 +615,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         # Writer A holds an uncommitted write of k1.
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -692,7 +644,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         # B's k2 was discarded with the rolled-back transaction; A's k1 alone persists.
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'a'})
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': 'a'})
-        expected_stable = {'k1': 'a'} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        expected_stable = {'k1': 'a'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)
 
@@ -702,7 +654,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         # Writer A holds an uncommitted remove of k1.
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -727,7 +679,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         # A's remove alone took effect, on both constituents.
         self.assertEqual(self.read_kvs_at(self.uri, 40), {})
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {'k1': '\x14'})
-        expected_stable = {} if self.stable_has_step_down_writes() else {'k1': 'base'}
+        expected_stable = {}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)
 
@@ -739,7 +691,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base', 'k2': 'base'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.remove_at(self.uri, ['k1', 'k2'], 30)
 
         # A plain insert over one removed key.
@@ -764,7 +716,6 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         expected = {'k1': 'again', 'k2': 'again'}
         self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
-        expected_stable = expected if self.stable_has_step_down_writes() \
-            else {'k1': 'base', 'k2': 'base'}
+        expected_stable = expected
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)

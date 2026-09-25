@@ -99,7 +99,7 @@
 /* Duration of the follower run in disagg switch mode. */
 #define DISAGG_SWITCH_FOLLOWER_OPS_SEC 10
 
-/* Post-drain window of continued leader writes (routed to ingest) before the write pause. */
+/* Window of armed leader writes (mirrored to ingest) before the write pause. */
 #define DISAGG_STEPDOWN_INGEST_WINDOW_SEC 10
 
 /* Number of RTS threads to use up to 10 (11 is for NULL config). */
@@ -308,14 +308,6 @@ typedef struct {
      * prepared transaction's durable timestamp when it is committing.
      */
     RWLOCK prepare_commit_lock;
-
-    /*
-     * Lock to freeze the timestamp counter during asynchronous step-down notification. Read lock:
-     * held briefly in commit_transaction() while incrementing g.timestamp. Write lock: held
-     * exclusively during notification to capture step_down_ts and advance g.timestamp past it,
-     * ensuring all post-notify allocations land strictly above step_down_ts.
-     */
-    RWLOCK timestamp_lock;
 
     /* Pause worker writes for the step-down checkpoint and role transition. */
     volatile bool stepdown_pause_writes;

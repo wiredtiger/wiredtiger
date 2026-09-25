@@ -40,15 +40,12 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
     test_name = __qualname__
     conn_base_config = \
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     def conn_config(self):
         return self.conn_base_config + \
             f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     uri = f'layered:{test_name}'
 
@@ -67,7 +64,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
             'these writes must land in the stable table')
         self.assertEqual(self.read_keys_at(self.uri, 15), before)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         self.write_at(self.uri, {k: 'ingest' for k in after}, 30)
 
@@ -75,16 +72,9 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.uri, 40), before | after)
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), after)
-        expected_stable = before | after if self.stable_has_step_down_writes() else before
+        expected_stable = before | after
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)
-
-    def test_step_down_write_mirroring_is_open_only(self):
-        self.set_global_ts(1, 1)
-        with self.expectedStderrPattern('unknown configuration key'):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.conn.reconfigure(
-                    'disaggregated=(stepdown_write_mirroring=false)'))
 
     # Update, modify and remove of stable keys route to ingest, like insert (mirrored when enabled).
     def test_update_modify_remove_routing_after_step_down_ts(self):
@@ -97,7 +87,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 15), {'k1', 'k2', 'k3'},
             'these writes must land in the stable table')
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -122,8 +112,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         # All three landed in ingest, the remove as a tombstone shadowing stable.
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40),
             {'k1': 'updated', 'k2': '\x14', 'k3': 'vase'})
-        expected_stable = {'k1': 'updated', 'k3': 'vase'} if self.stable_has_step_down_writes() \
-            else {'k1': 'base', 'k2': 'base', 'k3': 'base'}
+        expected_stable = {'k1': 'updated', 'k3': 'vase'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
         # The update, modify and tombstone all survive the completed step-down.
@@ -140,7 +129,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         # modify tests (no stepdown) never exercise.
         self.write_at(self.uri, {'stable-only': 'abcde'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'in_stepdown': 'abcde'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -153,7 +142,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         expected = {'stable-only': 'aXbcde', 'in_stepdown': 'aXbcde'}
         self.assertEqual(self.read_kvs_at(self.uri, 40), expected)
-        expected_stable = expected if self.stable_has_step_down_writes() else {'stable-only': 'abcde'}
+        expected_stable = expected
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), expected)
         self.complete_step_down(20)
@@ -165,7 +154,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'a': 'stable', 'c': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(self.uri, {'b': 'ingest'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -205,15 +194,15 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(uri1, {'a': 'stable'}, 10)
         self.write_at(uri2, {'b': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         self.write_at(uri1, {'c': 'ingest'}, 30)
         self.write_at(uri2, {'d': 'ingest'}, 30)
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri1), 40), {'c'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri2), 40), {'d'})
-        expected_stable1 = {'a', 'c'} if self.stable_has_step_down_writes() else {'a'}
-        expected_stable2 = {'b', 'd'} if self.stable_has_step_down_writes() else {'b'}
+        expected_stable1 = {'a', 'c'}
+        expected_stable2 = {'b', 'd'}
         self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), expected_stable1)
         self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), expected_stable2)
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'stable', 'c': 'ingest'})
@@ -226,7 +215,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'dup': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.session.open_cursor(self.uri, None, "overwrite=false")
         self.session.begin_transaction()
@@ -248,7 +237,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base', 'k2': 'base'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.session.open_cursor(self.uri, None, "overwrite=false")
 
@@ -277,8 +266,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2'})
-        expected_stable = {'k1': 'updated'} if self.stable_has_step_down_writes() \
-            else {'k1': 'base', 'k2': 'base'}
+        expected_stable = {'k1': 'updated'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), expected_stable)
 
         # Both writes survive the completed step-down.
@@ -291,7 +279,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()

@@ -40,15 +40,12 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
     test_name = __qualname__
     conn_base_config = \
         'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),precise_checkpoint=true,'
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     def conn_config(self):
         return self.conn_base_config + \
             f'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, write_modes)
+    scenarios = make_scenarios(disagg_storages)
 
     # A scan interrupted by the step-down timestamp re-seats and still yields its own snapshot
     # exactly once, in order, whatever the concurrent writer does to the keys underneath it.
@@ -73,7 +70,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         for _ in range(4):
             self.assertEqual(cursor.next(), 0)
             seen.append(cursor.get_key())
-        self.set_step_down_ts(50)
+        self.arm()
 
         # The concurrent transaction interleaves new odd-numbered keys into ingest both behind and
         # ahead of the scan position, and also updates and removes stable keys the scan has not
@@ -123,10 +120,9 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # These keys go to stable; the interleaved ones written later go to ingest.
         self.write_at(uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
-        expected_stable = {'a', 'b', 'c', 'd', 'e', 'f'} if self.stable_has_step_down_writes() \
-            else {'b', 'd', 'f'}
+        expected_stable = {'a', 'b', 'c', 'd', 'e', 'f'}
         self.assertEqual(self.read_keys_at(self.stable_uri(uri), 40), expected_stable)
 
         cursor = self.session.open_cursor(uri, None, None)
@@ -163,7 +159,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(uri, 'key_format=S,value_format=S')
         self.write_at(uri, {'old': 'stable'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         wcur = self.session.open_cursor(uri, None, None)
         rcur = self.session.open_cursor(uri, None, None)
@@ -179,8 +175,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_kvs_at(uri, 40), {'old': 'ingest', 'fresh': 'ingest'})
 
-        expected_stable = {'old': 'ingest', 'fresh': 'ingest'} if self.stable_has_step_down_writes() \
-            else {'old': 'stable'}
+        expected_stable = {'old': 'ingest', 'fresh': 'ingest'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 40), expected_stable)
         self.complete_step_down(20)
 
@@ -214,7 +209,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(reverse_keys(15), ['f', 'd', 'b'])
         self.assertEqual(largest(), 'f')
 
-        self.set_step_down_ts(20)
+        self.arm()
         # The merged maximum lives in ingest.
         self.write_at(uri, {'a': 'i', 'c': 'i', 'e': 'i', 'z': 'i'}, 30)
 
@@ -234,7 +229,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
         self.assertEqual(rcur['d'], 's')
 
-        self.set_step_down_ts(20)
+        self.arm()
 
         # A concurrent transaction interleaves ingest keys, including a new maximum.
         wsession = self.conn.open_session()
@@ -286,12 +281,11 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(uri, {'gone': 's', 'reborn': 's', 'upd': 's', 'keep': 's'}, 10)
         self.remove_at(uri, ['reborn'], 12)
 
-        # A straddler writes beforehand and rolls back: 'straddle' must leave no trace.
+        # A straddler writes before the arm and commits after it: 'straddle' is in stable only.
         self.session.begin_transaction()
-        cursor['straddle'] = 'never'
-        self.set_step_down_ts(20)
-        self.assert_step_down_rollback(
-            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25)))
+        cursor['straddle'] = 'plain'
+        self.arm()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
         cursor.close()
 
         # Ingest phase: a tombstone over the stable value of 'gone', a re-insert of the key deleted
@@ -304,11 +298,11 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         oracle = {
             10: {'gone': 's', 'reborn': 's', 'upd': 's', 'keep': 's'},
             12: {'gone': 's', 'upd': 's', 'keep': 's'},
-            25: {'gone': 's', 'upd': 's', 'keep': 's'},
-            30: {'upd': 's', 'keep': 's'},
-            35: {'reborn': 'i', 'upd': 's', 'keep': 's'},
-            40: {'reborn': 'i', 'upd': 'i2', 'keep': 's'},
-            45: {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i'},
+            25: {'gone': 's', 'upd': 's', 'keep': 's', 'straddle': 'plain'},
+            30: {'upd': 's', 'keep': 's', 'straddle': 'plain'},
+            35: {'reborn': 'i', 'upd': 's', 'keep': 's', 'straddle': 'plain'},
+            40: {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'straddle': 'plain'},
+            45: {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i', 'straddle': 'plain'},
         }
 
         # Verify every read op against the oracle at every timestamp: full forward scan, point
@@ -340,14 +334,14 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         check_oracle('leader')
 
-        expected_stable = {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i'} \
-            if self.stable_has_step_down_writes() else {'gone': 's', 'upd': 's', 'keep': 's'}
+        expected_stable = {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i', 'straddle': 'plain'}
         self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 50), expected_stable)
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 50),
             {'gone', 'reborn', 'upd', 'new'})
 
-        # Every timestamp must answer identically after the completed step-down.
-        self.complete_step_down(20)
+        # Every timestamp must answer identically after the completed step-down, which needs a
+        # checkpoint covering the straddler.
+        self.complete_step_down(25)
         check_oracle('follower')
 
     # Randomized ops split either side of the step-down timestamp, with the merged view checked
@@ -428,7 +422,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # Set the cutoff at the current frontier (the last committed timestamp), so every later
         # commit sits strictly above it. Phase 2: churn routed to ingest.
-        self.set_step_down_ts(self.ts)
+        self.arm()
         run_ops(120, verify_every=40)
 
         # The merged view reflects every operation across both constituents.
@@ -440,7 +434,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(uri, snapshot_ts), snapshot,
             'reading at the old frontier must be unaffected by the later writes')
 
-        expected_stable = dict(expected) if self.stable_has_step_down_writes() else snapshot
+        expected_stable = dict(expected)
         self.assertEqual(self.read_kvs_at(self.stable_uri(uri), self.ts), expected_stable)
 
         cursor.close()

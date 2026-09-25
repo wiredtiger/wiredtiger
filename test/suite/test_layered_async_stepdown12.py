@@ -65,7 +65,7 @@ class test_layered_async_stepdown12(LayeredStepdownMixin, wttest.WiredTigerTestC
         metadata.close()
 
         self.session.begin_transaction()
-        self.set_step_down_ts(20)
+        self.arm()
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next(),
             '/No such file or directory/')
         self.session.rollback_transaction()

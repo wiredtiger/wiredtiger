@@ -232,14 +232,13 @@ __drop_layered(
 
     /*
      * Only the leader can issue a trim command, and only for a constituent that exists: a table
-     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
-     * held here serializes the timestamp, making the relaxed loads safe.
+     * created while a step-down is armed has no stable pages to trim. The schema lock held here
+     * serializes the arm, making the relaxed loads safe.
      */
     if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
         if (WT_CHECK_AND_RESET(ret, ENOENT) &&
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
-            WT_TS_NONE)
+          !__wt_atomic_load_bool_relaxed(&S2C(session)->disaggregated_storage.step_down_armed))
             WT_ERR_MSG(session, ENOENT,
               "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri,
               uri);
@@ -247,14 +246,14 @@ __drop_layered(
 
     /*
      * Drop the layered table constituents. The stable table may not exist locally: a follower never
-     * creates one, and neither does a leader for a table created after the step-down timestamp was
-     * set. Either way the shared metadata removal is handled by the enqueued REMOVE operation. A
-     * leader outside that window always has the constituent, so treat ENOENT as an error there.
+     * creates one, and neither does a leader for a table created while a step-down is armed. Either
+     * way the shared metadata removal is handled by the enqueued REMOVE operation. A leader outside
+     * that window always has the constituent, so treat ENOENT as an error there.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
     if (WT_CHECK_AND_RESET(ret, ENOENT) &&
       __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
+      !__wt_atomic_load_bool_relaxed(&S2C(session)->disaggregated_storage.step_down_armed))
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));

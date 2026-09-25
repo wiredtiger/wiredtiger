@@ -34,34 +34,18 @@ from wiredtiger import stat
 
 # Shared helpers for the layered async step-down test suite.
 class LayeredStepdownMixin:
-    # Whether leader writes in the step-down window are mirrored to stable.
-    def stable_has_step_down_writes(self):
-        return self.write_mirroring
-
     # Set the global oldest and stable timestamps.
     def set_global_ts(self, oldest, stable):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
                                 ',stable_timestamp=' + self.timestamp_str(stable))
 
-    # Set the planned step-down timestamp at the given cutoff. When schema epochs are in use the
-    # boundary must be declared in epoch space too, so pass the step-down epoch alongside.
-    def set_step_down_ts(self, ts, epoch=None):
-        config = 'step_down_timestamp=' + self.timestamp_str(ts)
-        if epoch is not None:
-            config += ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(epoch)
-        self.conn.set_timestamp(config)
-
-    # Complete a planned step-down: advance stable to the cutoff, and the stable schema epoch to
-    # the boundary when given, take the step-down checkpoint and demote to follower.
-    def complete_step_down(self, cutoff, epoch=None):
+    # Complete an armed step-down: advance the stable schema epoch when given, then checkpoint at ts
+    # and demote, retrying while the demote is refused.
+    def complete_step_down(self, ts, epoch=None):
         if epoch is not None:
             self.conn.set_timestamp(
                 'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(cutoff))
-        ckpt_session = self.conn.open_session()
-        ckpt_session.checkpoint()
-        ckpt_session.close()
-        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.demote(ts)
 
     # A connection statistic's current value.
     def conn_stat(self, key, conn=None):
@@ -220,27 +204,9 @@ class LayeredStepdownMixin:
         cursor.close()
         return keys
 
-    # Whether the connection currently has a step-down timestamp set. This is the only external
-    # view of the timestamp, so it is also the only way to see that the demotion cleared it.
-    def step_down_ts_is_set(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat.conn.txn_stepdown_ts_set][2]
-        stat_cursor.close()
-        return value
-
-    # Whether the connection currently has a step-down disaggregated schema epoch set.
-    def step_down_epoch_is_set(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat.conn.txn_stepdown_epoch_set][2]
-        stat_cursor.close()
-        return value
-
-    # The connection-wide count of step-down transaction rollbacks.
-    def get_step_down_rollback_count(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        count = stat_cursor[stat.conn.txn_rollback_stepdown][2]
-        stat_cursor.close()
-        return count
+    # Whether the connection currently has a step-down armed.
+    def step_down_is_armed(self):
+        return self.conn_stat(stat.conn.disagg_step_down_armed)
 
     # Whether an exception is a WT_ROLLBACK, of any reason. Classifies the exception itself so
     # it works before deciding whether to roll back, when get_last_error is not yet safe to call.
@@ -259,18 +225,4 @@ class LayeredStepdownMixin:
 
     # Run op and expect a WT_ROLLBACK that is a genuine write conflict.
     def expect_conflict_rollback(self, op):
-        before = self.get_step_down_rollback_count()
         self.expect_rollback(op)
-        self.assertEqual(self.get_step_down_rollback_count(), before,
-            'the rollback came from the step-down guard, not from conflict detection')
-
-    # Run op and expect a WT_ROLLBACK carrying the step-down reason.
-    def assert_step_down_rollback(self, op, session=None):
-        before = self.get_step_down_rollback_count()
-        self.assertRaisesException(wiredtiger.WiredTigerError, op,
-            wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
-        err, _, err_msg = (session or self.session).get_last_error()
-        self.assertEqual(err, wiredtiger.WT_ROLLBACK)
-        self.assertTrue('straddled the step-down timestamp setting boundary' in err_msg,
-            'expected a step-down rollback reason, got: ' + err_msg)
-        self.assertEqual(self.get_step_down_rollback_count(), before + 1)

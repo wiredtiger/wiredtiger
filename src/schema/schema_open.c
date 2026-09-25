@@ -697,13 +697,13 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
     /*
-     * A create after the step-down timestamp skips the stable constituent, so mark the handle and
+     * A create while a step-down is armed skips the stable constituent, so mark the handle and
      * cursors route to ingest rather than attempting an open that cannot succeed. The schema lock
-     * held here serializes the timestamp, making the relaxed load safe.
+     * held here serializes the arm, making the relaxed load safe.
      */
     conn = S2C(session);
     if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) &&
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE) {
+      __wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed)) {
         WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, layered->stable_uri, &stable_value));
         if (ret == WT_NOTFOUND)
             __wt_atomic_store_bool_relaxed(&layered->step_down_created, true);

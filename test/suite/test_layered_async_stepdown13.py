@@ -50,7 +50,7 @@ class test_layered_async_stepdown13(LayeredStepdownMixin, wttest.WiredTigerTestC
     def create_window_table_after_checkpoint(self):
         self.set_global_ts(1, 10)
         self.session.checkpoint()
-        self.set_step_down_ts(20)
+        self.arm()
         self.session.create(self.uri, self.table_config)
         self.assertFalse(self.stable_constituent_exists(self.conn, self.uri))
 

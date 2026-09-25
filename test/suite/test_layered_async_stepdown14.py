@@ -44,9 +44,6 @@ class test_layered_async_stepdown14(LayeredStepdownMixin, wttest.WiredTigerTestC
         ('escaped', dict(encoding='true')),
         ('unescaped', dict(encoding='false')),
     ]
-    write_modes = [
-        ('mirrored', dict(write_mirroring=True)),
-    ]
     values = [
         ('collide',  dict(value=b'\x14\x14')),       # exactly the tombstone
         ('triple',   dict(value=b'\x14\x14\x14')),   # tombstone prefix + a tombstone byte
@@ -54,7 +51,7 @@ class test_layered_async_stepdown14(LayeredStepdownMixin, wttest.WiredTigerTestC
         ('trailing', dict(value=b'\x14\x14ab\x14')), # escape and decode must not cancel
         ('normal',   dict(value=b'hello')),          # not in the namespace
     ]
-    scenarios = make_scenarios(disagg_storages, encodings, write_modes, values)
+    scenarios = make_scenarios(disagg_storages, encodings, values)
 
     uri = f'layered:{test_name}'
 
@@ -81,7 +78,7 @@ class test_layered_async_stepdown14(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=u')
         self.write_at(self.uri, {'base': b'base'}, 10)
 
-        self.set_step_down_ts(20)
+        self.arm()
         self.write_at(
             self.uri, {
                 'insert': self.value,
@@ -129,13 +126,10 @@ class test_layered_async_stepdown14(LayeredStepdownMixin, wttest.WiredTigerTestC
             for key, value in expected.items() if key != 'base'
         }
         ingest_expected['removed'] = b'\x14\x14'
-        if self.stable_has_step_down_writes():
-            stable_expected = {
-                key: self.stored(value, True)
-                for key, value in expected.items()
-            }
-        else:
-            stable_expected = {'base': b'base'}
+        stable_expected = {
+            key: self.stored(value, True)
+            for key, value in expected.items()
+        }
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), stable_expected)
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), ingest_expected)
         self.complete_step_down(20)
