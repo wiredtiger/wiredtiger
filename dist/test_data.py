@@ -266,8 +266,7 @@ test_config = [
 # Test and their respective configuration sorted alphabetically.
 #
 methods = {
-    'api_instruction_count_benchmarks' : Method(test_config),
-    'api_timing_benchmarks' : Method(test_config),
+    'api_benchmarks' : Method(test_config),
     'background_compact' : Method(test_config),
     'bounded_cursor_perf' : Method(test_config),
     'bounded_cursor_prefix_indices' : Method(test_config),
