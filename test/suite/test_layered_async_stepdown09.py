@@ -56,14 +56,14 @@ class test_layered_async_stepdown09(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v1'}, 10)
-        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 10)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 10)
 
         self.arm()
         if self.checkpoint_ts is not None:
             self.checkpoint_at(self.checkpoint_ts)
 
         if self.refused:
-            self.expect_demote_refused(stat.conn.disagg_step_down_refused_plain_high)
+            self.expect_demote_refused(stat.conn.disagg_step_down_refused_unmirrored)
             self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_armed), 1)
             # The leader keeps accepting writes after a refusal.
             self.write_at(self.uri, {'k2': 'v2'}, 12)

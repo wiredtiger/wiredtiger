@@ -3869,7 +3869,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_meta_lsn */
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
-    /* not clearing disagg_plain_high */
+    /* not clearing disagg_unmirrored_durable_ts */
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_pick_up_checkpoint_time_startup = 0;
     stats->disagg_role_leader = 0;
@@ -3880,7 +3880,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_down_time = 0;
     stats->disagg_step_down_refused_prepared = 0;
     stats->disagg_step_down_refused_writer = 0;
-    stats->disagg_step_down_refused_plain_high = 0;
+    stats->disagg_step_down_refused_unmirrored = 0;
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_time = 0;
@@ -5133,7 +5133,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
-    to->disagg_plain_high += WT_STAT_CONN_READ(from, disagg_plain_high);
+    to->disagg_unmirrored_durable_ts += WT_STAT_CONN_READ(from, disagg_unmirrored_durable_ts);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_pick_up_checkpoint_time_startup +=
       WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
@@ -5147,8 +5147,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_step_down_refused_prepared +=
       WT_STAT_CONN_READ(from, disagg_step_down_refused_prepared);
     to->disagg_step_down_refused_writer += WT_STAT_CONN_READ(from, disagg_step_down_refused_writer);
-    to->disagg_step_down_refused_plain_high +=
-      WT_STAT_CONN_READ(from, disagg_step_down_refused_plain_high);
+    to->disagg_step_down_refused_unmirrored +=
+      WT_STAT_CONN_READ(from, disagg_step_down_refused_unmirrored);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_clear_ingest_retry +=
       WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_retry);

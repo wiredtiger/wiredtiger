@@ -97,8 +97,8 @@ class test_layered_arm03(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure('disaggregated=(role="follower")'),
             '/step-down refused: last checkpoint .* is below the newest unmirrored commit/')
-        self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_refused_plain_high), 1)
-        self.expect_demote_refused(stat.conn.disagg_step_down_refused_plain_high)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_refused_unmirrored), 1)
+        self.expect_demote_refused(stat.conn.disagg_step_down_refused_unmirrored)
 
         self.checkpoint_at(20)
         self.conn.reconfigure('disaggregated=(role="follower")')
@@ -159,13 +159,13 @@ class test_layered_arm03(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_refused_prepared), 1)
         self.assertEqual(self.conn_stat(stat.conn.disagg_role_leader), 1)
 
-        # Resolving it raises plain_high, so the checkpoint must now cover its commit.
+        # Resolving it raises unmirrored_durable_ts, so the checkpoint must now cover its commit.
         prepared.commit_transaction('commit_timestamp=' + self.timestamp_str(30) +
             ',durable_timestamp=' + self.timestamp_str(30))
         cursor.close()
         prepared.close()
-        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 30)
-        self.expect_demote_refused(stat.conn.disagg_step_down_refused_plain_high)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 30)
+        self.expect_demote_refused(stat.conn.disagg_step_down_refused_unmirrored)
 
         self.checkpoint_at(30)
         self.conn.reconfigure('disaggregated=(role="follower")')

@@ -453,8 +453,9 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     lock_readunlock(prepared_session, &g.prepare_commit_lock);
     testutil_check(prepared_cursor->close(prepared_cursor));
     wt_wrap_close_session(prepared_session);
-    testutil_assert((uint64_t)stepdown_stat(session, WT_STAT_CONN_DISAGG_PLAIN_HIGH) >= ts);
-    stepdown_demote_refused(session, WT_STAT_CONN_DISAGG_STEP_DOWN_REFUSED_PLAIN_HIGH,
+    testutil_assert(
+      (uint64_t)stepdown_stat(session, WT_STAT_CONN_DISAGG_UNMIRRORED_DURABLE_TS) >= ts);
+    stepdown_demote_refused(session, WT_STAT_CONN_DISAGG_STEP_DOWN_REFUSED_UNMIRRORED_DURABLE_TS,
       "checkpoint below the resolved prepared commit");
 
     /*
@@ -465,24 +466,25 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
 
     /*
      * Complete the role transition while the workers are read-only. Every commit is at or below
-     * stable, so the checkpoint covers plain_high and the first attempt is expected to succeed.
+     * stable, so the checkpoint covers unmirrored_durable_ts and the first attempt is expected to
+     * succeed.
      */
     track_msg("[role change] leader -> follower (async)");
     __wt_atomic_store_bool_v_release(&g.disagg_leader, false);
     for (retries = 0;; ++retries) {
         stepdown_stable_at_committed(session);
         testutil_check(session->checkpoint(session, NULL));
-        testutil_assertfmt(
-          (uint64_t)stepdown_stat(session, WT_STAT_CONN_DISAGG_PLAIN_HIGH) <= g.stable_timestamp,
-          "plain_high above stable %" PRIu64 " with writers paused", g.stable_timestamp);
+        testutil_assertfmt((uint64_t)stepdown_stat(session,
+                             WT_STAT_CONN_DISAGG_UNMIRRORED_DURABLE_TS) <= g.stable_timestamp,
+          "unmirrored_durable_ts above stable %" PRIu64 " with writers paused", g.stable_timestamp);
         ret = g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)");
         if (ret == 0)
             break;
         testutil_assert(ret == EINVAL && retries < 10);
     }
     testutil_assert(stepdown_stat(session, WT_STAT_CONN_DISAGG_STEP_DOWN_ARMED) == 0);
-    track_msg("[stepdown] demoted with plain_high %" PRId64 " and stable %" PRIu64,
-      stepdown_stat(session, WT_STAT_CONN_DISAGG_PLAIN_HIGH), g.stable_timestamp);
+    track_msg("[stepdown] demoted with unmirrored_durable_ts %" PRId64 " and stable %" PRIu64,
+      stepdown_stat(session, WT_STAT_CONN_DISAGG_UNMIRRORED_DURABLE_TS), g.stable_timestamp);
 
     /*
      * Pick up the latest checkpoint while workers are still paused; it reconfigures the connection.

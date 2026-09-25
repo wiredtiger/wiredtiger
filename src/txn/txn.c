@@ -1896,9 +1896,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (!txn->step_down_armed ? (wrote_stable || (prepare && wrote_ingest)) :
                                 (wrote_stable && !wrote_ingest))
-        __wt_disagg_raise_plain_high(session, txn->time_point.durable_timestamp);
+        __wt_disagg_raise_unmirrored_durable_ts(session, txn->time_point.durable_timestamp);
     else if (txn->step_down_armed && wrote_stable)
-        __wt_disagg_raise_armed_high(session, txn->time_point.durable_timestamp);
+        __wt_disagg_raise_mirrored_durable_ts(session, txn->time_point.durable_timestamp);
 
     /* Add a 2 second wait to simulate commit transaction slowness. */
     tsp.tv_sec = 2;

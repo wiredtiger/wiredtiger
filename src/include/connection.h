@@ -374,13 +374,13 @@ struct __wt_disaggregated_storage {
      * The newest durable timestamp of a commit with stable content that was not mirrored to ingest.
      * A step-down requires a checkpoint at or above it. Never decreases.
      */
-    wt_shared wt_timestamp_t plain_high;
+    wt_shared wt_timestamp_t unmirrored_durable_ts;
 
     /*
      * The newest durable timestamp of a commit that mirrored stable writes to ingest. A disarm
-     * discards the ingest copies and raises plain_high to it. Never decreases.
+     * discards the ingest copies and raises unmirrored_durable_ts to it. Never decreases.
      */
-    wt_shared wt_timestamp_t armed_high;
+    wt_shared wt_timestamp_t mirrored_durable_ts;
 
     /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to

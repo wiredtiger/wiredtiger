@@ -7883,7 +7883,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * disagg: newest durable timestamp of a commit whose stable writes were
  * not mirrored
  */
-#define	WT_STAT_CONN_DISAGG_PLAIN_HIGH			1610
+#define	WT_STAT_CONN_DISAGG_UNMIRRORED_DURABLE_TS	1610
 /*! disagg: pick up checkpoint most recent time (msecs) */
 #define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME	1611
 /*! disagg: pick up checkpoint time at startup (msecs) */
@@ -7917,7 +7917,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * disagg: step down refused because the last checkpoint is below the
  * newest unmirrored commit
  */
-#define	WT_STAT_CONN_DISAGG_STEP_DOWN_REFUSED_PLAIN_HIGH	1621
+#define	WT_STAT_CONN_DISAGG_STEP_DOWN_REFUSED_UNMIRRORED	1621
 /*! disagg: step up in progress */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS		1622
 /*! disagg: step up ingest table clear truncates retried after a conflict */

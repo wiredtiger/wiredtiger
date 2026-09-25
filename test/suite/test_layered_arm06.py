@@ -117,7 +117,7 @@ class test_layered_arm06(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.write_at(self.uri, {'K': 'v1', 'K2': 'w1'}, 10)
         self.checkpoint_at(10)
 
-        # A straddler's commit is stable only and raises plain_high; an armed commit does not.
+        # A straddler's commit is stable only and raises unmirrored_durable_ts; an armed commit does not.
         straddler = self.conn.open_session()
         cursor = straddler.open_cursor(self.uri)
         straddler.begin_transaction()
@@ -125,9 +125,9 @@ class test_layered_arm06(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.arm()
         straddler.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
         straddler.close()
-        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 15)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 15)
         self.write_at(self.uri, {'M': 'armed'}, 18)
-        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 15)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 15)
 
         prepared = self.prepare(self.conn)
 
@@ -180,7 +180,7 @@ class test_layered_arm06(LayeredStepdownMixin, wttest.WiredTigerTestCase):
             self.resolve(prepared)
         self.assertEqual(self.read_kvs_at(self.uri, 45, session_b), self.expected(True))
         self.assertEqual(self.conn_stat(stat.conn.txn_prepared_updates_stepped_down), 2)
-        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 15)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 15)
         self.assertEqual(self.read_at('K', 35), 'v1')
         self.assertEqual(self.read_kvs_at(self.uri, 45), self.expected(True))
 

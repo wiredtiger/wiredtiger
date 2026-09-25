@@ -1805,8 +1805,10 @@ extern void __wt_disagg_btree_publish_if_covered(
 extern void __wt_disagg_cancel_unpublished_op(
   WT_SESSION_IMPL *session, const char *table_name, WT_SHARED_METADATA_OP op);
 extern void __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen);
-extern void __wt_disagg_raise_armed_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts);
-extern void __wt_disagg_raise_plain_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts);
+extern void __wt_disagg_raise_mirrored_durable_ts(
+  WT_SESSION_IMPL *session, wt_timestamp_t durable_ts);
+extern void __wt_disagg_raise_unmirrored_durable_ts(
+  WT_SESSION_IMPL *session, wt_timestamp_t durable_ts);
 extern void __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);

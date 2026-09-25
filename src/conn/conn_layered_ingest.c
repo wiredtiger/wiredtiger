@@ -719,7 +719,7 @@ __layered_copy_ingest_table(
     }
 
     /* Drained content is stable only, so a later step-down needs a checkpoint covering it. */
-    __wt_disagg_raise_plain_high(session, drained_high);
+    __wt_disagg_raise_unmirrored_durable_ts(session, drained_high);
 
 err:
     if (upd != NULL)
@@ -845,7 +845,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         WT_TRUNCATE *t = sorted_truncates[i];
         WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
-        __wt_disagg_raise_plain_high(session, t->durable_ts);
+        __wt_disagg_raise_unmirrored_durable_ts(session, t->durable_ts);
         prev_ts = t->start_ts;
     }
     WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX));

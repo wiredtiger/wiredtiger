@@ -161,7 +161,7 @@ class test_layered_arm07(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.check()
         # Whether drained while resolved or resolved after the drain, a commit is now stable only.
         if self.commit:
-            self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 30)
+            self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 30)
 
         self.checkpoint_at(35)
         conn_c = self.open_node('node_c', config=self.conn_base_config)

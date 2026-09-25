@@ -396,9 +396,9 @@ class test_layered_async_stepdown10(
         while not self.pause_acknowledged.is_set():
             self.assertTrue(self.worker.is_alive(), 'workload exited before acknowledging pause')
             self.pause_acknowledged.wait(0.01)
-        plain_high = self.conn_stat(wiredtiger.stat.conn.disagg_plain_high)
-        if plain_high > self.step_down_ts:
-            self.step_down_ts = plain_high
+        unmirrored_durable_ts = self.conn_stat(wiredtiger.stat.conn.disagg_unmirrored_durable_ts)
+        if unmirrored_durable_ts > self.step_down_ts:
+            self.step_down_ts = unmirrored_durable_ts
             self.checkpoint_at(self.step_down_ts)
         self.demotion_started = True
         self.step_down()

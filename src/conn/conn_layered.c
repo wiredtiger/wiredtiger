@@ -1642,24 +1642,24 @@ __disagg_raise_ts(wt_timestamp_t *tsp, wt_timestamp_t ts)
 }
 
 /*
- * __wt_disagg_raise_plain_high --
+ * __wt_disagg_raise_unmirrored_durable_ts --
  *     Raise the newest durable timestamp of stable content that was not mirrored to ingest.
  */
 void
-__wt_disagg_raise_plain_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+__wt_disagg_raise_unmirrored_durable_ts(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
-    if (__disagg_raise_ts(&S2C(session)->disaggregated_storage.plain_high, durable_ts))
-        WT_STAT_CONN_SET(session, disagg_plain_high, durable_ts);
+    if (__disagg_raise_ts(&S2C(session)->disaggregated_storage.unmirrored_durable_ts, durable_ts))
+        WT_STAT_CONN_SET(session, disagg_unmirrored_durable_ts, durable_ts);
 }
 
 /*
- * __wt_disagg_raise_armed_high --
+ * __wt_disagg_raise_mirrored_durable_ts --
  *     Raise the newest durable timestamp of stable content that was mirrored to ingest.
  */
 void
-__wt_disagg_raise_armed_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+__wt_disagg_raise_mirrored_durable_ts(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
-    (void)__disagg_raise_ts(&S2C(session)->disaggregated_storage.armed_high, durable_ts);
+    (void)__disagg_raise_ts(&S2C(session)->disaggregated_storage.mirrored_durable_ts, durable_ts);
 }
 
 /*
@@ -1757,10 +1757,10 @@ __disagg_step_down_disarm(WT_SESSION_IMPL *session)
      * checkpoint covering them. Raise to the newest mirrored commit rather than the global durable
      * timestamp: that one can be moved backwards by the application, and over-approximating would
      * refuse step-downs no commit requires. The walk above found no armed transaction in flight, so
-     * every mirrored commit has raised armed_high already.
+     * every mirrored commit has raised mirrored_durable_ts already.
      */
-    __wt_disagg_raise_plain_high(
-      session, __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.armed_high));
+    __wt_disagg_raise_unmirrored_durable_ts(
+      session, __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.mirrored_durable_ts));
 
     /* A partial clear leaves stale mirrored copies that a later arm would expose. */
     if ((ret = __wti_layered_clear_ingest_tables(session)) != 0)
@@ -1940,7 +1940,7 @@ __disagg_step_down_writer_check(
     /*
      * An armed prepared transaction mirrored its updates and can resolve on the follower. An
      * unarmed one has stable-only updates whose durable timestamp is unknown until it commits and
-     * raises plain_high.
+     * raises unmirrored_durable_ts.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
         if (__wt_atomic_load_bool_relaxed(&txn->step_down_armed))
@@ -1964,7 +1964,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
     struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
-    wt_timestamp_t ckpt_ts, plain_high;
+    wt_timestamp_t ckpt_ts, unmirrored_durable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -1995,22 +1995,23 @@ __disagg_step_down_int(WT_SESSION_IMPL *session, bool *refusedp)
 
     /*
      * Every commit since the arm is in ingest; every earlier or straddling one is stable-only and
-     * at or below plain_high. The checkpoint the next leader picks up must cover the latter. An
-     * unplanned step-down, one never armed, gives up the commits above the checkpoint. Without a
-     * stable timestamp a checkpoint is not bounded by a timestamp, it holds whatever committed
-     * before it began, so there is nothing to compare.
+     * at or below unmirrored_durable_ts. The checkpoint the next leader picks up must cover the
+     * latter. An unplanned step-down, one never armed, gives up the commits above the checkpoint.
+     * Without a stable timestamp a checkpoint is not bounded by a timestamp, it holds whatever
+     * committed before it began, so there is nothing to compare.
      */
     ckpt_ts =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
-    plain_high = __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.plain_high);
+    unmirrored_durable_ts =
+      __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.unmirrored_durable_ts);
     if (__wt_atomic_load_bool_relaxed(&conn->disaggregated_storage.step_down_armed) &&
       __wt_atomic_load_bool_acquire(&conn->txn_global.has_stable_timestamp) &&
-      ckpt_ts < plain_high) {
-        WT_STAT_CONN_INCR(session, disagg_step_down_refused_plain_high);
+      ckpt_ts < unmirrored_durable_ts) {
+        WT_STAT_CONN_INCR(session, disagg_step_down_refused_unmirrored);
         WT_ERR_MSG(session, EINVAL,
           "step-down refused: last checkpoint %s is below the newest unmirrored commit %s",
           __wt_timestamp_to_string(ckpt_ts, ts_string[0]),
-          __wt_timestamp_to_string(plain_high, ts_string[1]));
+          __wt_timestamp_to_string(unmirrored_durable_ts, ts_string[1]));
     }
 
     /*

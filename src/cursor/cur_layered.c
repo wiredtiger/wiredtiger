@@ -583,9 +583,10 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     /*
      * While a step-down is armed, layered operations must run in explicit snapshot transactions. An
      * implicit transaction only begins inside the constituent operation, after the routing below
-     * has read the latch, so it would route to stable alone yet latch armed and skip plain_high. A
-     * transaction decides at begin whether its reads consult ingest, which stays correct only while
-     * it reads the state it saw at begin. largest_key ignores visibility by contract.
+     * has read the latch, so it would route to stable alone yet latch armed and skip
+     * unmirrored_durable_ts. A transaction decides at begin whether its reads consult ingest, which
+     * stays correct only while it reads the state it saw at begin. largest_key ignores visibility
+     * by contract.
      */
     WT_ASSERT(session,
       mode == WTI_CLAYERED_MODE_LARGEST_KEY ||

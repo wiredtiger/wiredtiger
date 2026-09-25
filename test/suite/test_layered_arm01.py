@@ -88,8 +88,8 @@ class test_layered_arm01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
                 lambda: self.conn.reconfigure('disaggregated=(role="follower")'),
                 '/step-down refused: last checkpoint .* is below the newest unmirrored commit/')
             self.assertEqual(self.conn_stat(stat.conn.disagg_role_leader), 1)
-        self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_refused_plain_high), 2)
-        self.assertEqual(self.conn_stat(stat.conn.disagg_plain_high), 30)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_step_down_refused_unmirrored), 2)
+        self.assertEqual(self.conn_stat(stat.conn.disagg_unmirrored_durable_ts), 30)
 
         # A checkpoint at the straddler's commit is enough; the armed commit above it is in ingest.
         self.checkpoint_at(30)
