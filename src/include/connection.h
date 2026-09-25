@@ -371,6 +371,12 @@ struct __wt_disaggregated_storage {
     wt_shared bool step_down_armed;
 
     /*
+     * The newest durable timestamp of a commit with stable content that was not mirrored to ingest.
+     * A step-down requires a checkpoint at or above it. Never decreases.
+     */
+    wt_shared wt_timestamp_t plain_high;
+
+    /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
      * track back links between the subsequent versions of the metadata pages. Protected by the
      * checkpoint lock.

@@ -647,6 +647,7 @@ conn_stats = [
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
+    DisaggStat('disagg_plain_high', 'newest durable timestamp of a commit whose stable writes were not mirrored', 'no_clear,no_scale'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_snapshot_rebuild', 'snapshots rebuilt after racing a checkpoint pick-up or role change'),
     # FIXME-WT-18206: remove the mode statistic along with the legacy escaped-stable support.

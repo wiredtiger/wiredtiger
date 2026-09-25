@@ -1681,13 +1681,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
     uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC
-    wt_timestamp_t step_down_ts;
     uint32_t prepare_count;
-    bool wrote_ingest, wrote_stable;
-    bool mirroring;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    bool cannot_fail, locked, prepare, readonly, update_durable_ts, wrote_ingest, wrote_stable;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1697,10 +1694,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
-    wrote_ingest = wrote_stable = false;
-    mirroring = true;
 #endif
+    wrote_ingest = wrote_stable = false;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     recno = WT_RECNO_OOB;
     readonly = txn->mod_count == 0;
@@ -1847,32 +1842,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
 
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * While the step-down timestamp is set, different invariants apply depending on whether
-         * mirroring is enabled.
-         *
-         * If mirroring is disabled, a committing transaction's layered content must sit on one side
-         * of the boundary: ingest content strictly above the timestamp, stable content at or below
-         * it, and never both constituents from one transaction.
-         *
-         * Otherwise, after the loop we verify that stable writes were mirrored to ingest.
-         */
-        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL) {
-            if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
+        if (op->type != WT_TXN_OP_NONE && op->btree != NULL) {
+            if (F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
                 wrote_ingest = true;
-                WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
-            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
-                if (!mirroring) {
-                    wrote_stable = true;
-                    WT_ASSERT(session, txn->time_point.durable_timestamp <= step_down_ts);
-                } else if (txn->time_point.durable_timestamp > step_down_ts)
-                    wrote_stable = true;
-            }
-            if (!mirroring)
-                WT_ASSERT(session, !(wrote_ingest && wrote_stable));
+            else if (!wrote_stable && F_ISSET(op->btree, WT_BTREE_DISAGGREGATED) &&
+              !WT_IS_ANY_METADATA(op->btree->dhandle) && !WT_IS_HS(op->btree->dhandle) &&
+              WT_URI_IS_STABLE(op->btree->dhandle->name))
+                wrote_stable = true;
         }
-#endif
 
         /* If we used the cursor to resolve prepared updates, free and clear the key. */
         if (cursor != NULL)
@@ -1888,13 +1865,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, txn->prepare_count == prepare_count);
     txn->prepare_count = 0;
 
-    /*
-     * While the step-down timestamp is set, a transaction that wrote a stable constituent above the
-     * boundary must also have written an ingest constituent if mirroring writes.
-     */
-    if (mirroring)
-        WT_ASSERT(session, step_down_ts == WT_TS_NONE || !wrote_stable || wrote_ingest);
 #endif
+
+    /* An armed transaction mirrors every stable write to ingest. */
+    WT_ASSERT(session, !txn->step_down_armed || !wrote_stable || wrote_ingest);
+
+    /*
+     * A stable write that was not mirrored survives a step-down only through a checkpoint that
+     * covers it. That includes a prepared transaction resolving ingest content a step-up drained
+     * into stable while it was unresolved.
+     */
+    if (!txn->step_down_armed && (wrote_stable || (prepare && wrote_ingest)))
+        __wt_disagg_raise_plain_high(session, txn->time_point.durable_timestamp);
 
     /* Add a 2 second wait to simulate commit transaction slowness. */
     tsp.tv_sec = 2;

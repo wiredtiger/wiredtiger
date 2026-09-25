@@ -1982,6 +1982,29 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_disagg_raise_plain_high --
+ *     Raise the newest durable timestamp of stable content that was not mirrored to ingest.
+ */
+void
+__wt_disagg_raise_plain_high(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    /*
+     * No ordering beyond the compare-and-swap is needed. A step-down reads the value under the
+     * checkpoint lock only once writers are quiesced, which orders every completed raise before it,
+     * and it refuses while a commit is still in flight. The value only rises, so a raise cannot
+     * undo one the step-down relies on.
+     */
+    for (wt_timestamp_t cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high);
+      durable_ts > cur; cur = __wt_atomic_load_uint64_relaxed(&disagg->plain_high))
+        if (__wt_atomic_cas_uint64(&disagg->plain_high, cur, durable_ts)) {
+            WT_STAT_CONN_SET(session, disagg_plain_high, durable_ts);
+            break;
+        }
+}
+
+/*
  * __disagg_step_down_arm_int --
  *     Arm or disarm a planned step-down. The session must hold the checkpoint and schema locks.
  */

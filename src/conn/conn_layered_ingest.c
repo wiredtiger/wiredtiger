@@ -453,7 +453,7 @@ __layered_copy_ingest_table(
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
-    wt_timestamp_t cursor_start_ts, last_checkpoint_timestamp;
+    wt_timestamp_t cursor_start_ts, drained_high, last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
       stop_ts;
     uint64_t start_prepared_id, start_txn, stop_prepared_id, stop_txn;
@@ -467,6 +467,7 @@ __layered_copy_ingest_table(
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
+    drained_high = WT_TS_NONE;
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
@@ -556,6 +557,9 @@ __layered_copy_ingest_table(
              */
             if (F_ISSET_ATOMIC_32(stable_btree, WT_BTREE_AWAITS_PUBLISH))
                 __wt_btree_update_unpublished_min(stable_btree, durable_start_ts);
+
+            if (!prepare)
+                drained_high = WT_MAX(drained_high, durable_start_ts);
 
             /*
              * If the "preserve prepared" option is enabled and the ingest btree contains a resolved
@@ -702,6 +706,9 @@ __layered_copy_ingest_table(
         }
     }
 
+    /* Drained content is stable only, so a later step-down needs a checkpoint covering it. */
+    __wt_disagg_raise_plain_high(session, drained_high);
+
 err:
     if (upd != NULL)
         __wt_free(session, upd);
@@ -826,6 +833,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         WT_TRUNCATE *t = sorted_truncates[i];
         WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
+        __wt_disagg_raise_plain_high(session, t->durable_ts);
         prev_ts = t->start_ts;
     }
     WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX));

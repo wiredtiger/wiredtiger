@@ -1025,6 +1025,7 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_meta_lsn;
     int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
+    int64_t disagg_plain_high;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_pick_up_checkpoint_time_startup;
     int64_t disagg_role_leader;

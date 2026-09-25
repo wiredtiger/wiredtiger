@@ -2738,6 +2738,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: most recently adopted checkpoint metadata LSN",
   "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
+  "disagg: newest durable timestamp of a commit whose stable writes were not mirrored",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: pick up checkpoint time at startup (msecs)",
   "disagg: role leader",
@@ -3868,6 +3869,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_meta_lsn */
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
+    /* not clearing disagg_plain_high */
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_pick_up_checkpoint_time_startup = 0;
     stats->disagg_role_leader = 0;
@@ -5130,6 +5132,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
+    to->disagg_plain_high += WT_STAT_CONN_READ(from, disagg_plain_high);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_pick_up_checkpoint_time_startup +=
       WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
