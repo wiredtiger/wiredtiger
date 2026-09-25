@@ -83,7 +83,6 @@ __hs_verify_ds_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_ITEM
   bool read_time_window, WT_HS_VERIFY_CHAIN *chain)
 {
     WT_DECL_RET;
-    WT_PAGE *page;
     uint64_t recno;
     const uint8_t *up;
 
@@ -97,15 +96,8 @@ __hs_verify_ds_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, WT_ITEM
     WT_RET(ret);
 
     chain->exists = ds_cbt->compare == 0;
-    if (chain->exists && read_time_window) {
-        page = ds_cbt->ref->page;
-        if (page->type == WT_PAGE_ROW_LEAF) {
-            __wt_read_row_time_window(session, page, &page->pg_row[ds_cbt->slot], &chain->live_tw);
-            chain->live_valid = true;
-        } else
-            chain->live_valid = __wt_read_col_time_window(
-              session, page, WT_COL_PTR(page, &page->pg_var[ds_cbt->slot]), &chain->live_tw);
-    }
+    if (chain->exists && read_time_window)
+        chain->live_valid = __wt_read_cell_time_window(ds_cbt, &chain->live_tw);
 
     return (__cursor_reset(ds_cbt));
 }

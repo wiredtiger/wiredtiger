@@ -50,8 +50,6 @@ extern bool __wt_modify_result_may_be_in_tombstone_namespace(WT_SESSION_IMPL *se
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell,
-  WT_TIME_WINDOW *tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -1868,8 +1866,6 @@ extern void __wt_random_init_default(WT_RAND_STATE *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_seed(WT_RAND_STATE *rnd_state, uint64_t v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wt_read_row_time_window(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw);
 extern void __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref);
@@ -1991,6 +1987,8 @@ extern void __wti_mark_committed_truncate_table_apply(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TXN_OP *op);
 extern void __wti_prefetch_scan_begin(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
 extern void __wti_prefetch_scan_end(WT_SESSION_IMPL *session, WT_PREFETCH_SCAN *scan);
+extern void __wti_read_row_time_window(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw);
 extern void __wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len);
 extern void __wti_rts_pop_work(WT_SESSION_IMPL *session, WT_RTS_WORK_UNIT **entryp);
 extern void __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, uint64_t btree_start_clock,
