@@ -285,8 +285,117 @@ TEST_CASE("Cell Fast Truncate: effective aggregate is required by a tightened pa
     WT_TIME_AGGREGATE_COPY(&tightened_parent, &effective_ta);
 
     CHECK(unpack.ta.newest_stop_ts == WT_TS_MAX);
+    CHECK(unpack.ta.newest_stop_txn == WT_TXN_MAX);
     CHECK(effective_ta.newest_stop_ts == 20);
+    CHECK(effective_ta.newest_stop_txn == 10);
     CHECK(tightened_parent.newest_stop_ts == 20);
+    CHECK(tightened_parent.newest_stop_txn == 10);
     CHECK(__wt_time_aggregate_validate(session, &unpack.ta, &tightened_parent, true) == EINVAL);
     CHECK(__wt_time_aggregate_validate(session, &effective_ta, &tightened_parent, true) == 0);
+}
+
+TEST_CASE("Cell Fast Truncate: untimestamped page delete preserves newest durable time",
+  "[cell][fast_truncate][time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+
+    WT_PAGE_DELETED page_del;
+    memset(&page_del, 0, sizeof(page_del));
+    page_del.txnid = 20;
+    page_del.pg_del_start_ts = WT_TS_NONE;
+    page_del.pg_del_durable_ts = WT_TS_NONE;
+
+    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE_INIT_MERGE(&ta);
+    ta.newest_durable_ts = 50;
+    ta.oldest_start_ts = 50;
+    ta.newest_txn = 10;
+
+    WT_TIME_AGGREGATE_MERGE_PAGE_DEL(&ta, &page_del);
+
+    CHECK(ta.newest_durable_ts == 50);
+    CHECK(ta.newest_page_stop_durable_ts == WT_TS_NONE);
+    CHECK(__wt_time_aggregate_validate(session, &ta, NULL, true) == 0);
+}
+
+TEST_CASE(
+  "Cell time aggregate: internal compatibility bound is not a page stop", "[cell][time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+
+    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE_INIT_MERGE(&ta);
+    ta.newest_durable_ts = 64;
+    ta.oldest_start_ts = 16;
+    ta.newest_txn = 50;
+    ta.newest_stop_ts = WT_TS_MAX;
+    ta.newest_stop_txn = WT_TXN_MAX;
+
+    WT_CELL cell;
+    memset(&cell, 0, sizeof(cell));
+    WT_IGNORE_RET(
+      __wt_cell_pack_addr(session, &cell, WT_CELL_ADDR_INT, WT_RECNO_OOB, NULL, &ta, false, 0));
+
+    WT_PAGE_HEADER dsk;
+    memset(&dsk, 0, sizeof(dsk));
+    dsk.write_gen = 2;
+
+    WT_CELL_UNPACK_ADDR unpack;
+    memset(&unpack, 0, sizeof(unpack));
+    __wt_cell_unpack_addr(session, &dsk, &cell, &unpack);
+
+    CHECK(unpack.ta.newest_durable_ts == 64);
+    CHECK(unpack.ta.newest_page_stop_durable_ts == WT_TS_NONE);
+    CHECK_FALSE(WT_TIME_AGGREGATE_HAS_STOP(&unpack.ta));
+}
+
+TEST_CASE(
+  "Cell time aggregate: newer live child retains legacy durable bound", "[cell][time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+
+    WT_TIME_AGGREGATE deleted_child, live_child, parent;
+    WT_TIME_AGGREGATE_INIT_MERGE(&deleted_child);
+    deleted_child.newest_durable_ts = 20;
+    deleted_child.newest_page_stop_durable_ts = 20;
+    deleted_child.oldest_start_ts = 10;
+    deleted_child.newest_txn = 15;
+    deleted_child.newest_stop_ts = 20;
+    deleted_child.newest_stop_txn = 15;
+    deleted_child.oldest_stop_txn = 15;
+
+    WT_TIME_AGGREGATE_INIT_MERGE(&live_child);
+    live_child.newest_durable_ts = 64;
+    live_child.oldest_start_ts = 30;
+    live_child.newest_txn = 50;
+    live_child.newest_stop_ts = WT_TS_MAX;
+    live_child.newest_stop_txn = WT_TXN_MAX;
+
+    WT_TIME_AGGREGATE_INIT_MERGE(&parent);
+    WT_TIME_AGGREGATE_MERGE(session, &parent, &deleted_child);
+    WT_TIME_AGGREGATE_MERGE(session, &parent, &live_child);
+
+    CHECK(parent.newest_page_stop_durable_ts == 20);
+    CHECK(parent.newest_durable_ts == 64);
+    CHECK_FALSE(WT_TIME_AGGREGATE_HAS_STOP(&parent));
+
+    WT_CELL cell;
+    memset(&cell, 0, sizeof(cell));
+    WT_IGNORE_RET(
+      __wt_cell_pack_addr(session, &cell, WT_CELL_ADDR_INT, WT_RECNO_OOB, NULL, &parent, false, 0));
+
+    WT_PAGE_HEADER dsk;
+    memset(&dsk, 0, sizeof(dsk));
+    dsk.write_gen = 2;
+
+    WT_CELL_UNPACK_ADDR unpack;
+    memset(&unpack, 0, sizeof(unpack));
+    __wt_cell_unpack_addr(session, &dsk, &cell, &unpack);
+
+    CHECK(unpack.ta.newest_durable_ts == 64);
+    CHECK(unpack.ta.newest_page_stop_durable_ts == WT_TS_NONE);
+    CHECK_FALSE(WT_TIME_AGGREGATE_HAS_STOP(&unpack.ta));
 }
