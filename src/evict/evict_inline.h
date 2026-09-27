@@ -169,11 +169,13 @@ __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     /*
-     * If we are here, we couldn't determine the bucketset level for a page and this must never
-     * happen.
+     * A clean leaf page whose modify structure is retained but tracks no update bytes: a freshly
+     * split child, or a page a checkpoint wrote with every update discarded. Nothing about it makes
+     * eviction harder than any other clean page, so it belongs with them.
      */
-    WT_ASSERT(session, false);
-    return 0;
+    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page));
+    WT_STAT_CONN_INCR(session, eviction_bucket_clean_leaf_retained_modify);
+    return (WT_EVICT_LEVEL_CLEAN_LEAF);
 }
 
 /*
@@ -1289,4 +1291,15 @@ __evict_level_is_internal(int level)
 {
     return (level == WT_EVICT_LEVEL_DIRTY_INTERNAL || level == WT_EVICT_LEVEL_WONT_NEED_INTERNAL ||
       level == WT_EVICT_LEVEL_UPDATES_INTERNAL || level == WT_EVICT_LEVEL_CLEAN_INTERNAL);
+}
+
+/*
+ * __evict_level_is_dirty --
+ *     Return true if this bucketset level holds dirty pages.
+ */
+static WT_INLINE bool
+__evict_level_is_dirty(int level)
+{
+    return (level == WT_EVICT_LEVEL_DIRTY_LEAF || level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF ||
+      level == WT_EVICT_LEVEL_DIRTY_INTERNAL);
 }

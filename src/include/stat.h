@@ -584,6 +584,7 @@ struct __wt_connection_stats {
     int64_t eviction_app_evict_fail;
     int64_t eviction_worker_evict_fail;
     int64_t eviction_skip_intl_page_with_active_child;
+    int64_t eviction_bucket_clean_leaf_retained_modify;
     int64_t eviction_bucket_clean_internal_items;
     int64_t eviction_bucket_clean_leaf_items;
     int64_t eviction_bucket_dirty_internal_items;
@@ -644,6 +645,16 @@ struct __wt_connection_stats {
     int64_t eviction_skip_intl_page_non_aggressive;
     int64_t eviction_skip_few_updates_no_pressure;
     int64_t eviction_skip_page_dirty_not_aggressive;
+    int64_t eviction_skip_page_cannot_evict_clean_internal;
+    int64_t eviction_skip_page_cannot_evict_clean_leaf;
+    int64_t eviction_skip_page_cannot_evict_dirty_internal;
+    int64_t eviction_skip_page_cannot_evict_dirty_leaf;
+    int64_t eviction_skip_page_cannot_evict_pending_split_leaf;
+    int64_t eviction_skip_page_cannot_evict_updates_internal;
+    int64_t eviction_skip_page_cannot_evict_updates_leaf;
+    int64_t eviction_skip_page_cannot_evict_wont_need_clean_leaf;
+    int64_t eviction_skip_page_cannot_evict_wont_need_dirty_leaf;
+    int64_t eviction_skip_page_cannot_evict_wont_need_internal;
     int64_t eviction_skip_page_cannot_evict;
     int64_t eviction_skip_page_again;
     int64_t eviction_skip_dirty_pages_during_checkpoint;

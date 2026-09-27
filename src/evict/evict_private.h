@@ -26,6 +26,12 @@
 #define WT_EVICT_INTERNAL_WEIGHT_DIVISOR 256
 
 /*
+ * How much preference we give to dirty over clean bucketsets when choosing where a sweep starts.
+ * Applied to the item count of the dirty levels.
+ */
+#define WT_EVICT_DIRTY_WEIGHT_MULTIPLIER 2
+
+/*
  * The number of trees a checkpoint may be syncing at once and still have their dirty leaf bytes
  * discounted from the dirty thresholds. Checkpoints sync trees one at a time per worker, so this
  * only needs to cover the checkpoint worker count. Overflowing the array is not an error: a tree

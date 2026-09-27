@@ -14,6 +14,7 @@ static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
 static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *levels, u_int n);
+static void __evict_stat_skip_cannot_evict(WT_SESSION_IMPL *session, int level);
 static bool __evict_skip_tree(
   WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level, bool *clear_maybe_nonemptyp);
 static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed);
@@ -1621,6 +1622,50 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
 
 
 /*
+ * __evict_stat_skip_cannot_evict --
+ *     Count, per bucketset level, the pages the sweep found there that __wt_page_can_evict refused.
+ *     A high count at a level identifies pages that are unevictable yet still visible to the sweep.
+ */
+static void
+__evict_stat_skip_cannot_evict(WT_SESSION_IMPL *session, int level)
+{
+    switch (level) {
+    case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_wont_need_clean_leaf);
+        break;
+    case WT_EVICT_LEVEL_CLEAN_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_clean_leaf);
+        break;
+    case WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_wont_need_dirty_leaf);
+        break;
+    case WT_EVICT_LEVEL_DIRTY_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_dirty_leaf);
+        break;
+    case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_wont_need_internal);
+        break;
+    case WT_EVICT_LEVEL_DIRTY_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_dirty_internal);
+        break;
+    case WT_EVICT_LEVEL_UPDATES_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_updates_leaf);
+        break;
+    case WT_EVICT_LEVEL_UPDATES_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_updates_internal);
+        break;
+    case WT_EVICT_LEVEL_CLEAN_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_clean_internal);
+        break;
+    case WT_EVICT_LEVEL_PENDING_SPLIT_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_pending_split_leaf);
+        break;
+    default:
+        WT_ASSERT(session, 0);
+    }
+}
+
+/*
  * __evict_stat_eligible_levels --
  *     Count, per bucketset level, how often it was in the eligible set of a call to get a page.
  */
@@ -1802,6 +1847,8 @@ __evict_get_ref(
             else
                 weights[k] /= WT_EVICT_INTERNAL_WEIGHT_DIVISOR;
         }
+        if (__evict_level_is_dirty((int)eligible[k]))
+            weights[k] *= WT_EVICT_DIRTY_WEIGHT_MULTIPLIER;
         total_items += weights[k];
     }
 
@@ -2902,6 +2949,7 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int level)
     /* If the page can't be evicted, give up. */
     if (!__wt_page_can_evict(session, ref, NULL)) {
         WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict);
+        __evict_stat_skip_cannot_evict(session, level);
         return (true);
     }
 
