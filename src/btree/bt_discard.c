@@ -66,7 +66,6 @@ void
 __wt_ref_out_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     __ref_out(session, ref, true);
->>>>>>> origin/develop
 }
 
 /*
