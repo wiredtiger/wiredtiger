@@ -1471,42 +1471,14 @@ rollback_retry:
                 rlog_ret = tinfo->op_ret;
 
             /*
-             * Mirrors must see the same key space, so a remove or blind modify -- the only
-             * operations whose result varies with whether the key exists (not-found vs success) --
-             * must return the same result on every mirror. A read must too, but only under snapshot
-             * isolation: all mirror tables share one session, so a snapshot-isolation transaction
-             * reads (or writes) every mirror table through the identical snapshot, on a disagg
-             * follower included, since a snapshot's consistency point (the pinned checkpoint
-             * generation, or the history store for a timestamped reader) is connection-wide, not
-             * per-table. Read-committed/read-uncommitted have no such fixed point: each read call
-             * can observe a different, more-recent commit, so a read racing a concurrent remove can
-             * legitimately see one mirror still holding the key and another not -- that case is
-             * intentionally left unchecked.
-             *
-             * Insert, truncate, and update need no equivalent check here: insert and update can
-             * only reach this point having returned 0 (any real failure returns or dies inside
-             * OP_FAILED before this code runs), and truncate has its own range-based mirror
-             * verification below (mirrored_truncate), since truncate returns a whole key range as
-             * its result, not a single found/not-found answer.
-             *
-             * A snapshot-isolation read that found the key on every mirror so far must also see the
-             * identical value: unlike the periodic, whole-table mirror verify, this catches a
-             * divergence at the exact operation that exposed it, without waiting for a later
-             * checkpoint or role-switch pass to notice.
-             *
-             * A bounded read is excluded from both checks: apply_bounds derives its window from the
-             * table's own row count and re-randomizes on every call, so the same key can fall inside
-             * one mirror's bound and outside the bound of another mirror, making a
-             * found/not-found (or value) disagreement expected rather than a sign of divergence.
-             * mirror_ref_valid tracks whether mirror_op_ret/mirror_value hold a comparable
-             * reference, so a bounded read never compares against (or overwrites) it with something
-             * incomparable.
-             *
-             * When the base mirror already ran above (MODIFY), compare this table against it here,
-             * so a genuine divergence is caught at the exact pair of tables involved instead of
-             * surfacing later, far from its cause, as an unexplained mirror-verify mismatch.
-             * Otherwise (READ, REMOVE), this table's result becomes the reference the rest of the
-             * mirror group is checked against below.
+             * Mirrors must see the same key space: a remove or blind modify must find the key on
+             * every mirror or none, and a snapshot-isolation read must see the same value too. A
+             * read under a weaker isolation level, or with cursor bounds applied, is exempt -- both
+             * can legitimately disagree across mirrors with no divergence involved. Compare against
+             * the first mirror seen this operation, then let this table's result become the
+             * reference for the rest of the group, checked further below. Insert, truncate, and
+             * update need no such check: the first two can't reach here except successfully, and
+             * truncate has its own range-based mirror verification.
              */
             if (ret == 0 &&
               (op == MODIFY || op == REMOVE ||
@@ -1552,7 +1524,8 @@ rollback_retry:
                       (op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read)) {
                         if (mirror_ref_valid && tinfo->op_ret != mirror_op_ret)
                             testutil_die(0,
-                              "mirror mismatch: op %d on table %s returned %d, expected %d (from an "
+                              "mirror mismatch: op %d on table %s returned %d, expected %d (from "
+                              "an "
                               "earlier mirror in the same group)",
                               (int)op, tables[i]->uri, tinfo->op_ret, mirror_op_ret);
                         if (mirror_ref_valid && op == READ && tinfo->op_ret == 0 &&
@@ -1746,12 +1719,7 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     switch (ret) {
     case 0:
         testutil_check(cursor->get_value(cursor, value));
-        /*
-         * Cursors can return a pointer into the underlying page, and the cursor is reset after this
-         * function returns (one in twenty times with forced eviction), which can invalidate that
-         * memory. Making the value local to the buffer ensures mirror value checks and trace logging
-         * don't read freed or poisoned memory.
-         */
+        /* Copy the value out: the cursor is reset before the caller is done with it. */
         testutil_check(__wt_buf_set(NULL, value, value->data, value->size));
         break;
     case WT_NOTFOUND:
