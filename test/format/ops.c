@@ -367,12 +367,29 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     replay_run_begin(session);
 
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+    if (GV(RUNS_PREDICTABLE_REPLAY) || GV(RUNS_OPS_LOG)) {
         char replay_log_path[MAX_FORMAT_PATH];
-        testutil_snprintf(
-          replay_log_path, sizeof(replay_log_path), "%s/replay_ops_%u.log", g.home, run_current);
-        g.replay_op_log = fopen(replay_log_path, "w");
-        testutil_assertfmt(g.replay_op_log != NULL, "failed to open %s", replay_log_path);
+        /*
+         * Predictable replay uses per-rep log files. The ops_log flag uses a single per-run log so
+         * that role-transition events between reps land in the same file.
+         */
+        if (GV(RUNS_PREDICTABLE_REPLAY))
+            testutil_snprintf(replay_log_path, sizeof(replay_log_path), "%s/replay_ops_%u.log",
+              g.home, run_current);
+        else {
+            testutil_snprintf(
+              replay_log_path, sizeof(replay_log_path), "%s/replay_ops.log", g.home);
+            if (g.ops_log_opened)
+                g.replay_op_log = fopen(replay_log_path, "a");
+            else {
+                g.replay_op_log = fopen(replay_log_path, "w");
+                g.ops_log_opened = true;
+            }
+        }
+        if (g.replay_op_log == NULL) {
+            g.replay_op_log = fopen(replay_log_path, "w");
+            testutil_assertfmt(g.replay_op_log != NULL, "failed to open %s", replay_log_path);
+        }
         __wt_stream_set_line_buffer(g.replay_op_log);
     }
 
@@ -1094,6 +1111,24 @@ ops_session_open(TINFO *tinfo)
 }
 
 /*
+ * ops_log_mirror --
+ *     Record a mirror table's operation result for the ops log, deduplicating by table id.
+ */
+static void
+ops_log_mirror(
+  u_int *rlog_mirror_ids, int *rlog_mirror_rets, u_int *count, u_int table_id, int ret)
+{
+    u_int i;
+
+    for (i = 0; i < *count; ++i)
+        if (rlog_mirror_ids[i] == table_id)
+            return;
+    rlog_mirror_ids[*count] = table_id;
+    rlog_mirror_rets[*count] = ret;
+    ++(*count);
+}
+
+/*
  * ops --
  *     Per-thread operations.
  */
@@ -1107,19 +1142,23 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
-    uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
+    uint64_t rlog_key, rlog_lane, rlog_last, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd, snap_retries;
     u_int i, rlog_table_id, throttle_delay_max;
     int rlog_ret;
+    u_int rlog_mirror_count;
+    u_int rlog_mirror_ids[32];
+    int rlog_mirror_rets[32];
     const char *iso_config, *rlog_op_name;
     bool greater_than, intxn, pause_writes, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
-    rlog_key = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
+    rlog_key = rlog_lane = rlog_last = rlog_read_ts = rlog_replay_ts = 0;
     rlog_table_id = 0;
     rlog_ret = 0;
     rlog_op_name = NULL;
+    rlog_mirror_count = 0;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -1341,7 +1380,7 @@ rollback_retry:
         replay_adjust_key(tinfo, max_rows);
 
         /* Once the operation and key have been finalized, construct a replay log entry. */
-        if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        if (GV(RUNS_PREDICTABLE_REPLAY) || GV(RUNS_OPS_LOG)) {
             static const char *const op_names[] = {[INSERT] = "INSERT",
               [MODIFY] = "MODIFY",
               [READ] = "READ",
@@ -1355,6 +1394,7 @@ rollback_retry:
             rlog_table_id = table->id;
             rlog_ret = 0;
             rlog_op_name = op_names[op];
+            rlog_mirror_count = 0;
         }
 
         /*
@@ -1423,6 +1463,10 @@ rollback_retry:
             }
         }
 
+        /* If the operation is a truncate, capture the range end for the log entry. */
+        if (op == TRUNCATE && GV(RUNS_OPS_LOG))
+            rlog_last = tinfo->last;
+
         /* If an insert or update, create a value. */
         if (op == INSERT || op == UPDATE)
             val_gen(table, &tinfo->data_rnd, tinfo->new_value, tinfo->keyno);
@@ -1438,6 +1482,12 @@ rollback_retry:
             ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 
+            /* Track mirror result for the base table. */
+            if (rlog_op_name != NULL)
+                ops_log_mirror(
+                  rlog_mirror_ids, rlog_mirror_rets, &rlog_mirror_count, g.base_mirror->id,
+                  tinfo->op_ret);
+
             /*
              * We make blind modifies and the record may not exist. If the base modify returns DNE,
              * skip the operation.
@@ -1449,8 +1499,10 @@ rollback_retry:
             if (GV(RUNS_PREDICTABLE_REPLAY) && (ret == WT_ROLLBACK || tinfo->op_ret == WT_NOTFOUND))
                 goto rollback;
 
-            if (tinfo->op_ret == WT_NOTFOUND)
+            if (tinfo->op_ret == WT_NOTFOUND) {
+                ops_log_event("modify_base_mirror_notfound");
                 goto skip_operation;
+            }
 
             skip1 = g.base_mirror;
         }
@@ -1460,8 +1512,12 @@ rollback_retry:
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
             if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                 goto rollback;
-            if (GV(RUNS_PREDICTABLE_REPLAY))
+            if (GV(RUNS_PREDICTABLE_REPLAY) || GV(RUNS_OPS_LOG))
                 rlog_ret = tinfo->op_ret;
+            /* Track mirror result for the current table. */
+            if (rlog_op_name != NULL)
+                ops_log_mirror(
+                  rlog_mirror_ids, rlog_mirror_rets, &rlog_mirror_count, table->id, tinfo->op_ret);
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1481,6 +1537,10 @@ rollback_retry:
                     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
                     if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                         goto rollback;
+                    /* Track mirror result for this mirror table. */
+                    if (rlog_op_name != NULL)
+                        ops_log_mirror(rlog_mirror_ids, rlog_mirror_rets, &rlog_mirror_count,
+                          tables[i]->id, tinfo->op_ret);
                     if (ret == WT_ROLLBACK)
                         break;
                 }
@@ -1503,8 +1563,26 @@ skip_operation:
         /*
          * If not in a transaction, we're done with this operation. If in a transaction, add more
          * operations to the transaction half the time. For predictable replay runs, always complete
-         * the transaction.
+         * the transaction. For ops_log mode, flush the log entry for this operation now so that
+         * every operation in a multi-op transaction is recorded.
          */
+        if (GV(RUNS_OPS_LOG) && rlog_op_name != NULL) {
+            flockfile(g.replay_op_log);
+            fprintf(g.replay_op_log,
+              "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
+              " table=%u ret=%d",
+              rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
+              rlog_mirror_count > 0 ? rlog_mirror_rets[0] : rlog_ret);
+            for (i = 0; i < rlog_mirror_count; ++i)
+                fprintf(g.replay_op_log, " m%u=%d", rlog_mirror_ids[i], rlog_mirror_rets[i]);
+            if (op == TRUNCATE)
+                fprintf(g.replay_op_log, " last=%" PRIu64, rlog_last);
+            fputc('\n', g.replay_op_log);
+            funlockfile(g.replay_op_log);
+            rlog_op_name = NULL;
+            rlog_mirror_count = 0;
+        }
+
         if (GV(RUNS_PREDICTABLE_REPLAY)) {
             rnd = mmrand(&tinfo->data_rnd, 1, 5);
 
@@ -1572,11 +1650,16 @@ skip_operation:
             __wt_yield(); /* Encourage races */
             snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
             if (rlog_op_name != NULL) {
+                flockfile(g.replay_op_log);
                 fprintf(g.replay_op_log,
                   "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
-                  " table=%u ret=%d\n",
+                  " table=%u ret=%d",
                   rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
-                  rlog_ret);
+                  rlog_mirror_count > 0 ? rlog_mirror_rets[0] : rlog_ret);
+                for (i = 0; i < rlog_mirror_count; ++i)
+                    fprintf(g.replay_op_log, " m%u=%d", rlog_mirror_ids[i], rlog_mirror_rets[i]);
+                fputc('\n', g.replay_op_log);
+                funlockfile(g.replay_op_log);
                 rlog_op_name = NULL;
             }
             break;

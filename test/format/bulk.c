@@ -294,6 +294,8 @@ wts_load(void)
 
     conn = g.wts_conn;
 
+    ops_log_event("bulk_load_begin");
+
     if (ntables == 0)
         table_load(NULL, tables[0]);
     else {
@@ -316,4 +318,5 @@ wts_load(void)
         testutil_check(session->checkpoint(session, NULL));
         wt_wrap_close_session(session);
     }
+    ops_log_event("bulk_load_end");
 }

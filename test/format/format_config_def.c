@@ -355,6 +355,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0,
     V_GLOBAL_RUNS_PREDICTABLE_REPLAY},
 
+  {"runs.ops_log", "log every committed operation for post-mortem analysis", C_BOOL, 0, 0, 0,
+    V_GLOBAL_RUNS_OPS_LOG},
+
   {"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100), V_TABLE_RUNS_ROWS},
 
   {"runs.source", "data source type (file | layered | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0,

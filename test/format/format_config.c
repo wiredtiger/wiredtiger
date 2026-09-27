@@ -1102,17 +1102,6 @@ config_mirrors(void)
 
     g.mirror_col_store = false;
 
-    /*
-     * In theory, mirroring should work with predictable replay, although there's some overlap in
-     * functionality. That is, we usually do multiple runs with the same key with predictable replay
-     * and would notice if data was different or missing. We disable it to keep runs simple.
-     */
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        WARN("%s", "turning off mirroring for predictable replay");
-        config_off_all("runs.mirror");
-        return;
-    }
-
     /* Check for a CONFIG file that's already set up for mirroring. */
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {

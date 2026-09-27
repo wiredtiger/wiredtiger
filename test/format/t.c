@@ -409,6 +409,9 @@ main(int argc, char *argv[])
     /* Optionally start checkpoints. */
     wts_checkpoints();
 
+    /* Initialise the ops log if it hasn't been opened yet. */
+    g.ops_log_opened = false;
+
     /*
      * Calculate how long each operations loop should run. Take any timer value and convert it to
      * seconds, then allocate 15 seconds to do initialization, verification and/or salvage tasks
@@ -464,6 +467,12 @@ skip_operations:
      */
     if (!verify_only)
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
+
+    /* Close the ops log if it was open. */
+    if (g.replay_op_log != NULL) {
+        fclose(g.replay_op_log);
+        g.replay_op_log = NULL;
+    }
 
     track("shutting down", 0ULL);
     wts_close(&g.wts_conn);

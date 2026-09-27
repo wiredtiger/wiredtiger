@@ -297,6 +297,8 @@ typedef struct {
     wt_timestamp_t reopen_timestamp;        /* Timestamp recovered when reopening the database */
     wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
     FILE *replay_op_log;                    /* Predictable replay per-run operation log */
+    bool ops_log;                           /* Log every committed operation */
+    bool ops_log_opened;                    /* ops_log file has been opened for this run */
     wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
     wt_timestamp_t timestamp_copy;          /* A copy of the timestamp, for safety checks */
 
@@ -529,6 +531,7 @@ void key_init(TABLE *, void *);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
 void locks_init(WT_CONNECTION *);
+void ops_log_event(const char *);
 void operations(u_int, u_int, u_int);
 void path_setup(const char *);
 void set_alarm(u_int);

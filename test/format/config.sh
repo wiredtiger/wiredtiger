@@ -331,6 +331,8 @@ CONFIG configuration_list[] = {
 
 {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0}
 
+{"runs.ops_log", "log every committed operation for post-mortem analysis", C_BOOL, 0, 0, 0}
+
 {"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100)}
 
 {"runs.source", "data source type (file | layered | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
