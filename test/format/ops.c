@@ -27,6 +27,7 @@
  */
 
 #include "format.h"
+#include <time.h>
 
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
 static void clear_bounds(WT_CURSOR *);
@@ -1567,12 +1568,14 @@ skip_operation:
          * every operation in a multi-op transaction is recorded.
          */
         if (GV(RUNS_OPS_LOG) && rlog_op_name != NULL) {
+            time_t now;
             flockfile(g.replay_op_log);
+            now = time(NULL);
             fprintf(g.replay_op_log,
-              "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
+              "[%" PRIu64 "] %s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
               " table=%u ret=%d",
-              rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
-              rlog_mirror_count > 0 ? rlog_mirror_rets[0] : rlog_ret);
+              (uint64_t)now, rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key,
+              rlog_table_id, rlog_mirror_count > 0 ? rlog_mirror_rets[0] : rlog_ret);
             for (i = 0; i < rlog_mirror_count; ++i)
                 fprintf(g.replay_op_log, " m%u=%d", rlog_mirror_ids[i], rlog_mirror_rets[i]);
             if (op == TRUNCATE)
@@ -1650,12 +1653,14 @@ skip_operation:
             __wt_yield(); /* Encourage races */
             snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
             if (rlog_op_name != NULL) {
+                time_t now;
                 flockfile(g.replay_op_log);
+                now = time(NULL);
                 fprintf(g.replay_op_log,
-                  "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
-                  " table=%u ret=%d",
-                  rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
-                  rlog_mirror_count > 0 ? rlog_mirror_rets[0] : rlog_ret);
+                  "[%" PRIu64 "] %s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64
+                  " key=%" PRIu64 " table=%u ret=%d",
+                  (uint64_t)now, rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key,
+                  rlog_table_id, rlog_mirror_count > 0 ? rlog_mirror_rets[0] : rlog_ret);
                 for (i = 0; i < rlog_mirror_count; ++i)
                     fprintf(g.replay_op_log, " m%u=%d", rlog_mirror_ids[i], rlog_mirror_rets[i]);
                 fputc('\n', g.replay_op_log);

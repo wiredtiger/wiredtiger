@@ -29,6 +29,7 @@
 #include "format.h"
 #include <poll.h>
 #include <sys/mman.h>
+#include <time.h>
 
 /*
  * disagg_redirect_output --
@@ -62,8 +63,10 @@ void
 ops_log_event(const char *event)
 {
     if (g.replay_op_log != NULL && GV(RUNS_OPS_LOG)) {
+        time_t now;
         flockfile(g.replay_op_log);
-        fprintf(g.replay_op_log, "--- [%s] ---\n", event);
+        now = time(NULL);
+        fprintf(g.replay_op_log, "[%" PRIu64 "] --- [%s] ---\n", (uint64_t)now, event);
         funlockfile(g.replay_op_log);
     }
 }
