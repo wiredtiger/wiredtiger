@@ -9,6 +9,12 @@ RUN apt-get update && \
     python3-pip python3-venv swig universal-ctags zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN arch=$(dpkg --print-architecture) && \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_${arch}.deb" \
+    -o /tmp/gh.deb && \
+    dpkg -i /tmp/gh.deb && \
+    rm /tmp/gh.deb
+
 RUN useradd -m -s /bin/bash wiredtiger
 USER wiredtiger
 
