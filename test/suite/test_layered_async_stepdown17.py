@@ -123,14 +123,15 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(seen, keys)
 
-        # Resolving a prepared update whose btree was outdated by the role change is a separate,
-        # already-known issue (EBUSY reopening the now-outdated stable dhandle), orthogonal to the
-        # walk recovery this test targets; tolerate it rather than assert on it here.
+        # The role change also raced the still-open raw file cursor this rollback uses to resolve
+        # the prepared update: reopening the now-follower stable table refuses with the same
+        # disaggregated conflict a layered cursor would convert to a rollback, and the application
+        # is expected to retry.
         try:
             prepare_session.rollback_transaction()
-        except wiredtiger.WiredTigerError as e:
-            if 'busy' not in str(e).lower():
-                raise
+            self.fail('expected the disaggregated conflict from the raced stable table open')
+        except wiredtiger.WiredTigerError:
+            self.assertEqual(prepare_session.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
         prepare_cursor.close()
         prepare_session.close()
 

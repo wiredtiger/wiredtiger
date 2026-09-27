@@ -58,9 +58,9 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         ('prev', dict(forward=False)),
     ]
 
-    # Whether a separate, ordinary key exists in both constituents at once, so the walk must step
-    # past it without returning it twice. Every other key in this test belongs to exactly one
-    # constituent, so without this a duplicate key is never part of the walk.
+    # Whether the keys immediately next to the blocked key also exist in both constituents, so the
+    # walk ties on them just before reaching the blocked key. Every other key in this test belongs
+    # to exactly one constituent, so without this a tie is never part of the walk.
     tie_scenarios = [
         ('no_tie', dict(with_tie=False)),
         ('with_tie', dict(with_tie=True)),
@@ -141,15 +141,15 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         keys = self.keys()
         blocked_key = keys[self.blocked_index]
 
-        # A key distinct from every other key in the walk, given to both constituents so the walk
-        # ties on it: the ingest copy shadows the stable one, like an ordinary layered-table update.
-        tie_key = 'keytie'
+        # The keys on either side of the blocked one, tied between both constituents: whichever
+        # direction the walk takes, it ties on one of these immediately before the blocked key.
+        tie_keys = [keys[self.blocked_index - 1], keys[self.blocked_index + 1]]
 
         # Populate half the keys and make them stable, so a walk reads them from the stable
         # constituent.
         self.write_at(self.uri, {k: 'v-initial' for k in self.stable_keys()}, 10)
         if self.with_tie:
-            self.write_at(self.uri, {tie_key: 'v-stable-original'}, 10)
+            self.write_at(self.uri, {k: 'v-stable-original' for k in tie_keys}, 10)
         self.set_global_ts(1, 10)
 
         # A prepare before the announcement has to sit below it, like every write that precedes a
@@ -170,11 +170,11 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
             prepare()
 
         # Announce the step-down, then write the remaining keys so they reach the ingest
-        # constituent. The walk needs a position in both constituents to consult either.
+        # constituent. The walk needs a position in both constituents to consult either. The tie
+        # keys are among these, now duplicated on stable above: whichever constituent the walk
+        # consults for one of them, the other still holds a copy too.
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(step_down_ts))
         self.write_at(self.uri, {k: 'v-initial' for k in self.ingest_keys()}, 20)
-        if self.with_tie:
-            self.write_at(self.uri, {tie_key: 'v-ingest'}, 20)
 
         if not self.prepare_before_step_down:
             prepare()
@@ -202,10 +202,9 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
 
         # The prepared transaction is rolled back rather than committed, uncovering the original
         # value underneath: every key is returned exactly once, in order, including the blocked one.
-        # The tie key sorts after every other key, so it trails the walk in either direction.
-        expected = keys + [tie_key] if self.with_tie else keys
-        if not self.forward:
-            expected = list(reversed(expected))
+        # The tie keys are already members of the full key list, so the expected sequence does not
+        # change; only how each of them is produced (from one constituent or both) does.
+        expected = keys if self.forward else list(reversed(keys))
         self.assertEqual(seen, expected)
 
 if __name__ == '__main__':
