@@ -209,6 +209,9 @@ struct __wt_disagg_metadata_op {
     /* The operation was issued inside the step-down window, so it belongs to the next era. */
     bool in_step_down_window;
 
+    /* The operation was queued before a stable schema epoch was set. */
+    bool before_stable_epoch;
+
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
@@ -846,6 +849,19 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE --
+ *     The debug mode for upgrade/downgrade of the disaggregated storage block header.
+ */
+typedef enum __wt_conn_debug_disagg_block_header_upgrade {
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE = 0,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED
+} WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE;
+#endif
+
 /*
  * WT_CONN_DEBUG --
  *     Connection debug-mode configuration and state.
@@ -869,22 +885,29 @@ struct __wt_conn_debug {
 #define WT_CONN_DEBUG_CURSOR_REPOSITION 0x000100u
 #define WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL 0x000200u
 #define WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER 0x000400u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x000800u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x001000u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x002000u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x004000u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x008000u
-#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x010000u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x020000u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x040000u
-#define WT_CONN_DEBUG_TIMING_STRESS_FORCE 0x080000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x100000u
+#define WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE 0x000800u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x001000u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x002000u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x004000u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x008000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x010000u
+#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x020000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x040000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x080000u
+#define WT_CONN_DEBUG_TIMING_STRESS_FORCE 0x100000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x200000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
     /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE disagg_address_cookie_upgrade;
     bool disagg_address_cookie_optional_field;
+
+#ifdef HAVE_DIAGNOSTIC
+    /* The debug mode for upgrade/downgrade of the disaggregated storage block header. */
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE disagg_block_header_upgrade;
+#endif
+    bool disagg_block_header_v1_ignore_size;
 };
 
 /*

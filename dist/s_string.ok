@@ -55,6 +55,7 @@ BUF
 BUILDDIR
 Bazel
 Bitfield
+Bitset
 Bitstring
 Bitwise
 BqRv
@@ -309,6 +310,7 @@ LSNs
 LTE
 LWN
 LZ
+LastTest
 LazyFS
 LazyFS's
 LeafGreen
@@ -750,6 +752,7 @@ bitflip
 bitflips
 bitlist
 bitpack
+bitset
 bitstr
 bitstring
 bitwise
