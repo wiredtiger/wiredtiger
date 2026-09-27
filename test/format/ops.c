@@ -583,7 +583,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     disagg_sync_multi_node(session);
 
-    if (g.replay_op_log != NULL) {
+    if (g.replay_op_log != NULL && !GV(RUNS_OPS_LOG)) {
         fclose(g.replay_op_log);
         g.replay_op_log = NULL;
     }
