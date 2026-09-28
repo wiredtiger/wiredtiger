@@ -111,6 +111,7 @@ struct __wti_evict_entry {
  */
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
+#define WTI_DIRTY_INDEX_SCAN_MULTIPLIER 4u
 
 /*
  * The ring is leaf-only, so a drain that fills a tree's whole budget leaves the walker no slots and

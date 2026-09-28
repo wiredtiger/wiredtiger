@@ -174,7 +174,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     WT_REF *ref;
     WTI_DIRTY_INDEX_SLOT *di_slot, *slots;
     wt_timestamp_t pinned_stable, ts;
-    uint64_t pos, scan_limit, seq;
+    uint64_t occupancy, pos, scan_limit, seq;
     uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
     uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
     bool aggressive, bp_released, busy, precise_ckpt, queued, reinsert, urgent_queued;
@@ -207,10 +207,12 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
 
     slots = __wt_atomic_load_ptr_acquire(&idx->slots);
     pos = __wt_atomic_load_uint64_relaxed(&idx->tail);
-    scan_limit = WT_MIN(__wt_atomic_load_uint64_acquire(&idx->head) - pos, idx->capacity);
+    occupancy = WT_MIN(__wt_atomic_load_uint64_acquire(&idx->head) - pos, idx->capacity);
+    scan_limit = WT_MIN(
+      occupancy, (uint64_t)(max_entries - *slotp) * WTI_DIRTY_INDEX_SCAN_MULTIPLIER);
     if (WT_STAT_ENABLED(session))
         __wt_atomic_stats_max_uint64(
-          &S2C(session)->evict->dirty_index_ring_peak_occupancy, scan_limit);
+          &S2C(session)->evict->dirty_index_ring_peak_occupancy, occupancy);
     while (*slotp < max_entries && scanned < scan_limit) {
         reinsert = false;
         slot = (uint32_t)pos & idx->mask;
