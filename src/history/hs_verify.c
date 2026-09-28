@@ -376,7 +376,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     uint32_t hs_id;
 
     /* On a disaggregated follower with no checkpoint, there is nothing to verify. */
-    if (!__wt_disagg_has_picked_up_checkpoint(session))
+    if (__wt_conn_is_disagg(session) && !__wt_disagg_has_picked_up_checkpoint(session))
         return (0);
 
     hs_id = 0;
