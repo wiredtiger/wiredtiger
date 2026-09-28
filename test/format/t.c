@@ -327,6 +327,9 @@ main(int argc, char *argv[])
     /* Configure the run. */
     config_run();
     g.configured = true;
+    fprintf(stderr, "AFTER_CONFIG_RUN: data={%u,%u} extra={%u,%u}\n",
+      (unsigned)g.data_rnd.x.w, (unsigned)g.data_rnd.x.z,
+      (unsigned)g.extra_rnd.x.w, (unsigned)g.extra_rnd.x.z);
 
     /* If checking a CONFIG file syntax, we're done. */
     if (syntax_check)

@@ -128,8 +128,13 @@ table_load(TABLE *base, TABLE *table)
         /* Build a key; build a value, or take the next value from the base mirror. */
         if (table->type == ROW)
             key_gen(table, &key, keyno);
-        if (base == NULL)
+        if (base == NULL) {
+            fprintf(stderr,
+              "BULK_VAL[%u]: g_data={%u,%u} g_extra={%u,%u}\n",
+              keyno, (unsigned)g.data_rnd.x.w, (unsigned)g.data_rnd.x.z,
+              (unsigned)g.extra_rnd.x.w, (unsigned)g.extra_rnd.x.z);
             val_gen(table, &g.data_rnd, &value, keyno);
+        }
         else {
             /*
              * The read can roll back once the transaction's operation timeout fires while eviction

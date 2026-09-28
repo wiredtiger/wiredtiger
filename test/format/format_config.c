@@ -113,6 +113,10 @@ config_random_generators_before_run(void)
 {
     testutil_random_from_seed(&g.data_rnd, GV(RANDOM_DATA_SEED));
     testutil_random_from_seed(&g.extra_rnd, GV(RANDOM_EXTRA_SEED));
+    fprintf(stderr, "RNG_RESET: data={%u,%u} extra={%u,%u} seeds={%lu,%lu}\n",
+      (unsigned)g.data_rnd.x.w, (unsigned)g.data_rnd.x.z,
+      (unsigned)g.extra_rnd.x.w, (unsigned)g.extra_rnd.x.z,
+      (unsigned long)GV(RANDOM_DATA_SEED), (unsigned long)GV(RANDOM_EXTRA_SEED));
 }
 
 /*
@@ -515,6 +519,9 @@ config_run(void)
     config_run_length();
 
     config_random_generators_before_run();
+    fprintf(stderr, "AFTER_CRG: data={%u,%u} extra={%u,%u}\n",
+      (unsigned)g.data_rnd.x.w, (unsigned)g.data_rnd.x.z,
+      (unsigned)g.extra_rnd.x.w, (unsigned)g.extra_rnd.x.z);
 }
 
 /*
