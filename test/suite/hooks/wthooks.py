@@ -310,6 +310,7 @@ class DisaggParameters(object):
         self.config = None
         self.role = 'leader'
         self.page_log = 'palite'
+        self.schema_epochs = False
 
 class WiredTigerHookPlatformAPI(object):
     def setUp(self, testcase):
