@@ -1875,7 +1875,7 @@ variables:
       - func: "format test disagg"
         vars:
           # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=1000000:2000000 ops.truncate=0
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 ops.truncate=0
           times: 10
 
   - &format-stress-test-disagg-multi-pull-request
