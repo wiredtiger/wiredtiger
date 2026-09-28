@@ -53,7 +53,7 @@ class test_verify4(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
         evict_cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        self.session.begin_transaction('ignore_prepare=true')
+        self.session.begin_transaction()
         evict_cursor.set_key('a')
         evict_cursor.search()
         evict_cursor.reset()
