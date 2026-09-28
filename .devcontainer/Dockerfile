@@ -3,17 +3,11 @@ FROM ubuntu:26.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     aspell aspell-en ca-certificates ccache clang clang-format clang-tidy \
-    clangd cmake curl doxygen ed file g++ gcc gdb git openssh-client \
+    clangd cmake curl doxygen ed file g++ gcc gdb gh git openssh-client \
     libclang-rt-21-dev liblz4-dev libsnappy-dev libsodium-dev libzstd-dev \
     lld lldb llvm make ninja-build python-is-python3 python3 python3-dev \
     python3-pip python3-venv swig universal-ctags zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
-
-RUN arch=$(dpkg --print-architecture) && \
-    curl -fsSL "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_${arch}.deb" \
-    -o /tmp/gh.deb && \
-    dpkg -i /tmp/gh.deb && \
-    rm /tmp/gh.deb
 
 RUN useradd -m -s /bin/bash wiredtiger
 USER wiredtiger
