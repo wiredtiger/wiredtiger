@@ -43,9 +43,9 @@ typedef enum {
 static int __evict_clear_walk(WT_SESSION_IMPL *, bool);
 static WTI_DIRTY_EVICT_BLOCK __evict_dirty_tree_block(WT_SESSION_IMPL *, WT_BTREE *, bool);
 static int __evict_dirty_index_drain(
-  WT_SESSION_IMPL *, WT_BTREE *, WTI_EVICT_QUEUE *, u_int, u_int *, u_int *);
+  WT_SESSION_IMPL *, WT_BTREE *, WTI_EVICT_QUEUE *, u_int, u_int *, u_int *, u_int *);
 static int __evict_dirty_index_drain_ring(WT_SESSION_IMPL *, WT_BTREE *, WTI_DIRTY_INDEX *,
-  WTI_EVICT_QUEUE *, u_int, u_int *, wt_timestamp_t *, wt_timestamp_t *, u_int *);
+  WTI_EVICT_QUEUE *, u_int, u_int *, wt_timestamp_t *, wt_timestamp_t *, u_int *, u_int *);
 static void __evict_try_queue_page(
   WT_SESSION_IMPL *, WTI_EVICT_QUEUE *, WT_REF *, WT_PAGE *, WTI_EVICT_ENTRY *, bool *, bool *);
 static int __evict_walk_tree(WT_SESSION_IMPL *, WTI_EVICT_QUEUE *, u_int, u_int *);
@@ -92,14 +92,15 @@ __evict_drain_stable_blocked(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_QUEUE *queue,
-  u_int max_entries, u_int *slotp, u_int *drainedp)
+  u_int max_entries, u_int *slotp, u_int *drainedp, u_int *productivep)
 {
     WT_CONNECTION_IMPL *conn;
     WTI_DIRTY_INDEX *idx;
     wt_timestamp_t ts_max, ts_min;
-    u_int drained;
+    u_int drained, productive;
 
     *drainedp = 0;
+    *productivep = 0;
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
         return (0);
@@ -140,7 +141,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
     ts_min = WT_TS_MAX;
     ts_max = WT_TS_NONE;
     WT_RET(__evict_dirty_index_drain_ring(
-      session, btree, idx, queue, max_entries, slotp, &ts_min, &ts_max, &drained));
+      session, btree, idx, queue, max_entries, slotp, &ts_min, &ts_max, &drained, &productive));
 
     /*
      * Re-arm the stable-lag gate at the midpoint of the commit timestamp range that blocked this
@@ -155,6 +156,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
     else
         __wt_atomic_store_uint64_relaxed(&btree->drain_stable_block_ts, WT_TS_NONE);
     *drainedp = drained;
+    *productivep = productive;
     return (0);
 }
 
@@ -167,7 +169,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
 static int
 __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DIRTY_INDEX *idx,
   WTI_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp, wt_timestamp_t *ts_minp,
-  wt_timestamp_t *ts_maxp, u_int *drainedp)
+  wt_timestamp_t *ts_maxp, u_int *drainedp, u_int *productivep)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -180,6 +182,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     bool aggressive, bp_released, busy, precise_ckpt, queued, reinsert, urgent_queued;
 
     *drainedp = 0;
+    *productivep = 0;
     if (*slotp >= max_entries)
         return (0);
 
@@ -208,8 +211,8 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     slots = __wt_atomic_load_ptr_acquire(&idx->slots);
     pos = __wt_atomic_load_uint64_relaxed(&idx->tail);
     occupancy = WT_MIN(__wt_atomic_load_uint64_acquire(&idx->head) - pos, idx->capacity);
-    scan_limit = WT_MIN(
-      occupancy, (uint64_t)(max_entries - *slotp) * WTI_DIRTY_INDEX_SCAN_MULTIPLIER);
+    scan_limit =
+      WT_MIN(occupancy, (uint64_t)(max_entries - *slotp) * WTI_DIRTY_INDEX_SCAN_MULTIPLIER);
     if (WT_STAT_ENABLED(session))
         __wt_atomic_stats_max_uint64(
           &S2C(session)->evict->dirty_index_ring_peak_occupancy, occupancy);
@@ -394,6 +397,7 @@ release:
     if (drained > 0)
         WT_STAT_CONN_INCRV(session, eviction_pages_ordinary_queued, drained);
     *drainedp = drained;
+    *productivep = queued_total;
     return (ret);
 }
 
@@ -1695,14 +1699,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
     uint64_t pass_gen, root_pages_skipped;
-    uint32_t drain_queued, evict_walk_period, target_pages, walk_flags;
+    uint32_t drain_productive, drain_queued, evict_walk_period, target_pages, walk_flags;
     int restarts;
     bool give_up, queued, should_drain, urgent_queued;
 
     conn = S2C(session);
     btree = S2BT(session);
     evict = conn->evict;
-    drain_queued = 0;
+    drain_productive = drain_queued = 0;
     last_parent = NULL;
     restarts = 0;
     give_up = urgent_queued = false;
@@ -1763,8 +1767,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             WT_STAT_CONN_DSRC_INCR(
               session, cache_eviction_dirty_index_drain_skipped_clean_pressure);
         } else {
-            WT_RET(__evict_dirty_index_drain(
-              session, btree, queue, (u_int)(end - queue->evict_queue), slotp, &drain_queued));
+            WT_RET(__evict_dirty_index_drain(session, btree, queue,
+              (u_int)(end - queue->evict_queue), slotp, &drain_queued, &drain_productive));
 
             /*
              * Update the adaptive switch. Atomic accesses are used because eviction passes from
@@ -1773,7 +1777,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
              * case so a long checkpoint does not park the drain on a tree whose ring is full, not
              * empty.
              */
-            if (drain_queued > 0) {
+            if (drain_productive > 0) {
                 __wt_atomic_store_uint32(&btree->drain_consecutive_empty, 0);
                 if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
                     __wt_atomic_store_bool(&btree->drain_disabled, false);
