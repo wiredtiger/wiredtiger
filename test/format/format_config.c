@@ -1527,7 +1527,10 @@ config_disagg_storage(void)
  * size by a factor of 256 between runs, so a fixed count commits wildly different memory from one
  * run to the next. Derive the count from a byte budget instead.
  *
- * TODO: review this budget against what a test host can spare; it is a conservative guess rather
+ * The budget is also capped at a fifth of the cache, the share the block cache takes, so that a run
+ * configured with little memory does not hand the page log more than the cache itself.
+ *
+ * TODO: review this ceiling against what a test host can spare; it is a conservative guess rather
  * than a measured number. A byte bound in the page log would remove the need to estimate it.
  */
 #define VICTIM_CACHE_BUDGET_MB 128
@@ -1592,7 +1595,7 @@ config_disagg_victim_cache(void)
              */
             image_size = max_leaf_page + VICTIM_CACHE_ENTRY_OVERHEAD;
             handles = (ntables == 0 ? 1 : ntables) + 3;
-            budget = (uint64_t)VICTIM_CACHE_BUDGET_MB * WT_MEGABYTE;
+            budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
             entries = budget / (handles * image_size);
 
             /*
