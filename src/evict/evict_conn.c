@@ -230,6 +230,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_EVICT *evict;
     uint32_t evict_threads_max, evict_threads_min;
 
@@ -280,27 +281,39 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
-    /* Retrieve the number of buckets in each bucketset */
-    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_num_buckets", &cval));
+    /*
+     * The bucket geometry cannot change after the connection is open. On reconfigure, look only at
+     * the caller's string: a key absent from it resolves to the base default, which is auto-sized
+     * and so never equals the value computed at open. An explicit zero asks for auto-sizing, which
+     * is what is already in effect.
+     */
     if (reconfig) {
-        if ((uint32_t)cval.val != evict->evict_num_buckets)
-            WT_RET_MSG(session, EINVAL,
-              "eviction.evict_num_buckets cannot be changed after the connection is open "
-              "(currently %" PRIu32 ", requested %" PRId64 ")",
-              evict->evict_num_buckets, cval.val);
-    } else
+        if (cfg[1] != NULL) {
+            WT_RET_NOTFOUND_OK(
+              ret = __wt_config_getones(session, cfg[1], "eviction.evict_num_buckets", &cval));
+            if (ret == 0 && cval.val != 0 && (uint32_t)cval.val != evict->evict_num_buckets)
+                WT_RET_MSG(session, EINVAL,
+                  "eviction.evict_num_buckets cannot be changed after the connection is open "
+                  "(currently %" PRIu32 ", requested %" PRId64 ")",
+                  evict->evict_num_buckets, cval.val);
+
+            WT_RET_NOTFOUND_OK(ret = __wt_config_getones(
+                                 session, cfg[1], "eviction.evict_dhandle_hash_size", &cval));
+            if (ret == 0 && cval.val != 0 && (uint32_t)cval.val != evict->dhandle_hash_size)
+                WT_RET_MSG(session, EINVAL,
+                  "eviction.evict_dhandle_hash_size cannot be changed after the connection is open "
+                  "(currently %" PRIu32 ", requested %" PRId64 ")",
+                  evict->dhandle_hash_size, cval.val);
+        }
+    } else {
+        /* Retrieve the number of buckets in each bucketset */
+        WT_RET(__wt_config_gets(session, cfg, "eviction.evict_num_buckets", &cval));
         evict->evict_num_buckets = (uint32_t)cval.val;
 
-    /* Retrieve the number of hash chains per dirty-leaf bucket. */
-    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_dhandle_hash_size", &cval));
-    if (reconfig) {
-        if ((uint32_t)cval.val != evict->dhandle_hash_size)
-            WT_RET_MSG(session, EINVAL,
-              "eviction.evict_dhandle_hash_size cannot be changed after the connection is open "
-              "(currently %" PRIu32 ", requested %" PRId64 ")",
-              evict->dhandle_hash_size, cval.val);
-    } else
+        /* Retrieve the number of hash chains per dirty-leaf bucket. */
+        WT_RET(__wt_config_gets(session, cfg, "eviction.evict_dhandle_hash_size", &cval));
         evict->dhandle_hash_size = (uint32_t)cval.val;
+    }
 
     /*
      * Resize the thread group if reconfiguring, otherwise the thread group will be initialized as
