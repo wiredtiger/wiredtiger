@@ -2538,12 +2538,11 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
         must_unlock_ref = false;
     else if (previous_state == WT_REF_LOCKED) {
         /*
-         * Page is locked, but not by us. Chances are, someone is already enqueueing, evicting or
-         * deleting it. Bail. Could there be an esoteric scenario where the page ends up absent from
-         * eviction queues at all? Possibly, though I can't think of one. If this does occur, this
-         * means that this page won't be eviction until it is deleted, reconciled or we close the
-         * tree. These scenarios will be rare, so we won't worry about them.
+         * Page is locked by another thread, which is enqueueing, evicting, splitting or deleting
+         * it. Whoever holds the lock either discards the page or enqueues it with its current
+         * classification when releasing the lock, so there is nothing for us to do.
          */
+        WT_STAT_CONN_INCR(session, eviction_enqueue_skipped_locked);
         return;
     } else /* We must lock */ {
         WT_REF_LOCK(session, ref, &previous_state);

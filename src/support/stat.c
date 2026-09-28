@@ -1965,6 +1965,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: dirty leaf bytes discounted from the eviction thresholds because a checkpoint is syncing "
   "the tree",
+  "cache: enqueue skipped because another thread held the ref lock",
   "cache: evict page attempts by application threads",
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by application threads",
@@ -2305,7 +2306,9 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub most recent time (msecs)",
   "checkpoint: scrub total time (msecs)",
   "checkpoint: stop timing stress active",
+  "checkpoint: time spent in the tree walk during checkpoint (usecs)",
   "checkpoint: time spent on per-tree checkpoint work (usecs)",
+  "checkpoint: time spent reconciling pages during checkpoint (usecs)",
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
   "checkpoint: total time (msecs)",
@@ -3078,6 +3081,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     /* not clearing eviction_dirty_leaf_checkpoint */
+    stats->eviction_enqueue_skipped_locked = 0;
     stats->eviction_app_evict_attempt = 0;
     stats->eviction_worker_evict_attempt = 0;
     stats->eviction_app_evict_fail = 0;
@@ -3394,7 +3398,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_recent */
     /* not clearing checkpoint_scrub_total */
     /* not clearing checkpoint_stop_stress_active */
+    stats->checkpoint_tree_walk_time = 0;
     stats->checkpoint_tree_duration = 0;
+    stats->checkpoint_tree_reconcile_time = 0;
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
@@ -4181,6 +4187,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
     to->eviction_dirty_leaf_checkpoint += WT_STAT_CONN_READ(from, eviction_dirty_leaf_checkpoint);
+    to->eviction_enqueue_skipped_locked += WT_STAT_CONN_READ(from, eviction_enqueue_skipped_locked);
     to->eviction_app_evict_attempt += WT_STAT_CONN_READ(from, eviction_app_evict_attempt);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
     to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
@@ -4619,7 +4626,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_recent += WT_STAT_CONN_READ(from, checkpoint_scrub_recent);
     to->checkpoint_scrub_total += WT_STAT_CONN_READ(from, checkpoint_scrub_total);
     to->checkpoint_stop_stress_active += WT_STAT_CONN_READ(from, checkpoint_stop_stress_active);
+    to->checkpoint_tree_walk_time += WT_STAT_CONN_READ(from, checkpoint_tree_walk_time);
     to->checkpoint_tree_duration += WT_STAT_CONN_READ(from, checkpoint_tree_duration);
+    to->checkpoint_tree_reconcile_time += WT_STAT_CONN_READ(from, checkpoint_tree_reconcile_time);
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);

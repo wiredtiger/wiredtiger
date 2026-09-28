@@ -579,6 +579,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_hs_dirty;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_dirty_leaf_checkpoint;
+    int64_t eviction_enqueue_skipped_locked;
     int64_t eviction_app_evict_attempt;
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_app_evict_fail;
@@ -895,7 +896,9 @@ struct __wt_connection_stats {
     int64_t checkpoint_scrub_recent;
     int64_t checkpoint_scrub_total;
     int64_t checkpoint_stop_stress_active;
+    int64_t checkpoint_tree_walk_time;
     int64_t checkpoint_tree_duration;
+    int64_t checkpoint_tree_reconcile_time;
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;

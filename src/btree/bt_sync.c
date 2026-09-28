@@ -143,6 +143,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
+    uint64_t t_step, t_walk;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
 
@@ -289,7 +290,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
+            /* Time the walk step separately from reconciliation: it includes any wait for a ref. */
+            t_walk = __wt_clock(session);
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
+            t_step = __wt_clock(session);
+            WT_STAT_CONN_INCRV(session, checkpoint_tree_walk_time, WT_CLOCKDIFF_US(t_step, t_walk));
 
             if (walk == NULL)
                 break;
@@ -379,6 +384,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+            WT_STAT_CONN_INCRV(session, checkpoint_tree_reconcile_time,
+              WT_CLOCKDIFF_US(__wt_clock(session), t_step));
 
             /* Update checkpoint IO tracking data. */
             if (__wt_checkpoint_verbose_timer_started(session))

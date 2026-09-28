@@ -367,10 +367,12 @@ err:
              */
             __wt_atomic_store_bool(&ref->page->evict_data.evict_skip, true);
 
-            if (WT_EVICT_PAGE_CLEARED(page)) {
-                /* Put the page back into the list it belongs */
-                __wt_evict_enqueue_page(session, ref);
-            }
+            /*
+             * On error we re-enqueue unconditionally. If the page is still in a queue,
+			 * re-enqueuing will move it to a different bucketset if its classification changed
+			 * as we tried to evict and failed. Otherwise, it will leave it where it is.
+             */
+            __wt_evict_enqueue_page(session, ref);
             /* Release the page */
             __evict_exclusive_clear(session, ref, previous_state);
         }
