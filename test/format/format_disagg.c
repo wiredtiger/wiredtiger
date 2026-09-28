@@ -63,10 +63,11 @@ void
 ops_log_event(const char *event)
 {
     if (g.replay_op_log != NULL && GV(RUNS_OPS_LOG)) {
-        time_t now;
+        struct timespec ts;
         flockfile(g.replay_op_log);
-        now = time(NULL);
-        fprintf(g.replay_op_log, "[%" PRIu64 "] --- [%s] ---\n", (uint64_t)now, event);
+        clock_gettime(CLOCK_REALTIME, &ts);
+        fprintf(g.replay_op_log, "[%" PRIu64 ".%03ld] --- [%s] ---\n",
+          (uint64_t)ts.tv_sec, ts.tv_nsec / 1000000, event);
         funlockfile(g.replay_op_log);
     }
 }
