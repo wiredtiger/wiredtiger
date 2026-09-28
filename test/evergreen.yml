@@ -1126,7 +1126,7 @@ functions:
 
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
-          [ -d RUNDIR ] && mv RUNDIR "RUNDIR.${i}"
+          [ -d RUNDIR ] && mv RUNDIR "RUNDIR.$i"
           ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} || fail
           ./t -R $format_args ${extra_args|} || fail
         done
