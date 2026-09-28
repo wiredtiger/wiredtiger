@@ -382,8 +382,8 @@ conn_stats = [
     EvictStat('application_try_evict', 'application tried to evict', 'no_clear'),
     EvictStat('eviction_active_workers', 'eviction worker thread active', 'no_clear'),
     EvictStat('eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
-    EvictStat('eviction_app_evict_attempt', 'evict page attempts by application threads'),
-    EvictStat('eviction_app_evict_fail', 'evict page failures by application threads'),
+    EvictStat('eviction_app_evict_attempt', 'page evict attempts by application threads'),
+    EvictStat('eviction_app_evict_fail', 'page evict failures by application threads'),
     EvictStat('eviction_bucket_clean_internal_items', 'eviction bucket items clean internal', 'no_clear,no_scale'),
     EvictStat('eviction_bucket_clean_leaf_items', 'eviction bucket items clean leaf', 'no_clear,no_scale'),
     EvictStat('eviction_bucket_clean_leaf_retained_modify', 'eviction bucket clean leaf pages with a retained modify structure and no update bytes'),
@@ -1091,8 +1091,8 @@ dsrc_stats = [
     ##########################################
     # Eviction statistics
     ##########################################
-    EvictStat('eviction_app_evict_attempt', 'evict page attempts by application threads'),
-    EvictStat('eviction_app_evict_fail', 'evict page failures by application threads'),
+    EvictStat('eviction_app_evict_attempt', 'page evict attempts by application threads'),
+    EvictStat('eviction_app_evict_fail', 'page evict failures by application threads'),
     EvictStat('eviction_fail', 'data source pages selected for eviction unable to be evicted'),
     EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
     EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),

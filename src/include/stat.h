@@ -580,9 +580,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_dirty_leaf_checkpoint;
     int64_t eviction_enqueue_skipped_locked;
-    int64_t eviction_app_evict_attempt;
     int64_t eviction_worker_evict_attempt;
-    int64_t eviction_app_evict_fail;
     int64_t eviction_worker_evict_fail;
     int64_t eviction_skip_intl_page_with_active_child;
     int64_t eviction_bucket_clean_leaf_retained_modify;
@@ -762,6 +760,8 @@ struct __wt_connection_stats {
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t eviction_app_evict_attempt;
+    int64_t eviction_app_evict_fail;
     int64_t cache_eviction_blocked_materialization;
     int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;
@@ -1531,9 +1531,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t eviction_fail;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
-    int64_t eviction_app_evict_attempt;
     int64_t eviction_worker_evict_attempt;
-    int64_t eviction_app_evict_fail;
     int64_t eviction_worker_evict_fail;
     int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
@@ -1593,6 +1591,8 @@ struct __wt_dsrc_stats {
     int64_t cache_obsolete_updates_removed;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t eviction_app_evict_attempt;
+    int64_t eviction_app_evict_fail;
     int64_t cache_eviction_blocked_materialization;
     int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;

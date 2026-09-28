@@ -65,9 +65,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
-  "cache: evict page attempts by application threads",
   "cache: evict page attempts by eviction worker threads",
-  "cache: evict page failures by application threads",
   "cache: evict page failures by eviction worker threads",
   "cache: eviction did not make progress, because it did not use updates or split/delete page in "
   "reconciliation",
@@ -139,6 +137,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: obsolete updates removed",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
+  "cache: page evict attempts by application threads",
+  "cache: page evict failures by application threads",
   "cache: page eviction blocked due to materialization frontier",
   "cache: page eviction blocked in disaggregated storage as it can only be written by the next "
   "checkpoint",
@@ -522,9 +522,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->eviction_fail = 0;
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
-    stats->eviction_app_evict_attempt = 0;
     stats->eviction_worker_evict_attempt = 0;
-    stats->eviction_app_evict_fail = 0;
     stats->eviction_worker_evict_fail = 0;
     stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
@@ -584,6 +582,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_obsolete_updates_removed = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
+    stats->eviction_app_evict_attempt = 0;
+    stats->eviction_app_evict_fail = 0;
     stats->cache_eviction_blocked_materialization = 0;
     stats->cache_eviction_blocked_disagg_next_checkpoint = 0;
     stats->cache_eviction_deepen = 0;
@@ -945,9 +945,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       from->cache_eviction_blocked_disagg_dirty_internal_page;
-    to->eviction_app_evict_attempt += from->eviction_app_evict_attempt;
     to->eviction_worker_evict_attempt += from->eviction_worker_evict_attempt;
-    to->eviction_app_evict_fail += from->eviction_app_evict_fail;
     to->eviction_worker_evict_fail += from->eviction_worker_evict_fail;
     to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
@@ -1015,6 +1013,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_obsolete_updates_removed += from->cache_obsolete_updates_removed;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
+    to->eviction_app_evict_attempt += from->eviction_app_evict_attempt;
+    to->eviction_app_evict_fail += from->eviction_app_evict_fail;
     to->cache_eviction_blocked_materialization += from->cache_eviction_blocked_materialization;
     to->cache_eviction_blocked_disagg_next_checkpoint +=
       from->cache_eviction_blocked_disagg_next_checkpoint;
@@ -1390,9 +1390,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
-    to->eviction_app_evict_attempt += WT_STAT_DSRC_READ(from, eviction_app_evict_attempt);
     to->eviction_worker_evict_attempt += WT_STAT_DSRC_READ(from, eviction_worker_evict_attempt);
-    to->eviction_app_evict_fail += WT_STAT_DSRC_READ(from, eviction_app_evict_fail);
     to->eviction_worker_evict_fail += WT_STAT_DSRC_READ(from, eviction_worker_evict_fail);
     to->cache_eviction_blocked_no_progress +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_progress);
@@ -1478,6 +1476,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
+    to->eviction_app_evict_attempt += WT_STAT_DSRC_READ(from, eviction_app_evict_attempt);
+    to->eviction_app_evict_fail += WT_STAT_DSRC_READ(from, eviction_app_evict_fail);
     to->cache_eviction_blocked_materialization +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_materialization);
     to->cache_eviction_blocked_disagg_next_checkpoint +=
@@ -1966,9 +1966,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty leaf bytes discounted from the eviction thresholds because a checkpoint is syncing "
   "the tree",
   "cache: enqueue skipped because another thread held the ref lock",
-  "cache: evict page attempts by application threads",
   "cache: evict page attempts by eviction worker threads",
-  "cache: evict page failures by application threads",
   "cache: evict page failures by eviction worker threads",
   "cache: eviction  skips internal pages as it has an active child",
   "cache: eviction bucket clean leaf pages with a retained modify structure and no update bytes",
@@ -2168,6 +2166,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
+  "cache: page evict attempts by application threads",
+  "cache: page evict failures by application threads",
   "cache: page eviction blocked due to materialization frontier",
   "cache: page eviction blocked in disaggregated storage as it can only be written by the next "
   "checkpoint",
@@ -3082,9 +3082,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     /* not clearing eviction_dirty_leaf_checkpoint */
     stats->eviction_enqueue_skipped_locked = 0;
-    stats->eviction_app_evict_attempt = 0;
     stats->eviction_worker_evict_attempt = 0;
-    stats->eviction_app_evict_fail = 0;
     stats->eviction_worker_evict_fail = 0;
     stats->eviction_skip_intl_page_with_active_child = 0;
     stats->eviction_bucket_clean_leaf_retained_modify = 0;
@@ -3264,6 +3262,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
+    stats->eviction_app_evict_attempt = 0;
+    stats->eviction_app_evict_fail = 0;
     stats->cache_eviction_blocked_materialization = 0;
     stats->cache_eviction_blocked_disagg_next_checkpoint = 0;
     stats->cache_eviction_deepen = 0;
@@ -4188,9 +4188,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
     to->eviction_dirty_leaf_checkpoint += WT_STAT_CONN_READ(from, eviction_dirty_leaf_checkpoint);
     to->eviction_enqueue_skipped_locked += WT_STAT_CONN_READ(from, eviction_enqueue_skipped_locked);
-    to->eviction_app_evict_attempt += WT_STAT_CONN_READ(from, eviction_app_evict_attempt);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
-    to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
     to->eviction_skip_intl_page_with_active_child +=
       WT_STAT_CONN_READ(from, eviction_skip_intl_page_with_active_child);
@@ -4464,6 +4462,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_CONN_READ(from, cache_read_overflow);
+    to->eviction_app_evict_attempt += WT_STAT_CONN_READ(from, eviction_app_evict_attempt);
+    to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
     to->cache_eviction_blocked_materialization +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_materialization);
     to->cache_eviction_blocked_disagg_next_checkpoint +=
