@@ -1490,8 +1490,8 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
  *     Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
  *     continue from the newest adopted checkpoint, or its own first checkpoint would fork the
  *     shared checkpoint lineage from an older ancestor. Retry while in-flight work blocks the
- *     adoption, the one condition that clears on its own; anything else is fatal, since a node
- *     that cannot adopt the newest checkpoint cannot lead from it.
+ *     adoption, the one condition that clears on its own; anything else is fatal, since a node that
+ *     cannot adopt the newest checkpoint cannot lead from it.
  */
 static int
 __disagg_wait_for_deferred_pickup(WT_SESSION_IMPL *session)
