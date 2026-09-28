@@ -3103,7 +3103,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table truncate failed calls",
   "session: table truncate successful calls",
   "session: table verify failed calls",
-  "session: table verify number of keys checked against the history store",
+  "session: table verify number of history store keys checked against the data store",
   "session: table verify successful calls",
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
