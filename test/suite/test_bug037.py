@@ -29,13 +29,13 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_cursor_remove_stale_position.py
+# test_bug037.py
 #   WT_CURSOR.remove on a cursor that's already positioned (rather than freshly searched) must
 #   still return not-found for a key that's already gone, the same as a remove that searches
 #   first -- whether "already gone" means the key never had a value on the page at all, or an
 #   earlier, already-visible remove left only a value with a stop time window behind.
-class test_cursor_remove_stale_position(wttest.WiredTigerTestCase):
-    uri = 'table:test_cursor_remove_stale_position'
+class test_bug037(wttest.WiredTigerTestCase):
+    uri = 'table:test_bug037'
 
     formats = [
         ('column', dict(key_format='r')),
