@@ -630,7 +630,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     if (WT_URI_IS_STABLE(name)) {
         WT_ERR(__verify_unique_btree_ids(session));
 
-        if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+        /* If we're already verifying shared metadata, don't manually perform this step. */
+        if (!WT_IS_DISAGG_META(session->dhandle) &&
+          __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
             WT_ERR(__verify_unique_shared_ids(session));
     }
 
