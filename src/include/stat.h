@@ -1352,6 +1352,7 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t rec_skip_write;
+    int64_t session_verify_metadata_hs_keys_checked;
     int64_t session_open;
     int64_t session_query_ts;
     int64_t session_table_alter_fail;

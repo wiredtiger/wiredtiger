@@ -3072,6 +3072,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
   "reconciliation: writes skipped in disaggregated storage",
+  "session: metadata verify number of keys checked against the history store",
   "session: open session count",
   "session: session query timestamp calls",
   "session: table alter failed calls",
@@ -4194,6 +4195,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     stats->rec_skip_write = 0;
+    /* not clearing session_verify_metadata_hs_keys_checked */
     /* not clearing session_open */
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
@@ -5569,6 +5571,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
     to->rec_skip_write += WT_STAT_CONN_READ(from, rec_skip_write);
+    to->session_verify_metadata_hs_keys_checked +=
+      WT_STAT_CONN_READ(from, session_verify_metadata_hs_keys_checked);
     to->session_open += WT_STAT_CONN_READ(from, session_open);
     to->session_query_ts += WT_STAT_CONN_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_CONN_READ(from, session_table_alter_fail);
