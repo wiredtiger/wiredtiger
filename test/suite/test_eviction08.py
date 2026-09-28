@@ -135,15 +135,36 @@ class test_eviction08(wttest.WiredTigerTestCase):
                               'eviction_dirty_target=2,eviction_dirty_trigger=5')
 
         # Append in ascending key order so each page splits in memory rather than being rewritten,
-        # then rewrite the same range to keep those pages dirty and in the ring.
+        # then keep writing to keep pages dirty and in the ring.
         value = 'x' * self.value_size
+        baseline_drain_scanned = self.get_stat(
+            stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
+        observation_deadline = time.monotonic() + 60
+        drain_progress_observed = False
+        total_batches = 3 * (self.nrows // self.batch_size)
+        batches_completed = 0
+        cursor = self.session.open_cursor(uri)
         for pass_num in range(3):
-            self._write_rows(uri, pass_num * self.nrows, self.nrows, value)
+            range_start = pass_num * self.nrows
+            range_end = range_start + self.nrows
+            for batch_start in range(range_start, range_end, self.batch_size):
+                batch_end = min(batch_start + self.batch_size, range_end)
+                self._write_batch(cursor, batch_start, batch_end, value)
+                batches_completed += 1
+                if batches_completed % 10 == 0 or batch_end == range_end:
+                    if (batches_completed < total_batches and
+                          time.monotonic() < observation_deadline):
+                        scanned = self.get_stat(
+                            stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
+                        if scanned > baseline_drain_scanned:
+                            drain_progress_observed = True
+        cursor.close()
 
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
         # The retiring refs the fix is about are the ones in-memory splits create, so a run that
         # never split would not be exercising this at all.
         self.assertGreater(self.get_stat(stat.dsrc.cache_inmem_split, uri), 0)
+        self.assertTrue(drain_progress_observed)
 
     def test_dirty_index_duplicate_suppression(self):
         uri = 'table:test_eviction08_duplicate'
