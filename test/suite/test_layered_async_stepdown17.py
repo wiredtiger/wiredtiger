@@ -124,12 +124,13 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(seen, keys)
 
         # The role change also raced the still-open raw file cursor this rollback uses to resolve
-        # the prepared update: reopening the now-follower stable table refuses with the same
-        # disaggregated conflict a layered cursor would convert to a rollback, and the application
-        # is expected to retry.
+        # the prepared update: reopening the now-follower stable table can refuse with the same
+        # disaggregated conflict a layered cursor would convert to a rollback (FIXME-WT-18357), and
+        # the application is expected to retry. Resolving a straddling prepared transaction on the
+        # follower is not otherwise supported today (FIXME-WT-18422), so accept either outcome
+        # rather than requiring the race.
         try:
             prepare_session.rollback_transaction()
-            self.fail('expected the disaggregated conflict from the raced stable table open')
         except wiredtiger.WiredTigerError:
             self.assertEqual(prepare_session.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
         prepare_cursor.close()

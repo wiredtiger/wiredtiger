@@ -2000,6 +2000,17 @@ __clayered_iterate_finish(
          * next call restarts cleanly.
          */
         WT_TRET(__clayered_reset_cursors(clayered, false));
+    else if (ret == WT_PREPARE_CONFLICT &&
+      !__clayered_constituent_prepare_blocked(clayered->ingest_cursor) &&
+      !__clayered_constituent_prepare_blocked(clayered->stable_cursor))
+        /*
+         * A conflict reaching here with neither constituent blocked can only have come from
+         * repositioning the alternate from the current key: unlike every other conflict site, that
+         * search fully resets the alternate rather than leaving its page reference intact. Leave
+         * the iteration flags clear so the next call retries the same repositioning instead of
+         * trusting a pairing the alternate no longer holds up its end of.
+         */
+        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     else if (ret == 0 || ret == WT_PREPARE_CONFLICT) {
         if (!F_ISSET(clayered, iter_flag)) {
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
