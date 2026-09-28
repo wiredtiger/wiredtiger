@@ -47,7 +47,7 @@ __hs_verify_obsolete(WT_TIME_WINDOW *tw, wt_timestamp_t checkpoint_oldest_ts)
  */
 static int
 __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *ds_cbt,
-  uint32_t this_btree_id, wt_timestamp_t checkpoint_oldest_ts)
+  uint32_t this_btree_id, wt_timestamp_t checkpoint_oldest_ts, bool metadata_verify)
 {
     WT_DECL_ITEM(prev_key);
     WT_DECL_RET;
@@ -83,6 +83,13 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
         WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
         if (btree_id != this_btree_id)
             break;
+
+        /*
+         * The per-table verify counts the keys it checks against the history store itself, so only
+         * the connection-open metadata verify counts here.
+         */
+        if (metadata_verify)
+            WT_STAT_CONN_INCR(session, session_verify_metadata_hs_keys_checked);
 
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
 
@@ -228,7 +235,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 
     /* Note that the following call moves the hs cursor internally. */
     WT_ERR_NOTFOUND_OK(
-      __hs_verify_id(session, hs_cursor, &ds_cbt, btree_id, checkpoint_oldest_ts), false);
+      __hs_verify_id(session, hs_cursor, &ds_cbt, btree_id, checkpoint_oldest_ts, false), false);
 
     WT_ERR(__wt_btcur_close(&ds_cbt, false));
 
@@ -333,7 +340,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
 
         /* Note that the following call moves the hs cursor internally. */
         WT_ERR_NOTFOUND_OK(__hs_verify_id(session, hs_cursor, (WT_CURSOR_BTREE *)ds_cursor,
-                             btree_id, checkpoint_oldest_ts),
+                             btree_id, checkpoint_oldest_ts, true),
           true);
 
         /* We are either positioned on a different btree id or the entire HS has been parsed. */
