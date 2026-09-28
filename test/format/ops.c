@@ -176,6 +176,12 @@ tinfo_init(void)
 
         testutil_random_from_random(&tinfo->data_rnd, &g.data_rnd);
         testutil_random_from_random(&tinfo->extra_rnd, &g.extra_rnd);
+        fprintf(stderr,
+          "TINFO_INIT[%u]: t_data={%u,%u} t_extra={%u,%u} g_data={%u,%u} g_extra={%u,%u}\n", i,
+          (unsigned)tinfo->data_rnd.x.w, (unsigned)tinfo->data_rnd.x.z,
+          (unsigned)tinfo->extra_rnd.x.w, (unsigned)tinfo->extra_rnd.x.z,
+          (unsigned)g.data_rnd.x.w, (unsigned)g.data_rnd.x.z,
+          (unsigned)g.extra_rnd.x.w, (unsigned)g.extra_rnd.x.z);
     }
 }
 
@@ -1588,9 +1594,15 @@ skip_operation:
             if (rlog_op_name != NULL) {
                 fprintf(g.replay_op_log,
                   "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
-                  " table=%u ret=%d\n",
+                  " table=%u ret=%d "
+                  "data_rnd={%u,%u} extra_rnd={%u,%u} "
+                  "g_data={%u,%u} g_extra={%u,%u}\n",
                   rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
-                  rlog_ret);
+                  rlog_ret,
+                  tinfo->data_rnd.x.w, tinfo->data_rnd.x.z,
+                  tinfo->extra_rnd.x.w, tinfo->extra_rnd.x.z,
+                  g.data_rnd.x.w, g.data_rnd.x.z,
+                  g.extra_rnd.x.w, g.extra_rnd.x.z);
                 rlog_op_name = NULL;
             }
             break;
