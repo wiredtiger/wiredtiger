@@ -385,6 +385,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /* Update bytes and pages evicted. */
     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
+    __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_EVICT, memory_footprint);
     (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
     if (!WT_PAGE_IS_INTERNAL(page))
         (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_leaf, 1);
@@ -1094,4 +1095,18 @@ __wti_evict_prune_ts_unmoved(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     prune_timestamp = __wt_atomic_load_uint64_acquire(&S2BT(session)->prune_timestamp);
     return (prune_timestamp != WT_TS_NONE && page->modify->rec_prune_timestamp >= prune_timestamp);
+}
+
+/*
+ * __wti_evict_ckpt_ts_unmoved --
+ *     Return whether the checkpoint timestamp has not advanced since the page's last
+ *     reconciliation.
+ */
+static WT_INLINE bool
+__wti_evict_ckpt_ts_unmoved(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    wt_timestamp_t checkpoint_timestamp =
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.checkpoint_timestamp);
+    return (checkpoint_timestamp != WT_TS_NONE &&
+      page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp);
 }

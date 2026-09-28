@@ -41,23 +41,21 @@
  * number of CPUs (presumably, the application architect has figured out how many CPUs are
  * available). However, inside WiredTiger we don't know when the application creates its threads.
  *
- * For now, we use a fixed number of slots. Ideally, we would approximate the largest number of
- * cores we expect on any machine where WiredTiger might be run, however, we don't want to waste
- * that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are relatively
- * rare.
+ * Connection statistics use a fixed number of slots. Ideally, we would approximate the largest
+ * number of cores we expect on any machine where WiredTiger might be run, however, we don't want to
+ * waste that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are
+ * relatively rare.
  *
  * Default hash table size; use a prime number of buckets rather than assuming a good hash
  * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  *
  * The counter slots are split into two separate counters, one for connection and the other for
- * data-source. This is because we want to be able to independently increase one counter slot
- * without increasing the other, as for example, increasing the data-source counter by a small
- * number would have a greater impact than increasing the connection counter by the same number -
- * depending on the number of dhandles in the system.
+ * data-source, so either count can change on its own. The data-source count is small because each
+ * open btree dhandle pays for every slot.
  *
  */
 #define WT_STAT_CONN_COUNTER_SLOTS 23
-#define WT_STAT_DSRC_COUNTER_SLOTS 23
+#define WT_STAT_DSRC_COUNTER_SLOTS 4
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
@@ -448,6 +446,7 @@ struct __wt_connection_stats {
     int64_t block_cache_bytes_update;
     int64_t block_cache_cold_not_cached;
     int64_t block_cache_blocks_evicted;
+    int64_t block_cache_put_failures;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
     int64_t block_cache_put_time_max;
@@ -769,6 +768,12 @@ struct __wt_connection_stats {
     int64_t cache_write_restore_scrub_checkpoint;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
+    int64_t cache_top_dirty_pct;
+    int64_t cache_top5_dirty_pct;
+    int64_t cache_top_updates_pct;
+    int64_t cache_top5_updates_pct;
+    int64_t cache_top_inuse_pct;
+    int64_t cache_top5_inuse_pct;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
@@ -992,8 +997,6 @@ struct __wt_connection_stats {
     int64_t cursor_open_time_internal_usecs;
     int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
-    int64_t dh_conn_handle_tiered_count;
-    int64_t dh_conn_handle_tiered_tree_count;
     int64_t dh_conn_handle_btree_count;
     int64_t dh_conn_handle_checkpoint_count;
     int64_t dh_conn_handle_size;
@@ -1029,7 +1032,16 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_up_checkpoint_restart_time;
+    int64_t disagg_step_up_deferred_pickup_retries;
+    int64_t disagg_step_up_deferred_pickup_retry_time;
     int64_t disagg_step_up_in_progress;
+    int64_t disagg_step_up_clear_ingest_retry;
+    int64_t disagg_step_up_ingest_drain_bytes;
+    int64_t disagg_step_up_ingest_drain_time;
+    int64_t disagg_step_up_ingest_tables_drained;
+    int64_t disagg_step_up_missing_stable_create_time;
+    int64_t disagg_step_up_missing_stable_tables_created;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
     int64_t layered_curs_insert;
@@ -1405,16 +1417,6 @@ struct __wt_connection_stats {
     int64_t child_modify_blocked_page;
     int64_t page_split_restart;
     int64_t page_read_skip_deleted;
-    int64_t local_objects_inuse;
-    int64_t flush_tier_fail;
-    int64_t flush_tier;
-    int64_t flush_tier_skipped;
-    int64_t flush_tier_switched;
-    int64_t local_objects_removed;
-    int64_t tiered_work_units_dequeued;
-    int64_t tiered_work_units_removed;
-    int64_t tiered_work_units_created;
-    int64_t tiered_retention;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
@@ -1526,6 +1528,10 @@ struct __wt_dsrc_stats {
     int64_t block_major;
     int64_t block_size;
     int64_t block_minor;
+    int64_t btree_size_deleted_key_bytes;
+    int64_t btree_size_deleted_key_count;
+    int64_t btree_size_deleted_value_bytes;
+    int64_t btree_size_deleted_value_count;
     int64_t btree_size_internal_bytes;
     int64_t btree_size_internal_pages;
     int64_t btree_size_key_bytes;

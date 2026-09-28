@@ -62,11 +62,8 @@
 /* URI / file name patterns; tables and record files are namespaced by owning node. */
 #define DATA_KEY_MIN 0
 #define DATA_KEY_MAX 9
-/*
- * node, thread, slot, generation. The generation stays zero unless -q asks for unique table names,
- * so the name is the slot's whatever the mode, and the verifier parses one format either way.
- */
-#define SCHEMA_TABLE_FMT "table:schema_%" PRIu32 "_%" PRIu32 "_%" PRIu32 "_%" PRIu32
+/* node, thread, slot: the slot's name, which every create in that slot reuses. */
+#define SCHEMA_TABLE_FMT "table:schema_%" PRIu32 "_%" PRIu32 "_%" PRIu32
 
 /*
  * Per-node, per-thread record files: "<records dir>/node<node>-<role>-<thread>", named for the role
@@ -86,8 +83,11 @@
 #define SWITCH_DONE_FMT "switch_done.%" PRIu32 /* the n-th switch completed */
 #define STOP_FILE "stop_run"                   /* parent directs a graceful stop */
 
-/* The follower's latest adopted checkpoint LSN; a stepping-down leader polls it. */
-#define ADOPTED_LSN_FILE "ckpt_adopted"
+/*
+ * The follower's latest adopted checkpoint, its LSN and its schema epoch: a stepping-down leader
+ * polls the LSN, and a leading generator the epoch.
+ */
+#define ADOPTED_CKPT_FILE "ckpt_adopted"
 
 /* Connection config. */
 #define ENV_CONFIG_DEF "create,statistics=(all),statistics_log=(json,on_close,wait=1)"
@@ -168,8 +168,6 @@ typedef struct {
     char page_log_home[PATH_MAX];
     uint32_t thread_count;
     uint32_t pool_size;
-    /* FIXME-WT-18403: Remove -q once all the known create/drop/create issues are gone. */
-    bool unique_tables;               /* -q: never reuse a table name */
     bool epoch_less;                  /* -e: legacy schema operations without epochs or publish */
     uint32_t total_time;              /* -t: graceful stop after this many seconds */
     uint32_t switch_interval;         /* -s: switch roles every N seconds; 0: never */
@@ -227,7 +225,9 @@ typedef struct {
     bool handover_received;    /* the term was handed over this phase; atomic access */
     uint32_t stop_stage;       /* how far the phase's shutdown has progressed; atomic access */
     uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on role change */
-    uint32_t switch_gen;       /* how many role transitions this node has completed */
+    uint64_t adopted_ckpt_epoch; /* latest adopted checkpoint epoch (on follower); atomic access. */
+
+    uint32_t switch_gen; /* how many role transitions this node has completed */
 
     /* Step-down state, zero outside a transition; atomic access. */
     uint64_t stepdown_ts;       /* while set, the timestamp and checkpoint threads hold */
@@ -254,8 +254,8 @@ typedef struct {
         struct {
             /* Table state is carried across leader-follower transitions. */
             TABLE_STATE state;
-            /* Advanced by every create under -q, so a slot's table name is never reused. */
-            uint32_t gen;
+            /* Published create's epoch once its publish applies, else 0; atomic access. */
+            uint64_t create_epoch;
             /* Published drop's epoch once its publish applies, else 0; atomic access. */
             uint64_t drop_epoch;
             /* Inserted data is uncovered yet. Not droppable until a checkpoint. */
@@ -299,8 +299,8 @@ typedef struct {
 void println(const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 1, 2)));
 uint64_t query_ts(WT_CONNECTION *conn, uint8_t bit);
 void set_ts(const TEST_CONFIG *cfg, WT_CONNECTION *conn, uint8_t mask, uint64_t ts);
-void adopted_lsn_publish(uint32_t node_id, uint64_t lsn);
-uint64_t adopted_lsn_read(void);
+void adopted_ckpt_publish(uint32_t node_id, uint64_t lsn, uint64_t schema_epoch);
+uint64_t adopted_ckpt_read(uint64_t *schema_epochp);
 
 /* parent.c */
 void parent_main(TEST_CONFIG *cfg, const char *self_path);

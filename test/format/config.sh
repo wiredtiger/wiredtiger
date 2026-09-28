@@ -217,6 +217,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.stepdown_async", "use async step-down instead of synchronous", C_IGNORE | C_BOOL, 0, 0, 0}
 
+{"disagg.stepdown_write_mirroring", "mirror leader step-down-window writes to both constituents", C_BOOL, 50, 0, 0}
+
 {"disagg.snapshot_read", "run background transactions checking snapshot isolation on a follower", C_IGNORE | C_BOOL, 0, 0, 0}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
@@ -396,10 +398,6 @@ CONFIG configuration_list[] = {
 {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0}
 
 {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0}
-
-{"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
-
-{"tiered_storage.storage_source", "storage source used (dir_store | none | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
 

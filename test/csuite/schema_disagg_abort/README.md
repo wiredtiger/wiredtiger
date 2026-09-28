@@ -35,7 +35,7 @@ WT_TEST.foo/
 ├── switch_request                │ coordination protocol
 ├── switch_done.<k>               │
 ├── stop_run                      ┘
-└── ckpt_adopted                  latest follower checkpoint LSN
+└── ckpt_adopted                  latest follower checkpoint LSN and schema epoch
 WT_TEST.foo.SAVE/                 pre-verification copy of the home
 ```
 
@@ -61,7 +61,7 @@ stateDiagram-v2
     CREATED --> PUBLISHED : publish create
     CREATED --> NONE : cancel with drop
     PUBLISHED --> PUBLISHED : insert or linger
-    PUBLISHED --> DROPPED : drop
+    PUBLISHED --> DROPPED : drop, once the peer covers the create
     DROPPED --> DROPPED : linger
     DROPPED --> REMOVED : publish drop
     REMOVED --> REMOVED : await coverage
@@ -96,10 +96,10 @@ checkpont cannot be verified reliably.
 
 ```text
 test_schema_disagg_abort [-b build-dir] [-e] [-h dir] [-k [l|f]N] [-p] [-r l|f|lf]
-                         [-s N] [-T threads] [-t time] [-q] [-u pool] [-v]
+                         [-s N] [-T threads] [-t time] [-u pool] [-v]
 ```
 
 `-r` selects a lone leader, lone follower or leader/follower pair. `-s` schedules role switches,
-`-k` schedules kills, and `-t` sets the graceful stop time. Every run prints a reproducible `CONFIG:`
-line including its random seeds. `-e` runs legacy schema operations and requires a single-node
-`-r l` or `-r f` topology.
+`-k` schedules kills, and `-t` sets the graceful stop time; a run ends early once every node has
+been killed. Every run prints a reproducible `CONFIG:` line including its random seeds. `-e` runs
+legacy schema operations and requires a single-node `-r l` or `-r f` topology.

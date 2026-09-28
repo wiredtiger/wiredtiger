@@ -1329,15 +1329,15 @@ __wti_rec_split_init(
      */
     if (r->salvage != NULL) {
         r->split_size = 0;
-        r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        r->space_avail = r->page_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     } else {
         r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
         /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas.
          */
-        r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
         r->min_split_size =
           __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
-        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     }
 
     /*
@@ -1363,7 +1363,7 @@ __wti_rec_split_init(
     /* Starting record number, entries, first free byte. */
     r->recno = recno;
     r->entries = 0;
-    r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+    r->first_free = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
     /* New page, compression off. */
     r->key_pfx_compress = r->key_sfx_compress = false;
@@ -1405,8 +1405,7 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * checkpoint, before writing the checkpoint. In short, we don't do checkpoint writes here;
      * clear the boundary information as a reminder and create the checkpoint during wrapup.
      */
-    return (!F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) && !__wt_btree_stays_in_memory(btree) &&
-      __wt_ref_is_root(r->ref));
+    return (!__wt_btree_stays_in_memory(btree) && __wt_ref_is_root(r->ref));
 }
 
 /*
@@ -1626,11 +1625,11 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /* Reset tracking information. */
     r->entries = 0;
-    r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+    r->first_free = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
     /* Set the space available to another split-size and minimum split-size chunk. */
-    r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+    r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
+    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
 
 done:
     /*
@@ -1725,7 +1724,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * The sizes in the chunk include the header, so when calculating the combined size, be sure not
      * to include the header twice.
      */
-    combined_size = prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+    combined_size = prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
 
     if (combined_size <= r->page_size) {
         /*
@@ -1736,7 +1735,8 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_TIME_AGGREGATE_MERGE(session, &prev_ptr->ta, &cur_ptr->ta);
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
-          WT_PAGE_HEADER_BYTE(btree, dsk), cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+          WT_PAGE_HEADER_WRITE_BYTE(btree, dsk),
+          cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
         prev_ptr->image.size = combined_size;
 
         /*
@@ -1759,7 +1759,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         len_to_move = prev_ptr->image.size - prev_ptr->min_offset;
         if (r->space_avail < len_to_move)
             WT_RET(__rec_split_grow(session, r, len_to_move));
-        cur_dsk_start = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+        cur_dsk_start = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
         /*
          * Shift the contents of the current buffer to make space for the data that will be
@@ -1767,7 +1767,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * the current.
          */
         memmove(cur_dsk_start + len_to_move, cur_dsk_start,
-          cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+          cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
         memcpy(
           cur_dsk_start, (uint8_t *)r->prev_ptr->image.mem + prev_ptr->min_offset, len_to_move);
 
@@ -2046,8 +2046,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHU
     dsk->reserved = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 
-    /* Clear the memory owned by the block manager. */
-    memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
+    /* Initialize the memory owned by the block manager. */
+    btree->bm->block_header_init(btree->bm, session, dsk);
 }
 
 /*
@@ -2131,9 +2131,14 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 int
 __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_PAGE_HEADER_SIZE);
-    r->delta.size = WT_PAGE_HEADER_BYTE_SIZE(S2BT(session));
+    btree->bm->block_header_init(btree->bm, session, r->delta.mem);
+    r->delta.size = WT_PAGE_HEADER_WRITE_SIZE(btree);
 
     return (0);
 }
@@ -2689,8 +2694,41 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * disk. In local mode, if restoring saved update chains, we can skip the disk written.
          */
         if (r->page->disagg_info != NULL) {
-            if (chunk->entries == 0)
+            if (chunk->entries == 0) {
+                /*
+                 * Nothing survives onto the page: every update was restored to the in-memory chain.
+                 * If a previous reconciliation left a block behind, treat this like any other
+                 * disagg skip-write so the page keeps pointing at it instead of losing track of it:
+                 * otherwise the address a follower would need to find it is never recorded, and the
+                 * block itself can be freed out from under still-live content. There's nothing to
+                 * copy forward when no such block exists. This can only apply to the one-chunk
+                 * case: a split produces more than one chunk precisely because the old single page
+                 * is becoming multiple new ones, so no single chunk can claim to still be "the"
+                 * previous page and inherit its address.
+                 *
+                 * This is the second cause of a skip-write, and deliberately counts against the
+                 * same statistic as the one below: both mean the page kept the block it already
+                 * had.
+                 *
+                 * The previous block is only safe to reuse if the page's current content still
+                 * matches what it represents. An in-memory split has already moved some of the
+                 * page's rows to a new sibling ref, and a selected update newer than anything the
+                 * last reconciliation captured means the page now holds content that block never
+                 * saw either way: leave block_meta unset rather than publish an address for the
+                 * wrong content. The wrapup step already frees the previous block and resets the
+                 * page id to invalid whenever the result carries no valid page id, the same as it
+                 * always has for a page that has never been written.
+                 */
+                if (last_block && r->multi_next == 1 &&
+                  page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                  WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
+                  !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
+                    WT_RET(__rec_copy_prev_addr(session, r));
+                    F_SET(multi, WT_MULTI_SKIP_WRITE);
+                    WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
+                }
                 goto copy_image;
+            }
         } else if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
             goto copy_image;
 
@@ -3640,13 +3678,13 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
         /* Initialize the buffer: disk header and overflow record. */
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
-        /* Clear the memory owned by the block manager. */
-        memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
+        /* Initialize the memory owned by the block manager. */
+        bm->block_header_init(bm, session, dsk);
         dsk->type = WT_PAGE_OVFL;
         __rec_set_page_write_gen(btree, dsk);
         dsk->u.datalen = (uint32_t)kv->buf.size;
-        memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
-        dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;
+        memcpy(WT_PAGE_HEADER_WRITE_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
+        dsk->mem_size = WT_PAGE_HEADER_WRITE_SIZE(btree) + (uint32_t)kv->buf.size;
         tmp->size = dsk->mem_size;
 
         /* Write the buffer. */

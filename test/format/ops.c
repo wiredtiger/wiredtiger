@@ -510,22 +510,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
             replay_end_timed_run();
         if (fourths != -1)
             --fourths;
-        if (quit_fourths != -1 && --quit_fourths == 0) {
-            fprintf(stderr, "%s\n", "format run more than 15 minutes past the maximum time");
-            fprintf(stderr, "%s\n",
-              "format run dumping cache and transaction state, then aborting the process");
-
-            /*
-             * If the library is deadlocked, we might just join the mess, set a two-minute timer to
-             * limit our exposure.
-             */
-            set_alarm(120);
-
-            (void)conn->debug_info(conn, "txn");
-            (void)conn->debug_info(conn, "cache");
-
-            __wt_abort(NULL);
-        }
+        if (quit_fourths != -1 && --quit_fourths == 0)
+            abort_with_state_dump(conn, "format run more than 15 minutes past the maximum time");
     }
 
     /* Wait for the special-purpose threads. */
@@ -675,7 +661,7 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
  * next_timestamp --
  *     Allocate the next global timestamp under the step-down read lock. The write lock is held
  *     exclusively during step-down notification; threads blocked here unblock with values strictly
- *     above step_down_ts, routing their writes to ingest.
+ *     above step_down_ts, sending their writes to ingest (mirrored to both when configured).
  */
 uint64_t
 next_timestamp(WT_SESSION *session)

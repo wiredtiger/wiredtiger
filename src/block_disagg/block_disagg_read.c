@@ -119,6 +119,47 @@ __block_disagg_header_version_compatible(uint8_t compatible_version)
 }
 
 /*
+ * __wt_block_disagg_header_size_valid --
+ *     Return whether a block's recorded header size can describe its own headers. Everything that
+ *     walks the image finds the data with this size, so it has to be large enough to hold the
+ *     fields the reader has already used and small enough to leave the data inside the block. A
+ *     newer writer's larger header is legal, hence the upper bound is the format's rather than this
+ *     build's own.
+ */
+bool
+__wt_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
+{
+    return (combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
+      combined_header_size <= WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE &&
+      combined_header_size <= block_size);
+}
+
+/*
+ * __wt_block_disagg_header_v1_size_fix --
+ *     If version 1 header sizes are being ignored and a version 1 block records a header size other
+ *     than the version 1 size, correct the size in both the image and its byte-swapped copy,
+ *     returning the size originally recorded. Version 1 predates headers growing, so its layout is
+ *     always the minimum size whatever the header claims. Return 0 if nothing was changed.
+ */
+uint8_t
+__wt_block_disagg_header_v1_size_fix(
+  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk, WT_BLOCK_DISAGG_HEADER *swap)
+{
+    uint8_t recorded;
+
+    if (!(S2C(session)->debug.disagg_block_header_v1_ignore_size && swap->version == 1 &&
+          swap->combined_header_size != WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE))
+        return (0);
+
+    recorded = swap->combined_header_size;
+
+    /* The size is a single-byte field, so the image needs no byte-swapping. */
+    blk->combined_header_size = swap->combined_header_size =
+      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE;
+    return (recorded);
+}
+
+/*
  * __block_disagg_read_multiple --
  *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
  *     page id, checkpoint id pair.
@@ -135,7 +176,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint64_t time_start, time_stop;
     uint32_t block_size_sum;
     int32_t last, result;
-    uint8_t expected_magic;
+    uint8_t expected_magic, recorded_header_size;
     bool from_cache, is_delta;
 
     /* This variable is only used in an assertion, diagnostic builders don't like this. */
@@ -150,6 +191,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
         F_SET(&get_args, WT_PAGE_LOG_COLD);
+
+    /* A checkpoint cursor reads historical page versions, so bypass any block cache. */
+    if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
+        F_SET(&get_args, WT_PAGE_LOG_CACHE_BYPASS);
 
     __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", table_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
@@ -208,13 +253,32 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wt_block_disagg_header_byteswap_copy(blk, &swap);
 
-        /*
-         * TODO(WT-16511): When we have the original checksum stored in the page, we should check
-         * that instead of skipping the check entirely for cached pages.
-         */
-        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED))
+        /* Determine if the page was read from the cache based on the modified flag. */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
+            /*
+             * A page modified "offline" is written as a standalone base image, so it is the only
+             * result. Deltas on top of one would leave the checksum chain below comparing the wrong
+             * field.
+             *
+             * FIXME-WT-18666: This restriction will go away once we have a dedicated field for the
+             * original page checksum.
+             */
+            if (*results_count != 1) {
+                __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+                  page_id, lsn, is_delta, result,
+                  "a page modified offline must be the only result, but %u results were returned",
+                  (u_int)*results_count);
+                goto corrupt;
+            }
             from_cache = true;
-        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
+        }
+
+        /*
+         * The checksum field must match the expected checksum, except for a page that was modified
+         * "offline", where it covers the rewritten image; there the previous_checksum field holds
+         * the checksum that the internal page still references.
+         */
+        if (from_cache ? swap.previous_checksum == checksum : swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
@@ -234,6 +298,25 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       "compatible version error, the block's compatible version %" PRIu8
                       " is greater than the reader version of %" PRIu8,
                       swap.compatible_version, WT_BLOCK_DISAGG_VERSION);
+                    goto corrupt;
+                }
+
+                if ((recorded_header_size =
+                        __wt_block_disagg_header_v1_size_fix(session, blk, &swap)) != 0)
+                    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "%s: table_id %" PRIu64 ", page_id %" PRIu64 ", lsn %" PRIu64
+                      ", %s: version 1 block header has combined header size %" PRIu8 ", using %d",
+                      block_disagg->name, block_disagg->tableid, page_id, lsn,
+                      is_delta ? "delta" : "base page", recorded_header_size,
+                      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE);
+
+                if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
+                      "header size %" PRIu8
+                      " is outside the legal range of %d to %d, or larger than the block",
+                      swap.combined_header_size, WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE,
+                      (int)WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE);
                     goto corrupt;
                 }
 

@@ -30,11 +30,9 @@ import time
 import wttest
 from wiredtiger import stat
 
-# Regression test for WT-18427: a non-forced WT_SESSION::drop of an already-clean (checkpointed)
-# table used to close its dhandle by walking and freeing every page resident in cache,
-# synchronously, while holding the schema and dhandle-list write locks. The fix marks a clean
-# tree's dhandle dead instead and defers the cache discard to the sweep server, so the drop call
-# itself never fully closes the handle.
+# A non-forced WT_SESSION::drop of an already-clean (checkpointed) table marks the dhandle dead
+# and defers the cache discard to the sweep server, rather than walking and freeing every page
+# resident in cache synchronously while holding the schema and dhandle-list write locks.
 #
 # A clean tree has nothing dirty to flush either way, so comparing the backing file's bytes before
 # and after the drop cannot tell the two behaviors apart: neither path writes to the file. The
@@ -120,6 +118,10 @@ class test_drop_cache_discard01(wttest.WiredTigerTestCase):
         # With the checkpoint handle free, the drop succeeds.
         self.session.drop(uri, None)
 
+    @wttest.skip_for_hook(
+        "disagg",
+        "tables awaiting btree publication skip checkpoint-on-close, so drop may not return EBUSY",
+        param="schema_epochs")
     def test_dirty_drop_still_fails(self):
         """
         A non-forced drop of a table with committed but uncheckpointed content must still fail

@@ -39,7 +39,6 @@ from wiredtiger import stat
 # 6. Checkpoint
 # 7. Repeat steps 5,6 and validate that the page read back into memory should
 #    not be reconciled every time with the help of btree stat.
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
 
     test_name = __qualname__
@@ -56,6 +55,9 @@ class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
         self.assertEqual(cur2.search(), 0)
         cur2.close()
 
+    @wttest.skip_for_hook(
+        "disagg", "release eviction may not write pages before deferred btree publication",
+        param="schema_epochs")
     def test_scrub_eviction_prepare(self):
         uri = f'table:{self.test_name}'
 

@@ -55,6 +55,7 @@ BUF
 BUILDDIR
 Bazel
 Bitfield
+Bitset
 Bitstring
 Bitwise
 BqRv
@@ -246,6 +247,7 @@ Getters
 Gh
 Github
 Golomb
+HALFLIFE
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -307,6 +309,7 @@ LSNs
 LTE
 LWN
 LZ
+LastTest
 LazyFS
 LazyFS's
 LeafGreen
@@ -544,7 +547,6 @@ TextWrapper
 ThreadList
 ThreadListWrapper
 ThreadsafeForwardingResult
-TieredConfigMixin
 Timespec
 Tput
 TryCV
@@ -644,6 +646,7 @@ WiredTigerTimestamp
 WiredTigerTmplog
 WithSeeds
 WriteFile
+Wswitch
 Wundef
 Wuninitialized
 Wunused
@@ -747,6 +750,7 @@ bitflip
 bitflips
 bitlist
 bitpack
+bitset
 bitstr
 bitstring
 bitwise
@@ -1066,6 +1070,7 @@ env
 eof
 ep
 epochless
+epochp
 epp
 eq
 equalp
@@ -1206,6 +1211,7 @@ goto
 goutf
 groupd
 gte
+halvings
 handleops
 handlep
 handoff
@@ -1383,6 +1389,7 @@ logfile
 logmgr
 lognum
 logop
+logp
 logpath
 logread
 logrec
@@ -1437,6 +1444,7 @@ memsize
 metaconf
 metadata's
 metafile
+metric's
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
@@ -1857,6 +1865,7 @@ strtoll
 strtoull
 strtouq
 struct
+struct's
 structs
 su
 subcommand

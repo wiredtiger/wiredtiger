@@ -25,6 +25,7 @@ struct __wt_verbose_message_info {
     "WT_VERB_BACKUP", \
     "WT_VERB_BLKCACHE", \
     "WT_VERB_BLOCK", \
+    "WT_VERB_CACHE_TOP", \
     "WT_VERB_CHECKPOINT", \
     "WT_VERB_CHECKPOINT_CLEANUP", \
     "WT_VERB_CHECKPOINT_PROGRESS", \
@@ -63,7 +64,6 @@ struct __wt_verbose_message_info {
     "WT_VERB_SWEEP", \
     "WT_VERB_TEMPORARY", \
     "WT_VERB_THREAD_GROUP", \
-    "WT_VERB_TIERED", \
     "WT_VERB_TIMESTAMP", \
     "WT_VERB_TRANSACTION", \
     "WT_VERB_VERIFY", \

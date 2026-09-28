@@ -360,7 +360,6 @@ typedef struct {
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
     bool multi_table_config;            /* If configuring multiple tables */
-    bool tiered_storage_config;         /* If tiered storage is configured */
     bool transaction_timestamps_config; /* If transaction timestamps configured on any table */
 
 #define CHECKPOINT_OFF 1
@@ -501,6 +500,7 @@ WT_THREAD_RET timestamp(void *);
 
 uint32_t atou32(const char *, const char *, int);
 uint64_t checksum_database(WT_SESSION *);
+void abort_with_state_dump(WT_CONNECTION *, const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 void config_clear(void);
 void config_compat(const char **);
 void config_error(void);
