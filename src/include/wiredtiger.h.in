@@ -1440,8 +1440,6 @@ struct __wt_session {
      * before they are published are not visible to other connections until they are published.
      * A client is not allowed to have any stable updates in an unpublished table.
      *
-     * @exclusive
-     *
      * @not_transactional
      *
      * @param session the session handle
@@ -1454,7 +1452,7 @@ struct __wt_session {
      * string; default empty.}
      * @config{ ),,}
      * @configend
-     * @ebusy_errors
+     * @errors
      */
     int __F(publish)(WT_SESSION *session,
         const char *name, const char *config);
