@@ -1964,17 +1964,24 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
 
     /*
-     * When both constituents are positioned on the same key, advance the alternate too so the key
-     * is not returned twice. Within one read context the tie always makes ingest current, but after
-     * a context change the alternate is repositioned from the current key and can land on it
-     * whichever constituent is current.
+     * When both constituents are positioned on the same key, one of them must be stepped past it
+     * so the key is not returned twice, and it must be the stable cursor: a tie always resolves to
+     * ingest, the newer of the two. `current` is not necessarily the ingest cursor here -- resuming
+     * past a conflict can leave the previously-blocked constituent as `current` even after it lands
+     * back on a key the untouched alternate already holds, and a context change repositions the
+     * alternate from the current key, which can tie either way -- so the two are told apart by
+     * identity rather than by their current/alternate role.
      */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT)) {
         int cmp;
 
         WT_RET(__clayered_cursor_compare(op, c_alternate, c_current, &cmp));
-        if (cmp == 0)
-            WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
+        if (cmp == 0) {
+            WT_CURSOR *c_stable = (c_current == op->ingest) ? c_alternate : c_current;
+
+            WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_stable, forward));
+            current_moved = current_moved || c_stable == c_current;
+        }
     }
 
     /* Move the current cursor if we haven't done so. */
