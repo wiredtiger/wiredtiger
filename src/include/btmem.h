@@ -393,6 +393,7 @@ struct __wt_page_modify {
     uint64_t rec_evict_attempt_pass_gen;
     uint64_t rec_evict_attempt_oldest_id;
     wt_timestamp_t rec_evict_attempt_pinned_ts;
+    wt_timestamp_t rec_evict_attempt_pinned_stable_ts;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */
