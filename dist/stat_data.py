@@ -929,6 +929,7 @@ conn_stats = [
     ##########################################
     # Session operations
     ##########################################
+    SessionOpStat('session_hs_verify_btrees_checked', 'history store verify number of btrees checked against the data store', 'no_clear,no_scale'),
     SessionOpStat('session_open', 'open session count', 'no_clear,no_scale'),
     SessionOpStat('session_query_ts', 'session query timestamp calls'),
     SessionOpStat('session_table_alter_fail', 'table alter failed calls', 'no_clear,no_scale'),
@@ -962,7 +963,6 @@ conn_stats = [
     SessionOpStat('session_table_verify_fail', 'table verify failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_verify_hs_keys_checked', 'table verify number of keys checked against the history store', 'no_clear,no_scale'),
     SessionOpStat('session_table_verify_success', 'table verify successful calls', 'no_clear,no_scale'),
-    SessionOpStat('session_verify_metadata_hs_btrees_checked', 'metadata verify number of btrees checked against the history store', 'no_clear,no_scale'),
 
     ##########################################
     # Thread Count statistics

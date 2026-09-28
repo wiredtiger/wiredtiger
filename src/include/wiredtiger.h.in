@@ -8828,10 +8828,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: writes skipped in disaggregated storage */
 #define	WT_STAT_CONN_REC_SKIP_WRITE			1936
 /*!
- * session: metadata verify number of btrees checked against the history
- * store
+ * session: history store verify number of btrees checked against the
+ * data store
  */
-#define	WT_STAT_CONN_SESSION_VERIFY_METADATA_HS_BTREES_CHECKED	1937
+#define	WT_STAT_CONN_SESSION_HS_VERIFY_BTREES_CHECKED	1937
 /*! session: open session count */
 #define	WT_STAT_CONN_SESSION_OPEN			1938
 /*! session: session query timestamp calls */
