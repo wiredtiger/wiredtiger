@@ -62,6 +62,6 @@ class test_verify4(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Reopen with verify_metadata=true. The history store holds a record for the table, so
-        # verification must walk and count it.
+        # verification must check the table against it.
         self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
-        self.assertStatGreaterSoon(stat.conn.session_verify_metadata_hs_keys_checked, 0)
+        self.assertStatGreaterSoon(stat.conn.session_verify_metadata_hs_btrees_checked, 0)
