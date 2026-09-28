@@ -1856,7 +1856,7 @@ variables:
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.verify=1 runs.mirror=1 runs.ops_log=1 disagg.preserve=1 random.data_seed=9529341 random.extra_seed=2181297 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.verify=1 runs.mirror=1 runs.ops_log=1 disagg.preserve=1 disagg.stepdown_write_mirroring=0 random.data_seed=9529341 random.extra_seed=2181297 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
   - &format-stress-test-disagg-switch-pull-request-stepdown-async
