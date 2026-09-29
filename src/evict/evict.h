@@ -29,7 +29,9 @@
  * Dirty pressure normally does not make a busy session (one holding a transaction ID, hazard
  * pointers or a pinned snapshot) do eviction work, because such a session may be pinning the very
  * content eviction needs to write. Once dirty content exceeds this multiple of the dirty trigger,
- * busy sessions do a small, bounded amount of eviction work instead of none at all.
+ * busy sessions that hold a transaction ID -- the ones creating dirty content -- do a small,
+ * bounded amount of eviction work instead of none at all. Sessions busy only because they pin a
+ * snapshot or hold hazard pointers are readers; they add no dirty content and stay exempt.
  */
 #define WT_EVICT_DIRTY_BUSY_MULTIPLIER 2
 #define WT_EVICT_DIRTY_BUSY_MAX_ATTEMPTS 3
