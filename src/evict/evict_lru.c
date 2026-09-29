@@ -2517,10 +2517,11 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_EVICT_BUCKETSET *bucketset;
     WT_PAGE *page;
     WT_REF_STATE previous_state;
-    bool must_unlock_ref;
+    bool must_unlock_ref, rechecked;
 
     WT_ASSERT(session, ref != NULL);
     bucket = NULL;
+    rechecked = false;
     page = ref->page;
     previous_state = WT_REF_GET_STATE(ref);
 
@@ -2557,6 +2558,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     } else
         __wt_evict_remove(session, ref, false);
 
+place:
     /* Get the right bucketset for this page */
     bucketset = bucket->bucketset;
 
@@ -2685,8 +2687,21 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_STAT_CONN_INCR(session, eviction_enqueued_page);
 done:
-    if (must_unlock_ref)
+    if (must_unlock_ref) {
+        /*
+         * A thread that changed the page while we held the lock -- typically by dirtying it --
+         * could not enqueue it and left that to us. Re-check the destination before unlocking and
+         * move the page if it no longer belongs where we put it. Once is enough: a second change
+         * in the same window is vanishingly unlikely, and its owner's next access re-enqueues.
+         */
+        if (!rechecked && !__evict_get_target_destination(session, page, NULL, &bucket)) {
+            rechecked = true;
+            WT_STAT_CONN_INCR(session, eviction_enqueue_reclassified);
+            __wt_evict_remove(session, ref, false);
+            goto place;
+        }
         WT_REF_UNLOCK(ref, previous_state);
+    }
 }
 
 /*
