@@ -13,6 +13,7 @@ else()
         misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
+        misc_tests/test_ckpt_snapshot_size.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
