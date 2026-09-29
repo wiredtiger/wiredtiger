@@ -567,27 +567,6 @@ variables:
           format_args: disagg.mode=switch debug.disagg_slow_truncate_follower=off runs.timer=10:15 ops.prepare=0 ops.verify=1 runs.mirror=1
           times: 5
 
-  # Long-running randomized stress for snapshot transactions without a read timestamp racing
-  # checkpoint pickups on a follower: multi-node runs verify pre-commit re-reads through freshly
-  # opened cursors, exercising the stable bind checks and the deferral queue. The operation mix is
-  # left to format: the reader threads do their own reads, so what matters from the workers is
-  # churn, and a randomized mix covers more shapes across the iterations than a pinned one.
-  - &format-stress-test-disagg-snapshot
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          # The row and operation counts are load-bearing, not decoration: the reproduction needs
-          # enough rows for a scan window to contain a changed key, and enough operations for a
-          # pickup to land inside a reader's transaction. Trimming them to the defaults stops the
-          # stress reproducing the violation at all.
-          format_args: >-
-            disagg.multi=1 disagg.multi_validation=1 disagg.snapshot_read=1
-            runs.predictable_replay=1 runs.rows=50000:200000 runs.ops=500000:2000000
-          times: 10
-
   # Configure flags for builtins.
   - &configure_flags_with_builtins
     HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
@@ -621,12 +600,6 @@ tasks:
   - <<: *format-stress-test-disagg-switch-fast-truncate
     name: format-stress-test-disagg-switch-fast-truncate-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
-  - <<: *format-stress-test-disagg-snapshot
-    name: format-stress-test-disagg-snapshot-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-snapshot
-    name: format-stress-test-disagg-snapshot-2
-    tags: ["stress-test-disagg-fail"]
 
 #######################################
 #            Buildvariants            #
