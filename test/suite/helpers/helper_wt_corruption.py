@@ -118,7 +118,7 @@ def row_internal_page_cells(page):
 def forge_internal_child_address_as_leaf(path, pages):
     # Relabel an internal child's address cell as a leaf, so the reference says
     # leaf while the child page stays internal. Picks a cell outside the
-    # checksummed bytes, which requires checksum=off.
+    # checksum bytes, which requires checksum=off.
     with open(path, 'r+b') as f:
         for offset, size in pages:
             f.seek(offset)
