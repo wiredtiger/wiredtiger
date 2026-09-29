@@ -1059,9 +1059,9 @@ struct __wt_session {
      * insert operations will be cleared). At most one of the "otel_" options may also be configured
      * to specify an OTel metric type.  "otel_none" specifies that only metrics without an OTel
      * metric type are gathered.  See @ref statistics for more information., a list\, with values
-     * chosen from the following options: \c "all"\, \c "cache_walk"\, \c "clear"\, \c
-     * "otel_counters"\, \c "fast"\, \c "otel_gauges"\, \c "otel_histograms"\, \c "otel_none"\, \c
-     * "size"\, \c "tree_walk"; default empty.}
+     * chosen from the following options: \c "all"\, \c "cache_walk"\, \c "clear"\, \c "fast"\, \c
+     * "otel_counters"\, \c "otel_gauges"\, \c "otel_histograms"\, \c "otel_none"\, \c "size"\, \c
+     * "tree_walk"; default empty.}
      * @config{target, if non-empty\, back up the given list of objects; valid only for a backup
      * data source., a list of strings; default empty.}
      * @configend
