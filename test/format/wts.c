@@ -986,7 +986,7 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
 
     /*
      * Repeat it on stdout, deliberately ignoring quiet: format.sh always runs quiet and redirects
-     * each job to its own log, which is the file a failure is triaged from.
+     * each job to its own log, which is the file kept when a run fails.
      */
     printf("--- victim cache: %" PRIu32 " entries/handle, %" PRId64 " pages cached (%" PRId64
            " by application threads), %" PRId64 " failed, max put %" PRId64 "us ---\n",
