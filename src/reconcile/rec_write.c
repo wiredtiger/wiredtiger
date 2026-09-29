@@ -229,7 +229,6 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
     if (LF_ISSET(WT_REC_EVICT)) {
         mod->rec_evict_attempt_oldest_id = oldest_id;
         __wt_txn_pinned_timestamp(session, &mod->rec_evict_attempt_pinned_ts);
-        mod->rec_evict_attempt_pinned_stable_ts = __wt_txn_pinned_stable_timestamp(session);
         mod->rec_evict_attempt_pass_gen =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
     }

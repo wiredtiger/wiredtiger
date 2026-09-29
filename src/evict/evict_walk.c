@@ -1298,10 +1298,9 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     }
 
     /*
-     * Under precise checkpoints, skip a restored leaf page until the pinned stable timestamp or the
-     * oldest transaction ID moves, even when eviction is aggressive. Until then reconciliation
-     * restores the same updates and frees nothing, so queuing the page only spins the eviction
-     * threads.
+     * Under precise checkpoints, avoid repeatedly queuing a restored leaf page when neither the
+     * pinned stable timestamp nor the oldest transaction ID has advanced, even during aggressive
+     * eviction.
      */
     if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF) && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
       !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
