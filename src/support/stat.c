@@ -1921,11 +1921,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: application eviction skipped: session is cache-trigger tolerant",
   "cache: application eviction skipped: transaction is prepared",
   "cache: application eviction skipped: user or interruptible check failed",
-  "cache: application eviction worker: attempt while busy on dirty pressure alone",
   "cache: application eviction worker: entered work loop",
   "cache: application eviction worker: eviction queue was empty",
   "cache: application eviction worker: exited because eviction not needed or enough progress made",
-  "cache: application eviction worker: exited busy after bounded attempts on dirty pressure",
   "cache: application eviction worker: exited busy after successful eviction",
   "cache: application eviction worker: exited due to cache wait timeout",
   "cache: application eviction worker: exited due to operation timeout",
@@ -3041,11 +3039,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing app_evict_refused_cache_tolerant */
     /* not clearing app_evict_refused_prepare */
     /* not clearing app_evict_refused_user_not_ok */
-    /* not clearing app_evict_worker_busy_dirty_attempt */
     /* not clearing app_evict_worker_entered */
     /* not clearing app_evict_worker_evict_queue_empty */
     /* not clearing app_evict_worker_exit_not_needed_or_progress */
-    /* not clearing app_evict_worker_exit_busy_dirty_attempts */
     /* not clearing app_evict_worker_exit_busy_after_success */
     /* not clearing app_evict_worker_exit_cache_timeout */
     /* not clearing app_evict_worker_exit_op_timer */
@@ -4134,15 +4130,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, app_evict_refused_cache_tolerant);
     to->app_evict_refused_prepare += WT_STAT_CONN_READ(from, app_evict_refused_prepare);
     to->app_evict_refused_user_not_ok += WT_STAT_CONN_READ(from, app_evict_refused_user_not_ok);
-    to->app_evict_worker_busy_dirty_attempt +=
-      WT_STAT_CONN_READ(from, app_evict_worker_busy_dirty_attempt);
     to->app_evict_worker_entered += WT_STAT_CONN_READ(from, app_evict_worker_entered);
     to->app_evict_worker_evict_queue_empty +=
       WT_STAT_CONN_READ(from, app_evict_worker_evict_queue_empty);
     to->app_evict_worker_exit_not_needed_or_progress +=
       WT_STAT_CONN_READ(from, app_evict_worker_exit_not_needed_or_progress);
-    to->app_evict_worker_exit_busy_dirty_attempts +=
-      WT_STAT_CONN_READ(from, app_evict_worker_exit_busy_dirty_attempts);
     to->app_evict_worker_exit_busy_after_success +=
       WT_STAT_CONN_READ(from, app_evict_worker_exit_busy_after_success);
     to->app_evict_worker_exit_cache_timeout +=

@@ -3069,7 +3069,6 @@ __wti_evict_app_assist_worker(
         time_start = __wt_clock(session);
 
     WT_STAT_CONN_INCR(session, app_evict_worker_entered);
-    uint32_t busy_dirty_attempts = 0;
 
     /*
      * Note that this for loop is designed to reset expected eviction error codes before exiting,
@@ -3141,21 +3140,6 @@ __wti_evict_app_assist_worker(
         if (!__evict_check_user_ok_with_eviction(session, interruptible)) {
             WT_STAT_CONN_INCR(session, app_evict_worker_exit_user_not_ok);
             break;
-        }
-
-        /*
-         * A busy session here on dirty pressure alone -- neither the clean nor the updates trigger
-         * is exceeded -- does bounded work only, whatever the outcome of each attempt. It may be
-         * pinning content eviction cannot write, so it must not wait on dirty content coming down.
-         */
-        double pct_ignored;
-        if (busy && !__wti_evict_exceeded_clean_trigger(session, &pct_ignored) &&
-          !__wti_evict_exceeded_updates_trigger(session, &pct_ignored)) {
-            WT_STAT_CONN_INCR(session, app_evict_worker_busy_dirty_attempt);
-            if (++busy_dirty_attempts > WT_EVICT_DIRTY_BUSY_MAX_ATTEMPTS) {
-                WT_STAT_CONN_INCR(session, app_evict_worker_exit_busy_dirty_attempts);
-                break;
-            }
         }
 
         /* Evict a page. */

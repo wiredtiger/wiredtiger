@@ -708,25 +708,6 @@ __wti_evict_exceeded_dirty_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 /* !!!
- * __wti_evict_exceeded_dirty_busy_trigger --
- *     Check whether dirty content is far enough past the eviction dirty trigger that even busy
- *     sessions should do bounded eviction work: WT_EVICT_DIRTY_BUSY_MULTIPLIER times the dirty
- *     trigger. Same accounting as the dirty trigger.
- */
-static WT_INLINE bool
-__wti_evict_exceeded_dirty_busy_trigger(WT_SESSION_IMPL *session)
-{
-    uint64_t bytes_dirty, bytes_max;
-    double busy_trigger =
-      __wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_dirty_trigger) *
-      WT_EVICT_DIRTY_BUSY_MULTIPLIER;
-
-    bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
-    bytes_max = S2C(session)->cache_size + 1;
-    return (bytes_dirty > (uint64_t)(busy_trigger * bytes_max) / 100);
-}
-
-/* !!!
  * __wti_evict_exceeded_dirty_target --
  *     Check whether the configured eviction dirty target threshold for the total volume
  *     of dirty data in the cache has been reached. Once this threshold is met, eviction threads
@@ -838,7 +819,7 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignor
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     double pct_dirty, pct_full, pct_updates;
-    bool clean_needed, dirty_busy_needed, dirty_needed, updates_needed;
+    bool clean_needed, dirty_needed, updates_needed;
 
     conn = S2C(session);
     evict = S2C(session)->evict;
@@ -852,11 +833,10 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignor
 
     clean_needed = __wti_evict_exceeded_clean_trigger(session, &pct_full);
     if (readonly) {
-        dirty_busy_needed = dirty_needed = updates_needed = false;
+        dirty_needed = updates_needed = false;
         pct_dirty = pct_updates = 0.0;
     } else {
         dirty_needed = __wti_evict_exceeded_dirty_trigger(session, &pct_dirty);
-        dirty_busy_needed = __wti_evict_exceeded_dirty_busy_trigger(session);
         updates_needed = __wti_evict_exceeded_updates_trigger(session, &pct_updates);
 
         /*
@@ -895,16 +875,13 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignor
               evict->eviction_updates_trigger - pct_updates));
 
     /*
-     * Only apply the dirty trigger to a busy session once dirty content is well past it.
+     * Only check the dirty trigger when the session is not busy.
      *
-     * Once a session is pinning resources it should finish its operation as quickly as possible:
-     * it may be holding the very content eviction needs to write, and the next transaction in the
-     * session will not start until the cache is under the limit. But if nothing slows the busy
-     * sessions, dirty content grows without bound until the whole cache is full. Past the busy
-     * trigger, ask busy sessions for a small amount of work; the worker caps the attempts so this
-     * cannot become an open-ended wait.
+     * In other words, once we are pinning resources, try to finish the operation as quickly as
+     * possible without exceeding the cache size. The next transaction in this session will not be
+     * able to start until the cache is under the limit.
      */
-    return (clean_needed || updates_needed || (busy ? dirty_busy_needed : dirty_needed));
+    return (clean_needed || updates_needed || (!busy && dirty_needed));
 }
 
 /* !!!

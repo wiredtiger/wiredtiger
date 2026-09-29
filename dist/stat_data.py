@@ -365,7 +365,6 @@ conn_stats = [
     EvictStat('app_evict_refused_user_not_ok', 'application eviction skipped: user or interruptible check failed', 'no_clear'),
     #
     EvictStat('app_evict_time', 'application thread time evicting (usecs)'),
-    EvictStat('app_evict_worker_busy_dirty_attempt', 'application eviction worker: attempt while busy on dirty pressure alone', 'no_clear'),
     EvictStat('app_evict_worker_entered', 'application eviction worker: entered work loop', 'no_clear'),
     EvictStat('app_evict_worker_evict_attempt', 'application eviction worker: page eviction attempted', 'no_clear'),
     EvictStat('app_evict_worker_evict_busy', 'application eviction worker: page eviction returned EBUSY', 'no_clear'),
@@ -373,7 +372,6 @@ conn_stats = [
     EvictStat('app_evict_worker_evict_queue_empty', 'application eviction worker: eviction queue was empty', 'no_clear'),
     EvictStat('app_evict_worker_evict_success', 'application eviction worker: page eviction succeeded', 'no_clear'),
     EvictStat('app_evict_worker_exit_busy_after_success', 'application eviction worker: exited busy after successful eviction', 'no_clear'),
-    EvictStat('app_evict_worker_exit_busy_dirty_attempts', 'application eviction worker: exited busy after bounded attempts on dirty pressure', 'no_clear'),
     EvictStat('app_evict_worker_exit_cache_timeout', 'application eviction worker: exited due to cache wait timeout', 'no_clear'),
     EvictStat('app_evict_worker_exit_not_needed_or_progress', 'application eviction worker: exited because eviction not needed or enough progress made', 'no_clear'),
     EvictStat('app_evict_worker_exit_op_timer', 'application eviction worker: exited due to operation timeout', 'no_clear'),

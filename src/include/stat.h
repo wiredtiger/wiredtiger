@@ -536,11 +536,9 @@ struct __wt_connection_stats {
     int64_t app_evict_refused_cache_tolerant;
     int64_t app_evict_refused_prepare;
     int64_t app_evict_refused_user_not_ok;
-    int64_t app_evict_worker_busy_dirty_attempt;
     int64_t app_evict_worker_entered;
     int64_t app_evict_worker_evict_queue_empty;
     int64_t app_evict_worker_exit_not_needed_or_progress;
-    int64_t app_evict_worker_exit_busy_dirty_attempts;
     int64_t app_evict_worker_exit_busy_after_success;
     int64_t app_evict_worker_exit_cache_timeout;
     int64_t app_evict_worker_exit_op_timer;
