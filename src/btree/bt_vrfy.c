@@ -603,9 +603,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
           "violation as the ingest table does not get checkpointed.",
           name);
 
-    /* Inform the underlying block manager we're verifying. */
-    WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
+    /* Set before the call, a failed start can leave state that only verify end frees. */
     bm_start = true;
+    WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
 
     /*
      * Announce the object being verified. Info-level verify messages are normally disabled in
