@@ -1178,7 +1178,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
     if (log->log_fh != NULL) {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
         /* Paired with an acquire read in the log file server path. */
-        WT_RELEASE_WRITE_WITH_BARRIER(log->log_close_fh, log->log_fh);
+        __wt_atomic_store_ptr_release(&log->log_close_fh, log->log_fh);
 
         if (closed != NULL)
             *closed = true;
