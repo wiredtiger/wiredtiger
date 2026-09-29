@@ -408,7 +408,7 @@ conn_stats = [
     EvictStat('eviction_eligible_wont_need_clean_leaf', 'eviction eligible bucketset won\'t need clean leaf'),
     EvictStat('eviction_eligible_wont_need_dirty_leaf', 'eviction eligible bucketset won\'t need dirty leaf'),
     EvictStat('eviction_eligible_wont_need_internal', 'eviction eligible bucketset won\'t need internal'),
-    EvictStat('eviction_enqueue_reclassified', 'enqueue moved a page whose classification changed while it held the ref lock'),
+    EvictStat('eviction_enqueue_reclassified', 'enqueue moved a page whose level changed while the ref was locked'),
     EvictStat('eviction_enqueue_skipped_locked', 'enqueue skipped because another thread held the ref lock'),
     EvictStat('eviction_enqueued_page', 'number of calls to enqueue a page'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),

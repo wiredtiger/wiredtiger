@@ -6574,8 +6574,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_EVICTION_DIRTY_LEAF_CHECKPOINT	1156
 /*!
- * cache: enqueue moved a page whose classification changed while it held
- * the ref lock
+ * cache: enqueue moved a page whose level changed while the ref was
+ * locked
  */
 #define	WT_STAT_CONN_EVICTION_ENQUEUE_RECLASSIFIED	1157
 /*! cache: enqueue skipped because another thread held the ref lock */

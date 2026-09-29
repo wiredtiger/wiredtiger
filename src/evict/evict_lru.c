@@ -2687,21 +2687,28 @@ place:
 
     WT_STAT_CONN_INCR(session, eviction_enqueued_page);
 done:
-    if (must_unlock_ref) {
-        /*
-         * A thread that changed the page while we held the lock -- typically by dirtying it --
-         * could not enqueue it and left that to us. Re-check the destination before unlocking and
-         * move the page if it no longer belongs where we put it. Once is enough: a second change
-         * in the same window is vanishingly unlikely, and its owner's next access re-enqueues.
-         */
-        if (!rechecked && !__evict_get_target_destination(session, page, NULL, &bucket)) {
-            rechecked = true;
+    /*
+     * A thread that changed the page while the ref was locked -- typically by dirtying it -- could
+     * not enqueue it and left that to whoever holds the lock. Before the lock is released, compare
+     * the level the page now belongs to with the level it sits in, and move it if they differ.
+     * This applies whether we took the lock or the caller did: a failed eviction re-enqueues its
+     * page through here while still holding the lock. Compare levels, not buckets: within a level
+     * the bucket is chosen at random, so a bucket comparison would move nearly every page twice.
+     * Once is enough; a second change in the same window is vanishingly unlikely.
+     */
+    if (!rechecked) {
+        rechecked = true;
+        if (WT_EVICT_PAGE_CLEARED(page) ||
+          page->evict_data.bucket->bucketset->level !=
+            __evict_target_bucketset_level(session, page)) {
             WT_STAT_CONN_INCR(session, eviction_enqueue_reclassified);
             __wt_evict_remove(session, ref, false);
+            (void)__evict_get_target_destination(session, page, NULL, &bucket);
             goto place;
         }
-        WT_REF_UNLOCK(ref, previous_state);
     }
+    if (must_unlock_ref)
+        WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*

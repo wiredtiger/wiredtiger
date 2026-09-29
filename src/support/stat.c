@@ -1965,7 +1965,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: dirty leaf bytes discounted from the eviction thresholds because a checkpoint is syncing "
   "the tree",
-  "cache: enqueue moved a page whose classification changed while it held the ref lock",
+  "cache: enqueue moved a page whose level changed while the ref was locked",
   "cache: enqueue skipped because another thread held the ref lock",
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by eviction worker threads",
