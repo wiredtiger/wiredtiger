@@ -286,7 +286,7 @@ err:
  * __verify_unique_btree_ids --
  *     Verify that no two stable constituent files in the local metadata share the same btree ID.
  *     Only called for .wt_stable files, where the verify session's exclusive lock is on the stable
- *     file not the metadata file so a shared metadata cursor can be opened directly.
+ *     file not the metadata file so a metadata cursor can be opened directly.
  */
 static int
 __verify_unique_btree_ids(WT_SESSION_IMPL *session)
