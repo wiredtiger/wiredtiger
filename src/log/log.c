@@ -1183,7 +1183,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
         if (closed != NULL)
             *closed = true;
     }
-    (void)__wt_atomic_add_uint32_relaxed(&log->fileid, 1);
+    uint32_t fileid = __wt_atomic_add_uint32_relaxed(&log->fileid, 1);
 
     /*
      * If pre-allocating log files look for one; otherwise, or if we don't find one, create a log
@@ -1194,7 +1194,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
     if (__wti_log_is_prealloc_enabled(session) &&
       __wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(session,
-          ret = __log_alloc_prealloc(session, __wt_atomic_load_uint32_relaxed(&log->fileid)),
+          ret = __log_alloc_prealloc(session, fileid),
           &skipp);
 
         if (!skipp) {
@@ -1225,7 +1225,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
         if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 && !conn_open)
             __wt_atomic_add_uint32_relaxed(&log->prep_missed, 1);
         WT_RET(__wti_log_allocfile(
-          session, __wt_atomic_load_uint32_relaxed(&log->fileid), WT_LOG_FILENAME));
+          session, fileid, WT_LOG_FILENAME));
     }
     /*
      * Since the file system clears the output file handle pointer before searching the handle list
@@ -1233,19 +1233,19 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
      * wide window where another thread could see a NULL log file handle.
      */
     WT_RET(__log_open_verify(
-      session, __wt_atomic_load_uint32_relaxed(&log->fileid), &log_fh, NULL, NULL, NULL));
+      session, fileid, &log_fh, NULL, NULL, NULL));
     /*
      * Write the LSN at the end of the last record in the previous log file as the first record in
      * this log file.
      */
-    if (__wt_atomic_load_uint32_relaxed(&log->fileid) == 1)
+    if (fileid == 1)
         WT_INIT_LSN(&logrec_lsn);
     else
         WT_ASSIGN_LSN(&logrec_lsn, &log->alloc_lsn);
     /*
      * We need to setup the LSNs. Set the end LSN and alloc LSN to the end of the header.
      */
-    WT_SET_LSN(&log->alloc_lsn, __wt_atomic_load_uint32_relaxed(&log->fileid), WTI_LOG_END_HEADER);
+    WT_SET_LSN(&log->alloc_lsn, fileid, WTI_LOG_END_HEADER);
     /*
      * If we're running the version where we write the previous LSN, do so now and update the
      * alloc_lsn.
@@ -1253,7 +1253,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
     if (log->log_version >= WTI_LOG_VERSION_SYSTEM) {
         WT_RET(__wti_log_system_prevlsn(session, log_fh, &logrec_lsn));
         WT_SET_LSN(
-          &log->alloc_lsn, __wt_atomic_load_uint32_relaxed(&log->fileid), log->first_record);
+          &log->alloc_lsn, fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
     WT_RELEASE_WRITE_WITH_BARRIER(log->log_fh, log_fh);
