@@ -579,6 +579,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_hs_dirty;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_dirty_leaf_checkpoint;
+    int64_t eviction_enqueue_reclassified;
     int64_t eviction_enqueue_skipped_locked;
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_worker_evict_fail;
