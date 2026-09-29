@@ -1948,10 +1948,8 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
     } else if (!F_ISSET(clayered, iter_flag)) {
         /*
          * The current cursor is positioned but `iter_flag` is not set, so the alternate cannot be
-         * trusted and must be positioned from the current key. A prepared conflict is never handled
-         * here: that case always has `iter_flag` set and is taken by the branch above.
+         * trusted and must be positioned from the current key.
          */
-        WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_current));
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
     }
 
@@ -1964,23 +1962,30 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
 
     /*
-     * When both constituents are positioned on the same key, one of them must be stepped past it
-     * so the key is not returned twice, and it must be the stable cursor: a tie always resolves to
-     * ingest, the newer of the two. `current` is not necessarily the ingest cursor here -- resuming
-     * past a conflict can leave the previously-blocked constituent as `current` even after it lands
-     * back on a key the untouched alternate already holds, and a context change repositions the
-     * alternate from the current key, which can tie either way -- so the two are told apart by
-     * identity rather than by their current/alternate role.
+     * A tie always goes to ingest. Ingest holds the newer value, so ingest is never the cursor
+     * that gets stepped past the shared key. There are two cases:
+     *
+     *   1. Current has not taken a step yet this call. Stepping the alternate is enough: current
+     *      still gets its own step later below, so between the two steps both cursors move past
+     *      the tied key exactly once. It does not matter here whether the alternate is stable or
+     *      ingest.
+     *
+     *   2. Current already took a step above, to get past a prepared update it was blocked on. Now
+     *      current can be either cursor. If current is stable, it needs a second step here, and
+     *      stepping the alternate would wrongly move ingest instead. So in this case the cursor to
+     *      step is chosen by checking which one is stable, not by current or alternate role: when
+     *      current is ingest this still steps stable, the same as stepping the alternate would;
+     *      when current is stable this gives it the second step it needs.
      */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT)) {
         int cmp;
 
         WT_RET(__clayered_cursor_compare(op, c_alternate, c_current, &cmp));
         if (cmp == 0) {
-            WT_CURSOR *c_stable = (c_current == op->ingest) ? c_alternate : c_current;
+            WT_CURSOR *to_advance = current_moved ? op->stable : c_alternate;
 
-            WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_stable, forward));
-            current_moved = current_moved || c_stable == c_current;
+            WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, to_advance, forward));
+            current_moved = current_moved || to_advance == c_current;
         }
     }
 
