@@ -200,10 +200,10 @@ class test_stat_cursor_otel_config(wttest.WiredTigerTestCase):
         ('otel_config_3', dict(uri='table:' + pfx, dataset=ComplexDataSet)),
     ]
     otel = [
-        ('none', dict(otel='none')),
-        ('counters', dict(otel='counters')),
-        ('gauges', dict(otel='gauges')),
-        ('histograms', dict(otel='histograms')),
+        ('none', dict(otel='otel_none')),
+        ('counters', dict(otel='otel_counters')),
+        ('gauges', dict(otel='otel_gauges')),
+        ('histograms', dict(otel='otel_histograms')),
     ]
 
     scenarios = make_scenarios(uri, otel)
@@ -230,7 +230,7 @@ class test_stat_cursor_otel_error(wttest.WiredTigerTestCase):
 
     def test_stat_cursor_otel_error(self):
         self.dataset(self, self.uri, 100).populate()
-        args = ['none', 'counters', 'gauges', 'histograms']
+        args = ['otel_none', 'otel_counters', 'otel_gauges', 'otel_histograms']
         for i in list(itertools.permutations(args, 2)):
             config = 'statistics=(fast,' + i[0] + ',' + i[1] + ')'
             msg = '/Only one of/'
@@ -239,7 +239,7 @@ class test_stat_cursor_otel_error(wttest.WiredTigerTestCase):
                 'statistics:' + self.uri, None, config), msg)
 
     def test_stat_cursor_otel_error_conn(self):
-        args = ['none', 'counters', 'gauges', 'histograms']
+        args = ['otel_none', 'otel_counters', 'otel_gauges', 'otel_histograms']
         for i in list(itertools.permutations(args, 2)):
             config = 'create,statistics=(' + i[0] + ',' + i[1] + ')'
             msg = '/not a permitted choice|Only one of/'
@@ -267,7 +267,7 @@ class test_stat_cursor_otel_inherits_default(wttest.WiredTigerTestCase):
         # btree_entries is used across counters, so we open the stat cursor with OTel config first
         # to make sure that it doesn't give a stale value from a previous cursor's walk.
         cursor = self.session.open_cursor(
-            'statistics:' + self.uri, None, 'statistics=(counters)')
+            'statistics:' + self.uri, None, 'statistics=(otel_counters)')
         otel_entries = cursor[stat.dsrc.btree_entries][2]
         cursor.close()
 
