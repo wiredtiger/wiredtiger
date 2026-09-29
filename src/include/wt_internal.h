@@ -103,6 +103,14 @@ struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
 typedef struct __wt_btree WT_BTREE;
+struct __wt_btree_diff;
+typedef struct __wt_btree_diff WT_BTREE_DIFF;
+struct __wt_btree_diff_entry;
+typedef struct __wt_btree_diff_entry WT_BTREE_DIFF_ENTRY;
+struct __wt_btree_diff_frame;
+typedef struct __wt_btree_diff_frame WT_BTREE_DIFF_FRAME;
+struct __wt_btree_diff_side;
+typedef struct __wt_btree_diff_side WT_BTREE_DIFF_SIDE;
 struct __wt_cache;
 typedef struct __wt_cache WT_CACHE;
 struct __wt_cache_eviction_controls;
@@ -621,6 +629,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btmem.h"
 #include "cache_top.h" /* required by btree.h */
 #include "btree.h"
+#include "btree_diff.h"
 #include "cache.h"
 #include "../reconcile/reconcile.h"
 #include "../evict/evict.h"
