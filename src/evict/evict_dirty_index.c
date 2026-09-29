@@ -332,14 +332,8 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
             continue;
         }
 
-        /*
-         * The back-pointer only ever holds the two sentinels or a one-indexed slot, so an
-         * out-of-range value means the ring was rebuilt underneath us; fall back to the scan.
-         */
-        if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity) {
-            __evict_dirty_index_scan_clear(idx, slots, ref);
-            return;
-        }
+        /* Capacity is fixed for the life of the handle, so a claimed slot is always in range. */
+        WT_ASSERT(session, WTI_DIRTY_BP_SLOT(bp) < idx->capacity);
         slotp = &slots[WTI_DIRTY_BP_SLOT(bp)];
         published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
         if (published_ref == NULL) {
@@ -433,8 +427,8 @@ __wt_dirty_index_unblock_page(WT_PAGE *page)
  * __wt_dirty_index_clear_page --
  *     Invalidate a page's published entry without waiting for the eviction consumer. Idempotent and
  *     safe to call more than once for the same page: a second call after the first has already
- *     cleared the entry finds nothing to do. Split retirement uses __wt_dirty_index_block_page
- *     instead so the page cannot acquire a new entry between cleanup and the ref state transition.
+ *     cleared the entry finds nothing to do. Split retirement blocks the page instead, so it cannot
+ *     acquire a new entry between cleanup and the ref state transition.
  *
  * The page is about to be freed, so no slot may be left naming this ref. As with retirement, the
  *     back-pointer leads to at most one slot and need not be the one holding this ref, so the paths
@@ -467,10 +461,6 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
         return;
     }
     WT_ASSERT(session, WTI_DIRTY_BP_SLOT(bp) < idx->capacity);
-    if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity) {
-        __evict_dirty_index_scan_clear(idx, slots, ref);
-        return;
-    }
 
     slotp = &slots[WTI_DIRTY_BP_SLOT(bp)];
     /* Only clear the page back-pointer if this ref still owns the slot. */

@@ -166,6 +166,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
     uint32_t candidates, entries;
+    bool reinserted;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
@@ -252,10 +253,12 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
      */
     while (entries > WTI_EVICT_WALK_BASE) {
         evict_entry = &queue->evict_queue[--entries];
-        if (evict_entry->ref != NULL &&
-          __wt_dirty_index_insert(session, evict_entry->btree, evict_entry->ref))
+        if (evict_entry->ref != NULL) {
             WT_WITH_DHANDLE(session, evict_entry->btree->dhandle,
-              WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_trim_reinserted));
+              reinserted = __wt_dirty_index_insert(session, evict_entry->btree, evict_entry->ref);
+              if (reinserted)
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_trim_reinserted));
+        }
         __evict_list_clear(session, evict_entry);
     }
 

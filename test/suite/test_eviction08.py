@@ -174,7 +174,7 @@ class test_eviction08(wttest.WiredTigerTestCase):
         self._write_rows(uri, 1, self.nrows, 'x' * self.value_size)
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
 
-    def test_dirty_index_default_off_for_hook(self):
+    def test_dirty_index_explicit_off_for_hook(self):
         if not self.runningHook('disagg'):
             self.skipTest('requires the disagg hook')
 

@@ -592,11 +592,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          */
         __wti_evict_queue_clear_page(session, ref);
 
-        /*
-         * Symmetrically clear the dirty-index ring entry (push-model eviction): if this page is in
-         * the per-btree ring, NULL the slot so the drain cannot dereference a stale page pointer
-         * after it is freed below. The page is locked here, so the slot field is stable.
-         */
+        /* Drop any ring entry so the drain cannot reach the page after it is freed below. */
         __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
     }
 

@@ -2501,8 +2501,8 @@ __wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts)
  * __wt_page_disagg_evict_blocked --
  *     Return true if a disaggregated-storage-specific condition blocks evicting this page, having
  *     already charged the matching statistic. Grouped together, separately from the
- *     storage-agnostic gates in __wt_page_can_evict, so the disaggregated eviction-blocking paths
- *     stay in one place to watch. Pages outside disaggregated storage are never blocked here.
+ *     storage-agnostic eviction checks, so the disaggregated eviction-blocking paths stay in one
+ *     place to watch. Pages outside disaggregated storage are never blocked here.
  */
 static WT_INLINE bool
 __wt_page_disagg_evict_blocked(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page, bool modified)

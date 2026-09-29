@@ -161,8 +161,8 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
 /*
  * __evict_dirty_index_drain_ring --
  *     Pop refs from one ring into the eviction queue. Each ref is protected by a short-lived hazard
- *     pointer so concurrent teardown cannot free the page while it is examined. Writes into the
- *     Populate available eviction-queue slots and return the number of refs queued.
+ *     pointer so concurrent teardown cannot free the page while it is examined. Fills available
+ *     eviction-queue slots and returns the number of refs queued.
  */
 static int
 __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DIRTY_INDEX *idx,
@@ -781,6 +781,14 @@ retry:
             WT_ERR(ret);
             resume = false;
         }
+        /*
+         * A pass the drain fills never walks the tree, so it never counts a walk end. Bound
+         * resumption on drain-filled passes too, so one hot tree cannot hold the scan. Keep the
+         * walk point; the tree was not traversed.
+         */
+        if (resume && btree != NULL &&
+          __wt_atomic_load_uint32_relaxed(&btree->drain_filled_skips) >= WTI_EVICT_WALK_MAX_ENDS)
+            resume = false;
         if (!resume) {
             if (btree != NULL)
                 btree->evict_walk_ends = 0;
@@ -1215,8 +1223,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * For pages that are getting random updates (often index pages), try not to reconcile them too
      * often. It makes better use of I/O if they accumulate more changes between reconciliations.
      */
-    if (__wti_evict_disagg_low_pressure_skip(session, btree, page))
+    if (__wti_evict_disagg_low_pressure_skip(session, btree, page)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_disagg_low_pressure);
         return (true);
+    }
     return (false);
 }
 
@@ -1718,11 +1728,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     end = queue->evict_queue + *slotp + target_pages;
 
     /*
-     * Drain on every pass, then walk. The earlier odd-pass alternation existed because draining
-     * removed candidates the walker would have found and they were lost; now the LRU-trim re-insert
-     * keeps those pages in the ring, so the drain is no longer extractive. Drain first to feed the
-     * pre-identified dirty candidates, then fall through to the walk for the rest of the budget.
-     * Disabled trees still probe periodically to detect a shift back to write-heavy.
+     * Drain first to feed pre-identified dirty candidates, then walk for the rest of the budget;
+     * the LRU-trim re-insert keeps trimmed pages in the ring. Disabled trees still probe
+     * periodically to detect a shift back to write-heavy.
      */
     pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
     if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
