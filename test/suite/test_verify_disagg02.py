@@ -103,8 +103,10 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         """
         self.session.create(self.uri, self.table_cfg)
         cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
         cursor['key'] = 'value'
         cursor.close()
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
         self.session.checkpoint()
 
         sh_cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
