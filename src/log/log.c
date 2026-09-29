@@ -1193,9 +1193,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
     create_log = true;
     if (__wti_log_is_prealloc_enabled(session) &&
       __wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0) {
-        WT_WITH_HOTBACKUP_READ_LOCK(session,
-          ret = __log_alloc_prealloc(session, fileid),
-          &skipp);
+        WT_WITH_HOTBACKUP_READ_LOCK(session, ret = __log_alloc_prealloc(session, fileid), &skipp);
 
         if (!skipp) {
             /*
@@ -1224,16 +1222,14 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
          */
         if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 && !conn_open)
             __wt_atomic_add_uint32_relaxed(&log->prep_missed, 1);
-        WT_RET(__wti_log_allocfile(
-          session, fileid, WT_LOG_FILENAME));
+        WT_RET(__wti_log_allocfile(session, fileid, WT_LOG_FILENAME));
     }
     /*
      * Since the file system clears the output file handle pointer before searching the handle list
      * and filling in the new file handle, we must pass in a local file handle. Otherwise there is a
      * wide window where another thread could see a NULL log file handle.
      */
-    WT_RET(__log_open_verify(
-      session, fileid, &log_fh, NULL, NULL, NULL));
+    WT_RET(__log_open_verify(session, fileid, &log_fh, NULL, NULL, NULL));
     /*
      * Write the LSN at the end of the last record in the previous log file as the first record in
      * this log file.
@@ -1252,8 +1248,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
      */
     if (log->log_version >= WTI_LOG_VERSION_SYSTEM) {
         WT_RET(__wti_log_system_prevlsn(session, log_fh, &logrec_lsn));
-        WT_SET_LSN(
-          &log->alloc_lsn, fileid, log->first_record);
+        WT_SET_LSN(&log->alloc_lsn, fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
     __wt_atomic_store_ptr_release(&log->log_fh, log_fh);
