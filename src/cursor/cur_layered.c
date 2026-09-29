@@ -1888,16 +1888,15 @@ __clayered_select_current(WTI_CLAYERED_OP *op, WT_CURSOR **currentp, WT_CURSOR *
     WT_CURSOR *c_current;
 
     /*
-     * When current_cursor is NULL the walk is blocked by a prepared conflict: pick whichever
-     * constituent is blocked, or ingest if neither is. When current_cursor is already set, reuse it
-     * as-is; it normally carries an internal key, but the previous call's own advance step can have
+     * This is only reached when at least one constituent is positioned, and every path that clears
+     * the current cursor also drops both constituents' positions (or removes the ingest constituent
+     * from consideration entirely), so the current cursor from the last call is always still known
+     * here. It normally carries an internal key, but the previous call's own advance step can have
      * just blocked it on a prepared conflict, in which case it still has a page reference but no
      * key.
      */
-    if (clayered->current_cursor != NULL)
-        c_current = clayered->current_cursor;
-    else
-        c_current = __clayered_constituent_prepare_blocked(op->stable) ? op->stable : op->ingest;
+    WT_ASSERT(session, clayered->current_cursor != NULL);
+    c_current = clayered->current_cursor;
     WT_ASSERT(session, c_current == op->stable || c_current == op->ingest);
     WT_ASSERT(session,
       F_ISSET(c_current, WT_CURSTD_KEY_INT) || __clayered_constituent_prepare_blocked(c_current));
