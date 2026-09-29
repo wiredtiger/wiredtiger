@@ -726,16 +726,23 @@ __background_compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
 err:
-    __background_compact_exclude_list_clear(session, true);
-    __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_EXIT);
-
-    __wt_free(session, conn->background_compact.config);
     __wt_scr_free(session, &config);
     __wt_scr_free(session, &next_uri);
     __wt_scr_free(session, &uri);
 
+    /*
+     * The connection-level exclude list and configuration can be read and freed by a concurrent
+     * background compaction caller under the lock, which this thread does not hold here. On error
+     * we panic, aborting the process, so leave that shared state intact for any in-flight signal
+     * rather than freeing it and racing.
+     */
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
+    else {
+        __background_compact_exclude_list_clear(session, true);
+        __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_EXIT);
+        __wt_free(session, conn->background_compact.config);
+    }
     return (WT_THREAD_RET_VALUE);
 }
 
