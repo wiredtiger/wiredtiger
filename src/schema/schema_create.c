@@ -199,7 +199,8 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 /*
  * __create_file_verify_import --
  *     Verify an imported file through a dedicated verify-mode handle. Open it directly, not through
- *     the schema worker, which under metadata tracking holds a close lock until the create resolves.
+ *     the schema worker, which under metadata tracking holds a close lock until the create
+ *     resolves.
  */
 static int
 __create_file_verify_import(WT_SESSION_IMPL *session, const char *uri)
@@ -382,8 +383,8 @@ __create_file(
         goto err;
 
     /*
-     * Verify imported file before the normal open so a corrupt file fails the import rather than
-     * a later read. Verify needs its own handle.
+     * Verify imported file before the normal open so a corrupt file fails the import rather than a
+     * later read. Verify needs its own handle.
      */
     if (import)
         WT_ERR(__create_file_verify_import(session, uri));
