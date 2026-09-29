@@ -930,6 +930,9 @@ __verify_tree(
           F_ISSET(ref, WT_REF_FLAG_LEAF) ? "LEAF" : "");
     }
 
+    if (!__wt_ref_type_matches_page(ref, page->type))
+        WT_RET_MSG(session, WT_ERROR, "page type does not match reference type");
+
     /*
      * The page's physical structure was verified when it was read into memory by the read server
      * thread, and then the in-memory version of the page was built. Now we make sure the page and
