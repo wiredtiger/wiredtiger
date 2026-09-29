@@ -591,6 +591,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * a non-NULL reference on the queue is pointing at valid memory.
          */
         __wti_evict_queue_clear_page(session, ref);
+
+        /* Drop any ring entry so the drain cannot reach the page after it is freed below. */
+        __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))

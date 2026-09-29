@@ -548,6 +548,51 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
         100);
 }
 
+#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
+#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
+    0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
+
+/*
+ * __wti_evict_disagg_low_pressure_skip --
+ *     Return true if a page in a tree the dirty-index ring targets has too few modifications to
+ *     reconcile yet and cache pressure is not high enough to force the issue: letting pages that
+ *     get random updates accumulate more changes makes better use of I/O. Uses the ring's producer
+ *     gate rather than per-page disaggregated metadata, since ingest trees are ring targets without
+ *     it. Shared by the candidacy filter, the ring producer and the ring drain, so it only decides;
+ *     callers count the skip.
+ */
+static WT_INLINE bool
+__wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE *page)
+{
+    WT_CONNECTION_IMPL *conn;
+    double pct_dirty, pct_updates;
+    bool high_pressure;
+
+    conn = S2C(session);
+    if (!WTI_DIRTY_INDEX_IS_DISAGG(btree) ||
+      __wt_atomic_load_uint32_relaxed(&page->modify->page_state) >= WT_EVICT_MODIFY_COUNT_MIN)
+        return (false);
+
+    pct_dirty = pct_updates = 0.0;
+    high_pressure = false;
+
+    if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
+        WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
+        high_pressure =
+          (pct_dirty > (__wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger) *
+                         WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+    }
+
+    if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
+        WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
+        high_pressure =
+          (pct_updates > (__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
+                           WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+    }
+
+    return (!high_pressure);
+}
+
 /*
  * __wti_evict_threshold_pct --
  *     Return the cache-full percentage used by the eviction trigger check: one hundred minus the

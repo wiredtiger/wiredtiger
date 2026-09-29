@@ -614,7 +614,10 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
 {
     WT_DECL_RET;
     WT_IKEY *ikey;
+    WT_PAGE *page;
+    WTI_DIRTY_INDEX *dirty_index;
     size_t size;
+    bool dirty_index_active;
 
     /*
      * Row-store trees where the old version of the page is being discarded: the previous parent
@@ -634,6 +637,17 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         }
     }
 
+    /*
+     * Stop producers from publishing this ref and drop it from the ring, before anything below can
+     * free memory the drain might still reach through it. Sample whether the ring is live while
+     * here: it decides how the ref is stashed at the end of this function.
+     */
+    page = ref->page;
+    __wt_dirty_index_block_page(session, S2BT(session), ref, page);
+    dirty_index = __wt_atomic_load_ptr_acquire(&S2BT(session)->dirty_index);
+    dirty_index_active =
+      dirty_index != NULL && __wt_atomic_load_ptr_acquire(&dirty_index->slots) != NULL;
+
     /* Free any backing fast-truncate memory. */
     __wt_free(session, ref->page_del);
 
@@ -652,7 +666,14 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
-    WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
+    /*
+     * A ref the ring still reached needs the generation the ring's consumer runs under, not this
+     * split's, and exclusive access to the tree says nothing about that consumer.
+     */
+    WT_TRET(dirty_index_active ?
+        __wt_stash_add(
+          session, WT_GEN_SPLIT, __wt_dirty_index_retire_gen(session), ref, sizeof(WT_REF)) :
+        __split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
 
     return (ret);
@@ -669,7 +690,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_BTREE *btree;
     WT_DECL_ITEM(scr);
     WT_DECL_RET;
-    WT_PAGE *parent;
+    WT_PAGE *page, *parent;
     WT_PAGE_INDEX *alloc_index, *pindex;
     WT_REF **alloc_refp, *next_ref;
     WT_SPLIT_ERROR_PHASE complete;
@@ -685,6 +706,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 
     btree = S2BT(session);
     parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
+    page = ref->page;
 
     alloc_index = pindex = NULL;
     parent_decr = 0;
@@ -864,6 +886,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
+        /* An insert split retains the old page under the first replacement ref. */
+        if (new_entries != 0 && ref_new[0]->page == page)
+            __wt_dirty_index_unblock_page(page);
         /* Reverse split removes a deleted/empty leaf, not a split replacement. */
         if (new_entries == 0 && btree->type == BTREE_ROW &&
           __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
@@ -2573,6 +2598,12 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     WT_RET(__wt_calloc_one(session, &new));
     new->ref_recno = ref->ref_recno;
 
+    /*
+     * This scratch ref has no WT_REF_FLAG_LEAF set, so the dirty-index ring's insert path will
+     * reject it if the cursor operations performed by the in-memory split helper try to modify it.
+     * That gate is required: the ring's drain cannot safely dereference a scratch ref after it is
+     * freed here, so it must never be inserted in the first place.
+     */
     WT_ERR(__split_multi_inmem(session, page, multi, new));
 
     /*
