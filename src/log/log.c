@@ -276,7 +276,7 @@ __log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, 
         if (use_own_fh)
             WT_ERR(__log_openfile(session, min_lsn->l.file, 0, &log_fh));
         else
-            log_fh = __wt_tsan_suppress_load_wt_fh_ptr(&log->log_fh);
+            log_fh = __wt_atomic_load_ptr_acquire(&log->log_fh);
         __wt_verbose(session, WT_VERB_LOG, "%s: sync %s to LSN %" PRIu32 "/%" PRIu32, method,
           log_fh->name, min_lsn->l.file, __wt_lsn_offset(min_lsn));
         time_start = __wt_clock(session);
@@ -1256,7 +1256,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
           &log->alloc_lsn, fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-    WT_RELEASE_WRITE_WITH_BARRIER(log->log_fh, log_fh);
+    __wt_atomic_store_ptr_release(&log->log_fh, log_fh);
 
     /*
      * If we're called from connection creation code, we need to update the LSNs since we're the
@@ -1983,14 +1983,16 @@ __wti_log_release(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *freep)
     if (F_ISSET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH))
         __wt_cond_signal(session, conn->log_mgr.file.cond);
 
-    if (F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC) &&
-      (ret = __wt_fsync(session, log->log_fh, false)) != 0) {
-        /*
-         * Ignore ENOTSUP, but don't try again.
-         */
-        if (ret != ENOTSUP)
-            WT_ERR(ret);
-        conn->log_mgr.dirty_max = 0;
+    if (F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC)) {
+        WT_FH *log_fh = __wt_atomic_load_ptr_acquire(&log->log_fh);
+        if ((ret = __wt_fsync(session, log_fh, false)) != 0) {
+            /*
+             * Ignore ENOTSUP, but don't try again.
+             */
+            if (ret != ENOTSUP)
+                WT_ERR(ret);
+            conn->log_mgr.dirty_max = 0;
+        }
     }
 
     /*
