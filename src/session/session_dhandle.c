@@ -997,7 +997,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
 err:
     if (ret != 0 && session->dhandle != NULL)
-        WT_DHANDLE_CLEAR(session);
+        session->dhandle = NULL;
     return (ret);
 }
 

@@ -12,9 +12,9 @@
 #include "utils.h"
 #include "wrappers/connection_wrapper.h"
 
-TEST_CASE("session->dhandle is NULL after EBUSY from get_dhandle", "[dhandle][dhandle_ebusy]")
+TEST_CASE("session->dhandle is NULL after a busy get_dhandle", "[dhandle]")
 {
-    const std::string home = "WT_TEST.dhandle_ebusy";
+    const std::string home = "WT_TEST.dhandle_busy";
     utils::wiredtigerCleanup(home);
 
     {
@@ -22,12 +22,11 @@ TEST_CASE("session->dhandle is NULL after EBUSY from get_dhandle", "[dhandle][dh
 
         WT_SESSION_IMPL *session_impl = conn.createSession();
         WT_SESSION *session = &session_impl->iface;
-        REQUIRE(session->create(session, "file:cursor_test.wt", "key_format=i,value_format=i") ==
-          0);
+        REQUIRE(
+          session->create(session, "file:cursor_test.wt", "key_format=i,value_format=i") == 0);
 
         WT_CURSOR *bulk = nullptr;
-        REQUIRE(session->open_cursor(
-                  session, "file:cursor_test.wt", nullptr, "bulk", &bulk) == 0);
+        REQUIRE(session->open_cursor(session, "file:cursor_test.wt", nullptr, "bulk", &bulk) == 0);
 
         WT_SESSION_IMPL *session_impl_b = conn.createSession();
         REQUIRE(session_impl_b->dhandle == nullptr);
@@ -53,8 +52,8 @@ TEST_CASE("skip reopening a dhandle closed by sweep", "[dhandle][dhandle_skip_re
 
         WT_SESSION_IMPL *session_impl = conn.createSession();
         WT_SESSION *session = &session_impl->iface;
-        REQUIRE(session->create(session, "file:cursor_test.wt", "key_format=i,value_format=i") ==
-          0);
+        REQUIRE(
+          session->create(session, "file:cursor_test.wt", "key_format=i,value_format=i") == 0);
         REQUIRE(
           __wt_session_get_dhandle(session_impl, "file:cursor_test.wt", nullptr, nullptr, 0) == 0);
 
