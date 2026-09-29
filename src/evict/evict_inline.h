@@ -1115,7 +1115,7 @@ __wti_evict_restored_page_unchanged(WT_SESSION_IMPL *session, WT_PAGE *page)
     pinned_stable_ts = __wt_txn_pinned_stable_timestamp(session);
     return (pinned_stable_ts != WT_TS_NONE &&
       mod->rec_pinned_stable_timestamp >= pinned_stable_ts &&
-      mod->rec_evict_attempt_oldest_id == __wt_txn_oldest_id(session));
+      mod->rec_evict_attempt_oldest_id >= __wt_txn_oldest_id(session));
 }
 
 /*
