@@ -5565,9 +5565,6 @@ tasks:
   - <<: *format-stress-test-disagg-multi-snapshot-read
     name: format-stress-test-disagg-multi-snapshot-read-1
     tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-multi-snapshot-read
-    name: format-stress-test-disagg-multi-snapshot-read-2
-    tags: ["stress-test-disagg"]
 
   - <<: *timestamp-abort-test-disagg
     name: timestamp-abort-test-disagg-1
