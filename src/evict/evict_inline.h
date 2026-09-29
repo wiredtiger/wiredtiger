@@ -838,7 +838,7 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignor
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     double pct_dirty, pct_full, pct_updates;
-    bool clean_needed, dirty_busy_needed, dirty_needed, has_txn_id, updates_needed;
+    bool clean_needed, dirty_busy_needed, dirty_needed, updates_needed;
 
     conn = S2C(session);
     evict = S2C(session)->evict;
@@ -856,9 +856,7 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignor
         pct_dirty = pct_updates = 0.0;
     } else {
         dirty_needed = __wti_evict_exceeded_dirty_trigger(session, &pct_dirty);
-        has_txn_id =
-          __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id) != WT_TXN_NONE;
-        dirty_busy_needed = has_txn_id && __wti_evict_exceeded_dirty_busy_trigger(session);
+        dirty_busy_needed = __wti_evict_exceeded_dirty_busy_trigger(session);
         updates_needed = __wti_evict_exceeded_updates_trigger(session, &pct_updates);
 
         /*
@@ -903,10 +901,8 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignor
      * it may be holding the very content eviction needs to write, and the next transaction in the
      * session will not start until the cache is under the limit. But if nothing slows the busy
      * sessions, dirty content grows without bound until the whole cache is full. Past the busy
-     * trigger, ask the busy sessions that are writing -- those holding a transaction ID -- for a
-     * small amount of work; the worker caps the attempts so this cannot become an open-ended wait.
-     * Readers busy only through a pinned snapshot or hazard pointers add no dirty content and are
-     * left alone.
+     * trigger, ask busy sessions for a small amount of work; the worker caps the attempts so this
+     * cannot become an open-ended wait.
      */
     return (clean_needed || updates_needed || (busy ? dirty_busy_needed : dirty_needed));
 }
