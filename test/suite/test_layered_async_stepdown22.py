@@ -29,6 +29,7 @@
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
+from wtscenario import make_scenarios
 
 # A tie between the constituents can appear mid-walk with no prepared conflict involved at all: a
 # new transaction context can see a write that lands the alternate on the same key the current
@@ -39,7 +40,13 @@ class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestC
     def conn_config(self):
         return 'statistics=(all),precise_checkpoint=true,disaggregated=(role="leader")'
 
-    scenarios = gen_disagg_storages(disagg_only=True)
+    directions = [
+        ('next', dict(forward=True)),
+        ('prev', dict(forward=False)),
+    ]
+
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages, directions)
 
     uri = 'layered:test_layered_async_stepdown22'
 
@@ -53,10 +60,13 @@ class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'key2')
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'key4')
+        step = cursor.next if self.forward else cursor.prev
+        first_key, second_key, third_key = \
+            ('key2', 'key4', 'key6') if self.forward else ('key6', 'key4', 'key2')
+        self.assertEqual(step(), 0)
+        self.assertEqual(cursor.get_key(), first_key)
+        self.assertEqual(step(), 0)
+        self.assertEqual(cursor.get_key(), second_key)
 
         # A write in the step-down window lands on ingest, matching the key the walk's current
         # (stable) cursor is already parked on. A later read context is needed to see it.
@@ -64,7 +74,7 @@ class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestC
         writer = self.conn.open_session()
         wcursor = writer.open_cursor(self.uri, None, None)
         writer.begin_transaction()
-        wcursor['key4'] = 'v-ingest'
+        wcursor[second_key] = 'v-ingest'
         writer.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
         wcursor.close()
         writer.close()
@@ -75,10 +85,11 @@ class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.commit_transaction()
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
 
-        # The tie on key4 must not be returned twice, and the walk must still reach key6 next
-        # rather than stopping or repeating: a double-step on the stable cursor here would skip it.
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'key6')
+        # The tie on the second key must not be returned twice, and the walk must still reach the
+        # third key next rather than stopping or repeating: a double-step on the stable cursor here
+        # would skip it.
+        self.assertEqual(step(), 0)
+        self.assertEqual(cursor.get_key(), third_key)
 
         self.session.commit_transaction()
         cursor.close()
