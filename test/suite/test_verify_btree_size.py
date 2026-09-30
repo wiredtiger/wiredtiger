@@ -53,10 +53,13 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
     correcting_pattern = r'WT_VERB_VERIFY.*size mismatch detected.*correcting'
 
     def populate(self, uri=None):
+        self.ts_count = getattr(self, 'ts_count', 0) + 1
+        self.session.begin_transaction()
         cursor = self.session.open_cursor(uri or self.uri, None)
         for i in range(self.nentries):
             cursor[str(i)] = str(i) * 100
         cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
         self.session.checkpoint()
 
     def get_ckpt_size(self, stable_uri=None):
@@ -94,6 +97,11 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
 
         real_size = self.get_ckpt_size()
         self.assertGreater(real_size, 0)
+
+        # Reopen so the stable file's dhandle is closed before it gets corrupted below: otherwise
+        # verify would keep consulting the dhandle's cached, pre-corruption checkpoint list and
+        # never see a mismatch to fix.
+        self.reopen_conn()
 
         # Corrupt the checkpoint size in the metadata.
         self.set_ckpt_size(1)
@@ -139,6 +147,11 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         self.populate()
 
         real_size = self.get_ckpt_size()
+
+        # Reopen so the stable file's dhandle is closed before it gets corrupted below: otherwise
+        # verify would keep consulting the dhandle's cached, pre-corruption checkpoint list and
+        # never see a mismatch to fix.
+        self.reopen_conn()
         self.set_ckpt_size(1)
 
         with self.customStdoutPattern(
@@ -164,6 +177,11 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
             self.session.create(uri, 'key_format=S,value_format=S')
             self.populate(uri)
             real_sizes.append(self.get_ckpt_size(stable_uri))
+
+        # Reopen so every stable file's dhandle is closed before corruption below: otherwise
+        # verify would keep consulting a dhandle's cached, pre-corruption checkpoint list and
+        # never see a mismatch to fix.
+        self.reopen_conn()
 
         # Corrupt each table with a distinct bogus size.
         for i, stable_uri in enumerate(stable_uris):

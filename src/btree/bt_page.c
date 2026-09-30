@@ -190,7 +190,7 @@ __page_init_base_leaf_merge_state(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE_HEADER *base_dsk, WTI_BASE_LEAF_MERGE_STATE *s)
 {
     s->entries = base_dsk->u.entries;
-    s->cell = WT_PAGE_HEADER_BYTE(btree, base_dsk);
+    s->cell = WT_PAGE_HEADER_READ_BYTE(session, btree, base_dsk);
     s->unpacked = false;
     s->empty_value_cell = false;
 
@@ -226,7 +226,7 @@ __page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT
 
     for (size_t i = 0; i < delta_size; i++) {
         WT_PAGE_HEADER *tmp = (WT_PAGE_HEADER *)deltas[i].data;
-        s[i].cell = WT_PAGE_HEADER_BYTE(btree, tmp);
+        s[i].cell = WT_PAGE_HEADER_READ_BYTE(session, btree, tmp);
         s[i].entries = tmp->u.entries;
         s[i].unpacked = false;
         WT_RET(__wt_scr_alloc(session, 0, &s[i].current_key));
@@ -284,7 +284,7 @@ static int
 __page_init_dsk_leaf_merge_state(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *new_image, WTI_DISK_LEAF_MERGE_STATE *s)
 {
-    s->cell_ptr = WT_PAGE_HEADER_BYTE(btree, new_image->mem);
+    s->cell_ptr = WT_PAGE_HEADER_WRITE_BYTE(btree, new_image->mem);
     s->all_empty_value = true;
     s->any_empty_value = false;
     s->entries = 0;
@@ -454,8 +454,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     dsk->reserved = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 
-    /* Clear the memory owned by the block manager. */
-    memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
+    btree->bm->block_header_init(btree->bm, session, dsk);
 
 err:
     __wt_scr_free(session, &disk_s.last_key);
@@ -515,7 +514,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
      * pointer, delivering the next pair.
      */
     base_state.dsk = base_image_header;
-    base_state.cell = WT_PAGE_HEADER_BYTE(btree, base_image_header);
+    base_state.cell = WT_PAGE_HEADER_READ_BYTE(session, btree, base_image_header);
     base_state.entries = base_image_header->u.entries;
     base_state.unpacked = false;
 
@@ -534,7 +533,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
         WT_PAGE_HEADER *dhdr = (WT_PAGE_HEADER *)deltas[i].data;
         delta_state[i].base_dsk = base_image_header;
         delta_state[i].delta_dsk = dhdr;
-        delta_state[i].cell = WT_PAGE_HEADER_BYTE(btree, dhdr);
+        delta_state[i].cell = WT_PAGE_HEADER_READ_BYTE(session, btree, dhdr);
         delta_state[i].entries = dhdr->u.entries;
         delta_state[i].unpacked = false;
     }
@@ -548,7 +547,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
      */
     WT_CELL_BASE_INT_UNPACK(session, &base_state);
 
-    cell_ptr = WT_PAGE_HEADER_BYTE(btree, new_image->data);
+    cell_ptr = WT_PAGE_HEADER_WRITE_BYTE(btree, new_image->data);
     /*
      * Initialize the size here since the cell packing function uses it to calculate where to begin
      * writing the first packed key and value data.
@@ -681,6 +680,8 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     hdr->type = WT_PAGE_ROW_INT;
     hdr->reserved = 0;
     hdr->version = WT_PAGE_VERSION_TS;
+
+    btree->bm->block_header_init(btree->bm, session, hdr);
 
 err:
     __wt_free(session, delta_state);
@@ -1223,6 +1224,24 @@ err:
 }
 
 /*
+ * __inmem_deleted_ref_should_dirty_parent --
+ *     Return whether rebuilding deleted references should dirty their internal page.
+ */
+static WT_INLINE bool
+__inmem_deleted_ref_should_dirty_parent(WT_SESSION_IMPL *session)
+{
+    /*
+     * Checkpoint cleanup examines each deleted child after reading a disaggregated page and dirties
+     * the parent if any child can be removed. Other trees and readers retain the existing behavior.
+     * FIXME-WT-18564: local block manager trees rely on this dirtying to reclaim the blocks of
+     * deleted children, so the suppression cannot extend to them until that path is covered.
+     */
+    return (S2BT(session)->modified &&
+      (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
+        session != S2C(session)->cc_cleanup.session));
+}
+
+/*
  * __inmem_col_int_init_ref --
  *     Initialize one ref in a column-store internal page.
  */
@@ -1230,10 +1249,6 @@ static int
 __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, uint32_t hint,
   void *addr, uint64_t recno, bool internal, bool deleted, WT_PAGE_DELETED *page_del)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
     __wt_tsan_suppress_store_wt_page_ptr_v(&ref->home, home);
     ref->pindex_hint = hint;
     ref->addr = addr;
@@ -1254,12 +1269,7 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-        /*
-         * If the tree is already dirty and so will be written, mark the page dirty. (We want to
-         * free the deleted pages, but if the handle is read-only or if the application never
-         * modifies the tree, we're not able to do so.)
-         */
-        if (btree->modified) {
+        if (__inmem_deleted_ref_should_dirty_parent(session)) {
             WT_RET(__wt_page_modify_init(session, home));
             __wt_page_only_modify_set(session, home);
         }
@@ -1420,7 +1430,6 @@ __inmem_col_var(
 static int
 __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_ITEM(current);
     WT_DECL_RET;
@@ -1428,8 +1437,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_REF *ref, **refp;
     uint32_t hint;
     bool overflow_keys;
-
-    btree = S2BT(session);
 
     WT_RET(__wt_scr_alloc(session, 0, &current));
 
@@ -1489,12 +1496,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-            /*
-             * If the tree is already dirty and so will be written, mark the page dirty. (We want to
-             * free the deleted pages, but if the handle is read-only or if the application never
-             * modifies the tree, we're not able to do so.)
-             */
-            if (btree->modified) {
+            if (__inmem_deleted_ref_should_dirty_parent(session)) {
                 WT_ERR(__wt_page_modify_init(session, page));
                 __wt_page_only_modify_set(session, page);
             }

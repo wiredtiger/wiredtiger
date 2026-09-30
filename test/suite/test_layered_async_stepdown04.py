@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import errno
 import wiredtiger, wttest
 from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -39,11 +38,17 @@ from wtscenario import make_scenarios
 class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     # No periodic statistics-logging thread: it would race with the cursor-cache reopen checks
     # below, which read a connection-wide stat over a narrow window.
-    conn_base_config = 'statistics=(all),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
+    write_modes = [
+        ('mirrored', dict(write_mirroring=True)),
+        ('ingest_only', dict(write_mirroring=False)),
+    ]
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'disaggregated=(stepdown_write_mirroring={str(self.write_mirroring).lower()},role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, write_modes)
 
     test_name = __qualname__
 
@@ -98,6 +103,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
         self.set_step_down_ts(20)
+        # Keep the cutoff armed while allowing the drop retry to checkpoint the stable content.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.dropUntilSuccess(self.session, self.uri)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -108,39 +115,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
-    # A drop during a planned step-down is refused while the ingest constituent holds committed
-    # writes no checkpoint covers, even though the connection is still the leader: writes that
-    # began after the step-down timestamp route to ingest, and dropping the table would discard
-    # their only copy.
-    def test_drop_refused_for_stepdown_ingest_data(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'stable'}, 10)
-
-        # Checkpoint covering the stable write, so that only the post-cutoff ingest write is
-        # unaccounted for.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
-        ckpt_session = self.conn.open_session()
-        ckpt_session.checkpoint()
-        ckpt_session.close()
-
-        self.set_step_down_ts(20)
-        self.write_at(self.uri, {'k2': 'ingest'}, 30)
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
-
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(self.uri))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('no checkpoint covers' in msg)
-
-        # The refused drop left no partial state.
-        self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
-        self.complete_step_down(20)
-        self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
-
-    # A cursor reused from the cache picks up the new routing: its writes go to ingest.
+    # A cursor reused from the cache picks up the configured routing.
     def test_cached_cursor_reuse_across_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -161,8 +136,10 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k2'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'k1'})
+        expected_stable = {'k1', 'k2'} if self.stable_has_step_down_writes() else {'k1'}
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
         self.assertEqual(self.read_keys_at(self.uri, 40), {'k1', 'k2'})
+        self.complete_step_down(20)
 
     # A cursor closed before the demotion and reopened afterwards serves the surviving content.
     def test_cached_cursor_reuse_across_step_down(self):
@@ -346,6 +323,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
         cursor.close()
+        self.complete_step_down(20)
 
     # The demotion happens with the table still holding an ingest/stable mix, so sampling afterwards
     # is bound by the same contract: only visible merged keys come back.

@@ -11,7 +11,8 @@
  * then drives a one-second-tick timeline: a role switch every -s seconds (directed through the
  * switch-request sentinel and confirmed through the numbered switch-done sentinel), SIGKILLs at the
  * -k times (targeting whichever node currently holds the role), and a graceful stop at the -t
- * timeout. Children dying at any other point fail the test.
+ * timeout, or as soon as every node has been killed. Children dying at any other point fail the
+ * test.
  *
  * Afterwards the parent reopens the surviving state and verifies it against the record files. It
  * never opens WiredTiger while children are running.
@@ -111,8 +112,6 @@ spawn_node(const TEST_CONFIG *cfg, const char *self_path, uint32_t node_id, bool
     argv[n++] = pool_arg;
     if (cfg->epoch_less)
         argv[n++] = "-e";
-    if (cfg->unique_tables)
-        argv[n++] = "-q";
     /* The node bounds how far its generator runs ahead so a hand-over drains inside a period. */
     if (cfg->switch_interval != 0) {
         argv[n++] = "-s";
@@ -310,7 +309,11 @@ run_children(TEST_CONFIG *cfg, const char *self_path)
     uint32_t next_switch = cfg->switch_interval;
 
     for (uint32_t elapsed = 1; elapsed <= cfg->total_time; ++elapsed) {
-        (void)children_poll(children); /* Dying on its own fails the test. */
+        /* Dying on its own fails the test; with every node killed, nothing is left to run. */
+        if (children_poll(children) == 0) {
+            println("Parent: every node was killed; ending the run");
+            break;
+        }
         sleep(1);
 
         /* Kills first: overlapping a kill with a same-tick switch is the interesting order. */
@@ -363,8 +366,8 @@ open_for_recovery(const TEST_CONFIG *cfg, uint32_t node_id, WT_CONNECTION **conn
     disagg_opts_init(cfg);
     cfg->opts->disagg.mode = "leader";
 
-    testutil_wiredtiger_open(cfg->opts, home_dir, "create,disaggregated=(lose_all_my_data=true)",
-      NULL, connp, true, false);
+    testutil_wiredtiger_open(
+      cfg->opts, home_dir, "create,disaggregated=(lose_all_my_data=true)", NULL, connp, true);
 }
 
 /*

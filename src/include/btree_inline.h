@@ -43,9 +43,9 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 {
-    return ((F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
-              F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY)) &&
-      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
+      __wt_atomic_load_bool_relaxed(&session->dhandle->outdated));
 }
 
 /*
@@ -394,7 +394,10 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     bool is_disagg = __wt_conn_is_disagg(session);
 
     WT_CACHE_INCR(is_disagg, btree, cache, bytes_inmem, size);
-    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    uint64_t tree_inmem = __wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    if (tree_inmem >=
+      __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_INMEM]))
+        __wt_cache_top_track(session, btree, WT_CACHE_TOP_INMEM, tree_inmem);
     if (WT_PAGE_IS_INTERNAL(page)) {
         WT_CACHE_INCR(is_disagg, btree, cache, bytes_internal, size);
         (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_internal, size);
@@ -405,7 +408,10 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
         __txn_incr_bytes_dirty(session, size, new_update);
         if (!WT_PAGE_IS_INTERNAL(page)) {
             WT_CACHE_INCR(is_disagg, btree, cache, bytes_updates, size);
-            (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            uint64_t tree_updates = __wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            if (tree_updates >=
+              __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_UPDATES]))
+                __wt_cache_top_track(session, btree, WT_CACHE_TOP_UPDATES, tree_updates);
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_updates, size);
         }
         if (__wt_page_is_modified(page)) {
@@ -414,7 +420,11 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                 (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_intl, size);
             } else {
                 WT_CACHE_INCR(is_disagg, btree, cache, bytes_dirty_leaf, size);
-                (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                uint64_t tree_dirty =
+                  __wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                if (tree_dirty >=
+                  __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_DIRTY]))
+                    __wt_cache_top_track(session, btree, WT_CACHE_TOP_DIRTY, tree_dirty);
             }
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
         }
@@ -2059,10 +2069,14 @@ __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGA
 
 /*
  * __wt_ref_block_free --
- *     Free the on-disk block for a reference and clear the address.
+ *     Free the on-disk block for a reference and clear the address. A disaggregated block is only
+ *     freed when asked for, the page id is otherwise reused by the next write. When the block
+ *     survives and the caller has written a full page image, the delta chain it headed is obsolete
+ *     and its cumulative size stops counting toward the tree.
  */
 static WT_INLINE int
-__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block)
+__wt_ref_block_free(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block, bool disagg_delta_chain_end)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -2075,7 +2089,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
     else if (disagg_free_block) {
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
-        if (ref->page != NULL)
+        if (ref->page != NULL && ref->page->disagg_info != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
 
@@ -2083,6 +2097,17 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
     __wt_ref_addr_free(session, ref);
 
 err:
+    /*
+     * The chain is tracked against the page id in the shared store, so obsolete it whenever the
+     * page id survives, including for a page rebuilt in memory that carries a page id but no local
+     * address. Only adjust the accounting once nothing can fail.
+     */
+    if (ret == 0 && !disagg_free_block && disagg_delta_chain_end && ref->page != NULL &&
+      ref->page->disagg_info != NULL &&
+      ref->page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
+        __wt_block_disagg_decrease_size(
+          session, ref->page->disagg_info->block_meta.cumulative_size);
+
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (ret);
 }
@@ -2993,6 +3018,9 @@ __wt_btcur_skip_page(
      * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
      * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
      * describes the whole subtree, and skipping it skips the subtree.
+     *
+     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
+     * evaluated through its address cell.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
         goto unlock;

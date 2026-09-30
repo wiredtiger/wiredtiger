@@ -194,6 +194,10 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t oldest_id;
 
     wt_shared wt_timestamp_t durable_timestamp;
+    /*
+     * All accesses are relaxed: the value never orders other memory. Writers and the in-engine
+     * readers hold the checkpoint lock, and query_timestamp only returns it.
+     */
     wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
     /*
      * Release-stored by checkpoint once its durable state is established, acquire-loaded by sweep
@@ -332,8 +336,7 @@ struct __wt_txn_op {
     } u;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TXN_OP_FROM_TRUNCATE 0x1u
-#define WT_TXN_OP_KEY_REPEATED 0x2u
+#define WT_TXN_OP_KEY_REPEATED 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
@@ -448,8 +451,8 @@ struct __wt_txn {
 
     /*
      * True if the step-down timestamp was set when this transaction began. Used to redirect the
-     * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
-     * straddlers.
+     * transaction's writes to the ingest constituent (or mirrored to both stable and ingest when
+     * write mirroring is enabled), to include ingest in its reads, and to detect straddlers.
      */
     bool stepdown_ts_set;
     /*
@@ -519,11 +522,10 @@ struct __wt_txn {
 #define WT_TXN_SHARED_TS_DURABLE 0x00800u
 #define WT_TXN_SHARED_TS_READ 0x01000u
 #define WT_TXN_SYNC_SET 0x02000u
-#define WT_TXN_TRUNCATE 0x04000u
-#define WT_TXN_TS_NOT_SET 0x08000u
-#define WT_TXN_TS_ROUND_PREPARED 0x10000u
-#define WT_TXN_TS_ROUND_READ 0x20000u
-#define WT_TXN_UPDATE 0x40000u
+#define WT_TXN_TS_NOT_SET 0x04000u
+#define WT_TXN_TS_ROUND_PREPARED 0x08000u
+#define WT_TXN_TS_ROUND_READ 0x10000u
+#define WT_TXN_UPDATE 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
