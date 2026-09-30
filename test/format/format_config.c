@@ -1522,29 +1522,19 @@ config_disagg_storage(void)
     config_off(NULL, "background_compact");
 }
 
-/*
- * Memory the victim cache may use across all of the page log's handles, per run. The page log takes
- * an entry count per handle and reports nothing back, so the count is estimated rather than
- * measured, and a multi-node run spends this much in each of its nodes.
- *
- * The budget is the smaller of this ceiling and a fifth of the cache. Precise checkpoints hold the
- * cache at 3GB or more, so the ceiling is what a normal run gets; the fraction only takes over when
- * a run is configured with very little memory.
- *
- * The estimate has to cover the handles the run does not ask for: the shared metadata, the history
- * store and the layered constituents open their own, which outnumber the tables when a run has few
- * of them. Over-estimating only shrinks the cache, so the divisor is rounded up rather than fitted.
- */
+/* Memory the victim cache may use across all of the page log's handles, per run, per node. */
 #define VICTIM_CACHE_BUDGET_MB 128
 
 /* Per-entry bookkeeping beyond the image: key, restored metadata, vector and hash table nodes. */
 #define VICTIM_CACHE_ENTRY_OVERHEAD 128
 
-/*
- * The budget buys fewer entries as pages grow. Past this size it buys so few that the cache cannot
- * hold a useful working set, so decline rather than run one that does nothing. Randomized runs top
- * out at half this size, so only an explicitly configured page size reaches it.
- */
+/* Handles beyond one per table: shared metadata, history store, layered constituents. */
+#define VICTIM_CACHE_EXTRA_HANDLES 6
+
+/* Handles a run opens even when it has few tables. */
+#define VICTIM_CACHE_MIN_HANDLES 12
+
+/* Leaf page size past which the budget buys too few entries to be worth caching. */
 #define VICTIM_CACHE_MAX_PAGE_SIZE (256 * WT_KILOBYTE)
 
 #define VICTIM_CACHE_MIN_ENTRIES 16
@@ -1612,12 +1602,12 @@ config_disagg_victim_cache(void)
               max_leaf_page / WT_KILOBYTE);
             config_off(NULL, "disagg.victim_cache");
         } else {
-            /*
-             * Images are compressed before caching, so this sizing stays under the budget rather
-             * than over it.
-             */
+            /* Both terms round up: over-estimating shrinks the victim cache, which is safe. */
             image_size = max_leaf_page + VICTIM_CACHE_ENTRY_OVERHEAD;
-            handles = WT_MAX((ntables == 0 ? 1 : ntables) + 6, 12);
+            handles = WT_MAX(
+              (ntables == 0 ? 1 : ntables) + VICTIM_CACHE_EXTRA_HANDLES, VICTIM_CACHE_MIN_HANDLES);
+
+            /* Spend the budget over and above the cache, as the block cache share is spent. */
             budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
             entries = budget / (handles * image_size);
 
