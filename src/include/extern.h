@@ -369,6 +369,8 @@ extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close_connection_close(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_col_leaf_attach_upd(WT_CURSOR_BTREE *cbt, WT_REF *ref, uint64_t recno,
+  WT_UPDATE **updp, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value,
   WT_UPDATE **updp_arg, u_int modify_type, bool exclusive, bool restore)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -964,6 +966,8 @@ extern int __wt_rollback_to_stable_reconfig(WT_SESSION_IMPL *session, const char
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_ikey_alloc(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
   size_t size, WT_IKEY **ikeyp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_row_leaf_attach_upd(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ROW *rip,
+  WT_UPDATE **updp, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_leaf_key_copy(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
   WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_leaf_key_work(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg,
