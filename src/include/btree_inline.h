@@ -2991,6 +2991,13 @@ __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
         if (!visible)
             return (false);
+
+        /* A stable checkpoint handle is immutable, so its children cannot invalidate the aggregate.
+         */
+        if (F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
+          WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name))
+            return (true);
+
         if (children_validated)
             return (true);
 

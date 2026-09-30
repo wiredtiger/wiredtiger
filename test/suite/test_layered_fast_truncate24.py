@@ -126,6 +126,16 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         conn_follow, session_follow = self.open_follower(self.table_config)
         try:
+            self.assertEqual(
+                self.scan_keys(session_follow, 10), list(range(1, self.nrows + 1)))
+
+            resident_before = self.skip_stats(conn_follow)[1]
+            self.assertEqual(
+                self.scan_keys(session_follow, 25), list(range(801, self.nrows + 1)))
+            resident_after = self.skip_stats(conn_follow)[1]
+            self.assertGreater(resident_after, resident_before,
+                'follower did not skip a deleted resident stable subtree')
+
             disk_before, resident_before = self.skip_stats(conn_follow)
             fast_before = self.get_stat(stat.conn.rec_page_delete_fast, conn=conn_follow)
 
