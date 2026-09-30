@@ -28,16 +28,6 @@
 
 #include "format.h"
 
-/*
- * The result the mirrors in a group are expected to agree on, carried across the tables of a single
- * operation. Valid is false until a comparable table has run, so an exempt read neither compares
- * against nor becomes the reference.
- */
-typedef struct {
-    int op_ret;
-    bool valid;
-} MIRROR_REF;
-
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
 static void clear_bounds(WT_CURSOR *);
 static int col_insert(TINFO *);
@@ -850,8 +840,8 @@ typedef enum {
  *     reference the remaining tables are checked against.
  */
 static void
-mirror_check(
-  TINFO *tinfo, MIRROR_REF *ref, iso_level_t iso_level, thread_op op, const char *reference)
+mirror_check(TINFO *tinfo, iso_level_t iso_level, thread_op op, int *expect_retp, bool *expect_setp,
+  const char *reference)
 {
     TABLE *table;
 
@@ -869,17 +859,18 @@ mirror_check(
       !(op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read))
         return;
 
-    if (ref->valid && tinfo->op_ret != ref->op_ret)
+    if (*expect_setp && tinfo->op_ret != *expect_retp)
         testutil_die(0, "mirror mismatch: op %d on table %s returned %d, expected %d (%s)", (int)op,
-          table->uri, tinfo->op_ret, ref->op_ret, reference);
-    if (ref->valid && op == READ && tinfo->op_ret == 0 &&
+          table->uri, tinfo->op_ret, *expect_retp, reference);
+    if (*expect_setp && op == READ && tinfo->op_ret == 0 &&
       (tinfo->value->size != tinfo->mirror_value.size ||
         memcmp(tinfo->value->data, tinfo->mirror_value.data, tinfo->value->size) != 0))
         testutil_die(
           0, "mirror value mismatch: read on table %s differs (%s)", table->uri, reference);
 
-    ref->op_ret = tinfo->op_ret;
-    ref->valid = true;
+    /* This table's result is what the rest of the group is checked against. */
+    *expect_retp = tinfo->op_ret;
+    *expect_setp = true;
     if (op == READ && tinfo->op_ret == 0)
         testutil_check(
           __wt_buf_set(NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
@@ -1154,7 +1145,6 @@ ops_session_open(TINFO *tinfo)
 static WT_THREAD_RET
 ops(void *arg)
 {
-    MIRROR_REF mirror_ref;
     TINFO *tinfo;
     TABLE *skip1, *skip2, *table;
     WT_DECL_RET;
@@ -1165,9 +1155,9 @@ ops(void *arg)
     uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd, snap_retries;
     u_int i, rlog_table_id, throttle_delay_max;
-    int rlog_ret;
+    int expect_ret, rlog_ret;
     const char *iso_config, *rlog_op_name;
-    bool greater_than, intxn, pause_writes, prepared, mirrored_truncate;
+    bool expect_set, greater_than, intxn, pause_writes, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1488,7 +1478,8 @@ rollback_retry:
 
         ret = 0;
         skip1 = skip2 = NULL;
-        memset(&mirror_ref, 0, sizeof(mirror_ref));
+        expect_ret = 0;
+        expect_set = false;
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
@@ -1509,8 +1500,8 @@ rollback_retry:
                 goto skip_operation;
 
             skip1 = g.base_mirror;
-            mirror_ref.op_ret = tinfo->op_ret;
-            mirror_ref.valid = true;
+            expect_ret = tinfo->op_ret;
+            expect_set = true;
         }
         if (ret == 0 && table != skip1) {
             tinfo->table = table;
@@ -1522,7 +1513,7 @@ rollback_retry:
                 rlog_ret = tinfo->op_ret;
 
             if (ret == 0)
-                mirror_check(tinfo, &mirror_ref, iso_level, op, "the base mirror");
+                mirror_check(tinfo, iso_level, op, &expect_ret, &expect_set, "the base mirror");
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1544,8 +1535,8 @@ rollback_retry:
                         goto rollback;
                     if (ret == WT_ROLLBACK)
                         break;
-                    mirror_check(
-                      tinfo, &mirror_ref, iso_level, op, "an earlier mirror in the same group");
+                    mirror_check(tinfo, iso_level, op, &expect_ret, &expect_set,
+                      "an earlier mirror in the same group");
                 }
         }
 skip_operation:
