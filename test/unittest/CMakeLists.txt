@@ -12,6 +12,7 @@ else()
         tests/test_bounds_restore.cpp
         tests/test_checkpoint_skip.cpp
         tests/test_crc32.cpp
+        tests/test_dhandle_ebusy.cpp
         tests/test_error.cpp
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
