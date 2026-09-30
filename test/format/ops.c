@@ -28,6 +28,16 @@
 
 #include "format.h"
 
+/*
+ * The result the mirrors in a group are expected to agree on, carried across the tables of a single
+ * operation. Valid is false until a comparable table has run, so an exempt read neither compares
+ * against nor becomes the reference.
+ */
+typedef struct {
+    int op_ret;
+    bool valid;
+} MIRROR_REF;
+
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
 static void clear_bounds(WT_CURSOR *);
 static int col_insert(TINFO *);
@@ -835,6 +845,47 @@ typedef enum {
     } while (0)
 
 /*
+ * mirror_check --
+ *     Check the table that just ran against the rest of its mirror group, then make its result the
+ *     reference the remaining tables are checked against.
+ */
+static void
+mirror_check(
+  TINFO *tinfo, MIRROR_REF *ref, iso_level_t iso_level, thread_op op, const char *reference)
+{
+    TABLE *table;
+
+    table = tinfo->table;
+
+    /*
+     * Mirrors must see the same key space: a remove or blind modify must find the key on every
+     * mirror or none, and a snapshot-isolation read must see the same value too. A read under a
+     * weaker isolation level, or with cursor bounds applied, is exempt -- both can legitimately
+     * disagree across mirrors with no divergence involved. Insert, truncate, and update need no
+     * such check: the first two can't reach here except successfully, and truncate has its own
+     * range-based mirror verification.
+     */
+    if (op != MODIFY && op != REMOVE &&
+      !(op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read))
+        return;
+
+    if (ref->valid && tinfo->op_ret != ref->op_ret)
+        testutil_die(0, "mirror mismatch: op %d on table %s returned %d, expected %d (%s)", (int)op,
+          table->uri, tinfo->op_ret, ref->op_ret, reference);
+    if (ref->valid && op == READ && tinfo->op_ret == 0 &&
+      (tinfo->value->size != tinfo->mirror_value.size ||
+        memcmp(tinfo->value->data, tinfo->mirror_value.data, tinfo->value->size) != 0))
+        testutil_die(
+          0, "mirror value mismatch: read on table %s differs (%s)", table->uri, reference);
+
+    ref->op_ret = tinfo->op_ret;
+    ref->valid = true;
+    if (op == READ && tinfo->op_ret == 0)
+        testutil_check(
+          __wt_buf_set(NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
+}
+
+/*
  * table_op --
  *     Per-thread table operation.
  */
@@ -1103,6 +1154,7 @@ ops_session_open(TINFO *tinfo)
 static WT_THREAD_RET
 ops(void *arg)
 {
+    MIRROR_REF mirror_ref;
     TINFO *tinfo;
     TABLE *skip1, *skip2, *table;
     WT_DECL_RET;
@@ -1113,9 +1165,9 @@ ops(void *arg)
     uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd, snap_retries;
     u_int i, rlog_table_id, throttle_delay_max;
-    int mirror_op_ret, rlog_ret;
+    int rlog_ret;
     const char *iso_config, *rlog_op_name;
-    bool greater_than, intxn, mirror_ref_valid, pause_writes, prepared, mirrored_truncate;
+    bool greater_than, intxn, pause_writes, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1139,7 +1191,6 @@ ops(void *arg)
     }
 
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
-    mirror_op_ret = 0;              /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
 
@@ -1437,7 +1488,7 @@ rollback_retry:
 
         ret = 0;
         skip1 = skip2 = NULL;
-        mirror_ref_valid = false;
+        memset(&mirror_ref, 0, sizeof(mirror_ref));
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
@@ -1458,8 +1509,8 @@ rollback_retry:
                 goto skip_operation;
 
             skip1 = g.base_mirror;
-            mirror_op_ret = tinfo->op_ret;
-            mirror_ref_valid = true;
+            mirror_ref.op_ret = tinfo->op_ret;
+            mirror_ref.valid = true;
         }
         if (ret == 0 && table != skip1) {
             tinfo->table = table;
@@ -1470,35 +1521,8 @@ rollback_retry:
             if (GV(RUNS_PREDICTABLE_REPLAY))
                 rlog_ret = tinfo->op_ret;
 
-            /*
-             * Mirrors must see the same key space: a remove or blind modify must find the key on
-             * every mirror or none, and a snapshot-isolation read must see the same value too. A
-             * read under a weaker isolation level, or with cursor bounds applied, is exempt -- both
-             * can legitimately disagree across mirrors with no divergence involved. Compare against
-             * the first mirror seen this operation, then let this table's result become the
-             * reference for the rest of the group, checked further below. Insert, truncate, and
-             * update need no such check: the first two can't reach here except successfully, and
-             * truncate has its own range-based mirror verification.
-             */
-            if (ret == 0 &&
-              (op == MODIFY || op == REMOVE ||
-                (op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read))) {
-                if (mirror_ref_valid && tinfo->op_ret != mirror_op_ret)
-                    testutil_die(0,
-                      "mirror mismatch: op %d on table %s returned %d, expected %d (to match table "
-                      "%s)",
-                      (int)op, table->uri, tinfo->op_ret, mirror_op_ret, skip1->uri);
-                if (mirror_ref_valid && op == READ && tinfo->op_ret == 0 &&
-                  (tinfo->value->size != tinfo->mirror_value.size ||
-                    memcmp(tinfo->value->data, tinfo->mirror_value.data, tinfo->value->size) != 0))
-                    testutil_die(0, "mirror value mismatch: READ on table %s differs from table %s",
-                      table->uri, skip1->uri);
-                mirror_op_ret = tinfo->op_ret;
-                mirror_ref_valid = true;
-                if (op == READ && tinfo->op_ret == 0)
-                    testutil_check(__wt_buf_set(
-                      NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
-            }
+            if (ret == 0)
+                mirror_check(tinfo, &mirror_ref, iso_level, op, "the base mirror");
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1520,28 +1544,8 @@ rollback_retry:
                         goto rollback;
                     if (ret == WT_ROLLBACK)
                         break;
-                    if (op == MODIFY || op == REMOVE ||
-                      (op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read)) {
-                        if (mirror_ref_valid && tinfo->op_ret != mirror_op_ret)
-                            testutil_die(0,
-                              "mirror mismatch: op %d on table %s returned %d, expected %d (from "
-                              "an "
-                              "earlier mirror in the same group)",
-                              (int)op, tables[i]->uri, tinfo->op_ret, mirror_op_ret);
-                        if (mirror_ref_valid && op == READ && tinfo->op_ret == 0 &&
-                          (tinfo->value->size != tinfo->mirror_value.size ||
-                            memcmp(tinfo->value->data, tinfo->mirror_value.data,
-                              tinfo->value->size) != 0))
-                            testutil_die(0,
-                              "mirror value mismatch: READ on table %s differs from an earlier "
-                              "mirror in the same group",
-                              tables[i]->uri);
-                        mirror_op_ret = tinfo->op_ret;
-                        mirror_ref_valid = true;
-                        if (op == READ && tinfo->op_ret == 0)
-                            testutil_check(__wt_buf_set(
-                              NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
-                    }
+                    mirror_check(
+                      tinfo, &mirror_ref, iso_level, op, "an earlier mirror in the same group");
                 }
         }
 skip_operation:
