@@ -54,6 +54,13 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     *pagep = NULL;
 
     /*
+     * The page is being freed: make sure the dirty-to-clean transition below cannot put it back into
+     * eviction data structures. The caller's reference has just been cleared, so a re-enqueue would
+     * see ref->page == NULL. The flag is sticky and is set again below for the normal path.
+     */
+    page->evict_data.destroying = true;
+
+    /*
      * Ensure that we are not evicting a page ahead of the materialization frontier, unless we are
      * simply discarding the page due to the dhandle being dead or the connection close.
      *

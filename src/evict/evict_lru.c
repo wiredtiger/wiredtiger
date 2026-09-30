@@ -2456,6 +2456,19 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 
     WT_ASSERT(session, ref->page != NULL);
     page = ref->page;
+
+    /*
+     * Mark a page being destroyed before anything else, and regardless of whether it is still
+     * queued. A page picked by __evict_get_ref has already been dequeued (bucket and subq are
+     * NULL), so the early return below would otherwise skip the flag. Without it, the dirty-to-clean
+     * transition in __wt_page_out (dead tree or connection close) re-enqueues the page through
+     * __wt_evict_page_set_clean after the caller's ref->page has already been cleared, and
+     * __wt_evict_enqueue_page dereferences a NULL page. The flag is sticky, so setting it early is
+     * harmless if we take the early return.
+     */
+    if (destroying)
+        page->evict_data.destroying = true;
+
     if (WT_EVICT_PAGE_CLEARED(page))
         return;
 
@@ -2499,8 +2512,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
     }
     page->evict_data.bucket = NULL;
-    if (destroying)
-        page->evict_data.destroying = true; /* sticky flag, once set can't unset */
  done:
     if (must_unlock_ref)
         WT_REF_UNLOCK(ref, previous_state);
@@ -2524,6 +2535,10 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     rechecked = false;
     page = ref->page;
     previous_state = WT_REF_GET_STATE(ref);
+
+    /* A ref whose page has already been detached (see __wt_page_out) has nothing to enqueue. */
+    if (page == NULL)
+        return;
 
     /*
      * If the page isn't valid there is no need to put it into eviction data structures. We can get
@@ -2803,8 +2818,14 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 void
 __wt_evict_page_set_clean(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    /* Move the page to the right bucketset */
-    if (!page->evict_data.destroying && page->ref != NULL && page->evict_data.dhandle != NULL) {
+    /*
+     * Move the page to the right bucketset. Skip pages being destroyed and pages whose ref no longer
+     * points back at them: __wt_page_out clears ref->page before it marks a dead-tree page clean,
+     * and the split error paths can leave a page whose ref has been discarded. Neither page should
+     * go back into eviction data structures.
+     */
+    if (!page->evict_data.destroying && page->ref != NULL && page->ref->page == page &&
+      page->evict_data.dhandle != NULL) {
         __wt_evict_enqueue_page(session, page->ref);
         WT_STAT_CONN_INCR(session, eviction_pages_set_clean);
     }
