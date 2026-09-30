@@ -965,7 +965,12 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
         return;
     }
 
-    /* Read the victim cache statistics in one place. */
+    /*
+     * The BLOCK_CACHE names are historical: eviction increments all of these on the page log cache
+     * path, never on the block cache.
+     *
+     * FIXME-WT-18764: read the disagg_victim_cache_* names once the statistics are renamed.
+     */
     wt_wrap_open_cursor(session, "statistics:", NULL, &cursor);
     puts = stats_conn_value(cursor, WT_STAT_CONN_BLOCK_CACHE_PUTS);
     app_puts = stats_conn_value(cursor, WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUTS);
