@@ -1726,9 +1726,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             /* Build a key. */
             recno = WT_INSERT_RECNO(supd->ins);
 
-            /* Search the page. */
-            WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
-
             /*
              * If we write a prepared update to disk and we need to restore the update chain, we
              * will find we have already instantiated a prepared update (possibly with a prepared
@@ -1740,7 +1737,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                     ;
 
             /* Apply the modification. */
-            WT_ERR(__wt_col_modify(&cbt, recno, NULL, &upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_col_leaf_attach_upd(&cbt, ref, recno, &upd, true));
 
             if (last_upd != NULL && last_upd->next != NULL) {
                 WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));

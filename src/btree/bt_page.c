@@ -908,21 +908,6 @@ err:
 }
 
 /*
- * __page_inmem_update_col --
- *     Shared code for calling __page_inmem_prepare_update on columns.
- */
-static int
-__page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
-{
-    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp));
-
-    /* Search the page and apply the modification. */
-    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    return (__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
-}
-
-/*
  * __wti_page_inmem_updates --
  *     Instantiate updates.
  */
@@ -988,23 +973,13 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
-                WT_ERR(__page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd));
+                WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd));
+                WT_ERR(__wt_col_leaf_attach_upd(&cbt, ref, recno, &upd, true));
                 upd = NULL;
             }
         }
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
-        /*
-         * We already know each row's slot from WT_ROW_FOREACH, so position the cursor directly
-         * instead of calling __wt_row_search (which would binary search for a slot we already
-         * have).
-         *
-         * When compare=0 and ins=NULL, __wt_row_modify writes to mod_row_update[slot] and never
-         * reaches the insert path where the key parameter is required.
-         */
-        __cursor_pos_clear(&cbt);
-        cbt.ref = ref;
-        cbt.compare = 0;
         WT_ROW_FOREACH (page, rip, i) {
             /* Search for prepare records. */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
@@ -1017,10 +992,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
               "Should never read an overflow removed value for a prepared update");
 
             WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd));
-
-            cbt.slot = WT_ROW_SLOT(page, rip);
-            cbt.ref = ref;
-            WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_row_leaf_attach_upd(&cbt, ref, rip, &upd, true));
             upd = NULL;
         }
     }
