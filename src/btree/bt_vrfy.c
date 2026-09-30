@@ -650,9 +650,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
           "violation as the ingest table does not get checkpointed.",
           name);
 
-    /* Inform the underlying block manager we're verifying. */
-    WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
+    /* Set before the call, a failed start can leave state that only verify end frees. */
     bm_start = true;
+    WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
 
     /*
      * Announce the object being verified. Info-level verify messages are normally disabled in
@@ -976,6 +976,9 @@ __verify_tree(
         printf("%s  %s%s", __tree_stack(vs), F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "",
           F_ISSET(ref, WT_REF_FLAG_LEAF) ? "LEAF" : "");
     }
+
+    if (!__wt_ref_type_matches_page(ref, page->type))
+        WT_RET_MSG(session, WT_ERROR, "page type does not match reference type");
 
     /*
      * The page's physical structure was verified when it was read into memory by the read server
