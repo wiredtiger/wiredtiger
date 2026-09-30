@@ -1523,15 +1523,17 @@ config_disagg_storage(void)
 }
 
 /*
- * The page log bounds its victim cache by entry count, per handle, and format varies the leaf page
- * size by a factor of 256 between runs, so a fixed count commits wildly different memory from one
- * run to the next. Derive the count from a byte budget instead.
+ * Memory the victim cache may use across all of the page log's handles, per run. The page log takes
+ * an entry count per handle and reports nothing back, so the count is estimated rather than
+ * measured, and a multi-node run spends this much in each of its nodes.
  *
- * The budget is also capped at a fifth of the cache, the share the block cache takes, so that a run
- * configured with little memory does not hand the page log more than the cache itself.
+ * The budget is the smaller of this ceiling and a fifth of the cache. Precise checkpoints hold the
+ * cache at 3GB or more, so the ceiling is what a normal run gets; the fraction only takes over when
+ * a run is configured with very little memory.
  *
- * TODO: review this ceiling against what a test host can spare; it is a conservative guess rather
- * than a measured number. A byte bound in the page log would remove the need to estimate it.
+ * The estimate has to cover the handles the run does not ask for: the shared metadata, the history
+ * store and the layered constituents open their own, which outnumber the tables when a run has few
+ * of them. Over-estimating only shrinks the cache, so the divisor is rounded up rather than fitted.
  */
 #define VICTIM_CACHE_BUDGET_MB 128
 
@@ -1539,11 +1541,9 @@ config_disagg_storage(void)
 #define VICTIM_CACHE_ENTRY_OVERHEAD 128
 
 /*
- * Above this page size the budget buys too few entries to behave like a cache, so decline rather
- * than report one that is nominally enabled.
- *
- * TODO: review this ceiling once the per-run statistics show how many entries a run needs to see a
- * hit.
+ * The budget buys fewer entries as pages grow. Past this size it buys so few that the cache cannot
+ * hold a useful working set, so decline rather than run one that does nothing. Randomized runs top
+ * out at half this size, so only an explicitly configured page size reaches it.
  */
 #define VICTIM_CACHE_MAX_PAGE_SIZE (256 * WT_KILOBYTE)
 
@@ -1594,7 +1594,7 @@ config_disagg_victim_cache(void)
              * than over it.
              */
             image_size = max_leaf_page + VICTIM_CACHE_ENTRY_OVERHEAD;
-            handles = (ntables == 0 ? 1 : ntables) + 3;
+            handles = WT_MAX((ntables == 0 ? 1 : ntables) + 6, 12);
             budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
             entries = budget / (handles * image_size);
 
@@ -1626,7 +1626,7 @@ config_disagg_victim_cache(void)
      * the btree's encryptor, so an encrypted table reads back a block the read path rejects as
      * corrupt. Turn off encryption rather than the cache, so the run still exercises the cache.
      *
-     * TODO: remove this once eviction skips encrypted tables.
+     * FIXME-WT-18794: remove this once eviction skips encrypted tables for the victim cache.
      */
     if (strcmp(GVS(DISK_ENCRYPTION), "off") != 0) {
         if (config_explicit(NULL, "disk.encryption"))
