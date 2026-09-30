@@ -35,8 +35,7 @@ struct event_handler : WT_EVENT_HANDLER {
     message_log *log;
 };
 
-extern "C"
-int
+extern "C" int
 record_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
     message_log *log = static_cast<event_handler *>(handler)->log;
@@ -69,8 +68,8 @@ called_method(const std::string &message)
     if (start == std::string::npos)
         return ("");
     const std::size_t end = message.find_first_of(" \n", start + call.size());
-    return (message.substr(start + call.size(),
-        end == std::string::npos ? end : end - start - call.size()));
+    return (message.substr(
+      start + call.size(), end == std::string::npos ? end : end - start - call.size()));
 }
 
 /* The label of the first recorded message containing the text. */
@@ -99,15 +98,16 @@ TEST_CASE("Connection API: messages are labeled with the connection method", "[c
 
     char ts[WT_TS_HEX_STRING_SIZE];
     (void)wt_conn->query_timestamp(wt_conn, ts, "get=all_durable");
-    REQUIRE(label_of(log, "CALL: WT_CONNECTION:query_timestamp") == "WT_CONNECTION.query_timestamp");
+    REQUIRE(
+      label_of(log, "CALL: WT_CONNECTION:query_timestamp") == "WT_CONNECTION.query_timestamp");
 
     /* Once the method returns, the default session reports its own name again. */
     __wt_verbose(default_session, WT_VERB_API, "%s", "outside any connection method");
     REQUIRE(label_of(log, "outside any connection method") == default_session->name);
 }
 
-TEST_CASE("Connection API: a nested connection call restores the outer method's name",
-  "[conn_api_name]")
+TEST_CASE(
+  "Connection API: a nested connection call restores the outer method's name", "[conn_api_name]")
 {
     message_log log;
     event_handler wrap = {};
@@ -135,7 +135,8 @@ TEST_CASE("Connection API: a nested connection call restores the outer method's 
     log.on_message = nullptr;
 
     REQUIRE(nested);
-    REQUIRE(label_of(log, "CALL: WT_CONNECTION:query_timestamp") == "WT_CONNECTION.query_timestamp");
+    REQUIRE(
+      label_of(log, "CALL: WT_CONNECTION:query_timestamp") == "WT_CONNECTION.query_timestamp");
     REQUIRE(label_of(log, "after the nested call") == "WT_CONNECTION.debug_info");
 }
 
@@ -148,8 +149,7 @@ TEST_CASE("Connection API: concurrent connection calls label their own messages"
     wrap.handle_message = record_message;
     wrap.log = &log;
 
-    connection_wrapper conn(
-      "WT_TEST.conn_api_name_concurrent", "create,verbose=[api:1]", &wrap);
+    connection_wrapper conn("WT_TEST.conn_api_name_concurrent", "create,verbose=[api:1]", &wrap);
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
 
     /* Each thread calls a different connection method, so a message's method tells its thread. */
