@@ -1719,15 +1719,27 @@ static WT_INLINE u_int
 __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
 {
     u_int n;
+    bool evict_dirty, evict_updates;
+
     n = 0;
+    evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY);
+    evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES);
 
     /*
      * Internal pages are normally not scheduled for eviction, with the exception of dirty pages
      * during checkpoint (see above). Internal pages don't contribute to cache resident bytes counts
      * used for computing thresholds and evicting them does not alleviate the pressure or unblock
      * application workers. Checkpoint or forced eviction will take care of them if needed.
+     *
+     * The dirty leaf levels are eligible under updates pressure as well as dirty pressure. A page's
+     * update bytes are counted from the moment its modify structure exists, so almost every dirty
+     * leaf carries update bytes and is classified at the dirty leaf levels; the updates leaf level
+     * only receives clean pages whose updates were retained past a reconciliation. Without this,
+     * updates pressure on a write-heavy cache points the sweep at a level that is empty by
+     * construction and no page can be found. Matches the walk-based eviction, where a modified page
+     * with non-zero update bytes is an updates candidate regardless of the dirty flag.
      */
-    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
+    if (evict_dirty || evict_updates) {
         levels[n++] = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
         levels[n++] = WT_EVICT_LEVEL_DIRTY_LEAF;
         /*
@@ -1735,15 +1747,17 @@ __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
          * of internal pages, because this shortens the checkpoint.
          * We help the checkpoint reconcile internal pages, even though
          * evicting internal pages does not reduce dirty bytes count.
+         *
+         * Only do this for dirty pressure: internal pages hold no update bytes.
          */
-        if (checkpoint_running)
+        if (evict_dirty && checkpoint_running)
             levels[n++] = WT_EVICT_LEVEL_DIRTY_INTERNAL;
     }
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         levels[n++] = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
         levels[n++] = WT_EVICT_LEVEL_CLEAN_LEAF;
     }
-    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
+    if (evict_updates) {
         levels[n++] = WT_EVICT_LEVEL_UPDATES_LEAF;
     }
 
