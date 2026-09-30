@@ -225,25 +225,28 @@
  * per-session API state, which assumes a single owning thread. The method's name is kept per thread
  * instead.
  */
-#define CONNECTION_API_CALL_NOCONF(conn, s, func_name)                                      \
-    s = (conn)->default_session;                                                            \
-    do {                                                                                    \
-        const char *__prev_api_name = __wt_conn_api_name_swap("WT_CONNECTION." #func_name); \
-        WT_ERR(WT_SESSION_CHECK_PANIC(s));                                                  \
+#define CONNECTION_API_CALL_NOCONF(conn, s, func_name)    \
+    s = (conn)->default_session;                          \
+    do {                                                  \
+        const char *__prev_api_name = __wt_conn_api_name; \
+        __wt_conn_api_name = "WT_CONNECTION." #func_name; \
+        WT_ERR(WT_SESSION_CHECK_PANIC(s));                \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: WT_CONNECTION:" #func_name)
 
 #define CONNECTION_API_CALL(conn, s, func_name, config, cfg)                                \
     s = (conn)->default_session;                                                            \
     do {                                                                                    \
-        const char *__prev_api_name = __wt_conn_api_name_swap("WT_CONNECTION." #func_name); \
+        const char *__prev_api_name = __wt_conn_api_name;                                   \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, WT_CONNECTION_##func_name), config, NULL}; \
+        __wt_conn_api_name = "WT_CONNECTION." #func_name;                                   \
         WT_ERR(WT_SESSION_CHECK_PANIC(s));                                                  \
         __wt_verbose((s), WT_VERB_API, "%s", "CALL: WT_CONNECTION:" #func_name);            \
     API_CONFIG_CHECK(s, WT_CONNECTION, func_name, config, cfg)
 
-#define CONNECTION_API_END(s)                                \
-    WT_IGNORE_RET(__wt_conn_api_name_swap(__prev_api_name)); \
-    }                                                        \
+/* Restore the name of the connection method if this call is nested. */
+#define CONNECTION_API_END(s)             \
+    __wt_conn_api_name = __prev_api_name; \
+    }                                     \
     while (0)
 
 #define CONNECTION_API_END_RET(s, ret) \

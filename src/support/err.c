@@ -48,43 +48,6 @@ _Thread_local static WT_ERROR_LOG error_log = {0};
 #endif
 
 /*
- * The connection method this thread is running. Connection methods share the default session, so
- * the method's name cannot be stored in the session.
- */
-#ifdef _WIN32
-__declspec(thread) static const char *conn_api_name = NULL;
-#else
-_Thread_local static const char *conn_api_name = NULL;
-#endif
-
-/*
- * __wt_conn_api_name_swap --
- *     Set the connection method this thread is running, returning the one it replaces.
- */
-const char *
-__wt_conn_api_name_swap(const char *name)
-{
-    const char *prev;
-
-    prev = conn_api_name;
-    conn_api_name = name;
-    return (prev);
-}
-
-/*
- * __wt_session_name --
- *     Return the name to report for a session: on the default session, the connection method this
- *     thread is running.
- */
-const char *
-__wt_session_name(WT_SESSION_IMPL *session)
-{
-    if (conn_api_name != NULL && session == S2C(session)->default_session)
-        return (conn_api_name);
-    return (session->name);
-}
-
-/*
  * __handle_error_default --
  *     Default WT_EVENT_HANDLER->handle_error implementation: send to stderr.
  */
@@ -376,8 +339,11 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, uint32_t log_id, con
             WT_ERROR_APPEND(p, remain, ", %s", prefix);
     }
 
-    /* Session name. */
-    if ((prefix = __wt_session_name(session)) != NULL) {
+    /* Session name: on the default session, the connection method this thread is running. */
+    prefix = __wt_conn_api_name != NULL && session == S2C(session)->default_session ?
+      __wt_conn_api_name :
+      session->name;
+    if (prefix != NULL) {
         if (is_json)
             WT_ERROR_APPEND(p, remain, "\"session_name\":\"%s\",", prefix);
         else
@@ -841,7 +807,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
     handler = session->event_handler;
     if (handler != NULL && handler->handle_progress != NULL)
         if ((ret = handler->handle_progress(
-               handler, wt_session, s == NULL ? __wt_session_name(session) : s, v)) != 0)
+               handler, wt_session, s == NULL ? session->name : s, v)) != 0)
             __handler_failure(session, ret, "progress", false);
     return (0);
 }
