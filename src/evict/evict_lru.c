@@ -2059,7 +2059,7 @@ rand_next:
     pages_seen_clean = pages_seen_dirty = pages_seen_updates = 0;
     for (evict = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict < end && (ret == 0 || ret == WT_NOTFOUND);
-         last_parent = ref == NULL ? NULL : ref->home,
+         last_parent = ref == NULL ? NULL : __wt_atomic_load_pointer(&ref->home),
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
         /*
          * Check whether we're finding a good ratio of candidates vs pages seen. Some workloads
