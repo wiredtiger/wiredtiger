@@ -1564,12 +1564,22 @@ config_disagg_victim_cache(void)
     uint64_t budget, entries, handles, image_size, max_leaf_page;
     char buf[64];
 
-    /* Only the PALite page log implements the caching hooks. */
-    if (!g.disagg_storage_config || strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
+    /* Deriving the count below clears this flag, so the warning has to come first. */
+    if (config_explicit(NULL, "disagg.victim_cache.max_entries"))
+        WARN("%s", "ignoring disagg.victim_cache.max_entries, the entry count is derived");
+
+    /* The victim cache lives in the page log, so a run without one has nowhere to put pages. */
+    if (!g.disagg_storage_config) {
         if (config_explicit(NULL, "disagg.victim_cache"))
-            WARN("%s",
-              "turning off disagg.victim_cache, only the palite page log implements a victim "
-              "cache");
+            WARN("%s", "turning off disagg.victim_cache, the run has no page log");
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    /* Of the page logs, only PALite implements the caching hooks. */
+    if (g.disagg_storage_config && strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("turning off disagg.victim_cache, the %s page log implements no victim cache",
+              GVS(DISAGG_PAGE_LOG));
         config_off(NULL, "disagg.victim_cache");
     }
 
@@ -1629,10 +1639,8 @@ config_disagg_victim_cache(void)
         }
     }
 
-    if (!GV(DISAGG_VICTIM_CACHE)) {
+    if (!GV(DISAGG_VICTIM_CACHE))
         config_off(NULL, "disagg.victim_cache.max_entries");
-        return;
-    }
 }
 
 /*

@@ -223,7 +223,7 @@ CONFIG configuration_list[] = {
 
 {"disagg.victim_cache", "enable the page log victim cache", C_BOOL, 50, 0, 0}
 
-{"disagg.victim_cache.max_entries", "victim cache entries per page log handle (derived from the run's page sizes)", C_IGNORE, 0, 0, 1000000}
+{"disagg.victim_cache.max_entries", "victim cache entries per page log handle (derived)", C_IGNORE, 0, 0, 50000}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
