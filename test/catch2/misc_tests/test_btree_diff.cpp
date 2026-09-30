@@ -246,20 +246,21 @@ expected_differences(const std::map<std::string, std::string> &old_contents,
   const std::string *upper_bound = nullptr)
 {
     std::vector<difference> differences;
-    auto o = old_contents.begin(), n = new_contents.begin();
+    auto old_it = old_contents.begin(), new_it = new_contents.begin();
 
-    while (o != old_contents.end() || n != new_contents.end()) {
+    while (old_it != old_contents.end() || new_it != new_contents.end()) {
         difference d;
-        if (n == new_contents.end() || (o != old_contents.end() && o->first < n->first)) {
-            d = {WT_BTREE_DIFF_DELETED, o->first, o->second, std::nullopt};
-            ++o;
-        } else if (o == old_contents.end() || n->first < o->first) {
-            d = {WT_BTREE_DIFF_ADDED, n->first, std::nullopt, n->second};
-            ++n;
+        if (new_it == new_contents.end() ||
+          (old_it != old_contents.end() && old_it->first < new_it->first)) {
+            d = {WT_BTREE_DIFF_DELETED, old_it->first, old_it->second, std::nullopt};
+            ++old_it;
+        } else if (old_it == old_contents.end() || new_it->first < old_it->first) {
+            d = {WT_BTREE_DIFF_ADDED, new_it->first, std::nullopt, new_it->second};
+            ++new_it;
         } else {
-            d = {WT_BTREE_DIFF_MODIFIED, o->first, o->second, n->second};
-            ++o;
-            ++n;
+            d = {WT_BTREE_DIFF_MODIFIED, old_it->first, old_it->second, new_it->second};
+            ++old_it;
+            ++new_it;
             if (*d.old_value == *d.new_value)
                 continue;
         }
