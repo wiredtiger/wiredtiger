@@ -66,6 +66,7 @@ static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *)
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_unique_btree_ids(WT_SESSION_IMPL *);
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __verify_lock_held --
  *     Check that the session holds a lock verify depends on. A schema operation running under a
@@ -81,6 +82,7 @@ __verify_lock_held(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, uint32_t flag)
     return (F_ISSET(session, WT_SESSION_INTERNAL) && FLD_ISSET(session->lock_flags, flag) &&
       __wt_spin_locked(session, lock));
 }
+#endif
 
 /*
  * __verify_config --
