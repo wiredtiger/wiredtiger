@@ -64,6 +64,9 @@ class test_verbose06(test_verbose_base):
     done_pattern = re.compile(
         rf'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint reconciled hot page on {hot_file} in \d+ms '
         r'\(row-store leaf, \d+MB, \d+ mods, \d+ blocks, image build \d+ms, HS wrapup \d+ms\)')
+    heartbeat_pattern = re.compile(
+        rf'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint reconciling hot page on {hot_file}: '
+        r'HS wrapup (\d+)% \((\d+)/(\d+) keys, \d+ updates written, \d+s elapsed\)')
 
     def populate(self):
         self.session.create(self.hot_uri, self.hot_create_config)
@@ -126,6 +129,16 @@ class test_verbose06(test_verbose_base):
         # The stress delays history store wrapup by a millisecond per key of the hot page.
         self.assertGreaterEqual(elapsed, self.nkeys / 1000,
             "Timing stress didn't slow down checkpoint: {:.1f} seconds".format(elapsed))
+
+        heartbeats = self.heartbeat_pattern.findall(output)
+        self.assertGreaterEqual(len(heartbeats), 1,
+            "No history store wrapup progress for a slow hot page:\n" + output)
+        for pct, done, total in heartbeats:
+            self.assertLessEqual(int(done), int(total))
+            self.assertLessEqual(int(pct), 100)
+        # Progress is monotonic within the page.
+        done = [int(h[1]) for h in heartbeats]
+        self.assertEqual(done, sorted(done))
         self.finish_and_clean_output()
 
 if __name__ == '__main__':

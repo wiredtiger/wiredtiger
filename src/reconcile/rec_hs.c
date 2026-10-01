@@ -661,6 +661,7 @@ typedef struct {
  */
 typedef struct {
     uint64_t insert_cnt;
+    uint64_t insert_total; /* Never drained, for checkpoint progress */
     uint64_t cache_hs_insert_full_update;
     uint64_t cache_hs_insert_reverse_modify;
     uint64_t cache_hs_write_squash;
@@ -974,6 +975,41 @@ __rec_hs_flush_stats_periodic(WT_SESSION_IMPL *session, WT_REC_HS_STAT *statsp)
 }
 
 /*
+ * __rec_hs_ckpt_progress --
+ *     Periodically log how far a checkpoint reconciliation has got through history store wrapup, so
+ *     a single long page does not silence checkpoint progress output.
+ */
+static void
+__rec_hs_ckpt_progress(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t upd_written)
+{
+    uint64_t now, period_ms;
+
+    /* Reading the clock on every key is measurable on large pages; sample it. */
+    if (++r->hs_progress_keys_done % 64 != 0)
+        return;
+
+    /* Shorten the period under stress so tests see the heartbeat without a long wait. */
+    period_ms = WT_PROGRESS_MSG_PERIOD * WT_THOUSAND;
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
+        period_ms = WT_THOUSAND;
+
+    now = __wt_clock(session);
+    if (WT_CLOCKDIFF_MS(now, r->hs_progress_last_msg) < period_ms)
+        return;
+    r->hs_progress_last_msg = now;
+
+    /* Keys are the only unit with a known total; updates per key vary, so report both. */
+    __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+      "Checkpoint reconciling hot page on %s: HS wrapup %" PRIu64 "%% (%" PRIu64 "/%" PRIu64
+      " keys, %" PRIu64 " updates written, %" PRIu64 "s elapsed)",
+      S2BT(session)->dhandle->name,
+      r->hs_progress_keys_total == 0 ? 0 :
+                                       (100 * r->hs_progress_keys_done) / r->hs_progress_keys_total,
+      r->hs_progress_keys_done, r->hs_progress_keys_total, r->hs_progress_upd_written + upd_written,
+      WT_CLOCKDIFF_SEC(now, r->hs_progress_start));
+}
+
+/*
  * __rec_hs_write_upd --
  *     Write one update to the history store as a reverse-modify or full-update record. Chooses
  *     reverse-modify when permitted and within the consecutive-modify budget, and falls back to a
@@ -1135,6 +1171,7 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
 
         hs_inserted = true;
         ++statsp->insert_cnt;
+        ++statsp->insert_total;
         if (key_state->squashed) {
             ++statsp->cache_hs_write_squash;
             key_state->squashed = false;
@@ -1201,6 +1238,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         if (F_ISSET(r, WT_REC_CHECKPOINT) &&
           FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
             __wt_sleep(0, WT_THOUSAND);
+
+        if (F_ISSET(r, WT_REC_CHECKPOINT))
+            __rec_hs_ckpt_progress(session, r, stats.insert_total);
 
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL)
@@ -1305,6 +1345,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 err:
     if (ret == 0 && (stats.insert_cnt > 0 || stats.hs_stats_updated))
         __rec_hs_verbose_cache_stats(session, btree);
+
+    r->hs_progress_upd_written += stats.insert_total;
 
     /* cache_write_hs is set to true as there was at least one successful write to history. */
     if (stats.insert_cnt > 0 || stats.hs_stats_updated)

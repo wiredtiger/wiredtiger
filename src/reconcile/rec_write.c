@@ -3659,6 +3659,14 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_ERR_MSG_CHK(session, __wti_rec_hs_delete_updates(session, r),
       "failed to delete updates from history store during wrapup: btree=%" PRIu32, btree->id);
 
+    r->hs_progress_keys_done = r->hs_progress_keys_total = r->hs_progress_upd_written = 0;
+    if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
+            if (multi->supd != NULL)
+                r->hs_progress_keys_total += multi->supd_entries;
+        r->hs_progress_start = r->hs_progress_last_msg = __wt_clock(session);
+    }
+
     is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
