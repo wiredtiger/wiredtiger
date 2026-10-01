@@ -139,6 +139,25 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             # Merge kv into our cumulative dictionary
             kv_modfied.update(kv)
 
+        # The random loop above doesn't guarantee that the final checkpoint leaves an
+        # internal page pointing at a delta chain: a split, an oversized candidate delta, or
+        # a page that was never modified again can make the last checkpoint write (or keep)
+        # a full image for every internal page, discarding any delta written earlier in the
+        # loop. Follow up with small, single-key updates, each its own checkpoint, until one
+        # is observed to add an internal delta, so the persisted state actually has a delta
+        # to read back below.
+        if self.delta_type == 'both' or self.delta_type == 'internal_only':
+            for i in range(num_deltas + 1, num_deltas + 51):
+                before = self.get_stat(stat.conn.rec_page_delta_internal)
+                kv = {str(random.randint(1, self.nitems)): f"{i}abc"}
+                self.insert(kv, inital_ts + i)
+                self.session.checkpoint()
+                kv_modfied.update(kv)
+                if self.get_stat(stat.conn.rec_page_delta_internal) > before:
+                    break
+            else:
+                self.fail("Could not get a checkpoint to write an internal page delta")
+
         # Assert that we have written at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
             self.assertStatGreaterSoon(stat.conn.rec_page_delta_leaf, 0)
