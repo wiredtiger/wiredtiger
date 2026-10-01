@@ -1610,8 +1610,12 @@ config_disagg_victim_cache(void)
 
 /*
  * config_disagg_victim_cache_entries --
- *     Entries per page log handle the memory budget pays for, zero if the run would get too few for
- *     the cache to be worth running.
+ *     Entries per page log handle the memory budget pays for, zero to decline the cache.
+ *
+ * The page log sizes its cache in entries per handle, but what has to be bounded is the bytes a run
+ *     spends, so the budget is divided by the handles that will be open and by what one cached page
+ *     costs. Neither is measurable from here, so both are estimated high: spending under the budget
+ *     is harmless, spending over it is the failure the budget exists to prevent.
  */
 static uint64_t
 config_disagg_victim_cache_entries(void)
@@ -1626,19 +1630,18 @@ config_disagg_victim_cache_entries(void)
         return (0);
     }
 
-    /* Both terms round up: over-estimating shrinks the victim cache, which is safe. */
     image_size = leaf_page_max + VICTIM_CACHE_ENTRY_OVERHEAD;
     handles =
       WT_MAX((ntables == 0 ? 1 : ntables) + VICTIM_CACHE_EXTRA_HANDLES, VICTIM_CACHE_MIN_HANDLES);
 
-    /* Spend the budget over and above the cache, as the block cache share is spent. */
+    /*
+     * This memory is extra, not carved out of the cache. The fraction is the share the block cache
+     * takes, and only binds on a run given little memory; otherwise the ceiling is what applies.
+     */
     budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
     entries = budget / (handles * image_size);
 
-    /*
-     * Raising a count the budget cannot pay for would spend whatever the table count demands, which
-     * is the failure this budget exists to prevent, so decline instead.
-     */
+    /* Clamping up to the minimum would spend whatever the table count demands; decline instead. */
     if (entries < VICTIM_CACHE_MIN_ENTRIES) {
         WARN("turning off disagg.victim_cache, %u tables of %" PRIu64
              "KB leaves room for only %" PRIu64 " entries per handle",
