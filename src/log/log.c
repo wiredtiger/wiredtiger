@@ -1981,12 +1981,11 @@ __wti_log_release(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *freep)
     if (F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC)) {
         WT_FH *log_fh = __wt_atomic_load_ptr_acquire(&log->log_fh);
         if ((ret = __wt_fsync(session, log_fh, false)) != 0) {
-            /*
-             * Ignore ENOTSUP, but don't try again.
-             */
+            /* Ignore ENOTSUP, but don't try again. */
             if (ret != ENOTSUP)
                 WT_ERR(ret);
             conn->log_mgr.dirty_max = 0;
+            ret = 0;
         }
     }
 
