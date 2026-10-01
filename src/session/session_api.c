@@ -1137,11 +1137,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
         WT_ERR_NOTFOUND_OK(ret, false);
     }
 
-    /* Import runs verify, which needs checkpoints blocked out. */
-    if (is_import)
-        WT_WITH_CHECKPOINT_LOCK(session, ret = __wt_session_create(session, uri, config));
-    else
-        ret = __wt_session_create(session, uri, config);
+    ret = __wt_session_create(session, uri, config);
 
 err:
     if (ret != 0)
