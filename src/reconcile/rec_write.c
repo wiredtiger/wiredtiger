@@ -323,6 +323,9 @@ __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline
     timeline->reconcile_finish = __wt_clock(session);
 }
 
+/* Checkpoint reconciliations of pages at least this large are logged as hot pages. */
+#define WT_REC_CKPT_HOT_PAGE_FOOTPRINT (10 * WT_MEGABYTE)
+
 /*
  * __reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
@@ -337,8 +340,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_PAGE *page;
     WT_RECONCILE_TIMELINE _timeline, *timeline;
     WTI_RECONCILE *r;
+    size_t footprint;
     uint64_t rec, rec_hs_wrapup, rec_img_build, rec_reentry_hs, rec_start;
+    uint32_t mods;
     void *addr;
+    bool hot;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -349,6 +355,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     if (*page_lockedp)
         WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
+
+    /* Snapshot the page's size and modification count: reconciliation resets both. */
+    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    mods = __wt_atomic_load_uint32_relaxed(&page->modify->page_state);
+    hot = LF_ISSET(WT_REC_CHECKPOINT) && footprint >= WT_REC_CKPT_HOT_PAGE_FOOTPRINT;
+    if (hot)
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+          "Checkpoint reconciling hot page on %s (%s, %" WT_SIZET_FMT "MB, %" PRIu32 " mods)",
+          btree->dhandle->name, __wt_page_type_string(page->type), footprint / WT_MEGABYTE, mods);
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
