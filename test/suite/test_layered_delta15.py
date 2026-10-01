@@ -153,32 +153,23 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
-        # Having written some internal delta over the course of the loop above doesn't
-        # guarantee that the final checkpoint leaves an internal page pointing at a delta
-        # chain: an oversized candidate delta, or a page that was never modified again, can
-        # make the last checkpoint write (or keep) a full image for every internal page,
-        # discarding any delta written earlier. Re-open, verify and check, retrying with one
-        # more single-key update and checkpoint whenever the reopened state turns out not to
-        # have a delta to read back.
-        for i in range(len(update_keys) * 3):
-            # Re-open the connection to clear contents out of memory.
-            self.reopen_disagg_conn(self.conn_config())
+        # Re-open the connection to clear contents out of memory.
+        self.reopen_disagg_conn(self.conn_config())
 
-            # Verify the updated values in the table.
-            self.verify(kv_modfied, inital_value)
+        # Verify the updated values in the table.
+        self.verify(kv_modfied, inital_value)
 
-            if self.delta_type != 'both' and self.delta_type != 'internal_only':
-                self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-                break
-            if self.get_stat(stat.conn.cache_read_internal_delta) > 0:
-                break
-            ts += 1
-            kv = {update_keys[i % len(update_keys)]: f"{ts}abc"}
-            self.insert(kv, ts)
-            self.session.checkpoint()
-            kv_modfied.update(kv)
+        # Assert that we have constructed at least one internal page delta. Each update above
+        # touches a distinct, already-written leaf page with a single key, which always takes
+        # the single-page, non-split reconciliation path: the leaf is rewritten at a new
+        # address, which dirties its parent for the same checkpoint, and a one-entry change to
+        # an internal page is always well under delta_pct of its full image. So the last
+        # checkpoint to touch any given internal page is guaranteed to leave it pointing at a
+        # delta chain.
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
         else:
-            self.fail("Could not reconstruct an internal page from a delta after reopening")
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
         self.reopen_disagg_conn(follower_config)
