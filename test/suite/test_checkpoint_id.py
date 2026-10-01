@@ -38,6 +38,7 @@ from wtdataset import SimpleDataSet
 # Every object reading the same checkpoint reports the same identifier, which
 # lets applications confirm that checkpoint cursors opened on different objects
 # are looking at the same database checkpoint.
+@wttest.skip_for_hook('disagg', 'checkpoint cursors on layered tables are not supported')
 class test_checkpoint_id(wttest.WiredTigerTestCase):
     test_name = __qualname__
     uri1 = 'table:' + test_name + '_1'
@@ -113,7 +114,6 @@ class test_checkpoint_id(wttest.WiredTigerTestCase):
         cursor.close()
 
     # A named checkpoint has its own identifier, stable across later checkpoints.
-    @wttest.skip_for_hook('disagg', 'layered trees do not support named checkpoints')
     def test_named_checkpoint(self):
         self.checkpoint('cp1')
         id1 = self.ckpt_id(self.uri1, 'cp1')
