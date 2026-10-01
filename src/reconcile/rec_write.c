@@ -323,9 +323,6 @@ __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline
     timeline->reconcile_finish = __wt_clock(session);
 }
 
-/* Checkpoint reconciliations of pages at least this large are logged as hot pages. */
-#define WT_REC_CKPT_HOT_PAGE_FOOTPRINT (10 * WT_MEGABYTE)
-
 /*
  * __rec_ckpt_hot_page_done --
  *     Log a checkpoint reconciliation that was either flagged as hot before it started or took
@@ -383,7 +380,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Snapshot the page's size and modification count: reconciliation resets both. */
     footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     mods = __wt_atomic_load_uint32_relaxed(&page->modify->page_state);
-    hot = LF_ISSET(WT_REC_CHECKPOINT) && footprint >= WT_REC_CKPT_HOT_PAGE_FOOTPRINT;
+    /* A page that has outgrown the size that forces eviction is hot. */
+    hot = LF_ISSET(WT_REC_CHECKPOINT) && footprint >= btree->maxmempage;
     if (hot)
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint reconciling hot page on %s (%s, %" WT_SIZET_FMT "MB, %" PRIu32 " mods)",

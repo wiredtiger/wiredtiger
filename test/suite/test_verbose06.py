@@ -43,16 +43,19 @@ class test_verbose06(test_verbose_base):
     # name carries a _stable suffix.
     hot_file = rf'file:{test_name}_hot\.wt(?:_stable)?'
 
-    # Keep the hot table in one in-memory leaf page: no eviction, and no in-memory split.
-    hot_create_config = 'key_format=Q,value_format=S,cache_resident=true,memory_page_max=10TB'
+    # A cache-resident table is never evicted or split in memory, so its single leaf page grows far
+    # past the small maximum in-memory page size that makes a page hot.
+    hot_page_max_mb = 1
+    hot_create_config = 'key_format=Q,value_format=S,cache_resident=true,' \
+        f'memory_page_max={hot_page_max_mb}MB'
     small_create_config = 'key_format=Q,value_format=S'
     conn_config = 'cache_size=1GB,statistics=(all),eviction_dirty_trigger=95,' \
         'eviction_dirty_target=90,eviction_updates_trigger=95,eviction_updates_target=90,' \
         'verbose=[checkpoint_progress:0]'
 
     # Each round rewrites every key. The pinned oldest timestamp keeps every older version, so
-    # checkpoint writes the newest and moves the rest to the history store. That makes the page
-    # far larger than the 10MB hot page threshold.
+    # checkpoint writes the newest and moves the rest to the history store. The page ends up about
+    # 30 times its maximum in-memory size.
     nkeys = 3000
     nrounds = 10
     value_size = 1000
@@ -108,7 +111,7 @@ class test_verbose06(test_verbose_base):
 
         start = self.start_pattern.findall(output)
         self.assertEqual(len(start), 1, "Expected one hot page start message:\n" + output)
-        self.assertGreaterEqual(int(start[0]), 10)
+        self.assertGreaterEqual(int(start[0]), self.hot_page_max_mb)
         self.assertEqual(len(self.small_pattern.findall(output)), 0,
             "A small page was reported as hot:\n" + output)
         self.finish_and_clean_output()
