@@ -278,11 +278,14 @@ locking) and it was judged not worthwhile.
 
 Eviction of instantiated pages where the truncation is committed is permitted, however,
 and checkpoint of instantiated pages is always allowed.
-The first reconciliation after instantiation clears the instantiated flag (\c
-page->modify->instantiated) and discards the \c page_del structure, as once a
-reconciliation result exists it can be used to reconcile the parent.
+The first reconciliation after instantiation that writes a new page image clears the
+instantiated flag (\c page->modify->instantiated) and discards the \c page_del structure, as
+once a new address exists it can be used to reconcile the parent.
 (This is true whether or not it includes the tombstones from instantiation, i.e., whether
 the truncation was committed.)
+In disaggregated storage a reconciliation may instead skip the write and keep the page's
+existing block; the flag and structure survive such a reconciliation, because the parent's
+cell may still be a proxy cell that can only be rebuilt from the \c page_del information.
 
 Note that "unresolved" includes "prepared".
 While we cannot write out a prepared truncation in the parent page's address cells, in

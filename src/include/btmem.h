@@ -1356,21 +1356,22 @@ struct __wt_ref {
      *    - If ref->page->modify is NULL, the page is ordinary.
      *    - If ref->page->modify->instantiated is false and ref->page->modify->inst_updates is NULL,
      *      the page is ordinary.
-     *    - If ref->page->modify->instantiated is true, the page is instantiated and has not yet
-     *      been reconciled. ref->page_del is either NULL (meaning the deletion is globally visible)
-     *      or contains information about the transaction that deleted the page. This information is
-     *      only meaningful either (a) in relation to the existing on-disk page rather than the in-
-     *      memory page (this can be needed to reconcile the parent internal page) or (b) if the
-     *      page is clean.
+     *    - If ref->page->modify->instantiated is true, the page is instantiated and no new image
+     *      of it has been written yet. ref->page_del is either NULL (meaning the deletion is
+     *      globally visible) or contains information about the transaction that deleted the
+     *      page. This information is only meaningful either (a) in relation to the existing
+     *      on-disk page rather than the in-memory page (this can be needed to reconcile the
+     *      parent internal page) or (b) if the page is clean.
      *    - If ref->page->modify->inst_updates is not NULL, the page is instantiated and the
      *      transaction that deleted it has not resolved yet. The update list is used during commit
      *      or rollback to find the updates created during instantiation.
      *
      * The last two points of group (2) are orthogonal; that is, after instantiation the
      * instantiated flag and page_del structure (on the one hand) and the update list (on the other)
-     * are used and discarded independently. The former persists only until the page is first
-     * successfully reconciled; the latter persists until the transaction resolves. These events may
-     * occur in either order.
+     * are used and discarded independently. The former persists until a reconciliation of the page
+     * writes a new image (a reconciliation that skips the write, keeping the existing block, leaves
+     * it in place); the latter persists until the transaction resolves. These events may occur in
+     * either order.
      *
      * As described above, in any state in group (1) an access to the page may require it be read
      * into memory, at which point it moves into group (2). Instantiation always sets the
