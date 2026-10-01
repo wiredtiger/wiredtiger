@@ -33,7 +33,7 @@ from wiredtiger import stat
 # An append-only load on a disaggregated table builds leaf pages of the same size as an identical
 # local table.
 @disagg_test_class
-class test_disagg_leaf_size01(wttest.WiredTigerTestCase):
+class test_disagg_leaf_page_size01(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader",lose_all_my_data=true),statistics=(fast),' \
         'cache_size=1GB'
     nrows = 40000
@@ -59,7 +59,7 @@ class test_disagg_leaf_size01(wttest.WiredTigerTestCase):
                                 config='statistics=(fast)') as cursor:
             return cursor[stat.dsrc.btree_size_leaf_pages][2]
 
-    def test_leaf_size(self):
+    def test_page_count_matches_local(self):
         ts = self.populate(self.local_uri, self.table_config + ',block_manager=default,type=file', 1)
         self.populate(self.shared_uri, self.table_config + ',block_manager=disagg,type=file', ts)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts + self.nrows))
