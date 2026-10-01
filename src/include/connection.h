@@ -40,6 +40,10 @@ struct __wt_process {
      * format to set the modify pad byte to a printable character.
      */
     uint8_t modify_pad_byte;
+#ifdef HAVE_DIAGNOSTIC
+    int (*stepdown_repro_trace)(
+      WT_SESSION_IMPL *, const char *, WT_REF *, WT_UPDATE *, const void *, uint64_t);
+#endif
 };
 extern WT_PROCESS __wt_process;
 

@@ -201,6 +201,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * identical to what checkpoint would produce and we can skip re-reconciliation.
      */
     if (__sync_evict_reconciled_under_ckpt_snapshot(session, ref)) {
+        if (WT_REPRO_EVENT(session, "checkpoint-skip", ref, NULL, NULL, 1) == 1)
+            return (false);
         WT_STAT_CONN_INCR(session, checkpoint_pages_reconciliation_skipped_evict_snapshot);
         return (true);
     }

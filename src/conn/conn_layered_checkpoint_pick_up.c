@@ -2086,6 +2086,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     /* Extract the LSN of the metadata page. */
     WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
     ckpt_meta.metadata_lsn = (uint64_t)cval.val;
+    WT_IGNORE_RET(
+      WT_REPRO_EVENT(session, "pickup-delivered", NULL, NULL, NULL, ckpt_meta.metadata_lsn));
 
     /*
      * Extract the checksum of the metadata page, if it exists. We added the checksum later, so
@@ -2168,6 +2170,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     WT_ERR(ret);
 
     /* Record the picked-up checkpoint's version fields; a failed pickup leaves them unchanged. */
+    WT_IGNORE_RET(
+      WT_REPRO_EVENT(session, "pickup-completed", NULL, NULL, NULL, ckpt_meta.metadata_lsn));
     WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta.version);
     WT_STAT_CONN_SET(
       session, disagg_checkpoint_storage_compatible_version, ckpt_meta.compatible_version);

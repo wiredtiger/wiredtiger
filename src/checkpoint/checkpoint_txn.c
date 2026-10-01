@@ -1169,6 +1169,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
          * reader could pair it with an index the previous checkpoint published.
          */
         __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, true);
+        WT_IGNORE_RET(WT_REPRO_EVENT(session, "checkpoint-snapshot-published", NULL, NULL, buf,
+          txn_global->checkpoint_timestamp));
         /*
          * Wait for eviction threads still copying from the retiring buffer before it can be reused.
          * In practice this returns immediately: readers hold the generation only for a memcpy. This
@@ -1823,6 +1825,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
 
     WT_ERR(__checkpoint_selected_dhandles(session, cfg));
+
+    WT_IGNORE_RET(
+      WT_REPRO_EVENT(session, "checkpoint-trees-written", NULL, NULL, NULL, ckpt_tmp_ts));
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -3055,6 +3060,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     bm = btree->bm;
     conn = S2C(session);
     dhandle = session->dhandle;
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "checkpoint-tree-begin", &btree->root, NULL, NULL, 0));
     fake_ckpt = resolve_bm = false;
     WT_TIME_AGGREGATE_INIT(&ta);
 
@@ -3255,6 +3261,8 @@ err:
         btree->modified = true;
         conn->modified = true;
     }
+
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "checkpoint-tree-end", &btree->root, NULL, NULL, ret));
 
     /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
     if (WT_SESSION_IS_CHECKPOINT(session))

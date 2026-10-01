@@ -1705,6 +1705,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     recno = WT_RECNO_OOB;
     readonly = txn->mod_count == 0;
     cannot_fail = locked = false;
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "commit-begin", NULL, NULL, NULL, txn->mod_count));
 
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -2026,6 +2027,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         candidate_durable_timestamp = txn->time_point.commit_timestamp;
 
     __txn_release(session);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "transaction-release", NULL, NULL, NULL, 0));
 
     /* Leave the commit generation after snapshot is released. */
     if (!prepare)

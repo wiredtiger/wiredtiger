@@ -1522,6 +1522,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_RET(__wti_page_inmem(
       session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, NULL, &page, &instantiate_upd));
     multi->disk_image = NULL;
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "restore-image", ref, NULL, multi, page->entries));
 
     /* Preserve the relevant metadata. */
     if (page->disagg_info != NULL) {
@@ -1682,6 +1683,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 supd->free_upds = supd->onpage_tombstone->next;
                 supd->onpage_tombstone->next = NULL;
             } else if (tmp != NULL) {
+                WT_IGNORE_RET(WT_REPRO_EVENT(session, "restore-trim", ref, tmp, supd, 0));
                 /*
                  * We have decided to restore this update chain so it must have newer updates than
                  * the onpage value on it or we write a prepared update to disk.
@@ -2616,6 +2618,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
     ref->page = new->page;
 
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "restore-complete", ref, NULL, NULL, 0));
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     __wt_free(session, new);
