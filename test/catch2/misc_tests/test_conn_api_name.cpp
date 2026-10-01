@@ -18,8 +18,8 @@
 #include "../wrappers/connection_wrapper.h"
 
 /*
- * Every connection method runs on the connection's shared default session, yet the messages a
- * connection method writes are labeled with that method's name.
+ * Verify that connection API messages identify the active method during nested and concurrent
+ * calls, and that returning from a call restores the previous message label.
  */
 
 namespace {
