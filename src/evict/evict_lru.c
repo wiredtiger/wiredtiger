@@ -708,7 +708,7 @@ __evict_clean_ramp(WT_SESSION_IMPL *session, double pct, double target, double t
 
     return (__wt_random(&session->rnd_random) < (uint32_t)(p * (double)UINT32_MAX));
 }
-
+#if 0
 /*
  * __evict_ramp --
  *     Return true with a probability that rises linearly from zero at lo to one at hi.
@@ -739,6 +739,7 @@ __evict_ramp(WT_SESSION_IMPL *session, double pct, double lo, double hi)
 
     return (__wt_random(&session->rnd_random) < (uint32_t)(p * (double)UINT32_MAX));
 }
+#endif
 
 /*
  * __evict_update_work --
@@ -930,12 +931,21 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      */
     if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
         LF_SET(WT_EVICT_CACHE_SCRUB);
+#if 0/*
     else if (!__evict_ramp(session, cache_pct, target, trigger)) {
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
                    bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
+            LF_SET(WT_EVICT_CACHE_SCRUB);
+			}*/
+#endif
+	else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+        if (F_ISSET_ATOMIC_32(
+              &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
+            LF_SET(WT_EVICT_CACHE_SCRUB);
+        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
     } else
