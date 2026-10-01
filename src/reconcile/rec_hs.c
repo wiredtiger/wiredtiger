@@ -1197,6 +1197,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
+        /* Stretch checkpoint history store wrapup, one delay per key. */
+        if (F_ISSET(r, WT_REC_CHECKPOINT) &&
+          FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
+            __wt_sleep(0, WT_THOUSAND);
+
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL)
             continue;
