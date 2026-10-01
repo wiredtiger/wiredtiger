@@ -30,6 +30,8 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
+#include <utility>
+#include <vector>
 
 #include "model/kv_database.h"
 #include "model/kv_table.h"
@@ -273,14 +275,22 @@ kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t 
 int
 kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop)
 {
-    std::lock_guard lock_guard(_lock);
-    if (start != model::NONE && stop != model::NONE && start > stop)
-        throw model_exception("The start and the stop key are not in the right order");
-
-    auto start_iter = start == model::NONE ? _data.begin() : _data.lower_bound(start);
-    auto stop_iter = stop == model::NONE ? _data.end() : _data.upper_bound(stop);
+    /*
+     * Collect the keys to delete while holding the table lock, then release it before adding the
+     * updates: commit and rollback hold the transaction lock and then acquire the table lock, so
+     * the table lock must never be held while acquiring the transaction lock. The items are
+     * returned by pointer, which is valid because the map is never shrunk.
+     */
+    std::vector<std::pair<const data_value *, kv_table_item *>> to_delete;
 
     try {
+        std::lock_guard lock_guard(_lock);
+        if (start != model::NONE && stop != model::NONE && start > stop)
+            throw model_exception("The start and the stop key are not in the right order");
+
+        auto start_iter = start == model::NONE ? _data.begin() : _data.lower_bound(start);
+        auto stop_iter = stop == model::NONE ? _data.end() : _data.upper_bound(stop);
+
         /*
          * FIXME-WT-13232 Disable this check.
          *
@@ -309,11 +319,18 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
              */
             if (!i->second.exists(txn))
                 continue;
+            to_delete.emplace_back(&i->first, &i->second);
+        }
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 
+    try {
+        for (auto &p : to_delete) {
             std::shared_ptr<kv_update> update =
               fix_timestamps(std::make_shared<kv_update>(NONE, txn));
-            i->second.add_update(update, false, false);
-            txn->add_update(*this, i->first, std::move(update));
+            p.second->add_update(update, false, false);
+            txn->add_update(*this, *p.first, std::move(update));
         }
     } catch (wiredtiger_exception &e) {
         return e.error();

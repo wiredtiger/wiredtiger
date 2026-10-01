@@ -137,8 +137,7 @@ public:
     inline timestamp_t
     prepare_timestamp() const noexcept
     {
-        std::lock_guard lock_guard(_lock); /* So that Coverity does not complain. */
-        return _prepare_timestamp;
+        return _prepare_timestamp.load(std::memory_order_acquire);
     }
 
     /*
@@ -287,7 +286,12 @@ private:
 
     timestamp_t _commit_timestamp;
     timestamp_t _durable_timestamp;
-    timestamp_t _prepare_timestamp;
+    /*
+     * The prepare timestamp is read by table item code, which holds the item lock and must not
+     * acquire the transaction lock because commit and rollback acquire it before the table locks.
+     * It is atomic so that such reads are well-defined without the lock.
+     */
+    std::atomic<timestamp_t> _prepare_timestamp;
     timestamp_t _read_timestamp;
     kv_transaction_snapshot_ptr _snapshot;
 
