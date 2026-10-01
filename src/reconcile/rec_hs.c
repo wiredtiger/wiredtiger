@@ -984,9 +984,7 @@ __rec_hs_ckpt_progress(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t upd_
 {
     uint64_t now, period_ms;
 
-    /* Reading the clock on every key is measurable on large pages; sample it. */
-    if (++r->hs_progress_keys_done % 64 != 0)
-        return;
+    ++r->hs_progress_keys_done;
 
     /* Shorten the period under stress so tests see the heartbeat without a long wait. */
     period_ms = WT_PROGRESS_MSG_PERIOD * WT_THOUSAND;
