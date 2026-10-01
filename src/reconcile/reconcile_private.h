@@ -358,13 +358,6 @@ struct __wti_reconcile {
     uint32_t multi_next;
     size_t multi_allocated;
 
-    /* Checkpoint progress through history store wrapup, reported by the hot page heartbeat. */
-    uint64_t hs_progress_keys_done;
-    uint64_t hs_progress_keys_total;
-    uint64_t hs_progress_last_msg;
-    uint64_t hs_progress_start;
-    uint64_t hs_progress_upd_written;
-
     /*
      * Root pages are written when wrapping up the reconciliation, remember the image we're going to
      * write.
