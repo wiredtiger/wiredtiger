@@ -18,8 +18,8 @@
 
 /*
  * __btree_diff_ref_key_cmp --
- *     Compare a subtree's key, the smallest key it can hold, with a key or another subtree's key.
- *     The leftmost subtree has no key and sorts first.
+ *     Compare the key of a subtree, the smallest key it can hold, with a key or the key of another
+ *     subtree. The leftmost subtree has no key and sorts first.
  */
 static int
 __btree_diff_ref_key_cmp(WT_BTREE_DIFF *diff, const WT_ITEM *ref_key, const WT_ITEM *key, int *cmpp)
@@ -186,8 +186,8 @@ __btree_diff_side_find_next_in_leaf(WT_BTREE_DIFF *diff, WT_BTREE_DIFF_SIDE *sid
  *     Move a side to its next leaf entry or unread subtree, starting at its current position, or to
  *     its end. Never descends: it stops at a subtree for the caller to descend into.
  *
- *     The caller tells where the side stopped from its fields. At a leaf entry, the leaf is set. At
- *     an unread subtree, the subtree is set instead. At the end, neither is set.
+ * The caller tells where the side stopped from its fields. At a leaf entry, the leaf is set. At an
+ *     unread subtree, the subtree is set instead. At the end, neither is set.
  */
 static int
 __btree_diff_side_find_next(WT_BTREE_DIFF *diff, WT_BTREE_DIFF_SIDE *side)
@@ -396,9 +396,9 @@ __btree_diff_must_descend(
      * side's subtree starts at or before K, it may hold K or a smaller key, so this side must read
      * it first.
      *
-     * Otherwise every key in this side's subtree is greater than K: K is not on this side, and
-     * this side waits at the subtree until the other side catches up, which may let the two sides
-     * skip identical subtrees.
+     * Otherwise every key in this side's subtree is greater than K: K is not on this side, and this
+     * side waits at the subtree until the other side catches up, which may let the two sides skip
+     * identical subtrees.
      */
     WT_RET(__btree_diff_ref_key_cmp(diff, &side->subtree_key, &other->key, &cmp));
     *descendp = cmp <= 0;
@@ -617,7 +617,7 @@ err:
 /*
  * __wt_btree_diff_open --
  *     Open a diff between two checkpoints of the same btree, optionally bounded to keys in [lower
- * bound, upper bound). The caller keeps both data handles acquired until the diff is closed.
+ *     bound, upper bound). The caller keeps both data handles acquired until the diff is closed.
  */
 int
 __wt_btree_diff_open(WT_SESSION_IMPL *session, WT_DATA_HANDLE *old_dhandle,
