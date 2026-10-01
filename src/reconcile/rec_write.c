@@ -347,7 +347,7 @@ __rec_ckpt_hot_page_done(WT_SESSION_IMPL *session, WT_PAGE *page, size_t footpri
       "Checkpoint reconciled hot page on %s in %" PRIu64 "ms (%s, %" WT_SIZET_FMT "MB, %" PRIu32
       " mods, %" PRIu32 " blocks, image build %" PRIu64 "ms, HS wrapup %" PRIu64 "ms)",
       S2BT(session)->dhandle->name, rec_ms, __wt_page_type_string(page->type),
-      build_time_ms, hs_wrapup_time_ms);
+      footprint / WT_MEGABYTE, mods, blocks, build_time_ms, hs_wrapup_time_ms);
 }
 
 /*
