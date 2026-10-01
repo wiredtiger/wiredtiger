@@ -67,6 +67,22 @@ static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_
 static int __verify_unique_btree_ids(WT_SESSION_IMPL *);
 
 /*
+ * __verify_lock_held --
+ *     Check that the session holds a lock verify depends on. A schema operation running under a
+ *     transaction uses an internal session that inherits the outer session's lock flags while the
+ *     outer session owns the lock, so accept an inherited flag on an internal session when the lock
+ *     is held.
+ */
+static WT_INLINE bool
+__verify_lock_held(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, uint32_t flag)
+{
+    if (__wt_spin_owned(session, lock))
+        return (true);
+    return (F_ISSET(session, WT_SESSION_INTERNAL) && FLD_ISSET(session->lock_flags, flag) &&
+      __wt_spin_locked(session, lock));
+}
+
+/*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
  */
@@ -547,8 +563,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     const char *name;
     bool bm_start, quit, skip_hs;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT(session,
+      __verify_lock_held(session, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT));
+    WT_ASSERT(
+      session, __verify_lock_held(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA));
 
     btree = S2BT(session);
     bm = btree->bm;

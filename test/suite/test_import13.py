@@ -142,3 +142,15 @@ class test_import13(test_import_base, suite_subprocess):
 
         self.runWt(['-h', newdir, 'dump', self.source_uri], outfilename='dump.out')
         self.check_file_contains('dump.out', 'key00000000')
+
+    def test_import_valid_file_in_transaction(self):
+        file_config, _ = self.create_source()
+        newdir = self.open_destination()
+
+        # A running transaction makes the schema operation run on an internal session.
+        self.session.begin_transaction()
+        self.import_file(file_config)
+        self.session.commit_transaction()
+
+        self.runWt(['-h', newdir, 'dump', self.source_uri], outfilename='dump.out')
+        self.check_file_contains('dump.out', 'key00000000')
