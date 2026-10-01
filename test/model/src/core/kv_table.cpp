@@ -275,10 +275,7 @@ kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t 
 int
 kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop)
 {
-    /*
-     * Collect the keys while holding the table lock and add the updates after releasing it: the
-     * table lock must not be held while acquiring the transaction lock.
-     */
+    /* The table lock must not be held while acquiring the transaction lock. */
     std::vector<std::pair<const data_value *, kv_table_item *>> to_delete;
 
     try {

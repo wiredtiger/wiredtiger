@@ -286,7 +286,6 @@ private:
 
     timestamp_t _commit_timestamp;
     timestamp_t _durable_timestamp;
-    /* Read by table item code, which must not take the transaction lock. */
     std::atomic<timestamp_t> _prepare_timestamp;
     timestamp_t _read_timestamp;
     kv_transaction_snapshot_ptr _snapshot;
