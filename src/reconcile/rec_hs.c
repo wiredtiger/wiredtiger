@@ -982,7 +982,7 @@ __rec_hs_flush_stats_periodic(WT_SESSION_IMPL *session, WT_REC_HS_STAT *statsp)
 static void
 __rec_hs_ckpt_progress(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t upd_written)
 {
-    uint64_t now, period_ms;
+    uint64_t elapsed_sec, now, pct_done, period_ms, upd_written_total;
 
     ++r->hs_progress_keys_done;
 
@@ -997,14 +997,17 @@ __rec_hs_ckpt_progress(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t upd_
     r->hs_progress_last_msg = now;
 
     /* Keys are the only unit with a known total; updates per key vary, so report both. */
+    pct_done = 0;
+    if (r->hs_progress_keys_total != 0)
+        pct_done = (100 * r->hs_progress_keys_done) / r->hs_progress_keys_total;
+    upd_written_total = r->hs_progress_upd_written + upd_written;
+    elapsed_sec = WT_CLOCKDIFF_SEC(now, r->hs_progress_start);
+
     __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
       "Checkpoint reconciling hot page on %s: HS wrapup %" PRIu64 "%% (%" PRIu64 "/%" PRIu64
       " keys, %" PRIu64 " updates written, %" PRIu64 "s elapsed)",
-      S2BT(session)->dhandle->name,
-      r->hs_progress_keys_total == 0 ? 0 :
-                                       (100 * r->hs_progress_keys_done) / r->hs_progress_keys_total,
-      r->hs_progress_keys_done, r->hs_progress_keys_total, r->hs_progress_upd_written + upd_written,
-      WT_CLOCKDIFF_SEC(now, r->hs_progress_start));
+      S2BT(session)->dhandle->name, pct_done, r->hs_progress_keys_done, r->hs_progress_keys_total,
+      upd_written_total, elapsed_sec);
 }
 
 /*
