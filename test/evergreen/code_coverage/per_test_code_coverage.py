@@ -111,8 +111,7 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str):
                              "--gcov-ignore-parse-errors=negative_hits.warn_once_per_file "
                              "--gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file "
                              "-f src -j 16 "
-                             "--html-self-contained --html-details "
-                             f"{coverage_output_dir}/2_coverage_report.html --json-summary-pretty "
+                             "--json-summary-pretty "
                              f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json "
                              f"--json {coverage_output_dir}/full_coverage_report.json")
             split_command = gcovr_command.split()
