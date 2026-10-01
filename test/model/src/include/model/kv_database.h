@@ -410,8 +410,7 @@ private:
     /*
      * Locking order: If you need to acquire more than one lock at a time, acquire locks in the
      * order in which they are declared in this file to avoid deadlocks. For example, the tables
-     * lock must be acquired before the transactions lock, and the transaction lock before the
-     * table and table item locks.
+     * lock must be acquired before the transactions lock.
      */
 
     /*
