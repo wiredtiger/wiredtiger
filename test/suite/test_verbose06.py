@@ -61,6 +61,9 @@ class test_verbose06(test_verbose_base):
         rf'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint reconciling hot page on {hot_file} '
         r'\(row-store leaf, (\d+)MB, \d+ mods\)')
     small_pattern = re.compile(rf'hot page on file:{test_name}_small')
+    done_pattern = re.compile(
+        rf'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint reconciled hot page on {hot_file} in \d+ms '
+        r'\(row-store leaf, \d+MB, \d+ mods, \d+ blocks, image build \d+ms, HS wrapup \d+ms\)')
 
     def populate(self):
         self.session.create(self.hot_uri, self.hot_create_config)
@@ -105,6 +108,14 @@ class test_verbose06(test_verbose_base):
         self.assertGreaterEqual(int(start[0]), 10)
         self.assertEqual(len(self.small_pattern.findall(output)), 0,
             "A small page was reported as hot:\n" + output)
+        self.finish_and_clean_output()
+
+    def test_hot_page_done(self):
+        self.populate()
+        output, _ = self.checkpoint_output()
+
+        self.assertEqual(len(self.done_pattern.findall(output)), 1,
+            "Expected one hot page completion message:\n" + output)
         self.finish_and_clean_output()
     def test_slow_hs_wrapup(self):
         self.populate()

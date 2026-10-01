@@ -327,6 +327,30 @@ __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline
 #define WT_REC_CKPT_HOT_PAGE_FOOTPRINT (10 * WT_MEGABYTE)
 
 /*
+ * __rec_ckpt_hot_page_done --
+ *     Log a checkpoint reconciliation that was either flagged as hot before it started or took
+ *     longer than the checkpoint progress period.
+ */
+static void
+__rec_ckpt_hot_page_done(WT_SESSION_IMPL *session, WT_PAGE *page, size_t footprint, uint32_t mods,
+  uint32_t blocks, bool hot, WT_RECONCILE_TIMELINE *timeline)
+{
+    uint64_t rec_ms;
+
+    rec_ms = WT_CLOCKDIFF_MS(timeline->reconcile_finish, timeline->reconcile_start);
+    if (!hot && rec_ms < WT_PROGRESS_MSG_PERIOD * WT_THOUSAND)
+        return;
+
+    __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+      "Checkpoint reconciled hot page on %s in %" PRIu64 "ms (%s, %" WT_SIZET_FMT "MB, %" PRIu32
+      " mods, %" PRIu32 " blocks, image build %" PRIu64 "ms, HS wrapup %" PRIu64 "ms)",
+      S2BT(session)->dhandle->name, rec_ms, __wt_page_type_string(page->type),
+      footprint / WT_MEGABYTE, mods, blocks,
+      WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start),
+      WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start));
+}
+
+/*
  * __reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
@@ -342,7 +366,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WTI_RECONCILE *r;
     size_t footprint;
     uint64_t rec, rec_hs_wrapup, rec_img_build, rec_reentry_hs, rec_start;
-    uint32_t mods;
+    uint32_t blocks, mods;
     void *addr;
     bool hot;
 
@@ -492,6 +516,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r, timeline));
+    if (page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
+        blocks = page->modify->mod_multi_entries;
+    else
+        blocks = page->modify->rec_result == WT_PM_REC_REPLACE ? 1 : 0;
     __rec_write_page_status(session, r);
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(
@@ -516,6 +544,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
         /* The nested root write measured a different page; report this one. */
         __rec_timeline_publish(session, timeline);
+        if (LF_ISSET(WT_REC_CHECKPOINT))
+            __rec_ckpt_hot_page_done(session, page, footprint, mods, blocks, hot, timeline);
         return (0);
     }
 
@@ -531,6 +561,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * (it's just a statistic).
      */
     __rec_timeline_publish(session, timeline);
+    if (LF_ISSET(WT_REC_CHECKPOINT))
+        __rec_ckpt_hot_page_done(session, page, footprint, mods, blocks, hot, timeline);
 
     rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
     rec_img_build = WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
