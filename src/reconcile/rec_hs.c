@@ -1195,7 +1195,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-    stress_slow = FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW) && F_ISSET(r, WT_REC_CHECKPOINT);;
+    stress_slow =
+      FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW) &&
+      F_ISSET(r, WT_REC_CHECKPOINT);
+    ;
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* Stretch checkpoint history store wrapup, one delay per key. */
