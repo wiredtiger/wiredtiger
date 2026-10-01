@@ -335,19 +335,19 @@ static void
 __rec_ckpt_hot_page_done(WT_SESSION_IMPL *session, WT_PAGE *page, size_t footprint, uint32_t mods,
   uint32_t blocks, bool hot, WT_RECONCILE_TIMELINE *timeline)
 {
-    uint64_t rec_ms;
-
-    rec_ms = WT_CLOCKDIFF_MS(timeline->reconcile_finish, timeline->reconcile_start);
+    uint64_t rec_ms = WT_CLOCKDIFF_MS(timeline->reconcile_finish, timeline->reconcile_start);
     if (!hot && rec_ms < WT_PROGRESS_MSG_PERIOD * WT_THOUSAND)
         return;
 
+    uint64_t build_time_ms =
+      WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
+    uint64_t hs_wrapup_time_ms =
+      WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
     __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
       "Checkpoint reconciled hot page on %s in %" PRIu64 "ms (%s, %" WT_SIZET_FMT "MB, %" PRIu32
       " mods, %" PRIu32 " blocks, image build %" PRIu64 "ms, HS wrapup %" PRIu64 "ms)",
       S2BT(session)->dhandle->name, rec_ms, __wt_page_type_string(page->type),
-      footprint / WT_MEGABYTE, mods, blocks,
-      WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start),
-      WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start));
+      build_time_ms, hs_wrapup_time_ms);
 }
 
 /*

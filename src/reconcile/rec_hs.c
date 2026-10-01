@@ -982,26 +982,24 @@ __rec_hs_flush_stats_periodic(WT_SESSION_IMPL *session, WT_REC_HS_STAT *statsp)
 static void
 __rec_hs_ckpt_progress(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t upd_written)
 {
-    uint64_t elapsed_sec, now, pct_done, period_ms, upd_written_total;
-
     ++r->hs_progress_keys_done;
 
     /* Shorten the period under stress so tests see the heartbeat without a long wait. */
-    period_ms = WT_PROGRESS_MSG_PERIOD * WT_THOUSAND;
+    uint64_t period_ms = WT_PROGRESS_MSG_PERIOD * WT_THOUSAND;
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
         period_ms = WT_THOUSAND;
 
-    now = __wt_clock(session);
+    uint64_t now = __wt_clock(session);
     if (WT_CLOCKDIFF_MS(now, r->hs_progress_last_msg) < period_ms)
         return;
     r->hs_progress_last_msg = now;
 
     /* Keys are the only unit with a known total; updates per key vary, so report both. */
-    pct_done = 0;
+    uint64_t pct_done = 0;
     if (r->hs_progress_keys_total != 0)
         pct_done = (100 * r->hs_progress_keys_done) / r->hs_progress_keys_total;
-    upd_written_total = r->hs_progress_upd_written + upd_written;
-    elapsed_sec = WT_CLOCKDIFF_SEC(now, r->hs_progress_start);
+    uint64_t upd_written_total = r->hs_progress_upd_written + upd_written;
+    uint64_t elapsed_sec = WT_CLOCKDIFF_SEC(now, r->hs_progress_start);
 
     __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
       "Checkpoint reconciling hot page on %s: HS wrapup %" PRIu64 "%% (%" PRIu64 "/%" PRIu64
@@ -1235,13 +1233,12 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
-        /* Stretch checkpoint history store wrapup, one delay per key. */
-        if (F_ISSET(r, WT_REC_CHECKPOINT) &&
-          FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
-            __wt_sleep(0, WT_THOUSAND);
-
-        if (F_ISSET(r, WT_REC_CHECKPOINT))
+        if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+            /* Stretch checkpoint history store wrapup, one delay per key. */
+            if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
+                __wt_sleep(0, WT_THOUSAND);
             __rec_hs_ckpt_progress(session, r, stats.insert_total);
+        }
 
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL)
