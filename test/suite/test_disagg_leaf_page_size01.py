@@ -61,8 +61,8 @@ class test_disagg_leaf_page_size01(wttest.WiredTigerTestCase):
 
     def test_page_count_matches_local(self):
         ts = self.populate(self.local_uri, self.table_config + ',block_manager=default,type=file', 1)
-        self.populate(self.shared_uri, self.table_config + ',block_manager=disagg,type=file', ts)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts + self.nrows))
+        ts = self.populate(self.shared_uri, self.table_config + ',block_manager=disagg,type=file', ts)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
 
         # Reopen without wiping the page store, so every page is read back from its checkpoint.
