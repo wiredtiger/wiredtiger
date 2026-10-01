@@ -276,10 +276,8 @@ int
 kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop)
 {
     /*
-     * Collect the keys to delete while holding the table lock, then release it before adding the
-     * updates: commit and rollback hold the transaction lock and then acquire the table lock, so
-     * the table lock must never be held while acquiring the transaction lock. The items are
-     * returned by pointer, which is valid because the map is never shrunk.
+     * Collect the keys while holding the table lock and add the updates after releasing it: the
+     * table lock must not be held while acquiring the transaction lock.
      */
     std::vector<std::pair<const data_value *, kv_table_item *>> to_delete;
 

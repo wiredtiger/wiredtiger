@@ -286,11 +286,7 @@ private:
 
     timestamp_t _commit_timestamp;
     timestamp_t _durable_timestamp;
-    /*
-     * The prepare timestamp is read by table item code, which holds the item lock and must not
-     * acquire the transaction lock because commit and rollback acquire it before the table locks.
-     * It is atomic so that such reads are well-defined without the lock.
-     */
+    /* Read by table item code, which must not take the transaction lock. */
     std::atomic<timestamp_t> _prepare_timestamp;
     timestamp_t _read_timestamp;
     kv_transaction_snapshot_ptr _snapshot;

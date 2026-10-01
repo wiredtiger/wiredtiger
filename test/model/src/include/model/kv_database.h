@@ -410,12 +410,8 @@ private:
     /*
      * Locking order: If you need to acquire more than one lock at a time, acquire locks in the
      * order in which they are declared in this file to avoid deadlocks. For example, the tables
-     * lock must be acquired before the transactions lock.
-     *
-     * The transaction lock is acquired before the table and table item locks: commit, prepare and
-     * rollback hold the transaction lock and then update the tables. No code path may therefore
-     * hold a table or table item lock while acquiring a transaction lock. The transaction's prepare
-     * timestamp is atomic so that table item code can read it without the lock.
+     * lock must be acquired before the transactions lock, and the transaction lock before the
+     * table and table item locks.
      */
 
     /*
