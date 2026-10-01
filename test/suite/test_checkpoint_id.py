@@ -38,6 +38,7 @@ from wtdataset import SimpleDataSet
 # Every object reading the same checkpoint reports the same identifier, which
 # lets applications confirm that checkpoint cursors opened on different objects
 # are looking at the same database checkpoint.
+# FIXME-WT-15357: Checkpoint cursors on layered tables are not supported.
 @wttest.skip_for_hook('disagg', 'checkpoint cursors on layered tables are not supported')
 class test_checkpoint_id(wttest.WiredTigerTestCase):
     test_name = __qualname__
