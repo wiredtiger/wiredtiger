@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <catch2/catch.hpp>
 
@@ -151,8 +152,7 @@ TEST_CASE(
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
-TEST_CASE(
-  "Palite victim cache drops an entry when the handle is at capacity", "[palite_victim_cache]")
+TEST_CASE("Palite victim cache drops an entry when it is at capacity", "[palite_victim_cache]")
 {
     connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_max_entries=2").c_str());
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
@@ -234,3 +234,60 @@ TEST_CASE("Palite victim cache discard drops the cached copy", "[palite_victim_c
 }
 
 #endif
+
+/*
+ * A byte-bounded cache shared by every handle is what a production page log enforces, so check the
+ * bound holds with no entry count configured at all.
+ */
+TEST_CASE("Palite victim cache can be bounded by bytes", "[palite_victim_cache]")
+{
+    /* One megabyte for the whole page log, no entry limit. */
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=1").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+
+    /* A byte bound alone makes the cache available. */
+    REQUIRE(handle->plh_cache_available(handle, session));
+
+    /* Cache far more than a megabyte of 64KB pages. */
+    std::vector<uint8_t> page(64 * 1024, 0xab);
+    WT_ITEM buf;
+    std::memset(&buf, 0, sizeof(buf));
+    buf.data = page.data();
+    buf.size = page.size();
+
+    const int pages = 64;
+    for (int i = 0; i < pages; ++i) {
+        WT_PAGE_LOG_PUT_ARGS args;
+        std::memset(&args, 0, sizeof(args));
+        args.lsn = (uint64_t)i + 1;
+        REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+    }
+
+    /* The early pages must have been evicted to stay inside the bound. */
+    int present = 0;
+    for (int i = 0; i < pages; ++i) {
+        WT_PAGE_LOG_PUT_ARGS args;
+        std::memset(&args, 0, sizeof(args));
+        args.lsn = (uint64_t)i + 1;
+        if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+            ++present;
+    }
+    REQUIRE(present > 0);
+    REQUIRE(present <= 16); /* 1MB / 64KB, so at most 16 pages can be resident. */
+
+    /* The most recent put is the one that must have survived. */
+    WT_PAGE_LOG_PUT_ARGS last;
+    std::memset(&last, 0, sizeof(last));
+    last.lsn = (uint64_t)pages;
+    REQUIRE(handle->plh_cache_has(handle, session, (uint64_t)pages - 1, 0, &last) == 0);
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
