@@ -233,8 +233,6 @@ TEST_CASE("Palite victim cache discard drops the cached copy", "[palite_victim_c
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
-#endif
-
 /*
  * A byte-bounded cache shared by every handle is what a production page log enforces, so check the
  * bound holds with no entry count configured at all.
@@ -291,3 +289,5 @@ TEST_CASE("Palite victim cache can be bounded by bytes", "[palite_victim_cache]"
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
+
+#endif
