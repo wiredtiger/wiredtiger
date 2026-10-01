@@ -116,7 +116,7 @@ class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
 
     def test_scan_with_concurrent_splits(self):
         # Cache pressure plus split stress can stall an eviction pass on loaded machines.
-        self.ignoreStdoutPatternIfExists('(Eviction|Checkpoint reconciliation) took more than 1 minute')
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')
         self.conn.set_timestamp("oldest_timestamp=" + self.timestamp_str(1))
 
         # Small pages give a deep tree where the truncated range covers every child of
