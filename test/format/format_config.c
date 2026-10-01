@@ -39,6 +39,7 @@ static void config_compression(TABLE *, const char *);
 static void config_disagg_key_provider(void);
 static void config_disagg_storage(void);
 static void config_disagg_victim_cache(void);
+static uint64_t config_disagg_victim_cache_entries(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
@@ -1551,7 +1552,7 @@ config_disagg_storage(void)
 static void
 config_disagg_victim_cache(void)
 {
-    uint64_t budget, entries, handles, image_size, max_leaf_page;
+    uint64_t entries;
     char buf[64];
 
     /* Deriving the count below clears this flag, so the warning has to come first. */
@@ -1594,43 +1595,58 @@ config_disagg_victim_cache(void)
     }
 
     if (GV(DISAGG_VICTIM_CACHE)) {
-        max_leaf_page = (uint64_t)1 << table_maxv(V_TABLE_BTREE_LEAF_PAGE_MAX);
-
-        if (max_leaf_page > VICTIM_CACHE_MAX_PAGE_SIZE) {
-            WARN("turning off disagg.victim_cache, a %" PRIu64
-                 "KB leaf page leaves too few entries in the budget to be worth caching",
-              max_leaf_page / WT_KILOBYTE);
+        if ((entries = config_disagg_victim_cache_entries()) == 0)
             config_off(NULL, "disagg.victim_cache");
-        } else {
-            /* Both terms round up: over-estimating shrinks the victim cache, which is safe. */
-            image_size = max_leaf_page + VICTIM_CACHE_ENTRY_OVERHEAD;
-            handles = WT_MAX(
-              (ntables == 0 ? 1 : ntables) + VICTIM_CACHE_EXTRA_HANDLES, VICTIM_CACHE_MIN_HANDLES);
-
-            /* Spend the budget over and above the cache, as the block cache share is spent. */
-            budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
-            entries = budget / (handles * image_size);
-
-            /*
-             * Raising a count the budget cannot pay for would spend whatever the table count
-             * demands, which is the failure this budget exists to prevent, so decline instead.
-             */
-            if (entries < VICTIM_CACHE_MIN_ENTRIES) {
-                WARN("turning off disagg.victim_cache, %u tables of %" PRIu64
-                     "KB leaves room for only %" PRIu64 " entries per handle",
-                  ntables, max_leaf_page / WT_KILOBYTE, entries);
-                config_off(NULL, "disagg.victim_cache");
-            } else {
-                entries = WT_MIN(entries, VICTIM_CACHE_MAX_ENTRIES);
-                testutil_snprintf(
-                  buf, sizeof(buf), "disagg.victim_cache.max_entries=%" PRIu64, entries);
-                config_single(NULL, buf, false);
-            }
+        else {
+            testutil_snprintf(
+              buf, sizeof(buf), "disagg.victim_cache.max_entries=%" PRIu64, entries);
+            config_single(NULL, buf, false);
         }
     }
 
     if (!GV(DISAGG_VICTIM_CACHE))
         config_off(NULL, "disagg.victim_cache.max_entries");
+}
+
+/*
+ * config_disagg_victim_cache_entries --
+ *     Entries per page log handle the memory budget pays for, zero if the run would get too few for
+ *     the cache to be worth running.
+ */
+static uint64_t
+config_disagg_victim_cache_entries(void)
+{
+    uint64_t budget, entries, handles, image_size, leaf_page_max;
+
+    leaf_page_max = (uint64_t)1 << table_maxv(V_TABLE_BTREE_LEAF_PAGE_MAX);
+    if (leaf_page_max > VICTIM_CACHE_MAX_PAGE_SIZE) {
+        WARN("turning off disagg.victim_cache, a %" PRIu64
+             "KB leaf page leaves too few entries in the budget to be worth caching",
+          leaf_page_max / WT_KILOBYTE);
+        return (0);
+    }
+
+    /* Both terms round up: over-estimating shrinks the victim cache, which is safe. */
+    image_size = leaf_page_max + VICTIM_CACHE_ENTRY_OVERHEAD;
+    handles =
+      WT_MAX((ntables == 0 ? 1 : ntables) + VICTIM_CACHE_EXTRA_HANDLES, VICTIM_CACHE_MIN_HANDLES);
+
+    /* Spend the budget over and above the cache, as the block cache share is spent. */
+    budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
+    entries = budget / (handles * image_size);
+
+    /*
+     * Raising a count the budget cannot pay for would spend whatever the table count demands, which
+     * is the failure this budget exists to prevent, so decline instead.
+     */
+    if (entries < VICTIM_CACHE_MIN_ENTRIES) {
+        WARN("turning off disagg.victim_cache, %u tables of %" PRIu64
+             "KB leaves room for only %" PRIu64 " entries per handle",
+          ntables, leaf_page_max / WT_KILOBYTE, entries);
+        return (0);
+    }
+
+    return (WT_MIN(entries, VICTIM_CACHE_MAX_ENTRIES));
 }
 
 /*
