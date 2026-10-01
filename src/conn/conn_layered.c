@@ -1913,6 +1913,12 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
 
+    /*
+     * The leader changed its local metadata outside of pickups, so the next pickup merges the whole
+     * checkpoint rather than a diff.
+     */
+    conn->disaggregated_storage.last_checkpoint_diffable = false;
+
     tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
@@ -2282,6 +2288,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * resolve.
          */
         __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
+
+        /* The forced adoption below merges the whole checkpoint rather than a diff. */
+        WT_WITH_CHECKPOINT_LOCK(
+          session, conn->disaggregated_storage.last_checkpoint_diffable = false);
 
         WT_ERR_MSG_CHK(session, __disagg_wait_for_deferred_pickup(session),
           "failed to adopt a deferred checkpoint before step-up");
