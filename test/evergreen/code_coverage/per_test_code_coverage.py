@@ -47,6 +47,15 @@ def delete_runtime_coverage_files(build_dir_base: str) -> None:
                 logging.debug(f"Deleted: {file_path}")
 
 
+def copy_coverage_files(build_dir: Path, copy_dest_dir: Path) -> None:
+    copy_dest_dir.mkdir()
+    files = [*build_dir.rglob("*.gcda"), *build_dir.rglob("*.gcno")]
+    for src in files:
+        dst = copy_dest_dir / src.relative_to(build_dir)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src, dst)
+
+
 # Run a series of tests with code coverage, copying the results and cleaning up
 # after each test is complete.
 def run_coverage_task(index, task):
@@ -72,7 +81,7 @@ def run_coverage_task(index, task):
         subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
         copy_dest_dir = f"{build_dir}_{index}_copy"
         logging.debug(f"Copying directory {build_dir} to {copy_dest_dir}")
-        shutil.copytree(src=build_dir, dst=copy_dest_dir)
+        copy_coverage_files(Path(build_dir), Path(copy_dest_dir))
 
         task_info = {"task": task}
         task_info_as_json_object = json.dumps(task_info, indent=2)
