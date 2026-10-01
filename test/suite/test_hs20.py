@@ -105,4 +105,4 @@ class test_hs20(wttest.WiredTigerTestCase):
         if (sys.platform.startswith('darwin')):
             # Ignore the eviction generation drain warning as it is possible for eviction to take
             # longer to evict pages due to overflow items on the page.
-            self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')
+            self.ignoreStdoutPatternIfExists('(Eviction|Checkpoint reconciliation) took more than 1 minute')

@@ -41,7 +41,7 @@ class test_cursor_random(wttest.WiredTigerTestCase):
         ('not-sample', dict(config='next_random=true'))
     ]
     scenarios = make_scenarios(types, config)
-    expected_warning_msg = 'Eviction took more than 1 minute'
+    expected_warning_msg = '(Eviction|Checkpoint reconciliation) took more than 1 minute'
 
     # Check that opening a random cursor on a row-store returns not-supported
     # for methods other than next, reconfigure and reset, and next returns

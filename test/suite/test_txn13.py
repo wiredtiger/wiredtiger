@@ -90,5 +90,5 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.session.commit_transaction()
 
-        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')
+        self.ignoreStdoutPatternIfExists('(Eviction|Checkpoint reconciliation) took more than 1 minute')
         self.assertTrue(gotException == self.expect_err)

@@ -31,53 +31,39 @@ import wttest
 from helper import WiredTigerCursor
 import re, time
 
-# Checkpoint progress logging for a single large dirty page whose history store wrapup dominates the
-# checkpoint.
+# Verify that a slow checkpoint reconciliation is reported with the file it was reconciling and its
+# image build and history store wrapup times, and that a fast one is not reported.
 class test_verbose06(test_verbose_base):
 
     test_name = __qualname__
-    hot_uri = f'table:{test_name}_hot'
-    small_uri = f'table:{test_name}_small'
+    uri = f'table:{test_name}'
 
     # Under disaggregated storage, checkpoint reconciles the table's stable component, whose file
     # name carries a _stable suffix.
-    hot_file = rf'file:{test_name}_hot\.wt(?:_stable)?'
+    file_name = rf'file:{test_name}\.wt(?:_stable)?'
 
-    # A cache-resident table is never evicted or split in memory, so its single leaf page grows far
-    # past the small maximum in-memory page size that makes a page hot.
-    hot_page_max_mb = 1
-    hot_create_config = 'key_format=Q,value_format=S,cache_resident=true,' \
-        f'memory_page_max={hot_page_max_mb}MB'
-    small_create_config = 'key_format=Q,value_format=S'
-    conn_config = 'cache_size=1GB,statistics=(all),eviction_dirty_trigger=95,' \
-        'eviction_dirty_target=90,eviction_updates_trigger=95,eviction_updates_target=90,' \
-        'verbose=[checkpoint_progress:0]'
+    # A cache-resident table keeps all its updates in memory until checkpoint reconciles them.
+    create_config = 'key_format=Q,value_format=S,cache_resident=true'
+    conn_config = 'cache_size=1GB,statistics=(all),verbose=[reconcile:0]'
 
     # Each round rewrites every key. The pinned oldest timestamp keeps every older version, so
-    # checkpoint writes the newest and moves the rest to the history store. The page ends up about
-    # 30 times its maximum in-memory size.
+    # checkpoint moves all but the newest to the history store. Under timing stress, history store
+    # wrapup sleeps a millisecond per key, so the checkpoint reconciliation takes at least nkeys
+    # milliseconds, several times the one second warning threshold the stress option sets.
     nkeys = 3000
     nrounds = 10
     value_size = 1000
 
-    small_pattern = re.compile(rf'hot page on file:{test_name}_small')
-    done_pattern = re.compile(
-        rf'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint reconciled hot page on {hot_file} in \d+ms '
-        r'\(row-store leaf, \d+MB, \d+ mods, \d+ blocks, image build \d+ms, HS wrapup \d+ms\)')
+    slow_pattern = re.compile(
+        rf'WT_VERB_RECONCILE.*Checkpoint reconciliation took more than 1 minute \((\d+)us\) on '
+        rf'{file_name}\. Building disk image took (\d+)us\. History store wrapup took (\d+)us\.')
 
     def populate(self):
-        self.session.create(self.hot_uri, self.hot_create_config)
-        self.session.create(self.small_uri, self.small_create_config)
+        self.session.create(self.uri, self.create_config)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
 
-        with WiredTigerCursor(self.session, self.small_uri) as cursor:
-            self.session.begin_transaction()
-            for k in range(100):
-                cursor[k] = 's' * 100
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
-
-        ts = 3
-        with WiredTigerCursor(self.session, self.hot_uri) as cursor:
+        ts = 2
+        with WiredTigerCursor(self.session, self.uri) as cursor:
             for r in range(self.nrounds):
                 self.session.begin_transaction()
                 value = chr(ord('a') + r) * self.value_size
@@ -93,31 +79,32 @@ class test_verbose06(test_verbose_base):
         return self.readStdout(1000000), time.monotonic() - start
 
     def finish_and_clean_output(self):
-        # Checkpoint always logs its own start and end, and closing the connection runs another
-        # checkpoint; this test only checks the hot page lines.
-        self.ignoreStdoutPattern(r'WT_VERB_CHECKPOINT_PROGRESS')
         self.cleanStdout()
         self.conn.reconfigure('verbose=[]')
 
-    def test_hot_page_done(self):
+    def test_fast_reconcile(self):
         self.populate()
         output, _ = self.checkpoint_output()
 
-        self.assertEqual(len(self.done_pattern.findall(output)), 1,
-            "Expected one hot page completion message:\n" + output)
-        self.assertEqual(len(self.small_pattern.findall(output)), 0,
-            "A small page was reported as hot:\n" + output)
+        self.assertEqual(len(self.slow_pattern.findall(output)), 0,
+            "A fast checkpoint reconciliation was reported as slow:\n" + output)
         self.finish_and_clean_output()
 
-    def test_slow_hs_wrapup(self):
+    def test_slow_reconcile(self):
         self.populate()
         self.conn.reconfigure('timing_stress_for_test=[checkpoint_hs_wrapup_slow]')
         output, elapsed = self.checkpoint_output()
         self.conn.reconfigure('timing_stress_for_test=[]')
 
-        # The stress delays history store wrapup by a millisecond per key of the hot page.
         self.assertGreaterEqual(elapsed, self.nkeys / 1000,
             "Timing stress didn't slow down checkpoint: {:.1f} seconds".format(elapsed))
+        slow = self.slow_pattern.findall(output)
+        self.assertEqual(len(slow), 1,
+            "Expected one slow checkpoint reconciliation message:\n" + output)
+        total_us, build_us, hs_wrapup_us = (int(v) for v in slow[0])
+        self.assertLessEqual(build_us + hs_wrapup_us, total_us)
+        self.assertGreater(hs_wrapup_us, build_us,
+            "Timing stress slows history store wrapup, which should dominate:\n" + output)
         self.finish_and_clean_output()
 
 if __name__ == '__main__':

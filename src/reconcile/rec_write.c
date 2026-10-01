@@ -314,37 +314,34 @@ __reconcile_post_wrapup(
 
 /*
  * __rec_timeline_publish --
- *     Stamp a reconciliation as finished. Eviction reports these timings after reconciliation
- *     returns, and does so whether or not it succeeded.
- */
-static WT_INLINE void
-__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline)
-{
-    timeline->reconcile_finish = __wt_clock(session);
-}
-
-/*
- * __rec_ckpt_hot_page_done --
- *     Log a checkpoint reconciliation that was either flagged as hot before it started or took
- *     longer than the checkpoint progress period.
+ *     Stamp a reconciliation as finished, and warn if it took more than a minute. Eviction reports
+ *     these timings after reconciliation returns, and does so whether or not it succeeded.
  */
 static void
-__rec_ckpt_hot_page_done(WT_SESSION_IMPL *session, WT_PAGE *page, size_t footprint, uint32_t mods,
-  uint32_t blocks, bool hot, WT_RECONCILE_TIMELINE *timeline)
+__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline, uint32_t flags)
 {
-    uint64_t rec_ms = WT_CLOCKDIFF_MS(timeline->reconcile_finish, timeline->reconcile_start);
-    if (!hot && rec_ms < WT_PROGRESS_MSG_PERIOD * WT_THOUSAND)
+    timeline->reconcile_finish = __wt_clock(session);
+
+    /* Lower the threshold under stress so tests see the warning without a long wait. */
+    uint64_t threshold_us = WT_MINUTE * WT_MILLION;
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
+        threshold_us = WT_MILLION;
+
+    uint64_t rec_us = WT_CLOCKDIFF_US(timeline->reconcile_finish, timeline->reconcile_start);
+    if (rec_us <= threshold_us)
         return;
 
-    uint64_t build_time_ms =
-      WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
-    uint64_t hs_wrapup_time_ms =
-      WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
-    __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
-      "Checkpoint reconciled hot page on %s in %" PRIu64 "ms (%s, %" WT_SIZET_FMT "MB, %" PRIu32
-      " mods, %" PRIu32 " blocks, image build %" PRIu64 "ms, HS wrapup %" PRIu64 "ms)",
-      S2BT(session)->dhandle->name, rec_ms, __wt_page_type_string(page->type),
-      footprint / WT_MEGABYTE, mods, blocks, build_time_ms, hs_wrapup_time_ms);
+    const char *operation = "Reconciliation";
+    if (LF_ISSET(WT_REC_EVICT))
+        operation = "Eviction";
+    else if (LF_ISSET(WT_REC_CHECKPOINT))
+        operation = "Checkpoint reconciliation";
+    uint64_t build_us = WT_CLOCKDIFF_US(timeline->image_build_finish, timeline->image_build_start);
+    uint64_t hs_wrapup_us = WT_CLOCKDIFF_US(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
+    __wt_verbose_warning(session, WT_VERB_RECONCILE,
+      "%s took more than 1 minute (%" PRIu64 "us) on %s. Building disk image took %" PRIu64
+      "us. History store wrapup took %" PRIu64 "us.",
+      operation, rec_us, S2BT(session)->dhandle->name, build_us, hs_wrapup_us);
 }
 
 /*
@@ -361,11 +358,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_PAGE *page;
     WT_RECONCILE_TIMELINE _timeline, *timeline;
     WTI_RECONCILE *r;
-    size_t footprint;
     uint64_t rec, rec_hs_wrapup, rec_img_build, rec_reentry_hs, rec_start;
-    uint32_t blocks, mods;
     void *addr;
-    bool hot;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -376,12 +370,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     if (*page_lockedp)
         WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
-
-    /* Snapshot the page's size and modification count: reconciliation resets both. */
-    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-    mods = __wt_atomic_load_uint32_relaxed(&page->modify->page_state);
-    /* A page that has outgrown the size that forces eviction is hot. */
-    hot = LF_ISSET(WT_REC_CHECKPOINT) && footprint >= btree->maxmempage;
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
@@ -496,7 +484,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
         /* Publish what was measured before the failure; stale timings are worse than partial. */
-        __rec_timeline_publish(session, timeline);
+        __rec_timeline_publish(session, timeline, flags);
 
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
@@ -510,10 +498,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r, timeline));
-    if (page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
-        blocks = page->modify->mod_multi_entries;
-    else
-        blocks = page->modify->rec_result == WT_PM_REC_REPLACE ? 1 : 0;
     __rec_write_page_status(session, r);
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(
@@ -537,9 +521,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
             goto err;
 
         /* The nested root write measured a different page; report this one. */
-        __rec_timeline_publish(session, timeline);
-        if (LF_ISSET(WT_REC_CHECKPOINT))
-            __rec_ckpt_hot_page_done(session, page, footprint, mods, blocks, hot, timeline);
+        __rec_timeline_publish(session, timeline, flags);
         return (0);
     }
 
@@ -554,9 +536,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    __rec_timeline_publish(session, timeline);
-    if (LF_ISSET(WT_REC_CHECKPOINT))
-        __rec_ckpt_hot_page_done(session, page, footprint, mods, blocks, hot, timeline);
+    __rec_timeline_publish(session, timeline, flags);
 
     rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
     rec_img_build = WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
