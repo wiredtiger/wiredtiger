@@ -382,10 +382,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     mods = __wt_atomic_load_uint32_relaxed(&page->modify->page_state);
     /* A page that has outgrown the size that forces eviction is hot. */
     hot = LF_ISSET(WT_REC_CHECKPOINT) && footprint >= btree->maxmempage;
-    if (hot)
-        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
-          "Checkpoint reconciling hot page on %s (%s, %" WT_SIZET_FMT "MB, %" PRIu32 " mods)",
-          btree->dhandle->name, __wt_page_type_string(page->type), footprint / WT_MEGABYTE, mods);
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
