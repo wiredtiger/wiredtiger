@@ -190,7 +190,7 @@ parse_and_set_disagg_opt(TEST_OPTS *opts)
       /* drain_threads        */ 8,
       /* page_log_map_size_mb */ 2048,
       /* page_log_verbose     */ 0,
-      /* victim_cache_max_entries */ 0);
+      /* victim_cache_size_mb */ 0);
 }
 
 /*

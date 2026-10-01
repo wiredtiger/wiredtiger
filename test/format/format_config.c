@@ -39,7 +39,6 @@ static void config_compression(TABLE *, const char *);
 static void config_disagg_key_provider(void);
 static void config_disagg_storage(void);
 static void config_disagg_victim_cache(void);
-static uint64_t config_disagg_victim_cache_entries(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
@@ -1523,23 +1522,8 @@ config_disagg_storage(void)
     config_off(NULL, "background_compact");
 }
 
-/* Memory the victim cache may use across all of the page log's handles, per run, per node. */
+/* Memory the victim cache may use, per run, per node. */
 #define VICTIM_CACHE_BUDGET_MB 128
-
-/* Per-entry bookkeeping beyond the image: key, restored metadata, vector and hash table nodes. */
-#define VICTIM_CACHE_ENTRY_OVERHEAD 128
-
-/* Handles beyond one per table: shared metadata, history store, layered constituents. */
-#define VICTIM_CACHE_EXTRA_HANDLES 6
-
-/* Handles a run opens even when it has few tables. */
-#define VICTIM_CACHE_MIN_HANDLES 12
-
-/* Leaf page size past which the budget buys too few entries to be worth caching. */
-#define VICTIM_CACHE_MAX_PAGE_SIZE (256 * WT_KILOBYTE)
-
-#define VICTIM_CACHE_MIN_ENTRIES 16
-#define VICTIM_CACHE_MAX_ENTRIES (50 * WT_THOUSAND)
 
 /*
  * config_disagg_victim_cache --
@@ -1552,12 +1536,12 @@ config_disagg_storage(void)
 static void
 config_disagg_victim_cache(void)
 {
-    uint64_t entries;
+    uint64_t size_mb;
     char buf[64];
 
     /* Deriving the count below clears this flag, so the warning has to come first. */
-    if (config_explicit(NULL, "disagg.victim_cache.max_entries"))
-        WARN("%s", "ignoring disagg.victim_cache.max_entries, the entry count is derived");
+    if (config_explicit(NULL, "disagg.victim_cache.size"))
+        WARN("%s", "ignoring disagg.victim_cache.size, the cache size is derived");
 
     /* The victim cache lives in the page log, so a run without one has nowhere to put pages. */
     if (!g.disagg_storage_config) {
@@ -1595,61 +1579,19 @@ config_disagg_victim_cache(void)
     }
 
     if (GV(DISAGG_VICTIM_CACHE)) {
-        if ((entries = config_disagg_victim_cache_entries()) == 0)
-            config_off(NULL, "disagg.victim_cache");
-        else {
-            testutil_snprintf(
-              buf, sizeof(buf), "disagg.victim_cache.max_entries=%" PRIu64, entries);
-            config_single(NULL, buf, false);
-        }
+        /*
+         * The page log bounds its cache in bytes, so this is the whole of the sizing: nothing here
+         * depends on the page sizes or the table count. The memory is extra, not carved out of the
+         * cache, and the fraction is the share the block cache takes, binding only on a run given
+         * little memory.
+         */
+        size_mb = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5);
+        testutil_snprintf(buf, sizeof(buf), "disagg.victim_cache.size=%" PRIu64, size_mb);
+        config_single(NULL, buf, false);
     }
 
     if (!GV(DISAGG_VICTIM_CACHE))
-        config_off(NULL, "disagg.victim_cache.max_entries");
-}
-
-/*
- * config_disagg_victim_cache_entries --
- *     Entries per page log handle the memory budget pays for, zero to decline the cache.
- *
- * The page log sizes its cache in entries per handle, but what has to be bounded is the bytes a run
- *     spends, so the budget is divided by the handles that will be open and by what one cached page
- *     costs. Neither is measurable from here, so both are estimated high: spending under the budget
- *     is harmless, spending over it is the failure the budget exists to prevent.
- */
-static uint64_t
-config_disagg_victim_cache_entries(void)
-{
-    uint64_t budget, entries, handles, image_size, leaf_page_max;
-
-    leaf_page_max = (uint64_t)1 << table_maxv(V_TABLE_BTREE_LEAF_PAGE_MAX);
-    if (leaf_page_max > VICTIM_CACHE_MAX_PAGE_SIZE) {
-        WARN("turning off disagg.victim_cache, a %" PRIu64
-             "KB leaf page leaves too few entries in the budget to be worth caching",
-          leaf_page_max / WT_KILOBYTE);
-        return (0);
-    }
-
-    image_size = leaf_page_max + VICTIM_CACHE_ENTRY_OVERHEAD;
-    handles =
-      WT_MAX((ntables == 0 ? 1 : ntables) + VICTIM_CACHE_EXTRA_HANDLES, VICTIM_CACHE_MIN_HANDLES);
-
-    /*
-     * This memory is extra, not carved out of the cache. The fraction is the share the block cache
-     * takes, and only binds on a run given little memory; otherwise the ceiling is what applies.
-     */
-    budget = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5) * WT_MEGABYTE;
-    entries = budget / (handles * image_size);
-
-    /* Clamping up to the minimum would spend whatever the table count demands; decline instead. */
-    if (entries < VICTIM_CACHE_MIN_ENTRIES) {
-        WARN("turning off disagg.victim_cache, %u tables of %" PRIu64
-             "KB leaves room for only %" PRIu64 " entries per handle",
-          ntables, leaf_page_max / WT_KILOBYTE, entries);
-        return (0);
-    }
-
-    return (WT_MIN(entries, VICTIM_CACHE_MAX_ENTRIES));
+        config_off(NULL, "disagg.victim_cache.size");
 }
 
 /*

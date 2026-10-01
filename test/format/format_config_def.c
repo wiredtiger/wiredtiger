@@ -212,8 +212,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.victim_cache", "enable the page log victim cache", C_BOOL, 50, 0, 0,
     V_GLOBAL_DISAGG_VICTIM_CACHE},
 
-  {"disagg.victim_cache.max_entries", "victim cache entries per page log handle (derived)",
-    C_IGNORE, 0, 0, 50000, V_GLOBAL_DISAGG_VICTIM_CACHE_MAX_ENTRIES},
+  {"disagg.victim_cache.size", "victim cache size (MB, derived)", C_IGNORE, 0, 0, 100 * 1024,
+    V_GLOBAL_DISAGG_VICTIM_CACHE_SIZE},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},

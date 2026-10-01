@@ -355,8 +355,8 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
       /* drain_threads        */ GV(DISAGG_DRAIN_THREADS),
       /* page_log_map_size_mb */ 2048, /* 2 Gigabytes for storage memory map */
       /* page_log_verbose     */ GV(DISAGG_PAGE_LOG_VERBOSE),
-      /* victim_cache_max_entries */
-      GV(DISAGG_VICTIM_CACHE) ? GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES) : 0);
+      /* victim_cache_size_mb */
+      GV(DISAGG_VICTIM_CACHE) ? GV(DISAGG_VICTIM_CACHE_SIZE) : 0);
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
@@ -980,23 +980,23 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
     testutil_check(cursor->close(cursor));
 
     testutil_assert(fprintf(fp,
-                      "enabled, %" PRIu32 " entries per handle\n"
+                      "enabled, %" PRIu32 "MB\n"
                       "pages cached=%" PRId64 "\n"
                       "pages cached by application threads=%" PRId64 "\n"
                       "cold pages not cached=%" PRId64 "\n"
                       "failed page inserts=%" PRId64 "\n"
                       "time spent adding pages=%" PRId64 "us\n"
                       "average per page=%" PRId64 "us\n",
-                      GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES), puts, app_puts, cold_skipped,
-                      put_failures, put_time, puts == 0 ? 0 : put_time / puts) >= 0);
+                      GV(DISAGG_VICTIM_CACHE_SIZE), puts, app_puts, cold_skipped, put_failures,
+                      put_time, puts == 0 ? 0 : put_time / puts) >= 0);
 
     /*
      * Repeat it on stdout, deliberately ignoring quiet: format.sh always runs quiet and redirects
      * each job to its own log, which is the file kept when a run fails.
      */
-    printf("--- victim cache: %" PRIu32 " entries/handle, %" PRId64 " pages cached (%" PRId64
+    printf("--- victim cache: %" PRIu32 "MB, %" PRId64 " pages cached (%" PRId64
            " by application threads), %" PRId64 " failed ---\n",
-      GV(DISAGG_VICTIM_CACHE_MAX_ENTRIES), puts, app_puts, put_failures);
+      GV(DISAGG_VICTIM_CACHE_SIZE), puts, app_puts, put_failures);
     if (puts == 0)
         printf("--- victim cache: enabled but nothing was cached ---\n");
 }
