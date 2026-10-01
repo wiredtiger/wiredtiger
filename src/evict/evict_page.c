@@ -484,6 +484,15 @@ __evict_stats_update(WT_SESSION_IMPL *session, WT_EVICT_TIMELINE *timeline, uint
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
         __wt_atomic_stats_max_uint64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
+        if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
+            __wt_verbose_warning(session, WT_VERB_EVICTION,
+              "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
+              "us. History store wrapup took %" PRIu64 "us.",
+              eviction_time,
+              WT_CLOCKDIFF_US(
+                timeline->reconcile.image_build_finish, timeline->reconcile.image_build_start),
+              WT_CLOCKDIFF_US(
+                timeline->reconcile.hs_wrapup_finish, timeline->reconcile.hs_wrapup_start));
     } else {
         /*
          * We are in the reentrant history store eviction inside a data store reconciliation. Add to

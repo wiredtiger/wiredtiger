@@ -314,13 +314,18 @@ __reconcile_post_wrapup(
 
 /*
  * __rec_timeline_publish --
- *     Stamp a reconciliation as finished, and warn if it took more than a minute. Eviction reports
- *     these timings after reconciliation returns, and does so whether or not it succeeded.
+ *     Stamp a reconciliation as finished, and warn if a checkpoint reconciliation took more than a
+ *     minute. Eviction reports these timings after reconciliation returns, and does so whether or
+ *     not it succeeded.
  */
 static void
 __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline, uint32_t flags)
 {
     timeline->reconcile_finish = __wt_clock(session);
+
+    /* Eviction warns about the whole eviction, including the work after reconciliation. */
+    if (!LF_ISSET(WT_REC_CHECKPOINT))
+        return;
 
     /* Lower the threshold under stress so tests see the warning without a long wait. */
     uint64_t threshold_us = WT_MINUTE * WT_MILLION;
@@ -331,17 +336,12 @@ __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline
     if (rec_us <= threshold_us)
         return;
 
-    const char *operation = "Reconciliation";
-    if (LF_ISSET(WT_REC_EVICT))
-        operation = "Eviction";
-    else if (LF_ISSET(WT_REC_CHECKPOINT))
-        operation = "Checkpoint reconciliation";
     uint64_t build_us = WT_CLOCKDIFF_US(timeline->image_build_finish, timeline->image_build_start);
     uint64_t hs_wrapup_us = WT_CLOCKDIFF_US(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
     __wt_verbose_warning(session, WT_VERB_RECONCILE,
-      "%s took more than 1 minute (%" PRIu64 "us) on %s. Building disk image took %" PRIu64
-      "us. History store wrapup took %" PRIu64 "us.",
-      operation, rec_us, S2BT(session)->dhandle->name, build_us, hs_wrapup_us);
+      "Checkpoint reconciliation took more than 1 minute (%" PRIu64
+      "us) on %s. Building disk image took %" PRIu64 "us. History store wrapup took %" PRIu64 "us.",
+      rec_us, S2BT(session)->dhandle->name, build_us, hs_wrapup_us);
 }
 
 /*
