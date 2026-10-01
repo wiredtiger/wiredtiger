@@ -30,12 +30,10 @@ import wttest
 from helper_disagg import disagg_test_class
 from wiredtiger import stat
 
+# An append-only load on a disaggregated table builds leaf pages of the same size as an identical
+# local table.
 @disagg_test_class
 class test_disagg_leaf_size01(wttest.WiredTigerTestCase):
-    """
-    An append-only load on a disaggregated table builds leaf pages of the same size as an identical
-    local table.
-    """
     conn_config = 'disaggregated=(role="leader",lose_all_my_data=true),statistics=(fast),' \
         'cache_size=1GB'
     nrows = 40000
