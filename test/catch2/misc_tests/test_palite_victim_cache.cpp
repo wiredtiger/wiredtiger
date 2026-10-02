@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <catch2/catch.hpp>
 
@@ -230,6 +231,64 @@ TEST_CASE("Palite victim cache discard drops the cached copy", "[palite_victim_c
     REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
+/*
+ * The byte budget is shared by every handle, so two handles together must not exceed it. This is
+ * what lets a caller size the cache without knowing how many handles a run will open.
+ */
+TEST_CASE("Palite victim cache byte budget is shared across handles", "[palite_victim_cache]")
+{
+    /* One megabyte for the whole page log, no entry limit. */
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=1").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *first = nullptr, *second = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &first) == 0);
+    REQUIRE(page_log->pl_open_handle(page_log, session, 2, &second) == 0);
+
+    /* A byte budget alone makes the cache available. */
+    REQUIRE(first->plh_cache_available(first, session));
+    REQUIRE(second->plh_cache_available(second, session));
+
+    std::vector<uint8_t> page(64 * 1024, 0xab);
+    WT_ITEM buf;
+    std::memset(&buf, 0, sizeof(buf));
+    buf.data = page.data();
+    buf.size = page.size();
+
+    /* Offer each handle a megabyte of pages; between them they may only hold a megabyte. */
+    const int per_handle = 16;
+    WT_PAGE_LOG_HANDLE *handles[2] = {first, second};
+    for (auto &handle : handles)
+        for (int i = 0; i < per_handle; ++i) {
+            WT_PAGE_LOG_PUT_ARGS args;
+            std::memset(&args, 0, sizeof(args));
+            args.lsn = (uint64_t)i + 1;
+            REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+        }
+
+    int cached = 0;
+    for (auto &handle : handles)
+        for (int i = 0; i < per_handle; ++i) {
+            WT_PAGE_LOG_PUT_ARGS args;
+            std::memset(&args, 0, sizeof(args));
+            args.lsn = (uint64_t)i + 1;
+            if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+                ++cached;
+        }
+
+    /* 1MB of 64KB pages, so at most 16 between the two handles rather than 16 each. */
+    REQUIRE(cached > 0);
+    REQUIRE(cached <= per_handle);
+
+    REQUIRE(first->plh_close(first, session) == 0);
+    REQUIRE(second->plh_close(second, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
