@@ -355,10 +355,11 @@ now_us()
 struct Config {
     WT_EXTENSION_API *extapi = nullptr; /* WiredTiger extension API */
 
-    std::filesystem::path home_dir;        /* Home directory for the extension */
-    uint32_t cache_size_mb = 1'024;        /* Size of cache in megabytes (default) */
-    uint32_t victim_cache_max_entries = 0; /* Victim cache entries per handle; 10000 typical */
-    uint32_t victim_cache_size_mb = 0;     /* Victim cache megabytes across all handles */
+    std::filesystem::path home_dir; /* Home directory for the extension */
+    uint32_t cache_size_mb = 1'024; /* Size of cache in megabytes (default) */
+    /* The victim cache is off unless one of these is set; a zero bound is no limit. */
+    uint32_t victim_cache_max_entries = 0; /* Entries per handle */
+    uint32_t victim_cache_size_mb = 0;     /* Megabytes in total */
     uint32_t mmap_size_mb = 1'024;         /* Size of memory map in megabytes (default) */
     uint32_t delay_ms = 0;                 /* Average length of delay when simulated */
     uint32_t error_ms = 0;                 /* Average length of sleep when simulated */
