@@ -86,7 +86,7 @@ public:
     /* The handle is going away, so hand back whatever it still holds. */
     ~victim_cache()
     {
-        shared_bytes.fetch_sub(local_bytes);
+        shared_bytes -= local_bytes;
     }
 
     victim_cache(const victim_cache &) = delete;
@@ -194,14 +194,14 @@ private:
     acquire(uint64_t bytes)
     {
         local_bytes += bytes;
-        shared_bytes.fetch_add(bytes);
+        shared_bytes += bytes;
     }
 
     void
     release(uint64_t bytes)
     {
         local_bytes -= bytes;
-        shared_bytes.fetch_sub(bytes);
+        shared_bytes -= bytes;
     }
 
     const uint32_t max_entries;
