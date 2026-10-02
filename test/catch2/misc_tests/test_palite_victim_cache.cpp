@@ -398,4 +398,51 @@ TEST_CASE("Palite victim cache budget is released when a handle closes", "[palit
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
+/*
+ * The two bounds are independent, so the entry count has to hold even when the byte budget is far
+ * too large to ever bind.
+ */
+TEST_CASE(
+  "Palite victim cache respects the entry count under a large byte budget", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME,
+      palite_conn_cfg("victim_cache_max_entries=1000,victim_cache_size_mb=1048576").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+
+    /* Tiny pages, so a terabyte of budget can never be what stops us. */
+    std::vector<uint8_t> page(64, 0xab);
+    WT_ITEM buf;
+    std::memset(&buf, 0, sizeof(buf));
+    buf.data = page.data();
+    buf.size = page.size();
+
+    const int limit = 1000;
+    for (int i = 0; i < limit + 1; ++i) {
+        WT_PAGE_LOG_PUT_ARGS args;
+        std::memset(&args, 0, sizeof(args));
+        args.lsn = (uint64_t)i + 1;
+        REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+    }
+
+    int cached = 0;
+    for (int i = 0; i < limit + 1; ++i) {
+        WT_PAGE_LOG_PUT_ARGS args;
+        std::memset(&args, 0, sizeof(args));
+        args.lsn = (uint64_t)i + 1;
+        if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+            ++cached;
+    }
+    REQUIRE(cached == limit);
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
 #endif
