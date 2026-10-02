@@ -445,4 +445,44 @@ TEST_CASE(
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
+/*
+ * A replacement image too large to cache must still retire the copy already held, or a reader would
+ * be handed a page the caller has since replaced.
+ */
+TEST_CASE("Palite victim cache drops the old copy when the replacement is too large",
+  "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=1").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *handle = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+
+    WT_PAGE_LOG_PUT_ARGS args;
+    std::memset(&args, 0, sizeof(args));
+    args.lsn = 1;
+
+    std::vector<uint8_t> small(1024, 0x11);
+    WT_ITEM buf;
+    std::memset(&buf, 0, sizeof(buf));
+    buf.data = small.data();
+    buf.size = small.size();
+    REQUIRE(handle->plh_cache_put(handle, session, 1, 0, &args, &buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, 1, 0, &args) == 0);
+
+    /* Replace it under the same key with an image that cannot fit in the budget at all. */
+    std::vector<uint8_t> huge(2 * 1024 * 1024, 0x22);
+    buf.data = huge.data();
+    buf.size = huge.size();
+    REQUIRE(handle->plh_cache_put(handle, session, 1, 0, &args, &buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, 1, 0, &args) != 0);
+
+    REQUIRE(handle->plh_close(handle, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
 #endif

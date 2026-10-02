@@ -139,21 +139,22 @@ public:
         const uint64_t cost = entry_bytes(entry);
         std::lock_guard<std::mutex> lock(mtx);
 
-        /* A page larger than the whole budget would evict everything and still not fit. */
-        if (max_bytes > 0 && cost > max_bytes)
-            return;
-
+        /* Drop any copy already held under this key, whether or not the new one is cached. */
         auto it = map.find(key);
         if (it != map.end()) {
             free(entry_bytes(it->second));
             map.erase(it);
         }
 
-        /* Decline before discarding anything, when discarding everything would not be enough. */
+        /* A page larger than the whole budget would evict everything and still not fit. */
+        if (max_bytes > 0 && cost > max_bytes)
+            return;
+
+        /* Even giving up everything this handle holds would not fit the page, so do not try. */
         if (max_bytes > 0 && shared_bytes.load() - local_bytes + cost > max_bytes)
             return;
 
-        /* Make room under whichever bounds are configured. */
+        /* Give up this handle's own entries until the page fits under whichever bounds are set. */
         while (!map.empty() &&
           ((max_entries > 0 && map.size() >= max_entries) ||
             (max_bytes > 0 && shared_bytes.load() + cost > max_bytes))) {
