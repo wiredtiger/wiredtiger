@@ -33,10 +33,10 @@ from wtscenario import make_scenarios
 
 
 @disagg_test_class
-class test_disagg_fast_truncate04(wttest.WiredTigerTestCase):
+class test_disagg_fast_truncate05(wttest.WiredTigerTestCase):
     """Check that a clean resident internal page can be skipped safely."""
 
-    uri = "table:test_disagg_fast_truncate04"
+    uri = "table:test_disagg_fast_truncate05"
     nrows = 1000
     value = "a" * 50
     trunc_start = 100
