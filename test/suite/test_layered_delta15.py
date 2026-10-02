@@ -159,13 +159,8 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Verify the updated values in the table.
         self.verify(kv_modfied, inital_value)
 
-        # Assert that we have constructed at least one internal page delta. Each update above
-        # touches a distinct, already-written leaf page with a single key, which always takes
-        # the single-page, non-split reconciliation path: the leaf is rewritten at a new
-        # address, which dirties its parent for the same checkpoint, and a one-entry change to
-        # an internal page is always well under delta_pct of its full image. So the last
-        # checkpoint to touch any given internal page is guaranteed to leave it pointing at a
-        # delta chain.
+        # Assert that we have constructed at least one internal page delta. See update_keys():
+        # single-key overwrites guarantee a delta chain here.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
         else:
