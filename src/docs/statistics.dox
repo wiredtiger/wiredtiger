@@ -97,7 +97,7 @@ that will not be needed:
 Every statistic has exactly one OTel type: \c otel_counters, \c otel_gauges,
 \c otel_histograms, or \c otel_none. The type is a tag on the statistic, not a
 separate set of statistics. A statistic tagged with an OTel type is still an
-ordinary statistic: it is exposed by statistics cursors and by ServerStatus like
+ordinary statistic: it is exposed by statistics cursors like
 any other. \c otel_none is the type of statistics that are not used for OTel.
 Because every statistic has exactly one type, the four types partition the
 statistics, and their union is all statistics.
