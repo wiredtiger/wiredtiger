@@ -64,19 +64,29 @@ struct victim_cache_entry {
 };
 
 /*
- * One cache per page log handle, but the byte budget is shared by all of them: a caller bounding
- * the memory the page log spends gives a total rather than a figure per handle. Either bound may be
- * zero, meaning unbounded in that dimension; the cache is unavailable only when both are.
+ * One cache per page log handle, bounded by an entry count per handle and by a byte budget shared
+ * across all of them, so a caller bounding the memory the page log spends gives one total rather
+ * than a figure per handle. Zero means no limit; two zeros turn the cache off.
  *
- * A handle evicts only its own entries, so when the shared budget is spent and this handle holds
- * nothing it declines to cache rather than taking memory from another handle. Caching is best
- * effort, so declining costs nothing but a miss.
+ * A handle can only free its own entries. If freeing all of them would still leave too little room
+ * for the page, it keeps what it has and skips the page instead. Caching is best effort, so that
+ * costs a miss and nothing else.
+ *
+ * Room is checked before it is taken rather than in a single step, so two handles can both find
+ * space and both use it. The total can exceed the budget briefly, by at most one page for each
+ * handle inserting at the time.
  */
 class victim_cache {
 public:
     victim_cache(uint32_t max_entries, uint64_t max_bytes, std::atomic<uint64_t> &shared_bytes)
         : max_entries(max_entries), max_bytes(max_bytes), shared_bytes(shared_bytes)
     {
+    }
+
+    /* The handle is going away, so hand back whatever it still holds. */
+    ~victim_cache()
+    {
+        shared_bytes.fetch_sub(local_bytes);
     }
 
     victim_cache(const victim_cache &) = delete;
@@ -139,7 +149,11 @@ public:
             map.erase(it);
         }
 
-        /* Make room under whichever bounds are configured, giving up only this handle's entries. */
+        /* Decline before discarding anything, when discarding everything would not be enough. */
+        if (max_bytes > 0 && shared_bytes.load() - local_bytes + cost > max_bytes)
+            return;
+
+        /* Make room under whichever bounds are configured. */
         while (!map.empty() &&
           ((max_entries > 0 && map.size() >= max_entries) ||
             (max_bytes > 0 && shared_bytes.load() + cost > max_bytes))) {
@@ -148,11 +162,11 @@ public:
             map.erase(victim);
         }
 
-        /* Another handle may hold the budget, in which case there is nothing to give up. */
+        /* A concurrent handle may have taken the room this one just freed. */
         if (max_bytes > 0 && shared_bytes.load() + cost > max_bytes)
             return;
 
-        shared_bytes.fetch_add(cost);
+        acquire(cost);
         map.insert_or_assign(key, std::move(entry));
     }
 
@@ -166,8 +180,7 @@ public:
     }
 
 private:
-    /* Per-entry bookkeeping beyond the image: key, restored metadata, vector and hash table node.
-     */
+    /* Per-entry cost beyond the image: key, metadata, vector and hash node. */
     static constexpr uint64_t ENTRY_OVERHEAD = 128;
 
     static uint64_t
@@ -176,15 +189,25 @@ private:
         return entry.data.capacity() + ENTRY_OVERHEAD;
     }
 
+    /* The two counters move together: local_bytes is this handle's share of shared_bytes. */
+    void
+    acquire(uint64_t bytes)
+    {
+        local_bytes += bytes;
+        shared_bytes.fetch_add(bytes);
+    }
+
     void
     release(uint64_t bytes)
     {
+        local_bytes -= bytes;
         shared_bytes.fetch_sub(bytes);
     }
 
     const uint32_t max_entries;
     const uint64_t max_bytes;
     std::atomic<uint64_t> &shared_bytes;
+    uint64_t local_bytes = 0; /* This handle's share of the shared total, guarded by the lock. */
     mutable std::mutex mtx;
     std::unordered_map<victim_cache_key, victim_cache_entry> map;
 };
