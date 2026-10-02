@@ -28,63 +28,43 @@
 
 import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
 from wtscenario import make_scenarios
 
 # Verify that a follower truncate obeys the commit timestamp requirement that every other write to
 # a disaggregated table obeys. The range holds no key the follower itself wrote, so the truncate
 # list entry is the only record of the operation.
+
 @disagg_test_class
-class test_layered_fast_truncate22(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     test_name = __qualname__
-    conn_config = 'disaggregated=(role="leader")'
+    conn_config = 'disaggregated=(role="leader"),'
     uri = f'layered:{test_name}'
-    table_config = 'key_format=i,value_format=S'
-    nrows = 100
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
+
     scenarios = make_scenarios(disagg_storages)
 
-    def populate_stable(self):
-        """Write the rows as the leader and checkpoint them, then become a follower."""
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        self.session.create(self.uri, self.table_config)
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        for i in range(1, self.nrows + 1):
-            cursor[i] = 'value'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-        cursor.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
-        self.session.checkpoint()
-        self.conn.reconfigure('disaggregated=(role="follower")')
-
-    def begin_truncate_all_rows(self):
-        """Truncate the whole key range, leaving the transaction uncommitted."""
-        c_start = self.session.open_cursor(self.uri)
-        c_start.set_key(1)
-        c_stop = self.session.open_cursor(self.uri)
-        c_stop.set_key(self.nrows)
-        self.session.begin_transaction()
-        self.session.truncate(None, c_start, c_stop, None)
-        c_start.close()
-        c_stop.close()
-
-    def row_count(self):
-        """Count the rows readable through the main session."""
-        cursor = self.session.open_cursor(self.uri)
-        count = 0
-        while cursor.next() == 0:
-            count += 1
-        cursor.close()
-        return count
+    nitems = 100
 
     def test_untimestamped_follower_truncate_is_refused(self):
-        self.populate_stable()
-        self.begin_truncate_all_rows()
+        keys = range_inclusive(1, self.nitems)
+        self.setup_leader(keys=keys)
+        self.setup_follower()
+
+        start = self.session.open_cursor(self.uri)
+        start.set_key(self.key(1))
+        stop = self.session.open_cursor(self.uri)
+        stop.set_key(self.key(self.nitems))
+        self.session.begin_transaction()
+        self.session.truncate(None, start, stop, None)
+        start.close()
+        stop.close()
+
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
             '/commit timestamp is required for writes to disaggregated tables/')
 
-        # The refused commit rolled the truncate back, so every row is still readable.
-        self.assertEqual(self.row_count(), self.nrows)
+        # The refused commit rolled the truncate back, so every key is still visible.
+        self.assertEqual(self.visible_keys(), list(keys))
