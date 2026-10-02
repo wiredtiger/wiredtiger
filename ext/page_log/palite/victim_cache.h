@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -62,9 +63,21 @@ struct victim_cache_entry {
     std::vector<uint8_t> data;
 };
 
+/*
+ * One cache per page log handle, but the byte budget is shared by all of them: a caller bounding
+ * the memory the page log spends gives a total rather than a figure per handle. Either bound may be
+ * zero, meaning unbounded in that dimension; the cache is unavailable only when both are.
+ *
+ * A handle evicts only its own entries, so when the shared budget is spent and this handle holds
+ * nothing it declines to cache rather than taking memory from another handle. Caching is best
+ * effort, so declining costs nothing but a miss.
+ */
 class victim_cache {
 public:
-    explicit victim_cache(uint32_t max_entries) : max_entries(max_entries) {}
+    victim_cache(uint32_t max_entries, uint64_t max_bytes, std::atomic<uint64_t> &shared_bytes)
+        : max_entries(max_entries), max_bytes(max_bytes), shared_bytes(shared_bytes)
+    {
+    }
 
     victim_cache(const victim_cache &) = delete;
     victim_cache &operator=(const victim_cache &) = delete;
@@ -74,28 +87,34 @@ public:
     bool
     available() const
     {
-        return max_entries > 0;
+        return max_entries > 0 || max_bytes > 0;
     }
 
     bool
     erase(uint64_t page_id, uint64_t lsn)
     {
-        if (max_entries == 0)
+        if (!available())
             return false;
         std::lock_guard<std::mutex> lock(mtx);
-        return map.erase(victim_cache_key{page_id, lsn}) > 0;
+        auto it = map.find(victim_cache_key{page_id, lsn});
+        if (it == map.end())
+            return false;
+        release(entry_bytes(it->second));
+        map.erase(it);
+        return true;
     }
 
     std::optional<victim_cache_entry>
     get_erase(uint64_t page_id, uint64_t lsn)
     {
-        if (max_entries == 0)
+        if (!available())
             return std::nullopt;
         std::lock_guard<std::mutex> lock(mtx);
         auto it = map.find(victim_cache_key{page_id, lsn});
         if (it == map.end())
             return std::nullopt;
         victim_cache_entry entry = std::move(it->second);
+        release(entry_bytes(entry));
         map.erase(it);
         return entry;
     }
@@ -103,27 +122,69 @@ public:
     void
     put(uint64_t page_id, victim_cache_entry &&entry)
     {
-        if (max_entries == 0)
+        if (!available())
             return;
         const uint64_t lsn = entry.lsn;
         const victim_cache_key key{page_id, lsn};
+        const uint64_t cost = entry_bytes(entry);
         std::lock_guard<std::mutex> lock(mtx);
-        if (!map.contains(key) && map.size() >= max_entries)
-            map.erase(map.begin());
+
+        /* A page larger than the whole budget would evict everything and still not fit. */
+        if (max_bytes > 0 && cost > max_bytes)
+            return;
+
+        auto it = map.find(key);
+        if (it != map.end()) {
+            release(entry_bytes(it->second));
+            map.erase(it);
+        }
+
+        /* Make room under whichever bounds are configured, giving up only this handle's entries. */
+        while (!map.empty() &&
+          ((max_entries > 0 && map.size() >= max_entries) ||
+            (max_bytes > 0 && shared_bytes.load() + cost > max_bytes))) {
+            auto victim = map.begin();
+            release(entry_bytes(victim->second));
+            map.erase(victim);
+        }
+
+        /* Another handle may hold the budget, in which case there is nothing to give up. */
+        if (max_bytes > 0 && shared_bytes.load() + cost > max_bytes)
+            return;
+
+        shared_bytes.fetch_add(cost);
         map.insert_or_assign(key, std::move(entry));
     }
 
     bool
     contains(uint64_t page_id, uint64_t lsn) const
     {
-        if (max_entries == 0)
+        if (!available())
             return false;
         std::lock_guard<std::mutex> lock(mtx);
         return map.contains(victim_cache_key{page_id, lsn});
     }
 
 private:
+    /* Per-entry bookkeeping beyond the image: key, restored metadata, vector and hash table node.
+     */
+    static constexpr uint64_t ENTRY_OVERHEAD = 128;
+
+    static uint64_t
+    entry_bytes(const victim_cache_entry &entry)
+    {
+        return entry.data.capacity() + ENTRY_OVERHEAD;
+    }
+
+    void
+    release(uint64_t bytes)
+    {
+        shared_bytes.fetch_sub(bytes);
+    }
+
     const uint32_t max_entries;
+    const uint64_t max_bytes;
+    std::atomic<uint64_t> &shared_bytes;
     mutable std::mutex mtx;
     std::unordered_map<victim_cache_key, victim_cache_entry> map;
 };
