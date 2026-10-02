@@ -408,7 +408,9 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
     WT_DECL_RET;
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
-    WT_ASSERT(session, t->start_ts > WT_TS_NONE);
+    /* Only a relaxed commit timestamp requirement can record a truncate without one. */
+    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
+        WT_ASSERT(session, t->start_ts > WT_TS_NONE);
     WT_ASSERT(session, t->durable_ts >= t->start_ts);
 
     const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
