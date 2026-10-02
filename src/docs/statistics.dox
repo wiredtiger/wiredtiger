@@ -126,16 +126,17 @@ statistics, gathering only the relatively inexpensive ones:
 
 @snippet ex_all.c Statistics cursor counters
 
+By default, statistics will have the type otel_none. It is only when a statistic is to
+be used for OTel, then they will be given an actual OTel type. Configuring \c otel_none excludes
+every statistic that has an actual OTel type, exposing only those that do not (\c otel_none).
+
 The following example opens a cursor that exposes only statistics that are not used for
 OTel:
 
 @snippet ex_all.c Statistics cursor OTel none
 
 If no \c otel_* value is configured, no filtering by OTel type takes place and
-all statistics are exposed. This is the behavior from before OTel types existed,
-so existing applications are unaffected. Configuring \c otel_none is
-therefore different from configuring nothing: it excludes every statistic that
-has an OTel type, leaving only those that do not.
+all statistics are exposed.
 
 As with other statistics configuration values, the ::wiredtiger_open function
 sets the default for all statistics cursors, which the configuration passed to
