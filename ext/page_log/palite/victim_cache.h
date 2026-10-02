@@ -109,7 +109,7 @@ public:
         auto it = map.find(victim_cache_key{page_id, lsn});
         if (it == map.end())
             return false;
-        release(entry_bytes(it->second));
+        free(entry_bytes(it->second));
         map.erase(it);
         return true;
     }
@@ -124,7 +124,7 @@ public:
         if (it == map.end())
             return std::nullopt;
         victim_cache_entry entry = std::move(it->second);
-        release(entry_bytes(entry));
+        free(entry_bytes(entry));
         map.erase(it);
         return entry;
     }
@@ -145,7 +145,7 @@ public:
 
         auto it = map.find(key);
         if (it != map.end()) {
-            release(entry_bytes(it->second));
+            free(entry_bytes(it->second));
             map.erase(it);
         }
 
@@ -158,7 +158,7 @@ public:
           ((max_entries > 0 && map.size() >= max_entries) ||
             (max_bytes > 0 && shared_bytes.load() + cost > max_bytes))) {
             auto victim = map.begin();
-            release(entry_bytes(victim->second));
+            free(entry_bytes(victim->second));
             map.erase(victim);
         }
 
@@ -166,7 +166,7 @@ public:
         if (max_bytes > 0 && shared_bytes.load() + cost > max_bytes)
             return;
 
-        acquire(cost);
+        allocate(cost);
         map.insert_or_assign(key, std::move(entry));
     }
 
@@ -186,16 +186,15 @@ private:
         return entry.data.capacity();
     }
 
-    /* The two counters move together: local_bytes is this handle's share of shared_bytes. */
     void
-    acquire(uint64_t bytes)
+    allocate(uint64_t bytes)
     {
         local_bytes += bytes;
         shared_bytes += bytes;
     }
 
     void
-    release(uint64_t bytes)
+    free(uint64_t bytes)
     {
         local_bytes -= bytes;
         shared_bytes -= bytes;
