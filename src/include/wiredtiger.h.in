@@ -9180,6 +9180,26 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * down timestamp setting boundary
  */
 #define	WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN		2072
+/*! truncate: boundary leaf pages read */
+#define	WT_STAT_CONN_TRUNCATE_BOUNDARY_LEAF_PAGES_READ	2073
+/*! truncate: fast-delete candidates in memory or busy */
+#define	WT_STAT_CONN_TRUNCATE_FAST_DELETE_FALLBACK_IN_MEMORY	2074
+/*! truncate: fast-delete candidates rejected */
+#define	WT_STAT_CONN_TRUNCATE_FAST_DELETE_FALLBACK_PAGES	2075
+/*! truncate: internal page bytes newly dirtied */
+#define	WT_STAT_CONN_TRUNCATE_INTERNAL_BYTES_DIRTIED	2076
+/*! truncate: internal pages newly dirtied */
+#define	WT_STAT_CONN_TRUNCATE_INTERNAL_PAGES_DIRTIED	2077
+/*! truncate: leaf page bytes newly dirtied */
+#define	WT_STAT_CONN_TRUNCATE_LEAF_BYTES_DIRTIED	2078
+/*! truncate: leaf pages fast-deleted */
+#define	WT_STAT_CONN_TRUNCATE_FAST_DELETED_LEAF_PAGES	2079
+/*! truncate: leaf pages modified through the slow path */
+#define	WT_STAT_CONN_TRUNCATE_SLOW_PATH_LEAF_PAGES	2080
+/*! truncate: leaf pages newly dirtied */
+#define	WT_STAT_CONN_TRUNCATE_LEAF_PAGES_DIRTIED	2081
+/*! truncate: tombstone bytes added to cache */
+#define	WT_STAT_CONN_TRUNCATE_SLOW_PATH_UPDATE_BYTES	2082
 
 /*!
  * @}
@@ -10559,6 +10579,26 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2449
 /*! transaction: update conflicts */
 #define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2450
+/*! truncate: boundary leaf pages read */
+#define	WT_STAT_DSRC_TRUNCATE_BOUNDARY_LEAF_PAGES_READ	2451
+/*! truncate: fast-delete candidates in memory or busy */
+#define	WT_STAT_DSRC_TRUNCATE_FAST_DELETE_FALLBACK_IN_MEMORY	2452
+/*! truncate: fast-delete candidates rejected */
+#define	WT_STAT_DSRC_TRUNCATE_FAST_DELETE_FALLBACK_PAGES	2453
+/*! truncate: internal page bytes newly dirtied */
+#define	WT_STAT_DSRC_TRUNCATE_INTERNAL_BYTES_DIRTIED	2454
+/*! truncate: internal pages newly dirtied */
+#define	WT_STAT_DSRC_TRUNCATE_INTERNAL_PAGES_DIRTIED	2455
+/*! truncate: leaf page bytes newly dirtied */
+#define	WT_STAT_DSRC_TRUNCATE_LEAF_BYTES_DIRTIED	2456
+/*! truncate: leaf pages fast-deleted */
+#define	WT_STAT_DSRC_TRUNCATE_FAST_DELETED_LEAF_PAGES	2457
+/*! truncate: leaf pages modified through the slow path */
+#define	WT_STAT_DSRC_TRUNCATE_SLOW_PATH_LEAF_PAGES	2458
+/*! truncate: leaf pages newly dirtied */
+#define	WT_STAT_DSRC_TRUNCATE_LEAF_PAGES_DIRTIED	2459
+/*! truncate: tombstone bytes added to cache */
+#define	WT_STAT_DSRC_TRUNCATE_SLOW_PATH_UPDATE_BYTES	2460
 
 /*!
  * @}

@@ -35,6 +35,7 @@ else()
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
+        misc_tests/test_range_truncate_update_accounting.cpp
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp

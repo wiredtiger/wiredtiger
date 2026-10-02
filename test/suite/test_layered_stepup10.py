@@ -69,6 +69,12 @@ class test_layered_stepup10(wttest.WiredTigerTestCase):
     def conn_follower_config(self):
         return self.base_config + 'disaggregated=(role="follower")'
 
+    def get_conn_stat(self, stat_id):
+        cursor = self.session.open_cursor('statistics:')
+        value = cursor[stat_id][2]
+        cursor.close()
+        return value
+
     def test_drain_multiple_step_up_cycles(self):
         """
         Two full follower->leader transitions on the same table verify that
@@ -93,12 +99,17 @@ class test_layered_stepup10(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # --- Cycle 1: step down, write batch 2, step up ---
+        update_bytes_before = self.get_conn_stat(
+            wiredtiger.stat.conn.truncate_slow_path_update_bytes)
         self.conn.reconfigure('disaggregated=(role="follower")')
         oplog.insert(t, n_batch)
         session_c1 = self.conn.open_session('')
         oplog.apply(self, session_c1, n_batch, n_batch)
 
         self.conn.reconfigure('disaggregated=(role="leader")')
+        self.assertGreater(
+            self.get_conn_stat(wiredtiger.stat.conn.truncate_slow_path_update_bytes),
+            update_bytes_before)
         # Checkpoint advances last_checkpoint_timestamp so cycle 2's batch can be
         # drained (its timestamps are strictly above this stable_timestamp).
         self.conn.set_timestamp(

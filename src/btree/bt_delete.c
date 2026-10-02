@@ -103,6 +103,10 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
+            if (session->range_truncate) {
+                WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
+                WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_in_memory);
+            }
             return (0);
         }
 
@@ -122,11 +126,21 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * Fast check to see if it's worth locking, then atomically switch the page's state to lock it.
      */
     previous_state = WT_REF_GET_STATE(ref);
-    if (previous_state != WT_REF_DISK)
+    if (previous_state != WT_REF_DISK) {
+        if (session->range_truncate) {
+            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
+            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_in_memory);
+        }
         return (0);
+    }
 
-    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
+        if (session->range_truncate) {
+            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
+            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_in_memory);
+        }
         return (0);
+    }
 
     /*
      * There should be no previous page-delete information: if the page was previously deleted and
@@ -225,6 +239,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     *skipp = true;
     WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
+    if (session->range_truncate)
+        WT_STAT_CONN_DSRC_INCR(session, truncate_fast_deleted_leaf_pages);
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
@@ -266,6 +282,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     return (ret);
 
 err:
+    if (ret == 0 && session->range_truncate)
+        WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
     __wt_free(session, ref->page_del);
 
     /* Return the page to its previous state. */

@@ -160,6 +160,24 @@ __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __range_truncate_update_size --
+ *     Return the memory used by newly created range-truncate tombstones in an update chain.
+ */
+static WT_INLINE size_t
+__range_truncate_update_size(WT_UPDATE *upd, size_t update_size)
+{
+    size_t range_truncate_size, size;
+
+    for (range_truncate_size = size = 0; upd != NULL && size < update_size; upd = upd->next) {
+        size += WT_UPDATE_MEMSIZE(upd);
+        if (upd->type == WT_UPDATE_TOMBSTONE && !F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE))
+            range_truncate_size += WT_UPDATE_MEMSIZE(upd);
+    }
+
+    return (range_truncate_size);
+}
+
+/*
  * __wt_col_append_serial --
  *     Append a new column-store entry.
  */
@@ -170,6 +188,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
+    size_t range_truncate_size;
 
     /* Clear references to memory we now own and must free on error. */
     new_ins = *new_insp;
@@ -196,7 +215,10 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
      * we added cannot be discarded while visible to any running transaction, and we're a running
      * transaction, which means there can be no corresponding delete until we complete.
      */
-    __wt_cache_page_inmem_incr(session, page, new_ins_size, true);
+    range_truncate_size = session->range_truncate ?
+      __range_truncate_update_size(new_ins->upd, __wt_update_list_memsize(new_ins->upd)) :
+      0;
+    __wt_cache_page_inmem_incr_int(session, page, new_ins_size, true, range_truncate_size);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
@@ -221,6 +243,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
+    size_t range_truncate_size;
     u_int i;
     bool simple;
 
@@ -254,7 +277,10 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
      * we added cannot be discarded while visible to any running transaction, and we're a running
      * transaction, which means there can be no corresponding delete until we complete.
      */
-    __wt_cache_page_inmem_incr(session, page, new_ins_size, true);
+    range_truncate_size = session->range_truncate ?
+      __range_truncate_update_size(new_ins->upd, __wt_update_list_memsize(new_ins->upd)) :
+      0;
+    __wt_cache_page_inmem_incr_int(session, page, new_ins_size, true, range_truncate_size);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
@@ -311,7 +337,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * structures we added cannot be discarded while visible to any running transaction, and we're a
      * running transaction, which means there can be no corresponding delete until we complete.
      */
-    __wt_cache_page_inmem_incr(session, page, upd_size, true);
+    __wt_cache_page_inmem_incr_int(session, page, upd_size, true,
+      session->range_truncate ? __range_truncate_update_size(upd, upd_size) : 0);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);

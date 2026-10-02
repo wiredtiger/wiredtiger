@@ -1901,7 +1901,9 @@ retry:
  *     Increment the number of bytes dirty in the transaction.
  *
  * The "new_update" argument indicates whether a piece of data is: (1) Newly created (not just data
- *     being moved). (2) Exclusively belongs to the current transaction.
+ *     being moved). (2) Exclusively belongs to the current transaction. The
+ *     "range_truncate_update_size" argument records only updates created by the active range
+ *     truncate without changing transaction accounting.
  *
  * There are two types of "dirty" data in the system for the purpose of this function: (1) Dirty
  *     data associated with a specific transaction. (2) Dirty data that isn't tied to a single
@@ -1917,24 +1919,25 @@ retry:
  *     dirty data, so the "new_update" flag would be set to false.
  */
 static void
-__txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
+__txn_incr_bytes_dirty(
+  WT_SESSION_IMPL *session, size_t size, bool new_update, size_t range_truncate_update_size)
 {
     /*
-     * For application threads, track the transaction bytes added to cache usage. We want to capture
-     * only the application's own changes to page data structures. Exclude changes to internal pages
-     * or changes that are the result of the application thread being co-opted into eviction work.
+     * Exclude relocated updates and updates created by co-opted eviction. Range-truncate accounting
+     * includes internal, non-transactional work; the transaction accounting below does not.
      */
-    if (!new_update)
+    if (!new_update || __wt_session_gen(session, WT_GEN_EVICT) != 0)
         return;
+
+    if (session->range_truncate && range_truncate_update_size != 0)
+        WT_STAT_CONN_DSRC_INCRV(
+          session, truncate_slow_path_update_bytes, (int64_t)range_truncate_update_size);
 
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return;
 
     if (!F_ISSET(session->txn, WT_TXN_RUNNING) &&
       !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
-        return;
-
-    if (__wt_session_gen(session, WT_GEN_EVICT) != 0)
         return;
 
     session->txn->update_dirty_bytes += size;

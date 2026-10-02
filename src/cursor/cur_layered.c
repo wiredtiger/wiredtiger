@@ -1703,9 +1703,12 @@ __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
     WT_ASSERT(session, F_ISSET(trunc_info->stop, WT_CURSTD_KEY_INT));
     WT_RET(__wt_cursor_localkey(trunc_info->stop));
 
+    WT_ASSERT(session, !session->range_truncate);
+    session->range_truncate = true;
     WT_WITH_BTREE(session, CUR2BT(trunc_info->start),
       ret = __wt_cursor_truncate((WT_CURSOR_BTREE *)trunc_info->start,
         (WT_CURSOR_BTREE *)trunc_info->stop, __clayered_stable_replay_remove_int));
+    session->range_truncate = false;
     return (ret);
 }
 

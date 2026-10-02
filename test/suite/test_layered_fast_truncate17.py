@@ -82,18 +82,28 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         cursor.close()
         self.session_follow.rollback_transaction()
 
-    def assert_fast_truncate_fired(self, msg):
-        before = self.get_stat(stat.conn.rec_page_delete_fast, conn=self.conn_follow)
+    def assert_replay_stats_increased(self, msg):
+        fast_before = self.get_stat(stat.conn.rec_page_delete_fast, conn=self.conn_follow)
+        truncate_fast_before = self.get_stat(
+            stat.conn.truncate_fast_deleted_leaf_pages, conn=self.conn_follow)
+        update_bytes_before = self.get_stat(
+            stat.conn.truncate_slow_path_update_bytes, conn=self.conn_follow)
         self.step_up()
-        after = self.get_stat(stat.conn.rec_page_delete_fast, conn=self.conn_follow)
-        self.assertGreater(after, before, msg)
+        self.assertGreater(
+            self.get_stat(stat.conn.rec_page_delete_fast, conn=self.conn_follow), fast_before, msg)
+        self.assertGreater(self.get_stat(
+            stat.conn.truncate_fast_deleted_leaf_pages, conn=self.conn_follow),
+            truncate_fast_before, "Range truncate fast-delete statistics did not increase.")
+        self.assertGreater(self.get_stat(
+            stat.conn.truncate_slow_path_update_bytes, conn=self.conn_follow),
+            update_bytes_before, "Range truncate update-byte statistics did not increase.")
 
     def test_fast_truncate_fires_during_replay(self):
         self.setup_follower()
         # Leave boundary pages untouched so interior pages are eligible for fast-delete.
         trunc_start, trunc_stop = 200, self.nitems - 200 - 1
         self.truncate_range(trunc_start, trunc_stop, ts=20)
-        self.assert_fast_truncate_fired("Fast truncate did not happen.")
+        self.assert_replay_stats_increased("Fast truncate did not happen.")
         self.assert_ranges_deleted([(trunc_start, trunc_stop)], ts=30)
 
     def test_fast_truncate_multiple_ranges(self):
@@ -101,6 +111,6 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.truncate_range(200, 1199, ts=20)
         self.truncate_range(1700, 2699, ts=20)
         self.truncate_range(3200, 4199, ts=20)
-        self.assert_fast_truncate_fired(
+        self.assert_replay_stats_increased(
             "fast truncate did not increase for multi-range truncate.")
         self.assert_ranges_deleted([(200, 1199), (1700, 2699), (3200, 4199)], ts=30)

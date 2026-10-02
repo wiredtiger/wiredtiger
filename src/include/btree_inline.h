@@ -375,11 +375,12 @@ __wt_btree_shared_base_name(
 }
 
 /*
- * __wt_cache_page_inmem_incr --
- *     Increment a page's memory footprint in the cache.
+ * __wt_cache_page_inmem_incr_int --
+ *     Increment a page's memory footprint and its range-truncate update bytes.
  */
 static WT_INLINE void
-__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
+__wt_cache_page_inmem_incr_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
+  bool new_update, size_t range_truncate_update_size)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -405,7 +406,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
 
     if (__wt_tsan_suppress_load_wt_page_modify_ptr(&page->modify) != NULL) {
-        __txn_incr_bytes_dirty(session, size, new_update);
+        __txn_incr_bytes_dirty(session, size, new_update, range_truncate_update_size);
         if (!WT_PAGE_IS_INTERNAL(page)) {
             WT_CACHE_INCR(is_disagg, btree, cache, bytes_updates, size);
             uint64_t tree_updates = __wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
@@ -429,6 +430,16 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
         }
     }
+}
+
+/*
+ * __wt_cache_page_inmem_incr --
+ *     Increment a page's memory footprint in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
+{
+    __wt_cache_page_inmem_incr_int(session, page, size, new_update, size);
 }
 
 /*
@@ -1074,6 +1085,18 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * be incremented before the compare-and-swap operation.
          */
         (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, page_memory_footprint);
+
+        if (session->range_truncate && __wt_session_gen(session, WT_GEN_EVICT) == 0) {
+            if (WT_PAGE_IS_INTERNAL(page)) {
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, truncate_internal_bytes_dirtied, page_memory_footprint);
+                WT_STAT_CONN_DSRC_INCR(session, truncate_internal_pages_dirtied);
+            } else {
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, truncate_leaf_bytes_dirtied, page_memory_footprint);
+                WT_STAT_CONN_DSRC_INCR(session, truncate_leaf_pages_dirtied);
+            }
+        }
 
         __wt_evict_page_first_dirty(session, page);
 

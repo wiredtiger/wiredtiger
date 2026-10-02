@@ -448,6 +448,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     __wt_free(session, tmp);
 
 skip_disk_read:
+    if (session->range_truncate_boundary && __wt_session_gen(session, WT_GEN_EVICT) == 0 &&
+      (page->type == WT_PAGE_ROW_LEAF || page->type == WT_PAGE_COL_VAR ||
+        page->type == WT_PAGE_COL_FIX_DEPRECATED))
+        WT_STAT_CONN_DSRC_INCR(session, truncate_boundary_leaf_pages_read);
+
     if (page->type == WT_PAGE_ROW_LEAF && page->entries > 0)
         __wt_btree_row_leaf_entries_update(btree, page->entries);
     if (page->disagg_info != NULL) {

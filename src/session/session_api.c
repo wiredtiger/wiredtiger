@@ -1634,6 +1634,8 @@ __wt_session_range_truncate(
      *
      * No need to search the record again if it is already pointing to the btree.
      */
+    WT_ASSERT(session, !session->range_truncate_boundary);
+    session->range_truncate_boundary = true;
     if (!F_ISSET(start, WT_CURSTD_KEY_INT)) {
         needs_next_prev = true;
         if (orig_start_key != NULL) {
@@ -1684,9 +1686,11 @@ __wt_session_range_truncate(
         }
     }
 
+    session->range_truncate_boundary = false;
     WT_ERR(__wt_schema_range_truncate(trunc_info));
 
 done:
+    session->range_truncate_boundary = false;
     /*
      * In the cases where truncate doesn't have work to do, we still need to generate a log record
      * for the operation. That way we can be consistent with other competing inserts or truncates on
@@ -1716,6 +1720,7 @@ done:
         }
     }
 err:
+    session->range_truncate_boundary = false;
     /* Clear temporary buffer that were storing the original start and stop keys. */
     if (orig_start_key != NULL)
         __wt_scr_free(session, &orig_start_key);
