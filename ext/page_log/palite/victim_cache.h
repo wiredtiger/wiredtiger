@@ -150,22 +150,26 @@ public:
         if (max_bytes > 0 && cost > max_bytes)
             return;
 
+        /*
+         * Work from one reading of the total. Another handle can move it underneath, but the bound
+         * is approximate anyway and a stale reading costs at most a miss.
+         */
+        uint64_t total = shared_bytes.load();
+
         /* Even giving up everything this handle holds would not fit the page, so do not try. */
-        if (max_bytes > 0 && shared_bytes.load() - local_bytes + cost > max_bytes)
+        if (max_bytes > 0 && total - local_bytes + cost > max_bytes)
             return;
 
         /* Give up this handle's own entries until the page fits under whichever bounds are set. */
         while (!map.empty() &&
           ((max_entries > 0 && map.size() >= max_entries) ||
-            (max_bytes > 0 && shared_bytes.load() + cost > max_bytes))) {
+            (max_bytes > 0 && total + cost > max_bytes))) {
             auto victim = map.begin();
-            free(entry_bytes(victim->second));
+            const uint64_t freed = entry_bytes(victim->second);
+            free(freed);
+            total -= freed;
             map.erase(victim);
         }
-
-        /* A concurrent handle may have taken the room this one just freed. */
-        if (max_bytes > 0 && shared_bytes.load() + cost > max_bytes)
-            return;
 
         allocate(cost);
         map.insert_or_assign(key, std::move(entry));
