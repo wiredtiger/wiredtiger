@@ -129,6 +129,11 @@ typedef struct {
     EVENT_TYPE type;
     uint32_t thread_id;
     uint32_t slot;
+    /*
+     * How many operations unpublished at the step-down this event accounts for: all of them on the
+     * step-down event, which reserves an epoch for each; 1 on a publish taking one; 0 otherwise.
+     */
+    uint32_t unpublished;
     /*-
      * The completion timestamp for this event:
      *   - a publish epoch,
@@ -142,17 +147,20 @@ typedef struct {
 } SCHEMA_EVENT;
 
 /*
- * The generator's per-slot position in the table lifecycle, valid transitions only. Every state
- * lingers a random number of visits before its next move, widening the windows a checkpoint can
- * land in: between a schema operation and its publish, and between a publish and the drop that
- * follows.
+ * The generator's per-slot position in the table lifecycle, valid transitions only. Every state but
+ * the reserved ones lingers a random number of visits before its next move, widening the windows a
+ * checkpoint can land in: between a schema operation and its publish, and between a publish and the
+ * drop that follows.
  */
 typedef enum {
     TABLE_NONE = 0,  /* slot free: no local table, nothing unpublished */
     TABLE_CREATED,   /* created; the publish may be delayed */
     TABLE_PUBLISHED, /* create published; may take data, and is droppable */
     TABLE_DROPPED,   /* dropped; the publish may be delayed */
-    TABLE_REMOVED    /* drop published; the slot frees once the stable epoch covers it */
+    TABLE_REMOVED,   /* drop published; the slot frees once the stable epoch covers it */
+    /* Unpublished at the step-down: the only move is the publish, at a reserved epoch. */
+    TABLE_CREATED_RESERVED,
+    TABLE_DROPPED_RESERVED
 } TABLE_STATE;
 
 /* Test-wide configuration, built from the command line by every role independently. */
@@ -231,7 +239,8 @@ typedef struct {
 
     /* Step-down state, zero outside a transition; atomic access. */
     uint64_t stepdown_ts;       /* while set, the timestamp and checkpoint threads hold */
-    bool stepdown_ckpt_due;     /* the timestamps are set: the checkpoint thread may take it */
+    uint64_t reserved_ts;       /* the last epoch handed out of those reserved at or below it */
+    bool stepdown_ckpt_due;     /* the timestamp is set: the checkpoint thread may take it */
     uint64_t stepdown_ckpt_lsn; /* the step-down checkpoint, once taken */
     bool ts_busy;               /* the timestamp thread is mid-advance; atomic access */
 

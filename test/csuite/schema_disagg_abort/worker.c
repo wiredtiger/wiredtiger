@@ -242,12 +242,20 @@ worker_complete(WORKLOAD_STATE *state, uint64_t value)
 /*
  * worker_ts --
  *     Take the timestamp for an event the worker is about to apply. A generating node allocates on
- *     apply; a peer-fed follower adopts what the leader stamped.
+ *     apply, from the epochs reserved at the step-down for a publish predating it; a peer-fed
+ *     follower adopts what the leader stamped.
  */
 static uint64_t
 worker_ts(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 {
-    return (state->generates ? __wt_atomic_add_uint64(&state->current_ts, 1) : ev->event_ts);
+    if (!state->generates)
+        return (ev->event_ts);
+    if (ev->unpublished == 0)
+        return (__wt_atomic_add_uint64(&state->current_ts, 1));
+
+    const uint64_t ts = __wt_atomic_add_uint64(&state->reserved_ts, 1);
+    testutil_assert(ts <= __wt_atomic_load_uint64(&state->stepdown_ts));
+    return (ts);
 }
 
 /*

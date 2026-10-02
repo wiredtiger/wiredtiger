@@ -16,12 +16,11 @@
 
 /* The generator's state machine. */
 typedef enum {
-    GEN_NORMAL,          /* the term's workload */
-    GEN_PUBLISH_PENDING, /* publish what the preceding workload left unpublished */
-    GEN_BEGIN_STEPDOWN,  /* one-shot: emit the step-down timestamp */
-    GEN_STEPDOWN,        /* the step-down: limited workload */
-    GEN_SWITCH,          /* one-shot: emit the switch event that ends the stream */
-    GEN_STOP             /* terminal: the phase stopped, or the stream ended */
+    GEN_NORMAL,         /* the term's workload */
+    GEN_BEGIN_STEPDOWN, /* one-shot: the step-down event, reserving epochs for unpublished ops */
+    GEN_STEPDOWN,       /* the step-down: limited workload */
+    GEN_HANDOVER,       /* one-shot: publish what is still pending, then emit the switch event */
+    GEN_STOP            /* terminal: the phase stopped, or the stream ended */
 } GENERATOR_PHASE;
 
 /*
@@ -42,9 +41,16 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
  *     Whether this slot's table can be dropped now.
  */
 static bool
-generator_slot_droppable(WORKLOAD_STATE *state, uint32_t t, uint32_t slot)
+generator_slot_droppable(WORKLOAD_STATE *state, uint32_t t, uint32_t slot, bool stepping_down)
 {
     if (state->workers[t].table[slot].uncovered_insert)
+        return (false);
+
+    /*
+     * A drop can wait on the step-down checkpoint, which waits on the reserved publishes: one
+     * queued behind the drop would never apply.
+     */
+    if (stepping_down && __wt_atomic_load_uint64(&state->stepdown_ckpt_lsn) == 0)
         return (false);
 
     /* Legacy mode has no epochs to cover, and a lone node or a dead peer has nobody to protect. */
@@ -107,7 +113,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
             if (stepping_down || !state->leads)
                 *uncovered_insert = true;
         } else if (__wt_random(rnd) % GEN_DROP_ODDS == 0 &&
-          generator_slot_droppable(state, t, slot)) {
+          generator_slot_droppable(state, t, slot, stepping_down)) {
             ev.type = EVENT_DROP;
             /* Consume the create's epoch: the next table in this slot publishes its own. */
             __wt_atomic_store_uint64(create_epoch, WT_SCHEMA_EPOCH_NONE);
@@ -121,6 +127,17 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
             ev.type = EVENT_PUBLISH_DROP;
             *slot_state = TABLE_REMOVED;
         }
+        break;
+    case TABLE_CREATED_RESERVED:
+        /* Publish at the first visit: an unused reserved epoch stalls the frontier. */
+        ev.type = EVENT_PUBLISH_CREATE;
+        ev.unpublished = 1;
+        *slot_state = TABLE_PUBLISHED;
+        break;
+    case TABLE_DROPPED_RESERVED:
+        ev.type = EVENT_PUBLISH_DROP;
+        ev.unpublished = 1;
+        *slot_state = TABLE_REMOVED;
         break;
     case TABLE_REMOVED: {
         /*
@@ -214,11 +231,33 @@ generator_switch_requested(GENERATOR_PACING *pacing)
 }
 
 /*
+ * generator_unpublished_reserve --
+ *     Move the slots in an unpublished state to their reserved states, and count them.
+ */
+static uint32_t
+generator_unpublished_reserve(WORKLOAD_STATE *state)
+{
+    uint32_t count = 0;
+    for (uint32_t t = 0; t < state->worker_count; t++)
+        for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++) {
+            TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
+            if (*slot_state == TABLE_CREATED)
+                *slot_state = TABLE_CREATED_RESERVED;
+            else if (*slot_state == TABLE_DROPPED)
+                *slot_state = TABLE_DROPPED_RESERVED;
+            else
+                continue;
+            ++count;
+        }
+    return (count);
+}
+
+/*
  * generator_publish_pending --
- *     Emit the pending publish for every slot in an unpublished state.
+ *     Emit the pending publish for every slot in the given create-pending or drop-pending state.
  */
 static void
-generator_publish_pending(WORKLOAD_STATE *state)
+generator_publish_pending(WORKLOAD_STATE *state, TABLE_STATE created, TABLE_STATE dropped)
 {
     if (state->cfg->epoch_less)
         return;
@@ -226,17 +265,19 @@ generator_publish_pending(WORKLOAD_STATE *state)
     for (uint32_t t = 0; t < state->worker_count; t++)
         for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++) {
             TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
-            if (*slot_state != TABLE_CREATED && *slot_state != TABLE_DROPPED)
+            if (*slot_state != created && *slot_state != dropped)
                 continue;
 
             SCHEMA_EVENT ev = {0};
-            ev.type = *slot_state == TABLE_CREATED ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
+            ev.type = *slot_state == created ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
+            if (*slot_state == TABLE_CREATED_RESERVED || *slot_state == TABLE_DROPPED_RESERVED)
+                ev.unpublished = 1;
             ev.thread_id = t;
             ev.slot = slot;
             testutil_snprintf(
               ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
 
-            *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_REMOVED;
+            *slot_state = *slot_state == created ? TABLE_PUBLISHED : TABLE_REMOVED;
             generator_emit(state, &ev);
         }
 }
@@ -293,13 +334,15 @@ generator_stepdown_ended(WORKLOAD_STATE *state, GENERATOR_PACING *pacing)
 
 /*
  * generator_transition_emit --
- *     Emit a transition event (stepdown or switch).
+ *     Emit a transition event (stepdown or switch), with how many unpublished operations have their
+ *     publishes follow it.
  */
 static void
-generator_transition_emit(WORKLOAD_STATE *state, EVENT_TYPE type)
+generator_transition_emit(WORKLOAD_STATE *state, EVENT_TYPE type, uint32_t unpublished)
 {
     SCHEMA_EVENT ev = {0};
     ev.type = type;
+    ev.unpublished = unpublished;
     generator_emit(state, &ev);
 }
 
@@ -327,32 +370,31 @@ thread_generator_run(void *arg)
         switch (phase) {
         case GEN_NORMAL:
             progressed = generator_round(state, pacing.lead_max, GEN_NORMAL);
-            phase = generator_switch_requested(&pacing) ? GEN_PUBLISH_PENDING : GEN_NORMAL;
-            break;
-        case GEN_PUBLISH_PENDING:
-            /*
-             * Generator enters this state twice: before the step-down begins and after the
-             * step-down ends.
-             */
-            generator_publish_pending(state);
-            if (state->leads && __wt_atomic_load_uint64(&state->stepdown_ts) == 0)
-                phase = GEN_BEGIN_STEPDOWN;
-            else
-                phase = GEN_SWITCH;
+            /* Only a leader steps down; a lone follower goes straight to the hand-over. */
+            if (generator_switch_requested(&pacing))
+                phase = state->leads ? GEN_BEGIN_STEPDOWN : GEN_HANDOVER;
             break;
         case GEN_BEGIN_STEPDOWN:
             /*
-             * Start the step-down work, then generate a limited workload until the step-down ends.
+             * The step-down event reserves an epoch at or below the step-down timestamp for each
+             * unpublished operation. The step-down workload, paced from here, publishes them among
+             * its own operations, and the step-down checkpoint carries them.
              */
-            generator_transition_emit(state, EVENT_STEPDOWN);
+            generator_transition_emit(state, EVENT_STEPDOWN, generator_unpublished_reserve(state));
             __wt_epoch(NULL, &pacing.stepdown_start);
             pacing.stepdown_emitted = state->emitted;
             phase = GEN_STEPDOWN;
             break;
-        case GEN_STEPDOWN:
+        case GEN_STEPDOWN: {
             /* A dead peer cannot carry the operations, so stop adding them. */
-            progressed = (node_is_lone(state->cfg) || node_peer_alive(state->cfg)) &&
-              generator_round(state, pacing.lead_max, GEN_STEPDOWN);
+            const bool carried = node_is_lone(state->cfg) || node_peer_alive(state->cfg);
+            progressed = carried && generator_round(state, pacing.lead_max, GEN_STEPDOWN);
+            /*
+             * The step-down checkpoint waits on the reserved publishes: once the step-down has
+             * emitted its share of events, or nobody carries them, publish the rest at once.
+             */
+            if (!carried || state->emitted - pacing.stepdown_emitted >= GEN_STEPDOWN_MIN_EVENTS)
+                generator_publish_pending(state, TABLE_CREATED_RESERVED, TABLE_DROPPED_RESERVED);
             if (generator_stepdown_ended(state, &pacing)) {
                 struct timespec now;
                 __wt_epoch(NULL, &now);
@@ -360,12 +402,14 @@ thread_generator_run(void *arg)
                         " ms (budget %d s)",
                   state->cfg->node_id, state->emitted - pacing.stepdown_emitted,
                   (uint64_t)WT_TIMEDIFF_MS(now, pacing.stepdown_start), MAX_STEPDOWN_WAIT);
-                phase = GEN_PUBLISH_PENDING;
+                phase = GEN_HANDOVER;
             }
             break;
-        case GEN_SWITCH:
-            /* The stream's last event. */
-            generator_transition_emit(state, EVENT_SWITCH);
+        }
+        case GEN_HANDOVER:
+            /* Nothing the term originated may stay unpublished past the switch event. */
+            generator_publish_pending(state, TABLE_CREATED, TABLE_DROPPED);
+            generator_transition_emit(state, EVENT_SWITCH, 0);
             phase = GEN_STOP;
             break;
         case GEN_STOP:

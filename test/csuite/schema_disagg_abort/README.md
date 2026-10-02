@@ -19,6 +19,10 @@ the durable state against per-operation record files.
 - Leaders write checkpoints to the shared metadata; followers pick them up.
 - Role changes are events in the event stream, so all earlier work is drained before the connection
   is reconfigured.
+- The step-down event reserves an epoch at or below the step-down timestamp for each operation the
+  term left unpublished. The step-down workload publishes them interleaved with its own operations,
+  which allocate above it, and the stable timestamp reaches it only once they are all applied. No
+  drop runs before the step-down checkpoint: it could wait on that checkpoint, which waits on them.
 
 ## Directory layout
 
@@ -54,6 +58,8 @@ stateDiagram-v2
     state "PUBLISHED - create published" as PUBLISHED
     state "DROPPED - drop publish pending" as DROPPED
     state "REMOVED - drop published, coverage pending" as REMOVED
+    state "CREATED_RESERVED - create publish pending at a reserved epoch" as CREATED_RESERVED
+    state "DROPPED_RESERVED - drop publish pending at a reserved epoch" as DROPPED_RESERVED
 
     [*] --> NONE
     NONE --> CREATED : create
@@ -61,11 +67,15 @@ stateDiagram-v2
     CREATED --> PUBLISHED : publish create
     CREATED --> NONE : cancel with drop
     PUBLISHED --> PUBLISHED : insert or linger
-    PUBLISHED --> DROPPED : drop, once the peer covers the create
+    PUBLISHED --> DROPPED : drop, once the peer covers the create and not before the step-down checkpoint
     DROPPED --> DROPPED : linger
     DROPPED --> REMOVED : publish drop
     REMOVED --> REMOVED : await coverage
     REMOVED --> NONE : stable epoch covers the drop
+    CREATED --> CREATED_RESERVED : step-down
+    CREATED_RESERVED --> PUBLISHED : publish create
+    DROPPED --> DROPPED_RESERVED : step-down
+    DROPPED_RESERVED --> REMOVED : publish drop
 ```
 
 ## Threads

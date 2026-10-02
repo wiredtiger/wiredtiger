@@ -276,7 +276,7 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->stop_stage = STAGE_NONE;
     state->handover_received = false;
     state->emitted = state->applied = 0;
-    state->stepdown_ts = state->stepdown_ckpt_lsn = 0;
+    state->stepdown_ts = state->reserved_ts = state->stepdown_ckpt_lsn = 0;
     state->stepdown_ckpt_due = false;
 
     /* The frontier continues from the previous phase; nothing above it is completed yet. */
@@ -357,6 +357,7 @@ node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
 
     /* Reset transition tracking. */
     __wt_atomic_store_uint64(&state->stepdown_ts, 0);
+    __wt_atomic_store_uint64(&state->reserved_ts, 0);
     __wt_atomic_store_uint64(&state->stepdown_ckpt_lsn, 0);
     __wt_atomic_store_bool(&state->stepdown_ckpt_due, false);
 }

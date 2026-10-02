@@ -257,8 +257,15 @@ ckpt_take_stepdown(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
       __wt_atomic_load_uint64(&state->stepdown_ckpt_lsn) != 0)
         return;
 
-    /* The reader pinned stable at the step-down timestamp before releasing this thread. */
+    /*
+     * The frontier reaching the step-down timestamp means the publishes at its reserved epochs
+     * applied. Stable is only advanced now: those publishes were legal only while it was below.
+     */
     const uint64_t stepdown_ts = __wt_atomic_load_uint64(&state->stepdown_ts);
+    if (__wt_atomic_load_uint64(&state->frontier_ts) < stepdown_ts)
+        return;
+    workload_set_frontier(state, stepdown_ts);
+
     const uint64_t lsn = ckpt_take(state, session, ckpt, stepdown_ts, "step-down ");
 
     /* Zero would read as "not taken yet" to the generator waiting on it. */
