@@ -355,6 +355,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                  * to catch all callers.
                  */
                 __wt_page_header_byteswap((void *)current->data);
+                if (result == last)
+                    block_meta->write_gen = ((WT_PAGE_HEADER *)current->data)->write_gen;
                 checksum = swap.previous_checksum;
                 continue;
             }

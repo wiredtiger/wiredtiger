@@ -809,6 +809,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     dsk = NULL;
     encrypted = false;
 
+    if (block_meta != NULL)
+        block_meta->write_gen = ((WT_PAGE_HEADER *)buf->mem)->write_gen;
+
     /* Optionally compress the data. */
     WT_ERR_MSG_CHK(session,
       __wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed),
