@@ -357,8 +357,7 @@ struct Config {
 
     std::filesystem::path home_dir;        /* Home directory for the extension */
     uint32_t cache_size_mb = 1'024;        /* Size of cache in megabytes (default) */
-    uint32_t victim_cache_max_entries = 0; /* Victim cache entry limit; 0 disables */
-    uint32_t victim_cache_size_mb = 0;     /* Victim cache size in megabytes; 0 disables */
+    uint32_t victim_cache_max_entries = 0; /* Per-handle entry limit; 0 disables, 10000 typical */
     uint32_t mmap_size_mb = 1'024;         /* Size of memory map in megabytes (default) */
     uint32_t delay_ms = 0;                 /* Average length of delay when simulated */
     uint32_t error_ms = 0;                 /* Average length of sleep when simulated */
@@ -382,7 +381,6 @@ struct Config {
         configure_value(parser.get(), config, "home", home_dir);
         configure_value(parser.get(), config, "cache_size_mb", cache_size_mb);
         configure_value(parser.get(), config, "victim_cache_max_entries", victim_cache_max_entries);
-        configure_value(parser.get(), config, "victim_cache_size_mb", victim_cache_size_mb);
         configure_value(parser.get(), config, "mmap_size_mb", mmap_size_mb);
         configure_value(parser.get(), config, "delay_ms", delay_ms);
         configure_value(parser.get(), config, "error_ms", error_ms);
@@ -473,14 +471,13 @@ template <> struct std::formatter<Config> {
     format(const Config &cfg, format_context &ctx) const
     {
         return std::format_to(ctx.out(),
-          "{{cache_size_mb={:L}, victim_cache_max_entries={:L}, victim_cache_size_mb={:L}, "
+          "{{cache_size_mb={:L}, victim_cache_max_entries={:L}, "
           "mmap_size_mb={:L}, delay_ms={}, error_ms={}, force_delay={}, "
           "force_error={}, materialization_delay_ms={}, last_materialized_lsn={}, "
           "verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
-          cfg.cache_size_mb, cfg.victim_cache_max_entries, cfg.victim_cache_size_mb,
-          cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay, cfg.force_error,
-          cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg,
-          cfg.sql_trace, cfg.verify);
+          cfg.cache_size_mb, cfg.victim_cache_max_entries, cfg.mmap_size_mb, cfg.delay_ms,
+          cfg.error_ms, cfg.force_delay, cfg.force_error, cfg.materialization_delay_ms,
+          cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
 
@@ -2217,7 +2214,7 @@ public:
 class PaliteHandle : public WT_PAGE_LOG_HANDLE {
     uint64_t table_id; /* Table ID for this handle */
     Storage &storage;
-    victim_cache &cache; /* The page log's cache, shared by every handle it opens. */
+    victim_cache cache;
 
     void initialize_interface();
 
@@ -2225,9 +2222,9 @@ public:
     Config &config;
 
     ~PaliteHandle() = default;
-    PaliteHandle(
-      WT_PAGE_LOG *palite, Config &cfg, Storage &store, victim_cache &shared_cache, uint64_t tid)
-        : WT_PAGE_LOG_HANDLE{}, table_id(tid), storage(store), cache(shared_cache), config(cfg)
+    PaliteHandle(WT_PAGE_LOG *palite, Config &cfg, Storage &store, uint64_t tid)
+        : WT_PAGE_LOG_HANDLE{}, table_id(tid), storage(store), cache(cfg.victim_cache_max_entries),
+          config(cfg)
     {
         WT_PAGE_LOG_HANDLE::page_log = palite;
         initialize_interface();
@@ -2241,7 +2238,7 @@ public:
     {
         storage.simulate_unstable_network();
 
-        cache.erase(table_id, page_id, args->backlink_lsn);
+        cache.erase(page_id, args->backlink_lsn);
 
         const uint64_t lsn = storage.make_next_lsn();
         storage.put_page(table_id, page_id, lsn, args, buf);
@@ -2263,7 +2260,7 @@ public:
         if (!(args->flags & WT_PAGE_LOG_CACHE_BYPASS)) {
             /* A hit writes one slot. Callers pass the array capacity. */
             assert(results_count != nullptr && *results_count > 0);
-            if (auto entry = cache.get_erase(table_id, page_id, args->lsn)) {
+            if (auto entry = cache.get_erase(page_id, args->lsn)) {
                 fill_item(&results_array[0], entry->data.data(), entry->data.size());
                 args->backlink_lsn = entry->backlink_lsn;
                 args->base_lsn = entry->base_lsn;
@@ -2300,7 +2297,7 @@ public:
         victim_cache_entry entry{args->lsn, args->backlink_lsn, args->base_lsn,
           args->backlink_checkpoint_id, args->base_checkpoint_id, args->delta_count,
           std::vector<uint8_t>(p, p + n)};
-        cache.put(table_id, page_id, std::move(entry));
+        cache.put(page_id, std::move(entry));
         LOG_DEBUG("Victim cache put page_id={} lsn={} size={}", page_id, args->lsn, buf->size);
         return 0;
     }
@@ -2308,13 +2305,13 @@ public:
     int
     cache_has(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args)
     {
-        return cache.contains(table_id, page_id, args->lsn) ? 0 : WT_NOTFOUND;
+        return cache.contains(page_id, args->lsn) ? 0 : WT_NOTFOUND;
     }
 
     int
     cache_del(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args)
     {
-        return cache.erase(table_id, page_id, args->lsn) ? 0 : WT_NOTFOUND;
+        return cache.erase(page_id, args->lsn) ? 0 : WT_NOTFOUND;
     }
 
     bool
@@ -2341,7 +2338,7 @@ public:
     {
         storage.simulate_unstable_network();
 
-        cache.erase(table_id, page_id, args->backlink_lsn);
+        cache.erase(page_id, args->backlink_lsn);
 
         const uint64_t lsn = storage.make_next_lsn();
         storage.discard_page(table_id, page_id, lsn, args);
@@ -2455,13 +2452,11 @@ public:
     std::atomic_int ref_count; /* Reference counting for the page log service */
     Config config;             /* Configuration options */
     Storage storage;           /* Storage backend for page log */
-    victim_cache cache;        /* One victim cache shared by every handle */
 
     ~Palite() = default;
     Palite(const std::filesystem::path &home_dir, WT_EXTENSION_API *wt_api, WT_CONFIG_ARG *cfg_arg)
         : WT_PAGE_LOG(), ref_count(1), config(wt_api, cfg_arg),
-          storage(config, initialize_directory(home_dir)),
-          cache(config.victim_cache_max_entries, (uint64_t)config.victim_cache_size_mb * 1_MB)
+          storage(config, initialize_directory(home_dir))
     {
         LOG_DEBUG("Initializing Palite page log extension, config: {}", config);
         initialize_interface();
@@ -2575,7 +2570,7 @@ public:
             return EINVAL;
         }
 
-        PaliteHandle *handle = new PaliteHandle(this, config, storage, cache, table_id);
+        PaliteHandle *handle = new PaliteHandle(this, config, storage, table_id);
         *plh = static_cast<WT_PAGE_LOG_HANDLE *>(handle);
         LOG_DEBUG("Opened handle for table_id={}", table_id);
 

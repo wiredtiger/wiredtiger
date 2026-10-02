@@ -30,18 +30,12 @@
 
 #include <cstdint>
 #include <functional>
-#include <list>
 #include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <vector>
 
-/*
- * The cache is shared by every handle the page log opens, so the table is part of the key: two
- * tables use the same page ids.
- */
 struct victim_cache_key {
-    uint64_t table_id;
     uint64_t page_id;
     uint64_t lsn;
 
@@ -52,9 +46,8 @@ template <> struct std::hash<victim_cache_key> {
     size_t
     operator()(const victim_cache_key &key) const noexcept
     {
-        size_t h = std::hash<uint64_t>{}(key.table_id);
-        h ^= std::hash<uint64_t>{}(key.page_id) << 1;
-        h ^= std::hash<uint64_t>{}(key.lsn) << 2;
+        size_t h = std::hash<uint64_t>{}(key.page_id);
+        h ^= std::hash<uint64_t>{}(key.lsn) << 1;
         return h;
     }
 };
@@ -69,20 +62,9 @@ struct victim_cache_entry {
     std::vector<uint8_t> data;
 };
 
-/*
- * One cache for the whole page log, bounded by the bytes it holds and evicting least recently used
- * first, which is how a production page log bounds its own. Either bound may be zero, meaning
- * unbounded in that dimension; the cache is unavailable only when both are.
- *
- * A read consumes the entry it returns, so nothing is ever used twice and recency order is also
- * insertion order. The list is kept anyway: it costs nothing and holds if that ever changes.
- */
 class victim_cache {
 public:
-    explicit victim_cache(uint32_t max_entries, uint64_t max_bytes = 0)
-        : max_entries(max_entries), max_bytes(max_bytes), total_bytes(0)
-    {
-    }
+    explicit victim_cache(uint32_t max_entries) : max_entries(max_entries) {}
 
     victim_cache(const victim_cache &) = delete;
     victim_cache &operator=(const victim_cache &) = delete;
@@ -92,111 +74,56 @@ public:
     bool
     available() const
     {
-        return max_entries > 0 || max_bytes > 0;
-    }
-
-    /* Bytes held, the figure the page log interface has no way to report to WiredTiger. */
-    uint64_t
-    bytes() const
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        return total_bytes;
+        return max_entries > 0;
     }
 
     bool
-    erase(uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    erase(uint64_t page_id, uint64_t lsn)
     {
-        if (!available())
+        if (max_entries == 0)
             return false;
         std::lock_guard<std::mutex> lock(mtx);
-        auto it = map.find(victim_cache_key{table_id, page_id, lsn});
-        if (it == map.end())
-            return false;
-        drop(it);
-        return true;
+        return map.erase(victim_cache_key{page_id, lsn}) > 0;
     }
 
     std::optional<victim_cache_entry>
-    get_erase(uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    get_erase(uint64_t page_id, uint64_t lsn)
     {
-        if (!available())
+        if (max_entries == 0)
             return std::nullopt;
         std::lock_guard<std::mutex> lock(mtx);
-        auto it = map.find(victim_cache_key{table_id, page_id, lsn});
+        auto it = map.find(victim_cache_key{page_id, lsn});
         if (it == map.end())
             return std::nullopt;
-        victim_cache_entry entry = std::move(it->second.entry);
-        total_bytes -= entry_bytes(entry);
-        order.erase(it->second.position);
+        victim_cache_entry entry = std::move(it->second);
         map.erase(it);
         return entry;
     }
 
     void
-    put(uint64_t table_id, uint64_t page_id, victim_cache_entry &&entry)
+    put(uint64_t page_id, victim_cache_entry &&entry)
     {
-        if (!available())
+        if (max_entries == 0)
             return;
-        const victim_cache_key key{table_id, page_id, entry.lsn};
-        const uint64_t cost = entry_bytes(entry);
+        const uint64_t lsn = entry.lsn;
+        const victim_cache_key key{page_id, lsn};
         std::lock_guard<std::mutex> lock(mtx);
-
-        /* A page too large for the whole cache would evict everything and still not fit. */
-        if (max_bytes > 0 && cost > max_bytes)
-            return;
-
-        auto it = map.find(key);
-        if (it != map.end())
-            drop(it);
-
-        /* Make room under whichever bounds are configured, oldest first. */
-        while (!order.empty() &&
-          ((max_entries > 0 && map.size() + 1 > max_entries) ||
-            (max_bytes > 0 && total_bytes + cost > max_bytes)))
-            drop(map.find(order.back()));
-
-        order.push_front(key);
-        total_bytes += cost;
-        map.emplace(key, slot{std::move(entry), order.begin()});
+        if (!map.contains(key) && map.size() >= max_entries)
+            map.erase(map.begin());
+        map.insert_or_assign(key, std::move(entry));
     }
 
     bool
-    contains(uint64_t table_id, uint64_t page_id, uint64_t lsn) const
+    contains(uint64_t page_id, uint64_t lsn) const
     {
-        if (!available())
+        if (max_entries == 0)
             return false;
         std::lock_guard<std::mutex> lock(mtx);
-        return map.contains(victim_cache_key{table_id, page_id, lsn});
+        return map.contains(victim_cache_key{page_id, lsn});
     }
 
 private:
-    /* Per-entry bookkeeping beyond the image: key, restored metadata, vector and list nodes. */
-    static constexpr uint64_t ENTRY_OVERHEAD = 128;
-
-    struct slot {
-        victim_cache_entry entry;
-        std::list<victim_cache_key>::iterator position;
-    };
-
-    static uint64_t
-    entry_bytes(const victim_cache_entry &entry)
-    {
-        return entry.data.capacity() + ENTRY_OVERHEAD;
-    }
-
-    /* Remove an entry and everything that accounts for it. The caller holds the lock. */
-    void
-    drop(std::unordered_map<victim_cache_key, slot>::iterator it)
-    {
-        total_bytes -= entry_bytes(it->second.entry);
-        order.erase(it->second.position);
-        map.erase(it);
-    }
-
     const uint32_t max_entries;
-    const uint64_t max_bytes;
-    uint64_t total_bytes;
     mutable std::mutex mtx;
-    std::list<victim_cache_key> order; /* Front is most recently added. */
-    std::unordered_map<victim_cache_key, slot> map;
+    std::unordered_map<victim_cache_key, victim_cache_entry> map;
 };
