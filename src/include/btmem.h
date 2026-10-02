@@ -295,6 +295,8 @@ struct __wt_page_block_meta {
     uint64_t backlink_lsn;
     /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
     uint64_t base_lsn;
+    /* Write generation of the page image represented by this metadata. */
+    uint64_t write_gen;
 
     uint32_t checksum;
 

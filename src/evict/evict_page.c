@@ -258,6 +258,15 @@ __evict_page_victim_cache_eligible(
     if (disk_image == NULL)
         return (WTI_EVICT_VICTIM_NO_IMAGE);
 
+    /*
+     * The image and the metadata must also agree on the version they represent. After a delta write
+     * the metadata names the delta's block while the page's own image still predates it, and
+     * caching that image under the new block's identity would mislabel it; the next read of the
+     * page restores them together, so skipping here only delays the put.
+     */
+    if (disk_image->write_gen != page->disagg_info->block_meta.write_gen)
+        return (WTI_EVICT_VICTIM_NO_IMAGE);
+
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
         return (WTI_EVICT_VICTIM_INVALID_PAGE_ID);
 
@@ -303,6 +312,9 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
     WT_PAGE *page = ref->page;
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
+
+    /* Eligibility has already confirmed the image matches its metadata. */
+    WT_ASSERT(session, block_meta->write_gen == disk_image->write_gen);
 
     /* Time every attempt: compression and checksum are spent whether or not the put succeeds. */
     uint64_t time_start = __wt_clock(session);

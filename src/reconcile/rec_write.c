@@ -2896,6 +2896,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     __rec_page_time_stats(session, r, build_delta);
 
 copy_image:
+    if (F_ISSET(multi, WT_MULTI_SKIP_WRITE)) {
+        /* A skipped write keeps the previous block, so its in-memory image keeps that generation.
+         */
+        WT_ASSERT_ALWAYS(session, multi->block_meta != NULL && multi->block_meta->write_gen != 0,
+          "A skipped write must have a previous write generation");
+        ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen = multi->block_meta->write_gen;
+    }
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
