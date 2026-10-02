@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 #include "cur_layered_private.h"
 
+static int __clayered_cell_check(WT_SESSION_IMPL *, WT_CURSOR_BTREE *);
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
 static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
@@ -1597,6 +1598,57 @@ __clayered_range_truncate_ingest(
 }
 
 /*
+ * __clayered_truncate_ingest_conflict_check --
+ *     Detect a write conflict between the truncate and another transaction's uncommitted ingest
+ *     update in the range. A snapshot walk skips keys whose only update is uncommitted, so walk at
+ *     read-uncommitted to reach them, then check each under the transaction's own isolation. The
+ *     walk still honors the read timestamp, so a committed update above it is not visited here.
+ */
+static int
+__clayered_truncate_ingest_conflict_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered,
+  WT_CURSOR *walk, WT_ITEM *start_key, const WT_ITEM *stop_key)
+{
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)walk;
+    WT_DECL_RET;
+    WT_ITEM key;
+    int cmp;
+
+    __wt_cursor_set_raw_key(walk, start_key);
+
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = walk->search_near(walk, &cmp));
+    if (ret == 0 && cmp < 0)
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = walk->next(walk));
+
+    while (ret == 0) {
+        WT_ERR(__wt_cursor_get_raw_key(walk, &key));
+        WT_ERR(__wt_compare(session, layered->collator, &key, stop_key, &cmp));
+        if (cmp > 0)
+            break;
+        WT_WITH_DHANDLE(session, cbt->dhandle, ret = __clayered_cell_check(session, cbt));
+        WT_ERR(ret);
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = walk->next(walk));
+    }
+
+    /*
+     * A prepared update in the range is a conflict, like any other uncommitted write; surface it as
+     * a rollback rather than a prepare conflict. The walk can also stop on a prepared key just
+     * outside the range, so this may roll back conservatively.
+     */
+    if (ret == WT_PREPARE_CONFLICT)
+        ret = WT_ROLLBACK;
+    else if (ret == WT_NOTFOUND)
+        ret = 0;
+
+err:
+    if (ret == WT_ROLLBACK)
+        __wt_verbose_warning(session, WT_VERB_LAYERED,
+          "follower truncate on %s conflicts with an uncommitted ingest update in the range",
+          layered->iface.name);
+    WT_TRET(walk->reset(walk));
+    return (ret);
+}
+
+/*
  * __clayered_truncate_follower --
  *     Discard a cursor range from the ingest table.
  */
@@ -1612,22 +1664,23 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_RET(__wt_cursor_get_raw_key(trunc_info->start, &start_key));
     WT_RET(__wt_cursor_get_raw_key(trunc_info->stop, &stop_key));
 
-    /* Position the ingest cursors. */
     WTI_CURSOR_LAYERED *clayered_start = (WTI_CURSOR_LAYERED *)trunc_info->start;
     WTI_CURSOR_LAYERED *clayered_stop = (WTI_CURSOR_LAYERED *)trunc_info->stop;
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
     WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
+    WT_LAYERED_TABLE *layered_table = (WT_LAYERED_TABLE *)clayered_start->dhandle;
 
+    WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(trunc_info->session,
+      &layered_table->truncate_list, layered_table->collator, &start_key, &stop_key));
+    WT_RET(__clayered_truncate_ingest_conflict_check(
+      trunc_info->session, layered_table, ingest_start, &start_key, &stop_key));
+
+    /* Position the ingest cursors. */
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
     WT_RET_NOTFOUND_OK(ret_start);
 
     const int ret_stop = __clayered_position_near_key(ingest_stop, &stop_key, false);
     WT_RET_NOTFOUND_OK(ret_stop);
-
-    WT_LAYERED_TABLE *layered_table = (WT_LAYERED_TABLE *)clayered_start->dhandle;
-
-    WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(trunc_info->session,
-      &layered_table->truncate_list, layered_table->collator, &start_key, &stop_key));
 
     /*
      * If either positioning returned WT_NOTFOUND, the ingest table has no keys in the range and
