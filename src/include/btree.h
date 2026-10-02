@@ -51,10 +51,9 @@
 #define WT_BTREE_DELETE_THRESHOLD WT_THOUSAND
 
 /*
- * Minimum and maximum size of the chunks (in percentage of the page size) a page gets split into
- * during reconciliation.
+ * Minimum size of the chunks (in percentage of the page size) a page gets split into during
+ * reconciliation.
  */
-#define WT_BTREE_MAX_SPLIT_PCT 100
 #define WT_BTREE_MIN_SPLIT_PCT 50
 
 /*
