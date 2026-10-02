@@ -357,13 +357,13 @@ struct Config {
 
     std::filesystem::path home_dir;        /* Home directory for the extension */
     uint32_t cache_size_mb = 1'024;        /* Size of cache in megabytes (default) */
-    uint32_t victim_cache_max_entries = 0; /* Per-handle entry limit; 0 disables, 10000 typical */
-    uint32_t victim_cache_size_mb = 0; /* Victim cache megabytes across all handles; 0 disables */
-    uint32_t mmap_size_mb = 1'024;     /* Size of memory map in megabytes (default) */
-    uint32_t delay_ms = 0;             /* Average length of delay when simulated */
-    uint32_t error_ms = 0;             /* Average length of sleep when simulated */
-    uint32_t force_delay = 0;          /* Force a simulated network delay every N operations */
-    uint32_t force_error = 0;          /* Force a simulated network error every N operations */
+    uint32_t victim_cache_max_entries = 0; /* Victim cache entries per handle; 10000 typical */
+    uint32_t victim_cache_size_mb = 0;     /* Victim cache megabytes across all handles */
+    uint32_t mmap_size_mb = 1'024;         /* Size of memory map in megabytes (default) */
+    uint32_t delay_ms = 0;                 /* Average length of delay when simulated */
+    uint32_t error_ms = 0;                 /* Average length of sleep when simulated */
+    uint32_t force_delay = 0;              /* Force a simulated network delay every N operations */
+    uint32_t force_error = 0;              /* Force a simulated network error every N operations */
     uint32_t materialization_delay_ms = 0; /* Average length of materialization delay */
     uint64_t last_materialized_lsn = 0;    /* The last materialized LSN (0 if not set) */
     int32_t verbose = WT_VERBOSE_INFO;     /* Verbose level */
