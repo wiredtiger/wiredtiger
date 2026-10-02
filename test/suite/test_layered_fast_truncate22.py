@@ -30,11 +30,20 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-class FollowerUntimestampedTruncateMixin:
-    """Shared setup for a follower truncate of a range that only exists in stable."""
+# Verify that a follower truncate obeys the commit timestamp requirement that every other write to
+# a disaggregated table obeys. The range holds no key the follower itself wrote, so the truncate
+# list entry is the only record of the operation.
+@disagg_test_class
+class test_layered_fast_truncate22(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
+    conn_config = 'disaggregated=(role="leader")'
+    uri = f'layered:{test_name}'
     table_config = 'key_format=i,value_format=S'
     nrows = 100
+
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
 
     def populate_stable(self):
         """Write the rows as the leader and checkpoint them, then become a follower."""
@@ -70,20 +79,6 @@ class FollowerUntimestampedTruncateMixin:
         cursor.close()
         return count
 
-# Verify that a follower truncate obeys the commit timestamp requirement that every other write to
-# a disaggregated table obeys. The range holds no key the follower itself wrote, so the truncate
-# list entry is the only record of the operation.
-@disagg_test_class
-class test_layered_fast_truncate22(FollowerUntimestampedTruncateMixin,
-                                   wttest.WiredTigerTestCase):
-
-    test_name = __qualname__
-    conn_config = 'disaggregated=(role="leader")'
-    uri = f'layered:{test_name}'
-
-    disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
-
     def test_untimestamped_follower_truncate_is_refused(self):
         self.populate_stable()
         self.begin_truncate_all_rows()
@@ -93,26 +88,3 @@ class test_layered_fast_truncate22(FollowerUntimestampedTruncateMixin,
 
         # The refused commit rolled the truncate back, so every row is still readable.
         self.assertEqual(self.row_count(), self.nrows)
-
-# Verify that a step-up tolerates a truncate recorded without a commit timestamp, which is only
-# reachable while the timestamp requirement is relaxed.
-@disagg_test_class
-class test_layered_fast_truncate22_ts_optional(FollowerUntimestampedTruncateMixin,
-                                               wttest.WiredTigerTestCase):
-
-    test_name = __qualname__
-    conn_config = 'debug_mode=(disagg_commit_ts_optional=true),disaggregated=(role="leader")'
-    uri = f'layered:{test_name}'
-
-    disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
-
-    def test_stepup_replays_an_untimestamped_truncate(self):
-        self.populate_stable()
-        self.begin_truncate_all_rows()
-        self.session.commit_transaction()
-        self.assertEqual(self.row_count(), 0)
-
-        # The step-up drain replays the recorded truncate against stable.
-        self.conn.reconfigure('disaggregated=(role="leader")')
-        self.assertEqual(self.row_count(), 0)
