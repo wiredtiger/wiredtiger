@@ -125,15 +125,14 @@ typedef enum {
     EVENT_SWITCH
 } EVENT_TYPE;
 
+typedef enum { PUBLISH_TS_CURRENT = 0, PUBLISH_TS_STEPDOWN } PUBLISH_TIMESTAMP_SOURCE;
+
 typedef struct {
     EVENT_TYPE type;
     uint32_t thread_id;
     uint32_t slot;
-    /*
-     * How many operations unpublished at the step-down this event accounts for: all of them on the
-     * step-down event, which reserves an epoch for each; 1 on a publish taking one; 0 otherwise.
-     */
-    uint32_t unpublished;
+    uint32_t publish_count; /* Step-down marker: number of timestamps to reserve for publishes */
+    PUBLISH_TIMESTAMP_SOURCE publish_ts_source; /* Publish event: timestamp allocation source */
     /*-
      * The completion timestamp for this event:
      *   - a publish epoch,
@@ -147,20 +146,16 @@ typedef struct {
 } SCHEMA_EVENT;
 
 /*
- * The generator's per-slot position in the table lifecycle, valid transitions only. Every state but
- * the reserved ones lingers a random number of visits before its next move, widening the windows a
- * checkpoint can land in: between a schema operation and its publish, and between a publish and the
- * drop that follows.
+ * The generator's per-slot position in the emitted table lifecycle, not the workers' applied state.
+ * Random visits may linger between transitions; a pending publish captured at step-down is emitted
+ * on its next visit so every reserved timestamp is consumed.
  */
 typedef enum {
     TABLE_NONE = 0,  /* slot free: no local table, nothing unpublished */
     TABLE_CREATED,   /* created; the publish may be delayed */
     TABLE_PUBLISHED, /* create published; may take data, and is droppable */
     TABLE_DROPPED,   /* dropped; the publish may be delayed */
-    TABLE_REMOVED,   /* drop published; the slot frees once the stable epoch covers it */
-    /* Unpublished at the step-down: the only move is the publish, at a reserved epoch. */
-    TABLE_CREATED_RESERVED,
-    TABLE_DROPPED_RESERVED
+    TABLE_REMOVED    /* drop published; the slot frees once the stable epoch covers it */
 } TABLE_STATE;
 
 /* Test-wide configuration, built from the command line by every role independently. */
@@ -237,6 +232,8 @@ typedef struct {
 
     uint32_t switch_gen; /* how many role transitions this node has completed */
 
+    uint32_t stepdown_publish_remaining; /* Captured publishes not yet emitted; generator only */
+
     /* Step-down state, zero outside a transition; atomic access. */
     uint64_t stepdown_ts;       /* while set, the timestamp and checkpoint threads hold */
     uint64_t reserved_ts;       /* the last epoch handed out of those reserved at or below it */
@@ -263,6 +260,7 @@ typedef struct {
         struct {
             /* Table state is carried across leader-follower transitions. */
             TABLE_STATE state;
+            PUBLISH_TIMESTAMP_SOURCE publish_ts_source; /* Timestamp source; generator only */
             /* Published create's epoch once its publish applies, else 0; atomic access. */
             uint64_t create_epoch;
             /* Published drop's epoch once its publish applies, else 0; atomic access. */

@@ -250,12 +250,18 @@ worker_ts(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 {
     if (!state->generates)
         return (ev->event_ts);
-    if (ev->unpublished == 0)
-        return (__wt_atomic_add_uint64(&state->current_ts, 1));
 
-    const uint64_t ts = __wt_atomic_add_uint64(&state->reserved_ts, 1);
-    testutil_assert(ts <= __wt_atomic_load_uint64(&state->stepdown_ts));
-    return (ts);
+    switch (ev->publish_ts_source) {
+    case PUBLISH_TS_CURRENT:
+        return (__wt_atomic_add_uint64(&state->current_ts, 1));
+    case PUBLISH_TS_STEPDOWN: {
+        testutil_assert(ev->type == EVENT_PUBLISH_CREATE || ev->type == EVENT_PUBLISH_DROP);
+        const uint64_t ts = __wt_atomic_add_uint64(&state->reserved_ts, 1);
+        testutil_assert(ts <= __wt_atomic_load_uint64(&state->stepdown_ts));
+        return (ts);
+    }
+    }
+    testutil_die(EINVAL, "Unexpected publish timestamp source: %d", ev->publish_ts_source);
 }
 
 /*

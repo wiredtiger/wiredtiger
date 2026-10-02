@@ -19,10 +19,14 @@ the durable state against per-operation record files.
 - Leaders write checkpoints to the shared metadata; followers pick them up.
 - Role changes are events in the event stream, so all earlier work is drained before the connection
   is reconfigured.
-- The step-down event reserves an epoch at or below the step-down timestamp for each operation the
-  term left unpublished. The step-down workload publishes them interleaved with its own operations,
-  which allocate above it, and the stable timestamp reaches it only once they are all applied. No
-  drop runs before the step-down checkpoint: it could wait on that checkpoint, which waits on them.
+- The generator captures pending publishes in a batch at step-down without changing table states.
+  The marker carries the exact number of timestamps to reserve at or below the step-down timestamp.
+  Each publish event carries its timestamp source: the step-down range for a batch member, or the
+  current counter for a new operation. Workers apply both through the same publish path.
+- The step-down workload interleaves batch members with new operations, which allocate above the
+  boundary. Stable reaches the boundary only once all batch members have applied. Drops of published
+  tables wait for the step-down checkpoint: a blocked drop could otherwise prevent a batch member
+  queued behind it from applying.
 
 ## Directory layout
 
@@ -47,7 +51,7 @@ WT_TEST.foo.SAVE/                 pre-verification copy of the home
 
 Each worker owns a pool of table slots. The generator chooses a slot and takes one valid transition
 or lingers, widening the window in which a checkpoint or crash can occur. (The diagram shows epoch
-mode only.)
+mode only.) States describe the generated event stream; workers report applied epochs separately.
 
 ```mermaid
 stateDiagram-v2
@@ -58,8 +62,6 @@ stateDiagram-v2
     state "PUBLISHED - create published" as PUBLISHED
     state "DROPPED - drop publish pending" as DROPPED
     state "REMOVED - drop published, coverage pending" as REMOVED
-    state "CREATED_RESERVED - create publish pending at a reserved epoch" as CREATED_RESERVED
-    state "DROPPED_RESERVED - drop publish pending at a reserved epoch" as DROPPED_RESERVED
 
     [*] --> NONE
     NONE --> CREATED : create
@@ -72,11 +74,15 @@ stateDiagram-v2
     DROPPED --> REMOVED : publish drop
     REMOVED --> REMOVED : await coverage
     REMOVED --> NONE : stable epoch covers the drop
-    CREATED --> CREATED_RESERVED : step-down
-    CREATED_RESERVED --> PUBLISHED : publish create
-    DROPPED --> DROPPED_RESERVED : step-down
-    DROPPED_RESERVED --> REMOVED : publish drop
 ```
+
+  Publication scheduling is separate from this lifecycle. Each slot stores its publish timestamp
+  source in the workload state, which also holds the count of captured publishes not yet emitted.
+  A captured publish must be emitted exactly once: its next slot visit publishes instead of canceling
+  or lingering. The generator flushes the remaining captured publishes when the step-down event budget
+  is reached or the peer dies. Once the count reaches zero, no further scans are needed. Handover
+  asserts that the count is zero before publishing any remaining new operations. The checkpoint still
+  waits for application, not just emission.
 
 ## Threads
 

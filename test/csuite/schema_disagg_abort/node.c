@@ -277,6 +277,7 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->handover_received = false;
     state->emitted = state->applied = 0;
     state->stepdown_ts = state->reserved_ts = state->stepdown_ckpt_lsn = 0;
+    state->stepdown_publish_remaining = 0;
     state->stepdown_ckpt_due = false;
 
     /* The frontier continues from the previous phase; nothing above it is completed yet. */
@@ -292,9 +293,11 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
          * A leading phase checkpoints every slot, including inherited ingest data; a follower phase
          * covers nothing, so the slots it inherits stay blocked.
          */
-        if (as_leader)
-            for (uint32_t j = 0; j < cfg->pool_size; j++)
-                state->workers[i].table[j].uncovered_insert = false;
+        for (uint32_t slot = 0; slot < cfg->pool_size; slot++) {
+            state->workers[i].table[slot].publish_ts_source = PUBLISH_TS_CURRENT;
+            if (as_leader)
+                state->workers[i].table[slot].uncovered_insert = false;
+        }
         /* State and slot generation survive role transitioning. */
     }
 

@@ -35,7 +35,7 @@ frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
  *     operations, which allocate above it.
  */
 static void
-reader_step_down(WORKLOAD_STATE *state, uint32_t unpublished)
+reader_step_down(WORKLOAD_STATE *state, uint32_t publish_count)
 {
     testutil_assert(__wt_atomic_load_uint64(&state->stepdown_ts) == 0);
     testutil_assert(__wt_atomic_load_bool(&state->stepdown_ckpt_due) == false);
@@ -48,7 +48,7 @@ reader_step_down(WORKLOAD_STATE *state, uint32_t unpublished)
     const uint64_t final_ts = __wt_atomic_load_uint64(&state->current_ts);
     frontier_assert(state, final_ts);
 
-    const uint64_t stepdown_ts = final_ts + unpublished;
+    const uint64_t stepdown_ts = final_ts + publish_count;
     __wt_atomic_store_uint64(&state->reserved_ts, final_ts);
     workload_counter_advance(state, stepdown_ts);
 
@@ -61,8 +61,8 @@ reader_step_down(WORKLOAD_STATE *state, uint32_t unpublished)
      * FIXME-WT-18314: Once the ticket is fixed, the `-e` mode with role switches becomes illegal.
      */
     set_ts(state->cfg, state->conn, TS_STEPDOWN, stepdown_ts);
-    println("Node %" PRIu32 ": step-down at %" PRIu64 " with %" PRIu32 " unpublished operations",
-      state->cfg->node_id, stepdown_ts, unpublished);
+    println("Node %" PRIu32 ": step-down at %" PRIu64 " with %" PRIu32 " pending publishes",
+      state->cfg->node_id, stepdown_ts, publish_count);
 
     /* Signal the checkpoint thread to run the step-down checkpoint once the publishes apply. */
     __wt_atomic_store_bool(&state->stepdown_ckpt_due, true);
@@ -106,7 +106,7 @@ thread_reader_run(void *arg)
             break;
         case EVENT_STEPDOWN:
             testutil_assert(state->leads && state->generates);
-            reader_step_down(state, ev.unpublished);
+            reader_step_down(state, ev.publish_count);
             break;
         case EVENT_SWITCH:
             /* The final event of the term's stream. */

@@ -37,6 +37,63 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 }
 
 /*
+ * generator_emit_slot --
+ *     Address and emit an event for one table slot.
+ */
+static void
+generator_emit_slot(WORKLOAD_STATE *state, uint32_t thread_index, uint32_t slot, SCHEMA_EVENT *ev)
+{
+    ev->thread_id = thread_index;
+    ev->slot = slot;
+    testutil_snprintf(
+      ev->uri, sizeof(ev->uri), SCHEMA_TABLE_FMT, state->cfg->node_id, thread_index, slot);
+    generator_emit(state, ev);
+}
+
+/*
+ * generator_publish --
+ *     Emit a slot's pending publish using its scheduled timestamp source.
+ */
+static bool
+generator_publish(WORKLOAD_STATE *state, uint32_t thread_index, uint32_t slot)
+{
+    TABLE_STATE *slot_state = &state->workers[thread_index].table[slot].state;
+    PUBLISH_TIMESTAMP_SOURCE *publish_ts_source =
+      &state->workers[thread_index].table[slot].publish_ts_source;
+    SCHEMA_EVENT ev = {0};
+
+    switch (*slot_state) {
+    case TABLE_CREATED:
+        ev.type = EVENT_PUBLISH_CREATE;
+        *slot_state = TABLE_PUBLISHED;
+        break;
+    case TABLE_DROPPED:
+        ev.type = EVENT_PUBLISH_DROP;
+        *slot_state = TABLE_REMOVED;
+        break;
+    case TABLE_NONE:
+    case TABLE_PUBLISHED:
+    case TABLE_REMOVED:
+        testutil_assert(*publish_ts_source == PUBLISH_TS_CURRENT);
+        return (false);
+    }
+    testutil_assert(!state->cfg->epoch_less);
+
+    ev.publish_ts_source = *publish_ts_source;
+    switch (ev.publish_ts_source) {
+    case PUBLISH_TS_CURRENT:
+        break;
+    case PUBLISH_TS_STEPDOWN:
+        testutil_assert(state->stepdown_publish_remaining > 0);
+        --state->stepdown_publish_remaining;
+        *publish_ts_source = PUBLISH_TS_CURRENT;
+        break;
+    }
+    generator_emit_slot(state, thread_index, slot, &ev);
+    return (true);
+}
+
+/*
  * generator_slot_droppable --
  *     Whether this slot's table can be dropped now.
  */
@@ -72,10 +129,9 @@ generator_slot_droppable(WORKLOAD_STATE *state, uint32_t t, uint32_t slot, bool 
  * A recreate waits until the stable schema epoch passes the slot's published drop.
  */
 static bool
-generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
+generator_op(WORKLOAD_STATE *state, uint32_t t, uint32_t slot, GENERATOR_PHASE phase)
 {
     WT_RAND_STATE *rnd = &state->workers[t].rnd;
-    const uint32_t slot = __wt_random(rnd) % state->cfg->pool_size;
     TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
     uint64_t *create_epoch = &state->workers[t].table[slot].create_epoch;
     uint64_t *drop_epoch = &state->workers[t].table[slot].drop_epoch;
@@ -94,9 +150,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         testutil_assert(!state->cfg->epoch_less);
         switch (__wt_random(rnd) % 3) {
         case 0: /* publish the create */
-            ev.type = EVENT_PUBLISH_CREATE;
-            *slot_state = TABLE_PUBLISHED;
-            break;
+            return (generator_publish(state, t, slot));
         case 1: /* cancel it: an unpublished create dropped again leaves no trace */
             ev.type = EVENT_DROP;
             *slot_state = TABLE_NONE;
@@ -123,21 +177,8 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
     case TABLE_DROPPED:
         testutil_assert(!state->cfg->epoch_less);
         /* Publish the drop, or linger in the window. */
-        if (__wt_random(rnd) % 2 == 0) {
-            ev.type = EVENT_PUBLISH_DROP;
-            *slot_state = TABLE_REMOVED;
-        }
-        break;
-    case TABLE_CREATED_RESERVED:
-        /* Publish at the first visit: an unused reserved epoch stalls the frontier. */
-        ev.type = EVENT_PUBLISH_CREATE;
-        ev.unpublished = 1;
-        *slot_state = TABLE_PUBLISHED;
-        break;
-    case TABLE_DROPPED_RESERVED:
-        ev.type = EVENT_PUBLISH_DROP;
-        ev.unpublished = 1;
-        *slot_state = TABLE_REMOVED;
+        if (__wt_random(rnd) % 2 == 0)
+            return (generator_publish(state, t, slot));
         break;
     case TABLE_REMOVED: {
         /*
@@ -155,15 +196,12 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
     if (ev.type == EVENT_NONE)
         return (false);
 
-    ev.thread_id = t;
-    ev.slot = slot;
-    testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
     if (ev.type == EVENT_INSERT) {
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
     }
 
-    generator_emit(state, &ev);
+    generator_emit_slot(state, t, slot, &ev);
     return (true);
 }
 
@@ -181,9 +219,22 @@ generator_round(WORKLOAD_STATE *state, uint64_t lead_max, GENERATOR_PHASE phase)
 
     bool emitted = false;
 
-    for (uint32_t t = 0; t < state->worker_count && workload_active(state, STAGE_GENERATOR); t++)
-        if (generator_op(state, t, phase))
+    for (uint32_t thread_index = 0;
+      thread_index < state->worker_count && workload_active(state, STAGE_GENERATOR);
+      thread_index++) {
+        const uint32_t slot =
+          __wt_random(&state->workers[thread_index].rnd) % state->cfg->pool_size;
+        switch (state->workers[thread_index].table[slot].publish_ts_source) {
+        case PUBLISH_TS_CURRENT:
+            if (generator_op(state, thread_index, slot, phase))
+                emitted = true;
+            break;
+        case PUBLISH_TS_STEPDOWN:
+            testutil_assert(generator_publish(state, thread_index, slot));
             emitted = true;
+            break;
+        }
+    }
     return (emitted);
 }
 
@@ -231,55 +282,44 @@ generator_switch_requested(GENERATOR_PACING *pacing)
 }
 
 /*
- * generator_unpublished_reserve --
- *     Move the slots in an unpublished state to their reserved states, and count them.
+ * generator_publish_batch_capture --
+ *     Capture pending publishes for the step-down timestamp reservation without changing lifecycle
+ *     states.
  */
 static uint32_t
-generator_unpublished_reserve(WORKLOAD_STATE *state)
+generator_publish_batch_capture(WORKLOAD_STATE *state)
 {
-    uint32_t count = 0;
-    for (uint32_t t = 0; t < state->worker_count; t++)
+    testutil_assert(state->stepdown_publish_remaining == 0);
+    for (uint32_t thread_index = 0; thread_index < state->worker_count; thread_index++)
         for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++) {
-            TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
-            if (*slot_state == TABLE_CREATED)
-                *slot_state = TABLE_CREATED_RESERVED;
-            else if (*slot_state == TABLE_DROPPED)
-                *slot_state = TABLE_DROPPED_RESERVED;
-            else
-                continue;
-            ++count;
+            testutil_assert(
+              state->workers[thread_index].table[slot].publish_ts_source == PUBLISH_TS_CURRENT);
+            switch (state->workers[thread_index].table[slot].state) {
+            case TABLE_CREATED:
+            case TABLE_DROPPED:
+                state->workers[thread_index].table[slot].publish_ts_source = PUBLISH_TS_STEPDOWN;
+                ++state->stepdown_publish_remaining;
+                break;
+            case TABLE_NONE:
+            case TABLE_PUBLISHED:
+            case TABLE_REMOVED:
+                break;
+            }
         }
-    return (count);
+    return (state->stepdown_publish_remaining);
 }
 
 /*
  * generator_publish_pending --
- *     Emit the pending publish for every slot in the given create-pending or drop-pending state.
+ *     Emit all pending publishes using the given timestamp source.
  */
 static void
-generator_publish_pending(WORKLOAD_STATE *state, TABLE_STATE created, TABLE_STATE dropped)
+generator_publish_pending(WORKLOAD_STATE *state, PUBLISH_TIMESTAMP_SOURCE source)
 {
-    if (state->cfg->epoch_less)
-        return;
-
-    for (uint32_t t = 0; t < state->worker_count; t++)
-        for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++) {
-            TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
-            if (*slot_state != created && *slot_state != dropped)
-                continue;
-
-            SCHEMA_EVENT ev = {0};
-            ev.type = *slot_state == created ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
-            if (*slot_state == TABLE_CREATED_RESERVED || *slot_state == TABLE_DROPPED_RESERVED)
-                ev.unpublished = 1;
-            ev.thread_id = t;
-            ev.slot = slot;
-            testutil_snprintf(
-              ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
-
-            *slot_state = *slot_state == created ? TABLE_PUBLISHED : TABLE_REMOVED;
-            generator_emit(state, &ev);
-        }
+    for (uint32_t thread_index = 0; thread_index < state->worker_count; thread_index++)
+        for (uint32_t slot = 0; slot < state->cfg->pool_size; slot++)
+            if (state->workers[thread_index].table[slot].publish_ts_source == source)
+                (void)generator_publish(state, thread_index, slot);
 }
 
 /*
@@ -334,15 +374,15 @@ generator_stepdown_ended(WORKLOAD_STATE *state, GENERATOR_PACING *pacing)
 
 /*
  * generator_transition_emit --
- *     Emit a transition event (stepdown or switch), with how many unpublished operations have their
- *     publishes follow it.
+ *     Emit a transition event (stepdown or switch), with the number of publish timestamps to
+ *     reserve.
  */
 static void
-generator_transition_emit(WORKLOAD_STATE *state, EVENT_TYPE type, uint32_t unpublished)
+generator_transition_emit(WORKLOAD_STATE *state, EVENT_TYPE type, uint32_t publish_count)
 {
     SCHEMA_EVENT ev = {0};
     ev.type = type;
-    ev.unpublished = unpublished;
+    ev.publish_count = publish_count;
     generator_emit(state, &ev);
 }
 
@@ -380,7 +420,8 @@ thread_generator_run(void *arg)
              * unpublished operation. The step-down workload, paced from here, publishes them among
              * its own operations, and the step-down checkpoint carries them.
              */
-            generator_transition_emit(state, EVENT_STEPDOWN, generator_unpublished_reserve(state));
+            generator_transition_emit(
+              state, EVENT_STEPDOWN, generator_publish_batch_capture(state));
             __wt_epoch(NULL, &pacing.stepdown_start);
             pacing.stepdown_emitted = state->emitted;
             phase = GEN_STEPDOWN;
@@ -393,8 +434,11 @@ thread_generator_run(void *arg)
              * The step-down checkpoint waits on the reserved publishes: once the step-down has
              * emitted its share of events, or nobody carries them, publish the rest at once.
              */
-            if (!carried || state->emitted - pacing.stepdown_emitted >= GEN_STEPDOWN_MIN_EVENTS)
-                generator_publish_pending(state, TABLE_CREATED_RESERVED, TABLE_DROPPED_RESERVED);
+            if (state->stepdown_publish_remaining != 0 &&
+              (!carried || state->emitted - pacing.stepdown_emitted >= GEN_STEPDOWN_MIN_EVENTS)) {
+                generator_publish_pending(state, PUBLISH_TS_STEPDOWN);
+                testutil_assert(state->stepdown_publish_remaining == 0);
+            }
             if (generator_stepdown_ended(state, &pacing)) {
                 struct timespec now;
                 __wt_epoch(NULL, &now);
@@ -408,7 +452,8 @@ thread_generator_run(void *arg)
         }
         case GEN_HANDOVER:
             /* Nothing the term originated may stay unpublished past the switch event. */
-            generator_publish_pending(state, TABLE_CREATED, TABLE_DROPPED);
+            testutil_assert(state->stepdown_publish_remaining == 0);
+            generator_publish_pending(state, PUBLISH_TS_CURRENT);
             generator_transition_emit(state, EVENT_SWITCH, 0);
             phase = GEN_STOP;
             break;
