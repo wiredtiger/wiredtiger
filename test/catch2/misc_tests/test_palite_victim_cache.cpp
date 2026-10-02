@@ -292,4 +292,106 @@ TEST_CASE("Palite victim cache byte budget is shared across handles", "[palite_v
     REQUIRE(page_log->terminate(page_log, session) == 0);
 }
 
+/*
+ * A handle that cannot win the room gives up nothing. Discarding what it already holds would cost a
+ * connection its warm pages for a put that was never going to succeed.
+ */
+TEST_CASE("Palite victim cache keeps its entries when it cannot make room", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=1").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    WT_PAGE_LOG_HANDLE *hog = nullptr, *small = nullptr;
+    REQUIRE(page_log->pl_open_handle(page_log, session, 1, &hog) == 0);
+    REQUIRE(page_log->pl_open_handle(page_log, session, 2, &small) == 0);
+
+    std::vector<uint8_t> big(64 * 1024, 0xab), tiny(1024, 0xcd);
+    WT_ITEM big_buf, tiny_buf;
+    std::memset(&big_buf, 0, sizeof(big_buf));
+    std::memset(&tiny_buf, 0, sizeof(tiny_buf));
+    big_buf.data = big.data();
+    big_buf.size = big.size();
+    tiny_buf.data = tiny.data();
+    tiny_buf.size = tiny.size();
+
+    /* The small handle caches one page first, so it has something to lose. */
+    WT_PAGE_LOG_PUT_ARGS tiny_args;
+    std::memset(&tiny_args, 0, sizeof(tiny_args));
+    tiny_args.lsn = 1;
+    REQUIRE(small->plh_cache_put(small, session, 100, 0, &tiny_args, &tiny_buf) == 0);
+    REQUIRE(small->plh_cache_has(small, session, 100, 0, &tiny_args) == 0);
+
+    /* The other handle then takes the rest of the budget. */
+    for (int i = 0; i < 15; ++i) {
+        WT_PAGE_LOG_PUT_ARGS args;
+        std::memset(&args, 0, sizeof(args));
+        args.lsn = (uint64_t)i + 1;
+        REQUIRE(hog->plh_cache_put(hog, session, (uint64_t)i, 0, &args, &big_buf) == 0);
+    }
+
+    /* A page the small handle could not fit even by discarding everything it holds. */
+    WT_PAGE_LOG_PUT_ARGS refused;
+    std::memset(&refused, 0, sizeof(refused));
+    refused.lsn = 2;
+    REQUIRE(small->plh_cache_put(small, session, 101, 0, &refused, &big_buf) == 0);
+
+    REQUIRE(small->plh_cache_has(small, session, 100, 0, &tiny_args) == 0);
+
+    REQUIRE(hog->plh_close(hog, session) == 0);
+    REQUIRE(small->plh_close(small, session) == 0);
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
+/*
+ * Closing a handle must give its share of the budget back, or a connection that opens and closes
+ * handles over time would charge itself until nothing could be cached again.
+ */
+TEST_CASE("Palite victim cache budget is released when a handle closes", "[palite_victim_cache]")
+{
+    connection_wrapper conn(DB_HOME, palite_conn_cfg("victim_cache_size_mb=1").c_str());
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_SESSION *session = (WT_SESSION *)conn.create_session();
+
+    WT_PAGE_LOG *page_log = nullptr;
+    REQUIRE(wt_conn->get_page_log(wt_conn, "palite", &page_log) == 0);
+
+    std::vector<uint8_t> page(64 * 1024, 0xab);
+    WT_ITEM buf;
+    std::memset(&buf, 0, sizeof(buf));
+    buf.data = page.data();
+    buf.size = page.size();
+
+    /* Fill the budget from a handle, close it, and do the same again. */
+    int cached[3] = {0, 0, 0};
+    for (int round = 0; round < 3; ++round) {
+        WT_PAGE_LOG_HANDLE *handle = nullptr;
+        REQUIRE(page_log->pl_open_handle(page_log, session, 1, &handle) == 0);
+        for (int i = 0; i < 16; ++i) {
+            WT_PAGE_LOG_PUT_ARGS args;
+            std::memset(&args, 0, sizeof(args));
+            args.lsn = (uint64_t)i + 1;
+            REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+        }
+        for (int i = 0; i < 16; ++i) {
+            WT_PAGE_LOG_PUT_ARGS args;
+            std::memset(&args, 0, sizeof(args));
+            args.lsn = (uint64_t)i + 1;
+            if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+                ++cached[round];
+        }
+        REQUIRE(handle->plh_close(handle, session) == 0);
+    }
+
+    /* A leaked budget would starve the later rounds. */
+    REQUIRE(cached[0] > 0);
+    REQUIRE(cached[1] == cached[0]);
+    REQUIRE(cached[2] == cached[0]);
+
+    REQUIRE(page_log->terminate(page_log, session) == 0);
+}
+
 #endif
