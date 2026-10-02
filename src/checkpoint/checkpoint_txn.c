@@ -23,6 +23,7 @@ static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static uint64_t __checkpoint_running_time(WT_SESSION_IMPL *);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
+static void __checkpoint_scrub_progress(WT_SESSION_IMPL *, double, uint64_t);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
 typedef struct {
@@ -616,6 +617,8 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
           __wt_atomic_load_uint64_relaxed(&cache->bytes_written) - bytes_written_start;
         if (bytes_written_total > max_write)
             break;
+
+        __checkpoint_scrub_progress(session, current_dirty, bytes_written_total);
     }
 }
 
@@ -684,6 +687,31 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
           closing ? "ran" : "has been running", time_diff, conn->ckpt.progress.write_pages,
           conn->ckpt.progress.write_bytes / WT_MEGABYTE, conn->ckpt.progress.pages_visited,
           conn->ckpt.progress.files_checkpointed);
+        conn->ckpt.progress.msg_count++;
+    }
+}
+
+/*
+ * __checkpoint_scrub_progress --
+ *     Output a checkpoint scrub progress message.
+ */
+static void
+__checkpoint_scrub_progress(WT_SESSION_IMPL *session, double current_dirty, uint64_t bytes_written)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t time_diff;
+
+    conn = S2C(session);
+
+    time_diff = __checkpoint_running_time(session);
+
+    if ((time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+          "Checkpoint scrub has been running for %" PRIu64
+          " seconds, cache dirty %.1f%% (target "
+          "%.1f%%), wrote %" PRIu64 " MB while waiting",
+          time_diff, current_dirty, conn->evict->eviction_checkpoint_target,
+          bytes_written / WT_MEGABYTE);
         conn->ckpt.progress.msg_count++;
     }
 }
