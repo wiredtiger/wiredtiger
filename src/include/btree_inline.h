@@ -2594,8 +2594,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      *
      * Note that we are not using __wt_page_del_committed here because (a) examining the page_del
      * structure requires locking the ref, and (b) once in memory the page_del structure only
-     * remains until the next reconciliation, and nothing prevents that from occurring before the
-     * transaction commits.
+     * remains until a reconciliation writes a new image of the page, and nothing prevents that from
+     * occurring before the transaction commits.
      */
     if (mod->inst_updates != NULL) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_uncommitted_truncate);

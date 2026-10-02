@@ -308,10 +308,13 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
 
             /*
              * The child is potentially modified if the page's modify structure has been created. If
-             * the modify structure exists and the page has been reconciled, set that state.
+             * the modify structure exists and the page has been reconciled, set that state. A
+             * reconciliation that skipped the write left the on-disk image in place, so the child
+             * is still evaluated as it is on disk, including any fast-truncate state below.
              */
             mod = ref->page->modify;
-            if (mod != NULL && mod->rec_result != 0) {
+            if (mod != NULL && mod->rec_result != 0 &&
+              !(mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie == NULL)) {
                 cmsp->state = WTI_CHILD_MODIFIED;
                 goto done;
             }
