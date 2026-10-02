@@ -693,11 +693,11 @@ __disagg_stable_btree_ids_add(WT_SESSION_IMPL *session,
 }
 
 /*
- * __disagg_insert_meta_worker --
+ * __disagg_insert_meta --
  *     Copy an entry of the shared metadata into the local metadata table.
  */
 static int
-__disagg_insert_meta_worker(WT_SESSION_IMPL *session, const char *key, const char *value,
+__disagg_insert_meta(WT_SESSION_IMPL *session, const char *key, const char *value,
   WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids)
 {
     WT_DECL_RET;
@@ -720,11 +720,11 @@ err:
 }
 
 /*
- * __disagg_insert_meta --
+ * __disagg_insert_meta_from_cursor --
  *     Copy the current entry from a shared metadata cursor into the local metadata table.
  */
 static int
-__disagg_insert_meta(
+__disagg_insert_meta_from_cursor(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids)
 {
     const char *key, *value;
@@ -732,7 +732,7 @@ __disagg_insert_meta(
     WT_RET(sh_cursor->get_key(sh_cursor, &key));
     WT_RET(sh_cursor->get_value(sh_cursor, &value));
 
-    return (__disagg_insert_meta_worker(session, key, value, stable_btree_ids));
+    return (__disagg_insert_meta(session, key, value, stable_btree_ids));
 }
 
 /*
@@ -1038,22 +1038,25 @@ __disagg_cursor_lookup(WT_CURSOR *cursor, const char *key, const char **valuep)
 }
 
 /*
- * __disagg_shared_has_layered_table --
- *     Return whether a checkpoint of the shared metadata has a layered: entry for a table.
+ * __disagg_insert_meta_added --
+ *     Copy an entry that the checkpoint adds to the shared metadata into the local metadata table.
+ *     Fail if the local metadata already has an entry with the same key, which the insert would
+ *     overwrite.
  */
 static int
-__disagg_shared_has_layered_table(
-  WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, const char *name, WT_ITEM *key_buf, bool *hasp)
+__disagg_insert_meta_added(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *key,
+  const char *value, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids)
 {
-    const char *sh_value;
+    const char *md_value;
 
-    *hasp = false;
+    WT_RET(__disagg_cursor_lookup(md_cursor, key, &md_value));
+    if (md_value != NULL)
+        WT_RET_MSG(session, EINVAL,
+          "The checkpoint adds the shared metadata entry \"%s\", which the local metadata already "
+          "has",
+          key);
 
-    WT_RET(__wt_buf_fmt(session, key_buf, "layered:%s", name));
-    WT_RET(__disagg_cursor_lookup(sh_cursor, key_buf->data, &sh_value));
-    *hasp = sh_value != NULL;
-
-    return (0);
+    return (__disagg_insert_meta(session, key, value, stable_btree_ids));
 }
 
 /*
@@ -1094,15 +1097,21 @@ __disagg_pick_up_file(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char
           session, key, md_value, sh_value, md_value_buf, stable_btree_ids));
 
     /*
-     * Otherwise insert the shared file: entry, unless a queued local create defers it. Only layered
-     * tables queue creates, so a create never defers the file: entry of any other table.
+     * Otherwise insert the shared "file:" entry, unless a queued local create defers it. Only
+     * layered tables queue creates, so a create never defers the "file:" entry of any other table.
+     *
+     * The diff sees a deferred entry again only when a later checkpoint changes it, which is
+     * enough. Until a checkpoint covers the local create, a pickup either finds the dropped table's
+     * entry unchanged and leaves the recreated table without a stable "file:" entry, or defers
+     * again. The checkpoint that covers the create carries the recreated table's entry, whose btree
+     * ID differs from the dropped table's, or no entry, so the diff reports the change.
      */
     if (__disagg_stable_file_pickup_deferred(session, name, ckpt_schema_epoch)) {
         *deferredp = true;
         return (0);
     }
 
-    WT_RET(__disagg_insert_meta_worker(session, key, sh_value, stable_btree_ids));
+    WT_RET(__disagg_insert_meta(session, key, sh_value, stable_btree_ids));
     *insertedp = true;
     return (0);
 }
@@ -1316,18 +1325,17 @@ __disagg_layered_stable_uri(
 /*
  * __disagg_apply_checkpoint_meta_diff --
  *     Apply the differences between the last picked-up checkpoint of the shared metadata table and
- *     the new one, named in the local metadata, to the local metadata. Return whether a difference
- *     needs the full merge instead, which then finds the tables applied so far unchanged.
+ *     the new one, named in the local metadata, to the local metadata.
  */
 static int
 __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *old_dhandle,
   wt_timestamp_t ckpt_schema_epoch, uint32_t *existing_tablesp, uint32_t *new_tablesp,
-  uint32_t *new_ingestp, bool *full_mergep)
+  uint32_t *new_ingestp)
 {
     WT_BTREE_DIFF *diffs[WT_DISAGG_CURSOR_COUNT];
     WT_BTREE_DIFF_ENTRY entries[WT_DISAGG_CURSOR_COUNT];
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *md_cursor, *sh_cursor;
+    WT_CURSOR *md_cursor;
     WT_DATA_HANDLE *new_dhandle;
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(key_buf);
@@ -1339,19 +1347,16 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
     size_t current_len;
     uint64_t identical_skips, pages_read;
     int i;
-    const char *cfg[2], *current, *full_merge_reason, *keys[WT_DISAGG_CURSOR_COUNT];
+    const char *current, *keys[WT_DISAGG_CURSOR_COUNT];
     const char *md_layered_value, *md_value, *sh_values[WT_DISAGG_CURSOR_COUNT];
-    bool deferred, has[WT_DISAGG_CURSOR_COUNT], ingest_created, inserted, local_drop, md_layered,
-      sh_layered;
-
-    *full_mergep = false;
+    bool deferred, has[WT_DISAGG_CURSOR_COUNT], hs_file_changed, ingest_created, inserted,
+      local_drop, md_layered;
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         diffs[i] = NULL;
-    md_cursor = sh_cursor = NULL;
+    md_cursor = NULL;
     new_dhandle = NULL;
     WT_CLEAR(stable_btree_ids);
-    current = full_merge_reason = NULL;
 
     WT_ERR(__disagg_shared_metadata_checkpoint_dhandle(session, &new_dhandle));
     if (new_dhandle == NULL)
@@ -1363,11 +1368,6 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
      * free for the tracked metadata updates.
      */
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_cursor));
-
-    /* Open a cursor on the new checkpoint for looking up shared entries that did not change. */
-    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    cfg[1] = NULL;
-    WT_ERR(__wt_open_cursor(session, new_dhandle->name, NULL, cfg, &sh_cursor));
 
     /*
      * Open a diff for each URI scheme, bounded like the cursors of the full merge. Raw metadata
@@ -1432,7 +1432,7 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
           strcmp(keys[WT_DISAGG_CURSOR_FILE], WT_DISAGG_METADATA_URI) == 0)
             continue;
 
-        /* Validate the shared values that the checkpoint adds or changes. */
+        /* Store and validate the shared values that the checkpoint adds or changes. */
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
             sh_values[i] = NULL;
             if (has[i] && entries[i].type != WT_BTREE_DIFF_DELETED)
@@ -1443,12 +1443,12 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
         /* A new layered table. */
         if (has[WT_DISAGG_CURSOR_LAYERED] &&
           entries[WT_DISAGG_CURSOR_LAYERED].type == WT_BTREE_DIFF_ADDED) {
-            /* The checkpoint must also add or change the table's stable file: entry. */
+            /* The checkpoint must also add or change the table's stable "file:" entry. */
             if (sh_values[WT_DISAGG_CURSOR_FILE] == NULL)
                 WT_ERR_MSG(session, EINVAL,
-                  "Missing shared file: metadata entry for new layered table \"%s\"", current);
+                  "Missing shared \"file:\" metadata entry for new layered table \"%s\"", current);
 
-            /* The file: entry must be the stable constituent that the layered: entry names. */
+            /* The "file:" entry must be the stable constituent that the "layered:" entry names. */
             WT_ERR(__disagg_layered_stable_uri(
               session, current, sh_values[WT_DISAGG_CURSOR_LAYERED], &cval));
             if (!WT_CONFIG_MATCH(keys[WT_DISAGG_CURSOR_FILE], cval))
@@ -1458,8 +1458,8 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
                   current, (int)cval.len, cval.str, keys[WT_DISAGG_CURSOR_FILE]);
 
             /*
-             * The local metadata has the layered: entry if this node created the table before the
-             * checkpoint included it: pick up only the stable file: entry.
+             * The local metadata has the "layered:" entry if this node created the table before the
+             * checkpoint included it. Pick up only the stable "file:" entry.
              */
             WT_ERR(__disagg_cursor_lookup(md_cursor, keys[WT_DISAGG_CURSOR_LAYERED], &md_value));
             if (md_value != NULL) {
@@ -1493,15 +1493,15 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
               session, md_cursor, sh_values[WT_DISAGG_CURSOR_LAYERED], false, &ingest_created));
             if (ingest_created)
                 ++*new_ingestp;
-            WT_ERR(__disagg_insert_meta_worker(session, keys[WT_DISAGG_CURSOR_LAYERED],
+            WT_ERR(__disagg_insert_meta(session, keys[WT_DISAGG_CURSOR_LAYERED],
               sh_values[WT_DISAGG_CURSOR_LAYERED], &stable_btree_ids));
-            WT_ERR(__disagg_insert_meta_worker(session, keys[WT_DISAGG_CURSOR_FILE],
+            WT_ERR(__disagg_insert_meta(session, keys[WT_DISAGG_CURSOR_FILE],
               sh_values[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
             if (sh_values[WT_DISAGG_CURSOR_COLGROUP] != NULL)
-                WT_ERR(__disagg_insert_meta_worker(session, keys[WT_DISAGG_CURSOR_COLGROUP],
+                WT_ERR(__disagg_insert_meta(session, keys[WT_DISAGG_CURSOR_COLGROUP],
                   sh_values[WT_DISAGG_CURSOR_COLGROUP], &stable_btree_ids));
             if (sh_values[WT_DISAGG_CURSOR_TABLE] != NULL)
-                WT_ERR(__disagg_insert_meta_worker(session, keys[WT_DISAGG_CURSOR_TABLE],
+                WT_ERR(__disagg_insert_meta(session, keys[WT_DISAGG_CURSOR_TABLE],
                   sh_values[WT_DISAGG_CURSOR_TABLE], &stable_btree_ids));
             ++*new_tablesp;
             continue;
@@ -1516,15 +1516,20 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
 
             /*
              * FIXME-WT-17746: Remove the local metadata entries for the dropped table. A drop and
-             * recreate of the same name between the two checkpoints keeps the layered: entry in
+             * recreate of the same name between the two checkpoints keeps the "layered:" entry in
              * both, so that sequence does not reach here.
              */
             continue;
         }
 
+        /* The checkpoint adds or changes the shared history store's "file:" entry. */
+        hs_file_changed = has[WT_DISAGG_CURSOR_FILE] &&
+          entries[WT_DISAGG_CURSOR_FILE].type != WT_BTREE_DIFF_DELETED &&
+          strcmp(keys[WT_DISAGG_CURSOR_FILE], WT_HS_URI_SHARED) == 0;
+
         /*
-         * An existing table: the checkpoint changes neither side's layered: entry, or only its
-         * value, which a pickup does not apply. Look up the local layered: entry; the value is
+         * An existing table. The checkpoint changes neither side's "layered:" entry, or only its
+         * value, which a pickup does not apply. Look up the local "layered:" entry; the value is
          * valid until the local metadata cursor moves.
          */
         WT_ERR(__wt_buf_fmt(session, key_buf, "layered:%s", current));
@@ -1532,44 +1537,58 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
         md_layered = md_layered_value != NULL;
 
         /*
-         * A layered table that only the shared metadata has: skip the table if this node dropped
-         * it, otherwise the full merge adds it to the local metadata. A layered: difference here is
-         * a changed value, so the shared metadata has the entry; otherwise look it up.
+         * The local metadata has no "layered:" entry for the table, but the checkpoint adds or
+         * changes a "file:" entry with the stable suffix. Other than the shared history store, only
+         * the stable constituent of a layered table has that suffix.
+         *
+         * If the queue holds a drop of the table, which this node made, skip the table.
+         *
+         * If the queue holds no drop of the table, this is an error. The checkpoint neither adds
+         * nor drops the table's shared "layered:" entry, as those are the new and the dropped
+         * layered table cases above. So an earlier pickup skipped the table while the queue held a
+         * drop of the table, and the queue has since pruned it. A node must not add back a table
+         * that it dropped.
+         *
+         * Any other table without a local "layered:" entry is not layered, and the code below
+         * applies its differences.
          */
-        if (!md_layered) {
-            sh_layered = has[WT_DISAGG_CURSOR_LAYERED];
-            if (!sh_layered)
-                WT_ERR(__disagg_shared_has_layered_table(
-                  session, sh_cursor, current, key_buf, &sh_layered));
-            if (sh_layered) {
-                WT_ERR(__disagg_check_shared_only_table(
-                  session, current, ckpt_schema_epoch, &local_drop));
-                if (local_drop)
-                    continue;
-                full_merge_reason = "the local metadata lacks the shared layered: entry";
-                goto full_merge;
-            }
+        if (!md_layered && !hs_file_changed && has[WT_DISAGG_CURSOR_FILE] &&
+          entries[WT_DISAGG_CURSOR_FILE].type != WT_BTREE_DIFF_DELETED &&
+          WT_SUFFIX_MATCH(keys[WT_DISAGG_CURSOR_FILE], ".wt_stable")) {
+            WT_ERR(
+              __disagg_check_shared_only_table(session, current, ckpt_schema_epoch, &local_drop));
+            if (local_drop)
+                continue;
+            WT_ERR_MSG(session, EINVAL,
+              "The checkpoint changes the stable constituent \"%s\" of layered table \"%s\", which "
+              "is not in the local metadata, and the queue holds no drop of the table",
+              keys[WT_DISAGG_CURSOR_FILE], current);
         }
 
         /*
-         * The checkpoint adds or changes the table's file: entry: update the checkpoint of the
-         * local file: entry, or insert the shared entry if the local metadata has none. For a
-         * layered table, the file: entry must be the stable constituent that the local layered:
-         * entry names; the full merge decides any other file: entry of the table.
+         * The checkpoint adds or changes the table's "file:" entry. Update the checkpoint of the
+         * local "file:" entry, or insert the shared entry if the local metadata has none.
+         *
+         * For a layered table, the "file:" entry must be the stable constituent that the local
+         * "layered:" entry names. Any other "file:" entry under the table's name is an error, as
+         * other code finds a layered table's stable constituent by appending ".wt_stable" to the
+         * table's name.
          */
-        if (sh_values[WT_DISAGG_CURSOR_FILE] != NULL) {
+        if (has[WT_DISAGG_CURSOR_FILE] &&
+          entries[WT_DISAGG_CURSOR_FILE].type != WT_BTREE_DIFF_DELETED) {
             if (md_layered) {
                 WT_ERR(__disagg_layered_stable_uri(session, current, md_layered_value, &cval));
-                if (!WT_CONFIG_MATCH(keys[WT_DISAGG_CURSOR_FILE], cval)) {
-                    full_merge_reason = "the file: entry is not the local stable constituent";
-                    goto full_merge;
-                }
+                if (!WT_CONFIG_MATCH(keys[WT_DISAGG_CURSOR_FILE], cval))
+                    WT_ERR_MSG(session, EINVAL,
+                      "Layered table \"%s\" names the stable constituent \"%.*s\", but the shared "
+                      "metadata has \"%s\"",
+                      current, (int)cval.len, cval.str, keys[WT_DISAGG_CURSOR_FILE]);
             }
             WT_ERR(__disagg_pick_up_file(session, md_cursor, current, keys[WT_DISAGG_CURSOR_FILE],
               sh_values[WT_DISAGG_CURSOR_FILE], ckpt_schema_epoch, md_value_buf, &stable_btree_ids,
               &inserted, &deferred));
 
-            /* An inserted file: entry is a new table, unless the table is layered. */
+            /* An inserted "file:" entry is a new table, unless the table is layered. */
             if (inserted && !md_layered)
                 ++*new_tablesp;
             else if (!deferred)
@@ -1577,35 +1596,60 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
         }
 
         /*
-         * The checkpoint drops the table's file: entry. The full merge decides a layered table,
-         * whose file: entry the shared metadata must have. Dropping a non-layered table from the
-         * local metadata is not handled.
+         * The checkpoint drops the table's "file:" entry.
+         *
+         * For a layered table, this is an error. A checkpoint that drops a layered table drops its
+         * "layered:" entry too, which the dropped layered table case above handles. So this
+         * checkpoint drops a "file:" entry under the table's name while the shared metadata keeps
+         * the table's "layered:" entry or never had one.
+         *
+         * For a non-layered table, dropping the table from the local metadata is not handled.
          */
         if (has[WT_DISAGG_CURSOR_FILE] &&
           entries[WT_DISAGG_CURSOR_FILE].type == WT_BTREE_DIFF_DELETED) {
-            if (md_layered) {
-                full_merge_reason = "the checkpoint drops the file: entry of a layered table";
-                goto full_merge;
-            }
+            if (md_layered)
+                WT_ERR_MSG(session, EINVAL,
+                  "The checkpoint drops the shared \"file:\" metadata entry \"%s\" of layered "
+                  "table "
+                  "\"%s\", but not its \"layered:\" entry",
+                  keys[WT_DISAGG_CURSOR_FILE], current);
             __wt_verbose_debug3(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Local file metadata for \"%s\" has no corresponding shared metadata", current);
         }
 
         /*
-         * The checkpoint adds or changes the table's colgroup: or table: entry. A pickup does not
-         * apply these to a layered table, nor change an entry that the local metadata has. For a
-         * table without a layered: entry, insert the shared entry that the local metadata lacks.
+         * The checkpoint adds, changes or drops the table's "colgroup:" or "table:" entry.
+         *
+         * If the checkpoint adds the entry, insert it into the local metadata.
+         *
+         * If the checkpoint changes the entry, fail, as a pickup cannot change an entry that the
+         * local metadata has.
+         *
+         * If the checkpoint drops the entry, leave the local entry, as a pickup does not remove
+         * dropped tables from the local metadata.
          */
-        if (!md_layered)
-            for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
-                if (sh_values[i] == NULL ||
-                  (i != WT_DISAGG_CURSOR_COLGROUP && i != WT_DISAGG_CURSOR_TABLE))
-                    continue;
-                WT_ERR(__disagg_cursor_lookup(md_cursor, keys[i], &md_value));
-                if (md_value == NULL)
-                    WT_ERR(__disagg_insert_meta_worker(
-                      session, keys[i], sh_values[i], &stable_btree_ids));
-            }
+        if (has[WT_DISAGG_CURSOR_COLGROUP]) {
+            if (entries[WT_DISAGG_CURSOR_COLGROUP].type == WT_BTREE_DIFF_MODIFIED)
+                WT_ERR_MSG(session, EINVAL,
+                  "The checkpoint changes the shared metadata entry \"%s\", which a pickup cannot "
+                  "apply",
+                  keys[WT_DISAGG_CURSOR_COLGROUP]);
+            if (entries[WT_DISAGG_CURSOR_COLGROUP].type == WT_BTREE_DIFF_ADDED)
+                WT_ERR(
+                  __disagg_insert_meta_added(session, md_cursor, keys[WT_DISAGG_CURSOR_COLGROUP],
+                    sh_values[WT_DISAGG_CURSOR_COLGROUP], &stable_btree_ids));
+        }
+
+        if (has[WT_DISAGG_CURSOR_TABLE]) {
+            if (entries[WT_DISAGG_CURSOR_TABLE].type == WT_BTREE_DIFF_MODIFIED)
+                WT_ERR_MSG(session, EINVAL,
+                  "The checkpoint changes the shared metadata entry \"%s\", which a pickup cannot "
+                  "apply",
+                  keys[WT_DISAGG_CURSOR_TABLE]);
+            if (entries[WT_DISAGG_CURSOR_TABLE].type == WT_BTREE_DIFF_ADDED)
+                WT_ERR(__disagg_insert_meta_added(session, md_cursor, keys[WT_DISAGG_CURSOR_TABLE],
+                  sh_values[WT_DISAGG_CURSOR_TABLE], &stable_btree_ids));
+        }
     }
 
     identical_skips = pages_read = 0;
@@ -1617,21 +1661,12 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
       "Checkpoint pickup diff read %" PRIu64 " pages and skipped %" PRIu64 " identical subtrees",
       pages_read, identical_skips);
 
-    if (0) {
-full_merge:
-        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Checkpoint pickup falls back to the full merge at table \"%s\": %s", current,
-          full_merge_reason);
-        *full_mergep = true;
-    }
-
 #ifdef HAVE_DIAGNOSTIC
     /*
      * A new stable btree ID may collide with any stable file in the local metadata, but finding a
      * collision means scanning the whole local metadata, which a diff must not do. So only
-     * diagnostic builds check here, including after a fallback, whose full merge does not check the
-     * IDs that the diff adopted. Release builds rely on the check in the full merge, which runs at
-     * startup and whenever a full merge adopts a new stable ID.
+     * diagnostic builds check here. Release builds rely on the check in the full merge, which runs
+     * at startup and whenever a full merge adopts a new stable ID.
      */
     if (stable_btree_ids.have_new_stable_id) {
         stable_btree_ids.count = 0;
@@ -1645,8 +1680,6 @@ err:
         WT_TRET(__wt_btree_diff_close(&diffs[i]));
     if (md_cursor != NULL)
         WT_TRET(md_cursor->close(md_cursor));
-    if (sh_cursor != NULL)
-        WT_TRET(sh_cursor->close(sh_cursor));
     if (new_dhandle != NULL)
         WT_WITH_DHANDLE(session, new_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
     __wt_free(session, stable_btree_ids.ids);
@@ -1660,8 +1693,7 @@ err:
 /*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint. Given
- *     the handle of the last picked-up checkpoint, apply only the differences from it, unless a
- *     difference needs the full merge.
+ *     the handle of the last picked-up checkpoint, apply only the differences from it.
  */
 static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
@@ -1684,8 +1716,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     const char *cfg[2], *md_file_value, *metadata_checkpoint_name, *metadata_value, *sh_file_value;
     const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
-    bool full_merge, ingest_created, local_drop, md_has[WT_DISAGG_CURSOR_COUNT],
-      sh_has[WT_DISAGG_CURSOR_COUNT];
+    bool ingest_created, local_drop, md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT];
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
@@ -1724,12 +1755,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         goto done;
 
     /* Apply only the differences from the last picked-up checkpoint, if there is one. */
-    full_merge = true;
-    if (old_dhandle != NULL)
-        WT_ERR(__disagg_apply_checkpoint_meta_diff(session, old_dhandle, ckpt_schema_epoch,
-          &existing_tables, &new_tables, &new_ingest, &full_merge));
-    if (!full_merge)
+    if (old_dhandle != NULL) {
+        WT_ERR(__disagg_apply_checkpoint_meta_diff(
+          session, old_dhandle, ckpt_schema_epoch, &existing_tables, &new_tables, &new_ingest));
         goto applied;
+    }
 
     /*
      * !!!
@@ -1894,13 +1924,19 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR(
                   __disagg_update_file_meta(session, sh_keys[WT_DISAGG_CURSOR_FILE], &file_entry));
             else {
+                /*
+                 * Skip the shared "file:" entry if a queued local create defers it. The full merge
+                 * finds the local "file:" entry missing at every pickup, even when the checkpoint
+                 * leaves the dropped table's entry unchanged, so each pickup checks the deferral
+                 * again until a checkpoint covers the create.
+                 */
                 if (__disagg_stable_file_pickup_deferred(session, current, ckpt_schema_epoch))
                     continue;
                 /*
                  * We already have the layered table in the local metadata; we are just picking up
                  * the stable component.
                  */
-                WT_ERR(__disagg_insert_meta(
+                WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
             }
             ++existing_tables;
@@ -1933,15 +1969,15 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
               session, md_write_cursor, metadata_value, is_startup, &ingest_created));
             if (ingest_created)
                 ++new_ingest;
-            WT_ERR(__disagg_insert_meta(
+            WT_ERR(__disagg_insert_meta_from_cursor(
               session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], &stable_btree_ids));
-            WT_ERR(
-              __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
+            WT_ERR(__disagg_insert_meta_from_cursor(
+              session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
+                WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], &stable_btree_ids));
             if (sh_has[WT_DISAGG_CURSOR_TABLE])
-                WT_ERR(__disagg_insert_meta(
+                WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_TABLE], &stable_btree_ids));
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
@@ -1979,7 +2015,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * We do not check the metadata operations queue as we do for layered tables,
                  * because we don't currently support the publish API for non-layered tables.
                  */
-                WT_ERR(__disagg_insert_meta(
+                WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_TABLE], &stable_btree_ids));
             else if (!sh_has[WT_DISAGG_CURSOR_TABLE] && md_has[WT_DISAGG_CURSOR_TABLE])
                 /*
@@ -1998,7 +2034,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * This is not supported by the publish API, but we should still handle it gracefully.
              */
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP] && !md_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
+                WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], &stable_btree_ids));
 
             /*
@@ -2012,7 +2048,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * The shared metadata table has an entry for this file. Add it to the local
                  * metadata.
                  */
-                WT_ERR(__disagg_insert_meta(
+                WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
                 ++new_tables;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE]) {

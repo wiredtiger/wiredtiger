@@ -38,6 +38,9 @@
 # The pickup must instead leave the stable constituent absent: the table's latest queued
 # create sits above the checkpoint's schema epoch, so this checkpoint predates the local
 # incarnation, and a later checkpoint that covers the create supplies the right constituent.
+#
+# The stale checkpoint either carries the old incarnation's stable file as the follower last
+# picked it up, or with a newer checkpoint of its own, written before the leader dropped it.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
@@ -54,7 +57,11 @@ class test_layered_schema28(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     table_config = 'key_format=i,value_format=S'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    stale_stable = [
+        ('stale_unchanged', dict(stale_stable_changed=False)),
+        ('stale_changed', dict(stale_stable_changed=True)),
+    ]
+    scenarios = make_scenarios(disagg_storages, stale_stable)
 
     def test_recreate_skips_stale_stable_pickup(self):
         """
@@ -72,6 +79,18 @@ class test_layered_schema28(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         conn_follow, session_follow = self.open_follower()
         self.set_stable_epoch(10, conn_follow)
         self.assertEqual(self.stable_id(conn_follow, self.uri), first_id)
+
+        # Give the first incarnation's stable file a checkpoint that the follower has not picked
+        # up, so the stale checkpoint below carries a different stable file entry.
+        if self.stale_stable_changed:
+            first_config = self.stable_config(self.conn, self.uri)
+            cursor = self.session.open_cursor(self.uri)
+            self.session.begin_transaction()
+            cursor[1] = 'first'
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(12))
+            cursor.close()
+            self.leader_checkpoint(15)
+            self.assertNotEqual(self.stable_config(self.conn, self.uri), first_config)
 
         # Both nodes drop the table; the publishes sit above the stable epoch. The leader
         # cannot recreate yet: a checkpoint below its published drop with the recreate queued
