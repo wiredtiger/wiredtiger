@@ -856,7 +856,6 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      */
     if (__wti_evict_exceeded_clean_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
-		LF_SET(WT_EVICT_CACHE_NOKEEP);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_reached);
     } else if (__evict_clean_ramp(session, cache_pct, target, trigger)) {
         LF_SET(WT_EVICT_CACHE_CLEAN);
@@ -949,8 +948,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
-    } //else
-//        LF_SET(WT_EVICT_CACHE_NOKEEP);
+    } else
+        LF_SET(WT_EVICT_CACHE_NOKEEP);
 
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT)) {
         LF_SET(WT_EVICT_CACHE_SCRUB);
