@@ -446,8 +446,8 @@ TEST_CASE(
 }
 
 /*
- * A replacement image too large to cache must still retire the copy already held, or a reader would
- * be handed a page the caller has since replaced.
+ * The last put under a key wins, even when the new image is too large to cache. Declining the
+ * replacement must not leave the previous one behind.
  */
 TEST_CASE("Palite victim cache drops the old copy when the replacement is too large",
   "[palite_victim_cache]")
