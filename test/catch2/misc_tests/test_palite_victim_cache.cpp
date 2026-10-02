@@ -309,12 +309,15 @@ TEST_CASE("Palite victim cache keeps its entries when it cannot make room", "[pa
     REQUIRE(page_log->pl_open_handle(page_log, session, 1, &hog) == 0);
     REQUIRE(page_log->pl_open_handle(page_log, session, 2, &small) == 0);
 
-    std::vector<uint8_t> big(64 * 1024, 0xab), tiny(1024, 0xcd);
-    WT_ITEM big_buf, tiny_buf;
+    std::vector<uint8_t> big(64 * 1024, 0xab), huge(96 * 1024, 0xef), tiny(1024, 0xcd);
+    WT_ITEM big_buf, huge_buf, tiny_buf;
     std::memset(&big_buf, 0, sizeof(big_buf));
+    std::memset(&huge_buf, 0, sizeof(huge_buf));
     std::memset(&tiny_buf, 0, sizeof(tiny_buf));
     big_buf.data = big.data();
     big_buf.size = big.size();
+    huge_buf.data = huge.data();
+    huge_buf.size = huge.size();
     tiny_buf.data = tiny.data();
     tiny_buf.size = tiny.size();
 
@@ -337,7 +340,8 @@ TEST_CASE("Palite victim cache keeps its entries when it cannot make room", "[pa
     WT_PAGE_LOG_PUT_ARGS refused;
     std::memset(&refused, 0, sizeof(refused));
     refused.lsn = 2;
-    REQUIRE(small->plh_cache_put(small, session, 101, 0, &refused, &big_buf) == 0);
+    REQUIRE(small->plh_cache_put(small, session, 101, 0, &refused, &huge_buf) == 0);
+    REQUIRE(small->plh_cache_has(small, session, 101, 0, &refused) == WT_NOTFOUND);
 
     REQUIRE(small->plh_cache_has(small, session, 100, 0, &tiny_args) == 0);
 

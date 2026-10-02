@@ -180,13 +180,10 @@ public:
     }
 
 private:
-    /* Per-entry cost beyond the image: key, metadata, vector and hash node. */
-    static constexpr uint64_t ENTRY_OVERHEAD = 128;
-
     static uint64_t
     entry_bytes(const victim_cache_entry &entry)
     {
-        return entry.data.capacity() + ENTRY_OVERHEAD;
+        return entry.data.capacity();
     }
 
     /* The two counters move together: local_bytes is this handle's share of shared_bytes. */
