@@ -24,8 +24,8 @@ allocate_tombstone(WT_SESSION_IMPL *session, bool restored, size_t *sizep)
 }
 
 static WT_INSERT *
-allocate_insert(WT_SESSION_IMPL *session, WT_UPDATE *upd, size_t update_size, uint64_t recno,
-  size_t *sizep)
+allocate_insert(
+  WT_SESSION_IMPL *session, WT_UPDATE *upd, size_t update_size, uint64_t recno, size_t *sizep)
 {
     WT_INSERT *ins;
     size_t ins_size;
@@ -90,8 +90,8 @@ TEST_CASE("Range-truncate accounting excludes only restored fast-truncate update
     head = nullptr;
     restored = allocate_tombstone(session, true, &restored_size);
     REQUIRE(__wt_update_serial(session, cbt, &page, &head, &restored, restored_size, true) == 0);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, truncate_slow_path_update_bytes) ==
-      truncate_bytes);
+    CHECK(
+      WT_STAT_CONN_READ(S2C(session)->stats, truncate_slow_path_update_bytes) == truncate_bytes);
     CHECK(session->txn->update_dirty_bytes == txn_bytes + restored_size);
     __wt_cache_page_inmem_decr(session, &page, restored_size);
     __wt_free(session, head);
@@ -106,12 +106,11 @@ TEST_CASE("Range-truncate accounting excludes only restored fast-truncate update
     restored = allocate_tombstone(session, true, &restored_size);
     tombstone = allocate_tombstone(session, false, &tombstone_size);
     tombstone->next = restored;
-    ins = allocate_insert(
-      session, tombstone, tombstone_size + restored_size, 1, &total_size);
+    ins = allocate_insert(session, tombstone, tombstone_size + restored_size, 1, &total_size);
     truncate_bytes = WT_STAT_CONN_READ(S2C(session)->stats, truncate_slow_path_update_bytes);
     txn_bytes = session->txn->update_dirty_bytes;
-    REQUIRE(__wt_insert_serial(
-              session, &page, &ins_head, ins_stack, &ins, total_size, 1, true) == 0);
+    REQUIRE(
+      __wt_insert_serial(session, &page, &ins_head, ins_stack, &ins, total_size, 1, true) == 0);
     CHECK(WT_STAT_CONN_READ(S2C(session)->stats, truncate_slow_path_update_bytes) ==
       truncate_bytes + tombstone_size);
     CHECK(session->txn->update_dirty_bytes == txn_bytes + total_size);
@@ -125,8 +124,7 @@ TEST_CASE("Range-truncate accounting excludes only restored fast-truncate update
     restored = allocate_tombstone(session, true, &restored_size);
     tombstone = allocate_tombstone(session, false, &tombstone_size);
     tombstone->next = restored;
-    ins = allocate_insert(
-      session, tombstone, tombstone_size + restored_size, 2, &total_size);
+    ins = allocate_insert(session, tombstone, tombstone_size + restored_size, 2, &total_size);
     truncate_bytes = WT_STAT_CONN_READ(S2C(session)->stats, truncate_slow_path_update_bytes);
     txn_bytes = session->txn->update_dirty_bytes;
     uint64_t recno = 2;
