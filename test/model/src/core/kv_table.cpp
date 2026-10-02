@@ -279,7 +279,7 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
     std::vector<std::pair<const data_value *, kv_table_item *>> to_delete;
 
     try {
-        std::lock_guard lock_guard(_lock);
+        std::unique_lock lock(_lock);
         if (start != model::NONE && stop != model::NONE && start > stop)
             throw model_exception("The start and the stop key are not in the right order");
 
@@ -316,11 +316,9 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
                 continue;
             to_delete.emplace_back(&i->first, &i->second);
         }
-    } catch (wiredtiger_exception &e) {
-        return e.error();
-    }
 
-    try {
+        lock.unlock();
+
         for (auto &p : to_delete) {
             std::shared_ptr<kv_update> update =
               fix_timestamps(std::make_shared<kv_update>(NONE, txn));
