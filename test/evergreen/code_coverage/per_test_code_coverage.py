@@ -116,7 +116,7 @@ def gcovr_one_copy(build_copy_name, dir_name, gcovr_dir):
                      "--include-internal-functions "
                      "--gcov-ignore-parse-errors=negative_hits.warn_once_per_file "
                      "--gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file "
-                     "-f src -j 16 "
+                     "-f src "
                      "--json-summary-pretty "
                      f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json "
                      f"--json {coverage_output_dir}/full_coverage_report.json")
@@ -155,7 +155,7 @@ def main():
     parser.add_argument('-b', '--build_dir_base', required=True, help='Base name for the build directories')
     parser.add_argument('-j', '--parallel', default=1, type=int, help='How many tests to run in parallel')
     parser.add_argument('-g', '--gcovr_dir', help='Directory to store gcovr output in')
-    parser.add_argument('-p', '--gcovr_processes', default=8, type=int,
+    parser.add_argument('-p', '--gcovr_processes', default=len(os.sched_getaffinity(0)), type=int,
                         help='How many gcovr processes to run in parallel during analysis')
     parser.add_argument('-s', '--setup', action="store_true",
                         help='Perform setup actions from the config in each build directory')
