@@ -43,17 +43,15 @@ class test_verbose06(test_verbose_base):
     # name carries a _stable suffix.
     file_name = rf'file:{test_name}\.wt(?:_stable)?'
 
-    # A cache-resident table keeps all its updates in memory until checkpoint reconciles them.
-    create_config = 'key_format=Q,value_format=S,cache_resident=true'
+    create_config = 'key_format=Q,value_format=S'
     conn_config = 'cache_size=1GB,statistics=(all),verbose=[reconcile:0]'
 
-    # Each round rewrites every key. The pinned oldest timestamp keeps every older version, so
-    # checkpoint moves all but the newest to the history store. Under timing stress, history store
-    # wrapup sleeps a millisecond per key, so the checkpoint reconciliation takes at least nkeys
-    # milliseconds, several times the one second warning threshold the stress option sets.
-    nkeys = 3000
-    nrounds = 10
-    value_size = 1000
+    # A single key always lives on a single page, so checkpoint reconciles exactly one page with
+    # history store work. The pinned oldest timestamp keeps every older version, so checkpoint moves
+    # all but the newest to the history store. Under timing stress, that wrapup sleeps past the one
+    # second warning threshold the stress option sets.
+    nversions = 30
+    value_size = 100
 
     slow_pattern = re.compile(
         rf'WT_VERB_RECONCILE.*Checkpoint took more than 1 minute \((\d+)us\) reconciling '
@@ -65,11 +63,9 @@ class test_verbose06(test_verbose_base):
 
         ts = 2
         with WiredTigerCursor(self.session, self.uri) as cursor:
-            for r in range(self.nrounds):
+            for v in range(self.nversions):
                 self.session.begin_transaction()
-                value = chr(ord('a') + r) * self.value_size
-                for k in range(self.nkeys):
-                    cursor[k] = value
+                cursor[1] = chr(ord('a') + v % 26) * self.value_size
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
                 ts += 1
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts - 1))
@@ -106,7 +102,7 @@ class test_verbose06(test_verbose_base):
         output, elapsed = self.checkpoint_output()
         self.conn.reconfigure('timing_stress_for_test=[]')
 
-        self.assertGreaterEqual(elapsed, self.nkeys / 1000,
+        self.assertGreaterEqual(elapsed, 1,
             "Timing stress didn't slow down checkpoint: {:.1f} seconds".format(elapsed))
         slow = self.slow_pattern.findall(output)
         self.assertEqual(len(slow), 1,

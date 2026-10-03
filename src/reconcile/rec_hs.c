@@ -1174,7 +1174,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     wt_off_t hs_size;
     uint64_t max_hs_size;
     uint32_t i;
-    bool error_on_ts_ordering, stress_slow;
+    bool error_on_ts_ordering;
 
     conn = S2C(session);
     r->cache_write_hs = false;
@@ -1195,16 +1195,16 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-    stress_slow =
-      FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW) &&
-      F_ISSET(r, WT_REC_CHECKPOINT);
+    /*
+     * Stretch checkpoint history store wrapup past the stressed slow reconciliation threshold, once
+     * per block, so the delay does not depend on how many keys or pages the data spans.
+     */
+    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW) &&
+      F_ISSET(r, WT_REC_CHECKPOINT))
+        __wt_sleep(1, 500 * WT_THOUSAND);
 
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
-        /* Stretch checkpoint history store wrapup, one delay per key. */
-        if (stress_slow)
-            __wt_sleep(0, WT_THOUSAND);
-
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL)
             continue;
