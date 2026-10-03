@@ -30,7 +30,6 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
   {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
-  {"checkpoint_hs_wrapup_slow", WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW},
   {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
   {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
   {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},

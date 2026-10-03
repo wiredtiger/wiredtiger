@@ -322,13 +322,8 @@ __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline
 {
     timeline->reconcile_finish = __wt_clock(session);
 
-    /* Lower the threshold under stress so tests see the warning without a long wait. */
-    uint64_t threshold_us = WT_MINUTE * WT_MILLION;
-    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_HS_WRAPUP_SLOW))
-        threshold_us = WT_MILLION;
-
     uint64_t rec_us = WT_CLOCKDIFF_US(timeline->reconcile_finish, timeline->reconcile_start);
-    if (rec_us <= threshold_us)
+    if (rec_us <= WT_MINUTE * WT_MILLION)
         return;
 
     const char *operation = "Reconciliation";
