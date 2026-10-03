@@ -109,7 +109,10 @@ def gcovr_one_copy(build_copy_name, dir_name, gcovr_dir):
         f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
     os.mkdir(coverage_output_dir)
     shutil.copy(src=task_info_path, dst=coverage_output_dir)
-    gcovr_command = (f"gcovr {build_copy_name} "
+
+    gcda_dirs = sorted({os.path.dirname(src) for src in Path(build_copy_path).rglob("*.gcda")})
+    scan_targets = " ".join(gcda_dirs) if gcda_dirs else build_copy_name
+    gcovr_command = (f"gcovr {scan_targets} "
                      "--include-internal-functions "
                      "--gcov-ignore-parse-errors=negative_hits.warn_once_per_file "
                      "--gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file "
