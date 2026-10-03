@@ -29,6 +29,7 @@
 from test_verbose01 import test_verbose_base
 import wttest
 from helper import WiredTigerCursor
+from wiredtiger import stat
 import re, time
 
 # Verify that a slow checkpoint reconciliation is reported with the file it was reconciling and its
@@ -78,6 +79,15 @@ class test_verbose06(test_verbose_base):
         self.session.checkpoint()
         return self.readStdout(1000000), time.monotonic() - start
 
+    def reconcile_stats(self):
+        # Context for a failure: whether one reconciliation was slow, or the work was spread out.
+        names = ['rec_maximum_milliseconds', 'rec_maximum_hs_wrapup_milliseconds',
+            'rec_maximum_image_build_milliseconds', 'checkpoint_pages_reconciled', 'cache_hs_insert']
+        cursor = self.session.open_cursor('statistics:', None, None)
+        values = ', '.join('{}={}'.format(n, cursor[getattr(stat.conn, n)][2]) for n in names)
+        cursor.close()
+        return values
+
     def finish_and_clean_output(self):
         self.cleanStdout()
         self.conn.reconfigure('verbose=[]')
@@ -100,7 +110,8 @@ class test_verbose06(test_verbose_base):
             "Timing stress didn't slow down checkpoint: {:.1f} seconds".format(elapsed))
         slow = self.slow_pattern.findall(output)
         self.assertEqual(len(slow), 1,
-            "Expected one slow checkpoint reconciliation message:\n" + output)
+            "Expected one slow checkpoint reconciliation message after {:.1f} seconds ({}):\n{}"
+            .format(elapsed, self.reconcile_stats(), output))
         total_us, build_us, hs_wrapup_us = (int(v) for v in slow[0])
         self.assertLessEqual(build_us + hs_wrapup_us, total_us)
         self.assertGreater(hs_wrapup_us, build_us,
