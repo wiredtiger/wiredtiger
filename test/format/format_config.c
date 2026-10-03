@@ -38,6 +38,7 @@ static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_disagg_key_provider(void);
 static void config_disagg_storage(void);
+static void config_disagg_victim_cache(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
@@ -518,6 +519,9 @@ config_run(void)
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
 
+    /* The victim cache is sized against the page sizes the table configuration settled on. */
+    config_disagg_victim_cache();
+
     /* Adjust run length if needed. */
     config_run_length();
 
@@ -680,6 +684,7 @@ config_backward_compatible(void)
 
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
     BC_CHECK("block_cache", BLOCK_CACHE);
+    BC_CHECK("disagg.victim_cache", DISAGG_VICTIM_CACHE);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
@@ -1515,6 +1520,78 @@ config_disagg_storage(void)
     /* Compaction is not supported for disaggregated storage. */
     config_off(NULL, "ops.compaction");
     config_off(NULL, "background_compact");
+}
+
+/* Memory the victim cache may use, per run, per node. */
+#define VICTIM_CACHE_BUDGET_MB 128
+
+/*
+ * config_disagg_victim_cache --
+ *     Page log victim cache configuration.
+ *
+ * The cache is not named in the connection string: WiredTiger enables it whenever the page log
+ *     reports one is available, which the page log does whenever its entry count is non-zero, so
+ *     the count derived here is the whole of the switch.
+ */
+static void
+config_disagg_victim_cache(void)
+{
+    uint64_t size_mb;
+    char buf[64];
+
+    /* Deriving the count below clears this flag, so the warning has to come first. */
+    if (config_explicit(NULL, "disagg.victim_cache.size"))
+        WARN("%s", "ignoring disagg.victim_cache.size, the cache size is derived");
+
+    /* The victim cache lives in the page log, so a run without one has nowhere to put pages. */
+    if (!g.disagg_storage_config) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("%s", "turning off disagg.victim_cache, the run has no page log");
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    /* Of the page logs, only PALite implements the caching hooks. */
+    if (g.disagg_storage_config && strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("turning off disagg.victim_cache, the %s page log implements no victim cache",
+              GVS(DISAGG_PAGE_LOG));
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    /* Eviction does not offer pages to the victim cache in an in-memory run. */
+    if (GV(RUNS_IN_MEMORY)) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("%s", "turning off disagg.victim_cache to work with runs.in_memory");
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    /*
+     * The victim cache writes the page image without encrypting it, and eviction does not gate on
+     * the btree's encryptor, so an encrypted table reads back a block the read path rejects as
+     * corrupt. The cache gives way rather than encryption, which is the older coverage.
+     *
+     * FIXME-WT-18794: remove this once eviction skips encrypted tables for the victim cache.
+     */
+    if (strcmp(GVS(DISK_ENCRYPTION), "off") != 0) {
+        if (config_explicit(NULL, "disagg.victim_cache"))
+            WARN("%s", "turning off disagg.victim_cache to work with disk.encryption");
+        config_off(NULL, "disagg.victim_cache");
+    }
+
+    if (GV(DISAGG_VICTIM_CACHE)) {
+        /*
+         * The page log bounds its cache in bytes, so this is the whole of the sizing: nothing here
+         * depends on the page sizes or the table count. The memory is extra, not carved out of the
+         * cache, and the fraction is the share the block cache takes, binding only on a run given
+         * little memory.
+         */
+        size_mb = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5);
+        testutil_snprintf(buf, sizeof(buf), "disagg.victim_cache.size=%" PRIu64, size_mb);
+        config_single(NULL, buf, false);
+    }
+
+    if (!GV(DISAGG_VICTIM_CACHE))
+        config_off(NULL, "disagg.victim_cache.size");
 }
 
 /*
