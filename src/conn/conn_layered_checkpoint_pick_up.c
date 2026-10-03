@@ -966,6 +966,7 @@ __disagg_ensure_ingest_table(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor,
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     char *ingest_uri;
+    const char *md_value;
 
     *createdp = false;
     ingest_uri = NULL;
@@ -975,9 +976,8 @@ __disagg_ensure_ingest_table(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor,
         return (0);
 
     WT_RET(__wt_strndup(session, cval.str, cval.len, &ingest_uri));
-    md_cursor->set_key(md_cursor, ingest_uri);
-    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR(__wt_cursor_lookup(md_cursor, ingest_uri, &md_value));
+    if (md_value == NULL) {
         WT_ERR_MSG_CHK(session,
           __layered_create_missing_ingest_table(session, ingest_uri, layered_value, is_startup),
           "Failed to create missing ingest table \"%s\" from \"%s\"", ingest_uri, layered_value);
@@ -1018,26 +1018,6 @@ __disagg_check_local_only_table(
 }
 
 /*
- * __disagg_cursor_lookup --
- *     Return the value for a key in a cursor on the local metadata or on a checkpoint of the shared
- *     metadata, or NULL if there is none. The value is valid until the cursor moves.
- */
-static int
-__disagg_cursor_lookup(WT_CURSOR *cursor, const char *key, const char **valuep)
-{
-    WT_DECL_RET;
-
-    *valuep = NULL;
-
-    cursor->set_key(cursor, key);
-    WT_RET_NOTFOUND_OK(ret = cursor->search(cursor));
-    if (ret == WT_NOTFOUND)
-        return (0);
-
-    return (cursor->get_value(cursor, valuep));
-}
-
-/*
  * __disagg_insert_meta_added --
  *     Copy an entry that the checkpoint adds to the shared metadata into the local metadata table.
  *     Fail if the local metadata already has an entry with the same key, which the insert would
@@ -1049,7 +1029,7 @@ __disagg_insert_meta_added(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const
 {
     const char *md_value;
 
-    WT_RET(__disagg_cursor_lookup(md_cursor, key, &md_value));
+    WT_RET(__wt_cursor_lookup(md_cursor, key, &md_value));
     if (md_value != NULL)
         WT_RET_MSG(session, EINVAL,
           "The checkpoint adds the shared metadata entry \"%s\", which the local metadata already "
@@ -1091,7 +1071,7 @@ __disagg_pick_up_file(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char
     *insertedp = *deferredp = false;
 
     /* The local metadata has the file: entry: check its identity and update its checkpoint. */
-    WT_RET(__disagg_cursor_lookup(md_cursor, key, &md_value));
+    WT_RET(__wt_cursor_lookup(md_cursor, key, &md_value));
     if (md_value != NULL)
         return (__disagg_pick_up_file_checkpoint(
           session, key, md_value, sh_value, md_value_buf, stable_btree_ids));
@@ -1126,7 +1106,7 @@ __disagg_check_no_local_entry(
 {
     const char *md_value;
 
-    WT_RET(__disagg_cursor_lookup(md_cursor, key, &md_value));
+    WT_RET(__wt_cursor_lookup(md_cursor, key, &md_value));
     if (md_value != NULL)
         WT_RET_MSG(session, EINVAL,
           "Unexpected local metadata entry \"%s\" for new layered table \"%s\"", key, name);
@@ -1213,7 +1193,6 @@ err:
 static int
 __disagg_shared_metadata_checkpoint_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandlep)
 {
-    WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
     const char *checkpoint_name;
@@ -1232,10 +1211,10 @@ __disagg_shared_metadata_checkpoint_dhandle(WT_SESSION_IMPL *session, WT_DATA_HA
     WT_ERR(__wt_buf_fmt(session, uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, checkpoint_name));
 
     /* Getting the handle sets the session's data handle, so restore it. */
-    saved_dhandle = session->dhandle;
-    if ((ret = __wt_session_get_dhandle(session, uri_buf->data, NULL, NULL, 0)) == 0)
-        *dhandlep = session->dhandle;
-    session->dhandle = saved_dhandle;
+    WT_SAVE_DHANDLE(session, {
+        if ((ret = __wt_session_get_dhandle(session, uri_buf->data, NULL, NULL, 0)) == 0)
+            *dhandlep = session->dhandle;
+    });
 
 err:
     __wt_free(session, checkpoint_name);
@@ -1281,29 +1260,6 @@ __disagg_diff_next(WT_BTREE_DIFF *diff, WT_BTREE_DIFF_ENTRY *entry, const char *
         return (0);
 
     return (__disagg_diff_item_string(diff->session, entry->key, "key", keyp));
-}
-
-/*
- * __disagg_diff_type_string --
- *     Return the name of a difference's type, or "-" if the diff has no difference at the current
- *     table name.
- */
-static const char *
-__disagg_diff_type_string(bool has, const WT_BTREE_DIFF_ENTRY *entry)
-{
-    if (!has)
-        return ("-");
-
-    switch (entry->type) {
-    case WT_BTREE_DIFF_ADDED:
-        return ("added");
-    case WT_BTREE_DIFF_DELETED:
-        return ("deleted");
-    case WT_BTREE_DIFF_MODIFIED:
-        return ("modified");
-    }
-
-    return ("unknown");
 }
 
 /*
@@ -1420,12 +1376,18 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Checkpoint pickup differences for \"%s\": colgroup:%s file:%s layered:%s table:%s",
           current,
-          __disagg_diff_type_string(
-            has[WT_DISAGG_CURSOR_COLGROUP], &entries[WT_DISAGG_CURSOR_COLGROUP]),
-          __disagg_diff_type_string(has[WT_DISAGG_CURSOR_FILE], &entries[WT_DISAGG_CURSOR_FILE]),
-          __disagg_diff_type_string(
-            has[WT_DISAGG_CURSOR_LAYERED], &entries[WT_DISAGG_CURSOR_LAYERED]),
-          __disagg_diff_type_string(has[WT_DISAGG_CURSOR_TABLE], &entries[WT_DISAGG_CURSOR_TABLE]));
+          has[WT_DISAGG_CURSOR_COLGROUP] ?
+            __wt_btree_diff_type_string(entries[WT_DISAGG_CURSOR_COLGROUP].type) :
+            "-",
+          has[WT_DISAGG_CURSOR_FILE] ?
+            __wt_btree_diff_type_string(entries[WT_DISAGG_CURSOR_FILE].type) :
+            "-",
+          has[WT_DISAGG_CURSOR_LAYERED] ?
+            __wt_btree_diff_type_string(entries[WT_DISAGG_CURSOR_LAYERED].type) :
+            "-",
+          has[WT_DISAGG_CURSOR_TABLE] ?
+            __wt_btree_diff_type_string(entries[WT_DISAGG_CURSOR_TABLE].type) :
+            "-");
 
         /* The shared metadata file is applied before the diff, by saving its new checkpoint. */
         if (has[WT_DISAGG_CURSOR_FILE] &&
@@ -1461,7 +1423,7 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
              * The local metadata has the "layered:" entry if this node created the table before the
              * checkpoint included it. Pick up only the stable "file:" entry.
              */
-            WT_ERR(__disagg_cursor_lookup(md_cursor, keys[WT_DISAGG_CURSOR_LAYERED], &md_value));
+            WT_ERR(__wt_cursor_lookup(md_cursor, keys[WT_DISAGG_CURSOR_LAYERED], &md_value));
             if (md_value != NULL) {
                 WT_ERR(__disagg_pick_up_file(session, md_cursor, current,
                   keys[WT_DISAGG_CURSOR_FILE], sh_values[WT_DISAGG_CURSOR_FILE], ckpt_schema_epoch,
@@ -1510,7 +1472,7 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
         /* A dropped layered table. */
         if (has[WT_DISAGG_CURSOR_LAYERED] &&
           entries[WT_DISAGG_CURSOR_LAYERED].type == WT_BTREE_DIFF_DELETED) {
-            WT_ERR(__disagg_cursor_lookup(md_cursor, keys[WT_DISAGG_CURSOR_LAYERED], &md_value));
+            WT_ERR(__wt_cursor_lookup(md_cursor, keys[WT_DISAGG_CURSOR_LAYERED], &md_value));
             if (md_value != NULL)
                 WT_ERR(__disagg_check_local_only_table(session, current, ckpt_schema_epoch));
 
@@ -1533,7 +1495,7 @@ __disagg_apply_checkpoint_meta_diff(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ol
          * valid until the local metadata cursor moves.
          */
         WT_ERR(__wt_buf_fmt(session, key_buf, "layered:%s", current));
-        WT_ERR(__disagg_cursor_lookup(md_cursor, key_buf->data, &md_layered_value));
+        WT_ERR(__wt_cursor_lookup(md_cursor, key_buf->data, &md_layered_value));
         md_layered = md_layered_value != NULL;
 
         /*
