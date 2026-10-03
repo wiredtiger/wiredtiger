@@ -484,6 +484,8 @@ __layered_copy_ingest_table(
      * already covered by a previous pass or a checkpoint.
      */
     cursor_start_ts = (from_ts > last_checkpoint_timestamp) ? from_ts : last_checkpoint_timestamp;
+    WT_IGNORE_RET(WT_REPRO_EVENT(
+      session, "ingest-drain-begin", &stable_btree->root, NULL, ingest_uri, cursor_start_ts));
     if (cursor_start_ts != WT_TS_NONE)
         WT_ERR(__wt_snprintf(buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", cursor_start_ts));
     else
@@ -549,6 +551,8 @@ __layered_copy_ingest_table(
          */
         in_ts_range = prepare ? (to_ts == WT_TS_MAX) :
                                 (durable_start_ts > from_ts && durable_start_ts <= to_ts);
+        WT_IGNORE_RET(
+          WT_REPRO_EVENT(session, "ingest-version", NULL, NULL, tmp_key, durable_start_ts));
         if (in_ts_range) {
             /*
              * Drained updates bypass the commit path that tracks the unpublished minimum, so do it
@@ -874,6 +878,7 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       "Failed to drain ingest and truncate list for \"%s\"", ingest_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, ingest_uri),
       "Failed to clear ingest table \"%s\"", ingest_uri);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "ingest-cleared", NULL, NULL, ingest_uri, 0));
 
 #ifdef HAVE_DIAGNOSTIC
     WT_ERR(__layered_assert_ingest_table_empty(session, ingest_uri));

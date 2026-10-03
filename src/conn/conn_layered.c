@@ -1749,6 +1749,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     /* Drain the ingest tables before switching to leader. */
     WT_ERR_MSG_CHK(session, __wti_layered_drain_ingest_tables(internal_session),
       "Failed to drain ingest tables");
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "role-leader-drained", NULL, NULL, NULL, 0));
 
     /*
      * Mark the shared disk cache read-only: reads can still reuse cached images but puts are
@@ -1792,6 +1793,8 @@ __disagg_mark_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HAND
 
     /* Mark the disaggregated as readonly. */
     F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
+    WT_WITH_BTREE(session, btree,
+      WT_IGNORE_RET(WT_REPRO_EVENT(session, "stable-readonly", &btree->root, NULL, NULL, 0)));
 
     /*
      * Mark the handle outdated so that if we step back up as leader in the future, we open a fresh
@@ -1864,6 +1867,7 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
      */
     __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, false);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "role-follower", NULL, NULL, NULL, 0));
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
     return (0);
 }
@@ -2794,6 +2798,8 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
+        WT_IGNORE_RET(
+          WT_REPRO_EVENT(session, "checkpoint-complete", NULL, NULL, meta, checkpoint_timestamp));
 
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Completed disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",

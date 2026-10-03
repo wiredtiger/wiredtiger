@@ -653,6 +653,7 @@ typedef uint64_t wt_timestamp_t;
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */
 #include "connection.h"
+#include "stepdown_repro.h"
 
 #include "extern.h"
 #ifdef _WIN32

@@ -298,6 +298,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     block_meta->disagg_lsn = put_args.lsn;
     WT_ASSERT(session, put_args.lsn > 0);
     block_meta->checksum = checksum;
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "page-put", NULL, NULL, block_meta, buf->size));
 
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
@@ -424,6 +425,9 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     discard_args.backlink_lsn = cookie.lsn;
 
     WT_STAT_CONN_INCR(session, disagg_block_page_discard);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "page-discard", NULL, NULL, &cookie, cookie.lsn));
 
-    return (plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, 0, &discard_args));
+    int ret = plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, 0, &discard_args);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "page-discard-result", NULL, NULL, &cookie, ret));
+    return (ret);
 }

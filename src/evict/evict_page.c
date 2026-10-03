@@ -602,6 +602,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * while unlikely eviction would choose an internal page with children, it's not disallowed.
      */
     WT_ERR(__evict_review(session, ref, flags, &inmem_split));
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "eviction-reviewed", ref, NULL, NULL, flags));
 
     /*
      * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
@@ -1449,6 +1450,7 @@ __evict_ckpt_snapshot_copy(WT_SESSION_IMPL *session)
               snap->snapshot_count * sizeof(snap->snapshot[0]));
         /* Stamp the page with the checkpoint that published the snapshot it is reconciled under. */
         session->txn->ckpt_snap_gen = __wt_atomic_load_uint64_relaxed(&buf->gen);
+        WT_IGNORE_RET(WT_REPRO_EVENT(session, "eviction-snapshot-copy", NULL, NULL, buf, buf->gen));
         F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
         copied = true;
     } else
@@ -1719,6 +1721,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
         LF_SET(WT_REC_CHECKPOINT_RUNNING);
 
     WT_RET(__evict_snapshot_setup(session, &flags, &snap_state));
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "eviction-snapshot-ready", ref, NULL, NULL, flags));
 
     /* Force read-committed isolation if we set up a snapshot to reconcile under. */
     if (snap_state != WT_EVICT_SNAP_NONE)
@@ -1732,6 +1735,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
 
     /* Tear down the snapshot we set up. */
     __evict_snapshot_teardown(session, snap_state);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "eviction-reconciled", ref, NULL, NULL, ret));
 
     WT_RET(ret);
 

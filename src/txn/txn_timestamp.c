@@ -722,6 +722,8 @@ set:
         __wt_verbose_timestamp(
           session, stable_disagg_epoch, "Updated global stable disaggregated schema epoch");
     if (updated_step_down) {
+        WT_IGNORE_RET(
+          WT_REPRO_EVENT(session, "boundary-published", NULL, NULL, NULL, step_down_ts));
         __wt_verbose_info(session, WT_VERB_TIMESTAMP, "Updated global step down timestamp to %s",
           __wt_timestamp_to_string(step_down_ts, ts_string[0]));
         if (has_step_down_epoch)
