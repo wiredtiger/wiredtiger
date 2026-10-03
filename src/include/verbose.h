@@ -225,6 +225,14 @@ struct __wt_verbose_multi_category {
     __wt_verbose_level_id(session, log_id, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
 
 /*
+ * __wt_verbose_warning_id --
+ *     Wrapper to __wt_verbose_level_id defaulting the verbosity level to WT_VERBOSE_WARNING with a
+ *     log id.
+ */
+#define __wt_verbose_warning_id(session, log_id, category, fmt, ...) \
+    __wt_verbose_level_id(session, log_id, category, WT_VERBOSE_WARNING, fmt, __VA_ARGS__)
+
+/*
  * __wt_verbose_debug1 --
  *     Wrapper to __wt_verbose_level using the default (DEBUG_1) verbosity level.
  */
