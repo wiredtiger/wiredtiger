@@ -55,7 +55,7 @@ class test_verbose06(test_verbose_base):
     value_size = 1000
 
     slow_pattern = re.compile(
-        rf'WT_VERB_RECONCILE.*Checkpoint reconciliation took more than 1 minute \((\d+)us\) on '
+        rf'WT_VERB_RECONCILE.*Checkpoint took more than 1 minute \((\d+)us\) reconciling '
         rf'{file_name}\. Building disk image took (\d+)us\. History store wrapup took (\d+)us\.')
 
     def populate(self):
