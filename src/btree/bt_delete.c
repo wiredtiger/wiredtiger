@@ -620,14 +620,12 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
             WT_ERR(__instantiate_tombstone(
               session, page_del, update_list, countp, &unpack.tw, &upd, &size));
             if (upd != NULL) {
-                /* Position the cursor on the page. */
-                WT_ERR(__wt_col_search(&cbt, recno + j, ref, true /*leaf_safe*/, NULL));
+                /* Attach the tombstone, using the update-restore path. */
+                WT_ERR(__wt_col_leaf_attach_upd(&cbt, ref, recno + j, &upd, true));
 
                 /* Make sure we landed where we expected. */
                 WT_ASSERT(session, cbt.slot == WT_COL_SLOT(page, cip));
 
-                /* Attach the tombstone, using the update-restore path. */
-                WT_ERR(__wt_col_modify(&cbt, recno + j, NULL, &upd, WT_UPDATE_INVALID, true, true));
                 /* Null the pointer so we don't free it twice. */
                 upd = NULL;
             }
