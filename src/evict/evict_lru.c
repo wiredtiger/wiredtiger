@@ -1854,8 +1854,9 @@ __evict_get_ref(
                 WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
                 WT_EVICT_DHANDLE_SUBQUEUE *subq, *subq_start;
                 const char *subq_name;
+                uint64_t draw, items, subq_items;
                 uint32_t chain_len, chain_skip, slot, slot_iter, slot_start;
-                bool all_empty, clear_maybe_nonempty, wrapped;
+                bool all_empty, clear_maybe_nonempty, weighted, wrapped;
 
                 WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
@@ -1865,7 +1866,23 @@ __evict_get_ref(
                  * pass, by every thread: whichever tree occupies the lowest populated slot is
                  * drained first and the others are only reached when it has nothing to give. That
                  * is a per-tree bias, not a per-page one, and it does not average out.
+                 *
+                 * A random start fixes the order but not the rate: each tree in the bucket is still
+                 * taken about equally often however many pages it holds, so a small tree is drained
+                 * as fast as a large one. For clean leaf levels, where which tree keeps its pages
+                 * decides the hit rate, draw once over the pages in the bucket and take the first
+                 * tree whose pages cover the draw. Every page in the bucket is then equally likely
+                 * to be the one chosen, whichever tree it belongs to, which is what an LRU would
+                 * do. The counts are racy and only approximately consistent with each other; if the
+                 * draw outlives the walk the bucket simply yields nothing this time.
                  */
+                weighted = __evict_level_is_clean_leaf((int)i);
+                draw = 0;
+                if (weighted) {
+                    items = __wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items);
+                    if (items > 1)
+                        draw = __wt_random(&session->rnd_random) % items;
+                }
                 slot_start = __wt_random(&session->rnd_random) % evict->dhandle_hash_size;
                 for (slot_iter = 0; slot_iter < evict->dhandle_hash_size; slot_iter++) {
                     slot = (slot_start + slot_iter) % evict->dhandle_hash_size;
@@ -1953,6 +1970,16 @@ __evict_get_ref(
                          * rejections are transient and the pages are still here for a later pass.
                          */
                         all_empty = false;
+                        if (weighted) {
+                            subq_items = subq->num_items;
+                            if (draw >= subq_items) {
+                                draw -= subq_items;
+                                WT_STAT_CONN_INCR(session, eviction_skip_tree_lottery);
+                                continue;
+                            }
+                            /* The draw landed here: from now on take the first tree that yields. */
+                            weighted = false;
+                        }
 
                         /*
                          * Capture the tree name while we still hold the chain lock: after we drop

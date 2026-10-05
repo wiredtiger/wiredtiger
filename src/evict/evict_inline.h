@@ -1303,3 +1303,13 @@ __evict_level_is_dirty(int level)
     return (level == WT_EVICT_LEVEL_DIRTY_LEAF || level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF ||
       level == WT_EVICT_LEVEL_DIRTY_INTERNAL);
 }
+
+/*
+ * __evict_level_is_clean_leaf --
+ *     Return true if this bucketset level holds clean leaf pages.
+ */
+static WT_INLINE bool
+__evict_level_is_clean_leaf(int level)
+{
+    return (level == WT_EVICT_LEVEL_CLEAN_LEAF || level == WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF);
+}
