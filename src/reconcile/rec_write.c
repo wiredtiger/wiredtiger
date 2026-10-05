@@ -1348,8 +1348,6 @@ __wti_rec_split_init(
         r->space_avail = r->page_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     } else {
         r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
-        /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas.
-         */
         r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
         r->min_split_size =
           __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
@@ -1368,7 +1366,6 @@ __wti_rec_split_init(
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
-    /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas. */
     r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
