@@ -484,15 +484,20 @@ __evict_stats_update(WT_SESSION_IMPL *session, WT_EVICT_TIMELINE *timeline, uint
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
         __wt_atomic_stats_max_uint64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
-        if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
+
+        /*
+         * Reconciliation warns about itself when it takes more than a minute. Warn here when the
+         * eviction as a whole did, but its reconciliation didn't: the time went to the work around
+         * reconciliation, such as the in-memory split or the tree update after it, or was spread
+         * across both.
+         */
+        uint64_t rec_us = WT_CLOCKDIFF_US(
+          timeline->reconcile.reconcile_finish, timeline->reconcile.reconcile_start);
+        if (eviction_time > WT_MINUTE * WT_MILLION && rec_us <= WT_MINUTE * WT_MILLION)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
-              "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
-              "us. History store wrapup took %" PRIu64 "us.",
-              eviction_time,
-              WT_CLOCKDIFF_US(
-                timeline->reconcile.image_build_finish, timeline->reconcile.image_build_start),
-              WT_CLOCKDIFF_US(
-                timeline->reconcile.hs_wrapup_finish, timeline->reconcile.hs_wrapup_start));
+              "Eviction took more than 1 minute (%" PRIu64 "us) on %s. Reconciliation took %" PRIu64
+              "us, outside reconciliation took %" PRIu64 "us.",
+              eviction_time, S2BT(session)->dhandle->name, rec_us, eviction_time - rec_us);
     } else {
         /*
          * We are in the reentrant history store eviction inside a data store reconciliation. Add to
