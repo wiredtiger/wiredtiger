@@ -617,6 +617,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
+    int64_t eviction_skip_bucket_lottery;
     int64_t eviction_skip_tree_lottery;
     int64_t eviction_target_bucket_clean_internal;
     int64_t eviction_target_bucket_clean_leaf;

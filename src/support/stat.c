@@ -2009,7 +2009,9 @@ static const char *const __stats_connection_desc[] = {
   "selected on disk update",
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
-  "cache: eviction passed over a tree in a bucket while walking to the drawn page",
+  "cache: eviction left a bucket without a page because the drawn byte belonged to trees not "
+  "present",
+  "cache: eviction passed over a tree in a bucket while walking to the drawn byte",
   "cache: eviction selected pages clean internal bucket",
   "cache: eviction selected pages from clean leaf bucket",
   "cache: eviction selected pages from dirty internal bucket",
@@ -3121,6 +3123,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
+    stats->eviction_skip_bucket_lottery = 0;
     stats->eviction_skip_tree_lottery = 0;
     stats->eviction_target_bucket_clean_internal = 0;
     stats->eviction_target_bucket_clean_leaf = 0;
@@ -4254,6 +4257,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+    to->eviction_skip_bucket_lottery += WT_STAT_CONN_READ(from, eviction_skip_bucket_lottery);
     to->eviction_skip_tree_lottery += WT_STAT_CONN_READ(from, eviction_skip_tree_lottery);
     to->eviction_target_bucket_clean_internal +=
       WT_STAT_CONN_READ(from, eviction_target_bucket_clean_internal);

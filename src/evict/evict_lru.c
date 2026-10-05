@@ -1854,9 +1854,9 @@ __evict_get_ref(
                 WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
                 WT_EVICT_DHANDLE_SUBQUEUE *subq, *subq_start;
                 const char *subq_name;
-                uint64_t draw, items, subq_items;
+                uint64_t draw, total_bytes, tree_bytes;
                 uint32_t chain_len, chain_skip, slot, slot_iter, slot_start;
-                bool all_empty, clear_maybe_nonempty, weighted, wrapped;
+                bool all_empty, clear_maybe_nonempty, passed_tree, weighted, wrapped;
 
                 WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
@@ -1870,18 +1870,30 @@ __evict_get_ref(
                  * A random start fixes the order but not the rate: each tree in the bucket is still
                  * taken about equally often however many pages it holds, so a small tree is drained
                  * as fast as a large one. For clean leaf levels, where which tree keeps its pages
-                 * decides the hit rate, draw once over the pages in the bucket and take the first
-                 * tree whose pages cover the draw. Every page in the bucket is then equally likely
-                 * to be the one chosen, whichever tree it belongs to, which is what an LRU would
-                 * do. The counts are racy and only approximately consistent with each other; if the
-                 * draw outlives the walk the bucket simply yields nothing this time.
+                 * decides the hit rate, draw once over the bytes in cache and take the first tree
+                 * whose footprint covers the draw, so a tree gives up pages in proportion to the
+                 * bytes it holds rather than the pages. Weighting by bytes rather than pages
+                 * matters when page sizes differ between trees: a page a seventh the size is then
+                 * evicted a seventh as often, which keeps the pages that deliver the most requests
+                 * per byte of cache. This is what the walk-based eviction does by budgeting each
+                 * tree's candidates by its share of cache bytes.
+                 *
+                 * Only per-tree footprints exist, not per-subqueue ones, so the draw is over the
+                 * whole cache and trees with no pages in this bucket carry weight the walk cannot
+                 * spend. When the draw runs past every tree present the bucket yields nothing this
+                 * time and the sweep moves on; that is bounded by the share of cache held by trees
+                 * absent from the bucket, and is counted.
                  */
                 weighted = __evict_level_is_clean_leaf((int)i);
+                passed_tree = false;
                 draw = 0;
                 if (weighted) {
-                    items = __wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items);
-                    if (items > 1)
-                        draw = __wt_random(&session->rnd_random) % items;
+                    total_bytes = __wt_atomic_load_uint64_relaxed(&conn->cache->bytes_inmem);
+                    if (total_bytes > 1)
+                        /* Two 32-bit draws: the cache is bigger than one random can address. */
+                        draw = (((uint64_t)__wt_random(&session->rnd_random) << 32) |
+                                 __wt_random(&session->rnd_random)) %
+                          total_bytes;
                 }
                 slot_start = __wt_random(&session->rnd_random) % evict->dhandle_hash_size;
                 for (slot_iter = 0; slot_iter < evict->dhandle_hash_size; slot_iter++) {
@@ -1971,9 +1983,11 @@ __evict_get_ref(
                          */
                         all_empty = false;
                         if (weighted) {
-                            subq_items = subq->num_items;
-                            if (draw >= subq_items) {
-                                draw -= subq_items;
+                            tree_bytes = __wt_atomic_load_uint64_relaxed(
+                              &((WT_BTREE *)subq->dhandle->handle)->bytes_inmem);
+                            if (draw >= tree_bytes) {
+                                draw -= tree_bytes;
+                                passed_tree = true;
                                 WT_STAT_CONN_INCR(session, eviction_skip_tree_lottery);
                                 continue;
                             }
@@ -2079,6 +2093,9 @@ __evict_get_ref(
 next_slot:
                     continue;
                 }
+                /* The draw fell on trees absent from this bucket: nothing taken here this time. */
+                if (weighted && passed_tree)
+                    WT_STAT_CONN_INCR(session, eviction_skip_bucket_lottery);
             }
         }
     }
