@@ -81,3 +81,40 @@ class test_stat18(wttest.WiredTigerTestCase):
         self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], 2 * len(self.obsolete))
         self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], 0)
         c.close()
+
+    # Dictionary compression shares one value between a removed key and a live key. The page stays
+    # mixed once the remove is globally visible.
+    def test_live_dictionary_copy_marks_page_mixed(self):
+        shared = b'S' * 128
+        removed = b'R' * 128
+        self.session.create(self.uri,
+            'key_format=Q,value_format=u,leaf_page_max=32KB,dictionary=100')
+        self._set_ts(1, 1)
+        c = self.session.open_cursor(self.uri)
+        with self.transaction(commit_timestamp=10):
+            c[1] = shared
+            c[2] = shared
+            c[3] = removed
+        self._set_ts(10, 10)
+        self.session.checkpoint()
+        with self.transaction(commit_timestamp=20):
+            for k in (1, 3):
+                c.set_key(k)
+                self.assertEqual(c.remove(), 0)
+        c.close()
+        self._set_ts(10, 20)
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
+        dictionary_before = stat_cursor[stat.dsrc.rec_dictionary][2]
+        stat_cursor.close()
+        self.session.checkpoint()
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
+        self.assertGreater(stat_cursor[stat.dsrc.rec_dictionary][2], dictionary_before)
+        stat_cursor.close()
+        self.reopen_conn()
+        self._set_ts(30, 30)
+        c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
+        obsolete = len(shared) + len(removed)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_pages][2], 1)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], obsolete)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], obsolete)
+        c.close()

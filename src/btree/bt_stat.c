@@ -380,7 +380,8 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
      * checkpoint still has its pre-checkpoint image, so cells the checkpoint already dropped are
      * counted anyway: the result is an upper bound for those pages, in exchange for covering the
      * cached working set. Only plain value cells carry inline payload, an overflow cell holds only
-     * an address.
+     * an address. A value-copy cell has no payload of its own, but a live copy marks the page
+     * mixed.
      */
     if (page->dsk != NULL) {
         key = false;
@@ -403,6 +404,12 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
                     have_live = true;
                 else if (unpack.type == WT_CELL_VALUE)
                     obsolete_bytes += unpack.size;
+                break;
+            case WT_CELL_VALUE_COPY:
+                /* Payload lives in the source cell; unpack.size would count it again. */
+                key = false;
+                if (!__wt_txn_tw_stop_visible_all(session, &unpack.tw))
+                    have_live = true;
                 break;
             default:
                 key = false;
