@@ -7167,7 +7167,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_PAGES_REMAINING_IN_QUEUE	1315
 /*! cache: pages considered for eviction that were brought in by pre-fetch */
 #define	WT_STAT_CONN_EVICTION_CONSIDER_PREFETCH		1316
-/*! cache: pages currently held in the cache */
+/*! cache: pages currently held in the cache, OTel type: otel_gauges */
 #define	WT_STAT_CONN_CACHE_PAGES_INUSE			1317
 /*! cache: pages currently held in the cache from the ingest btrees */
 #define	WT_STAT_CONN_CACHE_PAGES_INUSE_INGEST		1318
@@ -7723,7 +7723,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_GET_KEY_ERROR		1530
 /*! cursor: cursor get value calls that return an error */
 #define	WT_STAT_CONN_CURSOR_GET_VALUE_ERROR		1531
-/*! cursor: cursor insert calls */
+/*! cursor: cursor insert calls, OTel type: otel_counters */
 #define	WT_STAT_CONN_CURSOR_INSERT			1532
 /*! cursor: cursor insert calls that return an error */
 #define	WT_STAT_CONN_CURSOR_INSERT_ERROR		1533

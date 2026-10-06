@@ -158,6 +158,8 @@ def print_defines_one(capname, base, stats):
                 ', only reported if cache_walk or all statistics are enabled'
         if 'tree_walk' in l.flags:
             desc += ', only reported if tree_walk or all statistics are enabled'
+        for otel_type in otel_types_of(l):
+            desc += ', OTel type: ' + otel_type
         if len(textwrap.wrap(desc, 70)) > 1:
             f.write('/*!\n')
             f.write(' * %s\n' % '\n * '.join(textwrap.wrap(desc, 70)))
