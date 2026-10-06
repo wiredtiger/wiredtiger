@@ -2317,12 +2317,10 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 
 /*
  * __wt_txn_isolation_write_check --
- *     Check whether the transaction's isolation level permits a write to the given object. The
- *     handle is an argument because a write can be rejected above the layer that sets the session's
- *     handle.
+ *     Check whether the transaction's isolation level permits a write.
  */
 static WT_INLINE int
-__wt_txn_isolation_write_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__wt_txn_isolation_write_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
 
@@ -2332,14 +2330,8 @@ __wt_txn_isolation_write_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         return (0);
 
-    /*
-     * Return error when the transactions with read committed or uncommitted isolation tries to
-     * perform any write operation. Don't return an error for any update on metadata because it uses
-     * special transaction visibility rules, search and updates on metadata happens in
-     * read-uncommitted and read-committed isolation.
-     */
-    if (dhandle != NULL && !WT_IS_METADATA(dhandle) &&
-      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
+    /* Return an error if a read-committed or read-uncommitted transaction attempts a write. */
+    if (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED) {
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
         WT_RET_MSG(session, ENOTSUP,
           "write operations are not supported in read-committed or read-uncommitted transactions.");
@@ -2364,7 +2356,9 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         return (0);
 
-    WT_RET(__wt_txn_isolation_write_check(session, session->dhandle));
+    /* Metadata uses special visibility rules, so it can be updated at these isolation levels. */
+    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle))
+        WT_RET(__wt_txn_isolation_write_check(session));
 
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
