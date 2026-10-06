@@ -2500,9 +2500,12 @@ __rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod = r->page->modify;
 
     /*
-     * Rolling back the truncate that instantiated the page discards the page-delete information but
-     * cannot rewrite the parent's cell. Until a new image exists the parent could only carry the
-     * proxy cell forward as the original address, which is meaningless without that information.
+     * A committed fast truncate can be checkpointed as a proxy cell before the leaf is
+     * instantiated. If the truncate's durable timestamp is newer than stable, rollback-to-stable
+     * aborts the instantiated tombstones and clears the page-delete information and instantiated
+     * flag, but leaves the parent's proxy cell as the leaf's address. A subsequent skipped write
+     * would leave no replacement address for parent reconciliation, so this leaf must write a full
+     * image.
      */
     if (mod->instantiated ||
       (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL))
