@@ -17,9 +17,15 @@
 #       no_clear        Value not cleared when statistics cleared
 #       no_scale        Don't scale value per second in the logging tool script
 #       size            Used by timeseries tool, indicates value is a byte count
+#       otel_counters   OTel type: monotonic counter
+#       otel_gauges     OTel type: point-in-time value that can go up and down
+#       otel_histograms OTel type: distribution of recorded values
+#       otel_none       OTel type: not an OTel metric (the default if no otel_ flag is set)
 #
 # The no_clear and no_scale flags are normally always set together (values that
 # are maintained over time are normally not scaled per second).
+#
+# At most one otel_ flag may be set on a statistic.
 
 from operator import attrgetter
 import sys

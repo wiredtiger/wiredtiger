@@ -58,6 +58,25 @@ def remove_suffix_digits(str):
     return re.sub(r'\d+$', '', str)
 
 ##########################################
+# Check the OTel type of a statistic.
+# At most one valid otel_ flag may be set; no flag means otel_none.
+##########################################
+OTEL_TYPES = ('otel_counters', 'otel_gauges', 'otel_histograms', 'otel_none')
+
+def otel_types_of(stat):
+    flags = [flag.strip() for flag in stat.flags.split(',')]
+    return [flag for flag in flags if flag.startswith('otel_')]
+
+def check_otel_type(stat):
+    otel_types = otel_types_of(stat)
+    for otel_type in otel_types:
+        if otel_type not in OTEL_TYPES:
+            raise Exception(f"ERROR: {stat.name} has invalid OTel type '{otel_type}', " \
+                  f"expected one of {', '.join(OTEL_TYPES)}")
+    if len(otel_types) > 1:
+        raise Exception(f"ERROR: {stat.name} has more than one OTel type: {', '.join(otel_types)}")
+
+##########################################
 # For each stat subclass check the names are sorted in alphabetical order.
 ##########################################
 def check_name_sorted(stat_list):
@@ -78,6 +97,7 @@ all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
 for stat_list in all_stat_list:
     for stat in stat_list:
         check_description_format(stat)
+        check_otel_type(stat)
     check_name_sorted(stat_list)
 
 conn_dsrc_stats.sort(key=attrgetter('desc'))
