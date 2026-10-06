@@ -708,11 +708,10 @@ __checkpoint_scrub_progress(
 {
     struct timespec now;
     WT_CONNECTION_IMPL *conn;
-    uint64_t time_diff;
 
     conn = S2C(session);
     __wt_epoch(session, &now);
-    time_diff = WT_TIMEDIFF_SEC(now, conn->ckpt.scrub.timer_start);
+    uint64_t time_diff = WT_TIMEDIFF_SEC(now, conn->ckpt.scrub.timer_start);
 
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
