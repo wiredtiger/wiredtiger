@@ -1618,7 +1618,10 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
     WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
 
-    /* The truncate entry's ID is allocated after conflict detection, so check isolation first. */
+    /*
+     * Conflict detection can fail before truncate-list insertion checks isolation and allocates a
+     * transaction ID, so reject unsupported isolation levels first.
+     */
     WT_RET(__wt_txn_isolation_write_check(trunc_info->session));
 
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
