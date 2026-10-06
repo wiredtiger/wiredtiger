@@ -136,7 +136,7 @@ errors = [
 # cannot change without breaking backward compatibility.
 # DO NOT edit this dict manually. It is automatically updated by this script
 # when new entries are added to sub_errors_def below.
-_sub_error_numbers = {
+sub_error_codes = {
     'WT_NONE': -32000,
     'WT_BACKGROUND_COMPACT_ALREADY_RUNNING': -32001,
     'WT_CACHE_OVERFLOW': -32002,
@@ -162,7 +162,7 @@ _sub_error_numbers = {
 #
 # To add a new sub-level error, append a new entry to this list.
 # Only name, description, and long description are needed - the number is
-# assigned automatically via _sub_error_numbers above.
+# assigned automatically via sub_error_codes above.
 sub_errors_def = [
     ('WT_NONE',
         'No additional context', '''
@@ -239,37 +239,46 @@ sub_errors_def = [
         vice versa), meaning a page was either leaked or discarded prematurely.'''),
 ]
 
-# Build sub_errors from sub_errors_def and _sub_error_numbers.
-# Entries not yet in the registry are automatically assigned the next available number.
-# If new entries are found, _sub_error_numbers in this file is updated automatically.
-_original_registry = dict(_sub_error_numbers)
-_next_sub_error_num = min(_sub_error_numbers.values()) - 1
-sub_errors = []
-for _name, _desc, _long_desc in sub_errors_def:
-    if _name not in _sub_error_numbers:
-        _sub_error_numbers[_name] = _next_sub_error_num
-        _next_sub_error_num -= 1
-    sub_errors.append(Error(_name, _sub_error_numbers[_name], _desc, _long_desc))
+# Update sub_error_codes with any new entries from sub_errors_def. New entries are assigned
+# the next available number, and this file is automatically updated to reflect the changes.
+def update_sub_error_codes(sub_errors_def, sub_error_codes):
+    for name, desc, long_desc in sub_errors_def:
+        if name not in sub_error_codes:
+            sub_error_codes[name] = min(sub_error_codes.values()) - 1
 
-# Persist any newly assigned numbers back into this source file.
-if _sub_error_numbers != _original_registry:
-    _self_path = os.path.abspath(__file__)
-    _tmp_file = '__tmp_api_err_registry' + str(os.getpid())
-    with open(_tmp_file, 'w') as _tf:
-        _in_registry = False
-        for _line in open(_self_path, 'r'):
-            if _line.startswith('_sub_error_numbers = {'):
-                _in_registry = True
-                _tf.write('_sub_error_numbers = {\n')
-                for _n, _v in sorted(_sub_error_numbers.items(), key=lambda x: x[1], reverse=True):
-                    _tf.write("    '%s': %d,\n" % (_n, _v))
-                _tf.write('}\n')
-            elif _in_registry:
-                if _line.startswith('}'):
-                    _in_registry = False
+def write_sub_error_codes(codes):
+    lines = ['sub_error_codes = {\n']
+    for name, value in sorted(codes.items(), key=lambda kv: kv[1], reverse=True):
+        lines.append("    '%s': %d,\n" % (name, value))
+    lines.append('}\n')
+    return ''.join(lines)
+
+# Write sub_errors back into this file.
+def write_updated_sub_error_codes(sub_error_codes):
+    src = os.path.abspath(__file__)
+    tmp_file = '__tmp_api_err_registry' + str(os.getpid())
+    with open(tmp_file, 'w') as tf:
+        skip_line = False
+        for line in open(src, 'r'):
+            if line.startswith('sub_error_codes = {'):
+                tf.write(write_sub_error_codes(sub_error_codes))
+                skip_line = True
+            elif skip_line:
+                if line.startswith('}'):
+                    skip_line = False
             else:
-                _tf.write(_line)
-    compare_srcfile(_tmp_file, _self_path)
+                tf.write(line)
+    compare_srcfile(tmp_file, src)
+
+original_registry = dict(sub_error_codes)
+update_sub_error_codes(sub_errors_def, sub_error_codes)
+if sub_error_codes != original_registry:
+    write_updated_sub_error_codes(sub_error_codes)
+
+# Build sub_errors from sub_errors_def and sub_error_codes.
+sub_errors = []
+for name, desc, long_desc in sub_errors_def:
+    sub_errors.append(Error(name, sub_error_codes[name], desc, long_desc))
 
 # Update the #defines in the wiredtiger.h.in file.
 tmp_file = '__tmp_api_err' + str(os.getpid())
