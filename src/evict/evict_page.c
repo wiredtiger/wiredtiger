@@ -789,9 +789,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
               ref->page->disagg_info == NULL || closing ||
                 __wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max));
             /*
-             * A skipped write must retain the page in memory because its tombstones are not
-             * durable; a real write or truncate rollback clears the instantiated flag before this
-             * path can set WT_REF_DISK.
+             * An instantiated deleted page either writes a replacement image, clearing the
+             * instantiated flag, or is restored in memory and cannot reach this path.
              */
             WT_ASSERT(session, !ref->page->modify->instantiated);
             __wt_page_modify_clear(session, ref->page);
