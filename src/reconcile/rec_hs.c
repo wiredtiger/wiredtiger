@@ -548,6 +548,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
 #endif
 
     /* Insert the new record now. */
+    __wt_errx(session, "HS_COUNTER_INSERT start_ts %" PRIu64 " counter %" PRIu64, tw->start_ts,
+      counter);
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, counter);
     cursor->set_value(
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
@@ -1472,6 +1474,16 @@ __rec_hs_delete_record(
             } else
                 WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),
                   "Retrieved wrong update from history store: empty tombstone with stop timestamp");
+        }
+        {
+            wt_timestamp_t dbg_ts;
+            uint64_t dbg_counter;
+            uint32_t dbg_id;
+            WT_ITEM dbg_key;
+            WT_CLEAR(dbg_key);
+            WT_ERR(r->hs_cursor->get_key(r->hs_cursor, &dbg_id, &dbg_key, &dbg_ts, &dbg_counter));
+            __wt_errx(session, "HS_COUNTER_REMOVE start_ts %" PRIu64 " counter %" PRIu64, dbg_ts,
+              dbg_counter);
         }
         WT_ERR_MSG_CHK(session, r->hs_cursor->remove(r->hs_cursor),
           "failed to remove history store record: btree=%" PRIu32 " start_ts=%s", btree->id,
