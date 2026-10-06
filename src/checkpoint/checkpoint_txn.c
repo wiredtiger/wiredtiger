@@ -707,9 +707,8 @@ __checkpoint_scrub_progress(
   WT_SESSION_IMPL *session, double current_dirty, uint64_t bytes_written, bool closing)
 {
     struct timespec now;
-    WT_CONNECTION_IMPL *conn;
 
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
     __wt_epoch(session, &now);
     uint64_t time_diff = WT_TIMEDIFF_SEC(now, conn->ckpt.scrub.timer_start);
 
