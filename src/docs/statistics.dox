@@ -120,12 +120,10 @@ statistics, gathering only the relatively inexpensive ones:
 
 @snippet ex_all.c Statistics cursor counters
 
-By default, statistics will have the type otel_none. When a statistic is to
-be used for OTel, it will be tagged with an actual OTel type. Configuring \c otel_none excludes
-every statistic that has an actual OTel type, exposing only those tagged with \c otel_none.
+Configuring \c otel_none excludes every statistic that has an actual OTel type, exposing
+only those tagged with \c otel_none.
 
-The following example opens a cursor that exposes only statistics that are not used for
-OTel:
+The following example opens a cursor that exposes only statistics that do not have an OTel type:
 
 @snippet ex_all.c Statistics cursor OTel none
 
