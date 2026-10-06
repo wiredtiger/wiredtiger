@@ -135,7 +135,7 @@ public:
         item.data = key.data();
         item.size = key.size();
         return (__wt_truncate_delete_visible_check(session, &layered_table.truncate_list,
-          layered_table.collator, &item, true, start_keyp, stop_keyp));
+          layered_table.collator, &item, start_keyp, stop_keyp));
     }
 };
 

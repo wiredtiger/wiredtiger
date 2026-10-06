@@ -1476,9 +1476,8 @@ __clayered_reposition_truncate_iterate(WTI_CLAYERED_OP *op, WT_CURSOR *stable, b
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        WT_ERR_NOTFOUND_OK(
-          __wt_truncate_delete_visible_check(session, op->truncate_list, op->collator, &stable->key,
-            op->write_target == WTI_CLAYERED_WRITE_NONE, &start_key, &stop_key),
+        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
+                             op->collator, &stable->key, &start_key, &stop_key),
           true);
 
         if (ret == WT_NOTFOUND) {
@@ -2514,9 +2513,8 @@ __clayered_lookup_ingest_and_truncate(WTI_CLAYERED_OP *op, WT_ITEM *value, bool 
 
     /* Only consult the truncate list when ingest has no entry for this key. */
     if (!found_local) {
-        WT_ERR_NOTFOUND_OK(
-          __wt_truncate_delete_visible_check(session, op->truncate_list, op->collator, &cursor->key,
-            op->write_target == WTI_CLAYERED_WRITE_NONE, NULL, NULL),
+        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
+                             session, op->truncate_list, op->collator, &cursor->key, NULL, NULL),
           true);
         if (ret == 0) {
             found_local = true;
@@ -2726,8 +2724,8 @@ __clayered_search_near_skip_truncated(WTI_CLAYERED_OP *op, int *stable_cmpp)
     WT_DECL_RET;
 
     /* Nothing to do unless the stable key falls in a committed fast-truncate range. */
-    WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list, op->collator,
-                         &op->stable->key, op->write_target == WTI_CLAYERED_WRITE_NONE, NULL, NULL),
+    WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
+                         session, op->truncate_list, op->collator, &op->stable->key, NULL, NULL),
       true);
     if (ret == WT_NOTFOUND)
         return (0);

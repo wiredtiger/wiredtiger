@@ -266,8 +266,6 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
     WT_ASSERT(session, __wt_rwlock_islocked(session, &truncate_list->lock));
     *is_foundp = false;
 
-    WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_search_calls);
-
     WT_TRUNCATE *entry = NULL;
     WT_DECL_RET;
     uint64_t walked = 0;
@@ -295,6 +293,10 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
     }
 
 err:
+    if (ret == 0 && *is_foundp)
+        WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_search_hits);
+    else
+        WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_search_misses);
     WT_STAT_LAYERED_TRUNCATE_INCRV(
       session, truncate_list, layered_truncate_list_search_entries_walked, walked);
     return (ret);
@@ -358,10 +360,8 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
 
     __wt_readlock(session, &truncate_list->lock);
 
-    WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_search_calls);
-
     WT_TRUNCATE *entry = NULL;
-    bool is_found = false;
+    bool is_found = false, search_hit = false;
     uint64_t walked = 0;
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
         ++walked;
@@ -385,6 +385,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
             break;
     }
 
+    search_hit = is_found;
     if (is_found) {
         WT_STAT_LAYERED_TRUNCATE_INCR(
           session, truncate_list, layered_truncate_list_write_conflicts);
@@ -395,6 +396,10 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
 err:
+    if (search_hit)
+        WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_search_hits);
+    else
+        WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_search_misses);
     WT_STAT_LAYERED_TRUNCATE_INCRV(
       session, truncate_list, layered_truncate_list_search_entries_walked, walked);
     __wt_readunlock(session, &truncate_list->lock);
@@ -432,7 +437,7 @@ err:
  */
 int
 __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list,
-  WT_COLLATOR *collator, WT_ITEM *key, bool is_read, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
+  WT_COLLATOR *collator, WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
 {
     /* We either want the full range or no range at all. */
     WT_ASSERT(session, ((start_keyp != NULL) == (stop_keyp != NULL)));
@@ -465,13 +470,6 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *t
 err:
     __wt_readunlock(session, &truncate_list->lock);
     WT_RET(ret);
-    if (is_read) {
-        if (is_found)
-            WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_read_hits);
-        else
-            WT_STAT_LAYERED_TRUNCATE_INCR(
-              session, truncate_list, layered_truncate_list_read_misses);
-    }
     return (is_found ? 0 : WT_NOTFOUND);
 }
 

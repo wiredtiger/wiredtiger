@@ -1514,11 +1514,10 @@ conn_dsrc_stats = [
     LayeredStat('layered_truncate_list_gc_entries_examined', 'truncate list entries examined by garbage collection'),
     LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),
     LayeredStat('layered_truncate_list_gc_runs', 'the number of times truncate list garbage collection ran with a valid prune timestamp'),
-    LayeredStat('layered_truncate_list_read_hits', 'truncate list visible read search hits'),
-    LayeredStat('layered_truncate_list_read_misses', 'truncate list visible read search misses'),
     LayeredStat('layered_truncate_list_rollback_entries_removed', 'truncate list entries removed by transaction rollback'),
-    LayeredStat('layered_truncate_list_search_calls', 'the number of times the truncate list was searched'),
     LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
+    LayeredStat('layered_truncate_list_search_hits', 'truncate list searches that completed with a matching range'),
+    LayeredStat('layered_truncate_list_search_misses', 'truncate list searches without a matching range or that failed'),
     LayeredStat('layered_truncate_list_write_conflicts', 'truncate list write conflicts'),
 
     ##########################################
