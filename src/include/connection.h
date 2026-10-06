@@ -1167,6 +1167,7 @@ struct __wt_connection_impl {
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
+    wt_shared uint64_t layered_truncate_entries; /* Retained truncate entries */
     WT_PAGE_HISTORY page_history;
 
     bool preserve_prepared; /* Preserve prepared updates */

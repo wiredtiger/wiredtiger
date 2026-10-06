@@ -71,8 +71,15 @@ truncate_list_fixture::truncate_list_fixture()
     : _mock(mock_session::build_test_mock_session()), _session(_mock->get_wt_session_impl())
 {
     _table.iface.name = "layered:truncate_list_fixture";
+    _table.truncate_list.dhandle = &_table.iface;
     TAILQ_INIT(&_table.truncate_list.qh);
-    CHECK(__wt_rwlock_init(_session, &_table.truncate_list.lock) == 0);
+    const auto init_lock = [&]() -> int {
+        WT_RWLOCK_INIT_TRACKED(_session, &_table.truncate_list.lock, truncate_list);
+        return 0;
+    };
+    REQUIRE(init_lock() == 0);
+    _table.truncate_list.lock.stat_session_usecs_off = -1;
+    CHECK(__wt_stat_dsrc_init(_session, &_table.iface) == 0);
     CHECK(truncate_list_size(_table) == 0);
 }
 
@@ -91,6 +98,7 @@ truncate_list_fixture::~truncate_list_fixture()
         WT_DHANDLE_RELEASE(&_table.iface);
 
     __wt_rwlock_destroy(_session, &_table.truncate_list.lock);
+    __wt_stat_dsrc_discard(_session, &_table.iface);
 }
 
 WT_TRUNCATE *
@@ -112,6 +120,8 @@ truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
     const auto initial_size = truncate_list_size(_table);
 
     TAILQ_INSERT_TAIL(&_table.truncate_list.qh, entry, q);
+    ++_table.truncate_list.entries;
+    __wt_atomic_add_uint64_relaxed(&S2C(_session)->layered_truncate_entries, 1);
 
     const auto expected_size = initial_size + 1;
     CHECK(truncate_list_size(_table) == expected_size);

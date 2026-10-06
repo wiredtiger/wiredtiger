@@ -1476,8 +1476,9 @@ __clayered_reposition_truncate_iterate(WTI_CLAYERED_OP *op, WT_CURSOR *stable, b
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
-                             op->collator, &stable->key, &start_key, &stop_key),
+        WT_ERR_NOTFOUND_OK(
+          __wt_truncate_delete_visible_check(session, op->truncate_list, op->collator, &stable->key,
+            op->write_target == WTI_CLAYERED_WRITE_NONE, &start_key, &stop_key),
           true);
 
         if (ret == WT_NOTFOUND) {
@@ -1568,32 +1569,41 @@ __clayered_range_truncate_ingest(
 {
     WT_DECL_RET;
     WT_CURSOR *cursor = start;
+    uint64_t keys_walked = 0, tombstones_written = 0;
     int cmp;
 
     /* Early return if stop key is strictly less than start key, nothing to truncate. */
-    WT_RET(start->compare(start, stop, &cmp));
+    WT_ERR(start->compare(start, stop, &cmp));
     if (cmp > 0)
-        return (0);
+        goto err;
 
     do {
         /* Check the current position relative to the truncate end. */
-        WT_RET(cursor->compare(cursor, stop, &cmp));
+        WT_ERR(cursor->compare(cursor, stop, &cmp));
+        ++keys_walked;
 
         /* Avoid stacking consecutive tombstones on the update chain. */
         if (!__wt_clayered_deleted(&cursor->value)) {
             WT_ITEM key;
-            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
-            WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            WT_ERR(__wt_layered_table_truncate_detect_write_conflict(
               session, &layered->truncate_list, layered->collator, &key));
             cursor->set_value(cursor, &__wt_tombstone);
-            WT_RET(cursor->update(cursor));
+            WT_ERR(cursor->update(cursor));
+            ++tombstones_written;
         }
 
         ret = cursor->next(cursor);
     } while (cmp < 0 && ret == 0);
 
-    WT_RET_NOTFOUND_OK(ret);
-    return (0);
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+err:
+    WT_STAT_LAYERED_TRUNCATE_INCRV(
+      session, &layered->truncate_list, layered_truncate_ingest_keys_walked, keys_walked);
+    WT_STAT_LAYERED_TRUNCATE_INCRV(session, &layered->truncate_list,
+      layered_truncate_ingest_tombstones_written, tombstones_written);
+    return (ret);
 }
 
 /*
@@ -2504,8 +2514,9 @@ __clayered_lookup_ingest_and_truncate(WTI_CLAYERED_OP *op, WT_ITEM *value, bool 
 
     /* Only consult the truncate list when ingest has no entry for this key. */
     if (!found_local) {
-        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                             session, op->truncate_list, op->collator, &cursor->key, NULL, NULL),
+        WT_ERR_NOTFOUND_OK(
+          __wt_truncate_delete_visible_check(session, op->truncate_list, op->collator, &cursor->key,
+            op->write_target == WTI_CLAYERED_WRITE_NONE, NULL, NULL),
           true);
         if (ret == 0) {
             found_local = true;
@@ -2715,8 +2726,8 @@ __clayered_search_near_skip_truncated(WTI_CLAYERED_OP *op, int *stable_cmpp)
     WT_DECL_RET;
 
     /* Nothing to do unless the stable key falls in a committed fast-truncate range. */
-    WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                         session, op->truncate_list, op->collator, &op->stable->key, NULL, NULL),
+    WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list, op->collator,
+                         &op->stable->key, op->write_target == WTI_CLAYERED_WRITE_NONE, NULL, NULL),
       true);
     if (ret == WT_NOTFOUND)
         return (0);

@@ -374,6 +374,8 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     __wt_conn_stat_init(session);
     __wt_stat_connection_init_single(&cst->u.conn_stats);
     __wt_stat_connection_aggregate(conn->stats, &cst->u.conn_stats);
+    cst->u.conn_stats.layered_truncate_list_entries_current =
+      (int64_t)__wt_atomic_load_uint64_relaxed(&conn->layered_truncate_entries);
     if (F_ISSET(cst, WT_STAT_CLEAR))
         __wt_stat_connection_clear_all(conn->stats);
 
@@ -424,6 +426,14 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
     layered = (WT_LAYERED_TABLE *)dhandle;
 
     __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+
+    __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
+    __wt_readlock(session, &layered->truncate_list.lock);
+    cst->u.dsrc_stats.layered_truncate_list_entries_current =
+      (int64_t)layered->truncate_list.entries;
+    __wt_readunlock(session, &layered->truncate_list.lock);
+    if (F_ISSET(cst, WT_STAT_CLEAR))
+        __wt_stat_dsrc_clear_all(dhandle->stats);
 
     /* Do the ingest table. */
     WT_ERR(__wt_session_get_dhandle(session, layered->ingest_uri, NULL, NULL, 0));

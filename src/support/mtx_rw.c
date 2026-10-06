@@ -185,6 +185,11 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
     WT_STAT_CONN_INCR(session, rwlock_read);
 
+    if (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session)) {
+        stats = (int64_t **)S2C(session)->stats;
+        __wt_atomic_add_int64_relaxed(&stats[session->stat_conn_bucket][l->stat_read_count_off], 1);
+    }
+
     WT_DIAGNOSTIC_YIELD;
 
     for (;;) {
@@ -255,7 +260,6 @@ stall:
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 
         stats = (int64_t **)S2C(session)->stats;
-        __wt_atomic_add_int64_relaxed(&stats[session->stat_conn_bucket][l->stat_read_count_off], 1);
         session_stats = (int64_t *)&(session->stats);
         if (F_ISSET(session, WT_SESSION_INTERNAL))
             __wt_atomic_add_int64_relaxed(

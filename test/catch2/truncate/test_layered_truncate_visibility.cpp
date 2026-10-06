@@ -43,6 +43,7 @@ public:
 
         layered_table.iface.name = "layered:test_layered_truncate_visibility";
         TAILQ_INIT(&layered_table.truncate_list.qh);
+        layered_table.truncate_list.dhandle = &layered_table.iface;
         REQUIRE(__wt_rwlock_init(session, &layered_table.truncate_list.lock) == 0);
     }
 
@@ -121,6 +122,8 @@ public:
         REQUIRE(__wt_buf_set(session, &entry->stop_key, stop, strlen(stop)) == 0);
 
         TAILQ_INSERT_TAIL(&layered_table.truncate_list.qh, entry, q);
+        ++layered_table.truncate_list.entries;
+        __wt_atomic_add_uint64_relaxed(&S2C(session)->layered_truncate_entries, 1);
         return entry;
     }
 
@@ -132,7 +135,7 @@ public:
         item.data = key.data();
         item.size = key.size();
         return (__wt_truncate_delete_visible_check(session, &layered_table.truncate_list,
-          layered_table.collator, &item, start_keyp, stop_keyp));
+          layered_table.collator, &item, true, start_keyp, stop_keyp));
     }
 };
 
