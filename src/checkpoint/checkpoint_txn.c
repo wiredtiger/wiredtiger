@@ -804,7 +804,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     __checkpoint_timer_stats_set(&conn->ckpt.ckpt_api, msec);
 
     /* Compute timer statistics for the scrub. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.ckpt_api.timer_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.scrub.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.scrub, msec);
 
     /* Compute timer statistics for the checkpoint prepare. */
