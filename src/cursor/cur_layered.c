@@ -1618,11 +1618,7 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
     WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
 
-    /*
-     * The truncate is recorded in the truncate list and may never reach a constituent cursor, so
-     * the isolation level has to be checked here against the layered handle. The session has no
-     * handle set on this path.
-     */
+    /* Check isolation on the layered handle; a truncate may only write the truncate list. */
     WT_RET(__wt_txn_isolation_write_check(trunc_info->session, clayered_start->dhandle));
 
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);

@@ -29,7 +29,6 @@
 # Truncate at read-committed or read-uncommitted isolation is rejected on a
 # follower.
 
-from contextlib import closing, nullcontext
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
 from wiredtiger import WiredTigerError
@@ -59,30 +58,6 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
     conn_config = 'disaggregated=(role="leader"),'
 
     ISOLATION_MSG = "/not supported in read-committed or read-uncommitted transactions/"
-
-    def auto_closing_session(self):
-        """Return a session that auto-closes as it goes out of scope."""
-        return closing(self.conn.open_session())
-
-    def cursor_for_key(self, key, session):
-        """Return a cursor with its key set, or None if key is None."""
-        if key is None:
-            return nullcontext(None)
-        cursor = closing(session.open_cursor(self.uri))
-        cursor.thing.set_key(key)
-        return cursor
-
-    def truncate_on(self, session, start_key, stop_key):
-        """
-        Truncate [start_key, stop_key] inclusive on the given session. The
-        caller manages the transaction.
-        """
-        with (
-            self.cursor_for_key(start_key, session) as start,
-            self.cursor_for_key(stop_key, session) as stop,
-        ):
-            uri = self.uri if (start is None and stop is None) else None
-            session.truncate(uri, start, stop, None)
 
     def restricted_session(self):
         """Return a session whose transaction runs at the scenario isolation."""

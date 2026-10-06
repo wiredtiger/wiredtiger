@@ -29,7 +29,6 @@
 # Write conflict detection for follower fast truncate (truncate-truncate
 # conflicts only).
 
-from contextlib import closing, nullcontext
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
 from wiredtiger import WiredTigerError
@@ -54,39 +53,6 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
     conn_config = 'disaggregated=(role="leader"),'
 
     CONFLICT_MSG = "/conflict between concurrent operations/"
-
-    # These helpers are local to 18 because they all take an explicit session
-    # (the conflict tests drive two sessions concurrently). The equivalent
-    # mixin helpers are bound to self.session and so are not reusable here.
-
-    def cursor_on(self, session):
-        """Return a cursor on the given session that auto-closes."""
-        return closing(session.open_cursor(self.uri))
-
-    def auto_closing_session(self):
-        """Return a session that auto-closes as it goes out of scope."""
-        return closing(self.conn.open_session())
-
-    def cursor_for_key(self, key, session):
-        """Return a cursor with its key set, or None if key is None."""
-        if key is None:
-            return nullcontext(None)
-        cursor = self.cursor_on(session)
-        cursor.thing.set_key(key)
-        return cursor
-
-    def truncate_on(self, session, start_key, stop_key):
-        """
-        Truncate [start_key, stop_key] inclusive on the given session.
-        Caller manages the transaction (the conflict tests inspect the
-        truncate's failure/success inside a hand-managed txn).
-        """
-        with (
-            self.cursor_for_key(start_key, session) as start,
-            self.cursor_for_key(stop_key, session) as stop,
-        ):
-            uri = self.uri if (start is None and stop is None) else None
-            session.truncate(uri, start, stop, None)
 
     def test_same_txn_truncates_no_self_conflict(self):
         # A follower with stable keys 1-100.
