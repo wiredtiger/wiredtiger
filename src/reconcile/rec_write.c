@@ -2487,6 +2487,30 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 }
 
 /*
+ * __rec_proxy_cell_orphaned --
+ *     Return whether the page's only address is a fast-truncate proxy cell whose page-delete
+ *     information has been discarded.
+ */
+static bool
+__rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_ADDR_COPY addr;
+    WT_PAGE_MODIFY *mod;
+
+    mod = r->page->modify;
+
+    /*
+     * Rolling back the truncate that instantiated the page discards the page-delete information but
+     * cannot rewrite the parent's cell. Until a new image exists the parent could only carry the
+     * proxy cell forward as the original address, which is meaningless without that information.
+     */
+    if (mod->instantiated ||
+      (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL))
+        return (false);
+    return (__wt_ref_addr_copy(session, r->ref, &addr) && addr.del_set);
+}
+
+/*
  * __rec_copy_prev_addr --
  *     Copy the address cookie of the previous written page
  */
@@ -2718,6 +2742,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                   page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
                   !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
+                    WT_ASSERT(session, !__rec_proxy_cell_orphaned(session, r));
                     WT_RET(__rec_copy_prev_addr(session, r));
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
@@ -2736,8 +2761,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
+        /*
+         * A page referenced only by a proxy cell with no page-delete information behind it must
+         * write a full image: neither a skipped write nor a delta gives the parent an address to
+         * replace that cell with.
+         */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-          WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
+          WT_REC_RESULT_SINGLE_PAGE((session), (r)) && !__rec_proxy_cell_orphaned(session, r)) {
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
