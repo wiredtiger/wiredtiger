@@ -1127,6 +1127,7 @@ __wti_rts_btree_abort_updates(
       (ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
         ref->page_del->pg_del_durable_ts > rollback_timestamp)) {
         WT_REF_LOCK(session, ref, &previous_state);
+        WT_ASSERT(session, ref->page_del->committed);
         page->modify->instantiated = false;
         __wt_free(session, ref->page_del);
         WT_REF_UNLOCK(ref, previous_state);
