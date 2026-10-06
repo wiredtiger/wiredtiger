@@ -384,6 +384,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     r = session->reconcile;
 
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "rec-begin", ref, NULL, r, flags));
+
     timeline->image_build_start = __wt_clock(session);
 
     /* Reconcile the page. */
@@ -458,11 +460,22 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
     addr = ref->addr;
 
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "rec-image-built", ref, NULL, r, ret));
+
     /*
      * Fail 1% of the time after we have built the disk image but before we wrap up reconciliation.
      */
-    if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
-      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
+    if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING)) {
+        const u_int failpoint_probability = 100;
+        if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP))
+            WT_IGNORE_RET(WT_REPRO_EVENT(
+              session, "rec-failpoint-opportunity", ref, NULL, r, failpoint_probability));
+        if (__wt_failpoint(
+              session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, failpoint_probability))
+            ret = __wt_set_return(session, EBUSY);
+    }
+
+    if (WT_REPRO_EVENT(session, "rec-before-wrapup", ref, NULL, r, ret) == EBUSY)
         ret = __wt_set_return(session, EBUSY);
 
     /*
@@ -476,6 +489,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_ASSERT_ALWAYS(session, addr == NULL || ref->addr != NULL,
           "Reconciliation trying to free the page that has been written to disk");
         WT_IGNORE_RET(__rec_write_err(session, r, page));
+        WT_IGNORE_RET(WT_REPRO_EVENT(session, "rec-error-cleaned", ref, NULL, r, ret));
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
         /* Publish what was measured before the failure; stale timings are worse than partial. */
@@ -596,6 +610,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
     mod->rec_ckpt_snap_gen = r->rec_ckpt_snap_gen;
     mod->rec_prune_timestamp = r->rec_prune_timestamp;
+
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "rec-status", r->ref, NULL, r, mod->rec_result));
 
     /* Track the page's most recent LSN. */
     if (page->disagg_info != NULL) {
@@ -2321,8 +2337,11 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
          * Mark the update that has been written to prevent it from being included in a future
          * delta.
          */
-        if (tombstone != NULL)
+        if (tombstone != NULL) {
+            WT_IGNORE_RET(WT_REPRO_EVENT(session, "durable-before", NULL, tombstone, multi, 0));
             __rec_set_upd_durable(tombstone, WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw));
+            WT_IGNORE_RET(WT_REPRO_EVENT(session, "durable-after", NULL, tombstone, multi, 0));
+        }
 
         if (upd == NULL)
             continue;
@@ -2336,8 +2355,11 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
          */
         if (tombstone != NULL)
             F_CLR(upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE);
-        else
+        else {
+            WT_IGNORE_RET(WT_REPRO_EVENT(session, "durable-before", NULL, upd, multi, 0));
             __rec_set_upd_durable(upd, WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw));
+            WT_IGNORE_RET(WT_REPRO_EVENT(session, "durable-after", NULL, upd, multi, 0));
+        }
     }
 }
 
@@ -2525,6 +2547,8 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     /* Copy the block meta otherwise it will be lost after reconciliation. */
     *multi->block_meta = page->disagg_info->block_meta;
 
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "reuse-address", r->ref, NULL, r, mod->rec_result));
+
     switch (mod->rec_result) {
     case 0:
         WT_ASSERT(session, r->ref->addr != NULL);
@@ -2637,9 +2661,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
         /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
+            WT_IGNORE_RET(WT_REPRO_EVENT(session, "empty-durable-before", r->ref, NULL, r, 0));
             WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
             __rec_set_updates_durable(session, multi);
+            WT_IGNORE_RET(WT_REPRO_EVENT(session, "empty-durable-after", r->ref, NULL, r, 0));
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
             __wt_free(session, multi->supd);
@@ -2831,6 +2857,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     __rec_page_time_stats(session, r, build_delta);
 
 copy_image:
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "rec-copy-image", r->ref, NULL, r, chunk->entries));
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
@@ -3157,6 +3184,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     previous_ref_state = 0;
     disagg_page_is_valid = false;
     disagg_page_free_required = false;
+
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "rec-wrapup", ref, NULL, r, r->multi_next));
 
     /*
      * If using the history store table eviction path and we found updates that weren't globally

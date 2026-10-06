@@ -58,6 +58,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && !r->newer_updates_than_last_rec_used &&
       __rec_selected_key_changed(session, supd))
         r->newer_updates_than_last_rec_used = true;
+    WT_IGNORE_RET(WT_REPRO_EVENT(
+      session, "selection-change", r->ref, tombstone, supd, r->newer_updates_than_last_rec_used));
 
     return (0);
 }
@@ -400,8 +402,11 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (WT_TIME_WINDOW_HAS_PREPARE(&(upd_select->tw)))
         return (true);
 
-    if (supd_restore)
+    if (supd_restore) {
+        WT_IGNORE_RET(
+          WT_REPRO_EVENT(session, "selection-restore", r->ref, upd_select->upd, upd_select, 1));
         return (true);
+    }
 
     if (__wt_btree_stays_in_memory(S2BT(session)))
         return (false);
@@ -1327,6 +1332,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     bool tombstone_globally_visible;
 
     upd = upd_select->upd;
+
     last_upd = tombstone = NULL;
     select_tw = &upd_select->tw;
 
@@ -1640,6 +1646,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
           &has_newer_updates, &write_prepare, &upd_memsize));
     /* Keep track of the selected update. */
     upd = upd_select->upd;
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "selection", r->ref, upd, upd_select, has_newer_updates));
 
     WT_ASSERT_ALWAYS(session,
       upd == NULL ||
@@ -1769,6 +1776,9 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         F_SET(upd_select->upd, WT_UPDATE_DS);
     if (upd_select->tombstone != NULL)
         F_SET(upd_select->tombstone, WT_UPDATE_DS);
+
+    WT_IGNORE_RET(WT_REPRO_EVENT(
+      session, "selection-saved", r->ref, upd_select->tombstone, upd_select, supd_restore));
 
     /* Track whether we need to do update restore eviction. */
     if (supd_restore)

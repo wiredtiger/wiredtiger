@@ -526,6 +526,8 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     op->collator = table->collator;
 
     op->write_target = __clayered_write_target_for_op(clayered, op, mode, role);
+    WT_IGNORE_RET(
+      WT_REPRO_EVENT(CUR2S(clayered), "layered-route", NULL, NULL, op, op->write_target));
 }
 
 /*
@@ -3120,8 +3122,12 @@ __clayered_put_both(
     }
 
     /* Write to stable first to detect conflict and exit early. */
-    WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "mirror-stable-begin", NULL, NULL, key, put_op));
+    ret = __clayered_put_constituent(op, op->stable, key, &stable_value, put_op);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "mirror-stable-end", NULL, NULL, key, ret));
+    WT_ERR(ret);
     ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "mirror-ingest-end", NULL, NULL, key, ret));
     __clayered_assert_mirrored_write(session, ret);
     WT_ERR(ret);
 

@@ -331,6 +331,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
     }
 
     inserted_to_update_chain = true;
+    WT_IGNORE_RET(WT_REPRO_EVENT(session, "update-installed", cbt->ref,
+      cbt->ins != NULL ? cbt->ins->upd : mod->mod_row_update[cbt->slot], key, restore));
 
     /*
      * If the update was successful, add it to the in-memory log.
