@@ -840,6 +840,11 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               dhandle->checkpoint != NULL || WT_IS_ANY_METADATA(dhandle))
                 continue;
 
+            /* Checkpoint skips clean trees here, without locking their handles. */
+            if (file_func == __wt_checkpoint_get_handles && name_func == NULL &&
+              __wt_checkpoint_gather_skip(session, dhandle))
+                continue;
+
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
 done:

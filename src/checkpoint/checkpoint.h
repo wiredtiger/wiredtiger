@@ -49,6 +49,9 @@ struct __wt_ckpt_session {
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *drop_list;
 
+    /* Gather skips clean trees without locking their handles, during a checkpoint */
+    bool gather_skip_clean;
+
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_sec;
 
@@ -257,6 +260,8 @@ struct __wt_checkpoint_reconcile_threads {
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern WT_CKPT_EVICTION_SNAP *__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_checkpoint_gather_skip(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
