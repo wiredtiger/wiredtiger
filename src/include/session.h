@@ -230,6 +230,14 @@ struct __wt_session_impl {
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *ckpt_drop_list;
 
+    /* Checkpoint configuration, during handle gathering */
+    struct {
+        WT_CONFIG_ITEM drop; /* Checkpoints to drop */
+        WT_CONFIG_ITEM name; /* Checkpoint name, empty for the default checkpoint */
+        bool force;          /* Include clean trees */
+        bool set;            /* Configuration is parsed */
+    } ckpt_gather_cfg;
+
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_ckpt_sec;
 
