@@ -40,6 +40,22 @@ typedef enum {
 } WTI_CHECKPOINT_STATE;
 
 /*
+ * WTI_CHECKPOINT_DB_CONFIG --
+ *     Database checkpoint configuration, parsed once per checkpoint.
+ */
+struct __wti_checkpoint_db_config {
+    bool can_skip;
+    bool database_size_fix;
+    bool force;
+    bool use_timestamp;
+    const char *name;
+    size_t name_len;
+    bool named;
+    WT_CONFIG_ITEM drop; /* Checkpoints to drop, empty if none */
+    const char **cfg;    /* Original configuration */
+};
+
+/*
  * WTI_CKPT_HANDLE_STATS --
  *     Statistics related to handles.
  */

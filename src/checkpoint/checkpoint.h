@@ -49,6 +49,8 @@ struct __wt_ckpt_session {
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *drop_list;
 
+    WTI_CHECKPOINT_DB_CONFIG *db_cfg; /* Checkpoint configuration, during handle gathering */
+
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_sec;
 
