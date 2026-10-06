@@ -12,6 +12,8 @@ typedef struct {
     WT_ITEM *key;             /* The key, copied out of the cursor's memory. */
     WT_TIME_WINDOW newest_tw; /* Time window of the newest record seen for the key. */
     WT_TIME_WINDOW live_tw;   /* Time window of the data store's value for the key. */
+    wt_timestamp_t prev_start_ts; /* Start timestamp of the previous record for the key. */
+    uint64_t prev_counter;        /* Counter of the previous record for the key. */
     bool open;                /* Records for this key are being tracked. */
     bool searched;            /* The data store has been searched for this key. */
     bool exists;              /* That search found the key. */
@@ -264,6 +266,22 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
                   __wt_timestamp_to_string(hs_start_ts, ts_string[1]));
             }
         }
+
+        __wt_errx(session,
+          "HS_COUNTER_SEEN start_ts %" PRIu64 " counter %" PRIu64 " stop_ts %" PRIu64
+          " stop_txn %" PRIu64 " start_txn %" PRIu64,
+          hs_start_ts, hs_counter, hs_tw->stop_ts, hs_tw->stop_txn, hs_tw->start_txn);
+        /* Experimental: consecutive records with the same start timestamp differ by one. */
+        if (cmp == 0 && hs_start_ts == chain.prev_start_ts &&
+          hs_counter != chain.prev_counter + 1)
+            WT_ERR_MSG(session, WT_ERROR,
+              "HS_COUNTER_CHECK key %s start_ts %" PRIu64 " counter %" PRIu64
+              " follows counter %" PRIu64,
+              __wt_buf_set_printable_format(session, chain.key->data, chain.key->size,
+                CUR2BT(ds_cbt)->key_format, false, tmp),
+              hs_start_ts, hs_counter, chain.prev_counter);
+        chain.prev_start_ts = hs_start_ts;
+        chain.prev_counter = hs_counter;
 
         if (per_key_checks && stable_timestamp != WT_TS_NONE)
             WT_ERR(__hs_verify_ts_stable_cmp(session, &key, CUR2BT(ds_cbt)->key_format, hs_start_ts,
