@@ -519,7 +519,7 @@ config_run(void)
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
 
-    /* The victim cache is sized against the page sizes the table configuration settled on. */
+    /* The budget is scaled from the cache size, so this follows config_cache(). */
     config_disagg_victim_cache();
 
     /* Adjust run length if needed. */
@@ -1522,7 +1522,10 @@ config_disagg_storage(void)
     config_off(NULL, "background_compact");
 }
 
-/* Memory the victim cache may use, per run, per node. */
+/*
+ * Memory the victim cache may use, per run, per node. Enough that re-reads hit retained pages and
+ * the budget forces evictions during a run; a larger budget holds more and tests no more.
+ */
 #define VICTIM_CACHE_BUDGET_MB 128
 
 /*
@@ -1530,8 +1533,8 @@ config_disagg_storage(void)
  *     Page log victim cache configuration.
  *
  * The cache is not named in the connection string: WiredTiger enables it whenever the page log
- *     reports one is available, which the page log does whenever its entry count is non-zero, so
- *     the count derived here is the whole of the switch.
+ *     reports one available, and the page log does that when either of its bounds is non-zero. The
+ *     size set here is therefore the whole of the switch.
  */
 static void
 config_disagg_victim_cache(void)
@@ -1539,9 +1542,9 @@ config_disagg_victim_cache(void)
     uint64_t size_mb;
     char buf[64];
 
-    /* Deriving the count below clears this flag, so the warning has to come first. */
+    /* Setting the size below clears this flag, so the warning has to come first. */
     if (config_explicit(NULL, "disagg.victim_cache.size"))
-        WARN("%s", "ignoring disagg.victim_cache.size, the cache size is derived");
+        WARN("%s", "ignoring disagg.victim_cache.size, it is computed from the cache size");
 
     /* The victim cache lives in the page log, so a run without one has nowhere to put pages. */
     if (!g.disagg_storage_config) {
@@ -1580,10 +1583,9 @@ config_disagg_victim_cache(void)
 
     if (GV(DISAGG_VICTIM_CACHE)) {
         /*
-         * The page log bounds its cache in bytes, so this is the whole of the sizing: nothing here
-         * depends on the page sizes or the table count. The memory is extra, not carved out of the
-         * cache, and the fraction is the share the block cache takes, binding only on a run given
-         * little memory.
+         * The page log bounds its cache in bytes, so this is the whole of the sizing. The memory is
+         * extra, not carved out of the cache, and the fraction is the share the block cache takes,
+         * binding only on a run given little memory.
          */
         size_mb = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5);
         testutil_snprintf(buf, sizeof(buf), "disagg.victim_cache.size=%" PRIu64, size_mb);
