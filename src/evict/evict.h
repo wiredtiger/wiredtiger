@@ -53,6 +53,10 @@ struct __wt_evict {
     uint64_t app_evicts;    /* Pages evicted by user threads */
     uint64_t evicted_pages; /* The number of evicted pages */
 
+    /* Clean ramp: the decision in force and when the server last rolled it. */
+    wt_shared uint64_t clean_ramp_rolled; /* clock at the last roll */
+    wt_shared bool clean_ramp_on;         /* decision in force */
+
     wt_shared uint64_t evict_max_clean_page_size_per_checkpoint;   /* Largest clean page seen at
                                                                       eviction per checkpoint */
     wt_shared uint64_t evict_max_dirty_page_size_per_checkpoint;   /* Largest dirty page seen at
