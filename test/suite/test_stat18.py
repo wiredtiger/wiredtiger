@@ -29,7 +29,7 @@
 import wttest
 from wiredtiger import stat
 
-# Globally obsolete inline value bytes reported by the statistics=(all) tree walk.
+# Globally obsolete on-disk value bytes reported by the statistics=(all) tree walk.
 class test_stat18(wttest.WiredTigerTestCase):
     uri = 'table:test_stat18'
     conn_config = 'statistics=(all)'
@@ -68,18 +68,18 @@ class test_stat18(wttest.WiredTigerTestCase):
         self._populate_mixed()
         self._set_ts(30, 30)
         c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_analyzed][2], 1)
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_pages][2], 1)
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], len(self.obsolete))
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], len(self.obsolete))
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_analyzed][2], 1)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_pages][2], 1)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_bytes][2], len(self.obsolete))
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_bytes_mixed][2], len(self.obsolete))
         c.close()
 
     def test_fully_obsolete_page(self):
         self._populate({1: self.obsolete, 2: self.obsolete}, [1, 2])
         self._set_ts(30, 30)
         c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], 2 * len(self.obsolete))
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], 0)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_bytes][2], 2 * len(self.obsolete))
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_bytes_mixed][2], 0)
         c.close()
 
     # Dictionary compression shares one value between a removed key and a live key. The page stays
@@ -114,7 +114,7 @@ class test_stat18(wttest.WiredTigerTestCase):
         self._set_ts(30, 30)
         c = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
         obsolete = len(shared) + len(removed)
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_pages][2], 1)
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes][2], obsolete)
-        self.assertEqual(c[stat.dsrc.btree_obsolete_inline_bytes_mixed][2], obsolete)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_pages][2], 1)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_bytes][2], obsolete)
+        self.assertEqual(c[stat.dsrc.btree_obsolete_ondisk_value_bytes_mixed][2], obsolete)
         c.close()
