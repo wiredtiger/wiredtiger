@@ -229,6 +229,7 @@ struct __wt_session_impl {
 
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *ckpt_drop_list;
+    bool ckpt_gather_skip_clean; /* Gather skips clean trees without locking their handles */
 
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_ckpt_sec;

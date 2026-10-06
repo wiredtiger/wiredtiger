@@ -413,6 +413,50 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_checkpoint_gather_skip --
+ *     Return true if checkpoint gather can skip a tree without locking its handle. The tree must be
+ *     clean and must not need any work from this checkpoint, the same conditions under which
+ *     __checkpoint_lock_dirty_tree takes its fast path. The caller holds a reference to the handle,
+ *     which keeps the btree structure allocated; the btree fields are read without the handle lock,
+ *     the same as the fast path reads them under a shared handle lock.
+ */
+bool
+__wt_checkpoint_gather_skip(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+{
+    WT_BTREE *btree;
+    uint64_t now;
+
+    if (!session->ckpt_gather_skip_clean)
+        return (false);
+
+    btree = dhandle->handle;
+
+    /* Handles in exclusive or special use go through the usual path. */
+    if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) || F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+        return (false);
+
+    /* Files never involved in a checkpoint and the history store are skipped by the slow path. */
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || WT_IS_HS(dhandle))
+        return (true);
+
+    if (__wt_atomic_loadbool(&btree->modified) || F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES))
+        return (false);
+
+    /* In the common case of the timer set forever, don't even check the time. */
+    if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
+        __wt_seconds(session, &now);
+        if (now > btree->clean_ckpt_timer)
+            return (false);
+    }
+
+    __checkpoint_prepare_progress(session, false);
+
+    F_SET(btree, WT_BTREE_SKIP_CKPT);
+    WT_WITH_DHANDLE(session, dhandle, __checkpoint_update_generation(session));
+    return (true);
+}
+
+/*
  * __wt_checkpoint_get_handles --
  *     Get a list of handles to flush.
  */
@@ -741,6 +785,32 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_gather_skip_clean_set --
+ *     Decide whether the handle gather can skip clean trees without locking them: only for a
+ *     checkpoint that is not forced, not named and does not drop checkpoints.
+ */
+static int
+__checkpoint_gather_skip_clean_set(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+
+    session->ckpt_gather_skip_clean = false;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
+    if (cval.val != 0)
+        return (0);
+    WT_RET(__wt_config_gets_def(session, cfg, "name", 0, &cval));
+    if (cval.len != 0)
+        return (0);
+    WT_RET(__wt_config_gets_def(session, cfg, "drop", 0, &cval));
+    if (cval.len != 0)
+        return (0);
+
+    session->ckpt_gather_skip_clean = true;
+    return (0);
+}
+
+/*
  * __checkpoint_prepare --
  *     Start the transaction for a checkpoint and gather handles.
  */
@@ -919,8 +989,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * handles.
      */
     WT_ASSERT(session, session->ckpt_handle_next == 0);
+    WT_ERR(__checkpoint_gather_skip_clean_set(session, cfg));
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_operation(session, cfg, __wt_checkpoint_get_handles));
+    session->ckpt_gather_skip_clean = false;
 
     __wt_epoch(session, &conn->ckpt_prep_end);
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
