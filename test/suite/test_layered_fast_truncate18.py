@@ -61,8 +61,8 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         # Within a single transaction: truncate 30-60, then truncate 40-80.
         with self.transaction(commit_timestamp=20):
-            self.truncate_on(self.session, 30, 60)
-            self.truncate_on(self.session, 40, 80)
+            self.truncate(30, 60, manage_transaction=False)
+            self.truncate(40, 80, manage_transaction=False)
 
         # The transaction committed; no WT_ROLLBACK raised.
 
@@ -74,7 +74,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         # txn A begins a truncate over 30-60 and leaves it uncommitted.
         session_a = self.session
         session_a.begin_transaction()
-        self.truncate_on(session_a, 30, 60)
+        self.truncate(30, 60, session=session_a, manage_transaction=False)
 
         # txn B truncates overlapping range 40-70 and gets WT_ROLLBACK.
         with (
@@ -83,7 +83,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         ):
             self.assertRaisesException(
                 WiredTigerError,
-                lambda: self.truncate_on(session_b, 40, 70),
+                lambda: self.truncate(40, 70, session=session_b, manage_transaction=False),
                 self.CONFLICT_MSG,
             )
 
@@ -95,7 +95,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         # txn A begins a truncate over 30-60 and leaves it uncommitted.
         session_a = self.session
         session_a.begin_transaction()
-        self.truncate_on(session_a, 30, 60)
+        self.truncate(30, 60, session=session_a, manage_transaction=False)
 
         # txn B truncates overlapping range 40-70 and gets WT_ROLLBACK.
         with (
@@ -104,7 +104,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         ):
             self.assertRaisesException(
                 WiredTigerError,
-                lambda: self.truncate_on(session_b, 40, 70),
+                lambda: self.truncate(40, 70, session=session_b, manage_transaction=False),
                 self.CONFLICT_MSG,
             )
 
@@ -116,14 +116,14 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         # txn A truncates 10-30 and leaves it uncommitted.
         session_a = self.session
         session_a.begin_transaction()
-        self.truncate_on(session_a, 10, 30)
+        self.truncate(10, 30, session=session_a, manage_transaction=False)
 
         # txn B truncates 50-70 (no overlap) and commits successfully.
         with (
             self.auto_closing_session() as session_b,
             self.transaction(session=session_b, commit_timestamp=20),
         ):
-            self.truncate_on(session_b, 50, 70)
+            self.truncate(50, 70, session=session_b, manage_transaction=False)
 
     def test_rolled_back_truncate_no_residual(self):
         # A follower with stable keys 1-100.
@@ -133,14 +133,14 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         # txn A truncates 30-60 then explicitly rolls back.
         session_a = self.session
         with self.transaction(session=session_a, rollback=True):
-            self.truncate_on(session_a, 30, 60)
+            self.truncate(30, 60, session=session_a, manage_transaction=False)
 
         # txn B truncates the same range 30-60 and commits without WT_ROLLBACK.
         with (
             self.auto_closing_session() as session_b,
             self.transaction(session=session_b, commit_timestamp=20),
         ):
-            self.truncate_on(session_b, 30, 60)
+            self.truncate(30, 60, session=session_b, manage_transaction=False)
 
     def test_invisible_committed_truncate_conflicts(self):
         # A follower with stable keys 1-100.
@@ -150,7 +150,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         # txn A commits a truncate over 30-60 at ts=10 (invisible to txn B).
         self.conn.set_timestamp("oldest_timestamp=" + self.timestamp_str(1))
         with self.transaction(commit_timestamp=10):
-            self.truncate_on(self.session, 30, 60)
+            self.truncate(30, 60, manage_transaction=False)
 
         # txn B (read_ts=5) truncates overlapping range 40-70 and gets
         # WT_ROLLBACK.
@@ -162,7 +162,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         ):
             self.assertRaisesException(
                 WiredTigerError,
-                lambda: self.truncate_on(session_b, 40, 70),
+                lambda: self.truncate(40, 70, session=session_b, manage_transaction=False),
                 self.CONFLICT_MSG,
             )
 
@@ -174,7 +174,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
         # txn A commits a truncate over 30-60 at ts=5 (visible to txn B).
         self.conn.set_timestamp("oldest_timestamp=" + self.timestamp_str(1))
         with self.transaction(commit_timestamp=5):
-            self.truncate_on(self.session, 30, 60)
+            self.truncate(30, 60, manage_transaction=False)
 
         # txn B (read_ts=10) truncates overlapping range 40-70 without
         # WT_ROLLBACK.
@@ -184,7 +184,7 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
                 begin_config='read_timestamp=' + self.timestamp_str(10),
                 commit_timestamp=20),
         ):
-            self.truncate_on(session_b, 40, 70)
+            self.truncate(40, 70, session=session_b, manage_transaction=False)
 
 
 if __name__ == "__main__":

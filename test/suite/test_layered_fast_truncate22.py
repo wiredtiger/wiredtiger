@@ -70,7 +70,7 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
     def start_uncommitted_truncate(self):
         """Leave a truncate over 30-60 uncommitted on the main session."""
         self.session.begin_transaction()
-        self.truncate_on(self.session, 30, 60)
+        self.truncate(30, 60, manage_transaction=False)
 
     def test_overlapping_truncate_with_ingest(self):
         # A follower with stable keys 1-100 and ingest key 45.
@@ -82,7 +82,8 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
             with self.restricted_session():
                 self.assertRaisesWithMessage(
                     WiredTigerError,
-                    lambda: self.truncate_on(self.session_b, 40, 70),
+                    lambda: self.truncate(
+                        40, 70, session=self.session_b, manage_transaction=False),
                     self.ISOLATION_MSG,
                 )
 
@@ -96,7 +97,8 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
             with self.restricted_session():
                 self.assertRaisesWithMessage(
                     WiredTigerError,
-                    lambda: self.truncate_on(self.session_b, 40, 70),
+                    lambda: self.truncate(
+                        40, 70, session=self.session_b, manage_transaction=False),
                     self.ISOLATION_MSG,
                 )
 
@@ -109,7 +111,8 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
             with self.restricted_session():
                 self.assertRaisesWithMessage(
                     WiredTigerError,
-                    lambda: self.truncate_on(self.session_b, 10, 20),
+                    lambda: self.truncate(
+                        10, 20, session=self.session_b, manage_transaction=False),
                     self.ISOLATION_MSG,
                 )
 

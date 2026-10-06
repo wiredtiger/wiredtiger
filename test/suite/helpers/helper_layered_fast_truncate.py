@@ -29,7 +29,7 @@
 # helper_layered_fast_truncate.py
 #   Shared helpers for the layered fast truncate Python tests.
 
-from contextlib import closing, nullcontext
+from contextlib import closing
 from itertools import chain
 from typing import Iterable
 
@@ -75,14 +75,6 @@ class LayeredFastTruncateConfigMixin:
         """Return a session that auto-closes as it goes out of scope."""
         return closing(self.conn.open_session())
 
-    def cursor_for_key(self, key, session):
-        """Return a cursor with its key set, or None if key is None."""
-        if key is None:
-            return nullcontext(None)
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key(self.key(key))
-        return closing(cursor)
-
     def next_commit_ts(self):
         """Return the next monotonically increasing commit timestamp."""
         ts = getattr(self, '_next_commit_ts_val', 0) + 1
@@ -112,28 +104,42 @@ class LayeredFastTruncateConfigMixin:
         if keys is not None:
             self.populate(keys)
 
-    def truncate_on(self, session, start_key=None, stop_key=None):
-        """
-        Truncate [start_key, stop_key] inclusive on the given session. The
-        caller manages the transaction.
-        """
-        with (
-            self.cursor_for_key(start_key, session) as start,
-            self.cursor_for_key(stop_key, session) as stop,
-        ):
-            uri = self.uri if (start is None and stop is None) else None
-            session.truncate(uri, start, stop, None)
-
-    def truncate(self, start_key=None, stop_key=None, commit_timestamp=None):
+    def truncate(
+        self, start_key=None, stop_key=None, commit_timestamp=None,
+        session=None, manage_transaction=True
+    ):
         """
         Truncate [start_key, stop_key] inclusive on self.uri. Either bound may
-        be None for an open-ended side. Commit at the supplied timestamp, or at
-        the next auto-generated timestamp.
+        be None for an open-ended side. When manage_transaction is true, commit
+        at the supplied timestamp or the next auto-generated timestamp.
+        Otherwise, the caller manages the transaction.
         """
-        if commit_timestamp is None:
-            commit_timestamp = self.next_commit_ts()
-        with self.transaction(commit_timestamp=commit_timestamp):
-            self.truncate_on(self.session, start_key, stop_key)
+        if session is None:
+            session = self.session
+
+        start = stop = None
+        try:
+            if start_key is not None:
+                start = session.open_cursor(self.uri)
+                start.set_key(self.key(start_key))
+            if stop_key is not None:
+                stop = session.open_cursor(self.uri)
+                stop.set_key(self.key(stop_key))
+            # session.truncate() needs a URI iff both cursors are NULL.
+            uri = self.uri if (start is None and stop is None) else None
+
+            if manage_transaction:
+                if commit_timestamp is None:
+                    commit_timestamp = self.next_commit_ts()
+                with self.transaction(session=session, commit_timestamp=commit_timestamp):
+                    session.truncate(uri, start, stop, None)
+            else:
+                session.truncate(uri, start, stop, None)
+        finally:
+            if start is not None:
+                start.close()
+            if stop is not None:
+                stop.close()
 
     def visible_keys(self, forward=True):
         """Return all keys visible via a scan (forward or backward)."""
