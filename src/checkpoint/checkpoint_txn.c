@@ -373,41 +373,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We may have raced between starting the checkpoint transaction and some operation completing
-     * on the handle that updated the metadata (e.g., closing a bulk load cursor). All such
-     * operations either have exclusive access to the handle or hold the schema lock. We are now
-     * holding the schema lock and have an open btree handle, so if we can't update the metadata,
-     * then there has been some state change invisible to the checkpoint transaction.
-     */
-    if (!WT_IS_METADATA(session->dhandle)) {
-        WT_CURSOR *meta_cursor;
-
-        WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_ERROR));
-        WT_RET(__wt_metadata_cursor(session, &meta_cursor));
-        meta_cursor->set_key(meta_cursor, session->dhandle->name);
-        time_start = __wt_clock(session);
-        ret = __wt_curfile_insert_check(meta_cursor);
-        time_stop = __wt_clock(session);
-        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        ++S2C(session)->ckpt.handle_stats.meta_check;
-        S2C(session)->ckpt.handle_stats.meta_check_time += time_diff;
-        if (ret == WT_ROLLBACK) {
-            /*
-             * If create or drop or any schema operation of a table is within an user transaction
-             * then checkpoint can see the dhandle before the commit, which will lead to the
-             * rollback error. We will ignore this dhandle as part of this checkpoint by returning
-             * from here.
-             */
-            __wt_verbose_notice(session, WT_VERB_CHECKPOINT, "%s",
-              "WT_ROLLBACK: checkpoint raced with transaction operating on dhandle");
-            WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
-            return (0);
-        }
-        WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
-        WT_RET(ret);
-    }
-
-    /*
      * Decide whether the tree needs to be included in the checkpoint and if so, acquire the
      * necessary locks.
      */

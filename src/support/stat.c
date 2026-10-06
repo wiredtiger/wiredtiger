@@ -303,7 +303,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls that return an error",
-  "cursor: cursor insert check calls that return an error",
   "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls that return an error",
   "cursor: cursor next calls that return an error",
@@ -809,7 +808,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_get_key_error = 0;
     stats->cursor_get_value_error = 0;
     stats->cursor_insert_error = 0;
-    stats->cursor_insert_check_error = 0;
     stats->cursor_largest_key_error = 0;
     stats->cursor_modify_error = 0;
     stats->cursor_next_error = 0;
@@ -1315,7 +1313,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_get_key_error += from->cursor_get_key_error;
     to->cursor_get_value_error += from->cursor_get_value_error;
     to->cursor_insert_error += from->cursor_insert_error;
-    to->cursor_insert_check_error += from->cursor_insert_check_error;
     to->cursor_largest_key_error += from->cursor_largest_key_error;
     to->cursor_modify_error += from->cursor_modify_error;
     to->cursor_next_error += from->cursor_next_error;
@@ -1874,7 +1871,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_get_key_error += WT_STAT_DSRC_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_DSRC_READ(from, cursor_get_value_error);
     to->cursor_insert_error += WT_STAT_DSRC_READ(from, cursor_insert_error);
-    to->cursor_insert_check_error += WT_STAT_DSRC_READ(from, cursor_insert_check_error);
     to->cursor_largest_key_error += WT_STAT_DSRC_READ(from, cursor_largest_key_error);
     to->cursor_modify_error += WT_STAT_DSRC_READ(from, cursor_modify_error);
     to->cursor_next_error += WT_STAT_DSRC_READ(from, cursor_next_error);
@@ -2585,11 +2581,9 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent duration for gathering all handles (usecs)",
   "checkpoint: most recent duration for gathering applied handles (usecs)",
   "checkpoint: most recent duration for gathering skipped handles (usecs)",
-  "checkpoint: most recent duration for handles metadata checked (usecs)",
   "checkpoint: most recent duration for locking the handles (usecs)",
   "checkpoint: most recent handles applied",
   "checkpoint: most recent handles checkpoint dropped",
-  "checkpoint: most recent handles metadata checked",
   "checkpoint: most recent handles metadata locked",
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
@@ -2679,7 +2673,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
-  "cursor: cursor insert check calls that return an error",
   "cursor: cursor insert key and value bytes",
   "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls",
@@ -3728,11 +3721,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_handle_duration */
     /* not clearing checkpoint_handle_apply_duration */
     /* not clearing checkpoint_handle_skip_duration */
-    /* not clearing checkpoint_handle_meta_check_duration */
     /* not clearing checkpoint_handle_lock_duration */
     stats->checkpoint_handle_applied = 0;
     stats->checkpoint_handle_dropped = 0;
-    stats->checkpoint_handle_meta_checked = 0;
     stats->checkpoint_handle_locked = 0;
     stats->checkpoint_handle_skipped = 0;
     stats->checkpoint_handle_walked = 0;
@@ -3819,7 +3810,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_get_value_error = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_error = 0;
-    stats->cursor_insert_check_error = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_largest_key_error = 0;
     stats->cursor_modify = 0;
@@ -4978,12 +4968,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_apply_duration +=
       WT_STAT_CONN_READ(from, checkpoint_handle_apply_duration);
     to->checkpoint_handle_skip_duration += WT_STAT_CONN_READ(from, checkpoint_handle_skip_duration);
-    to->checkpoint_handle_meta_check_duration +=
-      WT_STAT_CONN_READ(from, checkpoint_handle_meta_check_duration);
     to->checkpoint_handle_lock_duration += WT_STAT_CONN_READ(from, checkpoint_handle_lock_duration);
     to->checkpoint_handle_applied += WT_STAT_CONN_READ(from, checkpoint_handle_applied);
     to->checkpoint_handle_dropped += WT_STAT_CONN_READ(from, checkpoint_handle_dropped);
-    to->checkpoint_handle_meta_checked += WT_STAT_CONN_READ(from, checkpoint_handle_meta_checked);
     to->checkpoint_handle_locked += WT_STAT_CONN_READ(from, checkpoint_handle_locked);
     to->checkpoint_handle_skipped += WT_STAT_CONN_READ(from, checkpoint_handle_skipped);
     to->checkpoint_handle_walked += WT_STAT_CONN_READ(from, checkpoint_handle_walked);
@@ -5081,7 +5068,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
     to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
-    to->cursor_insert_check_error += WT_STAT_CONN_READ(from, cursor_insert_check_error);
     to->cursor_insert_bytes += WT_STAT_CONN_READ(from, cursor_insert_bytes);
     to->cursor_largest_key_error += WT_STAT_CONN_READ(from, cursor_largest_key_error);
     to->cursor_modify += WT_STAT_CONN_READ(from, cursor_modify);
