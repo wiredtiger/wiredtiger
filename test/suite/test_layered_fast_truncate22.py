@@ -29,6 +29,7 @@
 # Truncate at read-committed or read-uncommitted isolation is rejected on a
 # follower.
 
+from contextlib import closing
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
 from wiredtiger import WiredTigerError
@@ -59,62 +60,55 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     ISOLATION_MSG = "/not supported in read-committed or read-uncommitted transactions/"
 
-    def restricted_session(self):
-        """Return a session whose transaction runs at the scenario isolation."""
-        return self.transaction(
-            session=self.session_b,
-            begin_config="isolation=" + self.isolation,
-            rollback=True,
-        )
-
-    def start_uncommitted_truncate(self):
-        """Leave a truncate over 30-60 uncommitted on the main session."""
-        self.session.begin_transaction()
-        self.truncate(30, 60, manage_transaction=False)
+    def start_uncommitted_truncate(self, session):
+        """Leave a truncate over 30-60 uncommitted on the given session."""
+        with (
+            closing(session.open_cursor(self.uri)) as start,
+            closing(session.open_cursor(self.uri)) as stop,
+        ):
+            start.set_key(30)
+            stop.set_key(60)
+            session.begin_transaction()
+            session.truncate(None, start, stop, None)
 
     def test_overlapping_truncate_with_ingest(self):
         # A follower with stable keys 1-100 and ingest key 45.
         self.setup_leader(keys=range_inclusive(1, 100))
         self.setup_follower(keys=[45])
-        self.start_uncommitted_truncate()
+        self.session.reconfigure('isolation=' + self.isolation)
 
-        with self.auto_closing_session() as self.session_b:
-            with self.restricted_session():
-                self.assertRaisesWithMessage(
-                    WiredTigerError,
-                    lambda: self.truncate(
-                        40, 70, session=self.session_b, manage_transaction=False),
-                    self.ISOLATION_MSG,
-                )
+        with closing(self.conn.open_session()) as session_a:
+            self.start_uncommitted_truncate(session_a)
+            self.assertRaisesWithMessage(
+                WiredTigerError, lambda: self.truncate(40, 70), self.ISOLATION_MSG
+            )
+            self.session.rollback_transaction()
+            session_a.rollback_transaction()
 
     def test_overlapping_truncate_no_ingest(self):
         # A follower with stable keys 1-100 and an empty ingest table.
         self.setup_leader(keys=range_inclusive(1, 100))
         self.setup_follower()
-        self.start_uncommitted_truncate()
+        self.session.reconfigure('isolation=' + self.isolation)
 
-        with self.auto_closing_session() as self.session_b:
-            with self.restricted_session():
-                self.assertRaisesWithMessage(
-                    WiredTigerError,
-                    lambda: self.truncate(
-                        40, 70, session=self.session_b, manage_transaction=False),
-                    self.ISOLATION_MSG,
-                )
+        with closing(self.conn.open_session()) as session_a:
+            self.start_uncommitted_truncate(session_a)
+            self.assertRaisesWithMessage(
+                WiredTigerError, lambda: self.truncate(40, 70), self.ISOLATION_MSG
+            )
+            self.session.rollback_transaction()
+            session_a.rollback_transaction()
 
     def test_truncate_without_conflict(self):
         # A follower with stable keys 1-100 and no truncate in progress.
         self.setup_leader(keys=range_inclusive(1, 100))
         self.setup_follower()
+        self.session.reconfigure('isolation=' + self.isolation)
 
-        with self.auto_closing_session() as self.session_b:
-            with self.restricted_session():
-                self.assertRaisesWithMessage(
-                    WiredTigerError,
-                    lambda: self.truncate(
-                        10, 20, session=self.session_b, manage_transaction=False),
-                    self.ISOLATION_MSG,
-                )
+        self.assertRaisesWithMessage(
+            WiredTigerError, lambda: self.truncate(10, 20), self.ISOLATION_MSG
+        )
+        self.session.rollback_transaction()
 
 
 if __name__ == "__main__":
