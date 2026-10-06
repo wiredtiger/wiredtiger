@@ -1568,19 +1568,6 @@ config_disagg_victim_cache(void)
         config_off(NULL, "disagg.victim_cache");
     }
 
-    /*
-     * The victim cache writes the page image without encrypting it, and eviction does not gate on
-     * the btree's encryptor, so an encrypted table reads back a block the read path rejects as
-     * corrupt. The cache gives way rather than encryption, which is the older coverage.
-     *
-     * FIXME-WT-18794: remove this once eviction skips encrypted tables for the victim cache.
-     */
-    if (strcmp(GVS(DISK_ENCRYPTION), "off") != 0) {
-        if (config_explicit(NULL, "disagg.victim_cache"))
-            WARN("%s", "turning off disagg.victim_cache to work with disk.encryption");
-        config_off(NULL, "disagg.victim_cache");
-    }
-
     if (GV(DISAGG_VICTIM_CACHE)) {
         /*
          * The page log bounds its cache in bytes, so this is the whole of the sizing. The memory is
