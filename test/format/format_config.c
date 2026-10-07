@@ -1556,7 +1556,7 @@ config_disagg_victim_cache(void)
     }
 
     /* Of the page logs, only PALite implements the caching hooks. */
-    if (strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
+    else if (strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
         if (config_explicit(NULL, "disagg.victim_cache"))
             WARN("turning off disagg.victim_cache, the %s page log implements no victim cache",
               GVS(DISAGG_PAGE_LOG));
@@ -1564,7 +1564,7 @@ config_disagg_victim_cache(void)
     }
 
     /* An in-memory connection never offers pages to the victim cache, so the knob is pointless. */
-    if (GV(RUNS_IN_MEMORY)) {
+    else if (GV(RUNS_IN_MEMORY)) {
         if (config_explicit(NULL, "disagg.victim_cache"))
             WARN("%s", "turning off disagg.victim_cache to work with runs.in_memory");
         config_off(NULL, "disagg.victim_cache");
