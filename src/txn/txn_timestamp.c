@@ -740,7 +740,7 @@ set:
 
     /* A higher oldest timestamp may let a deferred checkpoint be adopted. */
     if (updated_oldest)
-        __wt_disagg_deferred_pickup_signal_oldest(session);
+        __wt_disagg_deferred_pickup_wake(session);
 
     return (0);
 }

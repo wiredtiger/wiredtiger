@@ -1568,15 +1568,16 @@ __disagg_deferred_pickup_server(void *arg)
 }
 
 /*
- * __disagg_deferred_pickup_wake --
- *     Wake the deferred pickup server unconditionally.
+ * __wt_disagg_deferred_pickup_wake --
+ *     Wake the deferred pickup server if any checkpoint is queued. The queue check takes no lock: a
+ *     wakeup missed to a race with a deferral is covered by the server's periodic retry.
  */
-static void
-__disagg_deferred_pickup_wake(WT_SESSION_IMPL *session)
+void
+__wt_disagg_deferred_pickup_wake(WT_SESSION_IMPL *session)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
-    if (disagg->deferred_pickup_cond != NULL)
+    if (__disagg_deferred_ckpt_queued(session) && disagg->deferred_pickup_cond != NULL)
         __wt_cond_signal(session, disagg->deferred_pickup_cond);
 }
 
@@ -1596,7 +1597,7 @@ __wt_disagg_deferred_pickup_signal_snapshot(WT_SESSION_IMPL *session, uint64_t r
      */
     if (released_gen >= __wt_gen(session, WT_GEN_DISAGG_CKPT))
         return;
-    __disagg_deferred_pickup_wake(session);
+    __wt_disagg_deferred_pickup_wake(session);
 }
 
 /*
@@ -1613,20 +1614,7 @@ __wt_disagg_deferred_pickup_signal_reader(WT_SESSION_IMPL *session, wt_timestamp
     /* A reader at the oldest timestamp does not hold the checkpoint back, only a lower one does. */
     if (read_timestamp >= __wt_atomic_load_uint64_acquire(&disagg->deferred_ckpt_oldest_timestamp))
         return;
-    __disagg_deferred_pickup_wake(session);
-}
-
-/*
- * __wt_disagg_deferred_pickup_signal_oldest --
- *     Wake the deferred pickup server when the oldest timestamp moves, if any checkpoint is queued.
- *     The server finds out whether the new timestamp lets one be adopted. The queue check takes no
- *     lock: a wakeup missed to a race with a deferral is covered by the server's periodic retry.
- */
-void
-__wt_disagg_deferred_pickup_signal_oldest(WT_SESSION_IMPL *session)
-{
-    if (__disagg_deferred_ckpt_queued(session))
-        __disagg_deferred_pickup_wake(session);
+    __wt_disagg_deferred_pickup_wake(session);
 }
 
 /*
@@ -2125,44 +2113,76 @@ err:
 }
 
 /*
- * __disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from its metadata config. It handles a checkpoint that was just
- *     delivered, where an older checkpoint is an error. It also handles a queued checkpoint being
- *     retried, where an older checkpoint only means another pickup won. The retry lends the shared
- *     metadata page it kept; the caller keeps ownership of it.
+ * WT_DISAGG_ENCODING_STATE --
+ *     The stable tombstone encoding mode before a checkpoint delivery adopts its own.
+ */
+typedef struct {
+    bool encoding;
+    bool adopted;
+} WT_DISAGG_ENCODING_STATE;
+
+/*
+ * __disagg_encoding_save --
+ *     Remember the stable tombstone encoding mode, so a failed pickup can put it back.
+ */
+static void
+__disagg_encoding_save(WT_SESSION_IMPL *session, WT_DISAGG_ENCODING_STATE *state)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    state->encoding = F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    state->adopted = disagg->stable_tombstone_encoding_adopted;
+}
+
+/*
+ * __disagg_encoding_restore --
+ *     Put back the stable tombstone encoding mode saved before the pickup. A failed pickup must not
+ *     leave the failed checkpoint's mode adopted.
+ */
+static void
+__disagg_encoding_restore(WT_SESSION_IMPL *session, const WT_DISAGG_ENCODING_STATE *state)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    if (state->encoding)
+        F_SET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    else
+        F_CLR(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    disagg->stable_tombstone_encoding_adopted = state->adopted;
+    WT_STAT_CONN_SET(session, disagg_stable_tombstone_encoding,
+      state->adopted || F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED) ?
+        (state->encoding ? 1 : 2) :
+        0);
+}
+
+/*
+ * __disagg_checkpoint_pick_up_prepare --
+ *     Handle everything about a checkpoint delivery that needs no shared metadata page: parse the
+ *     delivered config, adopt the stable tombstone encoding mode it implies, and publish the
+ *     delivery so new snapshots pin it. The caller owns the config copy returned in meta_str_out.
  */
 static int
-__disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
-  size_t meta_data_size, bool force, bool superseded_ok, const WT_ITEM *cached_page)
+__disagg_checkpoint_pick_up_prepare(WT_SESSION_IMPL *session, const char *meta_data,
+  size_t meta_data_size, bool force, bool superseded_ok, WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  char **meta_str_out, bool *snapshot_blockedp)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    WT_DISAGGREGATED_STORAGE *disagg;
-    WT_DISAGG_CHECKPOINT_META ckpt_meta;
-    WT_DISAGG_METADATA metadata;
-    WT_ITEM fetched_page;
-    WT_SESSION_IMPL *internal_session;
-    wt_timestamp_t pinned_ts;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
     uint64_t metadata_checksum, pending_lsn;
     char *meta_str;
-    const WT_ITEM *metadata_page;
-    bool encoding, prev_adopted, prev_encoding, snapshot_blocked;
+    bool encoding;
 
-    WT_CLEAR(ckpt_meta);
-    WT_CLEAR(metadata);
-    WT_CLEAR(fetched_page);
-    disagg = &S2C(session)->disaggregated_storage;
+    *meta_str_out = NULL;
+    *snapshot_blockedp = false;
     meta_str = NULL;
-    internal_session = NULL;
-    prev_encoding = F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-    prev_adopted = disagg->stable_tombstone_encoding_adopted;
 
     /* Extract the item into a string. */
     WT_ERR(__wt_strndup(session, meta_data, meta_data_size, &meta_str));
 
     /* Extract the LSN of the metadata page. */
     WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
-    ckpt_meta.metadata_lsn = (uint64_t)cval.val;
+    ckpt_meta->metadata_lsn = (uint64_t)cval.val;
 
     /*
      * Extract the checksum of the metadata page, if it exists. We added the checksum later, so
@@ -2174,8 +2194,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
         if (metadata_checksum > UINT32_MAX)
             WT_ERR_MSG(
               session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
-        ckpt_meta.has_metadata_checksum = true;
-        ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
+        ckpt_meta->has_metadata_checksum = true;
+        ckpt_meta->metadata_checksum = (uint32_t)metadata_checksum;
     } else
         /* FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required */
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
@@ -2183,9 +2203,9 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
 
     /* Extract the database size. */
     WT_ERR(__wt_config_getones(session, meta_str, "database_size", &cval));
-    ckpt_meta.database_size = (uint64_t)cval.val;
+    ckpt_meta->database_size = (uint64_t)cval.val;
     /* Parse and validate version and compatible_version fields. */
-    WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
+    WT_ERR(__disagg_check_meta_version(session, meta_str, ckpt_meta));
 
     /*
      * Derive the stable tombstone encoding mode from the checkpoint's compatible version and adopt
@@ -2197,7 +2217,7 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
      * FIXME-WT-18206: once no supported checkpoint carries escaped stable values, drop the
      * derivation and the escaped mode.
      */
-    encoding = ckpt_meta.compatible_version < WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED;
+    encoding = ckpt_meta->compatible_version < WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED;
     WT_ERR(__wti_disagg_adopt_stable_tombstone_encoding(session, encoding,
       encoding ? "a checkpoint compatible version predating the unescaped format" :
                  "the checkpoint compatible version"));
@@ -2209,46 +2229,84 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
      * snapshots from being refused at their first stable open once the adoption completes, and from
      * blocking a deferred adoption. Only ever move it forward.
      */
-    disagg = &S2C(session)->disaggregated_storage;
     for (;;) {
         pending_lsn = __wt_atomic_load_uint64_acquire(&disagg->pending_checkpoint_meta_lsn);
-        if (ckpt_meta.metadata_lsn <= pending_lsn ||
+        if (ckpt_meta->metadata_lsn <= pending_lsn ||
           __wt_atomic_cas_uint64(
-            &disagg->pending_checkpoint_meta_lsn, pending_lsn, ckpt_meta.metadata_lsn))
+            &disagg->pending_checkpoint_meta_lsn, pending_lsn, ckpt_meta->metadata_lsn))
             break;
     }
     /* Advance the checkpoint generation snapshots pin. */
-    __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, WT_DISAGG_CKPT_GEN(ckpt_meta.metadata_lsn));
+    __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, WT_DISAGG_CKPT_GEN(ckpt_meta->metadata_lsn));
     /* Publish the delivered LSN as a statistic; the adopted LSN is published separately. */
     WT_STAT_CONN_SET(session, disagg_checkpoint_delivered_lsn,
       (int64_t)__wt_atomic_load_uint64_relaxed(&disagg->pending_checkpoint_meta_lsn));
 
     /*
-     * Check the snapshots before the fetch: readers that predate this delivery may be gone once the
-     * fetch is done, and those that began after it cannot be blocked by it. The selection of a
-     * queued checkpoint already checked its snapshots.
+     * Check the snapshots now, before the caller gets the metadata page: readers that predate this
+     * delivery may be gone once that is done, and those that began after it cannot be blocked by
+     * it. The selection of a queued checkpoint already checked its snapshots.
      */
-    snapshot_blocked = !force && !superseded_ok &&
-      ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
-      __wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn);
+    *snapshot_blockedp = !force && !superseded_ok &&
+      ckpt_meta->metadata_lsn >
+        __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
+      __wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta->metadata_lsn);
 
-    /*
-     * Get the checkpoint's shared metadata first: the deferral decision needs its oldest timestamp,
-     * and the adoption below uses the same copy. A queued checkpoint brings its copy; otherwise
-     * fetch it, which needs the checkpoint lock.
-     */
+    *meta_str_out = meta_str;
+    return (0);
+
+err:
+    __wt_free(session, meta_str);
+    return (ret);
+}
+
+/*
+ * __disagg_fetch_checkpoint_metadata_page --
+ *     Fetch the checkpoint's shared metadata page, which needs the checkpoint lock.
+ */
+static int
+__disagg_fetch_checkpoint_metadata_page(
+  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_ITEM *page)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    internal_session = NULL;
+
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
-    if (cached_page != NULL && cached_page->data != NULL)
-        metadata_page = cached_page;
-    else {
-        WT_WITH_CHECKPOINT_LOCK(internal_session,
-          ret = __wti_disagg_fetch_shared_meta(internal_session, &ckpt_meta, &fetched_page));
-        WT_ERR(ret);
-        metadata_page = &fetched_page;
-    }
+    WT_WITH_CHECKPOINT_LOCK(
+      internal_session, ret = __wti_disagg_fetch_shared_meta(internal_session, ckpt_meta, page));
+
+err:
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
+ * __disagg_checkpoint_pick_up --
+ *     Handle a checkpoint delivery once its shared metadata page is in hand: defer the adoption
+ *     while a reader may still need what the checkpoint discards, otherwise pick it up. A queued
+ *     checkpoint being retried stays queued when it is still blocked. The caller keeps ownership of
+ *     the page and of the config copy.
+ */
+static int
+__disagg_checkpoint_pick_up(WT_SESSION_IMPL *session, const char *meta_str,
+  const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_ITEM *metadata_page, bool force,
+  bool superseded_ok, bool snapshot_blocked)
+{
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    WT_DISAGG_METADATA metadata;
+    WT_SESSION_IMPL *internal_session;
+    wt_timestamp_t pinned_ts;
+
+    WT_CLEAR(metadata);
+    internal_session = NULL;
+
     WT_ERR_MSG_CHK(session, __wt_disagg_parse_meta(session, metadata_page, &metadata),
-      "Failed to parse shared metadata for checkpoint %" PRIu64, ckpt_meta.metadata_lsn);
+      "Failed to parse shared metadata for checkpoint %" PRIu64, ckpt_meta->metadata_lsn);
 
     /*
      * Defer adopting a newer checkpoint while a reader may still need what it discards, so those
@@ -2260,84 +2318,114 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
      * so it would never catch up.
      */
     if (!force &&
-      ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn)) {
+      ckpt_meta->metadata_lsn >
+        __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn)) {
         __wt_txn_get_pinned_timestamp(session, &pinned_ts, WT_TXN_TS_INCLUDE_OLDEST);
         if (snapshot_blocked ||
           (pinned_ts != WT_TS_NONE && metadata.oldest_timestamp > pinned_ts)) {
             /* A queued checkpoint stays queued. */
             if (!superseded_ok) {
                 WT_ERR(__disagg_defer_checkpoint(session, meta_str, metadata_page,
-                  ckpt_meta.metadata_lsn, metadata.oldest_timestamp));
+                  ckpt_meta->metadata_lsn, metadata.oldest_timestamp));
                 /*
                  * Wake the pickup server for two reasons. A deferral arms its periodic retry: with
                  * nothing queued it sleeps with no timeout. The readers that blocked this delivery
                  * may also have ended while the metadata was being fetched, so it may already be
                  * adoptable.
                  */
-                __disagg_deferred_pickup_wake(session);
+                __wt_disagg_deferred_pickup_wake(session);
             }
             goto err;
         }
     }
 
     /* Now actually pick up the checkpoint. */
+    WT_ERR(__wt_open_internal_session(
+      S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     WT_WITH_CHECKPOINT_LOCK(internal_session,
-      ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta, &metadata, superseded_ok));
+      ret = __disagg_pick_up_checkpoint(internal_session, ckpt_meta, &metadata, superseded_ok));
     WT_ERR(ret);
 
     /* Record the picked-up checkpoint's version fields; a failed pickup leaves them unchanged. */
-    WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta.version);
+    WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta->version);
     WT_STAT_CONN_SET(
-      session, disagg_checkpoint_storage_compatible_version, ckpt_meta.compatible_version);
+      session, disagg_checkpoint_storage_compatible_version, ckpt_meta->compatible_version);
 
 err:
-    /* A failed pickup must not leave the failed checkpoint's encoding mode adopted. */
-    if (ret != 0) {
-        if (prev_encoding)
-            F_SET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-        else
-            F_CLR(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-        disagg->stable_tombstone_encoding_adopted = prev_adopted;
-        WT_STAT_CONN_SET(session, disagg_stable_tombstone_encoding,
-          prev_adopted || F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED) ?
-            (prev_encoding ? 1 : 2) :
-            0);
-    }
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
-    __wt_buf_free(session, &fetched_page);
-    __wt_free(session, meta_str);
     return (ret);
 }
 
 /*
  * __wti_disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from metadata config. A checkpoint older than the adopted one is an
- *     error here: nothing races this caller, so going backwards means the checkpoint is wrong.
+ *     Pick up a newly delivered checkpoint from its metadata config. A checkpoint older than the
+ *     adopted one is an error here: nothing races this caller, so going backwards means the
+ *     checkpoint is wrong.
  */
 int
 __wti_disagg_pick_up_checkpoint_meta(
   WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool force)
 {
-    return (
-      __disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, force, false, NULL));
+    WT_DECL_RET;
+    WT_DISAGG_CHECKPOINT_META ckpt_meta;
+    WT_DISAGG_ENCODING_STATE encoding_state;
+    WT_ITEM page;
+    char *meta_str;
+    bool snapshot_blocked;
+
+    WT_CLEAR(ckpt_meta);
+    WT_CLEAR(page);
+    meta_str = NULL;
+    __disagg_encoding_save(session, &encoding_state);
+
+    WT_ERR(__disagg_checkpoint_pick_up_prepare(
+      session, meta_data, meta_data_size, force, false, &ckpt_meta, &meta_str, &snapshot_blocked));
+    WT_ERR(__disagg_fetch_checkpoint_metadata_page(session, &ckpt_meta, &page));
+    WT_ERR(__disagg_checkpoint_pick_up(
+      session, meta_str, &ckpt_meta, &page, force, false, snapshot_blocked));
+
+err:
+    if (ret != 0)
+        __disagg_encoding_restore(session, &encoding_state);
+    __wt_buf_free(session, &page);
+    __wt_free(session, meta_str);
+    return (ret);
 }
 
 /*
  * __disagg_adopt_deferred_checkpoint_meta --
- *     Adopt a checkpoint whose pickup was deferred. Finding it superseded is the expected outcome
- *     of losing a race with a concurrent adoption, so it is reported without an error message; the
- *     caller decides whether the race left the deferred pickup satisfied. The snapshot deferral
- *     check is skipped: the selection already decided this checkpoint may be adopted. A forced
- *     adoption skips the timestamped reader check too. The checkpoint's cached shared metadata page
- *     is lent for the call; the caller keeps ownership of it.
+ *     Adopt a checkpoint whose pickup was deferred, using the shared metadata page kept with it.
+ *     Finding it superseded is the expected outcome of losing a race with a concurrent adoption, so
+ *     it is reported without an error message; the caller decides whether the race left the
+ *     deferred pickup satisfied. The snapshot deferral check is skipped: the selection already
+ *     decided this checkpoint may be adopted. A forced adoption skips the timestamped reader check
+ *     too. The caller keeps ownership of the page.
  */
 static int
 __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
-  size_t meta_data_size, bool force, const WT_ITEM *cached_page)
+  size_t meta_data_size, bool force, const WT_ITEM *page)
 {
-    return (__disagg_pick_up_checkpoint_meta(
-      session, meta_data, meta_data_size, force, true, cached_page));
+    WT_DECL_RET;
+    WT_DISAGG_CHECKPOINT_META ckpt_meta;
+    WT_DISAGG_ENCODING_STATE encoding_state;
+    char *meta_str;
+    bool snapshot_blocked;
+
+    WT_CLEAR(ckpt_meta);
+    meta_str = NULL;
+    __disagg_encoding_save(session, &encoding_state);
+
+    WT_ERR(__disagg_checkpoint_pick_up_prepare(
+      session, meta_data, meta_data_size, force, true, &ckpt_meta, &meta_str, &snapshot_blocked));
+    WT_ERR(__disagg_checkpoint_pick_up(
+      session, meta_str, &ckpt_meta, page, force, true, snapshot_blocked));
+
+err:
+    if (ret != 0)
+        __disagg_encoding_restore(session, &encoding_state);
+    __wt_free(session, meta_str);
+    return (ret);
 }
 
 #ifdef HAVE_UNITTEST
