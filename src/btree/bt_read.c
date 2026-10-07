@@ -105,11 +105,6 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     btree = S2BT(session);
 
-    if (__wt_atomic_load_int32_relaxed(&btree->evict_disabled) > 0) {
-        WT_RET(__wt_hazard_clear(session, ref));
-        return (EBUSY);
-    }
-
     /*
      * This function always releases the hazard pointer - ensure that's done regardless of whether
      * we can get exclusive access. Take some care with order of operations: if we release the

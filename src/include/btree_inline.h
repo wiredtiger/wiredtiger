@@ -2709,9 +2709,10 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /*
      * If the session is configured with the release_evict_pages debug option, we will attempt to
-     * evict the pages when they are no longer needed.
+     * evict the pages when they are no longer needed, unless eviction is disabled for the tree.
      */
-    if (F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT)) {
+    if (F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT) &&
+      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0) {
         WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
         return (0);
     }
@@ -2729,8 +2730,9 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);
         }
-    } else if (!LF_ISSET(WT_READ_NO_EVICT) && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
-      __wt_page_evict_swap(ref->page)) {
+    } else if (!LF_ISSET(WT_READ_NO_EVICT) &&
+      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0 &&
+      !F_ISSET(session, WT_SESSION_NO_RECONCILE) && __wt_page_evict_swap(ref->page)) {
         WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
         return (0);
     }
