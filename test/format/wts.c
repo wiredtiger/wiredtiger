@@ -987,10 +987,9 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
                       GV(DISAGG_VICTIM_CACHE_SIZE), puts, app_puts, cold_skipped, put_failures,
                       put_time, puts == 0 ? 0 : put_time / puts) >= 0);
 
-    /*
-     * Repeat it on stdout, deliberately ignoring quiet: format.sh always runs quiet and redirects
-     * each job to its own log, which is the file kept when a run fails.
-     */
+    if (GV(QUIET))
+        return;
+
     printf("--- victim cache: %" PRIu32 "MB, %" PRId64 " pages cached (%" PRId64
            " by application threads), %" PRId64 " failed ---\n",
       GV(DISAGG_VICTIM_CACHE_SIZE), puts, app_puts, put_failures);
