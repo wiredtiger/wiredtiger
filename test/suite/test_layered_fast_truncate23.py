@@ -102,15 +102,21 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
         with closing(self.session.open_cursor(self.other_uri)) as cursor:
             with self.transaction(commit_timestamp=30):
                 cursor[1] = 'v'
-        with self.transaction(commit_timestamp=40):
-            self.session.truncate(self.other_uri, None, None, None)
-        self.assertEqual(self.metric('list_entries_max'), 1)
-        self.session.begin_transaction()
-        self.truncate_on(self.session, 60, 80)
-        self.assertEqual(self.metric('list_entries_max', clear=True), 2)
-        self.assertEqual(self.metric('list_entries_max'), 2)
-        self.session.rollback_transaction()
-        self.assertEqual(self.metric('list_entries_max'), 2)
+        with closing(self.conn.open_session()) as other:
+            other.begin_transaction()
+            other.truncate(self.other_uri, None, None, None)
+            other.commit_transaction('commit_timestamp=' + self.timestamp_str(40))
+            for uri in (None, self.uri, self.other_uri):
+                self.assertEqual(self.metric('list_entries_max', uri), 1)
+            other.begin_transaction()
+            self.truncate_on(other, 60, 80)
+            for uri in (None, self.uri):
+                self.assertEqual(self.metric('list_entries_max', uri, clear=True), 2)
+                self.assertEqual(self.metric('list_entries_max', uri), 2)
+            self.assertEqual(self.metric('list_entries_max', self.other_uri), 1)
+            other.rollback_transaction()
+            for uri in (None, self.uri):
+                self.assertEqual(self.metric('list_entries_max', uri), 2)
 
     def test_search_hits_and_misses(self):
         self.setup_tables()
