@@ -36,27 +36,23 @@ TEST_CASE("truncate garbage collection counts runs and entries", "[truncate_list
     insert_durable_entry(fixture, 20);
     insert_durable_entry(fixture, 10);
 
-    __ut_layered_table_truncate_gc(session, table, WT_TS_NONE);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == 0);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 0);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) == 0);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 0);
-
-    __ut_layered_table_truncate_gc(session, table, 10);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_examined) == 4);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) == 4);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == 1);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 1);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == 1);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 1);
-
-    __ut_layered_table_truncate_gc(session, table, 20);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) == 7);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_examined) == 7);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == 2);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 2);
-    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == 2);
-    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 2);
+    for (const auto prune_ts :
+      {wt_timestamp_t(WT_TS_NONE), wt_timestamp_t(10), wt_timestamp_t(20)}) {
+        CAPTURE(prune_ts);
+        __ut_layered_table_truncate_gc(session, table, prune_ts);
+        const auto runs = prune_ts / 10;
+        const auto examined = prune_ts == 0 ? 0 : (prune_ts == 10 ? 4 : 7);
+        CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == runs);
+        CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == runs);
+        CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_examined) ==
+          examined);
+        CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) ==
+          examined);
+        CHECK(
+          WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == runs);
+        CHECK(
+          WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == runs);
+    }
     CHECK(truncate_list_size(*table) == 2);
 }
 
@@ -70,27 +66,44 @@ TEST_CASE(
     auto *lock = &table->truncate_list.lock;
     WT_SESSION_IMPL waiter{};
     waiter.iface.connection = &S2C(owner)->iface;
-    SECTION("read acquires an uncontended lock")
+    const bool reader = GENERATE(true, false);
+    CAPTURE(reader);
+    const auto acquisitions = [&] {
+        return reader ? WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) :
+                        WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count);
+    };
+    SECTION("uncontended acquisition")
     {
-        __wt_readlock(owner, lock);
-        __wt_readunlock(owner, lock);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) == 1);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
+        (reader ? __wt_readlock : __wt_writelock)(owner, lock);
+        (reader ? __wt_readunlock : __wt_writeunlock)(owner, lock);
+        CHECK(acquisitions() == 1);
+        if (reader)
+            CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
         CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
     }
-    SECTION("read waits for a writer")
+    SECTION("contended acquisition")
     {
-        __wt_writelock(owner, lock);
-        const auto before_wait =
-          WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application);
+        if (!reader)
+            F_SET(&waiter, WT_SESSION_INTERNAL);
+        (reader ? __wt_writelock : __wt_readlock)(owner, lock);
+        const auto wait_time = [&] {
+            return reader ?
+              WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) :
+              WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal);
+        };
+        const auto before_wait = wait_time();
         std::thread thread([&] {
-            __wt_readlock(&waiter, lock);
-            __wt_readunlock(&waiter, lock);
+            if (reader) {
+                __wt_readlock(&waiter, lock);
+                __wt_readunlock(&waiter, lock);
+            } else
+                __wt_layered_table_truncate_clear(&waiter, table);
         });
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         bool queued = false;
         /* Entering the condition wait follows initialization of the lock's wait timer. */
-        while (!(queued = __wt_atomic_load_int32(&lock->cond_readers->waiters) > 0) &&
+        auto *cond = reader ? lock->cond_readers : lock->cond_writers;
+        while (!(queued = __wt_atomic_load_int32(&cond->waiters) > 0) &&
           std::chrono::steady_clock::now() < deadline)
             std::this_thread::yield();
         const auto start = __wt_clock(owner);
@@ -98,44 +111,16 @@ TEST_CASE(
         while (!(elapsed = WT_CLOCKDIFF_MS(__wt_clock(owner), start) >= 10) &&
           std::chrono::steady_clock::now() < deadline)
             std::this_thread::yield();
-        __wt_writeunlock(owner, lock);
+        (reader ? __wt_writeunlock : __wt_readunlock)(owner, lock);
         thread.join();
         REQUIRE(queued);
         REQUIRE(elapsed);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) == 1);
-        CHECK(
-          WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) > before_wait);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
-    }
-    SECTION("write acquires an uncontended lock")
-    {
-        __wt_writelock(owner, lock);
-        __wt_writeunlock(owner, lock);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count) == 1);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
-    }
-    SECTION("write waits for a reader")
-    {
-        F_SET(&waiter, WT_SESSION_INTERNAL);
-        __wt_readlock(owner, lock);
-        std::thread thread([&] { __wt_layered_table_truncate_clear(&waiter, table); });
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        bool queued = false;
-        while (!(queued = __wt_atomic_load_int32(&lock->cond_writers->waiters) > 0) &&
-          std::chrono::steady_clock::now() < deadline)
-            std::this_thread::yield();
-        const auto start = __wt_clock(owner);
-        bool elapsed = false;
-        while (!(elapsed = WT_CLOCKDIFF_MS(__wt_clock(owner), start) >= 10) &&
-          std::chrono::steady_clock::now() < deadline)
-            std::this_thread::yield();
-        __wt_readunlock(owner, lock);
-        thread.join();
-        REQUIRE(queued);
-        REQUIRE(elapsed);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count) == 1);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) > 0);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
+        CHECK(acquisitions() == 1);
+        CHECK(wait_time() > before_wait);
+        if (reader)
+            CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
+        else
+            CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
     }
 }
 

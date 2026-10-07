@@ -63,42 +63,10 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     def test_list_lifecycle(self):
         self.setup_tables()
-        self.session.begin_transaction()
-        self.truncate_on(self.session, 20, 40)
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_entries_inserted', uri), 1)
-        self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 0)
-        self.session.rollback_transaction()
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_rollback_entries_removed', uri), 1)
-
-    def test_clear_resets_counters(self):
-        self.setup_tables()
-        self.truncate(20, 40, commit_timestamp=20)
-        self.session.begin_transaction()
-        self.truncate_on(self.session, 60, 80)
-        self.session.rollback_transaction()
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_entries_inserted', uri, clear=True), 2)
-            self.assertEqual(self.metric('list_entries_inserted', uri), 0)
-
-    def test_connection_combines_tables(self):
-        self.setup_tables()
-        self.truncate(20, 40, commit_timestamp=20)
-        with closing(self.session.open_cursor(self.other_uri)) as cursor:
-            with self.transaction(commit_timestamp=30):
-                cursor[1] = 'v'
-        with self.transaction(commit_timestamp=40):
-            self.session.truncate(self.other_uri, None, None, None)
-        self.assertEqual(self.metric('list_entries_inserted'), 2)
-        self.assertEqual(self.metric('list_entries_inserted', self.uri), 1)
-        self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 1)
-
-    def test_largest_observed_list(self):
-        self.setup_tables()
         self.ignoreStdoutPattern('Picking up the same checkpoint')
         self.assertEqual(self.metric('list_entries_max'), 0)
         self.truncate(20, 40, commit_timestamp=20)
+        self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 0)
         with closing(self.session.open_cursor(self.other_uri)) as cursor:
             with self.transaction(commit_timestamp=30):
                 cursor[1] = 'v'
@@ -106,20 +74,36 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
             other.begin_transaction()
             other.truncate(self.other_uri, None, None, None)
             other.commit_transaction('commit_timestamp=' + self.timestamp_str(40))
+            self.assertEqual(self.metric('list_entries_inserted'), 2)
+            for uri in (self.uri, self.other_uri):
+                self.assertEqual(self.metric('list_entries_inserted', uri), 1)
             for uri in (None, self.uri, self.other_uri):
                 self.assertEqual(self.metric('list_entries_max', uri), 1)
             other.begin_transaction()
             self.truncate_on(other, 60, 80)
             for uri in (None, self.uri):
+                self.assertEqual(self.metric('list_entries_inserted', uri), 3 if uri is None else 2)
                 self.assertEqual(self.metric('list_entries_max', uri, clear=True), 2)
                 self.assertEqual(self.metric('list_entries_max', uri), 2)
             self.assertEqual(self.metric('list_entries_max', self.other_uri), 1)
             other.rollback_transaction()
             for uri in (None, self.uri):
                 self.assertEqual(self.metric('list_entries_max', uri), 2)
+                self.assertEqual(self.metric('list_rollback_entries_removed', uri), 1)
+                self.assertEqual(self.metric('list_entries_inserted', uri), 0)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        for uri in (None, self.uri, self.other_uri):
+            self.assertEqual(self.metric('list_clear_entries_removed', uri), 2 if uri is None else 1)
+            self.assertEqual(self.metric('list_entries_max', uri), 1 if uri == self.other_uri else 2)
 
     def test_search_hits_and_misses(self):
         self.setup_tables()
+        before_hits = self.metric('list_search_hits')
+        before_misses = self.metric('list_search_misses')
+        self.assertTrue(self.key_exists(80))
+        self.assertEqual(self.metric('list_search_hits'), before_hits)
+        self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
         self.truncate(20, 40, commit_timestamp=20)
         before_hit = self.metric('list_search_hits')
         before_miss = self.metric('list_search_misses')
@@ -136,17 +120,6 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.assertEqual(self.metric('list_search_misses', self.uri) - before_table_miss, 1)
         self.assertEqual(self.metric('list_search_misses', self.other_uri), 0)
 
-    def test_empty_list_search_miss(self):
-        self.setup_tables()
-        before_hits = self.metric('list_search_hits')
-        before_misses = self.metric('list_search_misses')
-        self.assertTrue(self.key_exists(80))
-        self.assertEqual(self.metric('list_search_hits'), before_hits)
-        self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
-
-    def test_write_probe_counted_as_search(self):
-        self.setup_tables()
-        self.truncate(20, 40, commit_timestamp=20)
         before_hit = self.metric('list_search_hits')
         before_miss = self.metric('list_search_misses')
         with closing(self.session.open_cursor(self.uri, None, 'overwrite=false')) as cursor:
@@ -187,13 +160,3 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.session.rollback_transaction()
         for uri in (None, self.uri):
             self.assertGreater(self.metric('list_search_hits', uri), 0)
-
-    def test_stepup_clears_list(self):
-        self.setup_tables()
-        self.ignoreStdoutPattern('Picking up the same checkpoint')
-        self.truncate(20, 40, commit_timestamp=20)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
-        self.conn.reconfigure('disaggregated=(role="leader")')
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_clear_entries_removed', uri), 1)
-        self.assertEqual(self.metric('list_entries_max'), 1)
