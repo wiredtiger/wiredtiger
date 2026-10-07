@@ -92,12 +92,15 @@ TEST_CASE(
         while (!(queued = __wt_atomic_load_int32(&lock->cond_readers->waiters) > 0) &&
           std::chrono::steady_clock::now() < deadline)
             std::this_thread::yield();
-        const auto release_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
-        while (std::chrono::steady_clock::now() < release_time)
+        const auto start = __wt_clock(owner);
+        bool elapsed = false;
+        while (!(elapsed = WT_CLOCKDIFF_MS(__wt_clock(owner), start) >= 10) &&
+          std::chrono::steady_clock::now() < deadline)
             std::this_thread::yield();
         __wt_writeunlock(owner, lock);
         thread.join();
         REQUIRE(queued);
+        REQUIRE(elapsed);
         CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) == 1);
         CHECK(
           WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) > before_wait);
@@ -120,12 +123,15 @@ TEST_CASE(
         while (!(queued = __wt_atomic_load_int32(&lock->cond_writers->waiters) > 0) &&
           std::chrono::steady_clock::now() < deadline)
             std::this_thread::yield();
-        const auto release_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
-        while (std::chrono::steady_clock::now() < release_time)
+        const auto start = __wt_clock(owner);
+        bool elapsed = false;
+        while (!(elapsed = WT_CLOCKDIFF_MS(__wt_clock(owner), start) >= 10) &&
+          std::chrono::steady_clock::now() < deadline)
             std::this_thread::yield();
         __wt_readunlock(owner, lock);
         thread.join();
         REQUIRE(queued);
+        REQUIRE(elapsed);
         CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count) == 1);
         CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) > 0);
         CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
