@@ -14,7 +14,7 @@ static int __disagg_check_meta_fields(
 #endif
 
 static int __disagg_adopt_deferred_checkpoint_meta(
-  WT_SESSION_IMPL *, const char *, size_t, const WT_ITEM *);
+  WT_SESSION_IMPL *, const char *, size_t, WT_ITEM *);
 
 #define WT_DISAGG_URI_IS_SYSTEM(uri) (WT_IS_URI_METADATA(uri) || WT_IS_URI_HS(uri))
 
@@ -1413,13 +1413,14 @@ __disagg_deferred_ckpt_release(WT_SESSION_IMPL *session, WT_DISAGG_DEFERRED_CKPT
 /*
  * __disagg_defer_checkpoint --
  *     Remember a checkpoint whose adoption is deferred while transactional snapshots that predate
- *     it, or timestamped readers below its oldest timestamp, are active. The entry holds copies of
- *     the metadata config and the fetched shared metadata page, so the caller keeps ownership of
- *     what it passed in. The queue has its own lock, so deliveries never wait behind an adoption.
+ *     it, or timestamped readers below its oldest timestamp, are active. The entry copies the
+ *     metadata config and takes over the buffer of the fetched shared metadata page when it is
+ *     queued; the page is left untouched when the checkpoint is not queued. The queue has its own
+ *     lock, so deliveries never wait behind an adoption.
  */
 static int
-__disagg_defer_checkpoint(WT_SESSION_IMPL *session, const char *meta_str,
-  const WT_ITEM *metadata_page, uint64_t lsn, wt_timestamp_t oldest_timestamp)
+__disagg_defer_checkpoint(WT_SESSION_IMPL *session, const char *meta_str, WT_ITEM *metadata_page,
+  uint64_t lsn, wt_timestamp_t oldest_timestamp)
 {
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *newest;
@@ -1427,13 +1428,12 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, const char *meta_str,
 
     entry = NULL;
 
-    /* Build the entry before taking the lock: copying the page can be slow. */
+    /* Build the entry before taking the lock. */
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->holders = 1;
     entry->lsn = lsn;
     entry->oldest_timestamp = oldest_timestamp;
     WT_ERR(__wt_strdup(session, meta_str, &entry->meta));
-    WT_ERR(__wt_buf_set(session, &entry->metadata_buf, metadata_page->data, metadata_page->size));
 
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
 
@@ -1446,6 +1446,8 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, const char *meta_str,
      */
     newest = TAILQ_LAST(&disagg->deferred_ckpt_qh, __wt_disagg_deferred_ckpt_qh);
     if (newest == NULL || lsn > newest->lsn) {
+        entry->metadata_buf = *metadata_page;
+        WT_CLEAR(*metadata_page);
         TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
         entry = NULL;
         __disagg_advance_deferred_oldest(session, oldest_timestamp);
@@ -2264,11 +2266,12 @@ err:
  * __disagg_checkpoint_pick_up --
  *     Handle a checkpoint delivery once its shared metadata page is in hand: defer the adoption
  *     while a reader may still need what the checkpoint discards, otherwise pick it up. The caller
- *     keeps ownership of the page and of the config copy.
+ *     keeps ownership of the config copy, and of the page unless the checkpoint is deferred, which
+ *     takes the page's buffer; an adoption of a queued checkpoint is forced, so it never defers.
  */
 static int
 __disagg_checkpoint_pick_up(WT_SESSION_IMPL *session, const char *meta_str,
-  const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_ITEM *metadata_page, bool force,
+  const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_ITEM *metadata_page, bool force,
   bool superseded_ok, bool snapshot_blocked)
 {
     WT_DECL_RET;
@@ -2375,7 +2378,7 @@ err:
  */
 static int
 __disagg_adopt_deferred_checkpoint_meta(
-  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, const WT_ITEM *page)
+  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, WT_ITEM *page)
 {
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
