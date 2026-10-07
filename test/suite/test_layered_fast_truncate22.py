@@ -26,90 +26,45 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Truncate at read-committed or read-uncommitted isolation is rejected on a
-# follower.
-
-from contextlib import closing
+import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
-from wiredtiger import WiredTigerError
 from wtscenario import make_scenarios
-import wttest
 
+# Verify that a follower truncate obeys the commit timestamp requirement that every other write to
+# a disaggregated table obeys. The range holds no key the follower itself wrote, so the truncate
+# list entry is the only record of the operation.
 
 @disagg_test_class
 class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
-    """
-    Truncate at read-committed or read-uncommitted isolation is rejected on a
-    follower.
-    """
 
-    uris = [
-        ("layered", {"uri": "layered:fast_truncate"}),
-        ("table", {"uri": "table:fast_truncate"}),
-    ]
-
-    isolations = [
-        ("read_committed", {"isolation": "read-committed"}),
-        ("read_uncommitted", {"isolation": "read-uncommitted"}),
-    ]
+    test_name = __qualname__
+    conn_config = 'disaggregated=(role="leader"),'
+    uri = f'layered:{test_name}'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, uris, isolations)
-    conn_config = 'disaggregated=(role="leader"),'
 
-    ISOLATION_MSG = "/not supported in read-committed or read-uncommitted transactions/"
+    scenarios = make_scenarios(disagg_storages)
 
-    def start_uncommitted_truncate(self, session):
-        """Leave a truncate over 30-60 uncommitted on the given session."""
-        with (
-            closing(session.open_cursor(self.uri)) as start,
-            closing(session.open_cursor(self.uri)) as stop,
-        ):
-            start.set_key(30)
-            stop.set_key(60)
-            session.begin_transaction()
-            session.truncate(None, start, stop, None)
+    nitems = 100
 
-    def test_overlapping_truncate_with_ingest(self):
-        # A follower with stable keys 1-100 and ingest key 45.
-        self.setup_leader(keys=range_inclusive(1, 100))
-        self.setup_follower(keys=[45])
-        self.session.reconfigure('isolation=' + self.isolation)
-
-        with closing(self.conn.open_session()) as session_a:
-            self.start_uncommitted_truncate(session_a)
-            self.assertRaisesWithMessage(
-                WiredTigerError, lambda: self.truncate(40, 70), self.ISOLATION_MSG
-            )
-            self.session.rollback_transaction()
-            session_a.rollback_transaction()
-
-    def test_overlapping_truncate_no_ingest(self):
-        # A follower with stable keys 1-100 and an empty ingest table.
-        self.setup_leader(keys=range_inclusive(1, 100))
+    def test_untimestamped_follower_truncate_is_refused(self):
+        keys = range_inclusive(1, self.nitems)
+        self.setup_leader(keys=keys)
         self.setup_follower()
-        self.session.reconfigure('isolation=' + self.isolation)
 
-        with closing(self.conn.open_session()) as session_a:
-            self.start_uncommitted_truncate(session_a)
-            self.assertRaisesWithMessage(
-                WiredTigerError, lambda: self.truncate(40, 70), self.ISOLATION_MSG
-            )
-            self.session.rollback_transaction()
-            session_a.rollback_transaction()
+        start = self.session.open_cursor(self.uri)
+        start.set_key(self.key(1))
+        stop = self.session.open_cursor(self.uri)
+        stop.set_key(self.key(self.nitems))
+        self.session.begin_transaction()
+        self.session.truncate(None, start, stop, None)
+        start.close()
+        stop.close()
 
-    def test_truncate_without_conflict(self):
-        # A follower with stable keys 1-100 and no truncate in progress.
-        self.setup_leader(keys=range_inclusive(1, 100))
-        self.setup_follower()
-        self.session.reconfigure('isolation=' + self.isolation)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(),
+            '/commit timestamp is required for writes to disaggregated tables/')
 
-        self.assertRaisesWithMessage(
-            WiredTigerError, lambda: self.truncate(10, 20), self.ISOLATION_MSG
-        )
-        self.session.rollback_transaction()
-
-
-if __name__ == "__main__":
-    wttest.run()
+        # The refused commit rolled the truncate back, so every key is still visible.
+        self.assertEqual(self.visible_keys(), list(keys))
