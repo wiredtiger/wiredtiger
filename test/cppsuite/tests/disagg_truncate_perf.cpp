@@ -41,10 +41,8 @@
 
 using namespace test_harness;
 
-/*
- * Model MongoDB's oplog with increasing integer keys and fixed-size values, retiring whole markers
- * while retaining a configured window. Compare leader truncation of the stable tree with follower
- * truncate-list handling after restart and checkpoint pickup or an in-place step-down.
+/* Append fixed-size records to a layered table and measure truncation as leader, restarted
+ * follower, or in-place switch.
  */
 class disagg_truncate_perf : public test {
 public:
@@ -142,13 +140,6 @@ private:
     report(const std::string &name, uint64_t value)
     {
         metrics_writer::instance().add_stat(name, value);
-    }
-
-    static void
-    record_peak(uint64_t &peak, uint64_t seen)
-    {
-        if (seen > peak)
-            peak = seen;
     }
 };
 
@@ -298,8 +289,10 @@ disagg_truncate_perf::truncate_marker(
         ++_truncate_list_entries;
         uint64_t collected = static_cast<uint64_t>(metrics_monitor::get_stat(
           stat_cursor, WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED));
-        record_peak(_truncate_list_entries_peak,
-          _truncate_list_entries > collected ? _truncate_list_entries - collected : 0);
+        uint64_t uncollected =
+          _truncate_list_entries > collected ? _truncate_list_entries - collected : 0;
+        if (uncollected > _truncate_list_entries_peak)
+            _truncate_list_entries_peak = uncollected;
     }
 
     /*
@@ -307,7 +300,8 @@ disagg_truncate_perf::truncate_marker(
      * already dirty pins nothing new, and leaving those out would overstate what a truncate costs.
      */
     uint64_t charged = cost <= 0 ? 0 : static_cast<uint64_t>(cost);
-    record_peak(_truncate_pressure_bytes_peak, charged);
+    if (charged > _truncate_pressure_bytes_peak)
+        _truncate_pressure_bytes_peak = charged;
 
     ++_truncate_ops;
     _truncated_key = marker_key;
