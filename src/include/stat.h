@@ -87,14 +87,18 @@
 #define WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld) (int)(&(stats)->fld - (int64_t *)(stats))
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_STAT_CLEAR 0x01u
-#define WT_STAT_JSON 0x02u
-#define WT_STAT_ON_CLOSE 0x04u
-#define WT_STAT_TYPE_ALL 0x08u
-#define WT_STAT_TYPE_CACHE_WALK 0x10u
-#define WT_STAT_TYPE_FAST 0x20u
-#define WT_STAT_TYPE_SIZE 0x40u
-#define WT_STAT_TYPE_TREE_WALK 0x80u
+#define WT_STAT_CLEAR 0x001u
+#define WT_STAT_JSON 0x002u
+#define WT_STAT_ON_CLOSE 0x004u
+#define WT_STAT_OTEL_COUNTERS 0x008u
+#define WT_STAT_OTEL_GAUGES 0x010u
+#define WT_STAT_OTEL_HISTOGRAMS 0x020u
+#define WT_STAT_OTEL_NONE 0x040u
+#define WT_STAT_TYPE_ALL 0x080u
+#define WT_STAT_TYPE_CACHE_WALK 0x100u
+#define WT_STAT_TYPE_FAST 0x200u
+#define WT_STAT_TYPE_SIZE 0x400u
+#define WT_STAT_TYPE_TREE_WALK 0x800u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
@@ -326,7 +330,11 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
       WT_SESSION_IMPL *session, uint64_t msecs)                 \
     {                                                           \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
-        if (msecs < 10)                                         \
+        if (msecs < 2)                                          \
+            WT_STAT_CONN_INCR(session, stat##_lt2);             \
+        else if (msecs < 5)                                     \
+            WT_STAT_CONN_INCR(session, stat##_lt5);             \
+        else if (msecs < 10)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt10);            \
         else if (msecs < 50)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt50);            \
@@ -1577,7 +1585,11 @@ struct __wt_dsrc_stats {
     int64_t btree_maxleafvalue;
     int64_t btree_maximum_depth;
     int64_t btree_entries;
+    int64_t btree_obsolete_ondisk_kv_bytes;
+    int64_t btree_obsolete_ondisk_kv_bytes_mixed;
     int64_t btree_overflow;
+    int64_t btree_obsolete_ondisk_kv_analyzed;
+    int64_t btree_obsolete_ondisk_kv_pages;
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf_avg_entries;
