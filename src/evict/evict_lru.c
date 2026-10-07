@@ -17,6 +17,7 @@ static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *
 static void __evict_stat_skip_cannot_evict(WT_SESSION_IMPL *session, int level);
 static bool __evict_skip_tree(
   WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level, bool *clear_maybe_nonemptyp);
+static bool __evict_clean_ramp_in_band(WT_SESSION_IMPL *session);
 static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed, bool is_server);
 
 #define WT_EVICT_HAS_WORKERS(s) \
@@ -684,7 +685,7 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
  * __evict_clean_ramp_in_band --
  *     Return true if occupancy is between the target and the trigger, where the ramp decides.
  */
-static WT_INLINE bool
+static bool
 __evict_clean_ramp_in_band(WT_SESSION_IMPL *session)
 {
     WT_EVICT *evict;
