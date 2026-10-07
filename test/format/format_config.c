@@ -685,6 +685,7 @@ config_backward_compatible(void)
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
     BC_CHECK("block_cache", BLOCK_CACHE);
     BC_CHECK("disagg.victim_cache", DISAGG_VICTIM_CACHE);
+    BC_CHECK("disagg.victim_cache.size", DISAGG_VICTIM_CACHE_SIZE);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
@@ -1541,9 +1542,10 @@ config_disagg_victim_cache(void)
     uint64_t size_mb;
     char buf[64];
 
-    /* Setting the size below clears this flag, so the warning has to come first. */
-    if (config_explicit(NULL, "disagg.victim_cache.size"))
-        WARN("%s", "ignoring disagg.victim_cache.size, it is computed from the cache size");
+    /* A size the user set turns the cache on: the size is the switch. */
+    if (config_explicit(NULL, "disagg.victim_cache.size") &&
+      !config_explicit(NULL, "disagg.victim_cache"))
+        config_single(NULL, "disagg.victim_cache=1", true);
 
     /* The victim cache lives in the page log, so a run without one has nowhere to put pages. */
     if (!g.disagg_storage_config) {
@@ -1567,7 +1569,7 @@ config_disagg_victim_cache(void)
         config_off(NULL, "disagg.victim_cache");
     }
 
-    if (GV(DISAGG_VICTIM_CACHE)) {
+    if (GV(DISAGG_VICTIM_CACHE) && !config_explicit(NULL, "disagg.victim_cache.size")) {
         /* A fifth of the cache, capped. The memory is extra, not taken from the cache. */
         size_mb = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5);
         testutil_snprintf(buf, sizeof(buf), "disagg.victim_cache.size=%" PRIu64, size_mb);
