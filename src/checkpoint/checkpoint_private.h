@@ -41,7 +41,7 @@ typedef enum {
 
 /*
  * WTI_CHECKPOINT_DB_CONFIG --
- *     Database checkpoint configuration, parsed once per checkpoint.
+ *     Checkpoint configuration, parsed once per database checkpoint or file checkpoint.
  */
 struct __wti_checkpoint_db_config {
     bool can_skip;
