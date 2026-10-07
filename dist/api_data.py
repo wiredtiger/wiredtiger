@@ -694,8 +694,19 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
-        # FIXME-WT-18608: Set default to false once we fix all the issues on the MongoDB side.
-        Config('disagg_commit_ts_optional', 'true', r'''
+        Config('disagg_block_header_upgrade', 'none', r'''
+            modify the disaggregated block manager to pretend that it writes a newer, larger block
+            header, to test upgrade/downgrade of block headers. The \c v1_oversized choice keeps
+            the version 1 header but records a larger header size in it, to exercise
+            \c disagg_block_header_v1_ignore_size. Values other than \c none are only available in
+            diagnostic builds.''',
+            choices=['none', 'compatible', 'incompatible', 'v1_oversized'], undoc=True),
+        Config('disagg_block_header_v1_ignore_size', 'false', r'''
+            if true, when reading a disaggregated block whose header version is 1 but whose
+            recorded header size is not the version 1 size, print a verbose warning and read the
+            block using the version 1 size.''',
+            type='boolean', undoc=True),
+        Config('disagg_commit_ts_optional', 'false', r'''
             !!! FOR INTERNAL TESTING ONLY. If true, transactions writing to disaggregated
             tables are not required to carry a commit timestamp.''',
             type='boolean', undoc=True),
@@ -1875,8 +1886,12 @@ methods = {
         the default configuration is the database configuration. The "clear" configuration
         resets statistics after gathering them, where appropriate (for example, a cache size
         statistic is not cleared, while the count of cursor insert operations will be cleared).
-        See @ref statistics for more information''',
-        type='list', choices=['all', 'cache_walk', 'fast', 'clear', 'size', 'tree_walk']),
+        At most one of the "otel_" options may also be configured to specify an OTel metric type.
+        "otel_none" specifies that only metrics without an OTel metric type are gathered. See @ref
+        statistics for more information''',
+        type='list',
+        choices=['all', 'cache_walk', 'clear', 'fast', 'otel_counters', 'otel_gauges',
+                 'otel_histograms', 'otel_none', 'size', 'tree_walk']),
     Config('target', '', r'''
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),

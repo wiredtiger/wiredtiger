@@ -289,7 +289,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * way to consider the block manager's maximum cookie size versus the
      * minimum Btree internal node size.
      */
-    btree->block_header = bm->block_header(bm);
+    btree->block_header_write_size = bm->block_header_write_size(bm, session);
 
     /*
      * Open the specified checkpoint unless it's a special command (special commands are responsible
@@ -969,6 +969,13 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
           "all encryption and compression options");
     }
     WT_ERR(ret);
+
+    /* The root reference is always internal. */
+    if (!WT_PAGE_TYPE_IS_INTERNAL(((const WT_PAGE_HEADER *)dsk.data)->type)) {
+        F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+        WT_ERR_MSG(session, WT_ERROR, "root page from %s (address %s) is not an internal page",
+          session->dhandle->name, (const char *)tmp->data);
+    }
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of

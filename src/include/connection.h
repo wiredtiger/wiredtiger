@@ -43,6 +43,9 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
+/* Connection methods share the default session. The method's name is kept per thread instead. */
+extern WT_THREAD_LOCAL const char *__wt_conn_api_name;
+
 typedef enum __wt_background_compact_cleanup_stat_type {
     BACKGROUND_COMPACT_CLEANUP_EXIT,      /* Cleanup when the thread exits */
     BACKGROUND_COMPACT_CLEANUP_OFF,       /* Cleanup when the thread is disabled */
@@ -208,6 +211,9 @@ struct __wt_disagg_metadata_op {
 
     /* The operation was issued inside the step-down window, so it belongs to the next era. */
     bool in_step_down_window;
+
+    /* The operation was queued before a stable schema epoch was set. */
+    bool before_stable_epoch;
 
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
@@ -846,6 +852,19 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE --
+ *     The debug mode for upgrade/downgrade of the disaggregated storage block header.
+ */
+typedef enum __wt_conn_debug_disagg_block_header_upgrade {
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE = 0,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED
+} WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE;
+#endif
+
 /*
  * WT_CONN_DEBUG --
  *     Connection debug-mode configuration and state.
@@ -886,6 +905,12 @@ struct __wt_conn_debug {
     /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE disagg_address_cookie_upgrade;
     bool disagg_address_cookie_optional_field;
+
+#ifdef HAVE_DIAGNOSTIC
+    /* The debug mode for upgrade/downgrade of the disaggregated storage block header. */
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE disagg_block_header_upgrade;
+#endif
+    bool disagg_block_header_v1_ignore_size;
 };
 
 /*
@@ -1135,6 +1160,8 @@ struct __wt_connection_impl {
         TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
         bool running;
         uint32_t thread_count;
+        wt_shared uint64_t tables_drained; /* Ingest tables drained, current step up */
+        wt_shared uint64_t drain_bytes;    /* Bytes moved to stable tables, current step up */
     } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;

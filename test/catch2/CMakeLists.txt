@@ -14,9 +14,11 @@ else()
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
+        misc_tests/test_conn_api_name.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
+        misc_tests/test_disagg_block_header_size.cpp
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_block_read_checksum.cpp
         misc_tests/test_disagg_meta_config.cpp
@@ -36,7 +38,9 @@ else()
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
+        misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_ref_page_type.cpp
         misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_snapshot_pickup.cpp

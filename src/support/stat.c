@@ -75,7 +75,11 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: maximum leaf page value size",
   "btree: maximum tree depth",
   "btree: number of key/value pairs",
+  "btree: obsolete inline value bytes",
+  "btree: obsolete inline value bytes on mixed pages",
   "btree: overflow pages",
+  "btree: pages analyzed for obsolete inline values",
+  "btree: pages with obsolete inline values",
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf page recent average entries (EWMA), or UINT64_MAX if never tracked and "
@@ -598,7 +602,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_maxleafvalue = 0;
     stats->btree_maximum_depth = 0;
     stats->btree_entries = 0;
+    stats->btree_obsolete_inline_bytes = 0;
+    stats->btree_obsolete_inline_bytes_mixed = 0;
     stats->btree_overflow = 0;
+    stats->btree_obsolete_inline_analyzed = 0;
+    stats->btree_obsolete_inline_pages = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf_avg_entries = 0;
@@ -1075,7 +1083,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     if (from->btree_maximum_depth > to->btree_maximum_depth)
         to->btree_maximum_depth = from->btree_maximum_depth;
     to->btree_entries += from->btree_entries;
+    to->btree_obsolete_inline_bytes += from->btree_obsolete_inline_bytes;
+    to->btree_obsolete_inline_bytes_mixed += from->btree_obsolete_inline_bytes_mixed;
     to->btree_overflow += from->btree_overflow;
+    to->btree_obsolete_inline_analyzed += from->btree_obsolete_inline_analyzed;
+    to->btree_obsolete_inline_pages += from->btree_obsolete_inline_pages;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf_avg_entries += from->btree_row_leaf_avg_entries;
@@ -1588,7 +1600,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     if ((v = WT_STAT_DSRC_READ(from, btree_maximum_depth)) > to->btree_maximum_depth)
         to->btree_maximum_depth = v;
     to->btree_entries += WT_STAT_DSRC_READ(from, btree_entries);
+    to->btree_obsolete_inline_bytes += WT_STAT_DSRC_READ(from, btree_obsolete_inline_bytes);
+    to->btree_obsolete_inline_bytes_mixed +=
+      WT_STAT_DSRC_READ(from, btree_obsolete_inline_bytes_mixed);
     to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
+    to->btree_obsolete_inline_analyzed += WT_STAT_DSRC_READ(from, btree_obsolete_inline_analyzed);
+    to->btree_obsolete_inline_pages += WT_STAT_DSRC_READ(from, btree_obsolete_inline_pages);
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
     to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
@@ -2279,6 +2296,8 @@ static const char *const __stats_connection_desc[] = {
   "timestamp",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
+  "cache: eviction server skips restored pages whose pinned stable timestamp and oldest "
+  "transaction ID have not moved since the last eviction",
   "cache: eviction server skips resuming trees whose walk already traversed the whole tree",
   "cache: eviction server skips stable btrees in disagg",
   "cache: eviction server skips tree that we do not want to evict",
@@ -2745,8 +2764,16 @@ static const char *const __stats_connection_desc[] = {
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step up checkpoint restart most recent time (msecs)",
+  "disagg: step up deferred checkpoint pickup retries before stepping up",
+  "disagg: step up deferred checkpoint pickup retry most recent time (msecs)",
   "disagg: step up in progress",
   "disagg: step up ingest table clear truncates retried after a conflict",
+  "disagg: step up ingest table drain bytes moved to stable tables",
+  "disagg: step up ingest table drain most recent time (msecs)",
+  "disagg: step up ingest tables drained",
+  "disagg: step up missing stable table create most recent time (msecs)",
+  "disagg: step up missing stable tables created",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
   "layered: Layered table cursor insert operations",
@@ -3072,6 +3099,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
   "reconciliation: writes skipped in disaggregated storage",
+  "session: history store verify number of btrees checked against the data store",
   "session: open session count",
   "session: session query timestamp calls",
   "session: table alter failed calls",
@@ -3103,7 +3131,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table truncate failed calls",
   "session: table truncate successful calls",
   "session: table verify failed calls",
-  "session: table verify number of keys checked against the history store",
+  "session: table verify number of history store keys checked against the data store",
   "session: table verify successful calls",
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
@@ -3431,6 +3459,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_pages_prune_timestamp_not_move = 0;
     stats->eviction_server_skip_pages_retry = 0;
     stats->eviction_server_skip_unwanted_pages = 0;
+    stats->eviction_server_skip_pages_restored_unchanged = 0;
     stats->eviction_server_skip_trees_walk_complete = 0;
     stats->eviction_server_skip_stable_trees = 0;
     stats->eviction_server_skip_unwanted_tree = 0;
@@ -3874,8 +3903,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    stats->disagg_step_up_checkpoint_restart_time = 0;
+    stats->disagg_step_up_deferred_pickup_retries = 0;
+    stats->disagg_step_up_deferred_pickup_retry_time = 0;
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
+    stats->disagg_step_up_ingest_drain_bytes = 0;
+    stats->disagg_step_up_ingest_drain_time = 0;
+    stats->disagg_step_up_ingest_tables_drained = 0;
+    stats->disagg_step_up_missing_stable_create_time = 0;
+    stats->disagg_step_up_missing_stable_tables_created = 0;
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
     stats->layered_curs_insert = 0;
@@ -4194,6 +4231,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     stats->rec_skip_write = 0;
+    /* not clearing session_hs_verify_btrees_checked */
     /* not clearing session_open */
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
@@ -4581,6 +4619,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_retry);
     to->eviction_server_skip_unwanted_pages +=
       WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_pages);
+    to->eviction_server_skip_pages_restored_unchanged +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_pages_restored_unchanged);
     to->eviction_server_skip_trees_walk_complete +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_walk_complete);
     to->eviction_server_skip_stable_trees +=
@@ -5137,9 +5177,25 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_up_checkpoint_restart_time +=
+      WT_STAT_CONN_READ(from, disagg_step_up_checkpoint_restart_time);
+    to->disagg_step_up_deferred_pickup_retries +=
+      WT_STAT_CONN_READ(from, disagg_step_up_deferred_pickup_retries);
+    to->disagg_step_up_deferred_pickup_retry_time +=
+      WT_STAT_CONN_READ(from, disagg_step_up_deferred_pickup_retry_time);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_clear_ingest_retry +=
       WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_retry);
+    to->disagg_step_up_ingest_drain_bytes +=
+      WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_bytes);
+    to->disagg_step_up_ingest_drain_time +=
+      WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_time);
+    to->disagg_step_up_ingest_tables_drained +=
+      WT_STAT_CONN_READ(from, disagg_step_up_ingest_tables_drained);
+    to->disagg_step_up_missing_stable_create_time +=
+      WT_STAT_CONN_READ(from, disagg_step_up_missing_stable_create_time);
+    to->disagg_step_up_missing_stable_tables_created +=
+      WT_STAT_CONN_READ(from, disagg_step_up_missing_stable_tables_created);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
@@ -5569,6 +5625,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
     to->rec_skip_write += WT_STAT_CONN_READ(from, rec_skip_write);
+    to->session_hs_verify_btrees_checked +=
+      WT_STAT_CONN_READ(from, session_hs_verify_btrees_checked);
     to->session_open += WT_STAT_CONN_READ(from, session_open);
     to->session_query_ts += WT_STAT_CONN_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_CONN_READ(from, session_table_alter_fail);

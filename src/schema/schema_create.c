@@ -197,6 +197,25 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 }
 
 /*
+ * __create_file_verify_import --
+ *     Verify an imported file through a dedicated verify-mode handle. Open it directly, not through
+ *     the schema worker, which under metadata tracking holds a close lock until the create
+ *     resolves.
+ */
+static int
+__create_file_verify_import(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+    const char *verify_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_verify), NULL};
+
+    WT_RET(
+      __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+    ret = __wt_verify(session, verify_cfg);
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __create_file --
  *     Create a new 'file:' object.
  */
@@ -341,6 +360,13 @@ __create_file(
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
+        /*
+         * Imported configuration bypasses API configuration checks, check it before it reaches the
+         * metadata.
+         */
+        if (import)
+            WT_ERR(__wt_config_check(session, WT_CONFIG_REF(session, file_meta), fileconf, 0));
+
         /* Strip any configuration settings that should not be persisted. */
         filecfg[1] = fileconf;
         filecfg[2] = NULL;
@@ -362,6 +388,13 @@ __create_file(
 
     if (!open_dhandle)
         goto err;
+
+    /*
+     * Verify imported file before the normal open so a corrupt file fails the import rather than a
+     * later read. Verify needs its own handle.
+     */
+    if (import)
+        WT_ERR(__create_file_verify_import(session, uri));
 
     /*
      * Open the file to check that it was setup correctly. We don't need to pass the configuration,

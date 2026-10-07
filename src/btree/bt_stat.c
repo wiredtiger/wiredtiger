@@ -47,7 +47,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DSRC_STATS **stats;
-    uint64_t avg_internal_chain, avg_leaf_chain;
+    uint64_t avg_internal_chain, avg_leaf_chain, internal_delta_pages, leaf_delta_pages;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -77,14 +77,18 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_STATP_DSRC_SET(
       session, stats, compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
 
-    avg_internal_chain = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas) == 0 ?
+    /*
+     * Aggregation sums the slots without a lock, so a second read of the denominator can be zero
+     * after the check. Use the value that was tested.
+     */
+    internal_delta_pages = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas);
+    avg_internal_chain = internal_delta_pages == 0 ?
       0 :
-      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_internal) /
-        (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas);
-    avg_leaf_chain = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas) == 0 ?
+      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_internal) / internal_delta_pages;
+    leaf_delta_pages = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas);
+    avg_leaf_chain = leaf_delta_pages == 0 ?
       0 :
-      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_leaf) /
-        (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas);
+      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_leaf) / leaf_delta_pages;
     WT_STATP_DSRC_SET(
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
     WT_STATP_DSRC_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
@@ -132,6 +136,10 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
     WT_STATP_DSRC_SET(session, stats, btree_column_rle, 0);
     WT_STATP_DSRC_SET(session, stats, btree_column_variable, 0);
     WT_STATP_DSRC_SET(session, stats, btree_entries, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_inline_analyzed, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_inline_bytes, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_inline_bytes_mixed, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_inline_pages, 0);
     WT_STATP_DSRC_SET(session, stats, btree_overflow, 0);
     WT_STATP_DSRC_SET(session, stats, btree_row_internal, 0);
     WT_STATP_DSRC_SET(session, stats, btree_row_leaf, 0);
@@ -324,10 +332,13 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
     WT_INSERT *ins;
     WT_ROW *rip;
     WT_UPDATE *upd;
+    uint64_t obsolete_bytes;
     uint32_t empty_values, entry_cnt, i, ovfl_cnt;
-    bool key;
+    bool have_live, key;
 
     empty_values = entry_cnt = ovfl_cnt = 0;
+    obsolete_bytes = 0;
+    have_live = false;
 
     WT_STATP_DSRC_INCR(session, stats, btree_row_leaf);
 
@@ -367,6 +378,14 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
      *
      * Zero-length values are the same, we have to look at the disk image to know. They aren't
      * stored but we know they exist if there are two keys in a row, or a key as the last item.
+     *
+     * Globally obsolete inline bytes are counted in the same pass but only reported for a clean
+     * page, since a dirty page's image is about to be replaced. A clean page reconciled by
+     * checkpoint still has its pre-checkpoint image, so cells the checkpoint already dropped are
+     * counted anyway: the result is an upper bound for those pages, in exchange for covering the
+     * cached working set. Only plain value cells carry inline payload, an overflow cell holds only
+     * an address. A value-copy cell has no payload of its own, but a live copy marks the page
+     * mixed.
      */
     if (page->dsk != NULL) {
         key = false;
@@ -376,9 +395,25 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
                 ++ovfl_cnt;
             /* FALLTHROUGH */
             case WT_CELL_KEY:
-                if (key)
+                if (key) {
                     ++empty_values;
+                    have_live = true;
+                }
                 key = true;
+                break;
+            case WT_CELL_VALUE:
+            case WT_CELL_VALUE_OVFL:
+                key = false;
+                if (!__wt_txn_tw_stop_visible_all(session, &unpack.tw))
+                    have_live = true;
+                else if (unpack.type == WT_CELL_VALUE)
+                    obsolete_bytes += unpack.size;
+                break;
+            case WT_CELL_VALUE_COPY:
+                /* Payload lives in the source cell; unpack.size would count it again. */
+                key = false;
+                if (!__wt_txn_tw_stop_visible_all(session, &unpack.tw))
+                    have_live = true;
                 break;
             default:
                 key = false;
@@ -386,8 +421,21 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
             }
         }
         WT_CELL_FOREACH_END;
-        if (key)
+        if (key) {
             ++empty_values;
+            have_live = true;
+        }
+
+        if (!__wt_page_is_modified(page)) {
+            WT_STATP_DSRC_INCR(session, stats, btree_obsolete_inline_analyzed);
+            if (obsolete_bytes != 0) {
+                WT_STATP_DSRC_INCR(session, stats, btree_obsolete_inline_pages);
+                WT_STATP_DSRC_INCRV(session, stats, btree_obsolete_inline_bytes, obsolete_bytes);
+                if (have_live)
+                    WT_STATP_DSRC_INCRV(
+                      session, stats, btree_obsolete_inline_bytes_mixed, obsolete_bytes);
+            }
+        }
     }
 
     WT_STATP_DSRC_INCRV(session, stats, btree_row_empty_values, empty_values);

@@ -314,13 +314,29 @@ __reconcile_post_wrapup(
 
 /*
  * __rec_timeline_publish --
- *     Stamp a reconciliation as finished. Eviction reports these timings after reconciliation
- *     returns, and does so whether or not it succeeded.
+ *     Stamp a reconciliation as finished, and warn if it took more than a minute. Eviction reports
+ *     these timings after reconciliation returns, and does so whether or not it succeeded.
  */
-static WT_INLINE void
-__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline)
+static void
+__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline, uint32_t flags)
 {
     timeline->reconcile_finish = __wt_clock(session);
+
+    uint64_t rec_us = WT_CLOCKDIFF_US(timeline->reconcile_finish, timeline->reconcile_start);
+    if (rec_us <= WT_MINUTE * WT_MILLION)
+        return;
+
+    const char *operation = "Reconciliation";
+    if (LF_ISSET(WT_REC_EVICT))
+        operation = "Eviction";
+    else if (LF_ISSET(WT_REC_CHECKPOINT))
+        operation = "Checkpoint";
+    uint64_t build_us = WT_CLOCKDIFF_US(timeline->image_build_finish, timeline->image_build_start);
+    uint64_t hs_wrapup_us = WT_CLOCKDIFF_US(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
+    __wt_verbose_warning(session, WT_VERB_RECONCILE,
+      "%s took more than 1 minute (%" PRIu64 "us) reconciling %s. Building disk image took %" PRIu64
+      "us. History store wrapup took %" PRIu64 "us.",
+      operation, rec_us, S2BT(session)->dhandle->name, build_us, hs_wrapup_us);
 }
 
 /*
@@ -463,7 +479,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
         /* Publish what was measured before the failure; stale timings are worse than partial. */
-        __rec_timeline_publish(session, timeline);
+        __rec_timeline_publish(session, timeline, flags);
 
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
@@ -500,7 +516,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
             goto err;
 
         /* The nested root write measured a different page; report this one. */
-        __rec_timeline_publish(session, timeline);
+        __rec_timeline_publish(session, timeline, flags);
         return (0);
     }
 
@@ -515,7 +531,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    __rec_timeline_publish(session, timeline);
+    __rec_timeline_publish(session, timeline, flags);
 
     rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
     rec_img_build = WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
@@ -1329,15 +1345,13 @@ __wti_rec_split_init(
      */
     if (r->salvage != NULL) {
         r->split_size = 0;
-        r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        r->space_avail = r->page_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     } else {
         r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
-        /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas.
-         */
-        r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
         r->min_split_size =
           __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
-        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     }
 
     /*
@@ -1352,7 +1366,6 @@ __wti_rec_split_init(
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
-    /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas. */
     r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
@@ -1363,7 +1376,7 @@ __wti_rec_split_init(
     /* Starting record number, entries, first free byte. */
     r->recno = recno;
     r->entries = 0;
-    r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+    r->first_free = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
     /* New page, compression off. */
     r->key_pfx_compress = r->key_sfx_compress = false;
@@ -1625,11 +1638,11 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /* Reset tracking information. */
     r->entries = 0;
-    r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+    r->first_free = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
     /* Set the space available to another split-size and minimum split-size chunk. */
-    r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+    r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
+    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
 
 done:
     /*
@@ -1724,7 +1737,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * The sizes in the chunk include the header, so when calculating the combined size, be sure not
      * to include the header twice.
      */
-    combined_size = prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+    combined_size = prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
 
     if (combined_size <= r->page_size) {
         /*
@@ -1735,7 +1748,8 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_TIME_AGGREGATE_MERGE(session, &prev_ptr->ta, &cur_ptr->ta);
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
-          WT_PAGE_HEADER_BYTE(btree, dsk), cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+          WT_PAGE_HEADER_WRITE_BYTE(btree, dsk),
+          cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
         prev_ptr->image.size = combined_size;
 
         /*
@@ -1758,7 +1772,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         len_to_move = prev_ptr->image.size - prev_ptr->min_offset;
         if (r->space_avail < len_to_move)
             WT_RET(__rec_split_grow(session, r, len_to_move));
-        cur_dsk_start = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+        cur_dsk_start = WT_PAGE_HEADER_WRITE_BYTE(btree, r->cur_ptr->image.mem);
 
         /*
          * Shift the contents of the current buffer to make space for the data that will be
@@ -1766,7 +1780,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * the current.
          */
         memmove(cur_dsk_start + len_to_move, cur_dsk_start,
-          cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+          cur_ptr->image.size - WT_PAGE_HEADER_WRITE_SIZE(btree));
         memcpy(
           cur_dsk_start, (uint8_t *)r->prev_ptr->image.mem + prev_ptr->min_offset, len_to_move);
 
@@ -1969,7 +1983,8 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
             else
                 upd = r->supd[i].ins->upd;
             /* Only count the size if we need to restore or have an onpage value. */
-            if (r->supd[i].onpage_upd != NULL || r->supd[i].restore) {
+            if ((r->supd[i].onpage_upd != NULL || r->supd[i].restore) &&
+              r->supd[i].count_for_split) {
                 r->supd_memsize += __wt_update_list_memsize(upd);
                 ++r->supd_onpage_or_restore;
             }
@@ -2045,8 +2060,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHU
     dsk->reserved = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 
-    /* Clear the memory owned by the block manager. */
-    memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
+    /* Initialize the memory owned by the block manager. */
+    btree->bm->block_header_init(btree->bm, session, dsk);
 }
 
 /*
@@ -2130,9 +2145,14 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 int
 __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_PAGE_HEADER_SIZE);
-    r->delta.size = WT_PAGE_HEADER_BYTE_SIZE(S2BT(session));
+    btree->bm->block_header_init(btree->bm, session, r->delta.mem);
+    r->delta.size = WT_PAGE_HEADER_WRITE_SIZE(btree);
 
     return (0);
 }
@@ -3672,13 +3692,13 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
         /* Initialize the buffer: disk header and overflow record. */
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
-        /* Clear the memory owned by the block manager. */
-        memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
+        /* Initialize the memory owned by the block manager. */
+        bm->block_header_init(bm, session, dsk);
         dsk->type = WT_PAGE_OVFL;
         __rec_set_page_write_gen(btree, dsk);
         dsk->u.datalen = (uint32_t)kv->buf.size;
-        memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
-        dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;
+        memcpy(WT_PAGE_HEADER_WRITE_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
+        dsk->mem_size = WT_PAGE_HEADER_WRITE_SIZE(btree) + (uint32_t)kv->buf.size;
         tmp->size = dsk->mem_size;
 
         /* Write the buffer. */

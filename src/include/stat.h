@@ -41,23 +41,21 @@
  * number of CPUs (presumably, the application architect has figured out how many CPUs are
  * available). However, inside WiredTiger we don't know when the application creates its threads.
  *
- * For now, we use a fixed number of slots. Ideally, we would approximate the largest number of
- * cores we expect on any machine where WiredTiger might be run, however, we don't want to waste
- * that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are relatively
- * rare.
+ * Connection statistics use a fixed number of slots. Ideally, we would approximate the largest
+ * number of cores we expect on any machine where WiredTiger might be run, however, we don't want to
+ * waste that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are
+ * relatively rare.
  *
  * Default hash table size; use a prime number of buckets rather than assuming a good hash
  * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  *
  * The counter slots are split into two separate counters, one for connection and the other for
- * data-source. This is because we want to be able to independently increase one counter slot
- * without increasing the other, as for example, increasing the data-source counter by a small
- * number would have a greater impact than increasing the connection counter by the same number -
- * depending on the number of dhandles in the system.
+ * data-source, so either count can change on its own. The data-source count is small because each
+ * open btree dhandle pays for every slot.
  *
  */
 #define WT_STAT_CONN_COUNTER_SLOTS 23
-#define WT_STAT_DSRC_COUNTER_SLOTS 23
+#define WT_STAT_DSRC_COUNTER_SLOTS 4
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
@@ -89,14 +87,18 @@
 #define WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld) (int)(&(stats)->fld - (int64_t *)(stats))
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_STAT_CLEAR 0x01u
-#define WT_STAT_JSON 0x02u
-#define WT_STAT_ON_CLOSE 0x04u
-#define WT_STAT_TYPE_ALL 0x08u
-#define WT_STAT_TYPE_CACHE_WALK 0x10u
-#define WT_STAT_TYPE_FAST 0x20u
-#define WT_STAT_TYPE_SIZE 0x40u
-#define WT_STAT_TYPE_TREE_WALK 0x80u
+#define WT_STAT_CLEAR 0x001u
+#define WT_STAT_JSON 0x002u
+#define WT_STAT_ON_CLOSE 0x004u
+#define WT_STAT_OTEL_COUNTERS 0x008u
+#define WT_STAT_OTEL_GAUGES 0x010u
+#define WT_STAT_OTEL_HISTOGRAMS 0x020u
+#define WT_STAT_OTEL_NONE 0x040u
+#define WT_STAT_TYPE_ALL 0x080u
+#define WT_STAT_TYPE_CACHE_WALK 0x100u
+#define WT_STAT_TYPE_FAST 0x200u
+#define WT_STAT_TYPE_SIZE 0x400u
+#define WT_STAT_TYPE_TREE_WALK 0x800u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
@@ -328,7 +330,11 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
       WT_SESSION_IMPL *session, uint64_t msecs)                 \
     {                                                           \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
-        if (msecs < 10)                                         \
+        if (msecs < 2)                                          \
+            WT_STAT_CONN_INCR(session, stat##_lt2);             \
+        else if (msecs < 5)                                     \
+            WT_STAT_CONN_INCR(session, stat##_lt5);             \
+        else if (msecs < 10)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt10);            \
         else if (msecs < 50)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt50);            \
@@ -591,6 +597,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_pages_prune_timestamp_not_move;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
+    int64_t eviction_server_skip_pages_restored_unchanged;
     int64_t eviction_server_skip_trees_walk_complete;
     int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
@@ -1034,8 +1041,16 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_up_checkpoint_restart_time;
+    int64_t disagg_step_up_deferred_pickup_retries;
+    int64_t disagg_step_up_deferred_pickup_retry_time;
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
+    int64_t disagg_step_up_ingest_drain_bytes;
+    int64_t disagg_step_up_ingest_drain_time;
+    int64_t disagg_step_up_ingest_tables_drained;
+    int64_t disagg_step_up_missing_stable_create_time;
+    int64_t disagg_step_up_missing_stable_tables_created;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
     int64_t layered_curs_insert;
@@ -1354,6 +1369,7 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t rec_skip_write;
+    int64_t session_hs_verify_btrees_checked;
     int64_t session_open;
     int64_t session_query_ts;
     int64_t session_table_alter_fail;
@@ -1569,7 +1585,11 @@ struct __wt_dsrc_stats {
     int64_t btree_maxleafvalue;
     int64_t btree_maximum_depth;
     int64_t btree_entries;
+    int64_t btree_obsolete_inline_bytes;
+    int64_t btree_obsolete_inline_bytes_mixed;
     int64_t btree_overflow;
+    int64_t btree_obsolete_inline_analyzed;
+    int64_t btree_obsolete_inline_pages;
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf_avg_entries;

@@ -148,7 +148,7 @@ err:
         __wt_free(session, ncoll);
     }
 
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -249,7 +249,7 @@ err:
         __wt_free(session, ncomp);
     }
 
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -314,7 +314,7 @@ err:
         __wt_free(session, ndsrc);
     }
 
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -495,7 +495,7 @@ err:
         __wt_free(session, nenc);
     }
 
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -570,7 +570,7 @@ err:
         __wt_free(session, npl);
     }
 
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -941,7 +941,7 @@ __conn_load_extension(WT_CONNECTION *wt_conn, const char *path, const char *conf
     ret = __conn_load_extension_int(session, path, cfg, false);
 
 err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -1064,7 +1064,7 @@ __conn_configure_method(WT_CONNECTION *wt_conn, const char *method, const char *
     ret = __wt_configure_method(session, method, uri, config, type, check);
 
 err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -1143,7 +1143,7 @@ __conn_compile_configuration(
 
     ret = __wt_conf_compile(session, method, str, compiled);
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -1289,7 +1289,7 @@ err:
     /* We no longer have a session, don't try to update it. */
     session = NULL;
 
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -1344,7 +1344,7 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_txn(session));
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -1363,7 +1363,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
     CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
     ret = __wti_conn_reconfig(session, cfg);
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -1395,7 +1395,7 @@ err:
     if (session_ret != NULL)
         WT_TRET(__wt_call_log_open_session(session_ret, ret));
 #endif
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    CONNECTION_API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -1417,7 +1417,7 @@ err:
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_query_timestamp(session, config, hex_timestamp, ret, true));
 #endif
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -1439,7 +1439,7 @@ err:
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_set_timestamp(session, config, ret));
 #endif
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -1470,7 +1470,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     WT_STAT_CONN_INCR(session, txn_rts);
     ret = conn->rts->rollback_to_stable(session, cfg, false);
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -2740,6 +2740,9 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE address_cookie_upgrade;
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE block_header_upgrade;
+#endif
 
     conn = S2C(session);
 
@@ -2760,6 +2763,31 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(
       __wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_optional_field", &cval));
     conn->debug.disagg_address_cookie_optional_field = cval.val != 0;
+
+    /* Parse the block header upgrade mode, which is an enumeration. */
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_block_header_upgrade", &cval));
+#ifdef HAVE_DIAGNOSTIC
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("none", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE;
+    else if (WT_CONFIG_LIT_MATCH("compatible", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE;
+    else if (WT_CONFIG_LIT_MATCH("incompatible", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE;
+    else if (WT_CONFIG_LIT_MATCH("v1_oversized", cval))
+        block_header_upgrade = WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_block_header_upgrade: '%.*s'",
+          (int)cval.len, cval.str);
+    conn->debug.disagg_block_header_upgrade = block_header_upgrade;
+#else
+    if (cval.len != 0 && !WT_CONFIG_LIT_MATCH("none", cval))
+        WT_RET_MSG(session, ENOTSUP,
+          "debug.disagg_block_header_upgrade=%.*s requires a diagnostic build", (int)cval.len,
+          cval.str);
+#endif
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_block_header_v1_ignore_size", &cval));
+    conn->debug.disagg_block_header_v1_ignore_size = cval.val != 0;
 
     return (0);
 }
@@ -2914,7 +2942,7 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
     conn->key_provider = key_provider;
 
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -2961,7 +2989,7 @@ __conn_set_file_system(WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, cons
     conn->file_system = file_system;
 
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -3200,7 +3228,7 @@ __conn_set_context_uint(WT_CONNECTION *wt_conn, WT_CONTEXT_TYPE which, uint64_t 
     }
 
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*
@@ -3217,12 +3245,12 @@ __conn_dump_error_log(WT_CONNECTION *wt_conn)
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
-    CONNECTION_API_CALL_NOCONF_NOERRCLEAR(conn, session, dump_error_log);
+    CONNECTION_API_CALL_NOCONF(conn, session, dump_error_log);
 
     __wt_error_log_to_handler(session);
 
 err:
-    API_END_RET(session, ret);
+    CONNECTION_API_END_RET(session, ret);
 }
 
 /*

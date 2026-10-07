@@ -148,6 +148,8 @@ __evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON reason)
         return ("page is a root page");
     case WTI_EVICT_VICTIM_COLD_TIER:
         return ("btree is on the cold storage tier");
+    case WTI_EVICT_VICTIM_ENCRYPTED:
+        return ("btree is encrypted");
     case WTI_EVICT_VICTIM_COUNT:
         break;
     }
@@ -180,6 +182,7 @@ __evict_page_victim_cache_reason_per_page(WTI_EVICT_VICTIM_REASON reason)
     case WTI_EVICT_VICTIM_NO_BLOCK_MANAGER:
     case WTI_EVICT_VICTIM_NO_PAGE_LOG:
     case WTI_EVICT_VICTIM_COLD_TIER:
+    case WTI_EVICT_VICTIM_ENCRYPTED:
     case WTI_EVICT_VICTIM_COUNT:
         return (false);
 
@@ -214,6 +217,14 @@ __evict_page_victim_cache_eligible(
     /* A checkpoint cursor's btree is not eligible for the victim cache. */
     if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
         return (WTI_EVICT_VICTIM_CHECKPOINT_CURSOR);
+
+    /*
+     * The cached image is not encrypted, which the read path rejects for an encrypted btree.
+     *
+     * FIXME-WT-18832: Decide whether encrypted btrees should be cached, and who encrypts the image.
+     */
+    if (S2BT(session)->kencryptor != NULL)
+        return (WTI_EVICT_VICTIM_ENCRYPTED);
 
     WT_BM *bm = S2BT(session)->bm;
     if (bm == NULL)
@@ -304,8 +315,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       .memsize = disk_image->mem_size,
       .flags = 0,
     };
-    WT_ITEM *cache_buf = &buf_orig;
-    WT_ITEM *compressed_buf = NULL;
+    WT_ITEM *cache_buf = NULL;
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     bool compressed = false;
@@ -320,12 +330,25 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      * abandon the put. We deliberately don't propagate it - this is optional cache population, not
      * an operation worth failing.
      */
-    if ((ret = __wt_blkcache_compress(
-           session, &buf_orig, false, &compressed_buf, NULL, &compressed)) != 0)
+    if ((ret = __wt_blkcache_compress(session, &buf_orig, false, &cache_buf, NULL, &compressed)) !=
+      0) {
         __wt_err(session, ret,
           "victim cache: failed to compress block before caching, caching uncompressed");
-    if (compressed_buf != NULL)
-        cache_buf = compressed_buf;
+        ret = 0;
+        WT_UNUSED(ret); /* Quiet clang analyzer. */
+    }
+
+    /* We want a copy because eviction owns the page but not the disk image. */
+    if (cache_buf == NULL) {
+        if ((ret = __wt_scr_alloc(session, buf_orig.size, &cache_buf)) == 0)
+            ret = __wt_buf_set(session, cache_buf, buf_orig.data, buf_orig.size);
+        if (ret != 0) {
+            __wt_err(
+              session, ret, "victim cache: failed to copy the page image, skipping insertion");
+            __wt_scr_free(session, &cache_buf);
+            return;
+        }
+    }
 
     /* Point dsk to the cache buffer's page header. */
     dsk = (WT_PAGE_HEADER *)cache_buf->mem;
@@ -349,18 +372,13 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * Fill in the disagg block header following the pattern from
-     * __wti_block_disagg_write_internal. The disagg block header
-     * is at WT_BLOCK_HEADER_REF (after the page header).
+     * Fill in the disagg block header following the pattern from __wti_block_disagg_write_internal.
+     * The disagg block header is at WT_BLOCK_HEADER_REF (after the page header).
      */
     WT_BLOCK_DISAGG_HEADER *blk = WT_BLOCK_HEADER_REF(cache_buf->data);
-    memset(blk, 0, sizeof(*blk));
+    WT_ASSERT(session,
+      blk->magic == WT_BLOCK_DISAGG_MAGIC_BASE || blk->magic == WT_BLOCK_DISAGG_MAGIC_DELTA);
 
-    /* Set disagg header fields. */
-    blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
-    blk->version = WT_BLOCK_DISAGG_VERSION;
-    blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
-    blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
     blk->previous_checksum = block_meta->checksum;
     blk->flags = 0;
     if (data_checksum)
@@ -399,11 +417,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_err(session, ret, "victim cache: failed to cache page");
     bool cached = ret == 0;
 
-    if (compressed_buf != NULL)
-        __wt_scr_free(session, &compressed_buf);
-    else
-        /* Swap page header back to native order. */
-        __wt_page_header_byteswap(dsk);
+    __wt_scr_free(session, &cache_buf);
 
     uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
     WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);
@@ -481,15 +495,20 @@ __evict_stats_update(WT_SESSION_IMPL *session, WT_EVICT_TIMELINE *timeline, uint
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
         __wt_atomic_stats_max_uint64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
-        if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
+
+        /*
+         * Reconciliation warns about itself when it takes more than a minute. Warn here when the
+         * eviction as a whole did, but its reconciliation didn't: the time went to the work around
+         * reconciliation, such as the in-memory split or the tree update after it, or was spread
+         * across both.
+         */
+        uint64_t rec_us = WT_CLOCKDIFF_US(
+          timeline->reconcile.reconcile_finish, timeline->reconcile.reconcile_start);
+        if (eviction_time > WT_MINUTE * WT_MILLION && rec_us <= WT_MINUTE * WT_MILLION)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
-              "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
-              "us. History store wrapup took %" PRIu64 "us.",
-              eviction_time,
-              WT_CLOCKDIFF_US(
-                timeline->reconcile.image_build_finish, timeline->reconcile.image_build_start),
-              WT_CLOCKDIFF_US(
-                timeline->reconcile.hs_wrapup_finish, timeline->reconcile.hs_wrapup_start));
+              "Eviction took more than 1 minute (%" PRIu64 "us) on %s. Reconciliation took %" PRIu64
+              "us, outside reconciliation took %" PRIu64 "us.",
+              eviction_time, S2BT(session)->dhandle->name, rec_us, eviction_time - rec_us);
     } else {
         /*
          * We are in the reentrant history store eviction inside a data store reconciliation. Add to
