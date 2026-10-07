@@ -63,6 +63,7 @@ TEST_CASE("truncate garbage collection counts runs and entries", "[truncate_list
 TEST_CASE(
   "truncate list tracked lock records acquisitions and contention", "[truncate_list][statistics]")
 {
+    REQUIRE(__wt_library_init() == 0);
     truncate_list_fixture fixture;
     auto *owner = &fixture.session();
     auto *table = &fixture.layered_table();
