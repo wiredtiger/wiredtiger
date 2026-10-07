@@ -2492,16 +2492,17 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
  *     information has been discarded.
  */
 static bool
-__rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+__rec_proxy_cell_orphaned(WTI_RECONCILE *r)
 {
-    WT_ADDR_COPY addr;
+    WT_ADDR *addr;
+    WT_PAGE *home;
     WT_PAGE_MODIFY *mod;
 
     mod = r->page->modify;
 
     /*
      * A committed fast truncate can be checkpointed as a proxy cell before the leaf is
-     * instantiated. If the truncate's durable timestamp is newer than stable, rollback-to-stable
+     * instantiated. If the truncate durable timestamp is newer than stable, rollback-to-stable
      * aborts the instantiated tombstones and clears the page-delete information and instantiated
      * flag, but leaves the parent's proxy cell as the leaf's address. A subsequent skipped write
      * would leave no replacement address for parent reconciliation, so this leaf must write a full
@@ -2510,7 +2511,10 @@ __rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     if (mod->instantiated ||
       (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL))
         return (false);
-    return (__wt_ref_addr_copy(session, r->ref, &addr) && addr.del_set);
+    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&r->ref->home);
+    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&r->ref->addr);
+    return (addr != NULL && !__wt_off_page(home, addr) &&
+      __wt_cell_type_raw((WT_CELL *)addr) == WT_CELL_ADDR_DEL);
 }
 
 /*
@@ -2745,7 +2749,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                   page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
                   !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
-                    WT_ASSERT(session, !__rec_proxy_cell_orphaned(session, r));
+                    WT_ASSERT(session, !__rec_proxy_cell_orphaned(r));
                     WT_RET(__rec_copy_prev_addr(session, r));
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
@@ -2770,7 +2774,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * replace that cell with.
          */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-          WT_REC_RESULT_SINGLE_PAGE((session), (r)) && !__rec_proxy_cell_orphaned(session, r)) {
+          WT_REC_RESULT_SINGLE_PAGE((session), (r)) && !__rec_proxy_cell_orphaned(r)) {
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
