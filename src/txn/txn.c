@@ -122,7 +122,7 @@ __txn_snapshot_leave_disagg(WT_SESSION_IMPL *session)
 
     if ((released_gen = __wt_session_gen(session, WT_GEN_DISAGG_CKPT)) != 0) {
         __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
-        __wt_disagg_deferred_pickup_signal(session, released_gen);
+        __wt_disagg_deferred_pickup_signal_snapshot(session, released_gen);
     }
     if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
         __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
