@@ -380,7 +380,6 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
-  "layered: largest observed truncate list entry count",
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
   "layered: the number of truncate list entries walked during search",
@@ -896,7 +895,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
-    /* not clearing layered_truncate_list_entries_max */
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
     stats->layered_truncate_list_search_entries_walked = 0;
@@ -1420,8 +1418,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
     to->layered_table_manager_logops_skipped += from->layered_table_manager_logops_skipped;
     to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
-    if (from->layered_truncate_list_entries_max > to->layered_truncate_list_entries_max)
-        to->layered_truncate_list_entries_max = from->layered_truncate_list_entries_max;
     to->layered_truncate_list_gc_runs += from->layered_truncate_list_gc_runs;
     to->layered_truncate_list_gc_entries_removed += from->layered_truncate_list_gc_entries_removed;
     to->layered_truncate_list_search_entries_walked +=
@@ -2005,9 +2001,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_table_manager_logops_skipped +=
       WT_STAT_DSRC_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
-    if ((v = WT_STAT_DSRC_READ(from, layered_truncate_list_entries_max)) >
-      to->layered_truncate_list_entries_max)
-        to->layered_truncate_list_entries_max = v;
     to->layered_truncate_list_gc_runs += WT_STAT_DSRC_READ(from, layered_truncate_list_gc_runs);
     to->layered_truncate_list_gc_entries_removed +=
       WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_removed);

@@ -696,6 +696,7 @@ conn_stats = [
     ##########################################
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
+    LayeredStat('layered_truncate_list_entries_max', 'largest observed truncate list entry count', 'no_clear,no_scale,max_aggregate'),
 
     ##########################################
     # Live Restore statistics
@@ -1513,7 +1514,6 @@ conn_dsrc_stats = [
     LayeredStat('layered_truncate_ingest_tombstones_written', 'follower truncate ingest tombstones written'),
     LayeredStat('layered_truncate_list_clear_entries_removed', 'truncate list entries removed by clearing'),
     LayeredStat('layered_truncate_list_entries_inserted', 'truncate list entries inserted'),
-    LayeredStat('layered_truncate_list_entries_max', 'largest observed truncate list entry count', 'no_clear,no_scale,max_aggregate'),
     LayeredStat('layered_truncate_list_gc_entries_examined', 'truncate list entries examined by garbage collection'),
     LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),
     LayeredStat('layered_truncate_list_gc_runs', 'the number of times truncate list garbage collection ran with a valid prune timestamp'),

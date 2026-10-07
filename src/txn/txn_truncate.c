@@ -187,9 +187,6 @@ __txn_insert_truncate_entry_helper(
         int64_t *maximum = &S2C(session)->stats[0]->layered_truncate_list_entries_max;
         if ((int64_t)truncate_list->entries > __wt_atomic_load_int64_relaxed(maximum))
             __wt_atomic_store_int64_relaxed(maximum, (int64_t)truncate_list->entries);
-        maximum = &layered_table->iface.stats[0]->layered_truncate_list_entries_max;
-        if ((int64_t)truncate_list->entries > __wt_atomic_load_int64_relaxed(maximum))
-            __wt_atomic_store_int64_relaxed(maximum, (int64_t)truncate_list->entries);
     }
     WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_entries_inserted);
 

@@ -77,25 +77,22 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
             self.assertEqual(self.metric('list_entries_inserted'), 2)
             for uri in (self.uri, self.other_uri):
                 self.assertEqual(self.metric('list_entries_inserted', uri), 1)
-            for uri in (None, self.uri, self.other_uri):
-                self.assertEqual(self.metric('list_entries_max', uri), 1)
+            self.assertEqual(self.metric('list_entries_max'), 1)
             other.begin_transaction()
             self.truncate_on(other, 60, 80)
             for uri in (None, self.uri):
                 self.assertEqual(self.metric('list_entries_inserted', uri), 3 if uri is None else 2)
-                self.assertEqual(self.metric('list_entries_max', uri, clear=True), 2)
-                self.assertEqual(self.metric('list_entries_max', uri), 2)
-            self.assertEqual(self.metric('list_entries_max', self.other_uri), 1)
+            self.assertEqual(self.metric('list_entries_max', clear=True), 2)
+            self.assertEqual(self.metric('list_entries_max'), 2)
             other.rollback_transaction()
+            self.assertEqual(self.metric('list_entries_max'), 2)
             for uri in (None, self.uri):
-                self.assertEqual(self.metric('list_entries_max', uri), 2)
                 self.assertEqual(self.metric('list_rollback_entries_removed', uri), 1)
-                self.assertEqual(self.metric('list_entries_inserted', uri), 0)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.reconfigure('disaggregated=(role="leader")')
         for uri in (None, self.uri, self.other_uri):
             self.assertEqual(self.metric('list_clear_entries_removed', uri), 2 if uri is None else 1)
-            self.assertEqual(self.metric('list_entries_max', uri), 1 if uri == self.other_uri else 2)
+        self.assertEqual(self.metric('list_entries_max'), 2)
 
     def test_search_hits_and_misses(self):
         self.setup_tables()

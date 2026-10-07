@@ -10310,367 +10310,365 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * skipped on this tree
  */
 #define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_SKIP_LSN	2353
-/*! layered: largest observed truncate list entry count */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ENTRIES_MAX	2354
 /*!
  * layered: the number of times truncate list garbage collection ran with
  * a valid prune timestamp
  */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_RUNS	2355
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_RUNS	2354
 /*!
  * layered: the number of truncate list entries removed by garbage
  * collection
  */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED	2356
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED	2355
 /*! layered: the number of truncate list entries walked during search */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED	2357
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED	2356
 /*! layered: truncate list entries examined by garbage collection */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_ENTRIES_EXAMINED	2358
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_ENTRIES_EXAMINED	2357
 /*! layered: truncate list entries inserted */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ENTRIES_INSERTED	2359
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ENTRIES_INSERTED	2358
 /*! layered: truncate list entries removed by clearing */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_CLEAR_ENTRIES_REMOVED	2360
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_CLEAR_ENTRIES_REMOVED	2359
 /*! layered: truncate list entries removed by transaction rollback */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ROLLBACK_ENTRIES_REMOVED	2361
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ROLLBACK_ENTRIES_REMOVED	2360
 /*! layered: truncate list searches that completed with a matching range */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_HITS	2362
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_HITS	2361
 /*!
  * layered: truncate list searches without a matching range or that
  * failed
  */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_MISSES	2363
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_MISSES	2362
 /*! layered: truncate list write conflicts */
-#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_WRITE_CONFLICTS	2364
+#define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_WRITE_CONFLICTS	2363
 /*! reconciliation: VLCS pages explicitly reconciled as empty */
-#define	WT_STAT_DSRC_REC_VLCS_EMPTIED_PAGES		2365
+#define	WT_STAT_DSRC_REC_VLCS_EMPTIED_PAGES		2364
 /*! reconciliation: approximate byte size of timestamps in pages written */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2366
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2365
 /*!
  * reconciliation: approximate byte size of transaction IDs in pages
  * written
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN		2367
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN		2366
 /*!
  * reconciliation: average length of delta chain on internal page with
  * deltas
  */
-#define	WT_STAT_DSRC_REC_AVERAGE_INTERNAL_PAGE_DELTA_CHAIN_LENGTH	2368
+#define	WT_STAT_DSRC_REC_AVERAGE_INTERNAL_PAGE_DELTA_CHAIN_LENGTH	2367
 /*! reconciliation: average length of delta chain on leaf page with deltas */
-#define	WT_STAT_DSRC_REC_AVERAGE_LEAF_PAGE_DELTA_CHAIN_LENGTH	2369
+#define	WT_STAT_DSRC_REC_AVERAGE_LEAF_PAGE_DELTA_CHAIN_LENGTH	2368
 /*!
  * reconciliation: changes since prior reconciliation (bucket 1) between
  * 1 and 5
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE5			2370
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE5			2369
 /*!
  * reconciliation: changes since prior reconciliation (bucket 2) between
  * 6 and 10
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE10			2371
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE10			2370
 /*!
  * reconciliation: changes since prior reconciliation (bucket 3) between
  * 11 and 20
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE20			2372
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE20			2371
 /*!
  * reconciliation: changes since prior reconciliation (bucket 4) between
  * 21 and 50
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE50			2373
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE50			2372
 /*!
  * reconciliation: changes since prior reconciliation (bucket 5) between
  * 51 and 100
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE100		2374
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE100		2373
 /*!
  * reconciliation: changes since prior reconciliation (bucket 6) between
  * 101 and 200
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE200		2375
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE200		2374
 /*!
  * reconciliation: changes since prior reconciliation (bucket 7) between
  * 201 and 500
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE500		2376
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE500		2375
 /*!
  * reconciliation: changes since prior reconciliation (bucket 8) greater
  * than 500
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_GT500		2377
+#define	WT_STAT_DSRC_REC_PAGE_MODS_GT500		2376
 /*! reconciliation: cursor next/prev calls during HS wrapup search_near */
-#define	WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS	2378
+#define	WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS	2377
 /*! reconciliation: dictionary matches */
-#define	WT_STAT_DSRC_REC_DICTIONARY			2379
+#define	WT_STAT_DSRC_REC_DICTIONARY			2378
 /*!
  * reconciliation: fast-path page deletion skipped, all entries already
  * deleted
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST_SKIP_DELETED	2380
+#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST_SKIP_DELETED	2379
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2381
+#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2380
 /*!
  * reconciliation: free page ID due to failed page replacement
  * reconciliation in disagg
  */
-#define	WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	2382
+#define	WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	2381
 /*! reconciliation: full internal pages written instead of a page delta */
-#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL	2383
+#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL	2382
 /*! reconciliation: full leaf pages written instead of a page delta */
-#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF		2384
+#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF		2383
 /*!
  * reconciliation: ingest btree reconciliation keeps the aborted prepare
  * updates
  */
-#define	WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK	2385
+#define	WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK	2384
 /*! reconciliation: internal page delta keys deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	2386
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	2385
 /*! reconciliation: internal page delta keys updated/inserted */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	2387
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	2386
 /*! reconciliation: internal page deltas written */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL		2388
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL		2387
 /*!
  * reconciliation: internal page key bytes discarded using suffix
  * compression
  */
-#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2389
+#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2388
 /*! reconciliation: internal page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2390
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2389
 /*!
  * reconciliation: leaf delta page key bytes discarded using prefix
  * compression
  */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA	2391
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA	2390
 /*!
  * reconciliation: leaf full page key bytes discarded using prefix
  * compression
  */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL	2392
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL	2391
 /*! reconciliation: leaf page deltas written */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_LEAF		2393
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_LEAF		2392
 /*! reconciliation: leaf page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2394
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2393
 /*! reconciliation: leaf-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2395
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2394
 /*! reconciliation: max deltas seen on internal page during reconciliation */
-#define	WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS	2396
+#define	WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS	2395
 /*! reconciliation: max deltas seen on leaf page during reconciliation */
-#define	WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS		2397
+#define	WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS		2396
 /*! reconciliation: maximum blocks required for a page */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2398
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2397
 /*!
  * reconciliation: number of keys that are garbage collected from the
  * disk images in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2399
+#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2398
 /*!
  * reconciliation: number of keys that are garbage collected from the
  * update chains in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2400
+#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2399
 /*! reconciliation: overflow values written */
-#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2401
+#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2400
 /*! reconciliation: page deltas rejected due to invalid page ID */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2402
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2401
 /*! reconciliation: page deltas rejected due to max consecutive limit */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2403
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2402
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2404
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2403
 /*!
  * reconciliation: page deltas rejected due to non-single page in
  * previous reconciliation
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2405
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2404
 /*! reconciliation: page deltas rejected due to size threshold */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2406
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2405
 /*!
  * reconciliation: page deltas rejected due to too many keys removed from
  * the disk image
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_DELETE_THRESHOLD	2407
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_DELETE_THRESHOLD	2406
 /*! reconciliation: page deltas rejected due to zero entries */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	2408
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	2407
 /*!
  * reconciliation: page deltas rejected: build function returned false
  * (disabled, in-memory split, or internal page constraints not met)
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_BUILD_FAILED	2409
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_BUILD_FAILED	2408
 /*! reconciliation: page reconciliation calls */
-#define	WT_STAT_DSRC_REC_PAGES				2410
+#define	WT_STAT_DSRC_REC_PAGES				2409
 /*! reconciliation: page reconciliation calls for eviction */
-#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2411
+#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2410
 /*! reconciliation: page reconciliation calls for pages between 1 and 10MB */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_1MB_TO_10MB		2412
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_1MB_TO_10MB		2411
 /*!
  * reconciliation: page reconciliation calls for pages between 10 and
  * 100MB
  */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_10MB_TO_100MB	2413
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_10MB_TO_100MB	2412
 /*!
  * reconciliation: page reconciliation calls for pages between 100MB and
  * 1GB
  */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_100MB_TO_1GB	2414
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_100MB_TO_1GB	2413
 /*! reconciliation: page reconciliation calls for pages over 1GB */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_1GB_PLUS		2415
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_1GB_PLUS		2414
 /*! reconciliation: pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE			2416
+#define	WT_STAT_DSRC_REC_PAGE_DELETE			2415
 /*! reconciliation: pages eligible for delta generation */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_ELIGIBLE		2417
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_ELIGIBLE		2416
 /*!
  * reconciliation: pages written including an aggregated newest start
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2418
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2417
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2419
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2418
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2420
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2419
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2421
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2420
 /*!
  * reconciliation: pages written including an aggregated newest
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2422
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2421
 /*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2423
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2422
 /*! reconciliation: pages written including an aggregated prepare */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2424
+#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2423
 /*! reconciliation: pages written including at least one prepare state */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2425
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2424
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2426
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2425
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2427
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2426
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2428
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2427
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2429
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2428
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2430
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2429
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2431
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2430
 /*! reconciliation: pages written with at least one internal page delta */
-#define	WT_STAT_DSRC_REC_PAGES_WITH_INTERNAL_DELTAS	2432
+#define	WT_STAT_DSRC_REC_PAGES_WITH_INTERNAL_DELTAS	2431
 /*! reconciliation: pages written with at least one leaf page delta */
-#define	WT_STAT_DSRC_REC_PAGES_WITH_LEAF_DELTAS		2433
+#define	WT_STAT_DSRC_REC_PAGES_WITH_LEAF_DELTAS		2432
 /*! reconciliation: records written including a prepare state */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2434
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2433
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2435
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2434
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2436
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2435
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2437
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2436
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2438
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2437
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2439
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2438
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2440
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2439
 /*! reconciliation: writes skipped in disaggregated storage */
-#define	WT_STAT_DSRC_REC_SKIP_WRITE			2441
+#define	WT_STAT_DSRC_REC_SKIP_WRITE			2440
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2442
+#define	WT_STAT_DSRC_SESSION_COMPACT			2441
 /*!
  * transaction: a reader raced with a prepared transaction commit and
  * skipped an update or updates
  */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2443
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2442
 /*! transaction: number of times overflow removed value is read */
-#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2444
+#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2443
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2445
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2444
 /*! transaction: rollback to stable applied btrees */
-#define	WT_STAT_DSRC_TXN_RTS_BTREES_APPLIED		2446
+#define	WT_STAT_DSRC_TXN_RTS_BTREES_APPLIED		2445
 /*!
  * transaction: rollback to stable history store keys that would have
  * been swept in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	2447
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	2446
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2448
+#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2447
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2449
+#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2448
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2450
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2449
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2451
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2450
 /*!
  * transaction: rollback to stable keys that would have been removed in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN	2452
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN	2451
 /*!
  * transaction: rollback to stable keys that would have been restored in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN	2453
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN	2452
 /*!
  * transaction: rollback to stable prepared fast truncations that would
  * have been rolled back in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN	2454
+#define	WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN	2453
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2455
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2454
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2456
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2455
 /*! transaction: rollback to stable rolled back prepared fast truncations */
-#define	WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE	2457
+#define	WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE	2456
 /*! transaction: rollback to stable skipped btrees */
-#define	WT_STAT_DSRC_TXN_RTS_BTREES_SKIPPED		2458
+#define	WT_STAT_DSRC_TXN_RTS_BTREES_SKIPPED		2457
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2459
+#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2458
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2460
+#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2459
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2461
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2460
 /*!
  * transaction: rollback to stable tombstones from history store that
  * would have been restored in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	2462
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	2461
 /*!
  * transaction: rollback to stable updates from history store that would
  * have been restored in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	2463
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	2462
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2464
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2463
 /*!
  * transaction: rollback to stable updates that would have been removed
  * from history store in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2465
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2464
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2466
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2465
 
 /*!
  * @}
