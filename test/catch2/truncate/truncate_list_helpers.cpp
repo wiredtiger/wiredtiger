@@ -120,6 +120,7 @@ truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
     const auto initial_size = truncate_list_size(_table);
 
     TAILQ_INSERT_TAIL(&_table.truncate_list.qh, entry, q);
+    ++_table.truncate_list.entries;
 
     const auto expected_size = initial_size + 1;
     CHECK(truncate_list_size(_table) == expected_size);

@@ -94,6 +94,24 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.assertEqual(self.metric('list_entries_inserted', self.uri), 1)
         self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 1)
 
+    def test_largest_observed_list(self):
+        self.setup_tables()
+        self.ignoreStdoutPattern('Picking up the same checkpoint')
+        self.assertEqual(self.metric('list_entries_max'), 0)
+        self.truncate(20, 40, commit_timestamp=20)
+        with closing(self.session.open_cursor(self.other_uri)) as cursor:
+            with self.transaction(commit_timestamp=30):
+                cursor[1] = 'v'
+        with self.transaction(commit_timestamp=40):
+            self.session.truncate(self.other_uri, None, None, None)
+        self.assertEqual(self.metric('list_entries_max'), 1)
+        self.session.begin_transaction()
+        self.truncate_on(self.session, 60, 80)
+        self.assertEqual(self.metric('list_entries_max', clear=True), 2)
+        self.assertEqual(self.metric('list_entries_max'), 2)
+        self.session.rollback_transaction()
+        self.assertEqual(self.metric('list_entries_max'), 2)
+
     def test_search_hits_and_misses(self):
         self.setup_tables()
         self.truncate(20, 40, commit_timestamp=20)
@@ -172,3 +190,4 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.conn.reconfigure('disaggregated=(role="leader")')
         for uri in (None, self.uri):
             self.assertEqual(self.metric('list_clear_entries_removed', uri), 1)
+        self.assertEqual(self.metric('list_entries_max'), 1)

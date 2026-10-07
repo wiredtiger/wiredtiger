@@ -72,6 +72,8 @@ __truncate_entry_remove(
     WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
 
     TAILQ_REMOVE(&truncate_list->qh, entry, q);
+    WT_ASSERT(session, truncate_list->entries > 0);
+    --truncate_list->entries;
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_RELEASE(&layered_table->iface);
@@ -177,6 +179,13 @@ __txn_insert_truncate_entry_helper(
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
+    ++truncate_list->entries;
+    if (WT_STAT_ENABLED(session)) {
+        int64_t *maximum =
+          &S2C(session)->stats[session->stat_conn_bucket]->layered_truncate_list_entries_max;
+        if ((int64_t)truncate_list->entries > __wt_atomic_load_int64_relaxed(maximum))
+            __wt_atomic_store_int64_relaxed(maximum, (int64_t)truncate_list->entries);
+    }
     WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_entries_inserted);
 
     __wt_writeunlock(session, &truncate_list->lock);

@@ -94,6 +94,7 @@ struct __wt_truncate {
  */
 struct __wt_truncate_list {
     WT_DATA_HANDLE *dhandle; /* Owning layered handle */
+    uint64_t entries;        /* Current entry count */
     /*
      * Queue head for fast truncate logic.
      *
