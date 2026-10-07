@@ -1539,10 +1539,14 @@ config_disagg_victim_cache(void)
     uint64_t size_mb;
     char buf[64];
 
-    /* A size the user set turns the cache on: the size is the switch. */
+    /* A size the user set is the switch: non-zero turns the cache on, zero turns it off. */
     if (config_explicit(NULL, "disagg.victim_cache.size") &&
-      !config_explicit(NULL, "disagg.victim_cache"))
-        config_single(NULL, "disagg.victim_cache=1", true);
+      !config_explicit(NULL, "disagg.victim_cache")) {
+        if (GV(DISAGG_VICTIM_CACHE_SIZE) != 0)
+            config_single(NULL, "disagg.victim_cache=1", true);
+        else
+            config_off(NULL, "disagg.victim_cache");
+    }
 
     /* The victim cache lives in the page log, so a run without one has nowhere to put pages. */
     if (!g.disagg_storage_config) {
