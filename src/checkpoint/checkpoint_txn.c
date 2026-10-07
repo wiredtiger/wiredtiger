@@ -372,14 +372,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
             return (0);
     }
 
-    /*
-     * Operations that update a file's metadata outside a checkpoint either hold the schema lock
-     * (closing a bulk load cursor, schema operations) or have exclusive access to the handle, and
-     * exclusive handles are not gathered. Schema operations run on an internal session when the
-     * caller has a transaction running, so their metadata updates are not part of that transaction.
-     * Checkpoint holds the schema lock while it gathers handles, so no other operation changes the
-     * metadata of a gathered handle until the gather ends.
-     */
+    /* The schema lock prevents metadata changes while checkpoint reads the file. */
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
     /*
