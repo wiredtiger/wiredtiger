@@ -42,13 +42,9 @@
 using namespace test_harness;
 
 /*
- * This test measures what a truncate costs on a layered table, and the cache it creates. It runs an
- * oplog shaped workload in one role, chosen by configuration.
- *
- * A leader deletes ranges out of the stable tree while it appends to the oplog. A follower is
- * loaded as a leader first, then restarted in the follower role, where its truncates go to a
- * truncate list rather than the tree, and it picks up the checkpoints taken during the load, which
- * is what lets that list be collected.
+ * Model MongoDB's oplog with increasing integer keys and fixed-size values, retiring whole markers
+ * while retaining a configured window. Compare leader truncation of the stable tree with follower
+ * truncate-list handling after restart and checkpoint pickup or an in-place step-down.
  */
 class disagg_truncate_perf : public test {
 public:
@@ -65,73 +61,50 @@ private:
     /* Connection statistics, reported as the change across the measured phase. */
     static constexpr named_stat PHASE_STATS[] = {
       {"page_delete_fast", WT_STAT_CONN_REC_PAGE_DELETE_FAST},
-      {"page_delete_fast_skipped", WT_STAT_CONN_REC_PAGE_DELETE_FAST_SKIP_DELETED},
       {"truncate_keys_deleted", WT_STAT_CONN_CURSOR_TRUNCATE_KEYS_DELETED},
-      {"eviction_blocked_truncate", WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE},
       {"truncate_dirty_cache_rollback", WT_STAT_CONN_TXN_TRUNCATE_DIRTY_CACHE_ROLLBACK},
-      {"eviction_pages_seen", WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN},
+    };
+
+    static constexpr named_stat FOLLOWER_STATS[] = {
       {"truncate_list_search_calls", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_CALLS},
       {"truncate_list_entries_walked", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED},
       {"truncate_list_gc_runs", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_RUNS},
       {"truncate_list_gc_entries_removed", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED},
-      {"checkpoints_picked_up",
-        WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FOLLOWER},
     };
 
-    /* Cache occupancy, sampled while the phase runs rather than read once at its end. */
-    static constexpr named_stat CACHE_GAUGES[] = {
-      {"cache_bytes_inuse", WT_STAT_CONN_CACHE_BYTES_INUSE},
-      {"cache_bytes_dirty", WT_STAT_CONN_CACHE_BYTES_DIRTY},
-      {"cache_bytes_updates", WT_STAT_CONN_CACHE_BYTES_UPDATES},
-      {"cache_pages_inuse", WT_STAT_CONN_CACHE_PAGES_INUSE},
-    };
-
-    using phase_stats = std::array<int64_t, WT_ELEMENTS(PHASE_STATS)>;
-
-    /*
-     * A follower holds its pressure in the ingest table and the truncate list rather than in dirty
-     * pages, so both are tracked alongside the cache gauges.
-     */
-    struct cache_pressure {
-        std::atomic<uint64_t> samples{0};
-        std::atomic<uint64_t> total[WT_ELEMENTS(CACHE_GAUGES)]{};
-        std::atomic<uint64_t> peak[WT_ELEMENTS(CACHE_GAUGES)]{};
-        std::atomic<uint64_t> ingest_total{0}, ingest_peak{0}, list_entries_peak{0};
-    };
-
-    /* The cache a single truncate creates, charged per operation. */
-    struct truncate_cost {
-        std::atomic<uint64_t> count{0}, total{0}, peak{0};
-    };
+    using connection_stat_snapshot =
+      std::array<int64_t, WT_ELEMENTS(PHASE_STATS) + WT_ELEMENTS(FOLLOWER_STATS)>;
 
     /* Configuration. */
-    int64_t _cache_size_mb, _checkpoint_interval_ms, _insert_mb, _insert_threads;
-    int64_t _marker_size_mb, _oplog_size_mb, _value_size;
+    int64_t _cache_size_mb;
+    int64_t _insert_mb;
+    int64_t _marker_size_mb;
+    int64_t _oplog_size_mb;
+    int64_t _value_size;
     std::string _role;
 
-    /* Set once the connection is in the follower role, whether by restart or by stepping down. */
+    /* Set once the connection steps down to follower. */
     bool _follower = false;
 
-    std::atomic<uint64_t> _next_key{1}, _inserted_bytes{0}, _truncated_key{0};
-    std::atomic<uint64_t> _truncate_ops{0}, _insert_rollbacks{0}, _truncate_rollbacks{0};
-    std::atomic<uint64_t> _truncate_list_entries{0};
-    uint64_t _phase_start_bytes{0};
+    /* Shared by workload workers. */
+    std::atomic<uint64_t> _next_key{1};
+    std::atomic<uint64_t> _inserted_bytes{0};
 
-    /* Checkpoints taken while loading, handed to the follower one at a time once it restarts. */
+    uint64_t _truncated_key{0};
+    uint64_t _truncate_ops{0};
+    uint64_t _truncate_rollbacks{0};
+    uint64_t _truncate_list_entries{0};
+    uint64_t _truncate_list_entries_peak{0};
+    uint64_t _truncate_pressure_bytes_peak{0};
+
+    /* Checkpoints captured during load and adopted after restarting as a follower. */
     std::vector<std::string> _checkpoints;
 
-    /*
-     * Charging a truncate for the cache it creates means reading a statistic the inserters also
-     * move, so they are held off for as long as one is open.
-     */
+    /* Exclude inserts while measuring a truncate's connection-wide cache delta. */
     std::shared_mutex _insert_gate;
 
-    cache_pressure _cache;
-    truncate_cost _cost;
-
-    /* The timestamp manager in use, which the follower modes replace when the role changes. */
+    /* The timestamp manager in use, replaced after stepping down. */
     timestamp_manager *_tsm = nullptr;
-    std::unique_ptr<timestamp_manager> _follower_tsm;
 
     void load_config();
     void load(bool capture_checkpoints);
@@ -140,13 +113,12 @@ private:
     void truncate_worker(uint64_t target_bytes);
     void checkpoint_worker(uint64_t target_bytes, bool capture_checkpoints);
     void pickup_worker(std::atomic<bool> *stop);
-    void sampler_worker(std::atomic<bool> *stop);
     bool expired_marker(uint64_t *marker_keyp);
-    int truncate_to_marker(
+    int truncate_marker(
       scoped_session &session, scoped_cursor &cursor, scoped_cursor &stat_cursor, uint64_t key);
-    phase_stats read_phase_stats();
-    void report_phase(const phase_stats &before, const phase_stats &after, uint64_t elapsed_ms);
-    std::string connection_config() const;
+    connection_stat_snapshot read_phase_stats(bool include_follower_stats);
+    void report_phase(const connection_stat_snapshot &before, const connection_stat_snapshot &after,
+      uint64_t elapsed_ms);
 
     uint64_t
     record_bytes() const
@@ -173,43 +145,43 @@ private:
     }
 
     static void
-    record_peak(std::atomic<uint64_t> &peak, uint64_t seen)
+    record_peak(uint64_t &peak, uint64_t seen)
     {
-        uint64_t previous = peak.load();
-        while (seen > previous && !peak.compare_exchange_weak(previous, seen))
-            ;
+        if (seen > peak)
+            peak = seen;
     }
 };
 
 constexpr disagg_truncate_perf::named_stat disagg_truncate_perf::PHASE_STATS[];
-constexpr disagg_truncate_perf::named_stat disagg_truncate_perf::CACHE_GAUGES[];
+constexpr disagg_truncate_perf::named_stat disagg_truncate_perf::FOLLOWER_STATS[];
 
 static const std::string TABLE_URI = "layered:oplog";
-static const std::string INGEST_URI = "file:oplog.wt_ingest";
 static const std::string PAGE_LOG = "palite";
 
 /* A percentile is only worth reporting over a reasonable number of operations. */
 static const int64_t MINIMUM_TRUNCATES = 25;
+static const int64_t CHECKPOINT_INTERVAL_MS = 2000;
+/* Multiple appenders keep the single truncate worker supplied with oplog records. */
+static const int64_t INSERT_THREADS = 4;
 
 void
 disagg_truncate_perf::load_config()
 {
     _cache_size_mb = _config->get_int(CACHE_SIZE_MB);
-    _checkpoint_interval_ms = _config->get_int("checkpoint_interval_ms");
     _insert_mb = _config->get_int("insert_mb");
-    _insert_threads = _config->get_int("insert_threads");
     _marker_size_mb = _config->get_int("marker_size_mb");
     _oplog_size_mb = _config->get_int("oplog_size_mb");
     _value_size = _config->get_int("value_size");
     _role = _config->get_string("role");
-
-    if (_role != "leader" && _role != "follower" && _role != "switch")
+    if (_role != "leader" && _role != "switch" && _role != "follower")
         testutil_die(EINVAL, "unknown role \"%s\"", _role.c_str());
 
     if (_marker_size_mb > _oplog_size_mb)
         testutil_die(EINVAL, "the marker size must not exceed the oplog size");
 
-    /* Truncation follows the oplog overflowing, so the insert volume and marker size set its rate.
+    /*
+     * Truncation follows the oplog overflowing, so the insert volume and the marker size set its
+     * rate.
      */
     int64_t truncates = _insert_mb / _marker_size_mb;
     if (truncates < MINIMUM_TRUNCATES)
@@ -217,15 +189,6 @@ disagg_truncate_perf::load_config()
           "the run would measure %" PRId64 " truncates, fewer than the %" PRId64
           " needed to measure one: raise insert_mb or lower marker_size_mb",
           truncates, MINIMUM_TRUNCATES);
-}
-
-std::string
-disagg_truncate_perf::connection_config() const
-{
-    return (CONNECTION_CREATE + ",cache_size=" + std::to_string(_cache_size_mb) +
-      "MB,statistics=(all),statistics_log=(json,wait=1,on_close),precise_checkpoint=true" +
-      ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so]" +
-      ",disaggregated=(page_log=" + PAGE_LOG + ",role=\"%ROLE%\")" + _args.wt_open_config);
 }
 
 /*
@@ -239,22 +202,27 @@ disagg_truncate_perf::expired_marker(uint64_t *marker_keyp)
     uint64_t keep = mb_to_bytes(_oplog_size_mb) / record_bytes();
     uint64_t head = _next_key.load();
 
-    if (head - _truncated_key.load() <= keep + marker_records())
+    if (head - _truncated_key <= keep + marker_records())
         return (false);
 
     *marker_keyp = head - keep;
     return (true);
 }
 
-disagg_truncate_perf::phase_stats
-disagg_truncate_perf::read_phase_stats()
+disagg_truncate_perf::connection_stat_snapshot
+disagg_truncate_perf::read_phase_stats(bool include_follower_stats)
 {
     scoped_session session = connection_manager::instance().create_session();
     scoped_cursor cursor = session.open_scoped_cursor(STATISTICS_URI);
-    phase_stats stats;
+    connection_stat_snapshot stats{};
 
     for (size_t i = 0; i < WT_ELEMENTS(PHASE_STATS); i++)
         stats[i] = metrics_monitor::get_stat(cursor, PHASE_STATS[i].field);
+    if (_follower && include_follower_stats) {
+        for (size_t i = 0; i < WT_ELEMENTS(FOLLOWER_STATS); i++)
+            stats[WT_ELEMENTS(PHASE_STATS) + i] =
+              metrics_monitor::get_stat(cursor, FOLLOWER_STATS[i].field);
+    }
     return (stats);
 }
 
@@ -276,28 +244,29 @@ disagg_truncate_perf::insert_worker(uint64_t target_bytes)
         if ((ret = cursor->insert(cursor.get())) != 0) {
             testutil_assert(ret == WT_ROLLBACK);
             testutil_check(session->rollback_transaction(session.get(), nullptr));
-            _insert_rollbacks.fetch_add(1);
             continue;
         }
 
         testutil_check(session->timestamp_transaction(session.get(),
           (COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(_tsm->get_next_ts())).c_str()));
-        if ((ret = session->commit_transaction(session.get(), nullptr)) != 0) {
-            testutil_assert(ret == WT_ROLLBACK);
-            _insert_rollbacks.fetch_add(1);
-        } else
+        /*
+         * The oldest timestamp can overtake the commit timestamp chosen above while the commit is
+         * in flight, which the API reports as EINVAL rather than a rollback. Either way the
+         * transaction is resolved and the record is simply retried under a fresh timestamp.
+         */
+        if ((ret = session->commit_transaction(session.get(), nullptr)) != 0)
+            testutil_assert(ret == WT_ROLLBACK || ret == EINVAL);
+        else
             _inserted_bytes.fetch_add(record_bytes());
     }
 }
 
 /*
- * Truncate up to the marker key, charging the operation for the cache it creates. A leader pins
- * dirty internal pages until the transaction resolves, and that gauge is given back at commit, so
- * it is read while the truncate is open. A follower instead grows its ingest table and truncate
- * list, which is the change in update bytes across the whole operation.
+ * Apply one expired marker and measure its cache cost: before commit for leaders, or as
+ * truncate-list growth for followers.
  */
 int
-disagg_truncate_perf::truncate_to_marker(
+disagg_truncate_perf::truncate_marker(
   scoped_session &session, scoped_cursor &cursor, scoped_cursor &stat_cursor, uint64_t marker_key)
 {
     int64_t before =
@@ -326,7 +295,11 @@ disagg_truncate_perf::truncate_to_marker(
 
     if (_follower) {
         cost = metrics_monitor::get_stat(stat_cursor, WT_STAT_CONN_CACHE_BYTES_UPDATES) - before;
-        _truncate_list_entries.fetch_add(1);
+        ++_truncate_list_entries;
+        uint64_t collected = static_cast<uint64_t>(metrics_monitor::get_stat(
+          stat_cursor, WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED));
+        record_peak(_truncate_list_entries_peak,
+          _truncate_list_entries > collected ? _truncate_list_entries - collected : 0);
     }
 
     /*
@@ -334,12 +307,10 @@ disagg_truncate_perf::truncate_to_marker(
      * already dirty pins nothing new, and leaving those out would overstate what a truncate costs.
      */
     uint64_t charged = cost <= 0 ? 0 : static_cast<uint64_t>(cost);
-    _cost.count.fetch_add(1);
-    _cost.total.fetch_add(charged);
-    record_peak(_cost.peak, charged);
+    record_peak(_truncate_pressure_bytes_peak, charged);
 
-    _truncate_ops.fetch_add(1);
-    _truncated_key.store(marker_key);
+    ++_truncate_ops;
+    _truncated_key = marker_key;
     return (0);
 }
 
@@ -369,17 +340,15 @@ disagg_truncate_perf::truncate_worker(uint64_t target_bytes)
         }
 
         std::unique_lock<std::shared_mutex> gate(_insert_gate);
-        if (timer.track([&]() {
-                return (truncate_to_marker(session, cursor, stat_cursor, marker_key));
-            }) != 0)
-            _truncate_rollbacks.fetch_add(1);
+        if (timer.track(
+              [&]() { return (truncate_marker(session, cursor, stat_cursor, marker_key)); }) != 0)
+            ++_truncate_rollbacks;
     }
 }
 
 /*
- * Checkpoint on an interval the way a running server would. Without the checkpoints the internal
- * pages stay dirty, which is the case where a truncate pins no extra cache at all, and their
- * metadata is what a follower later picks up.
+ * Checkpoint on an interval the way a running server would. For a follower run, retain checkpoint
+ * metadata so the restarted connection can adopt it during the measured phase.
  */
 void
 disagg_truncate_perf::checkpoint_worker(uint64_t target_bytes, bool capture_checkpoints)
@@ -388,7 +357,7 @@ disagg_truncate_perf::checkpoint_worker(uint64_t target_bytes, bool capture_chec
     scoped_session session = connection_manager::instance().create_session();
 
     while (_inserted_bytes.load() < target_bytes) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(_checkpoint_interval_ms));
+        std::this_thread::sleep_for(std::chrono::milliseconds(CHECKPOINT_INTERVAL_MS));
         testutil_check(session->checkpoint(session.get(), nullptr));
 
         if (!capture_checkpoints)
@@ -407,9 +376,8 @@ disagg_truncate_perf::checkpoint_worker(uint64_t target_bytes, bool capture_chec
 }
 
 /*
- * Hand the follower the checkpoints taken while it was loaded, one at a time. Picking one up is
- * what advances the prune timestamp, and so what lets the truncate list be collected. A checkpoint
- * the connection already holds is refused, which is expected for the ones it wrote most recently.
+ * The restarted follower applies saved checkpoints to advance prune time and collect truncate-list
+ * entries.
  */
 void
 disagg_truncate_perf::pickup_worker(std::atomic<bool> *stop)
@@ -423,84 +391,37 @@ disagg_truncate_perf::pickup_worker(std::atomic<bool> *stop)
 
         if (ret != 0 && ret != EINVAL)
             testutil_check(ret);
-        std::this_thread::sleep_for(std::chrono::milliseconds(_checkpoint_interval_ms));
-    }
-}
-
-/*
- * Follow cache occupancy while the phase runs: what matters is how high it went while the truncates
- * were happening. A follower also carries its ingest table and its truncate list.
- */
-void
-disagg_truncate_perf::sampler_worker(std::atomic<bool> *stop)
-{
-    scoped_session session = connection_manager::instance().create_session();
-    scoped_cursor cursor = session.open_scoped_cursor(STATISTICS_URI);
-
-    while (!stop->load()) {
-        _cache.samples.fetch_add(1);
-        for (size_t i = 0; i < WT_ELEMENTS(CACHE_GAUGES); i++) {
-            uint64_t seen =
-              static_cast<uint64_t>(metrics_monitor::get_stat(cursor, CACHE_GAUGES[i].field));
-            _cache.total[i].fetch_add(seen);
-            record_peak(_cache.peak[i], seen);
-        }
-
-        if (_follower) {
-            scoped_cursor ingest_cursor = session.open_scoped_cursor(STATISTICS_URI + INGEST_URI);
-            uint64_t ingest = static_cast<uint64_t>(
-              metrics_monitor::get_stat(ingest_cursor, WT_STAT_DSRC_CACHE_BYTES_INUSE));
-            _cache.ingest_total.fetch_add(ingest);
-            record_peak(_cache.ingest_peak, ingest);
-
-            uint64_t collected = static_cast<uint64_t>(metrics_monitor::get_stat(
-              cursor, WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED));
-            uint64_t recorded = _truncate_list_entries.load();
-            record_peak(_cache.list_entries_peak, recorded > collected ? recorded - collected : 0);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        std::this_thread::sleep_for(std::chrono::milliseconds(CHECKPOINT_INTERVAL_MS));
     }
 }
 
 /* Report everything the phase produced: what it did, what each truncate cost, and what it held. */
 void
-disagg_truncate_perf::report_phase(
-  const phase_stats &before, const phase_stats &after, uint64_t elapsed_ms)
+disagg_truncate_perf::report_phase(const connection_stat_snapshot &before,
+  const connection_stat_snapshot &after, uint64_t elapsed_ms)
 {
     const std::string &role = _role;
-    uint64_t truncates = std::max(_cost.count.load(), static_cast<uint64_t>(1));
-    uint64_t samples = std::max(_cache.samples.load(), static_cast<uint64_t>(1));
     uint64_t elapsed = std::max(elapsed_ms, static_cast<uint64_t>(1));
 
     for (size_t i = 0; i < WT_ELEMENTS(PHASE_STATS); i++)
         report(role + "_" + PHASE_STATS[i].name, static_cast<uint64_t>(after[i] - before[i]));
+    if (_follower) {
+        for (size_t i = 0; i < WT_ELEMENTS(FOLLOWER_STATS); i++)
+            report(role + "_" + FOLLOWER_STATS[i].name,
+              static_cast<uint64_t>(after[WT_ELEMENTS(PHASE_STATS) + i]));
+        report(role + "_truncate_list_entries_peak", _truncate_list_entries_peak);
+    }
 
     report(role + "_duration_ms", elapsed);
-    report(role + "_truncates_per_second", (_truncate_ops.load() * 1000) / elapsed);
-    report(role + "_insert_mb_per_second",
-      ((_inserted_bytes.load() - _phase_start_bytes) * 1000) / WT_MEGABYTE / elapsed);
-    report(role + "_truncate_ops", _truncate_ops.load());
-    report(role + "_truncate_rollbacks", _truncate_rollbacks.load());
-    report(role + "_insert_rollbacks", _insert_rollbacks.load());
-    report(role + "_truncate_pressure_bytes_mean", _cost.total.load() / truncates);
-    report(role + "_truncate_pressure_bytes_peak", _cost.peak.load());
-
-    for (size_t i = 0; i < WT_ELEMENTS(CACHE_GAUGES); i++) {
-        report(role + "_" + CACHE_GAUGES[i].name + "_mean", _cache.total[i].load() / samples);
-        report(role + "_" + CACHE_GAUGES[i].name + "_peak", _cache.peak[i].load());
-    }
-    if (_follower) {
-        report(role + "_ingest_bytes_mean", _cache.ingest_total.load() / samples);
-        report(role + "_ingest_bytes_peak", _cache.ingest_peak.load());
-        report(role + "_truncate_list_entries_peak", _cache.list_entries_peak.load());
-    }
+    report(role + "_truncate_ops", _truncate_ops);
+    report(role + "_truncate_rollbacks", _truncate_rollbacks);
+    report(role + "_truncate_pressure_bytes_peak", _truncate_pressure_bytes_peak);
     logger::log_msg(LOG_INFO,
-      "The " + role + " phase completed " + std::to_string(_truncate_ops.load()) + " truncates.");
+      "The " + role + " phase completed " + std::to_string(_truncate_ops) + " truncates.");
 }
 
 /*
- * Fill the oplog as a leader. The follower run loads its data this way too, and keeps the
- * checkpoints taken along the way to pick up once it restarts.
+ * Fill the oplog as a leader before measuring each role.
  */
 void
 disagg_truncate_perf::load(bool capture_checkpoints)
@@ -509,7 +430,7 @@ disagg_truncate_perf::load(bool capture_checkpoints)
 
     thread_manager tm;
     uint64_t target_bytes = mb_to_bytes(_oplog_size_mb);
-    for (int64_t i = 0; i < _insert_threads; i++)
+    for (int64_t i = 0; i < INSERT_THREADS; i++)
         tm.add_thread(&disagg_truncate_perf::insert_worker, this, target_bytes);
     tm.add_thread(
       &disagg_truncate_perf::checkpoint_worker, this, target_bytes, capture_checkpoints);
@@ -519,46 +440,35 @@ disagg_truncate_perf::load(bool capture_checkpoints)
     testutil_check(session->checkpoint(session.get(), nullptr));
 }
 
-/*
- * Append to the oplog and trim it as it overflows. Every role runs this: a leader writes to its
- * stable tree, a follower to its ingest table, and only the roles differ in what a truncate then
- * has to do.
- */
+/* Append to the oplog and trim it as it overflows. */
 void
 disagg_truncate_perf::run_workload()
 {
     logger::log_msg(LOG_INFO, "Starting the " + _role + " phase.");
 
     std::atomic<bool> done{false};
-    _phase_start_bytes = _inserted_bytes.load();
-    uint64_t target_bytes = _phase_start_bytes + mb_to_bytes(_insert_mb);
-    phase_stats before = read_phase_stats();
+    uint64_t target_bytes = _inserted_bytes.load() + mb_to_bytes(_insert_mb);
+    connection_stat_snapshot before = read_phase_stats(false);
     auto start = std::chrono::steady_clock::now();
 
     {
         thread_manager tm;
-        for (int64_t i = 0; i < _insert_threads; i++)
+        for (int64_t i = 0; i < INSERT_THREADS; i++)
             tm.add_thread(&disagg_truncate_perf::insert_worker, this, target_bytes);
-        tm.add_thread(&disagg_truncate_perf::truncate_worker, this, target_bytes);
-        tm.add_thread(&disagg_truncate_perf::sampler_worker, this, &done);
+        tm.add_thread([&]() {
+            truncate_worker(target_bytes);
+            done.store(true);
+        });
 
-        /* Only a leader checkpoints, and only a restarted follower has anything to pick up. */
+        /* Only the leader checkpoints during the measured phase. */
         if (!_follower)
             tm.add_thread(&disagg_truncate_perf::checkpoint_worker, this, target_bytes, false);
         if (!_checkpoints.empty())
             tm.add_thread(&disagg_truncate_perf::pickup_worker, this, &done);
-
-        thread_manager stopper;
-        stopper.add_thread([&]() {
-            while (_inserted_bytes.load() < target_bytes)
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            done.store(true);
-        });
         tm.join();
-        stopper.join();
     }
 
-    report_phase(before, read_phase_stats(),
+    report_phase(before, read_phase_stats(true),
       static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start)
           .count()));
@@ -570,7 +480,10 @@ disagg_truncate_perf::run()
     load_config();
 
     std::string home = _args.home.empty() ? DEFAULT_DIR : _args.home;
-    std::string config = connection_config();
+    std::string config = CONNECTION_CREATE + ",cache_size=" + std::to_string(_cache_size_mb) +
+      "MB,statistics=(all),statistics_log=(json,wait=1,on_close),precise_checkpoint=true" +
+      ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so]" +
+      ",disaggregated=(page_log=" + PAGE_LOG + ",role=\"%ROLE%\")" + _args.wt_open_config;
     std::string leader_config = config;
     leader_config.replace(leader_config.find("%ROLE%"), strlen("%ROLE%"), "leader");
 
@@ -592,6 +505,7 @@ disagg_truncate_perf::run()
     thread_manager timestamps;
     timestamps.add_thread(&component::run, _tsm);
 
+    /* Prefill as a leader; only the restarted-follower run needs checkpoint metadata. */
     load(_role == "follower");
 
     if (_role == "leader") {
@@ -611,12 +525,7 @@ disagg_truncate_perf::run()
     follower_config.replace(follower_config.find("%ROLE%"), strlen("%ROLE%"), "follower");
 
     if (_role == "switch") {
-        /*
-         * Step down in place. Every worker has been joined, which step-down requires: it asserts
-         * that no application write transaction is open. The connection keeps the cache it warmed
-         * as a leader, and adopts nothing, so this measures the transition itself and the truncates
-         * that follow it.
-         */
+        /* Step down in place after all workers have joined, as step-down requires. */
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         logger::log_msg(LOG_INFO, "Stepping down to follower.");
         testutil_check(conn->reconfigure(conn, "disaggregated=(role=\"follower\")"));
@@ -627,21 +536,16 @@ disagg_truncate_perf::run()
           static_cast<uint64_t>(
             metrics_monitor::get_stat(cursor, WT_STAT_CONN_DISAGG_STEP_DOWN_TIME)));
     } else {
-        /*
-         * Restart in the follower role. A connection cannot adopt a checkpoint it wrote itself, so
-         * the restart is what lets the checkpoints kept during the load be picked up.
-         */
+        /* Restart to adopt checkpoints written by the leader. */
         logger::log_msg(LOG_INFO, "Restarting as a follower.");
         connection_manager::instance().close();
         connection_manager::instance().reopen(follower_config, home);
     }
 
-    /*
-     * Give the follower its own timestamp manager. It has to keep moving the stable timestamp: its
-     * inserts are unstable updates until it does, and a follower writes none of them out.
-     */
-    _follower_tsm.reset(new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER)));
-    _tsm = _follower_tsm.get();
+    /* Keep the stable timestamp advancing after the role change. */
+    std::unique_ptr<timestamp_manager> follower_tsm(
+      new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER)));
+    _tsm = follower_tsm.get();
     _tsm->load();
     thread_manager follower_timestamps;
     follower_timestamps.add_thread(&component::run, _tsm);
