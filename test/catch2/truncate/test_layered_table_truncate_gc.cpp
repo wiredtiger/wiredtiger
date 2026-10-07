@@ -7,6 +7,8 @@
  */
 
 #include <catch2/catch.hpp>
+#include <chrono>
+#include <thread>
 
 #include "wt_internal.h"
 #include "truncate_list_helpers.hpp"
@@ -23,6 +25,112 @@ insert_durable_entry(truncate_list_fixture &fixture, const wt_timestamp_t durabl
 }
 
 } // namespace
+
+TEST_CASE("truncate garbage collection counts runs and entries", "[truncate_list][gc]")
+{
+    truncate_list_fixture fixture;
+    auto *session = &fixture.session();
+    auto *table = &fixture.layered_table();
+    fixture.add_entry(make_item("a"), make_item("b"));
+    insert_durable_entry(fixture, WT_TS_NONE);
+    insert_durable_entry(fixture, 20);
+    insert_durable_entry(fixture, 10);
+
+    __ut_layered_table_truncate_gc(session, table, WT_TS_NONE);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == 0);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 0);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) == 0);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 0);
+
+    __ut_layered_table_truncate_gc(session, table, 10);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_examined) == 4);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) == 4);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == 1);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 1);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == 1);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 1);
+
+    __ut_layered_table_truncate_gc(session, table, 20);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) == 7);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_examined) == 7);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == 2);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 2);
+    CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == 2);
+    CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 2);
+    CHECK(table->truncate_list.entries == 2);
+}
+
+TEST_CASE(
+  "truncate list tracked lock records acquisitions and contention", "[truncate_list][statistics]")
+{
+    truncate_list_fixture fixture;
+    auto *owner = &fixture.session();
+    auto *table = &fixture.layered_table();
+    auto *lock = &table->truncate_list.lock;
+    WT_SESSION_IMPL waiter{};
+    waiter.iface.connection = &S2C(owner)->iface;
+    SECTION("read acquires an uncontended lock")
+    {
+        __wt_readlock(owner, lock);
+        __wt_readunlock(owner, lock);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) == 1);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
+    }
+    SECTION("read waits for a writer")
+    {
+        __wt_writelock(owner, lock);
+        const auto before_wait =
+          WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application);
+        std::thread thread([&] {
+            __wt_readlock(&waiter, lock);
+            __wt_readunlock(&waiter, lock);
+        });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        bool queued = false;
+        /* Entering the condition wait follows initialization of the lock's wait timer. */
+        while (!(queued = __wt_atomic_load_int32(&lock->cond_readers->waiters) > 0) &&
+          std::chrono::steady_clock::now() < deadline)
+            std::this_thread::yield();
+        const auto release_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+        while (std::chrono::steady_clock::now() < release_time)
+            std::this_thread::yield();
+        __wt_writeunlock(owner, lock);
+        thread.join();
+        REQUIRE(queued);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) == 1);
+        CHECK(
+          WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) > before_wait);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
+    }
+    SECTION("write acquires an uncontended lock")
+    {
+        __wt_writelock(owner, lock);
+        __wt_writeunlock(owner, lock);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count) == 1);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
+    }
+    SECTION("write waits for a reader")
+    {
+        F_SET(&waiter, WT_SESSION_INTERNAL);
+        __wt_readlock(owner, lock);
+        std::thread thread([&] { __wt_layered_table_truncate_clear(&waiter, table); });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        bool queued = false;
+        while (!(queued = __wt_atomic_load_int32(&lock->cond_writers->waiters) > 0) &&
+          std::chrono::steady_clock::now() < deadline)
+            std::this_thread::yield();
+        const auto release_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+        while (std::chrono::steady_clock::now() < release_time)
+            std::this_thread::yield();
+        __wt_readunlock(owner, lock);
+        thread.join();
+        REQUIRE(queued);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count) == 1);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) > 0);
+        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
+    }
+}
 
 SCENARIO("garbage collection with a zeroed prune timestamp is a no-op", "[truncate_list][gc]")
 {

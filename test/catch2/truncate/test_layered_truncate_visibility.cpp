@@ -141,6 +141,24 @@ public:
 
 } // namespace
 
+TEST_CASE_METHOD(layered_truncate_visibility_fixture, "truncate search errors count as misses",
+  "[layered][truncate]")
+{
+    set_reader(50, WT_TS_NONE);
+    add_truncate(50, WT_TS_NONE, WT_TS_NONE, "0100", "0700");
+    WT_COLLATOR collator{};
+    collator.compare = [](WT_COLLATOR *, WT_SESSION *, const WT_ITEM *, const WT_ITEM *,
+                         int *) -> int { return EIO; };
+    layered_table.collator = &collator;
+    auto *stats = S2C(session)->stats;
+    const auto hits = WT_STAT_CONN_READ(stats, layered_truncate_list_search_hits);
+    const auto misses = WT_STAT_CONN_READ(stats, layered_truncate_list_search_misses);
+    CHECK(truncate_visible("0300") == EIO);
+    CHECK(WT_STAT_CONN_READ(stats, layered_truncate_list_search_hits) == hits);
+    CHECK(WT_STAT_CONN_READ(stats, layered_truncate_list_search_misses) == misses + 1);
+    layered_table.collator = nullptr;
+}
+
 TEST_CASE_METHOD(
   layered_truncate_visibility_fixture, "own uncommitted truncate is visible", "[layered][truncate]")
 {
