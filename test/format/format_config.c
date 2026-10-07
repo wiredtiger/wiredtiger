@@ -1555,7 +1555,7 @@ config_disagg_victim_cache(void)
     }
 
     /* Of the page logs, only PALite implements the caching hooks. */
-    if (g.disagg_storage_config && strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
+    if (strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0) {
         if (config_explicit(NULL, "disagg.victim_cache"))
             WARN("turning off disagg.victim_cache, the %s page log implements no victim cache",
               GVS(DISAGG_PAGE_LOG));
