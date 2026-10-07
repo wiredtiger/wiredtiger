@@ -2492,10 +2492,8 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
  *     information has been discarded.
  */
 static bool
-__rec_proxy_cell_orphaned(WTI_RECONCILE *r)
+__rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
-    WT_ADDR *addr;
-    WT_PAGE *home;
     WT_PAGE_MODIFY *mod;
 
     mod = r->page->modify;
@@ -2511,10 +2509,7 @@ __rec_proxy_cell_orphaned(WTI_RECONCILE *r)
     if (mod->instantiated ||
       (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL))
         return (false);
-    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&r->ref->home);
-    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&r->ref->addr);
-    return (addr != NULL && !__wt_off_page(home, addr) &&
-      __wt_cell_type_raw((WT_CELL *)addr) == WT_CELL_ADDR_DEL);
+    return (__wt_ref_addr_is_deleted(session, r->ref));
 }
 
 /*
@@ -2749,7 +2744,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                   page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
                   !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
-                    WT_ASSERT(session, !__rec_proxy_cell_orphaned(r));
+                    WT_ASSERT(session, !__rec_proxy_cell_orphaned(session, r));
                     WT_RET(__rec_copy_prev_addr(session, r));
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
@@ -2774,7 +2769,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * replace that cell with.
          */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-          WT_REC_RESULT_SINGLE_PAGE((session), (r)) && !__rec_proxy_cell_orphaned(r)) {
+          WT_REC_RESULT_SINGLE_PAGE((session), (r)) && !__rec_proxy_cell_orphaned(session, r)) {
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;

@@ -2047,6 +2047,30 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 }
 
 /*
+ * __wt_ref_addr_is_deleted --
+ *     Return whether the reference's address is a fast-truncate proxy cell.
+ */
+static WT_INLINE bool
+__wt_ref_addr_is_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR *addr;
+    WT_PAGE *home;
+
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+      "Any thread accessing ref address must hold a valid split generation");
+
+    /*
+     * The proxy cell cannot be modified concurrently and split generations protect its lifetime, so
+     * no copy is needed; parent splits can replace the address, requiring the ordering in
+     * __wt_ref_addr_copy.
+     */
+    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
+    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
+    return (addr != NULL && !__wt_off_page(home, addr) &&
+      __wt_cell_type_raw((WT_CELL *)addr) == WT_CELL_ADDR_DEL);
+}
+
+/*
  * __wt_get_page_modify_ta --
  *     Returns the page modify stop time aggregate information if exists.
  */
