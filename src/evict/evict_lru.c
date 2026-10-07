@@ -1842,8 +1842,15 @@ __evict_get_ref(
              * Racy but safe: a page enqueued concurrently is simply missed on this pass, which is
              * already true of the unlocked TAILQ_EMPTY hint on the hash chains below.
              */
-            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
+            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0) {
+#if LRU_FOR_READS
+                /* Move the hand past an empty bucket; a skip for any other reason leaves it. */
+                if (i == WT_EVICT_LEVEL_CLEAN_LEAF)
+                    __wt_atomic_store_uint32_relaxed(
+                      &bucketset->bucket_last_considered, (j + 1) % num_buckets);
+#endif
                 continue;
+            }
 
             /*
              * Every bucket holds one queue per tree, in a hashtable. Walk each hash chain under
