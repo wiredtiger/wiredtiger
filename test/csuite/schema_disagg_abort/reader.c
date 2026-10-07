@@ -9,7 +9,7 @@
 /*
  * The reader stage: the single consumer of the node's event source - the self-pipe when this phase
  * generates, a live peer's otherwise. Queues events for the workers, runs the step-down work at the
- * marker, and ends the phase on the hand-over.
+ * step-down event, and ends the phase on the hand-over.
  */
 
 #include "schema_disagg_abort.h"
@@ -30,12 +30,12 @@ frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
 
 /*
  * reader_step_down --
- *     Set the step-down timestamp, reserving an epoch at or below it for each of the term's
+ *     Set the step-down timestamp, reserving a timestamp at or below it for each of the term's
  *     unpublished operations. The step-down workload publishes them, interleaved with its own
  *     operations, which allocate above it.
  */
 static void
-reader_step_down(WORKLOAD_STATE *state, uint32_t publish_count)
+reader_step_down(WORKLOAD_STATE *state, uint32_t reserve_count)
 {
     testutil_assert(__wt_atomic_load_uint64(&state->stepdown_ts) == 0);
     testutil_assert(__wt_atomic_load_bool(&state->stepdown_ckpt_due) == false);
@@ -48,23 +48,24 @@ reader_step_down(WORKLOAD_STATE *state, uint32_t publish_count)
     const uint64_t final_ts = __wt_atomic_load_uint64(&state->current_ts);
     frontier_assert(state, final_ts);
 
-    const uint64_t stepdown_ts = final_ts + publish_count;
+    const uint64_t stepdown_ts = final_ts + reserve_count;
     __wt_atomic_store_uint64(&state->reserved_ts, final_ts);
     workload_counter_advance(state, stepdown_ts);
 
-    /* Signal the timestamp and checkpoint threads to pause. */
+    /*
+     * The timestamp thread caps stable at the step-down timestamp, and the checkpoint thread stops
+     * its periodic checkpoints.
+     */
     __wt_atomic_store_uint64(&state->stepdown_ts, stepdown_ts);
-    while (__wt_atomic_load_bool(&state->ts_busy))
-        __wt_sleep(0, WT_THOUSAND);
 
     /*
      * FIXME-WT-18314: Once the ticket is fixed, the `-e` mode with role switches becomes illegal.
      */
     set_ts(state->cfg, state->conn, TS_STEPDOWN, stepdown_ts);
     println("Node %" PRIu32 ": step-down at %" PRIu64 " with %" PRIu32 " pending publishes",
-      state->cfg->node_id, stepdown_ts, publish_count);
+      state->cfg->node_id, stepdown_ts, reserve_count);
 
-    /* Signal the checkpoint thread to run the step-down checkpoint once the publishes apply. */
+    /* Signal the checkpoint thread to run the step-down checkpoint once stable reaches it. */
     __wt_atomic_store_bool(&state->stepdown_ckpt_due, true);
 }
 
@@ -106,7 +107,7 @@ thread_reader_run(void *arg)
             break;
         case EVENT_STEPDOWN:
             testutil_assert(state->leads && state->generates);
-            reader_step_down(state, ev.publish_count);
+            reader_step_down(state, ev.reserve_count);
             break;
         case EVENT_SWITCH:
             /* The final event of the term's stream. */

@@ -63,7 +63,7 @@ workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
 /*
  * workload_set_frontier --
  *     Set the frontier timestamps on the connection and mirror the stable schema epoch, so the
- *     generator can free slots whose published drops the epoch has covered.
+ *     generator can free tables whose published drops the epoch has covered.
  */
 void
 workload_set_frontier(WORKLOAD_STATE *state, uint64_t ts)
@@ -275,9 +275,8 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->generates = as_leader || !node_peer_alive(cfg);
     state->stop_stage = STAGE_NONE;
     state->handover_received = false;
-    state->emitted = state->applied = 0;
+    state->applied = 0;
     state->stepdown_ts = state->reserved_ts = state->stepdown_ckpt_lsn = 0;
-    state->stepdown_publish_remaining = 0;
     state->stepdown_ckpt_due = false;
 
     /* The frontier continues from the previous phase; nothing above it is completed yet. */
@@ -290,15 +289,13 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
         testutil_random_from_random(&state->workers[i].rnd, &cfg->opts->data_rnd);
         /*
-         * A leading phase checkpoints every slot, including inherited ingest data; a follower phase
-         * covers nothing, so the slots it inherits stay blocked.
+         * A leading phase checkpoints every table, including inherited ingest data; a follower
+         * phase covers nothing, so the tables it inherits stay blocked.
          */
-        for (uint32_t slot = 0; slot < cfg->pool_size; slot++) {
-            state->workers[i].table[slot].publish_ts_source = PUBLISH_TS_CURRENT;
-            if (as_leader)
-                state->workers[i].table[slot].uncovered_insert = false;
-        }
-        /* State and slot generation survive role transitioning. */
+        if (as_leader)
+            for (uint32_t j = 0; j < cfg->pool_size; j++)
+                state->workers[i].table[j].uncovered_insert = false;
+        /* Table states survive role transitions. */
     }
 
     /* Re-seed the auxiliary stream. */
