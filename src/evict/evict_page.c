@@ -148,6 +148,8 @@ __evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON reason)
         return ("page is a root page");
     case WTI_EVICT_VICTIM_COLD_TIER:
         return ("btree is on the cold storage tier");
+    case WTI_EVICT_VICTIM_ENCRYPTED:
+        return ("btree is encrypted");
     case WTI_EVICT_VICTIM_COUNT:
         break;
     }
@@ -180,6 +182,7 @@ __evict_page_victim_cache_reason_per_page(WTI_EVICT_VICTIM_REASON reason)
     case WTI_EVICT_VICTIM_NO_BLOCK_MANAGER:
     case WTI_EVICT_VICTIM_NO_PAGE_LOG:
     case WTI_EVICT_VICTIM_COLD_TIER:
+    case WTI_EVICT_VICTIM_ENCRYPTED:
     case WTI_EVICT_VICTIM_COUNT:
         return (false);
 
@@ -214,6 +217,14 @@ __evict_page_victim_cache_eligible(
     /* A checkpoint cursor's btree is not eligible for the victim cache. */
     if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
         return (WTI_EVICT_VICTIM_CHECKPOINT_CURSOR);
+
+    /*
+     * The cached image is not encrypted, which the read path rejects for an encrypted btree.
+     *
+     * FIXME-WT-18832: Decide whether encrypted btrees should be cached, and who encrypts the image.
+     */
+    if (S2BT(session)->kencryptor != NULL)
+        return (WTI_EVICT_VICTIM_ENCRYPTED);
 
     WT_BM *bm = S2BT(session)->bm;
     if (bm == NULL)
