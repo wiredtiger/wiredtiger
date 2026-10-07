@@ -2487,6 +2487,30 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 }
 
 /*
+ * __rec_ref_addr_is_deleted --
+ *     Return whether the reference's address is a fast-truncate proxy cell.
+ */
+static bool
+__rec_ref_addr_is_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR *addr;
+    WT_PAGE *home;
+
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+      "Any thread accessing ref address must hold a valid split generation");
+
+    /*
+     * The proxy cell cannot be modified concurrently and split generations protect its lifetime, so
+     * no copy is needed; parent splits can replace the address, requiring home to be read before
+     * addr with acquire ordering.
+     */
+    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
+    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
+    return (addr != NULL && !__wt_off_page(home, addr) &&
+      __wt_cell_type_raw((WT_CELL *)addr) == WT_CELL_ADDR_DEL);
+}
+
+/*
  * __rec_proxy_cell_orphaned --
  *     Return whether the page's only address is a fast-truncate proxy cell whose page-delete
  *     information has been discarded.
@@ -2503,13 +2527,13 @@ __rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * instantiated. If the truncate durable timestamp is newer than stable, rollback-to-stable
      * aborts the instantiated tombstones and clears the page-delete information and instantiated
      * flag, but leaves the parent's proxy cell as the leaf's address. A subsequent skipped write
-     * would leave no replacement address for parent reconciliation, so this leaf must write a full
-     * image.
+     * would leave no replacement address for parent reconciliation, so this leaf be forced to
+     * perform a write that provides one.
      */
     if (mod->instantiated ||
       (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL))
         return (false);
-    return (__wt_ref_addr_is_deleted(session, r->ref));
+    return (__rec_ref_addr_is_deleted(session, r->ref));
 }
 
 /*
