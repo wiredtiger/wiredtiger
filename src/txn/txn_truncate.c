@@ -181,8 +181,12 @@ __txn_insert_truncate_entry_helper(
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
     ++truncate_list->entries;
     if (WT_STAT_ENABLED(session)) {
-        int64_t *maximum =
-          &S2C(session)->stats[session->stat_conn_bucket]->layered_truncate_list_entries_max;
+        int64_t *maximum = &S2C(session)->stats[0]->layered_truncate_list_entries_max;
+        int64_t previous = __wt_atomic_load_int64_relaxed(maximum);
+        while ((int64_t)truncate_list->entries > previous &&
+          !__wt_atomic_cas_int64(maximum, previous, (int64_t)truncate_list->entries))
+            previous = __wt_atomic_load_int64_relaxed(maximum);
+        maximum = &layered_table->iface.stats[0]->layered_truncate_list_entries_max;
         if ((int64_t)truncate_list->entries > __wt_atomic_load_int64_relaxed(maximum))
             __wt_atomic_store_int64_relaxed(maximum, (int64_t)truncate_list->entries);
     }
