@@ -67,31 +67,19 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.truncate_on(self.session, 20, 40)
         for uri in (None, self.uri):
             self.assertEqual(self.metric('list_entries_inserted', uri), 1)
-            self.assertEqual(self.metric('list_entries_current', uri), 1)
         self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 0)
         self.session.rollback_transaction()
         for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_entries_current', uri), 0)
             self.assertEqual(self.metric('list_rollback_entries_removed', uri), 1)
 
-    def test_live_gauges_after_enabling_statistics(self):
-        self.setup_tables()
-        self.ignoreStdoutPattern('Picking up the same checkpoint')
-        self.conn.reconfigure('statistics=(none)')
-        self.truncate(20, 40, commit_timestamp=20)
-        self.conn.reconfigure('statistics=(all)')
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_entries_current', uri), 1)
-
-    def test_clear_preserves_live_gauges(self):
+    def test_clear_resets_counters(self):
         self.setup_tables()
         self.truncate(20, 40, commit_timestamp=20)
         self.session.begin_transaction()
         self.truncate_on(self.session, 60, 80)
         self.session.rollback_transaction()
         for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_entries_current', uri, clear=True), 1)
-            self.assertEqual(self.metric('list_entries_current', uri), 1)
+            self.assertEqual(self.metric('list_entries_inserted', uri, clear=True), 2)
             self.assertEqual(self.metric('list_entries_inserted', uri), 0)
 
     def test_connection_combines_tables(self):
@@ -102,9 +90,9 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
                 cursor[1] = 'v'
         with self.transaction(commit_timestamp=40):
             self.session.truncate(self.other_uri, None, None, None)
-        self.assertEqual(self.metric('list_entries_current'), 2)
-        self.assertEqual(self.metric('list_entries_current', self.uri), 1)
-        self.assertEqual(self.metric('list_entries_current', self.other_uri), 1)
+        self.assertEqual(self.metric('list_entries_inserted'), 2)
+        self.assertEqual(self.metric('list_entries_inserted', self.uri), 1)
+        self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 1)
 
     def test_search_hits_and_misses(self):
         self.setup_tables()
@@ -150,14 +138,12 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_tables(ingest=True)
         self.truncate(20, 40, commit_timestamp=20)
         for uri in (None, self.uri):
-            self.assertEqual(self.metric('ingest_keys_walked', uri), 21)
             self.assertEqual(self.metric('ingest_tombstones_written', uri), 21)
         # Revisit the deleted keys and add one live key at each boundary.
         self.truncate(19, 41, commit_timestamp=30)
         for uri in (None, self.uri):
-            self.assertEqual(self.metric('ingest_keys_walked', uri), 44)
             self.assertEqual(self.metric('ingest_tombstones_written', uri), 23)
-        self.assertEqual(self.metric('ingest_keys_walked', self.other_uri), 0)
+        self.assertEqual(self.metric('ingest_tombstones_written', self.other_uri), 0)
 
     def test_write_conflicts(self):
         self.setup_tables()
@@ -185,5 +171,4 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.conn.reconfigure('disaggregated=(role="leader")')
         for uri in (None, self.uri):
-            self.assertEqual(self.metric('list_entries_current', uri), 0)
             self.assertEqual(self.metric('list_clear_entries_removed', uri), 1)

@@ -1568,7 +1568,7 @@ __clayered_range_truncate_ingest(
 {
     WT_DECL_RET;
     WT_CURSOR *cursor = start;
-    uint64_t keys_walked = 0, tombstones_written = 0;
+    uint64_t tombstones_written = 0;
     int cmp;
 
     /* Early return if stop key is strictly less than start key, nothing to truncate. */
@@ -1579,7 +1579,6 @@ __clayered_range_truncate_ingest(
     do {
         /* Check the current position relative to the truncate end. */
         WT_ERR(cursor->compare(cursor, stop, &cmp));
-        ++keys_walked;
 
         /* Avoid stacking consecutive tombstones on the update chain. */
         if (!__wt_clayered_deleted(&cursor->value)) {
@@ -1598,8 +1597,6 @@ __clayered_range_truncate_ingest(
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
-    WT_STAT_LAYERED_TRUNCATE_INCRV(
-      session, &layered->truncate_list, layered_truncate_ingest_keys_walked, keys_walked);
     WT_STAT_LAYERED_TRUNCATE_INCRV(session, &layered->truncate_list,
       layered_truncate_ingest_tombstones_written, tombstones_written);
     return (ret);

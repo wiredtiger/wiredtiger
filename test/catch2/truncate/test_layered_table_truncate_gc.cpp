@@ -57,7 +57,7 @@ TEST_CASE("truncate garbage collection counts runs and entries", "[truncate_list
     CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == 2);
     CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == 2);
     CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == 2);
-    CHECK(table->truncate_list.entries == 2);
+    CHECK(truncate_list_size(*table) == 2);
 }
 
 TEST_CASE(

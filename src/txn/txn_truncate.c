@@ -72,9 +72,6 @@ __truncate_entry_remove(
     WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
 
     TAILQ_REMOVE(&truncate_list->qh, entry, q);
-    WT_ASSERT(session, truncate_list->entries > 0);
-    --truncate_list->entries;
-    __wt_atomic_sub_uint64_relaxed(&S2C(session)->layered_truncate_entries, 1);
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_RELEASE(&layered_table->iface);
@@ -180,8 +177,6 @@ __txn_insert_truncate_entry_helper(
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
-    ++truncate_list->entries;
-    __wt_atomic_add_uint64_relaxed(&S2C(session)->layered_truncate_entries, 1);
     WT_STAT_LAYERED_TRUNCATE_INCR(session, truncate_list, layered_truncate_list_entries_inserted);
 
     __wt_writeunlock(session, &truncate_list->lock);
@@ -582,11 +577,12 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     WT_TRUNCATE *entry = NULL;
 
     __wt_writelock(session, &truncate_list->lock);
-    uint64_t removed = truncate_list->entries;
+    uint64_t removed = 0;
 
     while ((entry = TAILQ_FIRST(&truncate_list->qh)) != NULL) {
         __truncate_entry_remove(session, layered_table, entry);
         __disagg_truncate_free(session, &entry);
+        ++removed;
     }
     WT_STAT_LAYERED_TRUNCATE_INCRV(
       session, truncate_list, layered_truncate_list_clear_entries_removed, removed);

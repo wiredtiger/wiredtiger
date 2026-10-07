@@ -1506,10 +1506,8 @@ conn_dsrc_stats = [
     LayeredStat('layered_table_manager_logops_skipped', 'how many log applications the layered table manager skipped on this tree'),
     LayeredStat('layered_table_manager_skip_lsn', 'how many previously-applied LSNs the layered table manager skipped on this tree'),
 
-    LayeredStat('layered_truncate_ingest_keys_walked', 'follower truncate ingest keys walked'),
     LayeredStat('layered_truncate_ingest_tombstones_written', 'follower truncate ingest tombstones written'),
     LayeredStat('layered_truncate_list_clear_entries_removed', 'truncate list entries removed by clearing'),
-    LayeredStat('layered_truncate_list_entries_current', 'truncate list entries currently retained', 'no_clear,no_scale'),
     LayeredStat('layered_truncate_list_entries_inserted', 'truncate list entries inserted'),
     LayeredStat('layered_truncate_list_gc_entries_examined', 'truncate list entries examined by garbage collection'),
     LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),

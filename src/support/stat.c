@@ -372,7 +372,6 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
-  "layered: follower truncate ingest keys walked",
   "layered: follower truncate ingest tombstones written",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
@@ -380,7 +379,6 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
   "layered: the number of truncate list entries walked during search",
-  "layered: truncate list entries currently retained",
   "layered: truncate list entries examined by garbage collection",
   "layered: truncate list entries inserted",
   "layered: truncate list entries removed by clearing",
@@ -885,7 +883,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
-    stats->layered_truncate_ingest_keys_walked = 0;
     stats->layered_truncate_ingest_tombstones_written = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
@@ -893,7 +890,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
     stats->layered_truncate_list_search_entries_walked = 0;
-    /* not clearing layered_truncate_list_entries_current */
     stats->layered_truncate_list_gc_entries_examined = 0;
     stats->layered_truncate_list_entries_inserted = 0;
     stats->layered_truncate_list_clear_entries_removed = 0;
@@ -1405,7 +1401,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->layered_table_manager_checkpoints_disagg_pick_up_failed;
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       from->layered_table_manager_checkpoints_disagg_pick_up_succeed;
-    to->layered_truncate_ingest_keys_walked += from->layered_truncate_ingest_keys_walked;
     to->layered_truncate_ingest_tombstones_written +=
       from->layered_truncate_ingest_tombstones_written;
     to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
@@ -1415,7 +1410,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_truncate_list_gc_entries_removed += from->layered_truncate_list_gc_entries_removed;
     to->layered_truncate_list_search_entries_walked +=
       from->layered_truncate_list_search_entries_walked;
-    to->layered_truncate_list_entries_current += from->layered_truncate_list_entries_current;
     to->layered_truncate_list_gc_entries_examined +=
       from->layered_truncate_list_gc_entries_examined;
     to->layered_truncate_list_entries_inserted += from->layered_truncate_list_entries_inserted;
@@ -1983,8 +1977,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-    to->layered_truncate_ingest_keys_walked +=
-      WT_STAT_DSRC_READ(from, layered_truncate_ingest_keys_walked);
     to->layered_truncate_ingest_tombstones_written +=
       WT_STAT_DSRC_READ(from, layered_truncate_ingest_tombstones_written);
     to->layered_table_manager_logops_applied +=
@@ -1997,8 +1989,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_removed);
     to->layered_truncate_list_search_entries_walked +=
       WT_STAT_DSRC_READ(from, layered_truncate_list_search_entries_walked);
-    to->layered_truncate_list_entries_current +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_entries_current);
     to->layered_truncate_list_gc_entries_examined +=
       WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_examined);
     to->layered_truncate_list_entries_inserted +=
@@ -2859,7 +2849,6 @@ static const char *const __stats_connection_desc[] = {
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
-  "layered: follower truncate ingest keys walked",
   "layered: follower truncate ingest tombstones written",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
@@ -2869,7 +2858,6 @@ static const char *const __stats_connection_desc[] = {
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
   "layered: the number of truncate list entries walked during search",
-  "layered: truncate list entries currently retained",
   "layered: truncate list entries examined by garbage collection",
   "layered: truncate list entries inserted",
   "layered: truncate list entries removed by clearing",
@@ -4009,7 +3997,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
-    stats->layered_truncate_ingest_keys_walked = 0;
     stats->layered_truncate_ingest_tombstones_written = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
@@ -4019,7 +4006,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
     stats->layered_truncate_list_search_entries_walked = 0;
-    /* not clearing layered_truncate_list_entries_current */
     stats->layered_truncate_list_gc_entries_examined = 0;
     stats->layered_truncate_list_entries_inserted = 0;
     stats->layered_truncate_list_clear_entries_removed = 0;
@@ -5316,8 +5302,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-    to->layered_truncate_ingest_keys_walked +=
-      WT_STAT_CONN_READ(from, layered_truncate_ingest_keys_walked);
     to->layered_truncate_ingest_tombstones_written +=
       WT_STAT_CONN_READ(from, layered_truncate_ingest_tombstones_written);
     to->layered_table_manager_logops_applied +=
@@ -5333,8 +5317,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_truncate_list_gc_entries_removed);
     to->layered_truncate_list_search_entries_walked +=
       WT_STAT_CONN_READ(from, layered_truncate_list_search_entries_walked);
-    to->layered_truncate_list_entries_current +=
-      WT_STAT_CONN_READ(from, layered_truncate_list_entries_current);
     to->layered_truncate_list_gc_entries_examined +=
       WT_STAT_CONN_READ(from, layered_truncate_list_gc_entries_examined);
     to->layered_truncate_list_entries_inserted +=
