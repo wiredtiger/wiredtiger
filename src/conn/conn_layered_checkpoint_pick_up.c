@@ -1402,7 +1402,8 @@ __disagg_advance_deferred_oldest(WT_SESSION_IMPL *session, wt_timestamp_t oldest
 static void
 __disagg_deferred_ckpt_release(WT_SESSION_IMPL *session, WT_DISAGG_DEFERRED_CKPT *entry)
 {
-    if (__wt_atomic_sub_uint32(&entry->refs, 1) != 0)
+    /* The last holder frees the entry, so the drop must order its earlier reads before the free. */
+    if (__wt_atomic_sub_uint32(&entry->holders, 1) != 0)
         return;
     __wt_free(session, entry->meta);
     __wt_buf_free(session, &entry->metadata_buf);
@@ -1428,7 +1429,7 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, const char *meta_str,
 
     /* Build the entry before taking the lock: copying the page can be slow. */
     WT_ERR(__wt_calloc_one(session, &entry));
-    entry->refs = 1;
+    entry->holders = 1;
     entry->lsn = lsn;
     entry->oldest_timestamp = oldest_timestamp;
     WT_ERR(__wt_strdup(session, meta_str, &entry->meta));
@@ -1724,7 +1725,7 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, bool force)
         selected = entry;
     }
     if (selected != NULL)
-        (void)__wt_atomic_add_uint32(&selected->refs, 1);
+        (void)__wt_atomic_add_uint32_relaxed(&selected->holders, 1);
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (selected);
 }
@@ -1954,21 +1955,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
 
-    /*
-     * A checkpoint may only be adopted once no reader is below its oldest timestamp. A deferral
-     * normally ensures that, so this catches a path that skipped it. Do not use the usual pinned
-     * timestamp getter: it is capped by the last checkpoint timestamp.
-     */
-    __wt_txn_get_pinned_timestamp(session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST);
-    if (pinned_timestamp != WT_TS_NONE && metadata->oldest_timestamp > pinned_timestamp) {
-        WT_TRET(__wt_verbose_dump_sessions(session, false));
-        WT_IGNORE_RET(__wt_panic(session, EINVAL,
-          "Disaggregated storage checkpoint oldest_timestamp %s is greater than the current pinned "
-          "timestamp %s",
-          __wt_timestamp_to_string(metadata->oldest_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(pinned_timestamp, ts_string[1])));
-    }
-
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s, oldest_timestamp=%" PRIu64 " %s, schema_epoch=%" PRIu64 " %s, largest_file_id=%" PRIu32
@@ -1979,6 +1965,22 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       __wt_timestamp_to_string(metadata->oldest_timestamp, ts_string[1]), metadata->schema_epoch,
       __wt_timestamp_to_string(metadata->schema_epoch, ts_string[2]), metadata->largest_file_id,
       (int)metadata->checkpoint_len, metadata->checkpoint);
+
+    /*
+     * A checkpoint may only be adopted once no reader is below its oldest timestamp. A deferral
+     * normally ensures that, so this catches a path that skipped it. This needs the parsed
+     * metadata, and it must not use the usual pinned timestamp getter: that one is capped by the
+     * last checkpoint timestamp.
+     */
+    __wt_txn_get_pinned_timestamp(session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST);
+    if (pinned_timestamp != WT_TS_NONE && metadata->oldest_timestamp > pinned_timestamp) {
+        WT_TRET(__wt_verbose_dump_sessions(session, false));
+        WT_IGNORE_RET(__wt_panic(session, EINVAL,
+          "Disaggregated storage checkpoint oldest_timestamp %s is greater than the current pinned "
+          "timestamp %s",
+          __wt_timestamp_to_string(metadata->oldest_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(pinned_timestamp, ts_string[1])));
+    }
 
     /*
      * Adopt the high-water mark of write generations the checkpoint's writer (the leader) recorded,

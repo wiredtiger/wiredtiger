@@ -311,8 +311,11 @@ struct __wt_disagg_deferred_ckpt {
     uint64_t lsn; /* Checkpoint metadata LSN */
     char *meta;   /* Checkpoint metadata configuration */
 
-    /* The queue holds one reference; an adoption in progress holds another. */
-    uint32_t refs;
+    /*
+     * The queue holds one reference and an adoption in progress another: pruning by a newer
+     * adoption or a role change can remove the entry while the adoption still reads it.
+     */
+    uint32_t holders;
 
     /* Read from the checkpoint's shared metadata when it is queued. */
     wt_timestamp_t oldest_timestamp; /* The checkpoint's oldest timestamp */
