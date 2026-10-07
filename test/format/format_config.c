@@ -1524,7 +1524,7 @@ config_disagg_storage(void)
 
 /*
  * Memory the victim cache may use, per run, per node. Enough that re-reads hit retained pages and
- * the budget forces evictions during a run; a larger budget holds more and tests no more.
+ * the budget forces evictions during a run.
  */
 #define VICTIM_CACHE_BUDGET_MB 128
 
@@ -1532,9 +1532,8 @@ config_disagg_storage(void)
  * config_disagg_victim_cache --
  *     Page log victim cache configuration.
  *
- * The cache is not named in the connection string: WiredTiger enables it whenever the page log
- *     reports one available, and the page log does that when either of its bounds is non-zero. The
- *     size set here is therefore the whole of the switch.
+ * Setting the size to non-zero enables the cache. There is no WT switch: eviction asks the page log
+ *     whether it has one.
  */
 static void
 config_disagg_victim_cache(void)
@@ -1561,7 +1560,7 @@ config_disagg_victim_cache(void)
         config_off(NULL, "disagg.victim_cache");
     }
 
-    /* Eviction does not offer pages to the victim cache in an in-memory run. */
+    /* An in-memory connection never offers pages to the victim cache, so the knob is pointless. */
     if (GV(RUNS_IN_MEMORY)) {
         if (config_explicit(NULL, "disagg.victim_cache"))
             WARN("%s", "turning off disagg.victim_cache to work with runs.in_memory");
@@ -1569,11 +1568,7 @@ config_disagg_victim_cache(void)
     }
 
     if (GV(DISAGG_VICTIM_CACHE)) {
-        /*
-         * The page log bounds its cache in bytes, so this is the whole of the sizing. The memory is
-         * extra, not carved out of the cache, and the fraction is the share the block cache takes,
-         * binding only on a run given little memory.
-         */
+        /* A fifth of the cache, capped. The memory is extra, not taken from the cache. */
         size_mb = (uint64_t)WT_MIN(VICTIM_CACHE_BUDGET_MB, (GV(CACHE) + 4) / 5);
         testutil_snprintf(buf, sizeof(buf), "disagg.victim_cache.size=%" PRIu64, size_mb);
         config_single(NULL, buf, false);

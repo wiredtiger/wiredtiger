@@ -947,10 +947,7 @@ stats_conn_value(WT_CURSOR *cursor, int stat_key)
  * stats_victim_cache_print --
  *     Report what the page log's victim cache did over the run.
  *
- * A run can enable the cache and never populate it, since eviction rejects pages for many reasons
- *     and a run without cache pressure evicts no clean pages at all. Report the counts rather than
- *     asserting them: zero is legitimate, and the numbers show which runs gave the cache real
- *     coverage.
+ * Zero counts are legitimate: a run can enable the cache and never populate it.
  */
 static void
 stats_victim_cache_print(WT_SESSION *session, FILE *fp)
