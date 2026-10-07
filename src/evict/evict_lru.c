@@ -17,7 +17,7 @@ static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *
 static void __evict_stat_skip_cannot_evict(WT_SESSION_IMPL *session, int level);
 static bool __evict_skip_tree(
   WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level, bool *clear_maybe_nonemptyp);
-static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed, bool is_server);
+static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed);
 
 #define WT_EVICT_HAS_WORKERS(s) \
     (__wt_atomic_load_uint32_relaxed(&S2C(s)->evict_threads.current_threads) > 1)
@@ -189,12 +189,8 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         __wt_spin_unlock(session, &evict->evict_housekeeping_lock);
         WT_ERR(ret);
 
-        /*
-         * Pause. The wait period is shorter if the server did work, and while the ramp decides, so
-         * the decision is re-rolled every tick rather than after a long idle wait.
-         */
-        __wt_cond_auto_wait(session, evict->evict_server_cond,
-          did_work || __evict_clean_ramp_in_band(session), NULL);
+        /* Pause. The wait period is shorter if the server did work. */
+        __wt_cond_auto_wait(session, evict->evict_server_cond, did_work, NULL);
         __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
     } else {
         WT_ERR(__evict_lru_pages(session, false));
@@ -371,7 +367,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
          * occupancy does not change meaningfully between consecutive evictions. This also refreshes
          * evict->flags that gates the loop.
          */
-        WT_RET(__evict_update_work(session, &eviction_needed, is_server));
+        WT_RET(__evict_update_work(session, &eviction_needed));
         if (!eviction_needed)
             break;
 
@@ -674,64 +670,26 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * The clean ramp is a duty cycle: the server rolls the decision once per tick and holds it for the
- * tick; workers read the decision in force. Rolling on every call, by every caller, lets a false
- * roll clear the flag at once while a true roll lasts only until the next evaluation.
- */
-#define WT_EVICT_CLEAN_RAMP_TICK_MS 10
-
-/*
- * __evict_clean_ramp_in_band --
- *     Return true if occupancy is between the target and the trigger, where the ramp decides.
- */
-static WT_INLINE bool
-__evict_clean_ramp_in_band(WT_SESSION_IMPL *session)
-{
-    WT_EVICT *evict;
-    uint64_t bytes_inuse, bytes_max;
-
-    evict = S2C(session)->evict;
-    bytes_max = __wt_tsan_suppress_load_uint64_v(&S2C(session)->cache_size) + 1;
-    bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
-    return (bytes_inuse > (uint64_t)(evict->eviction_target * (double)bytes_max) / 100 &&
-      bytes_inuse < (uint64_t)(evict->eviction_trigger * (double)bytes_max) / 100);
-}
-
-/*
  * __evict_clean_ramp --
  *     Enable clean eviction with probability sqrt((pct - target) / (trigger - target)) between
- *     the target and the trigger, so eviction is on most of the time but not all of it, and
- *     occupancy settles where the sweep rate times its duty cycle matches the admission rate.
+ *     the target and the trigger, rather than unconditionally above the target. The probability
+ *     rises quickly past the target, so eviction is on most of the time but not all of it, and
+ *     occupancy settles where the sweep rate times its duty cycle matches the admission rate: a
+ *     faster sweep carries more occupancy for the same churn.
  */
 static bool
-__evict_clean_ramp(
-  WT_SESSION_IMPL *session, double pct, double target, double trigger, bool is_server)
+__evict_clean_ramp(WT_SESSION_IMPL *session, double pct, double target, double trigger)
 {
-    WT_EVICT *evict;
     double u, x;
-    uint64_t now;
-    bool on;
 
     if (pct <= target || trigger <= target)
         return (false);
     if (pct >= trigger)
         return (true);
-
-    evict = S2C(session)->evict;
-    if (!is_server)
-        return (__wt_atomic_load_bool_relaxed(&evict->clean_ramp_on));
-    now = __wt_clock(session);
-    if (WT_CLOCKDIFF_MS(now, __wt_atomic_load_uint64_relaxed(&evict->clean_ramp_rolled)) <
-      WT_EVICT_CLEAN_RAMP_TICK_MS)
-        return (__wt_atomic_load_bool_relaxed(&evict->clean_ramp_on));
-
     x = (pct - target) / (trigger - target);
     /* u < sqrt(x) exactly when u * u < x; avoids libm. */
     u = (double)__wt_random(&session->rnd_random) / (double)UINT32_MAX;
-    on = u * u < x;
-    __wt_atomic_store_bool_relaxed(&evict->clean_ramp_on, on);
-    __wt_atomic_store_uint64_relaxed(&evict->clean_ramp_rolled, now);
-    return (on);
+    return (u * u < x);
 }
 
 /*
@@ -739,7 +697,7 @@ __evict_clean_ramp(
  *     Configure eviction work state.
  */
 static bool
-__evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed, bool is_server)
+__evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
 {
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
@@ -829,7 +787,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed, bool is_ser
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_reached);
     } else if (__evict_clean_ramp(session, (100.0 * (double)bytes_inuse) / (double)bytes_max,
-                 target, trigger, is_server))
+                 target, trigger))
         LF_SET(WT_EVICT_CACHE_CLEAN);
 
     bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
@@ -1294,7 +1252,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          */
         WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
-        WT_RET(__evict_update_work(session, &eviction_needed, true));
+        WT_RET(__evict_update_work(session, &eviction_needed));
         if (!eviction_needed)
             break;
 
