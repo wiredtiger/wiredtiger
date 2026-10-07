@@ -670,29 +670,6 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __evict_clean_ramp --
- *     Enable clean eviction with probability sqrt((pct - target) / (trigger - target)) between
- *     the target and the trigger, rather than unconditionally above the target. The probability
- *     rises quickly past the target, so eviction is on most of the time but not all of it, and
- *     occupancy settles where the sweep rate times its duty cycle matches the admission rate: a
- *     faster sweep carries more occupancy for the same churn.
- */
-static bool
-__evict_clean_ramp(WT_SESSION_IMPL *session, double pct, double target, double trigger)
-{
-    double u, x;
-
-    if (pct <= target || trigger <= target)
-        return (false);
-    if (pct >= trigger)
-        return (true);
-    x = (pct - target) / (trigger - target);
-    /* u < sqrt(x) exactly when u * u < x; avoids libm. */
-    u = (double)__wt_random(&session->rnd_random) / (double)UINT32_MAX;
-    return (u * u < x);
-}
-
-/*
  * __evict_update_work --
  *     Configure eviction work state.
  */
@@ -786,8 +763,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     if (__wti_evict_exceeded_clean_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_reached);
-    } else if (__evict_clean_ramp(session, (100.0 * (double)bytes_inuse) / (double)bytes_max,
-                 target, trigger))
+    } else if (bytes_inuse > (target * bytes_max) / 100)
         LF_SET(WT_EVICT_CACHE_CLEAN);
 
     bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
