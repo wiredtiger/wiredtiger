@@ -85,6 +85,12 @@ class test_layered_schema35(test_prepare_preserve_prepare_base, DisaggSchemaEpoc
         dirty = self.get_stat(wiredtiger.stat.dsrc.cache_eviction_dirty, uri)
         return clean + dirty
 
+    def prepared_records_written(self):
+        """Return the number of records with prepare state written to the stable file."""
+        return self.get_stat(
+            wiredtiger.stat.dsrc.rec_time_window_prepared, self.stable_uri(self.uri)
+        )
+
     def test_prepared_insert_rollback_before_publication(self):
         # Create a table that is awaiting publication.
         self.set_stable_epoch(5)
@@ -99,11 +105,7 @@ class test_layered_schema35(test_prepare_preserve_prepare_base, DisaggSchemaEpoc
         self.leader_checkpoint(30)
 
         # Confirm the stable file received a record with prepare state.
-        prepared_records_written = self.get_stat(
-            wiredtiger.stat.dsrc.rec_time_window_prepared,
-            self.stable_uri(self.uri),
-        )
-        self.assertGreater(prepared_records_written, 0)
+        self.assertGreater(self.prepared_records_written(), 0)
 
         # Confirm the rolled-back key is absent and its page is evicted.
         evicted = self.evicted_pages()
@@ -113,7 +115,7 @@ class test_layered_schema35(test_prepare_preserve_prepare_base, DisaggSchemaEpoc
         # Make the rollback stable and checkpoint again.
         self.leader_checkpoint(40)
 
-    def test_prepared_insert_rollback_evicted_before_publication(self):
+    def test_prepared_insert_rollback_not_evicted_before_publication(self):
         # Create a table that is awaiting publication.
         self.set_stable_epoch(5)
         self.session.create(self.uri, "key_format=i,value_format=S")
@@ -122,19 +124,17 @@ class test_layered_schema35(test_prepare_preserve_prepare_base, DisaggSchemaEpoc
         # Roll back a prepared insert while the table is awaiting publication.
         self.prepare_insert_and_rollback(prepare_ts=30, rollback_ts=40)
 
-        # Attempt eviction before the table is published.
+        # Confirm eviction does not happen before the table is published.
+        evicted = self.evicted_pages()
         self.release_evict()
+        self.assertEqual(self.evicted_pages(), evicted)
 
         # Publish the table and checkpoint before the rollback is stable.
         self.set_stable_epoch(10)
         self.leader_checkpoint(30)
 
         # Confirm the eviction attempt did not discard the prepared state.
-        prepared_records_written = self.get_stat(
-            wiredtiger.stat.dsrc.rec_time_window_prepared,
-            self.stable_uri(self.uri),
-        )
-        self.assertGreater(prepared_records_written, 0)
+        self.assertGreater(self.prepared_records_written(), 0)
 
         # Make the rollback stable and checkpoint again.
         self.leader_checkpoint(40)
