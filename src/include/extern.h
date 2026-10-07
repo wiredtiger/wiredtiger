@@ -1806,6 +1806,8 @@ extern void __wt_disagg_btree_publish_if_covered(
 extern void __wt_disagg_cancel_unpublished_op(
   WT_SESSION_IMPL *session, const char *table_name, WT_SHARED_METADATA_OP op);
 extern void __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen);
+extern void __wt_disagg_deferred_pickup_signal_reader(
+  WT_SESSION_IMPL *session, wt_timestamp_t read_timestamp);
 extern void __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);
@@ -1920,6 +1922,8 @@ extern void __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp)
 extern void __wt_txn_bump_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **txn_arg);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
+extern void __wt_txn_get_pinned_timestamp(
+  WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags);
 extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
 extern void __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot);
@@ -1929,7 +1933,6 @@ extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session);
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_truncate_end(WT_SESSION_IMPL *session);
-extern void __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force);
 extern void __wt_update_list_print(WT_SESSION_IMPL *session, WT_UPDATE *head);
 extern void __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
@@ -2006,8 +2009,7 @@ extern void __wti_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP 
 extern void __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session);
 extern void __wti_txn_clear_durable_timestamp(WT_SESSION_IMPL *session);
 extern void __wti_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
-extern void __wti_txn_get_pinned_timestamp(
-  WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags);
+extern void __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force);
 static WT_INLINE WT_BTREE *__wt_curhs_get_btree(WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE WT_CELL *__wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
