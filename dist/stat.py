@@ -63,18 +63,13 @@ def remove_suffix_digits(str):
 ##########################################
 OTEL_TYPES = ('otel_counters', 'otel_gauges', 'otel_histograms', 'otel_none')
 
-def otel_types_of(stat):
-    flags = [flag.strip() for flag in stat.flags.split(',')]
-    return [flag for flag in flags if flag.startswith('otel_')]
-
 def check_otel_type(stat):
-    otel_types = otel_types_of(stat)
-    for otel_type in otel_types:
-        if otel_type not in OTEL_TYPES:
-            raise Exception(f"ERROR: {stat.name} has invalid OTel type '{otel_type}', " \
-                  f"expected one of {', '.join(OTEL_TYPES)}")
-    if len(otel_types) > 1:
-        raise Exception(f"ERROR: {stat.name} has more than one OTel type: {', '.join(otel_types)}")
+    if len(stat.otel_type.split(',')) > 1:
+        raise Exception(f"ERROR: {stat.name} has more than one OTel type: {stat.otel_type}")
+
+    if stat.otel_type not in OTEL_TYPES:
+        raise Exception(f"ERROR: {stat.name} has invalid OTel type '{stat.otel_type}', " \
+                f"expected one of {', '.join(OTEL_TYPES)}")
 
 ##########################################
 # For each stat subclass check the names are sorted in alphabetical order.
@@ -158,8 +153,8 @@ def print_defines_one(capname, base, stats):
                 ', only reported if cache_walk or all statistics are enabled'
         if 'tree_walk' in l.flags:
             desc += ', only reported if tree_walk or all statistics are enabled'
-        for otel_type in otel_types_of(l):
-            desc += ', OTel type: ' + otel_type
+        if l.otel_type != 'otel_none':
+            desc += ', OTel type: ' + l.otel_type
         if len(textwrap.wrap(desc, 70)) > 1:
             f.write('/*!\n')
             f.write(' * %s\n' % '\n * '.join(textwrap.wrap(desc, 70)))
@@ -238,6 +233,19 @@ __wt_stat_''' + name + '''_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 \tWT_UNUSED(cst);
 \t*p = __stats_''' + name + '''_desc[slot];
 \treturn (0);
+}
+''')
+
+    f.write('\nstatic const uint32_t __stats_' + name + '_otel_type[] = {\n')
+    for l in statlist:
+        f.write('\tWT_STAT_' + l.otel_type.upper() + ',\n')
+    f.write('};\n')
+
+    f.write('''
+uint32_t
+__wt_stat_''' + name + '''_otel_type(int slot)
+{
+\treturn (__stats_''' + name + '''_otel_type[slot]);
 }
 ''')
 

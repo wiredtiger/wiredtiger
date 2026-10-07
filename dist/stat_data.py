@@ -31,154 +31,155 @@ from operator import attrgetter
 import sys
 
 class Stat:
-    def __init__(self, name, tag, desc, flags=''):
+    def __init__(self, name, tag, desc, flags='', otel_type='otel_none'):
         self.name = name
         self.desc = tag + ': ' + desc
         self.flags = flags
+        self.otel_type = otel_type
 
     def __cmp__(self, other):
         return cmp(self.desc.lower(), other.desc.lower())
 
 class AutoCommitStat(Stat):
     prefix = 'autocommit'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags, otel_type)
 
 class BackgroundCompactStat(Stat):
     prefix = 'background-compact'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags, otel_type)
 
 class BackupStat(Stat):
     prefix = 'backup'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BackupStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BackupStat.prefix, desc, flags, otel_type)
 
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BlockCacheStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BlockCacheStat.prefix, desc, flags, otel_type)
 class BlockDisaggStat(Stat):
     prefix = 'block-disagg'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BlockDisaggStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BlockDisaggStat.prefix, desc, flags, otel_type)
 class BlockStat(Stat):
     prefix = 'block-manager'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BlockStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BlockStat.prefix, desc, flags, otel_type)
 class BtreeStat(Stat):
     prefix = 'btree'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BtreeStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BtreeStat.prefix, desc, flags, otel_type)
 class BtreeSizeStat(Stat):
     prefix = 'btree-size'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, BtreeSizeStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, BtreeSizeStat.prefix, desc, flags, otel_type)
 class CacheStat(Stat):
     prefix = 'cache'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CacheStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CacheStat.prefix, desc, flags, otel_type)
 class CapacityStat(Stat):
     prefix = 'capacity'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CapacityStat.prefix, desc, flags, otel_type)
 class CheckpointCleanupStat(Stat):
     prefix = 'checkpoint-cleanup'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags, otel_type)
 class CheckpointStat(Stat):
     prefix = 'checkpoint'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CheckpointStat.prefix, desc, flags, otel_type)
 class CompressStat(Stat):
     prefix = 'compression'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CompressStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CompressStat.prefix, desc, flags, otel_type)
 class ConnStat(Stat):
     prefix = 'connection'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, ConnStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, ConnStat.prefix, desc, flags, otel_type)
 class CursorErrorStat(Stat):
     prefix = 'cursor'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorErrorStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CursorErrorStat.prefix, desc, flags, otel_type)
 class CursorStat(Stat):
     prefix = 'cursor'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CursorStat.prefix, desc, flags, otel_type)
 class CursorSweepStat(Stat):
     prefix = 'cursor'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorSweepStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, CursorSweepStat.prefix, desc, flags, otel_type)
 class DhandleStat(Stat):
     prefix = 'data-handle'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, DhandleStat.prefix, desc, flags, otel_type)
 class DisaggStat(Stat):
     prefix = 'disagg'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, DisaggStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, DisaggStat.prefix, desc, flags, otel_type)
 class EvictCacheWalkStat(Stat):
     prefix = 'cache_walk'
-    def __init__(self, name, desc, flags=''):
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
         flags += ',cache_walk'
-        Stat.__init__(self, name, EvictCacheWalkStat.prefix, desc, flags)
+        Stat.__init__(self, name, EvictCacheWalkStat.prefix, desc, flags, otel_type)
 class EvictStat(Stat):
     prefix = 'cache'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, EvictStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, EvictStat.prefix, desc, flags, otel_type)
 class LayeredStat(Stat):
     prefix = 'layered'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, LayeredStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, LayeredStat.prefix, desc, flags, otel_type)
 class LiveRestoreStat(Stat):
     prefix = 'live-restore'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, LiveRestoreStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, LiveRestoreStat.prefix, desc, flags, otel_type)
 class LoadControlStat(Stat):
     prefix = 'load-control'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, LoadControlStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, LoadControlStat.prefix, desc, flags, otel_type)
 class LockStat(Stat):
     prefix = 'lock'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, LockStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, LockStat.prefix, desc, flags, otel_type)
 class LogStat(Stat):
     prefix = 'log'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, LogStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, LogStat.prefix, desc, flags, otel_type)
 class SessionStat(Stat):
     prefix = 'session'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, SessionStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, SessionStat.prefix, desc, flags, otel_type)
 class PerfHistStat(Stat):
     prefix = 'perf'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, PerfHistStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, PerfHistStat.prefix, desc, flags, otel_type)
 class PrefetchStat(Stat):
     prefix = 'prefetch'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, PrefetchStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, PrefetchStat.prefix, desc, flags, otel_type)
 class RecStat(Stat):
     prefix = 'reconciliation'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, RecStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, RecStat.prefix, desc, flags, otel_type)
 class SessionOpStat(Stat):
     prefix = 'session'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags, otel_type)
 class ThreadStat(Stat):
     prefix = 'thread-state'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, ThreadStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, ThreadStat.prefix, desc, flags, otel_type)
 class TxnStat(Stat):
     prefix = 'transaction'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, TxnStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, TxnStat.prefix, desc, flags, otel_type)
 class YieldStat(Stat):
     prefix = 'thread-yield'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, YieldStat.prefix, desc, flags)
+    def __init__(self, name, desc, flags='', otel_type='otel_none'):
+        Stat.__init__(self, name, YieldStat.prefix, desc, flags, otel_type)
 
 ##########################################
 # CONNECTION statistics
@@ -348,7 +349,7 @@ conn_stats = [
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty_ingest', 'tracked dirty pages in the cache from the ingest btrees', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty_stable', 'tracked dirty pages in the cache from the stable btrees', 'no_clear,no_scale'),
-    CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale,otel_gauges'),
+    CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale', 'otel_gauges'),
     CacheStat('cache_pages_inuse_ingest', 'pages currently held in the cache from the ingest btrees', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_leaf', 'leaf pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
@@ -597,7 +598,7 @@ conn_stats = [
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_cached_count', 'cached cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_create', 'cursor create calls'),
-    CursorStat('cursor_insert', 'cursor insert calls', 'otel_counters'),
+    CursorStat('cursor_insert', 'cursor insert calls', '', 'otel_counters'),
     CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),
     CursorStat('cursor_modify', 'cursor modify calls'),
