@@ -1618,27 +1618,14 @@ __wt_disagg_deferred_pickup_signal_reader(WT_SESSION_IMPL *session, wt_timestamp
 
 /*
  * __wt_disagg_deferred_pickup_signal_oldest --
- *     Wake the deferred pickup server when the oldest timestamp moves: only an oldest timestamp
- *     that reaches the oldest timestamp of a queued checkpoint can let it be adopted. A reader
- *     below it may still hold the checkpoint back, which the server finds when it looks.
+ *     Wake the deferred pickup server when the oldest timestamp moves, if any checkpoint is queued.
+ *     The server finds out whether the new timestamp lets one be adopted. The queue check takes no
+ *     lock: a wakeup missed to a race with a deferral is covered by the server's periodic retry.
  */
 void
-__wt_disagg_deferred_pickup_signal_oldest(WT_SESSION_IMPL *session, wt_timestamp_t oldest_timestamp)
+__wt_disagg_deferred_pickup_signal_oldest(WT_SESSION_IMPL *session)
 {
-    WT_DISAGG_DEFERRED_CKPT *entry;
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    bool reached;
-
-    reached = false;
-    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
-    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
-        if (entry->oldest_timestamp != WT_TS_NONE && entry->oldest_timestamp <= oldest_timestamp) {
-            reached = true;
-            break;
-        }
-    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
-
-    if (reached)
+    if (__disagg_deferred_ckpt_queued(session))
         __disagg_deferred_pickup_wake(session);
 }
 

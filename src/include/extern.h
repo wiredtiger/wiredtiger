@@ -1805,8 +1805,7 @@ extern void __wt_disagg_btree_publish_if_covered(
   WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t schema_epoch, bool *publishedp);
 extern void __wt_disagg_cancel_unpublished_op(
   WT_SESSION_IMPL *session, const char *table_name, WT_SHARED_METADATA_OP op);
-extern void __wt_disagg_deferred_pickup_signal_oldest(
-  WT_SESSION_IMPL *session, wt_timestamp_t oldest_timestamp);
+extern void __wt_disagg_deferred_pickup_signal_oldest(WT_SESSION_IMPL *session);
 extern void __wt_disagg_deferred_pickup_signal_reader(
   WT_SESSION_IMPL *session, wt_timestamp_t read_timestamp);
 extern void __wt_disagg_deferred_pickup_signal_snapshot(
