@@ -1532,9 +1532,6 @@ config_disagg_storage(void)
 /*
  * config_disagg_victim_cache --
  *     Page log victim cache configuration.
- *
- * Setting the size to non-zero enables the cache. There is no WT switch: eviction asks the page log
- *     whether it has one.
  */
 static void
 config_disagg_victim_cache(void)
