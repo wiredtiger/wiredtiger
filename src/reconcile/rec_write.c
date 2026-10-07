@@ -2302,9 +2302,8 @@ __rec_set_upd_durable(WT_UPDATE *upd, bool prepared)
  *     Set the updates durable. This must be called when the reconciliation can no longer fail.
  */
 static void
-__rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
+__rec_set_updates_durable(WT_SESSION_IMPL *session, WT_SAVE_UPD *supd, uint32_t supd_entries)
 {
-    WT_SAVE_UPD *supd;
     WT_UPDATE *tombstone, *upd;
     uint32_t i;
 
@@ -2319,7 +2318,7 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
      * Instead of thinking all this failure cases, we may be better off to always write a full page
      * in the next reconciliation if this reconciliation fail.
      */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+    for (i = 0; i < supd_entries; ++i, ++supd) {
         tombstone = supd->onpage_tombstone;
         upd = supd->onpage_upd;
 
@@ -2691,11 +2690,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (r->supd_next != 0) {
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
 
-        /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
             WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
-            __rec_set_updates_durable(session, multi);
+            /* Keep the saved updates in the per-page cache until successful wrapup. */
+            r->supd_next = multi->supd_entries;
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
             __wt_free(session, multi->supd);
@@ -3452,7 +3451,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
          */
         if (r->wrapup_checkpoint == NULL) {
             if (r->multi->addr.block_cookie != NULL) {
-                __rec_set_updates_durable(session, r->multi);
+                __rec_set_updates_durable(session, r->multi->supd, r->multi->supd_entries);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
@@ -3507,11 +3506,14 @@ split:
 
         /* Calculate the max stop time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            __rec_set_updates_durable(session, multi);
+            __rec_set_updates_durable(session, multi->supd, multi->supd_entries);
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         }
         break;
     }
+
+    /* An empty final chunk keeps its saved updates outside the replacement-block list. */
+    __rec_set_updates_durable(session, r->supd, r->supd_next);
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
