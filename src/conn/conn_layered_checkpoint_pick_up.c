@@ -1725,7 +1725,7 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, bool force)
         selected = entry;
     }
     if (selected != NULL)
-        (void)__wt_atomic_add_uint32_relaxed(&selected->holders, 1);
+        (void)__wt_atomic_add_uint32(&selected->holders, 1);
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (selected);
 }
