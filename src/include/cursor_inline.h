@@ -304,8 +304,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * the system, unless eviction is disabled for the tree. Clear the reference so we never try the
      * release twice.
      */
-    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT) &&
-      __wt_atomic_load_int32_relaxed(&CUR2BT(cbt)->evict_disabled) == 0)
+    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT) && __wt_btree_eviction_enabled(CUR2BT(cbt)))
         WT_TRET_BUSY_OK(__wt_page_release_evict(session, cbt->ref, 0));
     else
         ret = __wt_page_release(session, cbt->ref, 0);

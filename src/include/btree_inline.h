@@ -37,6 +37,17 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_eviction_enabled --
+ *     Return true if page eviction is enabled for the given tree.
+ */
+static WT_INLINE bool
+__wt_btree_eviction_enabled(WT_BTREE *btree)
+{
+    return (!F_ISSET(btree, WT_BTREE_NO_EVICT) &&
+      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0);
+}
+
+/*
  * __wt_btree_is_outdated_disagg --
  *     Return whether the current btree belongs to an outdated disaggregated generation.
  */
@@ -2711,8 +2722,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * If the session is configured with the release_evict_pages debug option, we will attempt to
      * evict the pages when they are no longer needed, unless eviction is disabled for the tree.
      */
-    if (F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT) &&
-      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0) {
+    if (F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT) && __wt_btree_eviction_enabled(btree)) {
         WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
         return (0);
     }
