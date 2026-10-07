@@ -1572,9 +1572,9 @@ __clayered_range_truncate_ingest(
     int cmp;
 
     /* Early return if stop key is strictly less than start key, nothing to truncate. */
-    WT_ERR(start->compare(start, stop, &cmp));
+    WT_RET(start->compare(start, stop, &cmp));
     if (cmp > 0)
-        goto err;
+        return (0);
 
     do {
         /* Check the current position relative to the truncate end. */

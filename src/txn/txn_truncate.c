@@ -106,7 +106,10 @@ __layered_table_truncate_gc(
          * Committed entries with durable_ts == WT_TS_NONE are never pruned here. Without a
          * timestamp, we cannot determine whether the follower has picked up these changes yet.
          */
-        if (!is_committed || entry->durable_ts == WT_TS_NONE || entry->durable_ts > prune_timestamp)
+        const bool is_time =
+          entry->durable_ts != WT_TS_NONE && entry->durable_ts <= prune_timestamp;
+
+        if (!is_committed || !is_time)
             continue;
 
         __truncate_entry_remove(session, layered_table, entry);
