@@ -106,14 +106,13 @@ struct __wt_truncate_list {
     WT_RWLOCK lock;
 };
 
-#define WT_STAT_LAYERED_TRUNCATE_INCRV(session, list, fld, value)             \
-    do {                                                                      \
-        WT_STAT_CONN_INCRV(session, fld, value);                              \
-        if ((list)->dhandle != NULL && (list)->dhandle->stat_array != NULL)   \
-            WT_STATP_DSRC_INCRV(session, (list)->dhandle->stats, fld, value); \
+#define WT_STAT_LAYERED_INCRV(session, dhandle, fld, value)             \
+    do {                                                                \
+        WT_STAT_CONN_INCRV(session, fld, value);                        \
+        if ((dhandle) != NULL && (dhandle)->stat_array != NULL)         \
+            WT_STATP_DSRC_INCRV(session, (dhandle)->stats, fld, value); \
     } while (0)
-#define WT_STAT_LAYERED_TRUNCATE_INCR(session, list, fld) \
-    WT_STAT_LAYERED_TRUNCATE_INCRV(session, list, fld, 1)
+#define WT_STAT_LAYERED_INCR(session, dhandle, fld) WT_STAT_LAYERED_INCRV(session, dhandle, fld, 1)
 
 /*
  * WT_LAYERED_TABLE --

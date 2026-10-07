@@ -1597,8 +1597,8 @@ __clayered_range_truncate_ingest(
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
-    WT_STAT_LAYERED_TRUNCATE_INCRV(session, &layered->truncate_list,
-      layered_truncate_ingest_tombstones_written, tombstones_written);
+    WT_STAT_LAYERED_INCRV(
+      session, &layered->iface, layered_truncate_ingest_tombstones_written, tombstones_written);
     return (ret);
 }
 
