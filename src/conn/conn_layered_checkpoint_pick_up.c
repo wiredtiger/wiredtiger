@@ -2113,45 +2113,23 @@ err:
 }
 
 /*
- * WT_DISAGG_ENCODING_STATE --
- *     The stable tombstone encoding mode before a checkpoint delivery adopts its own.
- */
-typedef struct {
-    bool encoding;
-    bool adopted;
-} WT_DISAGG_ENCODING_STATE;
-
-/*
- * __disagg_encoding_save --
- *     Remember the stable tombstone encoding mode, so a failed pickup can put it back.
- */
-static void
-__disagg_encoding_save(WT_SESSION_IMPL *session, WT_DISAGG_ENCODING_STATE *state)
-{
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-
-    state->encoding = F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-    state->adopted = disagg->stable_tombstone_encoding_adopted;
-}
-
-/*
  * __disagg_encoding_restore --
- *     Put back the stable tombstone encoding mode saved before the pickup. A failed pickup must not
+ *     Put back the stable tombstone encoding mode from before the pickup. A failed pickup must not
  *     leave the failed checkpoint's mode adopted.
  */
 static void
-__disagg_encoding_restore(WT_SESSION_IMPL *session, const WT_DISAGG_ENCODING_STATE *state)
+__disagg_encoding_restore(WT_SESSION_IMPL *session, bool prev_encoding, bool prev_adopted)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
-    if (state->encoding)
+    if (prev_encoding)
         F_SET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
     else
         F_CLR(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-    disagg->stable_tombstone_encoding_adopted = state->adopted;
+    disagg->stable_tombstone_encoding_adopted = prev_adopted;
     WT_STAT_CONN_SET(session, disagg_stable_tombstone_encoding,
-      state->adopted || F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED) ?
-        (state->encoding ? 1 : 2) :
+      prev_adopted || F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED) ?
+        (prev_encoding ? 1 : 2) :
         0);
 }
 
@@ -2369,15 +2347,16 @@ __wti_disagg_pick_up_checkpoint_meta(
 {
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
-    WT_DISAGG_ENCODING_STATE encoding_state;
     WT_ITEM page;
     char *meta_str;
-    bool snapshot_blocked;
+    bool prev_adopted, prev_encoding, snapshot_blocked;
 
     WT_CLEAR(ckpt_meta);
     WT_CLEAR(page);
     meta_str = NULL;
-    __disagg_encoding_save(session, &encoding_state);
+    prev_encoding =
+      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    prev_adopted = S2C(session)->disaggregated_storage.stable_tombstone_encoding_adopted;
 
     WT_ERR(__disagg_checkpoint_pick_up_prepare(
       session, meta_data, meta_data_size, force, false, &ckpt_meta, &meta_str, &snapshot_blocked));
@@ -2387,7 +2366,7 @@ __wti_disagg_pick_up_checkpoint_meta(
 
 err:
     if (ret != 0)
-        __disagg_encoding_restore(session, &encoding_state);
+        __disagg_encoding_restore(session, prev_encoding, prev_adopted);
     __wt_buf_free(session, &page);
     __wt_free(session, meta_str);
     return (ret);
@@ -2408,13 +2387,14 @@ __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *session, const char *me
 {
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
-    WT_DISAGG_ENCODING_STATE encoding_state;
     char *meta_str;
-    bool snapshot_blocked;
+    bool prev_adopted, prev_encoding, snapshot_blocked;
 
     WT_CLEAR(ckpt_meta);
     meta_str = NULL;
-    __disagg_encoding_save(session, &encoding_state);
+    prev_encoding =
+      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    prev_adopted = S2C(session)->disaggregated_storage.stable_tombstone_encoding_adopted;
 
     WT_ERR(__disagg_checkpoint_pick_up_prepare(
       session, meta_data, meta_data_size, force, true, &ckpt_meta, &meta_str, &snapshot_blocked));
@@ -2423,7 +2403,7 @@ __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *session, const char *me
 
 err:
     if (ret != 0)
-        __disagg_encoding_restore(session, &encoding_state);
+        __disagg_encoding_restore(session, prev_encoding, prev_adopted);
     __wt_free(session, meta_str);
     return (ret);
 }
