@@ -1379,12 +1379,12 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 }
 
 /*
- * __disagg_raise_deferred_oldest --
- *     Raise the newest known oldest timestamp among the queued checkpoints. The caller holds the
+ * __disagg_advance_deferred_oldest --
+ *     Advance the newest known oldest timestamp among the queued checkpoints. The caller holds the
  *     queue lock.
  */
 static void
-__disagg_raise_deferred_oldest(WT_SESSION_IMPL *session, wt_timestamp_t oldest_timestamp)
+__disagg_advance_deferred_oldest(WT_SESSION_IMPL *session, wt_timestamp_t oldest_timestamp)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
@@ -1430,7 +1430,7 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, WT_ITEM *m
     WT_CLEAR(*metadata_buf);
     entry->oldest_timestamp = oldest_timestamp;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
-    __disagg_raise_deferred_oldest(session, oldest_timestamp);
+    __disagg_advance_deferred_oldest(session, oldest_timestamp);
     WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
 
 err:
@@ -1553,26 +1553,35 @@ __disagg_deferred_pickup_server(void *arg)
 }
 
 /*
+ * __disagg_deferred_pickup_wake --
+ *     Wake the deferred pickup server unconditionally.
+ */
+static void
+__disagg_deferred_pickup_wake(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    if (disagg->deferred_pickup_cond != NULL)
+        __wt_cond_signal(session, disagg->deferred_pickup_cond);
+}
+
+/*
  * __wt_disagg_deferred_pickup_signal --
- *     Wake the deferred pickup server: called when a pinning transaction finishes and when a
- *     checkpoint is deferred. A released pin generation is passed so releases that cannot unblock
- *     any deferred checkpoint skip the wakeup; zero signals unconditionally.
+ *     Wake the deferred pickup server when a pinning transaction finishes. The released pin
+ *     generation lets releases that cannot unblock any deferred checkpoint skip the wakeup.
  */
 void
 __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen)
 {
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-
     /*
      * Every deferred checkpoint was delivered, so a pin taken at or after the newest delivered
      * checkpoint was blocking none of them. This needs no state of its own and skips the wakeup for
      * the common case: a reader that began after the last delivery, which is every reader once
      * nothing is deferred.
      */
-    if (released_gen != 0 && released_gen >= __wt_gen(session, WT_GEN_DISAGG_CKPT))
+    if (released_gen >= __wt_gen(session, WT_GEN_DISAGG_CKPT))
         return;
-    if (disagg->deferred_pickup_cond != NULL)
-        __wt_cond_signal(session, disagg->deferred_pickup_cond);
+    __disagg_deferred_pickup_wake(session);
 }
 
 /*
@@ -1586,10 +1595,36 @@ __wt_disagg_deferred_pickup_signal_reader(WT_SESSION_IMPL *session, wt_timestamp
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
+    /* A reader at the oldest timestamp does not hold the checkpoint back, only a lower one does. */
     if (read_timestamp >= __wt_atomic_load_uint64_acquire(&disagg->deferred_ckpt_oldest_timestamp))
         return;
-    if (disagg->deferred_pickup_cond != NULL)
-        __wt_cond_signal(session, disagg->deferred_pickup_cond);
+    __disagg_deferred_pickup_wake(session);
+}
+
+/*
+ * __wt_disagg_deferred_pickup_signal_oldest --
+ *     Wake the deferred pickup server when the oldest timestamp moves: only an oldest timestamp
+ *     that reaches the oldest timestamp of a queued checkpoint can let it be adopted. A reader
+ *     below it may still hold the checkpoint back, which the server finds when it looks.
+ */
+void
+__wt_disagg_deferred_pickup_signal_oldest(WT_SESSION_IMPL *session, wt_timestamp_t oldest_timestamp)
+{
+    WT_DISAGG_DEFERRED_CKPT *entry;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    bool reached;
+
+    reached = false;
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
+        if (entry->oldest_timestamp != WT_TS_NONE && entry->oldest_timestamp <= oldest_timestamp) {
+            reached = true;
+            break;
+        }
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+
+    if (reached)
+        __disagg_deferred_pickup_wake(session);
 }
 
 /*
@@ -2089,8 +2124,10 @@ err:
 
 /*
  * __disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from metadata config, shared by the loud and the racing callers. A
- *     caller holding the checkpoint's shared metadata page passes it in, and it is consumed.
+ *     Pick up a new checkpoint from its metadata config. It handles a checkpoint that was just
+ *     delivered, where an older checkpoint is an error. It also handles a queued checkpoint being
+ *     retried, where an older checkpoint only means another pickup won. The retry passes in the
+ *     shared metadata page it kept, and the page is consumed.
  */
 static int
 __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
@@ -2228,8 +2265,13 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
             if (!superseded_ok) {
                 WT_ERR(__disagg_defer_checkpoint(session, &meta_str, &metadata_buf,
                   ckpt_meta.metadata_lsn, metadata.oldest_timestamp));
-                /* Wake the pickup server: the delivery may already be adoptable. */
-                __wt_disagg_deferred_pickup_signal(session, 0);
+                /*
+                 * Wake the pickup server for two reasons. A deferral arms its periodic retry: with
+                 * nothing queued it sleeps with no timeout. The readers that blocked this delivery
+                 * may also have ended while the metadata was being fetched, so it may already be
+                 * adoptable.
+                 */
+                __disagg_deferred_pickup_wake(session);
             }
             goto err;
         }

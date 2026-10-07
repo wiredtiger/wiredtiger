@@ -1806,6 +1806,8 @@ extern void __wt_disagg_btree_publish_if_covered(
 extern void __wt_disagg_cancel_unpublished_op(
   WT_SESSION_IMPL *session, const char *table_name, WT_SHARED_METADATA_OP op);
 extern void __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen);
+extern void __wt_disagg_deferred_pickup_signal_oldest(
+  WT_SESSION_IMPL *session, wt_timestamp_t oldest_timestamp);
 extern void __wt_disagg_deferred_pickup_signal_reader(
   WT_SESSION_IMPL *session, wt_timestamp_t read_timestamp);
 extern void __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size);
