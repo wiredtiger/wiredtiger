@@ -106,7 +106,7 @@ class test_layered_tombstone_drain(wttest.WiredTigerTestCase):
         # ingest table, escaped.
         conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + ',create,' + self.conn_base_config + self.role_config('follower'))
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         # Key 2 is a plain control value, untouched by the escape logic, to confirm the drain leaves
         # unrelated keys intact.
         session_f = conn_follow.open_session()

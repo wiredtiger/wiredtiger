@@ -100,7 +100,7 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session = conn_leader.open_session('')
         self.leader_checkpoint(stable_ts, conn_leader, session)
         session.close()
-        self.disagg_advance_checkpoint(self.conn, conn_leader)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_leader)
 
     #
     # Functional tests
@@ -524,7 +524,7 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
             'stable_timestamp=' + self.timestamp_str(2) +
             ',oldest_timestamp=' + self.timestamp_str(1))
         session_follow.checkpoint()
-        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_follow)
         # After checkpoint at epoch=15: CREATE (epoch=20) deferred; uri absent from self.conn.
         self.assertFalse(self.uri_stable_exists(self.conn, self.uri))
 

@@ -1722,7 +1722,7 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, bool force)
         /* A pin that does not cover the LSN means a snapshot predates it. */
         if (!force && oldest_gen <= entry->lsn)
             break;
-        if (pinned_ts != WT_TS_NONE && pinned_ts < entry->oldest_timestamp)
+        if (!force && pinned_ts < entry->oldest_timestamp)
             break;
         selected = entry;
     }
@@ -2290,7 +2290,9 @@ __disagg_checkpoint_pick_up(WT_SESSION_IMPL *session, const char *meta_str,
      * Defer adopting a newer checkpoint while a reader may still need what it discards, so those
      * readers keep opening stable cursors instead of being refused. That is a snapshot that
      * predates the checkpoint, or a pinned timestamp below its oldest timestamp. New readers cannot
-     * start below the local oldest timestamp. Forced pickups (startup, step-up) are never deferred.
+     * start below the local oldest timestamp, but until one is set (the pinned timestamp is none)
+     * they can start anywhere, so nothing is adopted. Forced pickups (startup, step-up) are never
+     * deferred.
      *
      * Do not use the usual pinned timestamp getter. It is capped by the last checkpoint timestamp,
      * so it would never catch up.
@@ -2299,8 +2301,7 @@ __disagg_checkpoint_pick_up(WT_SESSION_IMPL *session, const char *meta_str,
       ckpt_meta->metadata_lsn >
         __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn)) {
         __wt_txn_get_pinned_timestamp(session, &pinned_ts, WT_TXN_TS_INCLUDE_OLDEST);
-        if (snapshot_blocked ||
-          (pinned_ts != WT_TS_NONE && metadata.oldest_timestamp > pinned_ts)) {
+        if (snapshot_blocked || metadata.oldest_timestamp > pinned_ts) {
             WT_ERR(__disagg_defer_checkpoint(session, meta_str, metadata_page,
               ckpt_meta->metadata_lsn, metadata.oldest_timestamp));
             /*

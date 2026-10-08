@@ -67,7 +67,7 @@ class test_layered_follower06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Advance to the latest checkpoint
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # The read timestamp must not fall behind the oldest timestamp of any checkpoint adopted
         # while the transaction is active.

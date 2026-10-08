@@ -72,7 +72,7 @@ class test_layered_schema27(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             'follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower())
         self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
-        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_advance_checkpoint_with_oldest(conn_follower)
         session_follower = conn_follower.open_session('')
         try:
             session_follower.open_cursor(uri).close()

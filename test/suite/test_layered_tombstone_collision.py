@@ -121,7 +121,7 @@ class test_layered_tombstone_collision(wttest.WiredTigerTestCase):
         if self.mode == 'follower_checkpoint':
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.commit_ts))
             self.session.checkpoint()
-            self.disagg_advance_checkpoint(self.follow_conn, self.conn)
+            self.disagg_advance_checkpoint_with_oldest(self.follow_conn, self.conn)
 
     def rcursor(self):
         self.sync()

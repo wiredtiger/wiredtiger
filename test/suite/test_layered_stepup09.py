@@ -140,7 +140,7 @@ class test_layered_stepup09(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         conn_follow, session_follow, cursor_follow = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # Replicate only the first three of the leader's rows to the follower's ingest, leaving
         # key_4 in stable alone so the search below misses ingest and forces the stable open.

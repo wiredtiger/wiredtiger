@@ -78,7 +78,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
         cursor.close()
         self.leader_checkpoint(2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
         conn_follow.close('debug=(skip_checkpoint=true)')
@@ -96,7 +96,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.dropUntilSuccess(self.session, self.uri)
         self.session.create(self.uri, self.table_config)
         self.leader_checkpoint(2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
     def test_recreated_table_panics(self):
         """A table recreated on the leader carries a new btree id: pickup panics."""
@@ -115,7 +115,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.session.create(self.uri, self.table_config)
         self.leader_checkpoint(2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         return conn_follow
 
     def subprocess_mismatched_format_panics(self):
@@ -140,7 +140,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.dropUntilSuccess(self.session, self.uri)
         self.session.create(self.uri, self.table_config + ',encryption=(name=none,keyid=second)')
         self.leader_checkpoint(2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
     def test_mismatched_nested_panics(self):
         """A nested configuration field differing between the nodes: pickup panics."""

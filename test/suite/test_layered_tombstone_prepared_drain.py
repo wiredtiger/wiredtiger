@@ -104,6 +104,7 @@ class test_layered_tombstone_prepared_drain(wttest.WiredTigerTestCase):
         # ingest table, escaped, as an in-flight prepared update.
         conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + ',create,' + self.conn_base_config + self.role_config('follower'))
+        conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         # A committed control key on the same table confirms the prepared drain leaves unrelated data
         # intact.
