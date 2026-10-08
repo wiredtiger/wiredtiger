@@ -57,8 +57,6 @@ struct victim_cache_entry {
     uint64_t lsn;
     uint64_t backlink_lsn;
     uint64_t base_lsn;
-    uint64_t backlink_checkpoint_id;
-    uint64_t base_checkpoint_id;
     uint64_t delta_count;
     std::vector<uint8_t> data;
 };

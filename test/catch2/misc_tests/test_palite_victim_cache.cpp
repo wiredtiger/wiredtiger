@@ -90,7 +90,7 @@ TEST_CASE(
     WT_ITEM cache_buf = item_from_string(cache_bytes);
 
     WT_PAGE_LOG_PUT_ARGS put_args{};
-    REQUIRE(handle->plh_put(handle, session, page_id, 0, &put_args, &store_buf) == 0);
+    REQUIRE(handle->plh_put(handle, session, page_id, &put_args, &store_buf) == 0);
     const uint64_t lsn = put_args.lsn;
     REQUIRE(lsn > 0);
 
@@ -98,55 +98,51 @@ TEST_CASE(
     cache_args.lsn = lsn;
     cache_args.backlink_lsn = 7;
     cache_args.base_lsn = 3;
-    cache_args.backlink_checkpoint_id = 11;
-    cache_args.base_checkpoint_id = 13;
-    REQUIRE(handle->plh_cache_put(handle, session, page_id, 99, &cache_args, &cache_buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, &cache_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == 0);
 
     WT_ITEM results[4]{};
     uint32_t n = 4;
     WT_PAGE_LOG_GET_ARGS bypass_args{};
     bypass_args.lsn = lsn;
     bypass_args.flags = WT_PAGE_LOG_CACHE_BYPASS;
-    REQUIRE(handle->plh_get(handle, session, page_id, 0, &bypass_args, results, &n) == 0);
+    REQUIRE(handle->plh_get(handle, session, page_id, &bypass_args, results, &n) == 0);
     REQUIRE(n == 1);
     REQUIRE(results[0].size == std::strlen(store_bytes));
     REQUIRE(std::memcmp(results[0].data, store_bytes, results[0].size) == 0);
     free_results(results, n);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == 0);
 
     n = 4;
     WT_PAGE_LOG_GET_ARGS get_args{};
     get_args.lsn = lsn;
-    REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
+    REQUIRE(handle->plh_get(handle, session, page_id, &get_args, results, &n) == 0);
     REQUIRE(n == 1);
     REQUIRE(results[0].size == std::strlen(cache_bytes));
     REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
     REQUIRE(get_args.backlink_lsn == 7);
     REQUIRE(get_args.base_lsn == 3);
-    REQUIRE(get_args.backlink_checkpoint_id == 11);
-    REQUIRE(get_args.base_checkpoint_id == 13);
     free_results(results, n);
 
     /* Second get reads from the store. */
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == WT_NOTFOUND);
 
     n = 4;
     get_args = {};
     get_args.lsn = lsn;
-    REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
+    REQUIRE(handle->plh_get(handle, session, page_id, &get_args, results, &n) == 0);
     REQUIRE(n == 1);
     REQUIRE(results[0].size == std::strlen(store_bytes));
     REQUIRE(std::memcmp(results[0].data, store_bytes, results[0].size) == 0);
     free_results(results, n);
 
     /* A later put of the same page drops the cached copy. */
-    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, &cache_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == 0);
     WT_PAGE_LOG_PUT_ARGS erase_args{};
     erase_args.backlink_lsn = lsn;
-    REQUIRE(handle->plh_put(handle, session, page_id, 0, &erase_args, &store_buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
+    REQUIRE(handle->plh_put(handle, session, page_id, &erase_args, &store_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == WT_NOTFOUND);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);
@@ -170,15 +166,15 @@ TEST_CASE(
     WT_PAGE_LOG_PUT_ARGS cache_args[3]{};
     for (uint64_t page_id = 1; page_id <= 3; ++page_id) {
         WT_PAGE_LOG_PUT_ARGS put_args{};
-        REQUIRE(handle->plh_put(handle, session, page_id, 0, &put_args, &buf) == 0);
+        REQUIRE(handle->plh_put(handle, session, page_id, &put_args, &buf) == 0);
         cache_args[page_id - 1].lsn = put_args.lsn;
         REQUIRE(
-          handle->plh_cache_put(handle, session, page_id, 0, &cache_args[page_id - 1], &buf) == 0);
+          handle->plh_cache_put(handle, session, page_id, &cache_args[page_id - 1], &buf) == 0);
     }
 
     uint32_t cached = 0;
     for (uint64_t page_id = 1; page_id <= 3; ++page_id) {
-        if (handle->plh_cache_has(handle, session, page_id, 0, &cache_args[page_id - 1]) == 0)
+        if (handle->plh_cache_has(handle, session, page_id, &cache_args[page_id - 1]) == 0)
             ++cached;
     }
     REQUIRE(cached == 2);
@@ -204,31 +200,31 @@ TEST_CASE("Palite victim cache discard drops the cached copy", "[palite_victim_c
     WT_ITEM cache_buf = item_from_string(cache_bytes);
 
     WT_PAGE_LOG_PUT_ARGS put_args{};
-    REQUIRE(handle->plh_put(handle, session, page_id, 0, &put_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_put(handle, session, page_id, &put_args, &cache_buf) == 0);
     const uint64_t lsn = put_args.lsn;
 
     WT_PAGE_LOG_PUT_ARGS cache_args{};
     cache_args.lsn = lsn;
-    REQUIRE(handle->plh_cache_put(handle, session, page_id, 0, &cache_args, &cache_buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == 0);
+    REQUIRE(handle->plh_cache_put(handle, session, page_id, &cache_args, &cache_buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == 0);
 
     WT_PAGE_LOG_DISCARD_ARGS discard_args{};
     discard_args.backlink_lsn = lsn;
     discard_args.base_lsn = lsn;
-    REQUIRE(handle->plh_discard(handle, session, page_id, 0, &discard_args) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
+    REQUIRE(handle->plh_discard(handle, session, page_id, &discard_args) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == WT_NOTFOUND);
 
     /* The image at that LSN is still in the store. */
     WT_ITEM results[1]{};
     uint32_t n = 1;
     WT_PAGE_LOG_GET_ARGS get_args{};
     get_args.lsn = lsn;
-    REQUIRE(handle->plh_get(handle, session, page_id, 0, &get_args, results, &n) == 0);
+    REQUIRE(handle->plh_get(handle, session, page_id, &get_args, results, &n) == 0);
     REQUIRE(n == 1);
     REQUIRE(results[0].size == std::strlen(cache_bytes));
     REQUIRE(std::memcmp(results[0].data, cache_bytes, results[0].size) == 0);
     free_results(results, n);
-    REQUIRE(handle->plh_cache_has(handle, session, page_id, 0, &cache_args) == WT_NOTFOUND);
+    REQUIRE(handle->plh_cache_has(handle, session, page_id, &cache_args) == WT_NOTFOUND);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);
@@ -270,7 +266,7 @@ TEST_CASE("Palite victim cache byte budget is shared across handles", "[palite_v
             WT_PAGE_LOG_PUT_ARGS args;
             std::memset(&args, 0, sizeof(args));
             args.lsn = (uint64_t)i + 1;
-            REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+            REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, &args, &buf) == 0);
         }
 
     int cached = 0;
@@ -279,7 +275,7 @@ TEST_CASE("Palite victim cache byte budget is shared across handles", "[palite_v
             WT_PAGE_LOG_PUT_ARGS args;
             std::memset(&args, 0, sizeof(args));
             args.lsn = (uint64_t)i + 1;
-            if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+            if (handle->plh_cache_has(handle, session, (uint64_t)i, &args) == 0)
                 ++cached;
         }
 
@@ -325,25 +321,25 @@ TEST_CASE("Palite victim cache keeps its entries when it cannot make room", "[pa
     WT_PAGE_LOG_PUT_ARGS tiny_args;
     std::memset(&tiny_args, 0, sizeof(tiny_args));
     tiny_args.lsn = 1;
-    REQUIRE(small->plh_cache_put(small, session, 100, 0, &tiny_args, &tiny_buf) == 0);
-    REQUIRE(small->plh_cache_has(small, session, 100, 0, &tiny_args) == 0);
+    REQUIRE(small->plh_cache_put(small, session, 100, &tiny_args, &tiny_buf) == 0);
+    REQUIRE(small->plh_cache_has(small, session, 100, &tiny_args) == 0);
 
     /* The other handle then takes the rest of the budget. */
     for (int i = 0; i < 15; ++i) {
         WT_PAGE_LOG_PUT_ARGS args;
         std::memset(&args, 0, sizeof(args));
         args.lsn = (uint64_t)i + 1;
-        REQUIRE(hog->plh_cache_put(hog, session, (uint64_t)i, 0, &args, &big_buf) == 0);
+        REQUIRE(hog->plh_cache_put(hog, session, (uint64_t)i, &args, &big_buf) == 0);
     }
 
     /* A page the small handle could not fit even by discarding everything it holds. */
     WT_PAGE_LOG_PUT_ARGS refused;
     std::memset(&refused, 0, sizeof(refused));
     refused.lsn = 2;
-    REQUIRE(small->plh_cache_put(small, session, 101, 0, &refused, &huge_buf) == 0);
-    REQUIRE(small->plh_cache_has(small, session, 101, 0, &refused) == WT_NOTFOUND);
+    REQUIRE(small->plh_cache_put(small, session, 101, &refused, &huge_buf) == 0);
+    REQUIRE(small->plh_cache_has(small, session, 101, &refused) == WT_NOTFOUND);
 
-    REQUIRE(small->plh_cache_has(small, session, 100, 0, &tiny_args) == 0);
+    REQUIRE(small->plh_cache_has(small, session, 100, &tiny_args) == 0);
 
     REQUIRE(hog->plh_close(hog, session) == 0);
     REQUIRE(small->plh_close(small, session) == 0);
@@ -378,13 +374,13 @@ TEST_CASE("Palite victim cache budget is released when a handle closes", "[palit
             WT_PAGE_LOG_PUT_ARGS args;
             std::memset(&args, 0, sizeof(args));
             args.lsn = (uint64_t)i + 1;
-            REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+            REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, &args, &buf) == 0);
         }
         for (int i = 0; i < 16; ++i) {
             WT_PAGE_LOG_PUT_ARGS args;
             std::memset(&args, 0, sizeof(args));
             args.lsn = (uint64_t)i + 1;
-            if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+            if (handle->plh_cache_has(handle, session, (uint64_t)i, &args) == 0)
                 ++cached[round];
         }
         REQUIRE(handle->plh_close(handle, session) == 0);
@@ -428,7 +424,7 @@ TEST_CASE(
         WT_PAGE_LOG_PUT_ARGS args;
         std::memset(&args, 0, sizeof(args));
         args.lsn = (uint64_t)i + 1;
-        REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, 0, &args, &buf) == 0);
+        REQUIRE(handle->plh_cache_put(handle, session, (uint64_t)i, &args, &buf) == 0);
     }
 
     int cached = 0;
@@ -436,7 +432,7 @@ TEST_CASE(
         WT_PAGE_LOG_PUT_ARGS args;
         std::memset(&args, 0, sizeof(args));
         args.lsn = (uint64_t)i + 1;
-        if (handle->plh_cache_has(handle, session, (uint64_t)i, 0, &args) == 0)
+        if (handle->plh_cache_has(handle, session, (uint64_t)i, &args) == 0)
             ++cached;
     }
     REQUIRE(cached == limit);
@@ -471,15 +467,15 @@ TEST_CASE("Palite victim cache drops the old copy when the replacement is too la
     std::memset(&buf, 0, sizeof(buf));
     buf.data = small.data();
     buf.size = small.size();
-    REQUIRE(handle->plh_cache_put(handle, session, 1, 0, &args, &buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, 1, 0, &args) == 0);
+    REQUIRE(handle->plh_cache_put(handle, session, 1, &args, &buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, 1, &args) == 0);
 
     /* Replace it under the same key with an image that cannot fit in the budget at all. */
     std::vector<uint8_t> huge(2 * 1024 * 1024, 0x22);
     buf.data = huge.data();
     buf.size = huge.size();
-    REQUIRE(handle->plh_cache_put(handle, session, 1, 0, &args, &buf) == 0);
-    REQUIRE(handle->plh_cache_has(handle, session, 1, 0, &args) != 0);
+    REQUIRE(handle->plh_cache_put(handle, session, 1, &args, &buf) == 0);
+    REQUIRE(handle->plh_cache_has(handle, session, 1, &args) != 0);
 
     REQUIRE(handle->plh_close(handle, session) == 0);
     REQUIRE(page_log->terminate(page_log, session) == 0);

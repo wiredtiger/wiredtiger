@@ -47,7 +47,7 @@ make_dsk(uint32_t mem_size)
  */
 int
 dummy_plh_cache_put(
-  WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, uint64_t, WT_PAGE_LOG_PUT_ARGS *, const WT_ITEM *)
+  WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, WT_PAGE_LOG_PUT_ARGS *, const WT_ITEM *)
 {
     return (0);
 }

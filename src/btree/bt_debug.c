@@ -508,9 +508,8 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
     WT_ERR(__wt_msg(session, "uri: %s", session->dhandle->name));
     WT_ERR(__wt_msg(session,
       "disagg_meta: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
-      " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64,
-      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
-      get_args.backlink_checkpoint_id, get_args.delta_count));
+      " delta_count=%" PRIu64,
+      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.delta_count));
     WT_ERR(__wt_msg(session, "results: count=%u", count));
 
     /*
@@ -621,9 +620,8 @@ __wt_debug_disagg_page_id_raw(
     WT_ERR(__wt_msg(session, "table_id: %" PRIu64, table_id));
     WT_ERR(__wt_msg(session,
       "disagg_meta: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
-      " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64,
-      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
-      get_args.backlink_checkpoint_id, get_args.delta_count));
+      " delta_count=%" PRIu64,
+      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.delta_count));
     WT_ERR(__wt_msg(session, "results: count=%u", count));
 
     for (i = 0; i < count; i++) {
