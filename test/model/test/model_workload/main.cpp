@@ -377,10 +377,14 @@ test_workload_generator(void)
     uint64_t seed = 0;
     std::string last_issue;
 
+    /* Disaggregated storage needs different config for verification; it is disabled by default. */
+    model::kv_workload_generator_spec spec;
+    testutil_assert(spec.disaggregated <= 0);
+
     while (true) {
         try {
             std::shared_ptr<model::kv_workload> workload =
-              model::kv_workload_generator::generate(model::kv_workload_generator_spec(), seed);
+              model::kv_workload_generator::generate(spec, seed);
 
             /* Run the workload in the model and in WiredTiger, then verify. */
             std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
