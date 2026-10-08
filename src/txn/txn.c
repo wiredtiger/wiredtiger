@@ -1412,7 +1412,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && F_ISSET(upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS))))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
-    else if (__wt_btree_stays_in_memory(btree))
+    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
@@ -1843,6 +1843,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            /* Apply the timestamp rules to a truncate recorded as a range. */
+            WT_ERR(__wt_txn_timestamp_usage_check(
+              session, op->btree, txn->time_point.commit_timestamp, WT_TS_NONE));
             __wti_mark_committed_truncate_table(session, op);
             break;
         }

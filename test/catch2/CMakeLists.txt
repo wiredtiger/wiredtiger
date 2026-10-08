@@ -13,8 +13,8 @@ else()
         misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
-        misc_tests/test_ckpt_snapshot_size.cpp
         misc_tests/test_config.cpp
+        misc_tests/test_conn_api_name.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
@@ -40,6 +40,7 @@ else()
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_ref_page_type.cpp
         misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_snapshot_pickup.cpp

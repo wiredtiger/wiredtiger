@@ -75,7 +75,11 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: maximum leaf page value size",
   "btree: maximum tree depth",
   "btree: number of key/value pairs",
+  "btree: obsolete on-disk key/value bytes",
+  "btree: obsolete on-disk key/value bytes on mixed pages",
   "btree: overflow pages",
+  "btree: pages analyzed for obsolete on-disk key/value pairs",
+  "btree: pages with obsolete on-disk key/value pairs",
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf page recent average entries (EWMA), or UINT64_MAX if never tracked and "
@@ -600,7 +604,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_maxleafvalue = 0;
     stats->btree_maximum_depth = 0;
     stats->btree_entries = 0;
+    stats->btree_obsolete_ondisk_kv_bytes = 0;
+    stats->btree_obsolete_ondisk_kv_bytes_mixed = 0;
     stats->btree_overflow = 0;
+    stats->btree_obsolete_ondisk_kv_analyzed = 0;
+    stats->btree_obsolete_ondisk_kv_pages = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf_avg_entries = 0;
@@ -1078,7 +1086,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     if (from->btree_maximum_depth > to->btree_maximum_depth)
         to->btree_maximum_depth = from->btree_maximum_depth;
     to->btree_entries += from->btree_entries;
+    to->btree_obsolete_ondisk_kv_bytes += from->btree_obsolete_ondisk_kv_bytes;
+    to->btree_obsolete_ondisk_kv_bytes_mixed += from->btree_obsolete_ondisk_kv_bytes_mixed;
     to->btree_overflow += from->btree_overflow;
+    to->btree_obsolete_ondisk_kv_analyzed += from->btree_obsolete_ondisk_kv_analyzed;
+    to->btree_obsolete_ondisk_kv_pages += from->btree_obsolete_ondisk_kv_pages;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf_avg_entries += from->btree_row_leaf_avg_entries;
@@ -1592,7 +1604,13 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     if ((v = WT_STAT_DSRC_READ(from, btree_maximum_depth)) > to->btree_maximum_depth)
         to->btree_maximum_depth = v;
     to->btree_entries += WT_STAT_DSRC_READ(from, btree_entries);
+    to->btree_obsolete_ondisk_kv_bytes += WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_bytes);
+    to->btree_obsolete_ondisk_kv_bytes_mixed +=
+      WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_bytes_mixed);
     to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
+    to->btree_obsolete_ondisk_kv_analyzed +=
+      WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_analyzed);
+    to->btree_obsolete_ondisk_kv_pages += WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_pages);
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
     to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
@@ -2285,6 +2303,8 @@ static const char *const __stats_connection_desc[] = {
   "timestamp",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
+  "cache: eviction server skips restored pages whose pinned stable timestamp and oldest "
+  "transaction ID have not moved since the last eviction",
   "cache: eviction server skips resuming trees whose walk already traversed the whole tree",
   "cache: eviction server skips stable btrees in disagg",
   "cache: eviction server skips tree that we do not want to evict",
@@ -3448,6 +3468,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_pages_prune_timestamp_not_move = 0;
     stats->eviction_server_skip_pages_retry = 0;
     stats->eviction_server_skip_unwanted_pages = 0;
+    stats->eviction_server_skip_pages_restored_unchanged = 0;
     stats->eviction_server_skip_trees_walk_complete = 0;
     stats->eviction_server_skip_stable_trees = 0;
     stats->eviction_server_skip_unwanted_tree = 0;
@@ -4608,6 +4629,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_retry);
     to->eviction_server_skip_unwanted_pages +=
       WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_pages);
+    to->eviction_server_skip_pages_restored_unchanged +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_pages_restored_unchanged);
     to->eviction_server_skip_trees_walk_complete +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_walk_complete);
     to->eviction_server_skip_stable_trees +=

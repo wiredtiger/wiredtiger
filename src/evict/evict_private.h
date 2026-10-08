@@ -89,6 +89,7 @@ typedef enum {
     WTI_EVICT_VICTIM_CACHE_UNAVAILABLE, /* The page log's cache is not currently accepting puts. */
     WTI_EVICT_VICTIM_CHECKPOINT_CURSOR, /* The btree is open under a checkpoint cursor. */
     WTI_EVICT_VICTIM_COLD_TIER,         /* Cold collections must not displace hot pages. */
+    WTI_EVICT_VICTIM_ENCRYPTED,         /* The cached image would not be encrypted. */
     WTI_EVICT_VICTIM_INVALID_PAGE_ID,   /* The block metadata holds no valid page id. */
     WTI_EVICT_VICTIM_NO_BLOCK_MANAGER,  /* The btree has no disaggregated block manager. */
     WTI_EVICT_VICTIM_NO_DISAGG_INFO,    /* The page carries no disaggregated block metadata. */
@@ -133,6 +134,8 @@ static WT_INLINE bool __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
 static WT_INLINE bool __wti_evict_prune_ts_unmoved(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wti_evict_restored_page_unchanged(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
