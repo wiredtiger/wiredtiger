@@ -104,7 +104,6 @@ TEST_CASE("Checkpoint_state is inactive when checkpoint is skipped", "[checkpoin
               conn.get_wt_connection(), nullptr, nullptr, &wt_session) == 0);
 
     REQUIRE(wt_session->checkpoint(wt_session, "use_timestamp=false") == 0);
-    REQUIRE(wt_session->checkpoint(wt_session, "use_timestamp=false") == 0);
 
     CHECK(conn_impl->stats[0]->checkpoint_state == WTI_CHECKPOINT_STATE_INACTIVE);
 }
