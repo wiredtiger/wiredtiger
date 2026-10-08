@@ -9,4 +9,11 @@ insert_mb=256,
 marker_size_mb=8,
 oplog_size_mb=512,
 role=switch,
-value_size=1000
+value_size=1000,
+metrics_monitor=(enabled=false),
+operation_tracker=(enabled=false),
+workload_manager=(
+    populate_config=(thread_count=4),
+    insert_config=(thread_count=4),
+    custom_config=(thread_count=1),
+    checkpoint_config=(thread_count=1,op_rate=2s))

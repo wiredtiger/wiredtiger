@@ -64,6 +64,11 @@ public:
     virtual void run();
 
 protected:
+    /* Add test-specific open options before user-supplied configuration. */
+    virtual std::string extra_connection_config() const;
+    /* Wait for the configured duration or a test-specific completion condition. */
+    virtual void wait_for_workload();
+
     const test_args &_args;
     configuration *_config;
     timestamp_manager *_timestamp_manager = nullptr;

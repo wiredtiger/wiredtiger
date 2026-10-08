@@ -59,6 +59,9 @@ public:
     void create(const std::string &config, const std::string &home,
       bool create_log_directory = false, bool subdirectory = false);
     void reopen(const std::string &config, const std::string &home);
+    /* All workload sessions must be closed before restarting. */
+    void restart(const std::string &config);
+    int reconfigure(const std::string &config);
     scoped_session create_session();
 
     WT_CONNECTION *get_connection();
@@ -73,6 +76,8 @@ private:
 
 private:
     WT_CONNECTION *_conn = nullptr;
+    std::string _open_config;
+    std::string _home;
     std::mutex _conn_mutex;
 };
 } // namespace test_harness
