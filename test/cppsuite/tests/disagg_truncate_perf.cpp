@@ -45,35 +45,6 @@
 
 using namespace test_harness;
 
-namespace {
-/* Keep timestamp updates scoped to a connection's lifetime. */
-class scoped_timestamp_updates {
-public:
-    scoped_timestamp_updates(timestamp_manager &timestamps, std::mutex &gate)
-        : _thread([this, &timestamps, &gate]() {
-              while (!_stop.load()) {
-                  {
-                      std::lock_guard<std::mutex> lock(gate);
-                      timestamps.do_work();
-                  }
-                  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-              }
-          })
-    {
-    }
-
-    ~scoped_timestamp_updates()
-    {
-        _stop.store(true);
-        _thread.join();
-    }
-
-private:
-    std::atomic<bool> _stop{false};
-    std::thread _thread;
-};
-} // namespace
-
 /* Measure truncation during an append workload in each disaggregated role. */
 class disagg_truncate_perf : public test {
 public:
@@ -141,18 +112,22 @@ public:
     void
     checkpoint_operation(thread_worker *tc) override final
     {
-        scoped_timestamp_updates timestamps(*_timestamps, _timestamp_gate);
-        if (_role == "follower") {
+        std::atomic<bool> stop_timestamps{false};
+        thread_manager timestamps;
+        timestamps.add_thread(&disagg_truncate_perf::advance_timestamps, this, &stop_timestamps);
+        if (_role == "follower")
             pick_up_checkpoints(tc);
-            return;
+        else {
+            while (tc->running() && !_done.load()) {
+                tc->sleep();
+                if (!tc->running() || _done.load())
+                    break;
+                if (_role == "leader")
+                    testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
+            }
         }
-        while (tc->running() && !_done.load()) {
-            tc->sleep();
-            if (!tc->running() || _done.load())
-                break;
-            if (_role == "leader")
-                testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
-        }
+        stop_timestamps.store(true);
+        timestamps.join();
     }
 
     void
@@ -220,7 +195,9 @@ private:
     {
         logger::log_msg(LOG_INFO, "Loading the layered table as a leader.");
         _timestamps->load();
-        scoped_timestamp_updates timestamps(*_timestamps, _timestamp_gate);
+        std::atomic<bool> stop_timestamps{false};
+        thread_manager timestamps;
+        timestamps.add_thread(&disagg_truncate_perf::advance_timestamps, this, &stop_timestamps);
         scoped_session session = connection_manager::instance().create_session();
         testutil_check(
           session->create(session.get(), "layered:oplog", "key_format=q,value_format=S"));
@@ -243,6 +220,20 @@ private:
         });
         threads.join();
         testutil_check(session->checkpoint(session.get(), nullptr));
+        stop_timestamps.store(true);
+        timestamps.join();
+    }
+
+    void
+    advance_timestamps(std::atomic<bool> *stop)
+    {
+        while (!stop->load()) {
+            {
+                std::lock_guard<std::mutex> gate(_timestamp_gate);
+                _timestamps->do_work();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 
     void
