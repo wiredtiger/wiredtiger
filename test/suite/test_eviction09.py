@@ -35,11 +35,11 @@ from wtscenario import make_scenarios
 class test_eviction09(wttest.WiredTigerTestCase):
     """Debug release eviction evicts ordinary pages but never cache-resident pages."""
 
-    uri = f'file:{__qualname__}'
+    uri = f"file:{__qualname__}"
 
     release_evict_modes = [
-        ('cursor_evict', dict(session_cfg='', cursor_cfg='debug=(release_evict)')),
-        ('session_evict', dict(session_cfg='debug=(release_evict_page=true)', cursor_cfg='')),
+        ("cursor_evict", dict(session_cfg="", cursor_cfg="debug=(release_evict)")),
+        ("session_evict", dict(session_cfg="debug=(release_evict_page=true)", cursor_cfg="")),
     ]
     scenarios = make_scenarios(release_evict_modes)
 
@@ -51,9 +51,9 @@ class test_eviction09(wttest.WiredTigerTestCase):
 
     def pages_evicted_on_release(self, file_config):
         """Read a row from a new file with release eviction and return the pages evicted."""
-        self.session.create(self.uri, 'key_format=i,value_format=S,' + file_config)
+        self.session.create(self.uri, "key_format=i,value_format=S," + file_config)
         with wttest.open_cursor(self.session, self.uri) as cursor:
-            cursor[1] = 'value'
+            cursor[1] = "value"
 
         evicted = self.evicted_pages()
 
@@ -61,17 +61,18 @@ class test_eviction09(wttest.WiredTigerTestCase):
             closing(self.conn.open_session(self.session_cfg)) as session,
             wttest.open_cursor(session, self.uri, config=self.cursor_cfg) as cursor,
         ):
-            self.assertEqual(cursor[1], 'value')
+            self.assertEqual(cursor[1], "value")
 
         return self.evicted_pages() - evicted
 
     def test_release_evict_ordinary(self):
         """Release eviction evicts pages from an ordinary file."""
-        self.assertGreater(self.pages_evicted_on_release('cache_resident=false'), 0)
+        self.assertGreater(self.pages_evicted_on_release("cache_resident=false"), 0)
 
     def test_release_evict_cache_resident(self):
         """Release eviction never evicts pages from a cache-resident file."""
-        self.assertEqual(self.pages_evicted_on_release('cache_resident=true'), 0)
+        self.assertEqual(self.pages_evicted_on_release("cache_resident=true"), 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     wttest.run()
