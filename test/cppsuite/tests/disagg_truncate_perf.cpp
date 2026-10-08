@@ -49,7 +49,7 @@ using namespace test_harness;
  * This test measures truncation latency on layered:oplog while appenders maintain a rolling
  * retention window. It loads the table as a leader, then measures as a leader, after a follower
  * restart with checkpoint pickup, or after an in-place step-down without pickup. The CppSuite
- * configuration sets the role, workload sizes, marker size, and worker counts; see the
+ * configuration sets the role, workload sizes, marker size, and worker counts. See the
  * disagg_truncate_perf config files for examples.
  */
 class disagg_truncate_perf : public test {
