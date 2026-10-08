@@ -11,6 +11,7 @@ else()
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_checkpoint_log_cleanup.cpp
+        misc_tests/test_checkpoint_session_flag.cpp
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
