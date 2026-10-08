@@ -111,7 +111,7 @@ class test_verify_disagg07(wttest.WiredTigerTestCase):
                                            self.conn_config_follower)
         session_follow = conn_follow.open_session('')
         try:
-            self.disagg_advance_checkpoint_and_wait(conn_follow)
+            self.disagg_advance_checkpoint_with_oldest_and_wait(conn_follow)
             self.assertEqual(conn_follow.query_timestamp('get=stable_timestamp'), '0')
             follower_cursor = session_follow.open_cursor(self.uri)
             self.assertEqual(follower_cursor['key00'], 'b' * 200)
