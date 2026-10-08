@@ -2345,6 +2345,7 @@ __wti_disagg_pick_up_checkpoint_meta(
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
     WT_ITEM page;
+    wt_timestamp_t pinned_ts;
     char *meta_str;
     bool prev_adopted, prev_encoding, snapshot_blocked;
 
@@ -2354,6 +2355,17 @@ __wti_disagg_pick_up_checkpoint_meta(
     prev_encoding =
       F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
     prev_adopted = S2C(session)->disaggregated_storage.stable_tombstone_encoding_adopted;
+
+    /*
+     * A node restarting from a checkpoint gets its oldest timestamp only after it has adopted its
+     * first checkpoint, so deferring that one until the oldest timestamp is set would never end.
+     */
+    if (!force &&
+      __wt_atomic_load_uint64_acquire(
+        &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn) == WT_DISAGG_LSN_NONE) {
+        __wt_txn_get_pinned_timestamp(session, &pinned_ts, WT_TXN_TS_INCLUDE_OLDEST);
+        force = pinned_ts == WT_TS_NONE;
+    }
 
     WT_ERR(__disagg_checkpoint_pick_up_prepare(
       session, meta_data, meta_data_size, force, &ckpt_meta, &meta_str, &snapshot_blocked));

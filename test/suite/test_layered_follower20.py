@@ -352,16 +352,25 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'v1'}, 10)
 
-        # Without an oldest timestamp a reader could start below the checkpoint's: it must wait.
-        # Deliver it directly: the helper would give the follower an oldest timestamp.
+        # The first checkpoint is adopted at once: nothing sets the oldest timestamp before it.
+        # Deliver checkpoints directly: the helper would give the follower an oldest timestamp.
+        meta = self.disagg_get_complete_checkpoint_meta()
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+        self.assertEqual(self.get_stat(conn_follow, defers), 0)
+
+        # Without an oldest timestamp a reader could start below the next checkpoint's: it waits.
+        self.put(self.session, self.uri, {'key': 'v2'}, 20)
+        self.leader_checkpoint(20)
+        self.put(session_follow, self.uri, {'key': 'v2'}, 20)
         meta = self.disagg_get_complete_checkpoint_meta()
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
         self.assertGreaterEqual(self.get_stat(conn_follow, defers), 1)
-        self.assertEqual(self.get_stat(conn_follow, pickups), 0)
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
 
         # Setting the oldest timestamp releases it.
         conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
-        self.wait_for_stat(conn_follow, pickups, 1)
+        self.wait_for_stat(conn_follow, pickups, 2)
 
     def test_no_oldest_timestamp_anywhere_adopts(self):
         pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
