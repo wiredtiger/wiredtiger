@@ -77,3 +77,32 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
         # and no leaf deltas are produced.
         self.assertGreater(self.get_stat(stat.conn.rec_page_delta_rejected_min_page_size), 0)
         self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+
+    def test_full_page_min_size_capped_by_split_size(self):
+        # A small leaf page size keeps the table's split size well below the
+        # configured full_page_min_size, so the cap must apply for deltas to be
+        # written at all.
+        self.session.create(self.uri,
+            self.create_session_config + ',allocation_size=4KB,leaf_page_max=4KB')
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a" * 100
+
+        self.session.begin_transaction()
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(5)}')
+        self.session.checkpoint()
+
+        self.session.begin_transaction()
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor[str(i)] = "b" * 100
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
+        self.session.checkpoint()
+
+        # Without the cap, full_page_min_size=1MB would reject every page on this
+        # table. The cap limits the effective threshold to the table's split size,
+        # so deltas are written as usual.
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
