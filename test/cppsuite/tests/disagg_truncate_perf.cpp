@@ -46,18 +46,11 @@
 using namespace test_harness;
 
 /*
- * Measure truncation latency on layered:oplog as appends maintain a rolling retention window. The
- * table is loaded as a leader; one worker trims expired ranges while others append. The role
- * selects leader operation, a follower restart with saved-checkpoint pickup, or an in-place switch
- * to follower without pickup. Loading is untimed; switch step-down time is recorded separately.
- *
- * Configure via CppSuite -c or -f: oplog_size_mb and value_size set table and record size,
- * marker_size_mb sets trim granularity, insert_mb and duration_seconds bound measurement, and
- * cache_size_mb sets cache capacity. Under workload_manager, populate_config and insert_config need
- * positive thread_count; custom_config and checkpoint_config each need one.
- * checkpoint_config.op_rate sets the checkpoint/pickup interval. Disable metrics_monitor,
- * operation_tracker, and timestamp_manager. See
- * test/cppsuite/configs/disagg_truncate_perf_{default,follower,switch}.txt for examples.
+ * This test measures truncation latency on layered:oplog while appenders maintain a rolling
+ * retention window. It loads the table as a leader, then measures as a leader, after a follower
+ * restart with checkpoint pickup, or after an in-place step-down without pickup. The CppSuite
+ * configuration sets the role, workload sizes, marker size, and worker counts; see the
+ * disagg_truncate_perf config files for examples.
  */
 class disagg_truncate_perf : public test {
 public:
