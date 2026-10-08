@@ -2,6 +2,7 @@
 # Keep a 256MB oplog of 1KB records, trimmed 8MB at a time, and append enough to recycle it several
 # times over, so the truncate percentiles mean something.
 cache_size_mb=1024,
+duration_seconds=60,
 insert_mb=1024,
 marker_size_mb=8,
 oplog_size_mb=256,
@@ -9,6 +10,7 @@ role=leader,
 value_size=1000,
 metrics_monitor=(enabled=false),
 operation_tracker=(enabled=false),
+timestamp_manager=(enabled=false),
 workload_manager=(
     populate_config=(thread_count=4),
     insert_config=(thread_count=4),

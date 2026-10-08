@@ -5,6 +5,7 @@
 # The insert volume has to fit the cache: a follower's ingest table is in memory and nothing
 # collects it here, since a stepped down connection adopts no checkpoints.
 cache_size_mb=2048,
+duration_seconds=10,
 insert_mb=256,
 marker_size_mb=8,
 oplog_size_mb=512,
@@ -12,6 +13,7 @@ role=switch,
 value_size=1000,
 metrics_monitor=(enabled=false),
 operation_tracker=(enabled=false),
+timestamp_manager=(enabled=false),
 workload_manager=(
     populate_config=(thread_count=4),
     insert_config=(thread_count=4),

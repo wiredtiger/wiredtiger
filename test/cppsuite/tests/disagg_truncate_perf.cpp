@@ -38,6 +38,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 #include <thread>
 #include <vector>
@@ -48,8 +49,12 @@ using namespace test_harness;
  */
 class disagg_truncate_perf : public test {
 public:
-    explicit disagg_truncate_perf(const test_args &args) : test(args)
+    explicit disagg_truncate_perf(test_args &args) : test(args)
     {
+        args.wt_open_config =
+          "precise_checkpoint=true,statistics=(all),extensions=[../../ext/page_log/palite/"
+          "libwiredtiger_palite.so],disaggregated=(page_log=palite,role=leader)" +
+          (args.wt_open_config.empty() ? "" : "," + args.wt_open_config);
         _role = _config->get_string("role");
         _value_size = _config->get_int("value_size");
         testutil_assert(_value_size > 0);
@@ -65,7 +70,11 @@ public:
         testutil_assert(_role == "leader" || _role == "follower" || _role == "switch");
         testutil_assert(_marker_records != 0 && marker_bytes <= _oplog_bytes);
         testutil_assert((_target_bytes - _oplog_bytes) / marker_bytes >= 25);
-        testutil_assert(_timestamp_manager->enabled());
+        testutil_assert(!_timestamp_manager->enabled());
+        WT_CONFIG_ITEM timestamps = {"enabled=true,oldest_lag=1,stable_lag=1,op_rate=1s", 0, 0,
+          WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT};
+        timestamps.len = strlen(timestamps.str);
+        _timestamps.reset(new timestamp_manager(new configuration(timestamps)));
         init_operation_tracker();
         testutil_assert(!_operation_tracker->enabled());
         std::unique_ptr<configuration> monitor(_config->get_subconfig(METRICS_MONITOR));
@@ -77,6 +86,9 @@ public:
         testutil_assert(inserts->get_int(THREAD_COUNT) > 0);
         std::unique_ptr<configuration> population(workload->get_subconfig(POPULATE_CONFIG));
         testutil_assert(population->get_int(THREAD_COUNT) > 0);
+        std::unique_ptr<configuration> checkpoints(workload->get_subconfig(CHECKPOINT_OP_CONFIG));
+        testutil_assert(checkpoints->get_int(THREAD_COUNT) == 1);
+        testutil_assert(_config->get_int(DURATION_SECONDS) > 0);
     }
 
     void
@@ -84,6 +96,10 @@ public:
       operation_tracker *op_tracker) override final
     {
         logger::log_msg(LOG_INFO, "Loading the layered table as a leader.");
+        _timestamps->load();
+        std::atomic<bool> stop_timestamps{false};
+        thread_manager timestamps;
+        timestamps.add_thread(&disagg_truncate_perf::advance_timestamps, this, &stop_timestamps);
         {
             scoped_session session = connection_manager::instance().create_session();
             testutil_check(
@@ -131,11 +147,18 @@ public:
             scoped_session session = connection_manager::instance().create_session();
             testutil_check(session->checkpoint(session.get(), nullptr));
         }
-        if (_role == "follower")
-            connection_manager::instance().restart("disaggregated=(role=follower)");
-        else if (_role == "switch") {
-            testutil_check(
-              connection_manager::instance().reconfigure("disaggregated=(role=follower)"));
+        stop_timestamps.store(true);
+        timestamps.join();
+        if (_role == "follower") {
+            WT_CONNECTION *conn = connection_manager::instance().get_connection();
+            std::string home = conn->get_home(conn);
+            std::string config = "cache_size=" + std::to_string(_config->get_int(CACHE_SIZE_MB)) +
+              "MB," + _args.wt_open_config + ",disaggregated=(role=follower)";
+            connection_manager::instance().close();
+            connection_manager::instance().reopen(config, home);
+        } else if (_role == "switch") {
+            WT_CONNECTION *conn = connection_manager::instance().get_connection();
+            testutil_check(conn->reconfigure(conn, "disaggregated=(role=follower)"));
             scoped_session session = connection_manager::instance().create_session();
             scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
             metrics_writer::instance().add_stat("switch_step_down_time",
@@ -159,12 +182,13 @@ public:
     void
     custom_operation(thread_worker *tc) override final
     {
+        tc->tsm = _timestamps.get();
         {
             scoped_cursor cursor = tc->session.open_scoped_cursor("layered:oplog");
             scoped_session stat_session = connection_manager::instance().create_session();
             scoped_cursor stats = stat_session.open_scoped_cursor(STATISTICS_URI);
             execution_timer timer("truncate", _args.test_name);
-            for (;;) {
+            while (tc->running()) {
                 std::unique_lock<std::shared_mutex> gate(_insert_gate);
                 uint64_t head = _next_key.load();
                 if (head - _truncated_key <= _keep_records + _marker_records) {
@@ -190,22 +214,31 @@ public:
     void
     checkpoint_operation(thread_worker *tc) override final
     {
-        if (_role == "switch")
-            return;
+        WT_CONNECTION *conn = connection_manager::instance().get_connection();
+        std::atomic<bool> stop_timestamps{false};
+        thread_manager timestamps;
+        timestamps.add_thread(&disagg_truncate_perf::advance_timestamps, this, &stop_timestamps);
         size_t next = 0;
-        while (!_done.load()) {
-            if (_role == "leader") {
+        while (tc->running() && !_done.load()) {
+            if (_role != "follower") {
                 tc->sleep();
-                testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
-            } else {
-                if (next == _checkpoints.size())
+                if (!tc->running() || _done.load())
                     break;
-                int ret = connection_manager::instance().reconfigure(
-                  "disaggregated=(checkpoint_meta=\"" + _checkpoints[next++] + "\")");
-                testutil_assert(ret == 0 || ret == EINVAL);
+                if (_role == "leader")
+                    testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
+            } else {
+                if (next < _checkpoints.size()) {
+                    std::string config =
+                      "disaggregated=(checkpoint_meta=\"" + _checkpoints[next++] + "\")";
+                    std::lock_guard<std::mutex> gate(_timestamp_gate);
+                    int ret = conn->reconfigure(conn, config.c_str());
+                    testutil_assert(ret == 0 || ret == EINVAL);
+                }
                 tc->sleep();
             }
         }
+        stop_timestamps.store(true);
+        timestamps.join();
     }
 
     void
@@ -231,30 +264,27 @@ public:
           "The " + _role + " phase completed " + std::to_string(_truncate_ops) + " truncates.");
     }
 
-protected:
-    std::string
-    extra_connection_config() const override final
-    {
-        return (
-          "precise_checkpoint=true,extensions=[../../ext/page_log/palite/"
-          "libwiredtiger_palite.so],disaggregated=(page_log=palite,role=leader)");
-    }
-
-    void
-    wait_for_workload() override final
-    {
-        while (!_done.load())
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
 private:
+    void
+    advance_timestamps(std::atomic<bool> *stop)
+    {
+        while (!stop->load()) {
+            {
+                std::lock_guard<std::mutex> gate(_timestamp_gate);
+                _timestamps->do_work();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+
     void
     append(thread_worker *tc, uint64_t target_bytes)
     {
+        tc->tsm = _timestamps.get();
         scoped_cursor cursor = tc->session.open_scoped_cursor("layered:oplog");
         const std::string value = random_generator::instance().generate_pseudo_random_string(
           static_cast<uint64_t>(_value_size));
-        for (;;) {
+        while (tc->running()) {
             std::shared_lock<std::shared_mutex> gate(_insert_gate);
             if (_inserted_bytes.load() >= target_bytes)
                 break;
@@ -357,6 +387,9 @@ private:
     std::vector<std::string> _checkpoints;
     std::array<int64_t, WT_ELEMENTS(PHASE_STATS)> _before{};
     std::chrono::steady_clock::time_point _start;
+    /* Join timestamp updates before restarting the connection. */
+    std::unique_ptr<timestamp_manager> _timestamps;
+    std::mutex _timestamp_gate;
     /* Exclude inserts while measuring a truncate's connection-wide cache delta. */
     std::shared_mutex _insert_gate;
 };

@@ -282,7 +282,7 @@ methods = {
     'cache_resize' : Method(test_config),
     'disagg_truncate_perf' : Method(test_config + [
         Config('insert_mb', 1024, r'''
-            How much data the measured phase appends to the oplog''', min=1),
+            The maximum data the measured phase appends to the oplog''', min=1),
         Config('marker_size_mb', 8, r'''
             The size of an oplog marker, the unit a single truncate removes''', min=1),
         Config('oplog_size_mb', 256, r'''

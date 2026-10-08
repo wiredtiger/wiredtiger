@@ -84,8 +84,6 @@ connection_manager::create(
 
     /* Open conn. */
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
-    _open_config = config;
-    _home = home;
 }
 
 void
@@ -99,34 +97,11 @@ connection_manager::reopen(const std::string &config, const std::string &home)
 
     /* Open conn. */
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
-    _open_config = config;
-    _home = home;
-}
-
-/* Restart between workload phases, excluding concurrent timestamp updates. */
-void
-connection_manager::restart(const std::string &config)
-{
-    std::lock_guard<std::mutex> lg(_conn_mutex);
-    testutil_assert(_conn != nullptr);
-    testutil_check(_conn->close(_conn, nullptr));
-    _conn = nullptr;
-    _open_config += "," + config;
-    logger::log_msg(LOG_INFO, "wiredtiger_open config: " + _open_config);
-    testutil_check(wiredtiger_open(_home.c_str(), nullptr, _open_config.c_str(), &_conn));
-}
-
-int
-connection_manager::reconfigure(const std::string &config)
-{
-    std::lock_guard<std::mutex> lg(_conn_mutex);
-    return (_conn->reconfigure(_conn, config.c_str()));
 }
 
 scoped_session
 connection_manager::create_session()
 {
-    std::lock_guard<std::mutex> lg(_conn_mutex);
     if (_conn == nullptr) {
         logger::log_msg(LOG_ERROR,
           "Connection is NULL, did you forget to call "
@@ -134,6 +109,7 @@ connection_manager::create_session()
         testutil_die(EINVAL, "Connection is NULL");
     }
 
+    std::lock_guard<std::mutex> lg(_conn_mutex);
     scoped_session session(_conn);
 
     return (session);
