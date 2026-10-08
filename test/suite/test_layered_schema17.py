@@ -37,6 +37,11 @@
 # startup pickup populates an empty local metadata from the checkpoint, which
 # strict mode would reject by design). Subsequent pickups pass only
 # checkpoint_meta to reconfigure, so they also exercise the flag's stickiness.
+#
+# With precise checkpoints, a pickup after the startup pickup applies only the
+# differences from the last picked-up checkpoint, so strict validation sees only
+# the tables that those differences touch. Each negative test below therefore
+# has the leader change the table in the checkpoint that the follower picks up.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
@@ -220,11 +225,18 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         conn_follow, session_follow = self.open_strict_follower()
 
-        # Publish the follower's CREATE at epoch 30, then pick up a checkpoint at
-        # epoch 40: the CREATE should already be reflected in that checkpoint, so the
-        # table being local-only is unexplained.
-        session_follow.create(self.uri2, self.table_config)
-        self.publish(self.uri2, 30, session_follow)
+        # The leader drops uri, which the follower picked up at startup, so that the
+        # next checkpoint's differences include uri.
+        self.session.drop(self.uri)
+        self.publish(self.uri, 25)
+
+        # The follower drops and recreates uri, publishing its CREATE at epoch 30,
+        # then picks up a checkpoint at epoch 40: the CREATE should already be
+        # reflected in that checkpoint, so uri being local-only is unexplained.
+        session_follow.drop(self.uri)
+        self.publish(self.uri, 25, session_follow)
+        session_follow.create(self.uri, self.table_config)
+        self.publish(self.uri, 30, session_follow)
         session_follow.close()
 
         self.leader_checkpoint_at_epoch(40, 2)
@@ -254,6 +266,14 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session_follow.drop(self.uri)
         self.publish(self.uri, 30, session_follow)
         session_follow.close()
+
+        # Write to uri on the leader, so that the checkpoint changes uri's stable
+        # constituent and the next checkpoint's differences include uri.
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[1] = 'value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+        cursor.close()
 
         self.leader_checkpoint_at_epoch(40, 2)
 

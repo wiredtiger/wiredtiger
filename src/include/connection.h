@@ -404,6 +404,13 @@ struct __wt_disaggregated_storage {
     bool base_write_gen_missing;
 
     /*
+     * True when the next pickup can diff the shared metadata table against the last picked-up
+     * checkpoint: a successful pickup sets it, and a failed pickup or a role change clears it.
+     * Protected by the checkpoint lock.
+     */
+    bool next_pickup_can_diff;
+
+    /*
      * !!!
      * Stable tombstone encoding mode transitions, per connection. The mode itself lives in the
      * WT_DISAGG_STABLE_TOMBSTONE_ENCODING flag; the decision tree below has no other transitions,

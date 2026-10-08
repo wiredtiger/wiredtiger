@@ -729,6 +729,25 @@ __wt_btree_diff_close(WT_BTREE_DIFF **diffp)
 }
 
 /*
+ * __wt_btree_diff_type_string --
+ *     Return the name of a difference's type.
+ */
+const char *
+__wt_btree_diff_type_string(WT_BTREE_DIFF_TYPE type)
+{
+    switch (type) {
+    case WT_BTREE_DIFF_ADDED:
+        return ("added");
+    case WT_BTREE_DIFF_DELETED:
+        return ("deleted");
+    case WT_BTREE_DIFF_MODIFIED:
+        return ("modified");
+    }
+
+    return ("unknown");
+}
+
+/*
  * __btree_diff_checkpoint_dhandle --
  *     Acquire the data handle of a named checkpoint.
  */
@@ -736,7 +755,6 @@ static int
 __btree_diff_checkpoint_dhandle(
   WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, WT_DATA_HANDLE **dhandlep)
 {
-    WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_RET;
     const char *last_name;
 
@@ -750,10 +768,10 @@ __btree_diff_checkpoint_dhandle(
     }
 
     /* Getting the handle sets the session's data handle, so restore it. */
-    saved_dhandle = session->dhandle;
-    if ((ret = __wt_session_get_dhandle(session, uri, checkpoint, NULL, 0)) == 0)
-        *dhandlep = session->dhandle;
-    session->dhandle = saved_dhandle;
+    WT_SAVE_DHANDLE(session, {
+        if ((ret = __wt_session_get_dhandle(session, uri, checkpoint, NULL, 0)) == 0)
+            *dhandlep = session->dhandle;
+    });
 
     __wt_free(session, last_name);
     return (ret);
