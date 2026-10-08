@@ -137,7 +137,7 @@ class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
         # No checkpoint has been picked up yet, so the mode is not yet determined.
         self.assertEqual(self.encoding_stat(conn_follow), 0)
         self.assert_version_stats(conn_follow, 0, 0)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.encoding_stat(conn_follow), 1)
         self.assert_version_stats(conn_follow, 2, 1)
         self.assert_reads(conn_follow, self.collide)
@@ -153,6 +153,7 @@ class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
         self.assertNotIn('version=', unversioned)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        self.disagg_set_follower_oldest(conn_follow)
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{unversioned}")')
         self.assertEqual(self.encoding_stat(conn_follow), 1)
         self.assert_reads(conn_follow, self.collide)
@@ -179,7 +180,7 @@ class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
         self.leader_checkpoint()
         conn_follow = self.wiredtiger_open('follower', self.follower_config('false'))
         with self.expectedStdoutPattern('forced off by configuration, overriding'):
-            self.disagg_advance_checkpoint(conn_follow)
+            self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.encoding_stat(conn_follow), 2)
 
         s = conn_follow.open_session()
@@ -226,7 +227,7 @@ class test_layered_tombstone_upgrade_new_database(tombstone_upgrade_base):
 
         # A follower in automatic mode adopts the unescaped mode and round-trips the value.
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.encoding_stat(conn_follow), 2)
         self.assert_version_stats(conn_follow, 2, 2)
         self.assert_reads(conn_follow, self.collide)
@@ -238,7 +239,7 @@ class test_layered_tombstone_upgrade_new_database(tombstone_upgrade_base):
         self.leader_checkpoint()
         conn_follow = self.wiredtiger_open('follower', self.follower_config('true'))
         with self.expectedStdoutPattern('forced on by configuration, overriding'):
-            self.disagg_advance_checkpoint(conn_follow)
+            self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.encoding_stat(conn_follow), 1)
 
         s = conn_follow.open_session()
@@ -287,6 +288,7 @@ class test_layered_tombstone_upgrade_flip_panics(tombstone_upgrade_base, suite_s
         self.assertNotIn('version=', unversioned)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        self.disagg_set_follower_oldest(conn_follow)
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{unversioned}")')
         self.assertEqual(self.encoding_stat(conn_follow), 1)
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
@@ -319,6 +321,7 @@ class test_layered_tombstone_upgrade_flip_panics(tombstone_upgrade_base, suite_s
         self.assertNotIn('version=', unversioned)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        self.disagg_set_follower_oldest(conn_follow)
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
         self.assertEqual(self.encoding_stat(conn_follow), 2)
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{unversioned}")')

@@ -182,7 +182,7 @@ class LayeredFastTruncateConfigMixin:
             ',create,cache_size=50MB,statistics=(all),disaggregated=(role="follower")')
         session = conn.open_session('')
         session.create(self.uri, table_config)
-        self.disagg_advance_checkpoint(conn, self.conn)
+        self.disagg_advance_checkpoint_with_oldest(conn, self.conn)
         return conn, session
 
     def search_at(self, session, key, ts):

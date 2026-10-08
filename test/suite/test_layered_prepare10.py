@@ -89,7 +89,7 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
             f"{self.extensionsConfig()},create,{self.BASE_CONFIG},"
             f'disaggregated=(role="follower")',
         )
-        self.disagg_advance_checkpoint(self.follower)
+        self.disagg_advance_checkpoint_with_oldest(self.follower)
         with self._follower_session() as session:
             for key in self.INGEST_KEYS:
                 self._commit(session, key, "ingest", 22)
@@ -174,7 +174,7 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
         with self._during_prepare_txn_stall(read_ts, seen_keys):
             self._remove(self.session, parked_stable_key, delete_ts)
             self._leader_checkpoint(read_ts)
-            self.disagg_advance_checkpoint(self.follower)
+            self.disagg_advance_checkpoint_with_oldest(self.follower)
 
         # The deleted key should not be visible.
         expected = [k for k in self.walk_order if k != parked_stable_key]

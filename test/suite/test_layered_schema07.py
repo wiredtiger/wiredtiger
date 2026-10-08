@@ -71,7 +71,7 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         checkpoint. If the table is not visible, opening a cursor on it will fail with an error.
         """
         conn_follower = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_advance_checkpoint_with_oldest(conn_follower)
         session_follower = conn_follower.open_session('')
         exists = True
         try:
@@ -132,7 +132,7 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         c.close()
 
         conn_follower = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_advance_checkpoint_with_oldest(conn_follower)
         session_follower = conn_follower.open_session('')
         c = session_follower.open_cursor(self.uri)
         self.assertEqual(c.next(), 0, 'follower lost the committed key')
@@ -218,7 +218,7 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # The follower must see the committed key and not the rolled-back key.
         conn_follower = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_advance_checkpoint_with_oldest(conn_follower)
         session_follower = conn_follower.open_session('')
         c = session_follower.open_cursor(self.uri)
         self.assertEqual(c.next(), 0)
@@ -352,7 +352,7 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # The follower sees the published table, but it must be empty: the write is not stable.
         conn_follower = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_advance_checkpoint_with_oldest(conn_follower)
         session_follower = conn_follower.open_session('')
         c = session_follower.open_cursor(self.uri)
         self.assertEqual(c.next(), wiredtiger.WT_NOTFOUND,
@@ -576,7 +576,7 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.leader_checkpoint(2)
 
         conn_follower = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follower)
+        self.disagg_advance_checkpoint_with_oldest(conn_follower)
         session_follower = conn_follower.open_session('')
         c = session_follower.open_cursor(self.uri)
         self.assertEqual(c.next(), 0)

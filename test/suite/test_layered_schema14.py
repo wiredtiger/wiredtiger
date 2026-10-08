@@ -103,7 +103,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.inject_stable_entry(conn_follow, self.decoy_uri,
             self.stable_config(self.conn, self.uri2))
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)  # Expected to panic.
 
     def subprocess_published_table_id_conflict_panics(self):
         """Subprocess body for the published-table conflict test; expected to panic/abort."""
@@ -130,7 +130,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.inject_stable_entry(conn_follow, self.decoy_uri,
             self.stable_config(self.conn, self.uri2))
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)  # Expected to panic.
 
     def subprocess_restart_after_conflict_panics(self):
         """Subprocess body for the restart test; expected to panic/abort."""
@@ -139,7 +139,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower_durable)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         session_follow = conn_follow.open_session('')
 
         # Duplicate an ID the follower already holds, then shut down cleanly so the
@@ -175,7 +175,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
         cursor.close()
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri3))
         cursor = session_follow.open_cursor(self.uri3)

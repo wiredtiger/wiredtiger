@@ -110,7 +110,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'v1'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.get_stat(conn_follow, pickups), 1)
 
         # Transaction A establishes its snapshot before the second checkpoint.
@@ -180,7 +180,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'v1'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.get_stat(conn_follow, pickups), 1)
 
         # Reader A: snapshot before any deferred checkpoint.
@@ -243,3 +243,149 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
 
         session_follow.close()
         conn_follow.close()
+
+    def setup_follower_at_first_checkpoint(self):
+        # Leader: baseline data sealed into a first checkpoint, adopted by a follower that has
+        # replicated the writes into its ingest table.
+        self.session.create(self.uri, self.table_config)
+        self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+        self.put(self.session, self.uri, {'key': 'v1'}, 10)
+        self.leader_checkpoint(10)
+
+        conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, self.table_config)
+        self.put(session_follow, self.uri, {'key': 'v1'}, 10)
+        conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(10)},' +
+                                  f'oldest_timestamp={self.timestamp_str(10)}')
+        self.disagg_advance_checkpoint(conn_follow)
+        pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+        return conn_follow, session_follow
+
+    def second_checkpoint(self, conn_follow, session_follow, oldest):
+        # The leader's checkpoint carries the oldest timestamp; the follower's own oldest timestamp
+        # reaches it too, so only its readers can hold the checkpoint back.
+        self.put(self.session, self.uri, {'key': 'v2'}, 20)
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},' +
+                                f'oldest_timestamp={self.timestamp_str(oldest)}')
+        self.session.checkpoint()
+        self.put(session_follow, self.uri, {'key': 'v2'}, 20)
+        conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},' +
+                                  f'oldest_timestamp={self.timestamp_str(oldest)}')
+
+    def test_pinned_timestamp_below_checkpoint_oldest(self):
+        pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        defers = stat.conn.disagg_checkpoint_defer
+        conn_follow, session_follow = self.setup_follower_at_first_checkpoint()
+
+        session_a = conn_follow.open_session('')
+        session_a.begin_transaction(f'read_timestamp={self.timestamp_str(10)}')
+        self.assertEqual(self.read(session_a, 'key'), (0, 'v1'))
+
+        # The follower's oldest timestamp has moved on but the reader keeps the pinned timestamp
+        # below the checkpoint's oldest timestamp: adopting it would discard history the reader
+        # needs, so it must be deferred.
+        self.second_checkpoint(conn_follow, session_follow, 15)
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertGreaterEqual(self.get_stat(conn_follow, defers), 1)
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+        self.assertEqual(self.read(session_a, 'key'), (0, 'v1'))
+
+        # Ending the reader releases the deferred checkpoint.
+        session_a.rollback_transaction()
+        session_a.close()
+        self.wait_for_stat(conn_follow, pickups, 2)
+
+        session = conn_follow.open_session('')
+        session.begin_transaction(f'read_timestamp={self.timestamp_str(20)}')
+        self.assertEqual(self.read(session, 'key'), (0, 'v2'))
+        session.rollback_transaction()
+        session.close()
+
+    def test_pinned_timestamp_at_checkpoint_oldest(self):
+        pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        defers = stat.conn.disagg_checkpoint_defer
+        conn_follow, session_follow = self.setup_follower_at_first_checkpoint()
+
+        # A pinned timestamp at the checkpoint's oldest timestamp is served by it: no deferral.
+        session_a = conn_follow.open_session('')
+        session_a.begin_transaction(f'read_timestamp={self.timestamp_str(15)}')
+        self.second_checkpoint(conn_follow, session_follow, 15)
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertEqual(self.get_stat(conn_follow, defers), 0)
+        self.assertEqual(self.get_stat(conn_follow, pickups), 2)
+        self.assertEqual(self.read(session_a, 'key'), (0, 'v1'))
+        session_a.rollback_transaction()
+        session_a.close()
+
+    def test_follower_oldest_advance_releases_deferral(self):
+        pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        defers = stat.conn.disagg_checkpoint_defer
+        conn_follow, session_follow = self.setup_follower_at_first_checkpoint()
+
+        # The follower's oldest timestamp lags the checkpoint's: the checkpoint waits for it.
+        self.put(self.session, self.uri, {'key': 'v2'}, 20)
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},' +
+                                f'oldest_timestamp={self.timestamp_str(15)}')
+        self.session.checkpoint()
+        self.put(session_follow, self.uri, {'key': 'v2'}, 20)
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertGreaterEqual(self.get_stat(conn_follow, defers), 1)
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+
+        conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},' +
+                                  f'oldest_timestamp={self.timestamp_str(15)}')
+        self.wait_for_stat(conn_follow, pickups, 2)
+
+    def test_no_follower_oldest_timestamp_defers(self):
+        pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        defers = stat.conn.disagg_checkpoint_defer
+
+        self.session.create(self.uri, self.table_config)
+        self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+        self.put(self.session, self.uri, {'key': 'v1'}, 10)
+        self.leader_checkpoint(10)
+
+        conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, self.table_config)
+        self.put(session_follow, self.uri, {'key': 'v1'}, 10)
+
+        # The first checkpoint is adopted at once: nothing sets the oldest timestamp before it.
+        # Deliver checkpoints directly: the helper would give the follower an oldest timestamp.
+        meta = self.disagg_get_complete_checkpoint_meta()
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+        self.assertEqual(self.get_stat(conn_follow, defers), 0)
+
+        # Without an oldest timestamp a reader could start below the next checkpoint's: it waits.
+        self.put(self.session, self.uri, {'key': 'v2'}, 20)
+        self.leader_checkpoint(20)
+        self.put(session_follow, self.uri, {'key': 'v2'}, 20)
+        meta = self.disagg_get_complete_checkpoint_meta()
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+        self.assertGreaterEqual(self.get_stat(conn_follow, defers), 1)
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+
+        # Setting the oldest timestamp releases it.
+        conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+        self.wait_for_stat(conn_follow, pickups, 2)
+
+    def test_no_oldest_timestamp_anywhere_adopts(self):
+        pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        defers = stat.conn.disagg_checkpoint_defer
+
+        # Neither the checkpoint nor the follower has an oldest timestamp: nothing can be below it.
+        self.session.create(self.uri, self.table_config)
+        self.put(self.session, self.uri, {'key': 'v1'}, 10)
+        self.leader_checkpoint(10)
+
+        conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, self.table_config)
+        self.put(session_follow, self.uri, {'key': 'v1'}, 10)
+        self.disagg_advance_checkpoint(conn_follow)
+
+        self.assertEqual(self.get_stat(conn_follow, pickups), 1)
+        self.assertEqual(self.get_stat(conn_follow, defers), 0)

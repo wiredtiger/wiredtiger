@@ -75,7 +75,7 @@ class test_layered_schema13(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session = conn_leader.open_session('')
         self.leader_checkpoint(stable_ts, conn_leader, session)
         session.close()
-        self.disagg_advance_checkpoint(self.conn, conn_leader)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_leader)
 
     def open_inspection_follower(self, store_home):
         """Open a fresh follower on the store left by the dead subprocess and pick up its
@@ -83,7 +83,7 @@ class test_layered_schema13(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn = self.wiredtiger_open(
             store_home, self.extensionsConfig() + ',create,' + self.conn_config_follower)
         self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
-        self.disagg_advance_checkpoint(conn, conn)
+        self.disagg_advance_checkpoint_with_oldest(conn, conn)
         return conn
 
     #
@@ -154,7 +154,7 @@ class test_layered_schema13(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         # must fail.
         self.set_stable_epoch(20)
         self.leader_checkpoint(2)
-        self.disagg_advance_checkpoint_and_wait(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(conn_follow)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.publish(self.uri, 15, session_follow),
             '/at or below the last checkpoint schema epoch/')

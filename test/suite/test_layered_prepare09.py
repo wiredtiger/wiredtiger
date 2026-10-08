@@ -64,10 +64,11 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, oldest=50):
         """Open a follower and apply the given checkpoint metadata."""
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest))
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         return conn_follow
 
@@ -559,7 +560,7 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, oldest=10)
 
         # Phase 3: Step up and verify.
         self._step_up(conn_follow)
@@ -616,7 +617,7 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, oldest=10)
 
         # Phase 3: Step up and verify.
         self._step_up(conn_follow)
@@ -673,7 +674,7 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, oldest=10)
 
         # Phase 3: Step up and verify.
         self._step_up(conn_follow)

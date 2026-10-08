@@ -150,7 +150,7 @@ class test_layered_schema24(
         self.leader_checkpoint(2, conn_follow, session_follow)
         session_follow.close()
 
-        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_follow)
         self.assert_table_state(self.conn, uri, True, False, False)
 
         # Fail back and checkpoint at a covering epoch: the table is published with its rows.
@@ -162,7 +162,7 @@ class test_layered_schema24(
         self.assert_table_state(self.conn, uri, True, True, True)
 
         # The other node picks up the covering checkpoint and reads the rows.
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assert_follower_reads(uri, rows, conn_follow)
         self.close_follower(conn_follow)
 

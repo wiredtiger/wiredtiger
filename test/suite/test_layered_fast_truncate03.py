@@ -73,7 +73,7 @@ class test_layered_fast_truncate03(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     def advance_follower(self, conn):
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn, self.conn)
+        self.disagg_advance_checkpoint_with_oldest(conn, self.conn)
 
     def test_no_dirty_on_read(self):
         # Reading fast-truncated pages on the follower must never dirty them. Verifies this holds
