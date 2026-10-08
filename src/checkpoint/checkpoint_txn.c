@@ -3350,6 +3350,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     btree = S2BT(session);
     txn = session->txn;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+
     /* Add a two seconds wait to simulate checkpoint slowness for every handle. */
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
@@ -3382,10 +3384,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, btree->evict_walk_saved);
 
     /* Track the number of files successfully checkpointed for progress reporting. */
-    if (ret == 0) {
-        WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    if (ret == 0)
         ++S2C(session)->ckpt.progress.files_checkpointed;
-    }
 
     /*
      * Wake the eviction server, in case application threads have stalled while the eviction server
