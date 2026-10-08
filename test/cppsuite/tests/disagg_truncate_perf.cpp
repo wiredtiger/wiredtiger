@@ -61,6 +61,7 @@ public:
         configure_workload();
     }
 
+    /* Prepare the selected role before the framework launches measured operation workers. */
     void
     populate(database &db, timestamp_manager *, configuration *populate_config,
       operation_tracker *op_tracker) override final
@@ -71,6 +72,7 @@ public:
         /* Population may overshoot its target; preserve the full measured append allowance. */
         _insert_target_bytes = _inserted_bytes.load() + _append_limit_bytes;
 
+        /* This baseline excludes loading and role changes from the measured counters. */
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
         for (size_t i = 0; i < WT_ELEMENTS(PHASE_STATS); ++i)
@@ -85,6 +87,7 @@ public:
         append(tc, _insert_target_bytes);
     }
 
+    /* Run the single trimming worker and time expired-range transactions during appends. */
     void
     custom_operation(thread_worker *tc) override final
     {
@@ -100,6 +103,7 @@ public:
             const uint64_t untrimmed_records = append_head - _truncated_key;
             /* Trim only after a full marker expires beyond the retained window. */
             if (untrimmed_records <= _retained_records + _records_per_marker) {
+                /* Reaching the append cap ends trimming only after expired ranges are drained. */
                 if (_inserted_bytes.load() >= _insert_target_bytes)
                     break;
                 gate.unlock();
@@ -117,6 +121,7 @@ public:
         _truncation_done.store(true);
     }
 
+    /* Own measured-phase timestamp updates and the selected role's checkpoint work. */
     void
     checkpoint_operation(thread_worker *tc) override final
     {
@@ -128,6 +133,7 @@ public:
         if (_role == "follower")
             pick_up_checkpoints(tc);
         else {
+            /* Switch mode keeps timestamps moving without writing or adopting checkpoints. */
             while (tc->running() && !_truncation_done.load()) {
                 tc->sleep();
                 if (!tc->running() || _truncation_done.load())
@@ -140,6 +146,7 @@ public:
         timestamp_threads.join();
     }
 
+    /* Report per-role measurements after the framework has joined all workload threads. */
     void
     validate(bool, const std::string &, const std::string &, database &) override final
     {
@@ -152,6 +159,7 @@ public:
             const int64_t phase_delta = current_value - _baseline_stats[i];
             writer.add_stat(metric_prefix + PHASE_STATS[i].name, phase_delta);
         }
+        /* Setup performs no follower workload, so list counters need no baseline subtraction. */
         if (_role != "leader") {
             for (const auto &stat : FOLLOWER_STATS)
                 writer.add_stat(
@@ -169,6 +177,7 @@ public:
     }
 
 private:
+    /* Validate sizing and the single-trimmer/single-checkpointer layout before threads start. */
     void
     configure_workload()
     {
@@ -211,6 +220,7 @@ private:
         _timestamps = std::make_unique<timestamp_manager>(new configuration(timestamp_options));
     }
 
+    /* Fill the retained window as leader and finish all setup workers before changing roles. */
     void
     load_table(database &db, configuration *populate_config, operation_tracker *op_tracker)
     {
@@ -238,6 +248,7 @@ private:
         }
         populate_threads.add_thread(&disagg_truncate_perf::checkpoint_during_load, this);
         populate_threads.join();
+        /* Checkpoint the completed load while timestamp updates can still unblock checkpointing. */
         testutil_check(session->checkpoint(session.get(), nullptr));
 
         /* change_role() may close the connection as soon as this phase returns. */
@@ -245,6 +256,7 @@ private:
         timestamp_threads.join();
     }
 
+    /* Checkpoint the growing leader table and save metadata for restarted-follower pickup. */
     void
     checkpoint_during_load()
     {
@@ -269,6 +281,7 @@ private:
         }
     }
 
+    /* Copy completed leader-checkpoint metadata for pick_up_checkpoints() after restart. */
     void
     capture_checkpoint(WT_SESSION *session)
     {
@@ -283,6 +296,8 @@ private:
         free(args.checkpoint_metadata.mem);
     }
 
+    /* Transition between setup and measurement, with loading sessions and timestamp work stopped.
+     */
     void
     change_role()
     {
@@ -305,11 +320,14 @@ private:
         }
     }
 
+    /* Offer saved loading checkpoints during the restarted-follower measurement. */
     void
     pick_up_checkpoints(thread_worker *tc)
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         size_t checkpoint_index = 0;
+        /* Exhausting metadata must not stop timestamp progress while truncation is still running.
+         */
         while (tc->running() && !_truncation_done.load()) {
             if (checkpoint_index < _checkpoints.size()) {
                 const std::string pickup_config =
@@ -337,6 +355,8 @@ private:
         return (ret == 0);
     }
 
+    /* Reuse the fixed-record append loop for loading and measurement, with separate byte budgets.
+     */
     void
     append(thread_worker *tc, uint64_t target_bytes)
     {
@@ -357,11 +377,14 @@ private:
                 tc->rollback();
                 continue;
             }
+            /* Rolled-back inserts must not consume the byte budget. */
             if (tc->commit())
                 _inserted_bytes.fetch_add(_record_bytes);
         }
     }
 
+    /* Truncate through the marker key, sampling leader cost before commit and follower cost after.
+     */
     bool
     truncate_marker(
       thread_worker *tc, scoped_cursor &cursor, scoped_cursor &stats, uint64_t marker_key)
