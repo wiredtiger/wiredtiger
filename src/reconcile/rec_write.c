@@ -2746,7 +2746,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
-            else if (delta_enabled) {
+            else if (delta_enabled && chunk->image.size <= conn->page_delta.full_page_min_size) {
+                WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_min_page_size);
+            } else if (delta_enabled) {
                 if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
                     /*
