@@ -67,9 +67,11 @@ class LayeredFastTruncateConfigMixin:
             cfg += ',block_manager=disagg,type=layered'
         return cfg
 
-    def auto_closing_cursor(self, config=None):
+    def auto_closing_cursor(self, config=None, session=None):
         """Return a cursor that auto-closes as it goes out of scope."""
-        return closing(self.session.open_cursor(self.uri, None, config))
+        if session is None:
+            session = self.session
+        return closing(session.open_cursor(self.uri, None, config))
 
     def next_commit_ts(self):
         """Return the next monotonically increasing commit timestamp."""
@@ -77,10 +79,14 @@ class LayeredFastTruncateConfigMixin:
         self._next_commit_ts_val = ts
         return ts
 
-    def populate(self, keys, value='v'):
+    def populate(self, keys, value='v', commit_timestamp=None, session=None):
         """Insert each key with a placeholder value in a single transaction."""
-        with self.auto_closing_cursor() as cursor:
-            with self.transaction(commit_timestamp=self.next_commit_ts()):
+        if session is None:
+            session = self.session
+        if commit_timestamp is None:
+            commit_timestamp = self.next_commit_ts()
+        with self.auto_closing_cursor(session=session) as cursor:
+            with self.transaction(session=session, commit_timestamp=commit_timestamp):
                 for key in keys:
                     cursor[self.key(key)] = value
 
@@ -100,39 +106,43 @@ class LayeredFastTruncateConfigMixin:
         if keys is not None:
             self.populate(keys)
 
-    def truncate(self, start_key=None, stop_key=None, commit_timestamp=None):
+    def truncate(self, start_key=None, stop_key=None, commit_timestamp=None, session=None):
         """
         Truncate [start_key, stop_key] inclusive on self.uri. Either bound
         may be None for an open-ended side. If commit_timestamp is set,
         the truncate transaction commits at that timestamp, otherwise it
         commits at the next auto-generated timestamp.
         """
+        if session is None:
+            session = self.session
         start = stop = None
         try:
             if start_key is not None:
-                start = self.session.open_cursor(self.uri)
+                start = session.open_cursor(self.uri)
                 start.set_key(self.key(start_key))
             if stop_key is not None:
-                stop = self.session.open_cursor(self.uri)
+                stop = session.open_cursor(self.uri)
                 stop.set_key(self.key(stop_key))
             # session.truncate() needs a URI iff both cursors are NULL.
             uri = self.uri if (start is None and stop is None) else None
             if commit_timestamp is None:
                 commit_timestamp = self.next_commit_ts()
-            with self.transaction(commit_timestamp=commit_timestamp):
-                self.session.truncate(uri, start, stop, None)
+            with self.transaction(session=session, commit_timestamp=commit_timestamp):
+                session.truncate(uri, start, stop, None)
         finally:
             if start is not None:
                 start.close()
             if stop is not None:
                 stop.close()
 
-    def visible_keys(self, forward=True):
+    def visible_keys(self, forward=True, session=None, read_timestamp=None):
         """Return all keys visible via a scan (forward or backward)."""
+        if session is None:
+            session = self.session
         result = []
-        with self.auto_closing_cursor() as cursor:
+        with self.auto_closing_cursor(session=session) as cursor:
             step = cursor.next if forward else cursor.prev
-            with self.transaction(rollback=True):
+            with self.transaction(session=session, read_timestamp=read_timestamp, rollback=True):
                 while step() == 0:
                     result.append(cursor.get_key())
         return result
@@ -144,15 +154,17 @@ class LayeredFastTruncateConfigMixin:
                 cursor.set_key(self.key(key))
                 return cursor.search() == 0
 
-    def search_near_key(self, key):
+    def search_near_key(self, key, session=None, read_timestamp=None):
         """
         Run search_near. Returns (exact, found_key). exact follows WT
         convention: 0 = exact, 1 = positioned above, -1 = positioned
         below, or WT_NOTFOUND if no visible keys exist (in which case
         found_key is None).
         """
-        with self.auto_closing_cursor() as cursor:
-            with self.transaction(rollback=True):
+        if session is None:
+            session = self.session
+        with self.auto_closing_cursor(session=session) as cursor:
+            with self.transaction(session=session, read_timestamp=read_timestamp, rollback=True):
                 cursor.set_key(self.key(key))
                 exact = cursor.search_near()
                 if exact == wiredtiger.WT_NOTFOUND:
@@ -208,4 +220,3 @@ class LayeredFastTruncateConfigMixin:
                     evict_cur.reset()
         finally:
             evict_cur.close()
-

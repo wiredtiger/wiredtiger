@@ -95,7 +95,8 @@ __layered_table_truncate_gc(
 
     TAILQ_FOREACH_SAFE(entry, &layered_table->truncate_list.qh, q, next)
     {
-        const bool is_committed = __wt_atomic_load_bool_acquire(&entry->committed);
+        if (!__wt_atomic_load_bool_acquire(&entry->committed))
+            continue;
 
         /*
          * Committed entries with durable_ts == WT_TS_NONE are never pruned here. Without a
@@ -104,7 +105,7 @@ __layered_table_truncate_gc(
         const bool is_time =
           entry->durable_ts != WT_TS_NONE && entry->durable_ts <= prune_timestamp;
 
-        if (!is_committed || !is_time)
+        if (!is_time)
             continue;
 
         __truncate_entry_remove(session, layered_table, entry);
@@ -538,6 +539,21 @@ void
 __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     __disagg_truncate_apply(session, op, __wti_layered_table_truncate_rollback_apply);
+}
+
+/*
+ * __wt_layered_table_truncate_prune --
+ *     Reap truncate-list entries covered by the table's ingest prune timestamp.
+ */
+void
+__wt_layered_table_truncate_prune(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
+{
+    WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
+
+    __wt_writelock(session, &truncate_list->lock);
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
+    __wt_writeunlock(session, &truncate_list->lock);
 }
 
 /*

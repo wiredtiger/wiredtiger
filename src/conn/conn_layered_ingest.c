@@ -1226,6 +1226,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
     layered_table->last_ckpt_inuse = ckpt_inuse;
 
+    /* Retire truncate entries on the same watermark as their ingest tombstones. */
+    __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
+
     WT_ERR(__wt_session_release_dhandle(session));
 
 err:
