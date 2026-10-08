@@ -62,8 +62,10 @@ public:
     populate(database &db, timestamp_manager *, configuration *config,
       operation_tracker *op_tracker) override final
     {
+        /* All roles measure the same leader-written table; loading and role changes are untimed. */
         load_table(db, config, op_tracker);
         change_role();
+        /* Population may overshoot its target; preserve the full measured append allowance. */
         _target_bytes += _inserted_bytes.load();
 
         scoped_session session = connection_manager::instance().create_session();
@@ -88,8 +90,11 @@ public:
         scoped_cursor stats = stat_session.open_scoped_cursor(STATISTICS_URI);
         execution_timer timer("truncate", _args.test_name);
         while (tc->running()) {
+            /* Drain in-flight inserts before reading the head and connection-wide cache counters.
+             */
             std::unique_lock<std::shared_mutex> gate(_insert_gate);
             uint64_t head = _next_key.load();
+            /* Trim only after a full marker expires beyond the retained window. */
             if (head - _truncated_key <= _keep_records + _marker_records) {
                 if (_inserted_bytes.load() >= _target_bytes)
                     break;
@@ -112,6 +117,7 @@ public:
     void
     checkpoint_operation(thread_worker *tc) override final
     {
+        /* Checkpoints can wait for stable data, so timestamps must advance on a separate thread. */
         std::atomic<bool> stop_timestamps{false};
         thread_manager timestamps;
         timestamps.add_thread(&disagg_truncate_perf::advance_timestamps, this, &stop_timestamps);
@@ -171,6 +177,7 @@ private:
         testutil_assert(_marker_records != 0 && marker_bytes <= _oplog_bytes);
         testutil_assert(_target_bytes / marker_bytes >= 25);
         testutil_assert(_config->get_int(DURATION_SECONDS) > 0);
+        /* The framework cannot suspend its background components around the follower restart. */
         testutil_assert(!_timestamp_manager->enabled() && !_operation_tracker->enabled());
         std::unique_ptr<configuration> monitor(_config->get_subconfig(METRICS_MONITOR));
         testutil_assert(!monitor->get_bool(ENABLED));
@@ -220,6 +227,7 @@ private:
         });
         threads.join();
         testutil_check(session->checkpoint(session.get(), nullptr));
+        /* change_role() may close the connection as soon as this phase returns. */
         stop_timestamps.store(true);
         timestamps.join();
     }
@@ -255,12 +263,14 @@ private:
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         if (_role == "follower") {
+            /* Copy the connection-owned home path before closing its handle. */
             std::string home = conn->get_home(conn);
             std::string config = "cache_size=" + std::to_string(_config->get_int(CACHE_SIZE_MB)) +
               "MB," + _args.wt_open_config + ",disaggregated=(role=follower)";
             connection_manager::instance().close();
             connection_manager::instance().reopen(config, home);
         } else if (_role == "switch") {
+            /* Population workers have joined, so step-down cannot race an application write. */
             testutil_check(conn->reconfigure(conn, "disaggregated=(role=follower)"));
             scoped_session session = connection_manager::instance().create_session();
             scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
@@ -278,8 +288,10 @@ private:
             if (next < _checkpoints.size()) {
                 std::string config =
                   "disaggregated=(checkpoint_meta=\"" + _checkpoints[next++] + "\")";
+                /* Connection APIs share the default session with timestamp updates. */
                 std::lock_guard<std::mutex> gate(_timestamp_gate);
                 int ret = conn->reconfigure(conn, config.c_str());
+                /* Saved checkpoints older than the one adopted at startup are rejected. */
                 testutil_assert(ret == 0 || ret == EINVAL);
             }
             tc->sleep();
@@ -292,6 +304,7 @@ private:
         tc->tsm = _timestamps.get();
         tc->begin();
         int ret = tc->set_commit_timestamp(tc->tsm->get_next_ts());
+        /* A concurrent stable/oldest update can overtake the chosen timestamp. */
         testutil_assert(ret == 0 || ret == EINVAL);
         if (ret != 0)
             tc->rollback();
@@ -340,6 +353,8 @@ private:
             tc->rollback();
             return (false);
         }
+        /* Commit releases the leader's fast-truncate charge; followers retain their list updates.
+         */
         int64_t cost = _role == "leader" ?
           metrics_monitor::get_stat(stats, WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES) :
           0;
