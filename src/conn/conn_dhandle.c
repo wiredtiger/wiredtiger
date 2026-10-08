@@ -792,8 +792,8 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 
 /*
  * __wt_conn_btree_apply --
- *     Apply a function to all open btree handles with the given URI. The optional skip function
- *     is called before a handle is locked.
+ *     Apply a function to all open btree handles with the given URI. The optional skip function is
+ *     called before a handle is locked.
  */
 int
 __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,

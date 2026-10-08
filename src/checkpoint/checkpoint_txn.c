@@ -317,14 +317,15 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __checkpoint_tree_ignored --
- *     Return if the checkpoint has nothing to write for the tree.
+ * __checkpoint_tree_not_gathered --
+ *     Return if the handle gather leaves the tree out. The history store is checkpointed later, on
+ *     its own.
  */
 static WT_INLINE bool
-__checkpoint_tree_ignored(WT_BTREE *btree)
+__checkpoint_tree_not_gathered(WT_BTREE *btree)
 {
     return (F_ISSET(btree, WT_BTREE_IN_MEMORY) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
-      F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) || WT_IS_HS(btree->dhandle));
+      WT_IS_HS(btree->dhandle));
 }
 
 /*
@@ -401,7 +402,7 @@ __checkpoint_gather_skip(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         return (0);
 
-    if (__checkpoint_tree_ignored(btree)) {
+    if (__checkpoint_tree_not_gathered(btree)) {
         *skipp = true;
         return (0);
     }
@@ -461,7 +462,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
 
     /* Skip the history store file as it is checkpointed manually later. */
-    if (__checkpoint_tree_ignored(btree))
+    if (__checkpoint_tree_not_gathered(btree) || F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
@@ -1033,8 +1034,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
-    int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *);
     uint64_t original_snap_min;
+    int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *);
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
