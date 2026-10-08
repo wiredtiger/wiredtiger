@@ -1723,7 +1723,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Avoid doing work if possible. */
-    WT_RET(__checkpoint_can_skip(session, &ckpt_cfg));
+    if ((ret = __checkpoint_can_skip(session, &ckpt_cfg)) != 0) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+        return (ret);
+    }
     if (ckpt_cfg.can_skip) {
         WT_STAT_CONN_INCR(session, checkpoint_skipped);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
@@ -1732,7 +1735,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is. On
-     * failure, reset the checkpoint state before returning so the session is left clean.
+     * failure, reset the checkpoint state before returning.
      */
     if ((ret = __checkpoint_apply_operation(session, &ckpt_cfg, NULL)) != 0) {
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
