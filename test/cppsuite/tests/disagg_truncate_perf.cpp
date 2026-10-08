@@ -46,40 +46,18 @@
 using namespace test_harness;
 
 /*
- * Measure range truncation during an append workload on layered:oplog. Setup fills the table as a
- * leader with increasing integer keys and fixed-size values; measurement then appends more records
- * while one worker trims the oldest keys to maintain a configured retention window. Trimming starts
- * once excess records reach the marker threshold, and a truncate may cover more than one marker if
- * the appenders have advanced further.
+ * Measure truncation latency on layered:oplog as appends maintain a rolling retention window. The
+ * table is loaded as a leader; one worker trims expired ranges while others append. The role
+ * selects leader operation, a follower restart with saved-checkpoint pickup, or an in-place switch
+ * to follower without pickup. Loading is untimed; switch step-down time is recorded separately.
  *
- * The role selects the measured phase:
- *   - leader: continue appending, truncating, and taking periodic checkpoints as leader.
- *   - follower: restart, then append and truncate while attempting saved checkpoint pickups.
- *   - switch: step down to follower in place, keeping the loaded cache, then append and truncate
- *     without taking or picking up checkpoints.
- * Loading and role changes are outside truncate timing; switch also reports the step-down time.
- * Results include truncate latency, operation/rollback counts, and peak cache charge, with
- * truncate-list statistics reported only for follower and switch phases.
- *
- * Configure the workload through CppSuite's -c option or a -f configuration file:
- *   - role: leader, follower, or switch.
- *   - oplog_size_mb: initial and retained key/value data volume.
- *   - insert_mb: maximum additional data appended during measurement.
- *   - marker_size_mb: excess-data threshold before trimming; must not exceed oplog_size_mb.
- *   - value_size: bytes in each value; cache_size_mb: connection cache capacity.
- *   - duration_seconds: measured-phase run window; workers may reach the append cap sooner.
- *
- * Worker settings under workload_manager:
- *   - populate_config.thread_count: number of loading appenders; must be positive.
- *   - insert_config.thread_count: number of measured appenders; must be positive.
- *   - custom_config.thread_count: exactly one trimming worker.
- *   - checkpoint_config.thread_count: exactly one checkpoint or pickup worker.
- *   - checkpoint_config.op_rate: checkpoint and pickup interval.
- *
- * The insert volume must budget at least 25 markers. Set enabled=false for metrics_monitor,
- * operation_tracker, and timestamp_manager; timestamps are managed locally so updates can stop
- * before restart. Keep validate=true to write the per-role metrics to disagg_truncate_perf.json.
- * Start from configs/disagg_truncate_perf_{default,follower,switch}.txt for runnable settings.
+ * Configure via CppSuite -c or -f: oplog_size_mb and value_size set table and record size,
+ * marker_size_mb sets trim granularity, insert_mb and duration_seconds bound measurement, and
+ * cache_size_mb sets cache capacity. Under workload_manager, populate_config and insert_config need
+ * positive thread_count; custom_config and checkpoint_config each need one.
+ * checkpoint_config.op_rate sets the checkpoint/pickup interval. Disable metrics_monitor,
+ * operation_tracker, and timestamp_manager. See
+ * test/cppsuite/configs/disagg_truncate_perf_{default,follower,switch}.txt for examples.
  */
 class disagg_truncate_perf : public test {
 public:
