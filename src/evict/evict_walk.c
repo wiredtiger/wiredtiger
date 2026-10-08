@@ -436,7 +436,7 @@ retry:
 
         /* Skip files that don't allow eviction. */
         try_publish = false;
-        if (btree->evict_disabled > 0) {
+        if (!__wt_btree_eviction_enabled(btree)) {
             /*
              * A disaggregated btree is held out of eviction until it is published. Compare the
              * epochs, which takes no lock, and try publishing the btree below instead of skipping
@@ -612,8 +612,9 @@ retry:
          *
          * If a handle is being discarded, it will still be marked open, but won't have a root page.
          */
-        if (btree->evict_disabled == 0 && !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
-            if (btree->evict_disabled == 0 && btree->root.page != NULL) {
+        if (__wt_btree_eviction_enabled(btree) &&
+          !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
+            if (__wt_btree_eviction_enabled(btree) && btree->root.page != NULL) {
                 WT_WITH_DHANDLE(
                   session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
 

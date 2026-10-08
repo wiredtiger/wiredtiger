@@ -431,11 +431,17 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Do not return an error if we are syncing the file with eviction disabled or as part of a
      * checkpoint.
      */
-    if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
-      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
-      !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) && F_ISSET(r, WT_REC_CALL_URGENT) &&
+    const bool tree_evictable =
+      __wt_btree_eviction_enabled(btree) && F_ISSET(btree->dhandle, WT_DHANDLE_OPEN);
+
+    const bool forced_leaf_eviction =
+      F_ISSET(r, WT_REC_EVICT) && F_ISSET(r, WT_REC_CALL_URGENT) && !WT_PAGE_IS_INTERNAL(page);
+
+    const bool no_progress = r->multi_next == 1 && !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) &&
       !r->update_used && r->cache_write_restore_invisible && !r->has_upd_chain_all_aborted &&
-      r->keys_removed_from_disk_image_count == 0) {
+      r->keys_removed_from_disk_image_count == 0;
+
+    if (ret == 0 && tree_evictable && forced_leaf_eviction && no_progress) {
         /*
          * For disaggregated btree, we should have skipped the write if this page has been
          * reconciled before except for internal pages that have built maximum number of consecutive
