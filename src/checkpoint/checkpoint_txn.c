@@ -1717,7 +1717,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    WT_RET(__checkpoint_parse_config(session, cfg, &ckpt_cfg));
+    if ((ret = __checkpoint_parse_config(session, cfg, &ckpt_cfg)) != 0) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+        return (ret);
+    }
 
     /* Avoid doing work if possible. */
     WT_RET(__checkpoint_can_skip(session, &ckpt_cfg));

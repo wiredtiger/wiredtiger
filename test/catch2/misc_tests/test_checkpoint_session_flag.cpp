@@ -108,3 +108,18 @@ TEST_CASE("Checkpoint_state is inactive when checkpoint is skipped", "[checkpoin
     REQUIRE(ret == 0);
     CHECK(conn_impl->stats[0]->checkpoint_state == WTI_CHECKPOINT_STATE_INACTIVE);
 }
+
+TEST_CASE(
+  "Checkpoint_state is inactive after parse_config fails with ENOTSUP", "[checkpoint_session_flag]")
+{
+    std::filesystem::remove_all(k_db);
+    connection_wrapper conn(k_db, "create,statistics=(all)");
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+
+    WT_SESSION *wt_session;
+    REQUIRE(conn.get_wt_connection()->open_session(
+              conn.get_wt_connection(), nullptr, nullptr, &wt_session) == 0);
+
+    REQUIRE(wt_session->checkpoint(wt_session, "debug=(database_size_fix=true)") == ENOTSUP);
+    CHECK(conn_impl->stats[0]->checkpoint_state == WTI_CHECKPOINT_STATE_INACTIVE);
+}
