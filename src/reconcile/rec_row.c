@@ -225,10 +225,10 @@ err:
      * to the parent leaf page.
      */
     if (ovfl_key)
-        WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size));
+        WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size, false));
 
     if (ovfl_val)
-        WT_TRET(__wt_btree_block_free(session, val->buf.data, val->buf.size));
+        WT_TRET(__wt_btree_block_free(session, val->buf.data, val->buf.size, false));
 
     return (ret);
 }

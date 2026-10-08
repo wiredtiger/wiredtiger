@@ -179,10 +179,11 @@ __wt_page_is_reconciling(WT_PAGE *page)
 
 /*
  * __wt_btree_block_free --
- *     Helper function to free a block from the current tree.
+ *     Helper function to free a block from the current tree. Set the root flag when freeing a
+ *     checkpoint's root page.
  */
 static WT_INLINE int
-__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool is_root)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -198,7 +199,7 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     btree = S2BT(session);
     bm = btree->bm;
 
-    return (bm->free(bm, session, addr, addr_size, false));
+    return (bm->free(bm, session, addr, addr_size, is_root));
 }
 
 /*
@@ -2086,9 +2087,9 @@ __wt_ref_block_free(
         goto err;
 
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, false));
     else if (disagg_free_block) {
-        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, false));
         if (ref->page != NULL && ref->page->disagg_info != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
