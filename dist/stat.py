@@ -236,16 +236,40 @@ __wt_stat_''' + name + '''_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 }
 ''')
 
-    f.write('\nstatic const uint32_t __stats_' + name + '_otel_type[] = {\n')
-    for l in statlist:
-        f.write('\tWT_STAT_' + l.otel_type.upper() + ',\n')
-    f.write('};\n')
+    # Per OTel type, the sorted statistics keys, so a cursor can step between that type's
+    # statistics without visiting the others.
+    var = '__stats_' + name + '_otel_'
+    prefix = 'WT_STAT_' + (capname if capname else name.upper()) + '_'
+    for otel_type in OTEL_TYPES:
+        keys = [prefix + l.name.upper() for l in statlist if l.otel_type == otel_type]
+        if not keys:
+            continue
+        f.write('\nstatic const int ' + var + otel_type[len('otel_'):] + '[] = {\n')
+        for key in keys:
+            f.write('\t' + key + ',\n')
+        f.write('};\n')
 
     f.write('''
-uint32_t
-__wt_stat_''' + name + '''_otel_type(int slot)
+int
+__wt_stat_''' + name + '''_otel_keys(uint32_t otel_flag, const int **keysp, u_int *countp)
 {
-\treturn (__stats_''' + name + '''_otel_type[slot]);
+\tswitch (otel_flag) {
+''')
+    for otel_type in OTEL_TYPES:
+        flag = 'WT_STAT_' + otel_type.upper()
+        array = var + otel_type[len('otel_'):]
+        f.write('\tcase ' + flag + ':\n')
+        if any(l.otel_type == otel_type for l in statlist):
+            f.write('\t\t*keysp = ' + array + ';\n')
+            f.write('\t\t*countp = WT_ELEMENTS(' + array + ');\n')
+        else:
+            f.write('\t\t*keysp = NULL;\n')
+            f.write('\t\t*countp = 0;\n')
+        f.write('\t\tbreak;\n')
+    f.write('''\tdefault:
+\t\treturn (EINVAL);
+\t}
+\treturn (0);
 }
 ''')
 
