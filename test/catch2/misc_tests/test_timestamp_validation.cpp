@@ -14,6 +14,7 @@
 static constexpr wt_timestamp_t stable_timestamp = 5;
 static constexpr wt_timestamp_t oldest_timestamp = 3;
 static constexpr wt_timestamp_t checkpoint_timestamp = 7;
+static constexpr wt_timestamp_t checkpoint_oldest_timestamp = 4;
 
 static void
 set_connection_timestamps(WT_SESSION_IMPL *session)
@@ -27,6 +28,15 @@ set_connection_timestamps(WT_SESSION_IMPL *session)
 }
 
 static void
+set_checkpoint_timestamps(WT_SESSION_IMPL *session)
+{
+    S2BT(session)->checkpoint_timestamp = checkpoint_timestamp;
+    __wt_atomic_store_uint64_release(
+      &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp,
+      checkpoint_oldest_timestamp);
+}
+
+static void
 check_connection_timestamps(const std::string &message)
 {
     char ts_string[WT_TS_INT_STRING_SIZE];
@@ -34,6 +44,19 @@ check_connection_timestamps(const std::string &message)
       std::string(__wt_timestamp_to_string(stable_timestamp, ts_string));
     const std::string oldest_message = "connection oldest timestamp " +
       std::string(__wt_timestamp_to_string(oldest_timestamp, ts_string));
+
+    CHECK(message.find(stable_message) != std::string::npos);
+    CHECK(message.find(oldest_message) != std::string::npos);
+}
+
+static void
+check_checkpoint_timestamps(const std::string &message)
+{
+    char ts_string[WT_TS_INT_STRING_SIZE];
+    const std::string stable_message = "checkpoint stable timestamp " +
+      std::string(__wt_timestamp_to_string(checkpoint_timestamp, ts_string));
+    const std::string oldest_message = "checkpoint oldest timestamp " +
+      std::string(__wt_timestamp_to_string(checkpoint_oldest_timestamp, ts_string));
 
     CHECK(message.find(stable_message) != std::string::npos);
     CHECK(message.find(oldest_message) != std::string::npos);
@@ -51,6 +74,7 @@ TEST_CASE("Display current aggregate WT_TIME_VALIDATE_RET failure", "[timestamp]
 
     CHECK(__wt_time_aggregate_validate(session, &ta, NULL, false) == EINVAL);
     check_connection_timestamps(session_mock->get_last_message());
+    CHECK(session_mock->get_last_message().find("checkpoint") == std::string::npos);
     std::cout << "Aggregate validation error: " << session_mock->get_last_message() << std::endl;
 }
 
@@ -66,6 +90,7 @@ TEST_CASE("Display current value WT_TIME_VALIDATE_RET failure", "[timestamp]")
 
     CHECK(__wt_time_value_validate(session, &tw, NULL, false, false) == EINVAL);
     check_connection_timestamps(session_mock->get_last_message());
+    CHECK(session_mock->get_last_message().find("checkpoint") == std::string::npos);
     std::cout << "Value validation error: " << session_mock->get_last_message() << std::endl;
 }
 
@@ -84,6 +109,7 @@ TEST_CASE("Display current aggregate WT_TIME_ERROR failure", "[timestamp]")
 
     CHECK(__wt_time_aggregate_validate(session, &ta, &parent, false) == EINVAL);
     check_connection_timestamps(session_mock->get_last_message());
+    CHECK(session_mock->get_last_message().find("checkpoint") == std::string::npos);
     std::cout << "Aggregate stable-point validation error: " << session_mock->get_last_message()
               << std::endl;
 }
@@ -105,6 +131,7 @@ TEST_CASE("Display current value WT_TIME_ERROR failure", "[timestamp]")
 
     CHECK(__wt_time_value_validate(session, &tw, &parent, false, false) == EINVAL);
     check_connection_timestamps(session_mock->get_last_message());
+    CHECK(session_mock->get_last_message().find("checkpoint") == std::string::npos);
     std::cout << "Value stable-point validation error: " << session_mock->get_last_message()
               << std::endl;
 }
@@ -115,14 +142,11 @@ TEST_CASE("Display current value delta WT_TIME_ERROR failure", "[timestamp]")
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
     WT_TIME_AGGREGATE parent;
     WT_TIME_WINDOW tw = {};
-    char ts_string[WT_TS_INT_STRING_SIZE];
-    const std::string checkpoint_message = "stable time " +
-      std::string(__wt_timestamp_to_string(checkpoint_timestamp, ts_string));
 
     session_mock->setup_block_manager_file_operations();
     set_connection_timestamps(session);
     WT_TIME_AGGREGATE_INIT(&parent);
-    S2BT(session)->checkpoint_timestamp = checkpoint_timestamp;
+    set_checkpoint_timestamps(session);
     tw.durable_start_ts = checkpoint_timestamp + 1;
     tw.start_ts = checkpoint_timestamp + 1;
     tw.stop_ts = WT_TS_MAX;
@@ -130,7 +154,25 @@ TEST_CASE("Display current value delta WT_TIME_ERROR failure", "[timestamp]")
 
     CHECK(__wt_time_value_validate(session, &tw, &parent, true, false) == EINVAL);
     check_connection_timestamps(session_mock->get_last_message());
-    CHECK(session_mock->get_last_message().find(checkpoint_message) != std::string::npos);
+    check_checkpoint_timestamps(session_mock->get_last_message());
     std::cout << "Value delta stable-point validation error: " << session_mock->get_last_message()
               << std::endl;
+}
+
+TEST_CASE("Display current value delta WT_TIME_VALIDATE_RET failure", "[timestamp]")
+{
+    auto session_mock = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+    WT_TIME_WINDOW tw = {};
+
+    session_mock->setup_block_manager_file_operations();
+    set_connection_timestamps(session);
+    set_checkpoint_timestamps(session);
+    tw.start_ts = 20;
+    tw.stop_ts = 10;
+
+    CHECK(__wt_time_value_validate(session, &tw, NULL, true, false) == EINVAL);
+    check_connection_timestamps(session_mock->get_last_message());
+    check_checkpoint_timestamps(session_mock->get_last_message());
+    std::cout << "Value delta validation error: " << session_mock->get_last_message() << std::endl;
 }
