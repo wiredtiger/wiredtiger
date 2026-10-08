@@ -1913,7 +1913,7 @@ __evict_get_ref(
 				/*
 				 * Advance the LRU clock hand to the next bucket if this bucket is empty.
 				 */
-				__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+				__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j+1);
 #endif
 
                 continue;
@@ -2124,6 +2124,15 @@ __evict_get_ref(
                          */
 
                         if (ref != NULL) {
+#if LRU_FOR_READS
+							/*
+							 * If we found something in this bucket, reset the LRU clock hand here if the bucket
+							 * has more items in it. The next thread should try and evict from this bucket.
+							 * This prevents us from advancing the LRU hand too rapidly.
+							 */
+							if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) > 0)
+								__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+#endif
                             goto done;
                         }
 
