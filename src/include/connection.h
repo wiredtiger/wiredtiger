@@ -40,6 +40,9 @@ struct __wt_process {
      * format to set the modify pad byte to a printable character.
      */
     uint8_t modify_pad_byte;
+
+    u_int stat_conn_slots; /* Connection statistics buckets */
+    u_int stat_dsrc_slots; /* Data-source statistics buckets */
 };
 extern WT_PROCESS __wt_process;
 
@@ -1139,7 +1142,7 @@ struct __wt_connection_impl {
     uint64_t
       rec_maximum_image_build_milliseconds; /* Maximum milliseconds building disk image took. */
     uint64_t rec_maximum_milliseconds;      /* Maximum milliseconds reconciliation took. */
-    WT_CONNECTION_STATS *stats[WT_STAT_CONN_COUNTER_SLOTS];
+    WT_CONNECTION_STATS **stats;
     WT_CONNECTION_STATS *stat_array;
 
     WT_CONN_CAPACITY capacity; /* I/O capacity subsystem */

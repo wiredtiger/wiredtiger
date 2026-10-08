@@ -103,3 +103,13 @@ __wt_process_id(void)
 {
     return (uintmax_t)GetCurrentProcessId();
 }
+
+/*
+ * __wt_cpu_count --
+ *     Return the number of CPUs the process may run on, or 0 if that isn't known.
+ */
+u_int
+__wt_cpu_count(void)
+{
+    return (0);
+}

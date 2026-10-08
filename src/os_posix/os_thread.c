@@ -158,3 +158,19 @@ __wt_process_id(void)
 {
     return ((uintmax_t)getpid());
 }
+
+/*
+ * __wt_cpu_count --
+ *     Return the number of CPUs the process may run on, or 0 if that isn't known.
+ */
+u_int
+__wt_cpu_count(void)
+{
+#ifdef __linux__
+    cpu_set_t set;
+
+    if (sched_getaffinity(0, sizeof(set), &set) == 0)
+        return ((u_int)CPU_COUNT(&set));
+#endif
+    return (0);
+}

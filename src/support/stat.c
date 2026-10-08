@@ -509,10 +509,16 @@ __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats)
 int
 __wt_stat_dsrc_init(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
-    int i;
+    WT_DECL_RET;
+    u_int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(
+      session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*handle->stats), &handle->stats));
+    if ((ret = __wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*handle->stat_array),
+           &handle->stat_array)) != 0) {
+        __wt_free(session, handle->stats);
+        return (ret);
+    }
 
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i) {
         handle->stats[i] = &handle->stat_array[i];
@@ -525,6 +531,7 @@ void
 __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
     __wt_free(session, handle->stat_array);
+    __wt_free(session, handle->stats);
 }
 
 void
@@ -3265,10 +3272,16 @@ __wt_stat_connection_init_single(WT_CONNECTION_STATS *stats)
 int
 __wt_stat_connection_init(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle)
 {
-    int i;
+    WT_DECL_RET;
+    u_int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(
+      session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*handle->stats), &handle->stats));
+    if ((ret = __wt_calloc(session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*handle->stat_array),
+           &handle->stat_array)) != 0) {
+        __wt_free(session, handle->stats);
+        return (ret);
+    }
 
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i) {
         handle->stats[i] = &handle->stat_array[i];
@@ -3280,7 +3293,10 @@ __wt_stat_connection_init(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle)
 void
 __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle)
 {
-    __wt_free(session, handle->stat_array);
+    WT_UNUSED(session);
+
+    __wt_free(NULL, handle->stat_array);
+    __wt_free(NULL, handle->stats);
 }
 
 void

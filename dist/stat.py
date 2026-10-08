@@ -228,15 +228,24 @@ __wt_stat_''' + name + '_init_single(WT_' + name.upper() + '''_STATS *stats)
 ''')
 
     if handle != None:
+        # Connection statistics can't count their own free.
+        free_session = 'NULL' if name == 'connection' else 'session'
+        free_unused = '\tWT_UNUSED(session);\n\n' if name == 'connection' else ''
         f.write('''
 int
 __wt_stat_''' + name + '''_init(
     WT_SESSION_IMPL *session, ''' + handle + ''' *handle)
 {
-\tint i;
+\tWT_DECL_RET;
+\tu_int i;
 
 \tWT_RET(__wt_calloc(session, (size_t)WT_STAT_''' + capname + '''_COUNTER_SLOTS,
-\t    sizeof(*handle->stat_array), &handle->stat_array));
+\t    sizeof(*handle->stats), &handle->stats));
+\tif ((ret = __wt_calloc(session, (size_t)WT_STAT_''' + capname + '''_COUNTER_SLOTS,
+\t    sizeof(*handle->stat_array), &handle->stat_array)) != 0) {
+\t\t__wt_free(session, handle->stats);
+\t\treturn (ret);
+\t}
 
 \tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i) {
 \t\thandle->stats[i] = &handle->stat_array[i];
@@ -249,7 +258,8 @@ void
 __wt_stat_''' + name + '''_discard(
     WT_SESSION_IMPL *session, ''' + handle + ''' *handle)
 {
-\t__wt_free(session, handle->stat_array);
+''' + free_unused + '''\t__wt_free(''' + free_session + ''', handle->stat_array);
+\t__wt_free(''' + free_session + ''', handle->stats);
 }
 ''')
 

@@ -339,6 +339,7 @@ static void
 __global_once(void)
 {
     WT_DECL_RET;
+    u_int cpus;
 
     if ((ret = __wt_spin_init(NULL, &__wt_process.spinlock, "global")) != 0) {
         __wt_pthread_once_failed = ret;
@@ -355,6 +356,11 @@ __global_once(void)
     __wt_process.checksum_with_seed = wiredtiger_crc32c_with_seed_func();
 
     __global_setup_clock();
+
+    cpus = __wt_cpu_count();
+    __wt_process.stat_conn_slots = cpus == 0 ? WT_STAT_CONN_COUNTER_SLOTS_DEFAULT : cpus;
+    __wt_process.stat_dsrc_slots =
+      cpus == 0 ? WT_STAT_DSRC_COUNTER_SLOTS_DEFAULT : WT_MIN(cpus, WT_STAT_DSRC_COUNTER_SLOTS_MAX);
 }
 
 /*

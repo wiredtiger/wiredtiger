@@ -51,6 +51,7 @@ extern int __wti_posix_map_preload(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, c
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_region,
   size_t len, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern u_int __wt_cpu_count(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uintmax_t __wt_process_id(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp);
 extern void __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond);

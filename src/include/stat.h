@@ -32,30 +32,22 @@
  * Choosing how many structures isn't easy: obviously, a smaller number creates more conflicts while
  * a larger number uses more memory.
  *
- * Ideally, if the application running on the system is CPU-intensive, and using all CPUs on the
- * system, we want to use the same number of slots as there are CPUs (because their L1 caches are
- * the units of coherency). However, in practice we cannot easily determine how many CPUs are
- * actually available to the application.
- *
- * Our next best option is to use the number of threads in the application as a heuristic for the
- * number of CPUs (presumably, the application architect has figured out how many CPUs are
- * available). However, inside WiredTiger we don't know when the application creates its threads.
- *
- * Connection statistics use a fixed number of slots. Ideally, we would approximate the largest
- * number of cores we expect on any machine where WiredTiger might be run, however, we don't want to
- * waste that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are
- * relatively rare.
- *
- * Default hash table size; use a prime number of buckets rather than assuming a good hash
- * (Reference Sedgewick, Algorithms in C, "Hash Functions").
+ * Ideally, we want the same number of slots as there are CPUs the process may run on, because their
+ * L1 caches are the units of coherency. The counts are set once per process from the allowed CPU
+ * count, or fixed counts where that isn't available.
  *
  * The counter slots are split into two separate counters, one for connection and the other for
- * data-source, so either count can change on its own. The data-source count is small because each
+ * data-source, so either count can change on its own. The data-source count is capped because each
  * open btree dhandle pays for every slot.
  *
+ * The count doesn't need to be prime: slots are chosen by session ID, which is a dense number.
  */
-#define WT_STAT_CONN_COUNTER_SLOTS 23
-#define WT_STAT_DSRC_COUNTER_SLOTS 4
+#define WT_STAT_CONN_COUNTER_SLOTS_DEFAULT 23
+#define WT_STAT_DSRC_COUNTER_SLOTS_DEFAULT 4
+#define WT_STAT_DSRC_COUNTER_SLOTS_MAX 8
+
+#define WT_STAT_CONN_COUNTER_SLOTS (__wt_process.stat_conn_slots)
+#define WT_STAT_DSRC_COUNTER_SLOTS (__wt_process.stat_dsrc_slots)
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
@@ -105,7 +97,7 @@
  * Sum the values from all structures in the array.
  */
 static WT_INLINE int64_t
-__wt_stats_aggregate_internal(void *stats_arg, int slot, u_int num_slots)
+__wt_stats_aggregate(void *stats_arg, int slot, u_int num_slots)
 {
     int64_t **stats, aggr_v;
     u_int i;
@@ -132,51 +124,24 @@ __wt_stats_aggregate_internal(void *stats_arg, int slot, u_int num_slots)
     return (aggr_v);
 }
 
-static WT_INLINE int64_t
-__wt_stats_aggregate_conn(void *stats_arg, int slot)
-{
-    return (__wt_stats_aggregate_internal(stats_arg, slot, WT_STAT_CONN_COUNTER_SLOTS));
-}
-
-static WT_INLINE int64_t
-__wt_stats_aggregate_dsrc(void *stats_arg, int slot)
-{
-    return (__wt_stats_aggregate_internal(stats_arg, slot, WT_STAT_DSRC_COUNTER_SLOTS));
-}
-
 /*
- * Set a connection statistic. The value is read back as the sum of the buckets, so it lives in the
- * first bucket and the rest are emptied. Publish the value before emptying the others: aggregation
- * is not synchronized against gathering, so a reader summing the buckets in between would otherwise
- * total zero.
+ * Set a statistic. The value is read back as the sum of the buckets, so it lives in the first
+ * bucket and the rest are emptied. Publish the value before emptying the others: aggregation is not
+ * synchronized against gathering, so a reader summing the buckets in between would otherwise total
+ * zero.
  *
  * Relaxed is the ordering we want throughout: a statistic guards no other state, so the accesses
  * need to be free of tearing and of reloads the compiler invented, nothing more.
  */
 static WT_INLINE void
-__wt_stats_set_conn(void *stats_arg, int slot, int64_t value)
+__wt_stats_set(void *stats_arg, int slot, int64_t value, u_int num_slots)
 {
     int64_t **stats;
-    int i;
+    u_int i;
 
     stats = (int64_t **)stats_arg;
     __wt_atomic_store_int64_relaxed(&stats[0][slot], value);
-    for (i = 1; i < WT_STAT_CONN_COUNTER_SLOTS; i++)
-        __wt_atomic_store_int64_relaxed(&stats[i][slot], 0);
-}
-
-/*
- * Set a data-source statistic, ordered as the connection version above.
- */
-static WT_INLINE void
-__wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
-{
-    int64_t **stats;
-    int i;
-
-    stats = (int64_t **)stats_arg;
-    __wt_atomic_store_int64_relaxed(&stats[0][slot], value);
-    for (i = 1; i < WT_STAT_DSRC_COUNTER_SLOTS; i++)
+    for (i = 1; i < num_slots; i++)
         __wt_atomic_store_int64_relaxed(&stats[i][slot], 0);
 }
 
@@ -192,9 +157,9 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
 #define WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
 
 #define WT_STAT_CONN_READ(stats, fld) \
-    __wt_stats_aggregate_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+    __wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), WT_STAT_CONN_COUNTER_SLOTS)
 #define WT_STAT_DSRC_READ(stats, fld) \
-    __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+    __wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), WT_STAT_DSRC_COUNTER_SLOTS)
 #define WT_STAT_SESSION_READ(stats, fld) ((stats)->fld)
 /* The block manager writes these into a shared data-source bucket. */
 #define WT_STAT_WRITE(session, stats, fld, v)                             \
@@ -235,10 +200,11 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
 #define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
 /* FIXME-WT-15961 Introduce thread-safe stats interfaces. */
-#define WT_STATP_CONN_SET(session, stats, fld, value)                                           \
-    do {                                                                                        \
-        if (WT_STAT_ENABLED(session))                                                           \
-            __wt_stats_set_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), (int64_t)(value)); \
+#define WT_STATP_CONN_SET(session, stats, fld, value)                                     \
+    do {                                                                                  \
+        if (WT_STAT_ENABLED(session))                                                     \
+            __wt_stats_set(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), (int64_t)(value), \
+              WT_STAT_CONN_COUNTER_SLOTS);                                                \
     } while (0)
 #define WT_STAT_CONN_SET(session, fld, value) \
     WT_STATP_CONN_SET(session, S2C(session)->stats, fld, value)
@@ -274,10 +240,11 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
     } while (0)
 #define WT_STAT_DSRC_DECR(session, fld) WT_STAT_DSRC_DECRV(session, fld, 1)
 
-#define WT_STATP_DSRC_SET(session, stats, fld, value)                                           \
-    do {                                                                                        \
-        if (WT_STAT_ENABLED(session))                                                           \
-            __wt_stats_set_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), (int64_t)(value)); \
+#define WT_STATP_DSRC_SET(session, stats, fld, value)                                     \
+    do {                                                                                  \
+        if (WT_STAT_ENABLED(session))                                                     \
+            __wt_stats_set(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), (int64_t)(value), \
+              WT_STAT_DSRC_COUNTER_SLOTS);                                                \
     } while (0)
 #define WT_STAT_DSRC_SET(session, fld, value)                                     \
     do {                                                                          \
