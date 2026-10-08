@@ -329,7 +329,7 @@ __checkpoint_tree_ignored(WT_BTREE *btree)
 
 /*
  * __checkpoint_clean_tree_skippable --
- *     Return if a clean tree can skip this checkpoint. The checkpoint fast path and the handle
+ *     Return if this checkpoint can skip a clean tree. The checkpoint fast path and the handle
  *     gather share this test so that they skip the same trees.
  */
 static WT_INLINE bool
@@ -339,9 +339,10 @@ __checkpoint_clean_tree_skippable(WT_SESSION_IMPL *session, WT_BTREE *btree, boo
     uint64_t now, timer;
 
     /*
-     * Writers share the handle lock with us, so no lock protects this check. It holds because the
-     * checkpoint snapshot is taken before the handles are gathered, and a tree is marked modified
-     * before any of its updates commit: a clean tree has nothing this checkpoint can see.
+     * Writers also hold the handle lock shared, so the lock does not protect this read. The read is
+     * safe because the checkpoint snapshot is taken before the handles are gathered, and a tree is
+     * marked modified before any of its updates commit. A tree that is clean here has no updates
+     * this checkpoint can see.
      */
     if (__wt_atomic_load_bool_acquire(&btree->modified))
         return (false);
@@ -355,9 +356,9 @@ __checkpoint_clean_tree_skippable(WT_SESSION_IMPL *session, WT_BTREE *btree, boo
     }
 
     /*
-     * The block manager can only be used with the handle locked. Without the lock, the timer stands
-     * in for this test: it is only set after can_truncate returns false, and a tree gains no space
-     * to truncate while it stays clean.
+     * The block manager can only be used with the handle locked. Without the lock, the timer check
+     * above replaces this test. The timer is only set after can_truncate returns false, and a clean
+     * tree gains no space to truncate.
      */
     if (handle_locked) {
         bm = btree->bm;
@@ -384,10 +385,11 @@ __checkpoint_gather_skip(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool
         return (0);
 
     /*
-     * Sweep can close the handle while we look at it. Our reference keeps the btree allocated,
-     * sweep only closes clean trees and never reopens a closed handle, and the usual path would
-     * skip such a handle too. Other closes and reopens need the schema lock, which we hold, or
-     * exclusive access, which makes the usual path skip the tree as well.
+     * Sweep can close the handle while this function reads it. The walk holds a reference on the
+     * handle, so sweep does not free the btree. Sweep only closes clean trees and does not reopen a
+     * closed handle, and the usual path skips a closed handle too. Other closes and reopens need
+     * the schema lock, which checkpoint holds, or exclusive access, and the usual path skips an
+     * exclusive handle.
      */
     btree = dhandle->handle;
 
@@ -2653,7 +2655,7 @@ __checkpoint_lock_dirty_tree(
             is_drop = true;
     }
 
-    /* The handle gather relies on this, as it cannot call the block manager without the lock. */
+    /* The handle gather cannot call the block manager and checks the timer instead. */
     WT_ASSERT(
       session, btree->modified || btree->clean_ckpt_timer == 0 || !bm->can_truncate(bm, session));
 

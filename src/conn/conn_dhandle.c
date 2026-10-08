@@ -763,7 +763,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     if (file_func == NULL || skip)
         return (0);
 
-    /* Locking a handle can wait, so let the caller skip handles it has no work for. */
+    /* Locking a handle can block, so the caller can skip handles it has no work for. */
     if (skip_func != NULL) {
         WT_RET(skip_func(session, dhandle, &skip));
         if (skip)
