@@ -117,6 +117,14 @@ connection_page_delta_config_common = [
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
         delta. Deltas larger than full pages are permitted for measurement and testing
         reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+    Config('full_page_min_size', '0', r'''
+        the full page image size, in bytes, below which reconciliation always writes a
+        full page instead of a delta. A page this small gains little from writing a
+        delta, while every delta still costs a chain lookup on read. This value is
+        capped by the page's split size, so setting it above the split size has no
+        further effect: ordinary reconciliation already produces pages at or below
+        that size. A value of 0 disables this threshold''', min='0', type='int',
+        undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation may write deltas for internal pages
         instead of writing entire pages every time''',

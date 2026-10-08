@@ -262,6 +262,7 @@ struct __wt_page_delta_config {
     u_int delta_pct;             /* Delta page percent (of full page size) */
     u_int delete_pct;            /* Max delete fraction (%) before forcing full page */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
+    u_int full_page_min_size;    /* Full page image size below which we skip deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_INTERNAL_PAGE_DELTA 0x1u
 #define WT_LEAF_PAGE_DELTA 0x2u

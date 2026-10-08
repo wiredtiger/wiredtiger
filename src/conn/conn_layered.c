@@ -2449,6 +2449,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.max_consecutive_delta = (uint32_t)cval.val;
 
+        /* Get the full page image size below which we always write a full page. */
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.full_page_min_size", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->page_delta.full_page_min_size = (u_int)cval.val;
+
         /* Get the number of threads used to drain the ingest tables. */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.drain_threads", &cval));
         if (cval.len > 0 && cval.val >= 0)
