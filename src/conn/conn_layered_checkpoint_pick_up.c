@@ -1653,13 +1653,14 @@ err:
 }
 
 /*
- * __disagg_apply_checkpoint_meta --
- *     Process the metadata entries stored in the shared metadata table for a new checkpoint. Given
- *     the handle of the last picked-up checkpoint, apply only the differences from it.
+ * __disagg_apply_checkpoint_meta_merge --
+ *     Apply the given checkpoint of the shared metadata table to the local metadata by merging all
+ *     entries of both.
  */
 static int
-__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
-  wt_timestamp_t ckpt_schema_epoch, bool is_startup, WT_DATA_HANDLE *old_dhandle)
+__disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metadata_checkpoint_name,
+  wt_timestamp_t ckpt_schema_epoch, bool is_startup, uint32_t *existing_tablesp,
+  uint32_t *new_tablesp, uint32_t *new_ingestp)
 {
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
@@ -1670,12 +1671,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_DISAGG_FILE_ENTRY file_entry;
     WT_DISAGG_STABLE_BTREE_IDS stable_btree_ids;
     WT_PREFETCH_SCAN prefetch_scan;
-    WT_TIMER apply_timer;
-    uint64_t apply_elapsed_ms;
-    uint32_t existing_tables, new_tables, new_ingest;
     size_t current_len;
     int i;
-    const char *cfg[2], *md_file_value, *metadata_checkpoint_name, *metadata_value, *sh_file_value;
+    const char *cfg[2], *md_file_value, *metadata_value, *sh_file_value;
     const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
     bool ingest_created, local_drop, md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT];
@@ -1686,11 +1684,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_CLEAR(prefetch_scan);
     WT_CLEAR(stable_btree_ids);
 
-    metadata_checkpoint_name = NULL;
-    existing_tables = new_tables = new_ingest = 0;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
-
     /*
      * The walk below is a bounded, forward-only scan of the shared metadata, where crossing a page
      * boundary costs a page log round trip. Declare it: the scan runs on an internal session, and
@@ -1698,30 +1691,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * the prefetch heuristics recognizes it.
      */
     __wti_prefetch_scan_begin(session, &prefetch_scan);
-
-    __wt_timer_start(session, &apply_timer);
-    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
-      ckpt_meta->metadata_lsn);
-
-    /*
-     * Look up the most recent checkpoint of the shared metadata table. If there is no checkpoint
-     * yet (e.g. the shared metadata table has never been checkpointed or the database has empty
-     * layered tables), there is no new checkpoint related configs to update. In that case return
-     * success.
-     */
-    WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
-                         session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
-      false);
-    if (metadata_checkpoint_name == NULL)
-        goto done;
-
-    /* Apply only the differences from the last picked-up checkpoint, if there is one. */
-    if (old_dhandle != NULL) {
-        WT_ERR(__disagg_apply_checkpoint_meta_diff(
-          session, old_dhandle, ckpt_schema_epoch, &existing_tables, &new_tables, &new_ingest));
-        goto applied;
-    }
 
     /*
      * !!!
@@ -1901,7 +1870,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
             }
-            ++existing_tables;
+            ++*existing_tablesp;
         } else if (!md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
              * The shared metadata has a layered: entry but the local metadata does not. This could
@@ -1930,7 +1899,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             WT_ERR(__disagg_ensure_ingest_table(
               session, md_write_cursor, metadata_value, is_startup, &ingest_created));
             if (ingest_created)
-                ++new_ingest;
+                ++*new_ingestp;
             WT_ERR(__disagg_insert_meta_from_cursor(
               session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], &stable_btree_ids));
             WT_ERR(__disagg_insert_meta_from_cursor(
@@ -1941,7 +1910,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             if (sh_has[WT_DISAGG_CURSOR_TABLE])
                 WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_TABLE], &stable_btree_ids));
-            ++new_tables;
+            ++*new_tablesp;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
              * The local metadata has a layered: entry but the shared metadata does not - a dropped
@@ -2012,7 +1981,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  */
                 WT_ERR(__disagg_insert_meta_from_cursor(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], &stable_btree_ids));
-                ++new_tables;
+                ++*new_tablesp;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
                  * Both the shared and local metadata tables have an entry for this file. Update the
@@ -2021,7 +1990,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  */
                 WT_ERR(
                   __disagg_update_file_meta(session, sh_keys[WT_DISAGG_CURSOR_FILE], &file_entry));
-                ++existing_tables;
+                ++*existing_tablesp;
             } else if (!sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE])
                 /*
                  * The local metadata has an entry for this file, but the shared metadata does not.
@@ -2045,25 +2014,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     if (is_startup || stable_btree_ids.have_new_stable_id)
         WT_ERR(__disagg_check_stable_btree_ids(session, &stable_btree_ids));
 
-applied:
-    /* Fail the merge on the failpoint to exercise the unroll and retry paths. */
-    if (__wt_failpoint(
-          session, WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY, 10 * WT_THOUSAND))
-        WT_ERR(EBUSY);
-
-    __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
-    WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
-    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
-      " new ingest tables in %" PRIu64 "ms",
-      existing_tables, new_tables, new_ingest, apply_elapsed_ms);
-
-done:
 err:
     __wti_prefetch_scan_end(session, &prefetch_scan);
 
     __wt_free(session, stable_btree_ids.ids);
-    __wt_free(session, metadata_checkpoint_name);
     __wt_scr_free(session, &current_buf);
     __wt_scr_free(session, &md_file_buf);
     __wt_scr_free(session, &metadata_uri_buf);
@@ -2077,6 +2031,68 @@ err:
             WT_TRET(sh_cursors[i]->close(sh_cursors[i]));
     }
 
+    return (ret);
+}
+
+/*
+ * __disagg_apply_checkpoint_meta --
+ *     Process the metadata entries stored in the shared metadata table for a new checkpoint. Given
+ *     the handle of the last picked-up checkpoint, apply only the differences from it.
+ */
+static int
+__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  wt_timestamp_t ckpt_schema_epoch, bool is_startup, WT_DATA_HANDLE *old_dhandle)
+{
+    WT_DECL_RET;
+    WT_TIMER apply_timer;
+    uint64_t apply_elapsed_ms;
+    uint32_t existing_tables, new_tables, new_ingest;
+    const char *metadata_checkpoint_name;
+
+    metadata_checkpoint_name = NULL;
+    existing_tables = new_tables = new_ingest = 0;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    __wt_timer_start(session, &apply_timer);
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
+      ckpt_meta->metadata_lsn);
+
+    /*
+     * Look up the most recent checkpoint of the shared metadata table. If there is no checkpoint
+     * yet (e.g. the shared metadata table has never been checkpointed or the database has empty
+     * layered tables), there is no new checkpoint related configs to update. In that case return
+     * success.
+     */
+    WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                         session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
+      false);
+    if (metadata_checkpoint_name == NULL)
+        goto err;
+
+    /* Apply only the differences from the last picked-up checkpoint, if there is one. */
+    if (old_dhandle != NULL)
+        WT_ERR(__disagg_apply_checkpoint_meta_diff(
+          session, old_dhandle, ckpt_schema_epoch, &existing_tables, &new_tables, &new_ingest));
+    else
+        WT_ERR(__disagg_apply_checkpoint_meta_merge(session, metadata_checkpoint_name,
+          ckpt_schema_epoch, is_startup, &existing_tables, &new_tables, &new_ingest));
+
+    /* Fail the pickup on the failpoint to exercise the unroll and retry paths. */
+    if (__wt_failpoint(
+          session, WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY, 10 * WT_THOUSAND))
+        WT_ERR(EBUSY);
+
+    __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
+    WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
+      " new ingest tables in %" PRIu64 "ms",
+      existing_tables, new_tables, new_ingest, apply_elapsed_ms);
+
+err:
+    __wt_free(session, metadata_checkpoint_name);
     return (ret);
 }
 
