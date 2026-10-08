@@ -46,9 +46,9 @@
 using namespace test_harness;
 
 /*
- * This test measures truncation latency on layered:oplog while appenders maintain a rolling
+ * This test measures truncation latency on layered:oplog while insert workers maintain a rolling
  * retention window. It loads the table as a leader, then measures as a leader, after a follower
- * restart with checkpoint pickup, or after an in-place step-down without pickup. The CppSuite
+ * restart with checkpoint pickup, or after an in-place step-down without pickup. The test
  * configuration sets the role, workload sizes, marker size, and worker counts. See the
  * disagg_truncate_perf config files for examples.
  */
@@ -72,7 +72,8 @@ public:
     populate(database &db, timestamp_manager *, configuration *populate_config,
       operation_tracker *op_tracker) override final
     {
-        /* All roles use the same leader-loaded table. Loading and role changes are untimed. */
+        /* All roles load the same table as leader. Loading and role changes are outside the
+         * measurement. */
         load_table(db, populate_config, op_tracker);
         change_role();
         /* Population may overshoot its target. Keep the full measured append allowance. */
@@ -476,6 +477,6 @@ private:
     std::chrono::milliseconds _checkpoint_interval;
     std::unique_ptr<timestamp_manager> _timestamps;
     std::mutex _timestamp_api_mutex;
-    /* Exclude inserts while measuring a truncate's connection-wide cache delta. */
+    /* Exclude inserts while measuring the connection-wide cache delta for a truncate. */
     std::shared_mutex _insert_gate;
 };
