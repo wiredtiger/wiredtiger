@@ -72,10 +72,10 @@ public:
     populate(database &db, timestamp_manager *, configuration *populate_config,
       operation_tracker *op_tracker) override final
     {
-        /* All roles measure the same leader-written table; loading and role changes are untimed. */
+        /* All roles use the same leader-loaded table. Loading and role changes are untimed. */
         load_table(db, populate_config, op_tracker);
         change_role();
-        /* Population may overshoot its target; preserve the full measured append allowance. */
+        /* Population may overshoot its target. Keep the full measured append allowance. */
         _insert_target_bytes = _inserted_bytes.load() + _append_limit_bytes;
 
         /* This baseline excludes loading and role changes from the measured counters. */
@@ -409,8 +409,7 @@ private:
             tc->rollback();
             return (false);
         }
-        /* Commit releases the leader's fast-truncate charge; followers retain their list updates.
-         */
+        /* Commit releases the leader's fast-truncate charge. Followers keep list updates. */
         int64_t cache_charge_bytes = 0;
         if (is_leader)
             cache_charge_bytes =
