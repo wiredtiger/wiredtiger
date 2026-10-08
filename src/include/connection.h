@@ -408,7 +408,7 @@ struct __wt_disaggregated_storage {
      * checkpoint: a successful pickup sets it, and a failed pickup or a role change clears it.
      * Protected by the checkpoint lock.
      */
-    bool last_checkpoint_diffable;
+    bool next_pickup_can_diff;
 
     /*
      * !!!

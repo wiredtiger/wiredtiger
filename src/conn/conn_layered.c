@@ -1917,7 +1917,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
      * The leader changed its local metadata outside of pickups, so the next pickup merges the whole
      * checkpoint rather than a diff.
      */
-    conn->disaggregated_storage.last_checkpoint_diffable = false;
+    conn->disaggregated_storage.next_pickup_can_diff = false;
 
     tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
@@ -2290,8 +2290,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
 
         /* The forced adoption below merges the whole checkpoint rather than a diff. */
-        WT_WITH_CHECKPOINT_LOCK(
-          session, conn->disaggregated_storage.last_checkpoint_diffable = false);
+        WT_WITH_CHECKPOINT_LOCK(session, conn->disaggregated_storage.next_pickup_can_diff = false);
 
         WT_ERR_MSG_CHK(session, __disagg_wait_for_deferred_pickup(session),
           "failed to adopt a deferred checkpoint before step-up");
