@@ -331,7 +331,7 @@ struct __wt_btree {
 /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
 #define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
 #define WT_BTREE_CLEAN_MINUTES 10
-    uint64_t clean_ckpt_timer;
+    wt_shared uint64_t clean_ckpt_timer;
 
     /*
      * Track the number of obsolete time window pages that are changed into dirty page

@@ -747,7 +747,8 @@ err:
 static int
 __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *),
+  int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *), const char *cfg[])
 {
     WT_DECL_RET;
     uint64_t time_diff, time_start, time_stop;
@@ -761,6 +762,13 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     /* If there is no file function, don't bother locking the handle */
     if (file_func == NULL || skip)
         return (0);
+
+    /* Locking a handle can wait, so let the caller skip handles it has no work for. */
+    if (skip_func != NULL) {
+        WT_RET(skip_func(session, dhandle, &skip));
+        if (skip)
+            return (0);
+    }
 
     /*
      * We need to pull the handle into the session handle cache and make sure it's referenced to
@@ -784,12 +792,14 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 
 /*
  * __wt_conn_btree_apply --
- *     Apply a function to all open btree handles with the given URI.
+ *     Apply a function to all open btree handles with the given URI. The optional skip function
+ *     is called before a handle is locked.
  */
 int
 __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *),
+  int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *), const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -814,7 +824,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || dhandle->checkpoint != NULL ||
               strcmp(uri, dhandle->name) != 0)
                 continue;
-            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
+            WT_ERR(
+              __conn_btree_apply_internal(session, dhandle, file_func, name_func, skip_func, cfg));
         }
     } else {
         time_start = 0;
@@ -840,12 +851,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               dhandle->checkpoint != NULL || WT_IS_ANY_METADATA(dhandle))
                 continue;
 
-            /* Checkpoint skips clean trees here, without locking their handles. */
-            if (file_func == __wt_checkpoint_get_handles && name_func == NULL &&
-              __wt_checkpoint_gather_skip(session, dhandle))
-                continue;
-
-            WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
+            WT_ERR(
+              __conn_btree_apply_internal(session, dhandle, file_func, name_func, skip_func, cfg));
         }
 done:
         if (time_start != 0) {
