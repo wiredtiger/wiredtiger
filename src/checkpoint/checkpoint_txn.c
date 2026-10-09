@@ -319,11 +319,13 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     uint64_t time_diff, time_start, time_stop;
     const char *name;
+    bool force;
 
     WT_UNUSED(cfg);
 
     ckpt_cfg = session->ckpt.db_cfg;
     WT_ASSERT(session, ckpt_cfg != NULL);
+    WT_ASSERT(session, cfg == ckpt_cfg->cfg);
 
     /* Periodically log checkpoint prepare progress. */
     __checkpoint_prepare_progress(session, false);
@@ -399,10 +401,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * Decide whether the tree needs to be included in the checkpoint and if so, acquire the
      * necessary locks.
      */
+    force = ckpt_cfg->force || ckpt_cfg->named;
     time_start = __wt_clock(session);
-    WT_SAVE_DHANDLE(session,
-      ret = __checkpoint_lock_dirty_tree(
-        session, true, ckpt_cfg->force || ckpt_cfg->named, true, ckpt_cfg));
+    WT_SAVE_DHANDLE(
+      session, ret = __checkpoint_lock_dirty_tree(session, true, force, true, ckpt_cfg));
     time_stop = __wt_clock(session);
     time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
     ++S2C(session)->ckpt.handle_stats.lock;
@@ -1257,7 +1259,8 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session)
 
 /*
  * __checkpoint_parse_tree_config --
- *     Parse the configuration that decides what is written to each tree: force, name and drop.
+ *     Parse the per-tree checkpoint options (force, name and drop), as opposed to the
+ *     database-wide options parsed by __checkpoint_parse_config.
  */
 static int
 __checkpoint_parse_tree_config(
@@ -1277,7 +1280,8 @@ __checkpoint_parse_tree_config(
         ckpt_cfg->named = true;
     }
 
-    return (__wt_config_gets(session, cfg, "drop", &ckpt_cfg->drop));
+    WT_RET(__wt_config_gets(session, cfg, "drop", &ckpt_cfg->drop));
+    return (0);
 }
 
 /*
@@ -3502,9 +3506,8 @@ __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_METADATA));
 
     /*
-     * Inside a database checkpoint (the history store and the metadata), use the configuration it
-     * parsed and checked. Otherwise, this may be a named checkpoint or drop checkpoints, check the
-     * configuration.
+     * Inside a system-wide checkpoint, use the configuration it parsed and checked. Otherwise, this
+     * may be a named checkpoint or drop checkpoints, check the configuration.
      */
     ckpt_cfg = session->ckpt.db_cfg;
     if (ckpt_cfg != NULL)
