@@ -1059,7 +1059,8 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_blkmod_delay', 'backup_rename',
         'checkpoint_evict_page',
-        'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
+        'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'checkpoint_sync_file_delay',
+        'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
         'failpoint_disagg_checkpoint_apply',

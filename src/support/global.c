@@ -33,6 +33,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
   {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
   {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
+  {"checkpoint_sync_file_delay", WT_TIMING_STRESS_CHECKPOINT_SYNC_FILE_DELAY},
   {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
