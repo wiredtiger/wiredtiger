@@ -235,6 +235,10 @@ conn_stats = [
     ##########################################
     # Block cache statistics
     ##########################################
+    # FIXME-WT-18764: seven of the stats below describe the disaggregated victim cache, not the
+    # block cache: app_thread_put_time, app_thread_puts, cold_not_cached, put_failures, put_time,
+    # put_time_max and puts. Eviction increments them on the page log cache path. That ticket moves
+    # them to the disagg group as disagg_victim_cache_*.
     BlockCacheStat('block_cache_app_thread_put_time', 'time application threads spent adding pages to the disaggregated victim cache (usecs)'),
     BlockCacheStat('block_cache_app_thread_puts', 'pages added to the disaggregated victim cache by application threads'),
     BlockCacheStat('block_cache_blocks', 'total blocks'),
