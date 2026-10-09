@@ -177,8 +177,7 @@ public:
         writer.add_stat(metric_prefix + "duration_ms", _phase_duration_ms);
         writer.add_stat(metric_prefix + "truncate_ops", _truncate_ops);
         writer.add_stat(metric_prefix + "truncate_rollbacks", _truncate_rollbacks);
-        writer.add_stat(
-          metric_prefix + "truncate_pressure_bytes_peak", _truncate_pressure_bytes_peak);
+        writer.add_stat(metric_prefix + "truncate_dirty_bytes_peak", _truncate_dirty_bytes_peak);
         logger::log_msg(LOG_INFO,
           "The " + _role + " phase completed " + std::to_string(_truncate_ops) + " truncates.");
     }
@@ -390,16 +389,12 @@ private:
         }
     }
 
-    /* Truncate through the marker key, sampling leader cost before commit and follower cost after.
-     */
+    /* Sample the dirty cache bytes recorded for the truncate transaction. */
     bool
     truncate_marker(
       thread_worker *tc, scoped_cursor &cursor, scoped_cursor &stats, uint64_t marker_key)
     {
         const bool is_leader = _role == "leader";
-        int64_t updates_before = 0;
-        if (!is_leader)
-            updates_before = metrics_monitor::get_stat(stats, WT_STAT_CONN_CACHE_BYTES_UPDATES);
         if (!begin_timestamped_transaction(tc))
             return (false);
         testutil_check(cursor->reset(cursor.get()));
@@ -410,19 +405,14 @@ private:
             tc->rollback();
             return (false);
         }
-        /* Commit releases the leader's fast-truncate charge. Followers keep list updates. */
-        int64_t cache_charge_bytes = 0;
-        if (is_leader)
-            cache_charge_bytes =
-              metrics_monitor::get_stat(stats, WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES);
+        scoped_cursor txn_stats = tc->session.open_scoped_cursor("statistics:session");
+        const int64_t cache_charge_bytes =
+          metrics_monitor::get_stat(txn_stats, WT_STAT_SESSION_TXN_BYTES_DIRTY);
         if (!tc->commit())
             return (false);
 
         ++_truncate_ops;
         if (!is_leader) {
-            const int64_t updates_after =
-              metrics_monitor::get_stat(stats, WT_STAT_CONN_CACHE_BYTES_UPDATES);
-            cache_charge_bytes = updates_after - updates_before;
             const uint64_t entries_removed = static_cast<uint64_t>(metrics_monitor::get_stat(
               stats, WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED));
             const uint64_t outstanding_entries =
@@ -431,8 +421,8 @@ private:
               std::max(_truncate_list_entries_peak, outstanding_entries);
         }
         if (cache_charge_bytes > 0)
-            _truncate_pressure_bytes_peak =
-              std::max(_truncate_pressure_bytes_peak, static_cast<uint64_t>(cache_charge_bytes));
+            _truncate_dirty_bytes_peak =
+              std::max(_truncate_dirty_bytes_peak, static_cast<uint64_t>(cache_charge_bytes));
         _truncated_key = marker_key;
         return (true);
     }
@@ -468,7 +458,7 @@ private:
     uint64_t _truncate_ops{0};
     uint64_t _truncate_rollbacks{0};
     uint64_t _truncate_list_entries_peak{0};
-    uint64_t _truncate_pressure_bytes_peak{0};
+    uint64_t _truncate_dirty_bytes_peak{0};
     int64_t _phase_duration_ms{0};
     std::array<int64_t, WT_ELEMENTS(PHASE_STATS)> _baseline_stats{};
     std::chrono::steady_clock::time_point _phase_start;
