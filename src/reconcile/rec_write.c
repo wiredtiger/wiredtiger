@@ -2897,11 +2897,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
 copy_image:
     if (F_ISSET(multi, WT_MULTI_SKIP_WRITE)) {
-        /* A skipped write keeps the previous block, so its in-memory image keeps that generation.
-         */
-        WT_ASSERT_ALWAYS(session, multi->block_meta != NULL && multi->block_meta->write_gen != 0,
-          "A skipped write must have a previous write generation");
-        ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen = multi->block_meta->write_gen;
+        /* A skipped write keeps the previous block and its generation. */
+        uint64_t write_gen = __wt_page_write_gen(page);
+        WT_ASSERT_ALWAYS(
+          session, write_gen != 0, "A skipped write must have a previous write generation");
+        ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen = write_gen;
     }
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -3447,8 +3447,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || F_ISSET(r->multi, WT_MULTI_SUPD_RESTORE)) {
-            if (page->disagg_info != NULL)
+            if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
+                if (!F_ISSET(r, WT_REC_IN_MEMORY) && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
+                    mod->rec_write_gen = ((WT_PAGE_HEADER *)r->cur_ptr->image.mem)->write_gen;
+            }
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -3495,6 +3498,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
+        if (page->disagg_info != NULL && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
+            mod->rec_write_gen = ((WT_PAGE_HEADER *)r->cur_ptr->image.mem)->write_gen;
         mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */

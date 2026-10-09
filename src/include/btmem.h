@@ -295,8 +295,6 @@ struct __wt_page_block_meta {
     uint64_t backlink_lsn;
     /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
     uint64_t base_lsn;
-    /* Write generation of the page image represented by this metadata. */
-    uint64_t write_gen;
 
     uint32_t checksum;
 
@@ -409,6 +407,8 @@ struct __wt_page_modify {
     /* The largest transaction and timestamp seen on the page by a successful reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
+
+    uint64_t rec_write_gen; /* Disaggregated backing block generation; zero uses the page image. */
 
     /*
      * Track the pinned stable timestamp used for the most recent reconciliation. It's useful to

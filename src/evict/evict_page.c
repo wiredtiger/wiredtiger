@@ -264,7 +264,7 @@ __evict_page_victim_cache_eligible(
      * caching that image under the new block's identity would mislabel it; the next read of the
      * page restores them together, so skipping here only delays the put.
      */
-    if (disk_image->write_gen != page->disagg_info->block_meta.write_gen)
+    if (disk_image->write_gen != __wt_page_write_gen(page))
         return (WTI_EVICT_VICTIM_NO_IMAGE);
 
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
@@ -314,7 +314,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
 
     /* Eligibility has already confirmed the image matches its metadata. */
-    WT_ASSERT(session, block_meta->write_gen == disk_image->write_gen);
+    WT_ASSERT(session, __wt_page_write_gen(page) == disk_image->write_gen);
 
     /* Time every attempt: compression and checksum are spent whether or not the put succeeds. */
     uint64_t time_start = __wt_clock(session);
