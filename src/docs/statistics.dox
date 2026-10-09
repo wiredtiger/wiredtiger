@@ -111,9 +111,8 @@ The statistics configuration values control two independent things:
 - <b>Which keys are exposed</b>: the \c otel_* values. These select which
   statistics the cursor iterates over, based on each statistic's OTel type.
 
-Since the two are independent, any combination is valid. At most one \c otel_* value
-may be configured. Configuring more than one is an error, because a statistic has only
-one type, so no statistic could match more than one.
+Since the two are independent, any combination is valid. Configuring more than one
+otel_* value for a statistic is an error, because a statistic can be of only one type.
 
 The following example opens a cursor that exposes only \c otel_counters
 statistics, gathering only the relatively inexpensive ones:
