@@ -80,6 +80,25 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
         self.complete_step_down(20)
 
+    def test_truncate_during_step_down_rolls_back_without_changes(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        original = {'k1': 'v1', 'k2': 'v2', 'k3': 'v3'}
+        self.write_at(self.uri, original, 10)
+
+        self.set_step_down_ts(20)
+
+        self.session.begin_transaction()
+        self.expect_rollback(lambda: self.session.truncate(self.uri, None, None, None))
+        self.session.rollback_transaction()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 40), original)
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), original)
+        self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 40), {})
+
+        self.complete_step_down(20)
+        self.assertEqual(self.read_kvs_at(self.uri, 40), original)
+
     def test_step_down_write_mirroring_is_open_only(self):
         self.set_global_ts(1, 1)
         with self.expectedStderrPattern('unknown configuration key'):

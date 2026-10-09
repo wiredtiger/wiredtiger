@@ -1655,10 +1655,10 @@ rollback:
         }
 
         /*
-         * If this operation was a mirrored truncate, verify the mirrors. This runs after both
-         * successfully committed truncates and truncates that were rolled back.
+         * Verify mirrors after committed and rolled-back mirrored truncates. In async step-down,
+         * defer this check until the role transition.
          */
-        if (mirrored_truncate)
+        if (mirrored_truncate && !GV(DISAGG_STEPDOWN_ASYNC))
             wts_verify_mirrored_truncate(tinfo);
 
         intxn = false;
