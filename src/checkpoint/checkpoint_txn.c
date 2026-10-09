@@ -24,6 +24,7 @@ static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static uint64_t __checkpoint_running_time(WT_SESSION_IMPL *);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
+static void __checkpoint_scrub_progress(WT_SESSION_IMPL *, double, uint64_t, bool);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
 typedef struct {
@@ -563,6 +564,9 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     conn = S2C(session);
     cache = conn->cache;
     evict = conn->evict;
+    bytes_written_total = 0;
+
+    __wt_epoch(session, &conn->ckpt.scrub.timer_start);
 
     /* Give up if scrubbing is disabled. */
     if (evict->eviction_checkpoint_target < DBL_EPSILON)
@@ -608,7 +612,12 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
           __wt_atomic_load_uint64_relaxed(&cache->bytes_written) - bytes_written_start;
         if (bytes_written_total > max_write)
             break;
+
+        __checkpoint_scrub_progress(session, current_dirty, bytes_written_total, false);
     }
+
+    /* Report the final scrub state so any wait leaves at least one progress message. */
+    __checkpoint_scrub_progress(session, current_dirty, bytes_written_total, true);
 }
 
 /*
@@ -639,6 +648,8 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
 
     conn = S2C(session);
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
     time_diff = __checkpoint_running_time(session);
 
     if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
@@ -663,6 +674,8 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 
     conn = S2C(session);
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
     time_diff = __checkpoint_running_time(session);
 
     /*
@@ -681,6 +694,33 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 }
 
 /*
+ * __checkpoint_scrub_progress --
+ *     Output a checkpoint scrub progress message, timed from the start of the scrub wait rather
+ *     than the start of the checkpoint.
+ */
+static void
+__checkpoint_scrub_progress(
+  WT_SESSION_IMPL *session, double current_dirty, uint64_t bytes_written, bool closing)
+{
+    struct timespec now;
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    __wt_epoch(session, &now);
+    uint64_t time_diff = WT_TIMEDIFF_SEC(now, conn->ckpt.scrub.timer_start);
+
+    if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+          "Checkpoint scrub %s for %" PRIu64
+          " seconds, cache dirty %.1f%% (target %.1f%%), wrote %" PRIu64 " MB while waiting",
+          closing ? "ran" : "has been running", time_diff, current_dirty,
+          conn->evict->eviction_checkpoint_target, bytes_written / WT_MEGABYTE);
+        conn->ckpt.progress.msg_count++;
+    }
+}
+
+/*
  * __wt_checkpoint_progress_stats --
  *     Update checkpoint progress data.
  */
@@ -690,6 +730,9 @@ __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
+
+    /* Progress data is only updated by the session holding the checkpoint lock. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     conn->ckpt.progress.write_bytes += write_bytes;
     ++conn->ckpt.progress.write_pages;
@@ -760,7 +803,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     __checkpoint_timer_stats_set(&conn->ckpt.ckpt_api, msec);
 
     /* Compute timer statistics for the scrub. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.ckpt_api.timer_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.scrub.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.scrub, msec);
 
     /* Compute timer statistics for the checkpoint prepare. */
@@ -1695,21 +1738,32 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    WT_RET(__checkpoint_parse_config(session, cfg));
+    if ((ret = __checkpoint_parse_config(session, cfg)) != 0) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+        return (ret);
+    }
 
     /* Avoid doing work if possible. */
-    WT_RET(__checkpoint_can_skip(session));
+    if ((ret = __checkpoint_can_skip(session)) != 0) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+        return (ret);
+    }
     if (ckpt_cfg->can_skip) {
         WT_STAT_CONN_INCR(session, checkpoint_skipped);
-        return (0);
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+        return (ret);
+    }
+
+    /*
+     * Do a pass over the configuration arguments and figure out what kind of checkpoint this is. On
+     * failure, reset the checkpoint state before returning.
+     */
+    if ((ret = __checkpoint_apply_operation(session, NULL)) != 0) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+        return (ret);
     }
 
     F_SET(session, WT_SESSION_CHECKPOINT);
-
-    /*
-     * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
-     */
-    WT_RET(__checkpoint_apply_operation(session, NULL));
 
     /* Initialize checkpoint tracking and stats. */
     __checkpoint_init(session);
@@ -3309,6 +3363,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
     txn = session->txn;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     /* Add a two seconds wait to simulate checkpoint slowness for every handle. */
     tsp.tv_sec = 2;
