@@ -3092,7 +3092,6 @@ __checkpoint_teardown(WT_SESSION_IMPL *session, bool failed, WT_TXN_ISOLATION sa
 static int
 __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[])
 {
-    struct timespec tsp;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -3184,19 +3183,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
 
     /* Flush the file from the cache, creating the checkpoint. */
     if (is_checkpoint) {
-        /*
-         * Stress point to pause a user tree's checkpoint after its modified flag is cleared and
-         * before any of its pages are written.
-         */
-        if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_SYNC_FILE_DELAY) &&
-          !WT_IS_HS(dhandle) && !WT_IS_METADATA(dhandle) && !WT_IS_DISAGG_META(dhandle)) {
-            tsp.tv_sec = 10;
-            tsp.tv_nsec = 0;
-            WT_STAT_CONN_SET(session, checkpoint_sync_file_stress_active, 1);
-            __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SYNC_FILE_DELAY, &tsp);
-            WT_STAT_CONN_SET(session, checkpoint_sync_file_stress_active, 0);
-        }
-
         start_us = __wt_clock(session);
 
         if (WT_SESSION_IS_CHECKPOINT(session))
