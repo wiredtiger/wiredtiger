@@ -3718,15 +3718,15 @@ __wt_stat_connection_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
     return (0);
 }
 
-static const int __stats_connection_otel_counters[] = {
+static const int __stats_connection_otel_counter[] = {
   WT_STAT_CONN_CURSOR_INSERT,
 };
 
-static const int __stats_connection_otel_gauges[] = {
+static const int __stats_connection_otel_gauge[] = {
   WT_STAT_CONN_CACHE_PAGES_INUSE,
 };
 
-static const int __stats_connection_otel_histograms[] = {
+static const int __stats_connection_otel_histogram[] = {
   WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT2,
   WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT5,
   WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT10,
@@ -4818,16 +4818,16 @@ __wt_stat_connection_otel_keys(uint32_t otel_flag, const int **keysp, u_int *cou
 {
     switch (otel_flag) {
     case WT_STAT_OTEL_COUNTERS:
-        *keysp = __stats_connection_otel_counters;
-        *countp = WT_ELEMENTS(__stats_connection_otel_counters);
+        *keysp = __stats_connection_otel_counter;
+        *countp = WT_ELEMENTS(__stats_connection_otel_counter);
         break;
     case WT_STAT_OTEL_GAUGES:
-        *keysp = __stats_connection_otel_gauges;
-        *countp = WT_ELEMENTS(__stats_connection_otel_gauges);
+        *keysp = __stats_connection_otel_gauge;
+        *countp = WT_ELEMENTS(__stats_connection_otel_gauge);
         break;
     case WT_STAT_OTEL_HISTOGRAMS:
-        *keysp = __stats_connection_otel_histograms;
-        *countp = WT_ELEMENTS(__stats_connection_otel_histograms);
+        *keysp = __stats_connection_otel_histogram;
+        *countp = WT_ELEMENTS(__stats_connection_otel_histogram);
         break;
     case WT_STAT_OTEL_NONE:
         *keysp = __stats_connection_otel_none;

@@ -61,7 +61,7 @@ def remove_suffix_digits(str):
 # Check the OTel type of a statistic.
 # At most one valid otel_ flag may be set; no flag means otel_none.
 ##########################################
-OTEL_TYPES = ('otel_counters', 'otel_gauges', 'otel_histograms', 'otel_none')
+OTEL_TYPES = ('otel_counter', 'otel_gauge', 'otel_histogram', 'otel_none')
 
 def check_otel_type(stat):
     if stat.otel_type not in OTEL_TYPES:
@@ -254,6 +254,8 @@ __wt_stat_''' + name + '''_otel_keys(uint32_t otel_flag, const int **keysp, u_in
 ''')
     for otel_type in OTEL_TYPES:
         flag = 'WT_STAT_' + otel_type.upper()
+        if otel_type != 'otel_none':
+            flag += 'S'
         array = var + otel_type[len('otel_'):]
         f.write('\tcase ' + flag + ':\n')
         if any(l.otel_type == otel_type for l in statlist):

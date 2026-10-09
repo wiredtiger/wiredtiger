@@ -17,15 +17,16 @@
 #       no_clear        Value not cleared when statistics cleared
 #       no_scale        Don't scale value per second in the logging tool script
 #       size            Used by timeseries tool, indicates value is a byte count
-#       otel_counters   OTel type: monotonic counter
-#       otel_gauges     OTel type: point-in-time value that can go up and down
-#       otel_histograms OTel type: distribution of recorded values
-#       otel_none       OTel type: not an OTel metric (the default if no otel_ flag is set)
 #
 # The no_clear and no_scale flags are normally always set together (values that
 # are maintained over time are normally not scaled per second).
 #
-# At most one otel_ flag may be set on a statistic.
+# A statistic's OTel type is set with the separate optional otel_type argument, after the flags.
+# Exactly one value may be given:
+#       otel_counter   Monotonic counter
+#       otel_gauge     Point-in-time value that can go up and down
+#       otel_histogram Distribution of recorded values
+#       otel_none      Not an OTel metric (the default if otel_type is omitted)
 
 from operator import attrgetter
 import sys
@@ -349,7 +350,7 @@ conn_stats = [
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty_ingest', 'tracked dirty pages in the cache from the ingest btrees', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty_stable', 'tracked dirty pages in the cache from the stable btrees', 'no_clear,no_scale'),
-    CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale', 'otel_gauges'),
+    CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale', 'otel_gauge'),
     CacheStat('cache_pages_inuse_ingest', 'pages currently held in the cache from the ingest btrees', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_leaf', 'leaf pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
@@ -598,7 +599,7 @@ conn_stats = [
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_cached_count', 'cached cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_create', 'cursor create calls'),
-    CursorStat('cursor_insert', 'cursor insert calls', '', 'otel_counters'),
+    CursorStat('cursor_insert', 'cursor insert calls', '', 'otel_counter'),
     CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),
     CursorStat('cursor_modify', 'cursor modify calls'),
@@ -853,16 +854,16 @@ conn_stats = [
     PerfHistStat('perf_hist_disaggbmwrite_latency_lt5000', 'disagg block manager write latency histogram (bucket 6) - 2500-4999us'),
     PerfHistStat('perf_hist_disaggbmwrite_latency_lt10000', 'disagg block manager write latency histogram (bucket 7) - 5000-9999us'),
     PerfHistStat('perf_hist_disaggbmwrite_latency_total_usecs', 'disagg block manager write latency histogram total (usecs)'),
-    PerfHistStat('perf_hist_fsread_latency_gt1000', 'file system read latency histogram (bucket 9) - 1000ms+', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt2', 'file system read latency histogram (bucket 1) - 0-1ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt5', 'file system read latency histogram (bucket 2) - 2-4ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt10', 'file system read latency histogram (bucket 3) - 5-9ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt50', 'file system read latency histogram (bucket 4) - 10-49ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt100', 'file system read latency histogram (bucket 5) - 50-99ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt250', 'file system read latency histogram (bucket 6) - 100-249ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt500', 'file system read latency histogram (bucket 7) - 250-499ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_lt1000', 'file system read latency histogram (bucket 8) - 500-999ms', '', 'otel_histograms'),
-    PerfHistStat('perf_hist_fsread_latency_total_msecs', 'file system read latency histogram total (msecs)', '', 'otel_histograms'),
+    PerfHistStat('perf_hist_fsread_latency_gt1000', 'file system read latency histogram (bucket 9) - 1000ms+', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt2', 'file system read latency histogram (bucket 1) - 0-1ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt5', 'file system read latency histogram (bucket 2) - 2-4ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt10', 'file system read latency histogram (bucket 3) - 5-9ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt50', 'file system read latency histogram (bucket 4) - 10-49ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt100', 'file system read latency histogram (bucket 5) - 50-99ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt250', 'file system read latency histogram (bucket 6) - 100-249ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt500', 'file system read latency histogram (bucket 7) - 250-499ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_lt1000', 'file system read latency histogram (bucket 8) - 500-999ms', '', 'otel_histogram'),
+    PerfHistStat('perf_hist_fsread_latency_total_msecs', 'file system read latency histogram total (msecs)', '', 'otel_histogram'),
     PerfHistStat('perf_hist_fswrite_latency_gt1000', 'file system write latency histogram (bucket 9) - 1000ms+'),
     PerfHistStat('perf_hist_fswrite_latency_lt2', 'file system write latency histogram (bucket 1) - 0-1ms'),
     PerfHistStat('perf_hist_fswrite_latency_lt5', 'file system write latency histogram (bucket 2) - 2-4ms'),

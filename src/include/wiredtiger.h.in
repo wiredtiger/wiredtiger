@@ -7167,7 +7167,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_PAGES_REMAINING_IN_QUEUE	1315
 /*! cache: pages considered for eviction that were brought in by pre-fetch */
 #define	WT_STAT_CONN_EVICTION_CONSIDER_PREFETCH		1316
-/*! cache: pages currently held in the cache, OTel type: otel_gauges */
+/*! cache: pages currently held in the cache, OTel type: otel_gauge */
 #define	WT_STAT_CONN_CACHE_PAGES_INUSE			1317
 /*! cache: pages currently held in the cache from the ingest btrees */
 #define	WT_STAT_CONN_CACHE_PAGES_INUSE_INGEST		1318
@@ -7723,7 +7723,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_GET_KEY_ERROR		1530
 /*! cursor: cursor get value calls that return an error */
 #define	WT_STAT_CONN_CURSOR_GET_VALUE_ERROR		1531
-/*! cursor: cursor insert calls, OTel type: otel_counters */
+/*! cursor: cursor insert calls, OTel type: otel_counter */
 #define	WT_STAT_CONN_CURSOR_INSERT			1532
 /*! cursor: cursor insert calls that return an error */
 #define	WT_STAT_CONN_CURSOR_INSERT_ERROR		1533
@@ -8387,52 +8387,52 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_TOTAL_USECS	1793
 /*!
  * perf: file system read latency histogram (bucket 1) - 0-1ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT2	1794
 /*!
  * perf: file system read latency histogram (bucket 2) - 2-4ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT5	1795
 /*!
  * perf: file system read latency histogram (bucket 3) - 5-9ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT10	1796
 /*!
  * perf: file system read latency histogram (bucket 4) - 10-49ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT50	1797
 /*!
  * perf: file system read latency histogram (bucket 5) - 50-99ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT100	1798
 /*!
  * perf: file system read latency histogram (bucket 6) - 100-249ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT250	1799
 /*!
  * perf: file system read latency histogram (bucket 7) - 250-499ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT500	1800
 /*!
  * perf: file system read latency histogram (bucket 8) - 500-999ms, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT1000	1801
 /*!
  * perf: file system read latency histogram (bucket 9) - 1000ms+, OTel
- * type: otel_histograms
+ * type: otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_GT1000	1802
 /*!
  * perf: file system read latency histogram total (msecs), OTel type:
- * otel_histograms
+ * otel_histogram
  */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_TOTAL_MSECS	1803
 /*! perf: file system write latency histogram (bucket 1) - 0-1ms */
