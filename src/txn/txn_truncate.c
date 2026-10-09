@@ -88,13 +88,15 @@ __layered_table_truncate_gc(
     if (prune_timestamp == WT_TS_NONE)
         return;
 
-    WT_STAT_CONN_INCR(session, layered_truncate_list_gc_runs);
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
 
     WT_TRUNCATE *entry = NULL;
     WT_TRUNCATE *next = NULL;
+    uint64_t examined = 0, removed = 0;
 
     TAILQ_FOREACH_SAFE(entry, &layered_table->truncate_list.qh, q, next)
     {
+        ++examined;
         const bool is_committed = __wt_atomic_load_bool_acquire(&entry->committed);
 
         /*
@@ -109,8 +111,10 @@ __layered_table_truncate_gc(
 
         __truncate_entry_remove(session, layered_table, entry);
         __disagg_truncate_free(session, &entry);
-        WT_STAT_CONN_INCR(session, layered_truncate_list_gc_entries_removed);
+        ++removed;
     }
+    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
+    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
 }
 
 /*
@@ -173,6 +177,7 @@ __txn_insert_truncate_entry_helper(
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_entries_inserted);
 
     __wt_writeunlock(session, &truncate_list->lock);
 
@@ -256,12 +261,12 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
     WT_ASSERT(session, __wt_rwlock_islocked(session, &truncate_list->lock));
     *is_foundp = false;
 
-    WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
-
     WT_TRUNCATE *entry = NULL;
+    WT_DECL_RET;
+    uint64_t walked = 0;
 
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
-        WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
+        ++walked;
 
         wt_timestamp_t start_ts, durable_ts;
         __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
@@ -272,7 +277,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
         if (visible != want_visible)
             continue;
 
-        WT_RET(__key_within_truncate_range(
+        WT_ERR(__key_within_truncate_range(
           session, collator, &entry->start_key, &entry->stop_key, key, is_foundp));
 
         if (*is_foundp) {
@@ -282,7 +287,14 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
         }
     }
 
-    return (0);
+err:
+    if (ret == 0 && *is_foundp)
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
+    if (walked != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
+    return (ret);
 }
 
 /*
@@ -317,6 +329,7 @@ __wt_layered_table_truncate_detect_write_conflict(WT_SESSION_IMPL *session,
     WT_RET(ret);
 
     if (is_found) {
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_write_conflicts);
         WT_STAT_CONN_INCR(session, txn_update_conflict);
         __wt_session_set_last_error(
           session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
@@ -341,12 +354,11 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
 
     __wt_readlock(session, &truncate_list->lock);
 
-    WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
-
     WT_TRUNCATE *entry = NULL;
     bool is_found = false;
+    uint64_t walked = 0;
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
-        WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
+        ++walked;
 
         wt_timestamp_t start_ts, durable_ts;
         __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
@@ -368,6 +380,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
     if (is_found) {
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_write_conflicts);
         WT_STAT_CONN_INCR(session, txn_update_conflict);
         __wt_session_set_last_error(
           session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
@@ -375,6 +388,12 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
 err:
+    if (is_found)
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
+    if (walked != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
     __wt_readunlock(session, &truncate_list->lock);
     return (ret);
 }
@@ -523,6 +542,7 @@ __wti_layered_table_truncate_rollback_apply(
 
     __wt_writelock(session, &truncate_list->lock);
     __truncate_entry_remove(session, layered_table, entry);
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_rollback_entries_removed);
     __wt_writeunlock(session, &truncate_list->lock);
 
     op->u.follower_truncate.t = NULL;
@@ -553,11 +573,14 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     WT_TRUNCATE *entry = NULL;
 
     __wt_writelock(session, &truncate_list->lock);
+    uint64_t removed = 0;
 
     while ((entry = TAILQ_FIRST(&truncate_list->qh)) != NULL) {
         __truncate_entry_remove(session, layered_table, entry);
         __disagg_truncate_free(session, &entry);
+        ++removed;
     }
+    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_clear_entries_removed, removed);
     __wt_writeunlock(session, &truncate_list->lock);
 }
 
