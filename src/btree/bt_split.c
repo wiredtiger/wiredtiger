@@ -2548,9 +2548,11 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *new;
+    bool instantiated;
 
     page = ref->page;
     addr = NULL;
+    instantiated = page->modify != NULL && page->modify->instantiated;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
@@ -2575,6 +2577,17 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     F_SET(new, F_MASK(ref, WT_REF_FLAG_INTERNAL | WT_REF_FLAG_LEAF));
 
     WT_ERR(__split_multi_inmem(session, page, multi, new));
+
+    /*
+     * With no new address the parent's cell may still be a fast-truncate proxy cell: carry the
+     * instantiated flag so parent reconciliation keeps evaluating the child through the retained
+     * page-delete information. Allocation can fail, so do it before the point of no return.
+     */
+    if (instantiated) {
+        WT_ASSERT(session, multi->addr.block_cookie == NULL);
+        WT_ERR(__wt_page_modify_init(session, new->page));
+        new->page->modify->instantiated = true;
+    }
 
     /*
      * The rewrite succeeded, we can no longer fail.
