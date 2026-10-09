@@ -44,6 +44,7 @@
 #include "bounded_cursor_stress.cpp"
 #include "burst_inserts.cpp"
 #include "cache_resize.cpp"
+#include "disagg_truncate_perf.cpp"
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
 #include "reverse_split.cpp"
@@ -154,6 +155,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         burst_inserts(args).run();
     else if (test_name == "cache_resize")
         cache_resize(args).run();
+    else if (test_name == "disagg_truncate_perf")
+        disagg_truncate_perf(args).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(args).run();
     else if (test_name == "operations_test")
@@ -189,7 +192,7 @@ main(int argc, char *argv[])
       "api_instruction_count_benchmarks", "background_compact", "bounded_cursor_perf",
       "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
-      "hs_cleanup", "operations_test", "reverse_split", "test_template"};
+      "disagg_truncate_perf", "hs_cleanup", "operations_test", "reverse_split", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
