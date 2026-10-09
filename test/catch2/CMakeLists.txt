@@ -121,6 +121,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_bitmap_filling_bit_range.cpp
         live_restore/unit/test_live_restore_compute_read_end_bit.cpp
         live_restore/unit/test_live_restore_fill_hole.cpp
+        misc_tests/test_layered_table_manager.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
         truncate/test_truncate_write_conflict.cpp
