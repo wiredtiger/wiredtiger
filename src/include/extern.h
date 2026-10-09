@@ -430,7 +430,8 @@ extern int __wt_configure_method(WT_SESSION_IMPL *session, const char *method, c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *),
+  int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *), const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
