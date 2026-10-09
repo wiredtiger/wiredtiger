@@ -34,6 +34,10 @@ from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
+# Test statistics collection for follower truncate operations and garbage collection.
+# Check counters for list insertion, rollback and clearing, search hits and misses, write conflicts,
+# and ingest tombstone insertion. Exercise connection and table reporting, including pruning after
+# checkpoint adoption.
 
 @disagg_test_class
 class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
