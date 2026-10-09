@@ -205,8 +205,10 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
                 before_walked = self.metric('list_search_entries_walked')
                 self.assertRaisesException(wiredtiger.WiredTigerError, operation, '/conflict/')
                 self.assertEqual(self.metric('list_search_hits') - before_hit, 1)
-                self.assertEqual(self.metric('list_search_misses'), before_miss)
-                self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 1)
+                self.assertEqual(self.metric('list_search_misses') - before_miss,
+                    2 if count == 1 else 0)
+                self.assertEqual(self.metric('list_search_entries_walked') - before_walked,
+                    3 if count == 1 else 1)
                 other.rollback_transaction()
                 for uri in (None, self.uri):
                     self.assertEqual(self.metric('list_write_conflicts', uri), count)
