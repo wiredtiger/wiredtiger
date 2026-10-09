@@ -147,8 +147,7 @@ err:
 
 /*
  * __txn_insert_truncate_entry_helper --
- *     Register a truncate entry to the latest transaction and store it in the truncate list. This
- *     function will also opportunistically prune the truncate list so it does not grow infinitely.
+ *     Register a truncate entry to the latest transaction and store it in the truncate list.
  */
 static int
 __txn_insert_truncate_entry_helper(
@@ -157,7 +156,6 @@ __txn_insert_truncate_entry_helper(
     WT_DECL_RET;
     WT_TRUNCATE *entry = *tp;
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
-    wt_timestamp_t prune_timestamp = 0;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, entry));
@@ -166,9 +164,6 @@ __txn_insert_truncate_entry_helper(
     __log_truncate_entry(session, layered_table, entry);
 
     __wt_writelock(session, &truncate_list->lock);
-
-    prune_timestamp = __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
-    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);

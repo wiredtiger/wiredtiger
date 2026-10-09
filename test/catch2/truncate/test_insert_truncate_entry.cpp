@@ -459,36 +459,39 @@ SCENARIO("adding an entry releases the truncate lock", "[truncate_list][insert]"
     }
 }
 
-// GC correctness is covered exhaustively in test_layered_table_truncate_gc.cpp.
-// This test only verifies that insert wires up the GC call.
-SCENARIO("inserting an entry triggers garbage collection", "[truncate_list][insert]")
+SCENARIO(
+  "inserting an entry preserves entries eligible for garbage collection", "[truncate_list][insert]")
 {
     GIVEN("a truncate list with one entry eligible for garbage collection")
     {
         follower_connection connection;
         CHECK(insert_gc_eligible_entry(connection) == 0);
 
-        const auto expected_size = truncate_list_size(connection.layered_table());
+        const auto expected_size = truncate_list_size(connection.layered_table()) + 1u;
+        const auto *const expected_head = truncate_list_head(connection.layered_table());
 
         WHEN("a new entry is inserted")
         {
-            auto expected_start_key = make_item("should_survive001");
-            auto expected_stop_key = make_item("should_survive002");
+            auto expected_start_key = make_item("new001");
+            auto expected_stop_key = make_item("new002");
             CHECK(__wt_insert_truncate_entry(&connection.session(), &connection.layered_table(),
                     &expected_start_key, &expected_stop_key) == 0);
 
-            THEN("the eligible entry is garbage collected")
+            THEN("both entries remain on the truncate list")
             {
                 REQUIRE(truncate_list_size(connection.layered_table()) == expected_size);
             }
 
-            THEN("the surviving entry is the newly inserted one")
+            THEN("the existing entry precedes the newly inserted entry")
             {
                 const auto *const head = truncate_list_head(connection.layered_table());
                 REQUIRE(head != nullptr);
+                REQUIRE(head == expected_head);
 
-                REQUIRE(as_view(head->start_key) == as_view(expected_start_key));
-                REQUIRE(as_view(head->stop_key) == as_view(expected_stop_key));
+                const auto *const entry = TAILQ_NEXT(head, q);
+                REQUIRE(entry != nullptr);
+                REQUIRE(as_view(entry->start_key) == as_view(expected_start_key));
+                REQUIRE(as_view(entry->stop_key) == as_view(expected_stop_key));
             }
         }
     }
