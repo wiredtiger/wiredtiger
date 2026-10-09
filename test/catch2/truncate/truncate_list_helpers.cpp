@@ -71,7 +71,6 @@ truncate_list_fixture::truncate_list_fixture()
     : _mock(mock_session::build_test_mock_session()), _session(_mock->get_wt_session_impl())
 {
     _table.iface.name = "layered:truncate_list_fixture";
-    _table.truncate_list.dhandle = &_table.iface;
     TAILQ_INIT(&_table.truncate_list.qh);
     const auto init_lock = [&]() -> int {
         WT_RWLOCK_INIT_TRACKED(_session, &_table.truncate_list.lock, truncate_list);

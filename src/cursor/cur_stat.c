@@ -425,10 +425,6 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 
     __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
 
-    __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
-    if (F_ISSET(cst, WT_STAT_CLEAR))
-        __wt_stat_dsrc_clear_all(dhandle->stats);
-
     /* Do the ingest table. */
     WT_ERR(__wt_session_get_dhandle(session, layered->ingest_uri, NULL, NULL, 0));
     WT_ERR(__init_layered_constituent_stats(session, cst));

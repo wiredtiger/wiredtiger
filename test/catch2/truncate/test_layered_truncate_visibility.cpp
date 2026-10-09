@@ -43,7 +43,6 @@ public:
 
         layered_table.iface.name = "layered:test_layered_truncate_visibility";
         TAILQ_INIT(&layered_table.truncate_list.qh);
-        layered_table.truncate_list.dhandle = &layered_table.iface;
         REQUIRE(__wt_rwlock_init(session, &layered_table.truncate_list.lock) == 0);
     }
 

@@ -201,7 +201,6 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         WT_RET(__wt_calloc_one(session, &layered));
         dhandle = (WT_DATA_HANDLE *)layered;
         WT_TRUNCATE_LIST *truncate_list = &layered->truncate_list;
-        truncate_list->dhandle = dhandle;
         TAILQ_INIT(&truncate_list->qh);
         WT_RWLOCK_INIT_TRACKED(session, &truncate_list->lock, truncate_list);
         truncate_list->lock.stat_session_usecs_off = -1;
@@ -698,8 +697,6 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_btree_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
-        if (dhandle->stat_array == NULL)
-            WT_ERR(__wt_stat_dsrc_init(session, dhandle));
         WT_ERR(__wt_schema_open_layered(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:

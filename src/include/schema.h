@@ -93,8 +93,7 @@ struct __wt_truncate {
  *	Fast-truncate range list for a layered table.
  */
 struct __wt_truncate_list {
-    WT_DATA_HANDLE *dhandle; /* Owning layered handle */
-    uint64_t entries;        /* Current entry count */
+    uint64_t entries; /* Current entry count */
     /*
      * Queue head for fast truncate logic.
      *
@@ -105,14 +104,6 @@ struct __wt_truncate_list {
     /* Read/write lock. Any modification to the list must be done under a write lock. */
     WT_RWLOCK lock;
 };
-
-#define WT_STAT_LAYERED_INCRV(session, dhandle, fld, value)             \
-    do {                                                                \
-        WT_STAT_CONN_INCRV(session, fld, value);                        \
-        if ((dhandle) != NULL && (dhandle)->stat_array != NULL)         \
-            WT_STATP_DSRC_INCRV(session, (dhandle)->stats, fld, value); \
-    } while (0)
-#define WT_STAT_LAYERED_INCR(session, dhandle, fld) WT_STAT_LAYERED_INCRV(session, dhandle, fld, 1)
 
 /*
  * WT_LAYERED_TABLE --
