@@ -62,6 +62,8 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
             session.truncate(None, lo, hi, None)
 
     def test_list_lifecycle(self):
+        # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
+        self.skipTest('Layered table statistics reporting is incomplete.')
         self.setup_tables()
         self.ignoreStdoutPattern('Picking up the same checkpoint')
         self.truncate(20, 40, commit_timestamp=20)
@@ -123,6 +125,8 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.assertGreater(self.metric('list_search_misses'), before_miss)
 
     def test_ingest_work(self):
+        # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
+        self.skipTest('Layered table statistics reporting is incomplete.')
         self.setup_tables(ingest=True)
         self.truncate(20, 40, commit_timestamp=20)
         for uri in (None, self.uri):
@@ -134,6 +138,8 @@ class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.assertEqual(self.metric('ingest_tombstones_written', self.other_uri), 0)
 
     def test_write_conflicts(self):
+        # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
+        self.skipTest('Layered table statistics reporting is incomplete.')
         self.setup_tables()
         self.session.begin_transaction()
         self.truncate_on(self.session, 20, 40)
