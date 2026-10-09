@@ -95,10 +95,10 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         return (
             self.get_stat(stat.conn.cursor_tree_walk_ondisk_del_internal_page_skip, conn=conn),
             self.get_stat(
-                stat.conn.cursor_tree_walk_resident_del_internal_page_skip, conn=conn),
+                stat.conn.cursor_tree_walk_inmem_del_internal_page_skip, conn=conn),
         )
 
-    def test_leader_keeps_resident_deleted_stable_subtree_after_checkpoint(self):
+    def test_leader_keeps_inmem_deleted_stable_subtree_after_checkpoint(self):
         self.populate()
         self.evict_leaves()
 
@@ -108,13 +108,13 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         expected = list(range(1, 100)) + list(range(901, self.nrows + 1))
         self.assertEqual(self.scan_keys(self.session, 25), expected)
 
-        # The leader's stable table is writable, so a resident internal page is not skipped.
+        # The leader's stable table is writable, so an in-memory internal page is not skipped.
         self.leader_checkpoint(20)
-        _, resident_before = self.skip_stats(self.conn)
+        _, inmem_before = self.skip_stats(self.conn)
         self.assertEqual(self.scan_keys(self.session, 25), expected)
-        _, resident_after = self.skip_stats(self.conn)
-        self.assertEqual(resident_after, resident_before,
-            'leader skipped a resident deleted internal subtree in stable')
+        _, inmem_after = self.skip_stats(self.conn)
+        self.assertEqual(inmem_after, inmem_before,
+            'leader skipped an in-memory deleted internal subtree in stable')
 
     def test_follower_truncate_positions_across_deleted_stable_subtree(self):
         self.populate()
@@ -130,22 +130,22 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             self.assertEqual(
                 self.scan_keys(session_follow, 10), list(range(1, self.nrows + 1)))
 
-            resident_before = self.skip_stats(conn_follow)[1]
+            inmem_before = self.skip_stats(conn_follow)[1]
             self.assertEqual(
                 self.scan_keys(session_follow, 25), list(range(801, self.nrows + 1)))
-            resident_after = self.skip_stats(conn_follow)[1]
-            self.assertGreater(resident_after, resident_before,
-                'follower did not skip a deleted resident stable subtree')
+            inmem_after = self.skip_stats(conn_follow)[1]
+            self.assertGreater(inmem_after, inmem_before,
+                'follower did not skip a deleted in-memory stable subtree')
 
-            disk_before, resident_before = self.skip_stats(conn_follow)
+            disk_before, inmem_before = self.skip_stats(conn_follow)
             fast_before = self.get_stat(stat.conn.rec_page_delete_fast, conn=conn_follow)
 
             self.truncate_on(session_follow, 1, 950, 30)
 
-            disk_after, resident_after = self.skip_stats(conn_follow)
+            disk_after, inmem_after = self.skip_stats(conn_follow)
             fast_after = self.get_stat(stat.conn.rec_page_delete_fast, conn=conn_follow)
             self.assertGreater(
-                disk_after + resident_after, disk_before + resident_before,
+                disk_after + inmem_after, disk_before + inmem_before,
                 'follower boundary positioning did not skip a deleted stable subtree')
             self.assertEqual(fast_after, fast_before,
                 'follower truncate unexpectedly fast-deleted a stable page')

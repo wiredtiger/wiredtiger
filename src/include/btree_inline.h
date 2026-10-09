@@ -2959,7 +2959,7 @@ __wt_btcur_bounds_early_exit(
 
 /*
  * __wt_btcur_skip_clean_internal_page --
- *     Return whether a clean resident internal page can be skipped.
+ *     Return whether a clean in-memory internal page can be skipped.
  */
 static WT_INLINE bool
 __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -2996,12 +2996,11 @@ __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
  *     Count a skipped deleted page as internal or leaf.
  */
 static WT_INLINE void
-__wt_btcur_skip_page_inc(
-  WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, bool resident_internal)
+__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, bool inmem_internal)
 {
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        if (resident_internal)
-            walk_skip_stats->total_resident_del_internal_pages_skipped++;
+        if (inmem_internal)
+            walk_skip_stats->total_inmem_del_internal_pages_skipped++;
         else
             walk_skip_stats->total_ondisk_del_internal_pages_skipped++;
     } else
@@ -3061,7 +3060,7 @@ __wt_btcur_skip_page(
     if (yield_count != 0)
         ++walk_skip_stats->total_skip_lock_contended;
 
-    /* Check a clean resident internal page separately from the on-disk and leaf-page paths. */
+    /* Check a clean in-memory internal page separately from the on-disk and leaf-page paths. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
         if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page) &&
           __wt_btcur_skip_clean_internal_page(session, ref)) {

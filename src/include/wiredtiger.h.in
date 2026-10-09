@@ -7638,10 +7638,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! connection: total write I/Os */
 #define	WT_STAT_CONN_WRITE_IO				1500
 /*!
- * cursor: Total number of clean resident deleted internal pages skipped
+ * cursor: Total number of clean in-memory deleted internal pages skipped
  * during tree walk
  */
-#define	WT_STAT_CONN_CURSOR_TREE_WALK_RESIDENT_DEL_INTERNAL_PAGE_SKIP	1501
+#define	WT_STAT_CONN_CURSOR_TREE_WALK_INMEM_DEL_INTERNAL_PAGE_SKIP	1501
 /*! cursor: Total number of deleted leaf pages skipped during tree walk */
 #define	WT_STAT_CONN_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	1502
 /*! cursor: Total number of entries skipped by cursor next calls */
@@ -9999,10 +9999,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2247
 /*!
- * cursor: Total number of clean resident deleted internal pages skipped
+ * cursor: Total number of clean in-memory deleted internal pages skipped
  * during tree walk
  */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_RESIDENT_DEL_INTERNAL_PAGE_SKIP	2248
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_INMEM_DEL_INTERNAL_PAGE_SKIP	2248
 /*! cursor: Total number of deleted leaf pages skipped during tree walk */
 #define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	2249
 /*! cursor: Total number of entries skipped by cursor next calls */

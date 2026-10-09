@@ -184,8 +184,8 @@ class test_disagg_fast_truncate03(test_cc_base):
             "internal_read": self.read_stat(stat.dsrc.cache_read_internal),
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip),
-            "resident_internal_skip": self.read_stat(
-                stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip
+            "inmem_internal_skip": self.read_stat(
+                stat.dsrc.cursor_tree_walk_inmem_del_internal_page_skip
             ),
             "not_visible_all": self.read_stat(
                 stat.dsrc.checkpoint_cleanup_pages_deleted_not_visible_all
@@ -302,16 +302,16 @@ class test_disagg_fast_truncate03(test_cc_base):
         self.session.checkpoint()
 
         # Step 4 -- the page is clean, so the walk can use its reconciliation aggregate to skip it
-        # while it is still resident rather than waiting for eviction.
+        # while it is still in memory rather than waiting for eviction.
         self.retry_for_stat_increase(
             lambda: self.assertEqual(self.scan_table(), surviving),
             stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip,
-            before["internal_skip"] + before["resident_internal_skip"],
+            before["internal_skip"] + before["inmem_internal_skip"],
             "step 4: the clean emptied internal page was not skipped",
-            additional_stat_key=stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip,
+            additional_stat_key=stat.dsrc.cursor_tree_walk_inmem_del_internal_page_skip,
         )
 
-        # Step 5 -- whether the page remains resident or is later evicted, a subsequent walk skips
+        # Step 5 -- whether the page remains in memory or is later evicted, a subsequent walk skips
         # the subtree without reading or re-dirtying it.
         with (
             wttest.open_cursor(self.session, self.uri) as cursor,
@@ -329,7 +329,7 @@ class test_disagg_fast_truncate03(test_cc_base):
             after = self.snapshot_stats()
             skipped_internal = (
                 after["internal_skip"] - before["internal_skip"]
-                + after["resident_internal_skip"] - before["resident_internal_skip"]
+                + after["inmem_internal_skip"] - before["inmem_internal_skip"]
             )
             if (after["internal_read"] == before["internal_read"] and
                 after["evict_blocked"] == before["evict_blocked"]):
@@ -427,7 +427,7 @@ class test_disagg_fast_truncate03(test_cc_base):
             after["evict_blocked"], before["evict_blocked"],
             "exit: the loop should stop once checkpoint cleanup reclaims the subtree",
         )
-        # An emptied internal page can stay resident after reclamation and be skipped, so the
+        # An emptied internal page can stay in memory after reclamation and be skipped, so the
         # skip counters are not compared; what must hold is that nothing is read or re-dirtied.
         self.assertEqual(
             after["internal_read"], before["internal_read"],
