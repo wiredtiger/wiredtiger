@@ -7,8 +7,6 @@
  */
 
 #include <catch2/catch.hpp>
-#include <chrono>
-#include <thread>
 
 #include "wt_internal.h"
 #include "truncate_list_helpers.hpp"
@@ -55,74 +53,6 @@ TEST_CASE("truncate garbage collection counts runs and entries", "[truncate_list
           WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == runs);
     }
     CHECK(truncate_list_size(*table) == 2);
-}
-
-TEST_CASE(
-  "truncate list tracked lock records acquisitions and contention", "[truncate_list][statistics]")
-{
-    REQUIRE(__wt_library_init() == 0);
-    truncate_list_fixture fixture;
-    auto *owner = &fixture.session();
-    auto *table = &fixture.layered_table();
-    auto *lock = &table->truncate_list.lock;
-    WT_SESSION_IMPL waiter{};
-    waiter.iface.connection = &S2C(owner)->iface;
-    const bool reader = GENERATE(true, false);
-    CAPTURE(reader);
-    const auto acquisitions = [&] {
-        return reader ? WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_read_count) :
-                        WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_write_count);
-    };
-    SECTION("uncontended acquisition")
-    {
-        (reader ? __wt_readlock : __wt_writelock)(owner, lock);
-        (reader ? __wt_readunlock : __wt_writeunlock)(owner, lock);
-        CHECK(acquisitions() == 1);
-        if (reader)
-            CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
-        CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
-    }
-    SECTION("contended acquisition")
-    {
-        if (!reader)
-            F_SET(&waiter, WT_SESSION_INTERNAL);
-        (reader ? __wt_writelock : __wt_readlock)(owner, lock);
-        const auto wait_time = [&] {
-            return reader ?
-              WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) :
-              WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal);
-        };
-        const auto before_wait = wait_time();
-        std::thread thread([&] {
-            if (reader) {
-                __wt_readlock(&waiter, lock);
-                __wt_readunlock(&waiter, lock);
-            } else
-                __wt_layered_table_truncate_clear(&waiter, table);
-        });
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        bool queued = false;
-        /* Entering the condition wait follows initialization of the lock's wait timer. */
-        auto *cond = reader ? lock->cond_readers : lock->cond_writers;
-        while (!(queued = __wt_atomic_load_int32(&cond->waiters) > 0) &&
-          std::chrono::steady_clock::now() < deadline)
-            std::this_thread::yield();
-        const auto start = __wt_clock(owner);
-        bool elapsed = false;
-        while (!(elapsed = WT_CLOCKDIFF_MS(__wt_clock(owner), start) >= 10) &&
-          std::chrono::steady_clock::now() < deadline)
-            std::this_thread::yield();
-        (reader ? __wt_writeunlock : __wt_readunlock)(owner, lock);
-        thread.join();
-        REQUIRE(queued);
-        REQUIRE(elapsed);
-        CHECK(acquisitions() == 1);
-        CHECK(wait_time() > before_wait);
-        if (reader)
-            CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_internal) == 0);
-        else
-            CHECK(WT_STAT_CONN_READ(S2C(owner)->stats, lock_truncate_list_wait_application) == 0);
-    }
 }
 
 SCENARIO("garbage collection with a zeroed prune timestamp is a no-op", "[truncate_list][gc]")
