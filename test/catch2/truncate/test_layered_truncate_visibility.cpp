@@ -121,7 +121,6 @@ public:
         REQUIRE(__wt_buf_set(session, &entry->stop_key, stop, strlen(stop)) == 0);
 
         TAILQ_INSERT_TAIL(&layered_table.truncate_list.qh, entry, q);
-        ++layered_table.truncate_list.entries;
         return entry;
     }
 

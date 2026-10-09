@@ -93,7 +93,6 @@ struct __wt_truncate {
  *	Fast-truncate range list for a layered table.
  */
 struct __wt_truncate_list {
-    uint64_t entries; /* Current entry count */
     /*
      * Queue head for fast truncate logic.
      *
