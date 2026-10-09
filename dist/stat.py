@@ -64,9 +64,6 @@ def remove_suffix_digits(str):
 OTEL_TYPES = ('otel_counters', 'otel_gauges', 'otel_histograms', 'otel_none')
 
 def check_otel_type(stat):
-    if len(stat.otel_type.split(',')) > 1:
-        raise Exception(f"ERROR: {stat.name} has more than one OTel type: {stat.otel_type}")
-
     if stat.otel_type not in OTEL_TYPES:
         raise Exception(f"ERROR: {stat.name} has invalid OTel type '{stat.otel_type}', " \
                 f"expected one of {', '.join(OTEL_TYPES)}")
