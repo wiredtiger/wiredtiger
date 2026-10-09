@@ -2971,9 +2971,10 @@ __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * Only a checkpoint cursor tree or a stable checkpoint handle is immutable. On a writable tree
      * a child can change without dirtying its parent, which leaves the parent's aggregate stale.
      */
-    if (!WT_READING_CHECKPOINT(session) &&
-      (!F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) ||
-        !WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name)))
+    if (!F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY))
+        return (false);
+
+    if (!WT_READING_CHECKPOINT(session) && !WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name))
         return (false);
 
     /*
