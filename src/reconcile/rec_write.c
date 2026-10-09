@@ -2695,11 +2695,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (r->supd_next != 0) {
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
 
-        /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
             WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
-            __rec_set_updates_durable(session, multi);
+            /* No updates were written for the empty chunk, so do not mark them durable. */
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
             __wt_free(session, multi->supd);
