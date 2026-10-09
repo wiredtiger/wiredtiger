@@ -35,11 +35,11 @@ from wtscenario import make_scenarios
 
 
 @disagg_test_class
-class test_layered_fast_truncate23(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
+class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),disaggregated=(role="leader")'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
-        ('layered', dict(uri='layered:test_layered_fast_truncate23')),
-        ('table', dict(uri='table:test_layered_fast_truncate23')),
+        ('layered', dict(uri='layered:test_layered_fast_truncate24')),
+        ('table', dict(uri='table:test_layered_fast_truncate24')),
     ])
 
     def setup_tables(self, ingest=False):
