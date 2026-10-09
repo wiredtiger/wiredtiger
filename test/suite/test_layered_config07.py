@@ -55,7 +55,6 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         page_log = self.conn.get_page_log('palite')
 
         ckpt_complete_args = wiredtiger.PageLogCompleteCheckpointArgs()
-        ckpt_complete_args.checkpoint_id = 1
         ckpt_complete_args.checkpoint_timestamp = 0
         ckpt_complete_args.checkpoint_metadata = 'Checkpoint'
         ckpt_complete_args.lsn = 0
@@ -64,7 +63,7 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ckpt1_lsn = ckpt_complete_args.lsn
 
         # The checkpoint just written is the only one, so it is also the most recent.
-        (lsn, _, ts, meta) = page_log.pl_get_complete_checkpoint(session)
+        (lsn, ts, meta) = page_log.pl_get_complete_checkpoint(session)
         self.assertEqual((lsn, ts, meta), (ckpt1_lsn, 0, 'Checkpoint'))
 
         handle = page_log.pl_open_handle(session, 1)
@@ -83,32 +82,32 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         put_args_delta = wiredtiger.PageLogPutArgs()
         put_args_delta.flags = flags_delta
 
-        handle.plh_put(session, 20, 2, put_args_main, page20_full)
+        handle.plh_put(session, 20, put_args_main, page20_full)
         page20_full_lsn = put_args_main.lsn
         put_args_delta.base_lsn = page20_full_lsn
         put_args_delta.backlink_lsn = page20_full_lsn
-        handle.plh_put(session, 20, 2, put_args_delta, page20_delta1)
+        handle.plh_put(session, 20, put_args_delta, page20_delta1)
         page20_delta1_lsn = put_args_delta.lsn
 
         put_args_main.backlink_lsn = 0
         put_args_main.base_lsn = 0
-        handle.plh_put(session, 21, 2, put_args_main, page21_full)
+        handle.plh_put(session, 21, put_args_main, page21_full)
         page21_full_lsn = put_args_main.lsn
         put_args_delta.base_lsn = page21_full_lsn
         put_args_delta.backlink_lsn = page21_full_lsn
-        handle.plh_put(session, 21, 2, put_args_delta, page21_delta1)
+        handle.plh_put(session, 21, put_args_delta, page21_delta1)
         page21_delta1_lsn = put_args_delta.lsn
 
         put_args_delta.base_lsn = page20_full_lsn
         put_args_delta.backlink_lsn = page20_delta1_lsn
-        handle.plh_put(session, 20, 2, put_args_delta, page20_delta2)
+        handle.plh_put(session, 20, put_args_delta, page20_delta2)
 
         get_args = wiredtiger.PageLogGetArgs()
         get_args.lsn = put_args_delta.lsn
-        page20_results = handle.plh_get(session, 20, 2, get_args)
+        page20_results = handle.plh_get(session, 20, get_args)
 
         get_args.lsn = page21_delta1_lsn
-        page21_results = handle.plh_get(session, 21, 2, get_args)
+        page21_results = handle.plh_get(session, 21, get_args)
 
         self.assertEqual(page20_results, [page20_full, page20_delta1, page20_delta2])
         self.assertEqual(page21_results, [page21_full, page21_delta1])
@@ -117,7 +116,7 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         discard_args.flags = 0
         discard_args.base_lsn = page20_full_lsn
         discard_args.backlink_lsn = put_args_delta.lsn
-        handle.plh_discard(session, 20, 2, discard_args)
+        handle.plh_discard(session, 20, discard_args)
 
         self.assertGreater(discard_args.lsn, put_args_delta.lsn)
 
@@ -131,7 +130,6 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(sorted(handle.plh_get_page_ids(session, discard_args.lsn)), [21])
 
         # A second checkpoint, so the selector below has more than one to choose between.
-        ckpt_complete_args.checkpoint_id = 2
         ckpt_complete_args.checkpoint_timestamp = 5
         ckpt_complete_args.checkpoint_metadata = 'Checkpoint2'
         ckpt_complete_args.lsn = 0
@@ -141,12 +139,12 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # No selector and an explicit zero both ask for the most recent checkpoint.
         for selector in ((), (0,)):
-            (lsn, _, ts, meta) = page_log.pl_get_complete_checkpoint(session, *selector)
+            (lsn, ts, meta) = page_log.pl_get_complete_checkpoint(session, *selector)
             self.assertEqual((lsn, ts, meta), (ckpt2_lsn, 5, 'Checkpoint2'))
 
         # A selector naming a checkpoint returns that one; a selector between two checkpoints
         # returns the next one above it; one above the newest finds nothing.
-        self.assertEqual(page_log.pl_get_complete_checkpoint(session, ckpt1_lsn)[3], 'Checkpoint')
+        self.assertEqual(page_log.pl_get_complete_checkpoint(session, ckpt1_lsn)[2], 'Checkpoint')
         self.assertEqual(page_log.pl_get_complete_checkpoint(session, ckpt1_lsn + 1)[0], ckpt2_lsn)
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: page_log.pl_get_complete_checkpoint(session, ckpt2_lsn + 1), '/WT_NOTFOUND/')
@@ -155,7 +153,7 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # written after it goes, the checkpoint itself and the pages below it stay.
         put_args_main.backlink_lsn = 0
         put_args_main.base_lsn = 0
-        handle.plh_put(session, 22, 2, put_args_main, encode_bytes('Hello22'))
+        handle.plh_put(session, 22, put_args_main, encode_bytes('Hello22'))
         page22_lsn = put_args_main.lsn
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page22_lsn)), [21, 22])
 

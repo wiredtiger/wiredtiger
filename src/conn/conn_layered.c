@@ -2781,7 +2781,6 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
             WT_DISAGG_CHECKPOINT_META_VERSION, compatible_version),
           "Failed to format checkpoint metadata");
 
-        complete_args.checkpoint_id = 0;
         complete_args.checkpoint_timestamp = checkpoint_timestamp;
         complete_args.checkpoint_metadata = meta;
         complete_args.checkpoint_oldest_timestamp =

@@ -406,8 +406,6 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_LOG_PUT_ARGS args = {
       .backlink_lsn = block_meta->backlink_lsn,
       .base_lsn = block_meta->base_lsn,
-      .backlink_checkpoint_id = 0,
-      .base_checkpoint_id = 0,
       .delta_count = block_meta->delta_count,
       .image_size = disk_image->mem_size,
       .flags = compressed ? WT_PAGE_LOG_COMPRESSED : 0,
@@ -415,8 +413,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     };
 
     /* Caching here is best effort, don't bubble up the error if it fails. */
-    if ((ret = plh->plh_cache_put(
-           plh, &session->iface, block_meta->page_id, 0, &args, cache_buf)) != 0)
+    if ((ret = plh->plh_cache_put(plh, &session->iface, block_meta->page_id, &args, cache_buf)) !=
+      0)
         __wt_err(session, ret, "victim cache: failed to cache page");
     bool cached = ret == 0;
 

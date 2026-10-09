@@ -70,7 +70,7 @@ class test_layered_checkpoint04(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Ensure that the checkpoint has the correct timestamp.
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(checkpoint_timestamp, 10)
 
         # Advance the checkpoint on the follower.
@@ -84,7 +84,7 @@ class test_layered_checkpoint04(wttest.WiredTigerTestCase):
         # created a checkpoint.
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(20)}")
         self.session.checkpoint()
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(checkpoint_timestamp, 20)
 
         # Advance the checkpoint on the follower.
@@ -104,7 +104,7 @@ class test_layered_checkpoint04(wttest.WiredTigerTestCase):
 
         self.conn_follow.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
         self.session_follow.checkpoint()
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(checkpoint_timestamp, 20)
         self.assertTimestampsEqual(self.conn_follow.query_timestamp('get=last_checkpoint'),
                                    self.timestamp_str(checkpoint_timestamp))
