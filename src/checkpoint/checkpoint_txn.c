@@ -656,6 +656,8 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
 
     conn = S2C(session);
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
     time_diff = __checkpoint_running_time(session);
 
     if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
@@ -679,6 +681,8 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     uint64_t time_diff;
 
     conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     time_diff = __checkpoint_running_time(session);
 
@@ -709,6 +713,8 @@ __checkpoint_scrub_progress(
     struct timespec now;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
     __wt_epoch(session, &now);
     uint64_t time_diff = WT_TIMEDIFF_SEC(now, conn->ckpt.scrub.timer_start);
 
@@ -732,6 +738,9 @@ __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
+
+    /* Progress data is only updated by the session holding the checkpoint lock. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     conn->ckpt.progress.write_bytes += write_bytes;
     ++conn->ckpt.progress.write_pages;
@@ -3351,6 +3360,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
     txn = session->txn;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     /* Add a two seconds wait to simulate checkpoint slowness for every handle. */
     tsp.tv_sec = 2;
