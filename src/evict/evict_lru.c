@@ -1842,8 +1842,15 @@ __evict_get_ref(
              * Racy but safe: a page enqueued concurrently is simply missed on this pass, which is
              * already true of the unlocked TAILQ_EMPTY hint on the hash chains below.
              */
-            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
+            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0) {
+#if LRU_FOR_READS
+				/*
+				 * Advance the LRU clock hand to the next bucket if this bucket is empty.
+				 */
+				__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j+1);
+#endif
                 continue;
+			}
 
             /*
              * Every bucket holds one queue per tree, in a hashtable. Walk each hash chain under
@@ -2052,20 +2059,17 @@ __evict_get_ref(
 
                         if (ref != NULL) {
 #if LRU_FOR_READS
-                            /*
-                             * Advance the clock hand to the bucket the victim came from, so the
-                             * next search resumes here instead of re-walking the buckets this one
-                             * stepped over. Nothing else writes this field, so without it the hand
-                             * would sit at zero and every search would start at the bottom of the
-                             * range.
-                             *
-                             * A relaxed store is enough. The hand is a hint, and searches racing
-                             * to publish slightly different positions only start each other a few
-                             * buckets early or late. Note the hand does not move while a bucket
-                             * still has evictable pages -- the scan keeps finding them at the same
-                             * index -- so a bucket drains before the sweep moves on, which is the
-                             * behaviour wanted.
-                             */
+							/*
+							 * If we found something in this bucket, reset the LRU clock hand here
+							 * if the bucket has more items in it than the one we are about to
+							 * remove. The next thread should try and evict from this bucket.
+							 * This prevents us from advancing the LRU hand too rapidly. If another
+							 * thread had set the LRU hand to a lower bucket, leave it there. We
+							 * don't want to skip older buckets that have pages to evict.
+							 */
+							if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) > 1 &&
+								j < __wt_atomic_load_uint64_v_relaxed(&bucketset->bucket_last_considered))
+								__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
                             __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
                             goto done;
