@@ -114,7 +114,7 @@ class test_disagg_empty_page_durable(wttest.WiredTigerTestCase):
         self.conn.reconfigure('timing_stress_for_test=[]')
 
     def pickup(self):
-        self.disagg_advance_checkpoint(self.conn)
+        self.disagg_advance_checkpoint_and_wait(self.conn)
 
     def victim_visible(self):
         c = self.session.open_cursor(self.uri)
