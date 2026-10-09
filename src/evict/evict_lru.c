@@ -2129,9 +2129,12 @@ __evict_get_ref(
 							 * If we found something in this bucket, reset the LRU clock hand here
 							 * if the bucket has more items in it than the one we are about to
 							 * remove. The next thread should try and evict from this bucket.
-							 * This prevents us from advancing the LRU hand too rapidly.
+							 * This prevents us from advancing the LRU hand too rapidly. If another
+							 * thread had set the LRU hand to a lower bucket, leave it there. We
+							 * don't want to skip older buckets that have pages to evict.
 							 */
-							if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) > 1)
+							if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) > 1 &&
+								j < __wt_atomic_load_uint64_v_relaxed(&bucketset->bucket_last_considered))
 								__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
                             goto done;
