@@ -682,7 +682,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_DECL_RET;
     WT_EVICT *evict;
     double dirty_target, dirty_trigger, target, trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, total_dirty, total_inmem,
       total_updates;
     uint32_t flags, hs_id;
 
@@ -774,7 +774,6 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         LF_SET(WT_EVICT_CACHE_DIRTY);
     }
 
-    bytes_updates = __wt_cache_bytes_updates(cache);
     if (__wti_evict_exceeded_updates_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_UPDATES | WT_EVICT_CACHE_UPDATES_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_updates_reached);
@@ -2068,7 +2067,7 @@ __evict_get_ref(
 							 * don't want to skip older buckets that have pages to evict.
 							 */
 							if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) > 1 &&
-								j < __wt_atomic_load_uint64_v_relaxed(&bucketset->bucket_last_considered))
+								j < __wt_atomic_load_uint32_v_relaxed(&bucketset->bucket_last_considered))
 								__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
                             __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
