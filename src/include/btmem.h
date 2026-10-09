@@ -408,6 +408,8 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
+    uint64_t rec_write_gen; /* Disaggregated backing block generation; zero uses the page image. */
+
     /*
      * Track the pinned stable timestamp used for the most recent reconciliation. It's useful to
      * avoid duplicating work when precise checkpoints are enabled, so we don't re-reconcile pages

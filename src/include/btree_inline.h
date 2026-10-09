@@ -1179,6 +1179,20 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_page_write_gen --
+ *     Return the backing block's write generation.
+ */
+static WT_INLINE uint64_t
+__wt_page_write_gen(WT_PAGE *page)
+{
+    /* Reconciliation can advance the backing block without replacing the page's original image. */
+    if (page->modify != NULL && page->modify->rec_write_gen != 0)
+        return (page->modify->rec_write_gen);
+
+    return (page->dsk == NULL ? 0 : page->dsk->write_gen);
+}
+
+/*
  * __wt_page_modify_clear --
  *     Clean a modified page.
  */
