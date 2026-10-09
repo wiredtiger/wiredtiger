@@ -156,6 +156,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* Can't do history store eviction for history store itself or for metadata. */
     WT_ASSERT(session,
       !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_ANY_METADATA(btree->dhandle)));
+
+    /* Eviction stays disabled on a btree awaiting publication, and checkpoint skips it. */
+    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH),
+      "Reconciling a btree that is awaiting publication");
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
@@ -1141,9 +1145,9 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
             (checkpoint && addr == NULL && addr_sizep == NULL),
           "Incorrect arguments passed to rec_write for a checkpoint call");
 
-        /* In-memory btrees, and btrees awaiting publication, shouldn't write pages. */
-        WT_ASSERT_ALWAYS(session, !__wt_btree_stays_in_memory(btree),
-          "Attempted to write page to disk when the btree must be kept in memory");
+        /* In-memory btrees shouldn't write pages. */
+        WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY),
+          "Attempted to write page to disk for an in-memory btree");
 
         /*
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
@@ -1424,7 +1428,7 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * checkpoint, before writing the checkpoint. In short, we don't do checkpoint writes here;
      * clear the boundary information as a reminder and create the checkpoint during wrapup.
      */
-    return (!__wt_btree_stays_in_memory(btree) && __wt_ref_is_root(r->ref));
+    return (!F_ISSET(btree, WT_BTREE_IN_MEMORY) && __wt_ref_is_root(r->ref));
 }
 
 /*
