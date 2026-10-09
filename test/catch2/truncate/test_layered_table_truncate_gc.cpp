@@ -24,37 +24,6 @@ insert_durable_entry(truncate_list_fixture &fixture, const wt_timestamp_t durabl
 
 } // namespace
 
-TEST_CASE("truncate garbage collection counts runs and entries", "[truncate_list][gc]")
-{
-    truncate_list_fixture fixture;
-    auto *session = &fixture.session();
-    auto *table = &fixture.layered_table();
-    fixture.add_entry(make_item("a"), make_item("b"));
-    insert_durable_entry(fixture, WT_TS_NONE);
-    insert_durable_entry(fixture, 20);
-    insert_durable_entry(fixture, 10);
-
-    for (const auto prune_ts :
-      {wt_timestamp_t(WT_TS_NONE), wt_timestamp_t(10), wt_timestamp_t(20)}) {
-        CAPTURE(prune_ts);
-        WT_WITH_DHANDLE(
-          session, &table->iface, __ut_layered_table_truncate_gc(session, table, prune_ts));
-        const auto runs = prune_ts / 10;
-        const auto examined = prune_ts == 0 ? 0 : (prune_ts == 10 ? 4 : 7);
-        CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_runs) == runs);
-        CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_runs) == runs);
-        CHECK(WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_examined) ==
-          examined);
-        CHECK(WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_examined) ==
-          examined);
-        CHECK(
-          WT_STAT_CONN_READ(S2C(session)->stats, layered_truncate_list_gc_entries_removed) == runs);
-        CHECK(
-          WT_STAT_DSRC_READ(table->iface.stats, layered_truncate_list_gc_entries_removed) == runs);
-    }
-    CHECK(truncate_list_size(*table) == 2);
-}
-
 SCENARIO("garbage collection with a zeroed prune timestamp is a no-op", "[truncate_list][gc]")
 {
     GIVEN("a truncate list with one durable entry")

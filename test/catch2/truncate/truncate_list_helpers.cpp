@@ -72,13 +72,7 @@ truncate_list_fixture::truncate_list_fixture()
 {
     _table.iface.name = "layered:truncate_list_fixture";
     TAILQ_INIT(&_table.truncate_list.qh);
-    const auto init_lock = [&]() -> int {
-        WT_RWLOCK_INIT_TRACKED(_session, &_table.truncate_list.lock, truncate_list);
-        return 0;
-    };
-    REQUIRE(init_lock() == 0);
-    _table.truncate_list.lock.stat_session_usecs_off = -1;
-    CHECK(__wt_stat_dsrc_init(_session, &_table.iface) == 0);
+    CHECK(__wt_rwlock_init(_session, &_table.truncate_list.lock) == 0);
     CHECK(truncate_list_size(_table) == 0);
 }
 
@@ -97,7 +91,6 @@ truncate_list_fixture::~truncate_list_fixture()
         WT_DHANDLE_RELEASE(&_table.iface);
 
     __wt_rwlock_destroy(_session, &_table.truncate_list.lock);
-    __wt_stat_dsrc_discard(_session, &_table.iface);
 }
 
 WT_TRUNCATE *

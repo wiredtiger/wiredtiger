@@ -292,7 +292,8 @@ err:
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
     else
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
-    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
+    if (walked != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
     return (ret);
 }
 
@@ -350,10 +351,11 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
   const WT_ITEM *stop_key)
 {
     WT_DECL_RET;
+
     __wt_readlock(session, &truncate_list->lock);
 
     WT_TRUNCATE *entry = NULL;
-    bool is_found = false, search_hit = false;
+    bool is_found = false;
     uint64_t walked = 0;
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
         ++walked;
@@ -377,7 +379,6 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
             break;
     }
 
-    search_hit = is_found;
     if (is_found) {
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_write_conflicts);
         WT_STAT_CONN_INCR(session, txn_update_conflict);
@@ -387,11 +388,12 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
 err:
-    if (search_hit)
+    if (is_found)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
     else
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
-    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
+    if (walked != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
     __wt_readunlock(session, &truncate_list->lock);
     return (ret);
 }

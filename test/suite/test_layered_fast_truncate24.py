@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from contextlib import closing
+import time
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
@@ -90,24 +91,63 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         for uri in (None, self.uri, self.other_uri):
             self.assertEqual(self.metric('list_clear_entries_removed', uri), 2 if uri is None else 1)
 
+    def test_garbage_collection(self):
+        self.setup_leader(keys=range(1, 101))
+        self.leader_checkpoint(10)
+        follower, session = self.open_follower(self.session_create_config())
+        with closing(follower):
+            with closing(session):
+                for start, stop, timestamp in ((20, 40, 20), (60, 70, 30)):
+                    session.begin_transaction()
+                    self.truncate_on(session, start, stop)
+                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(timestamp))
+
+                metrics = [stat.conn.layered_truncate_list_gc_runs,
+                    stat.conn.layered_truncate_list_gc_entries_examined,
+                    stat.conn.layered_truncate_list_gc_entries_removed]
+                before = [self.get_stat(metric, conn=follower) for metric in metrics]
+                self.assertEqual(before[2], 0)
+                self.truncate(20, 40, commit_timestamp=20)
+                self.leader_checkpoint(20)
+                self.disagg_advance_checkpoint_and_wait(follower)
+
+                deadline = time.time() + 60
+                while self.get_stat(metrics[2], conn=follower) == before[2]:
+                    self.assertLess(time.time(), deadline, 'truncate list garbage collection timed out')
+                    session.begin_transaction()
+                    try:
+                        self.truncate_on(session, 80, 80)
+                    finally:
+                        session.rollback_transaction()
+
+                after = [self.get_stat(metric, conn=follower) for metric in metrics]
+                self.assertGreater(after[0], before[0])
+                self.assertGreater(after[1], before[1])
+                self.assertEqual(after[2] - before[2], 1)
+
     def test_search_hits_and_misses(self):
         self.setup_tables()
         before_hits = self.metric('list_search_hits')
         before_misses = self.metric('list_search_misses')
+        before_walked = self.metric('list_search_entries_walked')
         self.assertTrue(self.key_exists(80))
         self.assertEqual(self.metric('list_search_hits'), before_hits)
         self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
+        self.assertEqual(self.metric('list_search_entries_walked'), before_walked)
         self.truncate(20, 40, commit_timestamp=20)
         before_hit = self.metric('list_search_hits')
         before_miss = self.metric('list_search_misses')
+        before_walked = self.metric('list_search_entries_walked')
         before_table_hit = self.metric('list_search_hits', self.uri)
         before_table_miss = self.metric('list_search_misses', self.uri)
         self.assertFalse(self.key_exists(25))
         self.assertEqual(self.metric('list_search_hits') - before_hit, 1)
         self.assertEqual(self.metric('list_search_misses') - before_miss, 0)
+        self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 1)
         self.assertTrue(self.key_exists(80))
         self.assertEqual(self.metric('list_search_hits') - before_hit, 1)
         self.assertEqual(self.metric('list_search_misses') - before_miss, 1)
+        self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 2)
         self.assertEqual(self.metric('list_search_hits', self.uri) - before_table_hit, 1)
         self.assertEqual(self.metric('list_search_hits', self.other_uri), 0)
         self.assertEqual(self.metric('list_search_misses', self.uri) - before_table_miss, 1)
@@ -123,6 +163,12 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
                     cursor.insert, '/WT_DUPLICATE_KEY/')
         self.assertEqual(self.metric('list_search_hits'), before_hit)
         self.assertGreater(self.metric('list_search_misses'), before_miss)
+
+        self.truncate(60, 70, commit_timestamp=30)
+        for key, exists, walked in ((25, False, 1), (65, False, 2), (80, True, 2)):
+            before_walked = self.metric('list_search_entries_walked')
+            self.assertEqual(self.key_exists(key), exists)
+            self.assertEqual(self.metric('list_search_entries_walked') - before_walked, walked)
 
     def test_ingest_work(self):
         # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
@@ -150,7 +196,13 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             for count, operation in enumerate(
                     (lambda: self.truncate_on(other, 30, 50), cursor.insert), 1):
                 other.begin_transaction()
+                before_hit = self.metric('list_search_hits')
+                before_miss = self.metric('list_search_misses')
+                before_walked = self.metric('list_search_entries_walked')
                 self.assertRaisesException(wiredtiger.WiredTigerError, operation, '/conflict/')
+                self.assertEqual(self.metric('list_search_hits') - before_hit, 1)
+                self.assertEqual(self.metric('list_search_misses'), before_miss)
+                self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 1)
                 other.rollback_transaction()
                 for uri in (None, self.uri):
                     self.assertEqual(self.metric('list_write_conflicts', uri), count)
