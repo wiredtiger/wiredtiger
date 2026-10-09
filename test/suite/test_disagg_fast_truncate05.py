@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_disagg_fast_truncate05(wttest.WiredTigerTestCase):
-    """Check that a clean resident internal page can be skipped safely."""
+    """Check that a writable tree does not skip a clean resident internal page."""
 
     uri = "table:test_disagg_fast_truncate05"
     nrows = 1000
@@ -73,7 +73,7 @@ class test_disagg_fast_truncate05(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor.search(), 0)
                 cursor.reset()
 
-    def test_skip_clean_resident_internal_page(self):
+    def test_writable_tree_keeps_clean_resident_internal_page(self):
         self.session.create(
             self.uri,
             "key_format=i,value_format=S,block_manager=disagg,log=(enabled=false),"
@@ -107,13 +107,13 @@ class test_disagg_fast_truncate05(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.assertEqual(self.read_stat(stat.dsrc.cache_eviction_internal), 0)
 
+        # A child of a writable tree can change without dirtying its internal parent, so the walk
+        # must descend into the parent rather than trust its aggregate.
         before = self.read_stat(stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip)
         self.assertEqual(len(self.scan(25)), surviving)
         after = self.read_stat(stat.dsrc.cursor_tree_walk_resident_del_internal_page_skip)
-        self.assertGreater(after, before, "clean resident internal page was not skipped")
+        self.assertEqual(after, before, "writable tree skipped a clean resident internal page")
 
-        # A new update makes one child resident and dirty without dirtying its internal parent. The
-        # next walk must descend into that parent rather than trust its old aggregate.
         insert_key = self.nrows // 2
         with (
             wttest.open_cursor(self.session, self.uri) as cursor,

@@ -98,7 +98,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
                 stat.conn.cursor_tree_walk_resident_del_internal_page_skip, conn=conn),
         )
 
-    def test_leader_skips_deleted_stable_subtree_after_checkpoint(self):
+    def test_leader_keeps_resident_deleted_stable_subtree_after_checkpoint(self):
         self.populate()
         self.evict_leaves()
 
@@ -108,12 +108,13 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         expected = list(range(1, 100)) + list(range(901, self.nrows + 1))
         self.assertEqual(self.scan_keys(self.session, 25), expected)
 
+        # The leader's stable table is writable, so a resident internal page is not skipped.
         self.leader_checkpoint(20)
-        disk_before, resident_before = self.skip_stats(self.conn)
+        _, resident_before = self.skip_stats(self.conn)
         self.assertEqual(self.scan_keys(self.session, 25), expected)
-        disk_after, resident_after = self.skip_stats(self.conn)
-        self.assertGreater(disk_after + resident_after, disk_before + resident_before,
-            'leader did not skip a deleted internal subtree in stable')
+        _, resident_after = self.skip_stats(self.conn)
+        self.assertEqual(resident_after, resident_before,
+            'leader skipped a resident deleted internal subtree in stable')
 
     def test_follower_truncate_positions_across_deleted_stable_subtree(self):
         self.populate()

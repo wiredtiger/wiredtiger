@@ -2965,72 +2965,30 @@ static WT_INLINE bool
 __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
-    WT_REF *child;
-    WT_REF_STATE child_state;
     WT_TIME_AGGREGATE *ta;
-    bool children_validated, visible;
 
-    for (children_validated = false;; children_validated = true) {
-        ta = NULL;
-        visible = false;
+    /*
+     * Only a stable checkpoint handle is immutable. On a writable tree a child can change without
+     * dirtying its parent, which leaves the parent's aggregate stale.
+     */
+    if (!F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) ||
+      !WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name))
+        return (false);
 
-        /*
-         * Prefer the reference address when it exists. A disaggregated skip-write can retain the
-         * current address while publishing an empty page-modify aggregate.
-         */
-        if (__wt_ref_addr_copy(session, ref, &addr)) {
-            if ((addr.del_set && __wt_page_del_visible(session, &addr.del, true)) ||
-              (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
-                __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
-                  addr.ta.newest_stop_durable_ts)))
-                visible = true;
-        } else if (__wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-          __wt_txn_snap_min_visible(
-            session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts))
-            visible = true;
+    /*
+     * Prefer the reference address when it exists. A disaggregated skip-write can retain the
+     * current address while publishing an empty page-modify aggregate.
+     */
+    if (__wt_ref_addr_copy(session, ref, &addr))
+        return ((addr.del_set && __wt_page_del_visible(session, &addr.del, true)) ||
+          (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
+            __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+              addr.ta.newest_stop_durable_ts)));
 
-        if (!visible)
-            return (false);
-
-        /* A stable checkpoint handle is immutable, so its children cannot invalidate the aggregate.
-         */
-        if (F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) &&
-          WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name))
-            return (true);
-
-        if (children_validated)
-            return (true);
-
-        /*
-         * Locking the parent blocks new readers from entering its children, but an existing reader
-         * may hazard-couple between them. Scan in both directions so such a reader cannot move past
-         * the check, and reject queued pre-fetch work that may instantiate a child.
-         */
-        WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-            child_state = WT_REF_GET_STATE(child);
-            if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
-              __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
-              (child_state != WT_REF_DISK && child_state != WT_REF_DELETED))
-                return (false);
-        }
-        WT_INTL_FOREACH_END;
-
-        WT_INTL_FOREACH_REVERSE_BEGIN (session, ref->page, child) {
-            child_state = WT_REF_GET_STATE(child);
-            if (F_ISSET_ATOMIC_8(child, WT_REF_FLAG_PREFETCH) ||
-              __wt_atomic_load_uint8_v_acquire(&child->dirty_state) == WT_REF_DIRTY ||
-              (child_state != WT_REF_DISK && child_state != WT_REF_DELETED))
-                return (false);
-        }
-        WT_INTL_FOREACH_END;
-
-        /* Observe a dirty transition ordered before a child was published as on disk. */
-        WT_ACQUIRE_BARRIER();
-        if (__wt_page_is_modified(ref->page))
-            return (false);
-
-        /* Re-read the aggregate after validating the clean subtree. */
-    }
+    ta = NULL;
+    return (__wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
+      __wt_txn_snap_min_visible(
+        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts));
 }
 
 /*
