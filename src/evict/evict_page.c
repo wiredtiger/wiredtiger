@@ -287,6 +287,9 @@ static void
 __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     const WT_PAGE_HEADER *disk_image;
+
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH));
+
     WTI_EVICT_VICTIM_REASON reason = __evict_page_victim_cache_eligible(session, ref, &disk_image);
     if (reason != WTI_EVICT_VICTIM_OK) {
         if (__evict_page_victim_cache_reason_per_page(reason))
@@ -837,7 +840,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     if (!instantiated && !tree_dead && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !__wt_btree_stays_in_memory(S2BT(session)) && !closing)
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !closing)
         __evict_page_victim_cache(session, ref);
 
     /*
@@ -1400,8 +1403,10 @@ typedef enum {
 static WT_INLINE bool
 __evict_ckpt_snapshot_required(WT_SESSION_IMPL *session)
 {
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH));
+
     return (F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
-      !__wt_btree_stays_in_memory(S2BT(session)));
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
 }
 
 /*
@@ -1689,8 +1694,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory btrees, and for btrees still awaiting publication. */
-    else if (__wt_btree_stays_in_memory(btree))
+    /* Always do update restore for in-memory btrees. */
+    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SAVE_IMAGE_ALWAYS);
     /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_ANY_METADATA(btree->dhandle)) {

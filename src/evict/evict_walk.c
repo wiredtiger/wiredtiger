@@ -1189,6 +1189,9 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     modified = __wt_page_is_modified(page);
     *queuedp = false;
 
+    /* Eviction stays disabled on a btree awaiting publication, so the walk never reaches it. */
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH));
+
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_during_checkpoint);
@@ -1245,7 +1248,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     evict_clean =
-      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !__wt_btree_stays_in_memory(btree) && !modified;
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
     should_evict_page = evict_clean || evict_dirty || evict_updates;

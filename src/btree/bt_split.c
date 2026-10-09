@@ -1506,6 +1506,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     uint32_t i, slot;
     bool instantiate_upd;
 
+    /* A btree awaiting publication is never reconciled, so there is nothing to re-create. */
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH));
+
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
      * unresolved update chains to the new page. We get here either because an update could not be
@@ -1537,7 +1540,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !__wt_btree_stays_in_memory(S2BT(session)) &&
+    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
@@ -1546,13 +1549,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
-     *
-     * A btree awaiting publication is reconciled in memory only, so the rebuilt page would
-     * otherwise be clean and hold its only copy in an in-memory image. Keep it dirty so the
-     * checkpoint that runs once the table is published rewrites it to shared storage.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
-      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
         WT_RET(__wt_page_modify_init(session, page));
         __wt_page_modify_set(session, page);
     }
