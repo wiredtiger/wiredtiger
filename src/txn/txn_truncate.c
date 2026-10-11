@@ -295,12 +295,14 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
     }
 
 err:
-    if (ret == 0 && *is_foundp)
-        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
-    else
-        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
-    if (walked != 0)
-        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
+    if (ret == 0) {
+        if (*is_foundp)
+            WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
+        if (walked != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
+    }
     return (ret);
 }
 
@@ -395,13 +397,13 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
 err:
+    __wt_readunlock(session, &truncate_list->lock);
     if (is_found)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
-    else
+    else if (ret == 0)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
-    if (walked != 0)
+    if ((ret == 0 || is_found) && walked != 0)
         WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
-    __wt_readunlock(session, &truncate_list->lock);
     return (ret);
 }
 

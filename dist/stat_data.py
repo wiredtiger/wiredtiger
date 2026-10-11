@@ -1519,7 +1519,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_truncate_list_rollback_entries_removed', 'truncate list entries removed by transaction rollback'),
     LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
     LayeredStat('layered_truncate_list_search_hits', 'truncate list searches that completed with a matching range'),
-    LayeredStat('layered_truncate_list_search_misses', 'truncate list searches without a matching range or that failed'),
+    LayeredStat('layered_truncate_list_search_misses', 'truncate list searches that completed without a matching range'),
     LayeredStat('layered_truncate_list_write_conflicts', 'truncate list write conflicts'),
 
     ##########################################

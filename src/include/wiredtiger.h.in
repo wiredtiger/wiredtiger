@@ -8090,8 +8090,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! layered: truncate list searches that completed with a matching range */
 #define	WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_HITS	1672
 /*!
- * layered: truncate list searches without a matching range or that
- * failed
+ * layered: truncate list searches that completed without a matching
+ * range
  */
 #define	WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_MISSES	1673
 /*! layered: truncate list write conflicts */
@@ -10331,8 +10331,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! layered: truncate list searches that completed with a matching range */
 #define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_HITS	2361
 /*!
- * layered: truncate list searches without a matching range or that
- * failed
+ * layered: truncate list searches that completed without a matching
+ * range
  */
 #define	WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_MISSES	2362
 /*! layered: truncate list write conflicts */
