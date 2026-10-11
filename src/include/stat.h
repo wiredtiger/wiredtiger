@@ -924,11 +924,11 @@ struct __wt_connection_stats {
     int64_t fsync_io;
     int64_t read_io;
     int64_t write_io;
-    int64_t cursor_tree_walk_inmem_del_internal_page_skip;
     int64_t cursor_tree_walk_del_leaf_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_tree_walk_read_only_del_internal_page_skip;
     int64_t cursor_tree_walk_inmem_del_page_skip;
     int64_t cursor_tree_walk_ondisk_del_internal_page_skip;
     int64_t cursor_tree_walk_ondisk_del_page_skip;
@@ -1762,11 +1762,11 @@ struct __wt_dsrc_stats {
     int64_t compress_write_ratio_hist_16;
     int64_t compress_write_ratio_hist_32;
     int64_t compress_write_ratio_hist_64;
-    int64_t cursor_tree_walk_inmem_del_internal_page_skip;
     int64_t cursor_tree_walk_del_leaf_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_tree_walk_read_only_del_internal_page_skip;
     int64_t cursor_tree_walk_inmem_del_page_skip;
     int64_t cursor_tree_walk_ondisk_del_internal_page_skip;
     int64_t cursor_tree_walk_ondisk_del_page_skip;

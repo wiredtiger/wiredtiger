@@ -185,7 +185,7 @@ class test_disagg_fast_truncate03(test_cc_base):
             "leaf_read": self.read_stat(stat.dsrc.cache_read_leaf),
             "internal_skip": self.read_stat(stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip),
             "inmem_internal_skip": self.read_stat(
-                stat.dsrc.cursor_tree_walk_inmem_del_internal_page_skip
+                stat.dsrc.cursor_tree_walk_read_only_del_internal_page_skip
             ),
             "not_visible_all": self.read_stat(
                 stat.dsrc.checkpoint_cleanup_pages_deleted_not_visible_all
@@ -308,7 +308,7 @@ class test_disagg_fast_truncate03(test_cc_base):
             stat.dsrc.cursor_tree_walk_ondisk_del_internal_page_skip,
             before["internal_skip"] + before["inmem_internal_skip"],
             "step 4: the clean emptied internal page was not skipped",
-            additional_stat_key=stat.dsrc.cursor_tree_walk_inmem_del_internal_page_skip,
+            additional_stat_key=stat.dsrc.cursor_tree_walk_read_only_del_internal_page_skip,
         )
 
         # Step 5 -- whether the page remains in memory or is later evicted, a subsequent walk skips

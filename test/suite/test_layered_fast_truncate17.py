@@ -96,7 +96,7 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         # After step-up the stable table is writable, so an in-memory internal page is not skipped.
         inmem_before = self.get_stat(
-            stat.conn.cursor_tree_walk_inmem_del_internal_page_skip, conn=self.conn_follow)
+            stat.conn.cursor_tree_walk_read_only_del_internal_page_skip, conn=self.conn_follow)
 
         count = 0
         self.session_follow.begin_transaction(
@@ -108,7 +108,7 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.session_follow.rollback_transaction()
 
         inmem_after = self.get_stat(
-            stat.conn.cursor_tree_walk_inmem_del_internal_page_skip, conn=self.conn_follow)
+            stat.conn.cursor_tree_walk_read_only_del_internal_page_skip, conn=self.conn_follow)
         self.assertEqual(inmem_after, inmem_before,
             'replay-created in-memory deleted stable subtree was skipped after step-up')
         return count

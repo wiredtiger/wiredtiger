@@ -2994,7 +2994,7 @@ __wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, 
 {
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         if (inmem_internal)
-            walk_skip_stats->total_inmem_del_internal_pages_skipped++;
+            walk_skip_stats->total_read_only_del_internal_pages_skipped++;
         else
             walk_skip_stats->total_ondisk_del_internal_pages_skipped++;
     } else

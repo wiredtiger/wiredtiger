@@ -95,7 +95,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         return (
             self.get_stat(stat.conn.cursor_tree_walk_ondisk_del_internal_page_skip, conn=conn),
             self.get_stat(
-                stat.conn.cursor_tree_walk_inmem_del_internal_page_skip, conn=conn),
+                stat.conn.cursor_tree_walk_read_only_del_internal_page_skip, conn=conn),
         )
 
     def test_leader_keeps_inmem_deleted_stable_subtree_after_checkpoint(self):

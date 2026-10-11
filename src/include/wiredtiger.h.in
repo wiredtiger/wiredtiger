@@ -7640,22 +7640,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_READ_IO				1499
 /*! connection: total write I/Os */
 #define	WT_STAT_CONN_WRITE_IO				1500
-/*!
- * cursor: Total number of clean in-memory deleted internal pages skipped
- * during tree walk
- */
-#define	WT_STAT_CONN_CURSOR_TREE_WALK_INMEM_DEL_INTERNAL_PAGE_SKIP	1501
 /*! cursor: Total number of deleted leaf pages skipped during tree walk */
-#define	WT_STAT_CONN_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	1502
+#define	WT_STAT_CONN_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	1501
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1503
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1502
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1504
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1503
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1505
+#define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1504
+/*!
+ * cursor: Total number of in-memory deleted internal pages of a read-
+ * only btree skipped during tree walk
+ */
+#define	WT_STAT_CONN_CURSOR_TREE_WALK_READ_ONLY_DEL_INTERNAL_PAGE_SKIP	1505
 /*!
  * cursor: Total number of in-memory deleted pages skipped during tree
  * walk
@@ -10001,22 +10001,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * 64
  */
 #define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2247
-/*!
- * cursor: Total number of clean in-memory deleted internal pages skipped
- * during tree walk
- */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_INMEM_DEL_INTERNAL_PAGE_SKIP	2248
 /*! cursor: Total number of deleted leaf pages skipped during tree walk */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	2249
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP	2248
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2250
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2249
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2251
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2250
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2252
+#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2251
+/*!
+ * cursor: Total number of in-memory deleted internal pages of a read-
+ * only btree skipped during tree walk
+ */
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_READ_ONLY_DEL_INTERNAL_PAGE_SKIP	2252
 /*!
  * cursor: Total number of in-memory deleted pages skipped during tree
  * walk
