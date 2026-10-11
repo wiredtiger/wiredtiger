@@ -3064,8 +3064,7 @@ __wt_btcur_skip_page(
 
     /* Check a clean in-memory internal page separately from the on-disk and leaf-page paths. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
-        if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page) &&
-          __wt_btcur_skip_clean_internal_page(session, ref)) {
+        if (previous_state == WT_REF_MEM && __wt_btcur_skip_clean_internal_page(session, ref)) {
             *skipp = true;
             __wt_btcur_skip_page_inc(ref, walk_skip_stats, true);
         }
