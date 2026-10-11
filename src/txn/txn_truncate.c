@@ -82,13 +82,12 @@ __truncate_entry_remove(
  *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
  */
 static void
-__layered_table_truncate_gc(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
+__layered_table_truncate_gc(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
+  const wt_timestamp_t prune_timestamp, uint64_t *examinedp, uint64_t *removedp)
 {
+    *examinedp = *removedp = 0;
     if (prune_timestamp == WT_TS_NONE)
         return;
-
-    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
 
     WT_TRUNCATE *entry = NULL;
     WT_TRUNCATE *next = NULL;
@@ -113,8 +112,8 @@ __layered_table_truncate_gc(
         __disagg_truncate_free(session, &entry);
         ++removed;
     }
-    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
-    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
+    *examinedp = examined;
+    *removedp = removed;
 }
 
 /*
@@ -160,6 +159,7 @@ __txn_insert_truncate_entry_helper(
     WT_DECL_RET;
     WT_TRUNCATE *entry = *tp;
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
+    uint64_t examined, removed;
     wt_timestamp_t prune_timestamp = 0;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
@@ -171,15 +171,22 @@ __txn_insert_truncate_entry_helper(
     __wt_writelock(session, &truncate_list->lock);
 
     prune_timestamp = __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
-    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp, &examined, &removed);
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
-    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_entries_inserted);
 
     __wt_writeunlock(session, &truncate_list->lock);
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_entries_inserted);
+    if (prune_timestamp != WT_TS_NONE)
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
+    if (examined != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
+    if (removed != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
 
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
@@ -542,9 +549,9 @@ __wti_layered_table_truncate_rollback_apply(
 
     __wt_writelock(session, &truncate_list->lock);
     __truncate_entry_remove(session, layered_table, entry);
-    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_rollback_entries_removed);
     __wt_writeunlock(session, &truncate_list->lock);
 
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_rollback_entries_removed);
     op->u.follower_truncate.t = NULL;
     __disagg_truncate_free(session, &entry);
 }
@@ -580,8 +587,9 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
         __disagg_truncate_free(session, &entry);
         ++removed;
     }
-    WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_clear_entries_removed, removed);
     __wt_writeunlock(session, &truncate_list->lock);
+    if (removed != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_clear_entries_removed, removed);
 }
 
 #ifdef HAVE_UNITTEST
@@ -589,6 +597,14 @@ void
 __ut_layered_table_truncate_gc(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
 {
-    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
+    uint64_t examined, removed;
+
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp, &examined, &removed);
+    if (prune_timestamp != WT_TS_NONE)
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
+    if (examined != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
+    if (removed != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
 }
 #endif
