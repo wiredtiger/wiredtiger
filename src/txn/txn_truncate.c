@@ -82,12 +82,13 @@ __truncate_entry_remove(
  *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
  */
 static void
-__layered_table_truncate_gc(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
-  const wt_timestamp_t prune_timestamp, uint64_t *examinedp, uint64_t *removedp)
+__layered_table_truncate_gc(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
 {
-    *examinedp = *removedp = 0;
     if (prune_timestamp == WT_TS_NONE)
         return;
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
 
     WT_TRUNCATE *entry = NULL;
     WT_TRUNCATE *next = NULL;
@@ -112,8 +113,10 @@ __layered_table_truncate_gc(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_
         __disagg_truncate_free(session, &entry);
         ++removed;
     }
-    *examinedp = examined;
-    *removedp = removed;
+    if (examined != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
+    if (removed != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
 }
 
 /*
@@ -159,7 +162,6 @@ __txn_insert_truncate_entry_helper(
     WT_DECL_RET;
     WT_TRUNCATE *entry = *tp;
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
-    uint64_t examined, removed;
     wt_timestamp_t prune_timestamp = 0;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
@@ -171,7 +173,7 @@ __txn_insert_truncate_entry_helper(
     __wt_writelock(session, &truncate_list->lock);
 
     prune_timestamp = __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
-    __layered_table_truncate_gc(session, layered_table, prune_timestamp, &examined, &removed);
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
@@ -181,12 +183,6 @@ __txn_insert_truncate_entry_helper(
     __wt_writeunlock(session, &truncate_list->lock);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_entries_inserted);
-    if (prune_timestamp != WT_TS_NONE)
-        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
-    if (examined != 0)
-        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
-    if (removed != 0)
-        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
 
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
@@ -603,14 +599,6 @@ void
 __ut_layered_table_truncate_gc(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
 {
-    uint64_t examined, removed;
-
-    __layered_table_truncate_gc(session, layered_table, prune_timestamp, &examined, &removed);
-    if (prune_timestamp != WT_TS_NONE)
-        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_gc_runs);
-    if (examined != 0)
-        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
-    if (removed != 0)
-        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_removed, removed);
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
 }
 #endif
