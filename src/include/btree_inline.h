@@ -2958,11 +2958,11 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
- * __wt_btcur_skip_clean_internal_page --
- *     Return whether a clean in-memory internal page can be skipped.
+ * __wt_btcur_skip_internal_page_read_only --
+ *     Return whether an in-memory internal page of a read-only btree can be skipped.
  */
 static WT_INLINE bool
-__wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_btcur_skip_internal_page_read_only(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
 
@@ -3056,7 +3056,7 @@ __wt_btcur_skip_page(
 
     /* Check a clean in-memory internal page separately from the on-disk and leaf-page paths. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
-        if (previous_state == WT_REF_MEM && __wt_btcur_skip_clean_internal_page(session, ref)) {
+        if (previous_state == WT_REF_MEM && __wt_btcur_skip_internal_page_read_only(session, ref)) {
             *skipp = true;
             __wt_btcur_skip_page_inc(ref, walk_skip_stats, true);
         }
