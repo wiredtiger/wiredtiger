@@ -2992,7 +2992,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (multi->addr.block_cookie != NULL) {
             if (free_blocks) {
                 WT_RET(__wt_btree_block_free(
-                  session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
                 /*
                  * If the discarded block has the same page_id as the page, invalidate it. The block
                  * has been discarded in the page log, so the page_id must not be reused by the next
@@ -3278,11 +3278,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
                  * pages, or a single empty page.
                  */
                 if (page->disagg_info == NULL)
-                    WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-                      mod->mod_replace.block_cookie_size, false));
+                    WT_RET(__wt_btree_block_free(
+                      session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 else if (disagg_page_free_required) {
-                    WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-                      mod->mod_replace.block_cookie_size, false));
+                    WT_RET(__wt_btree_block_free(
+                      session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
                 } else {
                     /*
@@ -3513,7 +3513,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
             if (multi->addr.block_cookie != NULL) {
                 int ret_tmp = __wt_btree_block_free(
-                  session, multi->addr.block_cookie, multi->addr.block_cookie_size, false);
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size);
                 if (ret_tmp != 0) {
                     if (multi->block_meta != NULL)
                         __wt_verbose_error(session, WT_VERB_RECONCILE,
