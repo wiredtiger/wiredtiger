@@ -1088,6 +1088,7 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_skip_lsn;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
+    int64_t layered_truncate_list_search_calls;
     int64_t layered_truncate_list_gc_runs;
     int64_t layered_truncate_list_gc_entries_removed;
     int64_t layered_truncate_list_search_entries_walked;
@@ -1878,6 +1879,7 @@ struct __wt_dsrc_stats {
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
+    int64_t layered_truncate_list_search_calls;
     int64_t layered_truncate_list_gc_runs;
     int64_t layered_truncate_list_gc_entries_removed;
     int64_t layered_truncate_list_search_entries_walked;

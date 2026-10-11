@@ -380,6 +380,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
+  "layered: the number of times the truncate list was searched",
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
   "layered: the number of truncate list entries walked during search",
@@ -895,6 +896,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
+    stats->layered_truncate_list_search_calls = 0;
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
     stats->layered_truncate_list_search_entries_walked = 0;
@@ -1418,6 +1420,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
     to->layered_table_manager_logops_skipped += from->layered_table_manager_logops_skipped;
     to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
+    to->layered_truncate_list_search_calls += from->layered_truncate_list_search_calls;
     to->layered_truncate_list_gc_runs += from->layered_truncate_list_gc_runs;
     to->layered_truncate_list_gc_entries_removed += from->layered_truncate_list_gc_entries_removed;
     to->layered_truncate_list_search_entries_walked +=
@@ -2001,6 +2004,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_table_manager_logops_skipped +=
       WT_STAT_DSRC_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
+    to->layered_truncate_list_search_calls +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_search_calls);
     to->layered_truncate_list_gc_runs += WT_STAT_DSRC_READ(from, layered_truncate_list_gc_runs);
     to->layered_truncate_list_gc_entries_removed +=
       WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_removed);
@@ -2872,6 +2877,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
+  "layered: the number of times the truncate list was searched",
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
   "layered: the number of truncate list entries walked during search",
@@ -4020,6 +4026,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_skip_lsn = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
+    stats->layered_truncate_list_search_calls = 0;
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
     stats->layered_truncate_list_search_entries_walked = 0;
@@ -5329,6 +5336,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
+    to->layered_truncate_list_search_calls +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_calls);
     to->layered_truncate_list_gc_runs += WT_STAT_CONN_READ(from, layered_truncate_list_gc_runs);
     to->layered_truncate_list_gc_entries_removed +=
       WT_STAT_CONN_READ(from, layered_truncate_list_gc_entries_removed);

@@ -135,26 +135,31 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
     # Check search outcomes, visited-entry counts and table isolation for reads and duplicate inserts.
     def test_search_hits_and_misses(self):
         self.setup_tables()
+        before_calls = self.metric('list_search_calls')
         before_hits = self.metric('list_search_hits')
         before_misses = self.metric('list_search_misses')
         before_walked = self.metric('list_search_entries_walked')
         self.key_exists(80)
+        self.assertEqual(self.metric('list_search_calls') - before_calls, 1)
         self.assertEqual(self.metric('list_search_hits'), before_hits)
         self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
         self.assertEqual(self.metric('list_search_entries_walked'), before_walked)
 
         self.truncate(20, 40, commit_timestamp=20)
+        before_calls = self.metric('list_search_calls')
         before_hits = self.metric('list_search_hits')
         before_misses = self.metric('list_search_misses')
         before_walked = self.metric('list_search_entries_walked')
         before_table_hits = self.metric('list_search_hits', self.uri)
         before_table_misses = self.metric('list_search_misses', self.uri)
         self.key_exists(25)
+        self.assertEqual(self.metric('list_search_calls') - before_calls, 1)
         self.assertEqual(self.metric('list_search_hits') - before_hits, 1)
         self.assertEqual(self.metric('list_search_misses'), before_misses)
         self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 1)
 
         self.key_exists(80)
+        self.assertEqual(self.metric('list_search_calls') - before_calls, 2)
         self.assertEqual(self.metric('list_search_hits') - before_hits, 1)
         self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
         self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 2)
@@ -213,6 +218,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             )
             for count, (operation, expected_misses, expected_walked) in enumerate(operations, 1):
                 other.begin_transaction()
+                before_calls = self.metric('list_search_calls')
                 before_hits = self.metric('list_search_hits')
                 before_misses = self.metric('list_search_misses')
                 before_walked = self.metric('list_search_entries_walked')
@@ -220,6 +226,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
                     operation()
                 except wiredtiger.WiredTigerError:
                     pass
+                self.assertEqual(self.metric('list_search_calls') - before_calls, 1 + expected_misses)
                 self.assertEqual(self.metric('list_search_hits') - before_hits, 1)
                 self.assertEqual(self.metric('list_search_misses') - before_misses, expected_misses)
                 self.assertEqual(self.metric('list_search_entries_walked') - before_walked,

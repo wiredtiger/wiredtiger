@@ -268,6 +268,8 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
     WT_ASSERT(session, __wt_rwlock_islocked(session, &truncate_list->lock));
     *is_foundp = false;
 
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_calls);
+
     WT_TRUNCATE *entry = NULL;
     WT_DECL_RET;
     uint64_t walked = 0;
@@ -360,12 +362,14 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
   const WT_ITEM *stop_key)
 {
     WT_DECL_RET;
-
-    __wt_readlock(session, &truncate_list->lock);
-
     WT_TRUNCATE *entry = NULL;
     bool is_found = false;
     uint64_t walked = 0;
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_calls);
+
+    __wt_readlock(session, &truncate_list->lock);
+
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
         ++walked;
 
