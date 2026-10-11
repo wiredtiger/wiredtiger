@@ -1368,15 +1368,16 @@ __disagg_metadata_table_mark_shared(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_DISAGG_METADATA_URI, &config), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
-        goto err;
+        goto done;
     }
     if (__wt_btree_config_is_shared(session, config))
-        goto err;
+        goto done;
 
     cfg[0] = config;
     WT_ERR(__wt_config_collapse(session, cfg, &new_config));
     WT_ERR(__wt_metadata_update(session, WT_DISAGG_METADATA_URI, new_config));
 
+done:
 err:
     __wt_free(session, config);
     __wt_free(session, new_config);

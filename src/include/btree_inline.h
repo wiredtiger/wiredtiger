@@ -360,12 +360,12 @@ __wt_btree_config_is_shared(WT_SESSION_IMPL *session, const char *config)
 }
 
 /*
- * __wt_btree_name_split --
+ * __btree_name_split --
  *     Break a checkpoint-view name at the given slash into its base name, in a returned buffer, and
  *     the checkpoint id string.
  */
 static WT_INLINE int
-__wt_btree_name_split(WT_SESSION_IMPL *session, const char *slash, const char **namep,
+__btree_name_split(WT_SESSION_IMPL *session, const char *slash, const char **namep,
   const char **checkpointp, WT_ITEM **name_bufp)
 {
     WT_DECL_RET;
@@ -401,7 +401,7 @@ __wt_dhandle_shared_base_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 
     slash = strrchr(*namep, '/');
     WT_ASSERT(session, slash != NULL);
-    return (__wt_btree_name_split(session, slash, namep, checkpointp, name_bufp));
+    return (__btree_name_split(session, slash, namep, checkpointp, name_bufp));
 }
 
 /*
@@ -430,14 +430,34 @@ __wt_btree_shared_base_name(
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, (const char *)name_buf->data, &config), true);
     if (ret == WT_NOTFOUND || !__wt_btree_config_is_shared(session, config)) {
         ret = 0;
-        goto err;
+        goto done;
     }
     __wt_scr_free(session, &name_buf);
-    WT_ERR(__wt_btree_name_split(session, slash, namep, checkpointp, name_bufp));
+    WT_ERR(__btree_name_split(session, slash, namep, checkpointp, name_bufp));
 
+done:
 err:
     __wt_free(session, config);
     __wt_scr_free(session, &name_buf);
+    return (ret);
+}
+
+/*
+ * __wt_btree_name_is_shared_checkpoint --
+ *     Whether a name is a checkpoint view of a shared tree.
+ */
+static WT_INLINE int
+__wt_btree_name_is_shared_checkpoint(WT_SESSION_IMPL *session, const char *uri, bool *resultp)
+{
+    WT_DECL_ITEM(name_buf);
+    WT_DECL_RET;
+    const char *checkpoint, *name;
+
+    name = uri;
+    checkpoint = NULL;
+    ret = __wt_btree_shared_base_name(session, &name, &checkpoint, &name_buf);
+    __wt_scr_free(session, &name_buf);
+    *resultp = ret == 0 && checkpoint != NULL;
     return (ret);
 }
 
