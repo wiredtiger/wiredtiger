@@ -80,13 +80,14 @@ static int
 __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
   uint32_t allocsize, const char **cfg)
 {
-    WT_CONFIG_ITEM page_log_item;
+    WT_CONFIG_ITEM bm_item, page_log_item;
     WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
 
     npage_log = NULL;
 
-    if (WT_URI_IS_STABLE(uri)) {
+    WT_RET(__wt_config_gets(session, cfg, "block_manager", &bm_item));
+    if (WT_CONFIG_LIT_MATCH("disagg", bm_item)) {
         WT_RET_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
         if (ret == WT_NOTFOUND || page_log_item.len == 0)

@@ -272,7 +272,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
-            if (__wt_conn_is_disagg(session) && WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
+            if (__wt_conn_is_disagg(session) && F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT)) {
                 if (tod == 0) {
                     __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
                     continue;

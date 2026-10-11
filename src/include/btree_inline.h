@@ -337,13 +337,71 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
     *shared = false;
 
     WT_RET(__wt_config_gets(session, bt_cfg, "block_manager", &cval));
-    *shared = (WT_URI_IS_STABLE(uri) || WT_CONFIG_LIT_MATCH("disagg", cval));
+    *shared = WT_CONFIG_LIT_MATCH("disagg", cval);
 
     /* Ingest btrees must never be shared. */
     WT_ASSERT_ALWAYS(
       session, !(*shared && WT_URI_IS_INGEST(uri)), "Ingest btree incorrectly created as shared.");
 
     return (0);
+}
+
+/*
+ * __wt_btree_config_is_shared --
+ *     Whether a file's metadata configuration describes a shared tree.
+ */
+static WT_INLINE bool
+__wt_btree_config_is_shared(WT_SESSION_IMPL *session, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+
+    return (__wt_config_getones(session, config, "block_manager", &cval) == 0 &&
+      WT_CONFIG_LIT_MATCH("disagg", cval));
+}
+
+/*
+ * __wt_btree_name_split --
+ *     Break a checkpoint-view name at the given slash into its base name, in a returned buffer, and
+ *     the checkpoint id string.
+ */
+static WT_INLINE int
+__wt_btree_name_split(WT_SESSION_IMPL *session, const char *slash, const char **namep,
+  const char **checkpointp, WT_ITEM **name_bufp)
+{
+    WT_DECL_RET;
+    WT_ITEM *name_buf;
+
+    WT_RET(__wt_scr_alloc(session, 0, name_bufp));
+    name_buf = *name_bufp;
+    WT_ERR(__wt_buf_fmt(session, name_buf, "%.*s", (int)(slash - *namep), *namep));
+
+    *namep = (const char *)name_buf->data;
+    if (checkpointp != NULL)
+        *checkpointp = slash + 1;
+    return (0);
+
+err:
+    __wt_scr_free(session, name_bufp);
+    return (ret);
+}
+
+/*
+ * __wt_dhandle_shared_base_name --
+ *     Break an open handle's name down into its base name and checkpoint id string. The handle
+ *     already knows whether its name carries a checkpoint id.
+ */
+static WT_INLINE int
+__wt_dhandle_shared_base_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char **namep,
+  const char **checkpointp, WT_ITEM **name_bufp)
+{
+    const char *slash;
+
+    if (!F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT))
+        return (0);
+
+    slash = strrchr(*namep, '/');
+    WT_ASSERT(session, slash != NULL);
+    return (__wt_btree_name_split(session, slash, namep, checkpointp, name_bufp));
 }
 
 /*
@@ -355,34 +413,32 @@ static WT_INLINE int
 __wt_btree_shared_base_name(
   WT_SESSION_IMPL *session, const char **namep, const char **checkpointp, WT_ITEM **name_bufp)
 {
+    WT_DECL_RET;
     WT_ITEM *name_buf;
-    size_t len;
-    const char *name, *suffix;
+    char *config;
+    const char *name, *slash;
 
     name = *namep;
+    config = NULL;
 
-    /* If this isn't a stable URI, or there is no trailing checkpoint id, there's nothing to do. */
-    suffix = strstr(name, ".wt_stable/");
-    if (suffix == NULL)
+    if (!WT_PREFIX_MATCH(name, "file:") || (slash = strrchr(name, '/')) == NULL)
         return (0);
 
-    /* Move the suffix to point to the slash */
-    suffix += strlen(".wt_stable");
+    /* A slash can also be part of a local file's path: only a shared base has a checkpoint id. */
+    WT_RET(__wt_scr_alloc(session, 0, &name_buf));
+    WT_ERR(__wt_buf_fmt(session, name_buf, "%.*s", (int)(slash - name), name));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, (const char *)name_buf->data, &config), true);
+    if (ret == WT_NOTFOUND || !__wt_btree_config_is_shared(session, config)) {
+        ret = 0;
+        goto err;
+    }
+    __wt_scr_free(session, &name_buf);
+    WT_ERR(__wt_btree_name_split(session, slash, namep, checkpointp, name_bufp));
 
-    /* The returned name is the part before the suffix */
-    len = (size_t)(suffix - name);
-    WT_RET(__wt_scr_alloc(session, len + 1, name_bufp));
-    name_buf = *name_bufp;
-    WT_RET(__wt_buf_catfmt(session, name_buf, "%s", name));
-    ((char *)name_buf->data)[len] = '\0';
-
-    *namep = (const char *)name_buf->data;
-
-    /* The checkpoint id string, if needed, immediately follows the suffix. */
-    if (checkpointp != NULL)
-        *checkpointp = suffix + 1;
-
-    return (0);
+err:
+    __wt_free(session, config);
+    __wt_scr_free(session, &name_buf);
+    return (ret);
 }
 
 /*

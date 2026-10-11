@@ -672,7 +672,7 @@ __disagg_stable_btree_ids_add(WT_SESSION_IMPL *session,
 {
     WT_CONFIG_ITEM id_val;
 
-    if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
+    if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_config_is_shared(session, value))
         return (0);
 
     WT_RET(__wt_config_getones(session, value, "id", &id_val));
@@ -786,7 +786,7 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
     WT_RET(__disagg_check_meta_identity(session, key, &md_id, &sh_id));
 
     /* Applying a checkpoint moves an entry's checkpoint forward, never its id. */
-    if (WT_URI_IS_STABLE(key))
+    if (__wt_btree_config_is_shared(session, md_copy))
         WT_RET(__disagg_stable_btree_ids_append(session, stable_btree_ids, (uint32_t)md_id.val));
 
     entry->md_value = md_copy;

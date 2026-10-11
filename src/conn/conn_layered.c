@@ -1352,6 +1352,38 @@ err:
 }
 
 /*
+ * __disagg_metadata_table_mark_shared --
+ *     Add block_manager=disagg to the shared metadata table's entry if it was created without it,
+ *     as it was by earlier versions that recognized shared trees by name.
+ */
+static int
+__disagg_metadata_table_mark_shared(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    char *config, *new_config;
+    const char *cfg[] = {NULL, "block_manager=disagg", NULL};
+
+    config = new_config = NULL;
+
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_DISAGG_METADATA_URI, &config), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
+    if (__wt_btree_config_is_shared(session, config))
+        goto err;
+
+    cfg[0] = config;
+    WT_ERR(__wt_config_collapse(session, cfg, &new_config));
+    WT_ERR(__wt_metadata_update(session, WT_DISAGG_METADATA_URI, new_config));
+
+err:
+    __wt_free(session, config);
+    __wt_free(session, new_config);
+    return (ret);
+}
+
+/*
  * __disagg_metadata_table_init --
  *     Initialize the shared metadata table.
  */
@@ -1365,8 +1397,11 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
-    WT_ERR(__wt_session_create(
-      internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S,log=(enabled=false)"));
+    WT_WITH_SCHEMA_LOCK(
+      internal_session, ret = __disagg_metadata_table_mark_shared(internal_session));
+    WT_ERR(ret);
+    WT_ERR(__wt_session_create(internal_session, WT_DISAGG_METADATA_URI,
+      "block_manager=disagg,key_format=S,value_format=S,log=(enabled=false)"));
 
     /*
      * A follower should never access the live shared metadata dhandle. However, session->create

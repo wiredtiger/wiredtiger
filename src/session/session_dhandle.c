@@ -963,6 +963,13 @@ static void
 __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
 {
     struct timespec tsp;
+    WT_DECL_ITEM(name_buf);
+    WT_DECL_RET;
+    char *config;
+    const char *name;
+    bool shared;
+
+    config = NULL;
 
     /* The stress point is off outside tests. */
     if (!FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY))
@@ -980,8 +987,8 @@ __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
     if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA))
         return;
 
-    /* Only a stable-table open can land in the pickup's prune window. */
-    if (!WT_URI_IS_STABLE(uri))
+    /* Only file opens can land in the pickup's prune window. The metadata file is read below. */
+    if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_METAFILE_URI) == 0)
         return;
 
     /* The history store has its own dhandle lifecycle, not the pickup's outdated/prune pairing. */
@@ -994,6 +1001,17 @@ __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
 
     /* Checkpoint pickup opens a checkpointed version of metadata; exclude it by prefix instead. */
     if (strncmp(uri, WT_DISAGG_METADATA_URI, strlen(WT_DISAGG_METADATA_URI)) == 0)
+        return;
+
+    /* Only a shared tree's open can land in the pickup's prune window. */
+    name = uri;
+    ret = __wt_btree_shared_base_name(session, &name, NULL, &name_buf);
+    if (ret == 0)
+        ret = __wt_metadata_search(session, name, &config);
+    shared = ret == 0 && __wt_btree_config_is_shared(session, config);
+    __wt_scr_free(session, &name_buf);
+    __wt_free(session, config);
+    if (!shared)
         return;
 
     tsp.tv_sec = 1;
@@ -1011,6 +1029,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
   const char *cfg[], uint32_t flags)
 {
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(shared_name_buf);
     WT_DECL_RET;
     bool is_dead;
 
@@ -1074,9 +1093,11 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                  * leader reads a checkpoint from shared metadata, it must also acquire the
                  * checkpoint lock.
                  */
-                const char *suffix = strstr(uri, ".wt_stable/");
-                if (suffix != NULL)
-                    checkpoint_lock_needed = true;
+                const char *shared_name = uri, *shared_checkpoint = NULL;
+                WT_ERR(__wt_btree_shared_base_name(
+                  session, &shared_name, &shared_checkpoint, &shared_name_buf));
+                checkpoint_lock_needed = shared_checkpoint != NULL;
+                __wt_scr_free(session, &shared_name_buf);
             }
 
             if (checkpoint_lock_needed) {
@@ -1110,6 +1131,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         dhandle->excl_ref > 1);
 
 err:
+    __wt_scr_free(session, &shared_name_buf);
     if (ret != 0 && session->dhandle != NULL)
         WT_DHANDLE_CLEAR(session);
     return (ret);

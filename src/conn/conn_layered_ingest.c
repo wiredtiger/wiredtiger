@@ -337,7 +337,7 @@ __layered_fix_prepared_transaction_callback(
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
         op->btree = cookie->stable_btree;
-        WT_ASSERT(session, WT_URI_IS_STABLE(op->btree->dhandle->name));
+        WT_ASSERT(session, F_ISSET(op->btree, WT_BTREE_DISAGGREGATED));
 
         /*
          * Transfer the session_inuse reference from the ingest btree to the stable btree. The
