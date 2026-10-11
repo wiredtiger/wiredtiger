@@ -2965,7 +2965,6 @@ static WT_INLINE bool
 __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
-    WT_TIME_AGGREGATE *ta;
 
     /*
      * Only a checkpoint cursor tree or a stable checkpoint handle is immutable. On a writable tree
@@ -2977,20 +2976,13 @@ __wt_btcur_skip_clean_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!WT_READING_CHECKPOINT(session) && !WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name))
         return (false);
 
-    /*
-     * Prefer the reference address when it exists. A disaggregated skip-write can retain the
-     * current address while publishing an empty page-modify aggregate.
-     */
-    if (__wt_ref_addr_copy(session, ref, &addr))
-        return ((addr.del_set && __wt_page_del_visible(session, &addr.del, true)) ||
-          (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
-            __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
-              addr.ta.newest_stop_durable_ts)));
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        return (false);
 
-    ta = NULL;
-    return (__wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts));
+    return ((addr.del_set && __wt_page_del_visible(session, &addr.del, true)) ||
+      (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
+        __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+          addr.ta.newest_stop_durable_ts)));
 }
 
 /*
