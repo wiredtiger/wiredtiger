@@ -165,7 +165,7 @@ __create_next_file_id(WT_SESSION_IMPL *session, uint32_t *fileidp)
     WT_CONNECTION_IMPL *conn = S2C(session);
     *fileidp = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
 
     const uint32_t max_file_id = UINT32_MAX >> WT_BTREE_ID_NAMESPACE_BITS;
     if (conn->next_file_id >= max_file_id)
