@@ -123,3 +123,42 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         self.assertNotIn('block_manager=disagg', self.local_config(stable_uri))
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.assertIn('block_manager=disagg', self.local_config(stable_uri))
+
+    def shared_entry(self, uri):
+        cursor = self.session.open_cursor(self.shared_metadata_uri)
+        cursor.set_key(uri)
+        self.assertEqual(cursor.search(), 0)
+        value = cursor.get_value()
+        cursor.close()
+        return value
+
+    def test_legacy_stable_entry_rewritten_by_checkpoint(self):
+        stable_uri = 'file:test_layered_config16.wt_stable'
+
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor['key1'] = 'value1'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+        self.session.checkpoint()
+        value = self.shared_entry(stable_uri)
+        self.assertIn('block_manager=disagg', value)
+
+        # Leave the stable entry in the shared metadata table as an older version wrote it.
+        shared_cursor = self.session.open_cursor(self.shared_metadata_uri)
+        shared_cursor.set_key(stable_uri)
+        shared_cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
+        self.assertEqual(shared_cursor.insert(), 0)
+        shared_cursor.close()
+        self.assertNotIn('block_manager=disagg', self.shared_entry(stable_uri))
+
+        # Checkpointing the table writes its entry to the shared metadata table again.
+        self.session.begin_transaction()
+        cursor['key2'] = 'value2'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+        cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(2))
+        self.session.checkpoint()
+        self.assertIn('block_manager=disagg', self.shared_entry(stable_uri))
