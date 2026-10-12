@@ -241,7 +241,8 @@ __wt_stat_''' + name + '''_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
         keys = [prefix + l.name.upper() for l in statlist if l.otel_type == otel_type]
         if not keys:
             continue
-        f.write('\nstatic const int ' + var + otel_type[len('otel_'):] + '[] = {\n')
+        array = var + otel_type[len('otel_'):] + ('s' if otel_type != 'otel_none' else '')
+        f.write('\nstatic const int ' + array + '[] = {\n')
         for key in keys:
             f.write('\t' + key + ',\n')
         f.write('};\n')
@@ -253,10 +254,9 @@ __wt_stat_''' + name + '''_otel_keys(uint32_t otel_flag, const int **keysp, u_in
 \tswitch (otel_flag) {
 ''')
     for otel_type in OTEL_TYPES:
-        flag = 'WT_STAT_' + otel_type.upper()
-        if otel_type != 'otel_none':
-            flag += 'S'
-        array = var + otel_type[len('otel_'):]
+        plural = 's' if otel_type != 'otel_none' else ''
+        flag = 'WT_STAT_' + otel_type.upper() + plural.upper()
+        array = var + otel_type[len('otel_'):] + plural
         f.write('\tcase ' + flag + ':\n')
         if any(l.otel_type == otel_type for l in statlist):
             f.write('\t\t*keysp = ' + array + ';\n')
