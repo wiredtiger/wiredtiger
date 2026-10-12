@@ -182,8 +182,6 @@ __txn_insert_truncate_entry_helper(
 
     __wt_writeunlock(session, &truncate_list->lock);
 
-    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_entries_inserted);
-
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
 
@@ -224,6 +222,8 @@ __wt_insert_truncate_entry(
      */
     WT_SAVE_DHANDLE(session, ret = __txn_insert_truncate_entry_helper(session, layered_table, &t));
     WT_ERR(ret);
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_entries_inserted);
 
     if (0) {
 err:
