@@ -1192,6 +1192,23 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_page_write_gen --
+ *     Return the write generation of the page's backing block.
+ */
+static WT_INLINE uint64_t
+__wt_page_write_gen(WT_PAGE *page)
+{
+    /*
+     * A page that stays in memory after reconciliation writes a new backing block keeps its old
+     * disk image, so the new block's write generation is recorded separately.
+     */
+    if (page->modify != NULL && page->modify->rec_write_gen != 0)
+        return (page->modify->rec_write_gen);
+
+    return (page->dsk == NULL ? 0 : page->dsk->write_gen);
+}
+
+/*
  * __wt_page_modify_clear --
  *     Clean a modified page.
  */
