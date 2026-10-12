@@ -3037,10 +3037,7 @@ __wt_btcur_skip_page(
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (0);
 
-    /*
-     * A clean in-memory internal page of a read-only btree is checked without the lock: its address
-     * cannot change, and the split generation held by the walk keeps the parent's image valid. The
-     * state is only a hint; eviction leaves the address unchanged.
+    /* An internal page of a read-only btree is checked without the lock, its address cannot change.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && WT_REF_GET_STATE(ref) == WT_REF_MEM &&
       __wt_btcur_skip_internal_page_read_only(session, ref)) {
