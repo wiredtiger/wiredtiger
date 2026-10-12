@@ -447,6 +447,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
  *       - it legitimately changes across checkpoints,
  *       - it holds node-local state,
  *       - it can be changed at runtime via WT_SESSION::alter,
+ *       - entries written by earlier versions may lack it,
  *       - already compared directly by __disagg_check_meta_identity.
  *
  *     The list holds top-level field names only, sorted alphabetically.
