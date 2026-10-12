@@ -3450,8 +3450,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
         if (F_ISSET(r, WT_REC_IN_MEMORY) || F_ISSET(r->multi, WT_MULTI_SUPD_RESTORE)) {
             if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
-                if (!F_ISSET(r, WT_REC_IN_MEMORY) && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
+                if (!F_ISSET(r, WT_REC_IN_MEMORY) && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
                     mod->rec_write_gen = ((WT_PAGE_HEADER *)r->cur_ptr->image.mem)->write_gen;
+                    WT_ASSERT(session,
+                      page->disagg_info->block_meta.delta_count == 0 ||
+                        mod->rec_write_gen == ((WT_PAGE_HEADER *)r->delta.data)->write_gen);
+                }
             }
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
@@ -3499,8 +3503,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
-        if (page->disagg_info != NULL && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
+        /*
+         * The full image's write generation describes the backing block even when a delta was
+         * written: the delta header copies the full image's generation, and reading the page back
+         * takes its generation from the newest delta. Both must stay in sync with this assignment.
+         */
+        if (page->disagg_info != NULL && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
             mod->rec_write_gen = ((WT_PAGE_HEADER *)r->cur_ptr->image.mem)->write_gen;
+            WT_ASSERT(session,
+              page->disagg_info->block_meta.delta_count == 0 ||
+                mod->rec_write_gen == ((WT_PAGE_HEADER *)r->delta.data)->write_gen);
+        }
         mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */
