@@ -325,8 +325,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UNUSED(cfg);
 
     ckpt_cfg = session->ckpt.db_cfg;
-    WT_ASSERT(session, ckpt_cfg != NULL);
-    WT_ASSERT(session, cfg == ckpt_cfg->cfg);
+    WT_ASSERT(session, ckpt_cfg != NULL && cfg == ckpt_cfg->cfg);
 
     /* Periodically log checkpoint prepare progress. */
     __checkpoint_prepare_progress(session, false);
@@ -1302,8 +1301,8 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session)
 
 /*
  * __checkpoint_parse_tree_config --
- *     Parse the per-tree checkpoint options (force, name and drop), as opposed to the
- *     database-wide options parsed by __checkpoint_parse_config.
+ *     Parse the per-tree checkpoint options (force, name and drop), as opposed to the database-wide
+ *     options parsed by __checkpoint_parse_config.
  */
 static int
 __checkpoint_parse_tree_config(
