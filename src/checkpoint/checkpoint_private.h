@@ -48,15 +48,12 @@ struct __wti_checkpoint_db_config {
     bool database_size_fix;
     bool force;
     bool use_timestamp;
-
     /* Not NUL-terminated, length in name_len */
     const char *name;
     size_t name_len;
     bool named;
-
     /* Checkpoints to drop, empty if none */
     WT_CONFIG_ITEM drop;
-
     /* Original configuration */
     const char **cfg;
 };
