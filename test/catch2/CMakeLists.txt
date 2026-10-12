@@ -11,6 +11,7 @@ else()
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_checkpoint_log_cleanup.cpp
+        misc_tests/test_checkpoint_session_flag.cpp
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
@@ -69,6 +70,7 @@ else()
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        btree/unit/test_btree_eviction_enabled.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_put.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
@@ -119,6 +121,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_bitmap_filling_bit_range.cpp
         live_restore/unit/test_live_restore_compute_read_end_bit.cpp
         live_restore/unit/test_live_restore_fill_hole.cpp
+        misc_tests/test_layered_table_manager.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
         truncate/test_truncate_write_conflict.cpp
