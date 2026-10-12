@@ -3434,6 +3434,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
          * again.
          */
         mod->rec_result = WT_PM_REC_EMPTY;
+        mod->rec_write_gen = 0;
         break;
     case 1: /* 1-for-1 page swap */
         /*
@@ -3511,6 +3512,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
         /* Optionally display the actual split keys in verbose mode. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_SPLIT, WT_VERBOSE_DEBUG_2))
             WT_RET(__rec_split_dump_keys(session, r));
+
+        /* The page no longer has a single backing block. */
+        mod->rec_write_gen = 0;
 
 split:
         mod->mod_multi = r->multi;

@@ -411,8 +411,8 @@ struct __wt_page_modify {
     /*
      * Write generation of the disaggregated backing block written by the last single-block
      * reconciliation, needed because the page keeps its old disk image while it stays in memory.
-     * Zero means no such block was written and the disk image's write generation applies. Only
-     * meaningful for a single-block result.
+     * Zero means no such block was written and the disk image's write generation applies. Cleared
+     * when reconciliation deletes the page or splits it into multiple blocks.
      */
     uint64_t rec_write_gen;
 
