@@ -75,11 +75,11 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: maximum leaf page value size",
   "btree: maximum tree depth",
   "btree: number of key/value pairs",
-  "btree: obsolete inline value bytes",
-  "btree: obsolete inline value bytes on mixed pages",
+  "btree: obsolete on-disk key/value bytes",
+  "btree: obsolete on-disk key/value bytes on mixed pages",
   "btree: overflow pages",
-  "btree: pages analyzed for obsolete inline values",
-  "btree: pages with obsolete inline values",
+  "btree: pages analyzed for obsolete on-disk key/value pairs",
+  "btree: pages with obsolete on-disk key/value pairs",
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf page recent average entries (EWMA), or UINT64_MAX if never tracked and "
@@ -270,12 +270,14 @@ static const char *const __stats_dsrc_desc[] = {
   "compression: pages written to disk with compression ratio smaller than 16",
   "compression: pages written to disk with compression ratio smaller than 32",
   "compression: pages written to disk with compression ratio smaller than 64",
-  "cursor: Total number of deleted internal pages skipped during tree walk",
   "cursor: Total number of deleted leaf pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of in-memory deleted internal pages of a read-only btree skipped during "
+  "tree walk",
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
+  "cursor: Total number of on-disk deleted internal pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
@@ -614,11 +616,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_maxleafvalue = 0;
     stats->btree_maximum_depth = 0;
     stats->btree_entries = 0;
-    stats->btree_obsolete_inline_bytes = 0;
-    stats->btree_obsolete_inline_bytes_mixed = 0;
+    stats->btree_obsolete_ondisk_kv_bytes = 0;
+    stats->btree_obsolete_ondisk_kv_bytes_mixed = 0;
     stats->btree_overflow = 0;
-    stats->btree_obsolete_inline_analyzed = 0;
-    stats->btree_obsolete_inline_pages = 0;
+    stats->btree_obsolete_ondisk_kv_analyzed = 0;
+    stats->btree_obsolete_ondisk_kv_pages = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf_avg_entries = 0;
@@ -790,12 +792,13 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->compress_write_ratio_hist_16 = 0;
     stats->compress_write_ratio_hist_32 = 0;
     stats->compress_write_ratio_hist_64 = 0;
-    stats->cursor_tree_walk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_del_leaf_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_tree_walk_read_only_del_internal_page_skip = 0;
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
+    stats->cursor_tree_walk_ondisk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_tree_walk_skip_lock_contended = 0;
@@ -1107,11 +1110,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     if (from->btree_maximum_depth > to->btree_maximum_depth)
         to->btree_maximum_depth = from->btree_maximum_depth;
     to->btree_entries += from->btree_entries;
-    to->btree_obsolete_inline_bytes += from->btree_obsolete_inline_bytes;
-    to->btree_obsolete_inline_bytes_mixed += from->btree_obsolete_inline_bytes_mixed;
+    to->btree_obsolete_ondisk_kv_bytes += from->btree_obsolete_ondisk_kv_bytes;
+    to->btree_obsolete_ondisk_kv_bytes_mixed += from->btree_obsolete_ondisk_kv_bytes_mixed;
     to->btree_overflow += from->btree_overflow;
-    to->btree_obsolete_inline_analyzed += from->btree_obsolete_inline_analyzed;
-    to->btree_obsolete_inline_pages += from->btree_obsolete_inline_pages;
+    to->btree_obsolete_ondisk_kv_analyzed += from->btree_obsolete_ondisk_kv_analyzed;
+    to->btree_obsolete_ondisk_kv_pages += from->btree_obsolete_ondisk_kv_pages;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf_avg_entries += from->btree_row_leaf_avg_entries;
@@ -1307,12 +1310,15 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->compress_write_ratio_hist_16 += from->compress_write_ratio_hist_16;
     to->compress_write_ratio_hist_32 += from->compress_write_ratio_hist_32;
     to->compress_write_ratio_hist_64 += from->compress_write_ratio_hist_64;
-    to->cursor_tree_walk_del_internal_page_skip += from->cursor_tree_walk_del_internal_page_skip;
     to->cursor_tree_walk_del_leaf_page_skip += from->cursor_tree_walk_del_leaf_page_skip;
     to->cursor_next_skip_total += from->cursor_next_skip_total;
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
+    to->cursor_tree_walk_read_only_del_internal_page_skip +=
+      from->cursor_tree_walk_read_only_del_internal_page_skip;
     to->cursor_tree_walk_inmem_del_page_skip += from->cursor_tree_walk_inmem_del_page_skip;
+    to->cursor_tree_walk_ondisk_del_internal_page_skip +=
+      from->cursor_tree_walk_ondisk_del_internal_page_skip;
     to->cursor_tree_walk_ondisk_del_page_skip += from->cursor_tree_walk_ondisk_del_page_skip;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
     to->cursor_tree_walk_skip_lock_contended += from->cursor_tree_walk_skip_lock_contended;
@@ -1641,12 +1647,13 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     if ((v = WT_STAT_DSRC_READ(from, btree_maximum_depth)) > to->btree_maximum_depth)
         to->btree_maximum_depth = v;
     to->btree_entries += WT_STAT_DSRC_READ(from, btree_entries);
-    to->btree_obsolete_inline_bytes += WT_STAT_DSRC_READ(from, btree_obsolete_inline_bytes);
-    to->btree_obsolete_inline_bytes_mixed +=
-      WT_STAT_DSRC_READ(from, btree_obsolete_inline_bytes_mixed);
+    to->btree_obsolete_ondisk_kv_bytes += WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_bytes);
+    to->btree_obsolete_ondisk_kv_bytes_mixed +=
+      WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_bytes_mixed);
     to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
-    to->btree_obsolete_inline_analyzed += WT_STAT_DSRC_READ(from, btree_obsolete_inline_analyzed);
-    to->btree_obsolete_inline_pages += WT_STAT_DSRC_READ(from, btree_obsolete_inline_pages);
+    to->btree_obsolete_ondisk_kv_analyzed +=
+      WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_analyzed);
+    to->btree_obsolete_ondisk_kv_pages += WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_pages);
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
     to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
@@ -1877,15 +1884,17 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->compress_write_ratio_hist_16 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_16);
     to->compress_write_ratio_hist_32 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_32);
     to->compress_write_ratio_hist_64 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_64);
-    to->cursor_tree_walk_del_internal_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_del_internal_page_skip);
     to->cursor_tree_walk_del_leaf_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_del_leaf_page_skip);
     to->cursor_next_skip_total += WT_STAT_DSRC_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_DSRC_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_DSRC_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_tree_walk_read_only_del_internal_page_skip +=
+      WT_STAT_DSRC_READ(from, cursor_tree_walk_read_only_del_internal_page_skip);
     to->cursor_tree_walk_inmem_del_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_inmem_del_page_skip);
+    to->cursor_tree_walk_ondisk_del_internal_page_skip +=
+      WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_internal_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
@@ -2708,12 +2717,14 @@ static const char *const __stats_connection_desc[] = {
   "connection: total fsync I/Os",
   "connection: total read I/Os",
   "connection: total write I/Os",
-  "cursor: Total number of deleted internal pages skipped during tree walk",
   "cursor: Total number of deleted leaf pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of in-memory deleted internal pages of a read-only btree skipped during "
+  "tree walk",
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
+  "cursor: Total number of on-disk deleted internal pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
@@ -3862,12 +3873,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->fsync_io = 0;
     stats->read_io = 0;
     stats->write_io = 0;
-    stats->cursor_tree_walk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_del_leaf_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_tree_walk_read_only_del_internal_page_skip = 0;
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
+    stats->cursor_tree_walk_ondisk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_tree_walk_skip_lock_contended = 0;
@@ -5129,15 +5141,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->fsync_io += WT_STAT_CONN_READ(from, fsync_io);
     to->read_io += WT_STAT_CONN_READ(from, read_io);
     to->write_io += WT_STAT_CONN_READ(from, write_io);
-    to->cursor_tree_walk_del_internal_page_skip +=
-      WT_STAT_CONN_READ(from, cursor_tree_walk_del_internal_page_skip);
     to->cursor_tree_walk_del_leaf_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_del_leaf_page_skip);
     to->cursor_next_skip_total += WT_STAT_CONN_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_CONN_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_CONN_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_tree_walk_read_only_del_internal_page_skip +=
+      WT_STAT_CONN_READ(from, cursor_tree_walk_read_only_del_internal_page_skip);
     to->cursor_tree_walk_inmem_del_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_inmem_del_page_skip);
+    to->cursor_tree_walk_ondisk_del_internal_page_skip +=
+      WT_STAT_CONN_READ(from, cursor_tree_walk_ondisk_del_internal_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=

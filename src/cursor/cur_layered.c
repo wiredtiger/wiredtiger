@@ -166,7 +166,9 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value, bool from_st
 
     if (__clayered_value_in_tombstone_namespace(value, false /* decode */)) {
         /* Encoding only ever appends the tombstone byte, so that is the byte being stripped. */
-        /* FIXME-WT-18154: assert the byte being stripped is the tombstone byte. */
+        WT_ASSERT_ALWAYS(session,
+          ((const uint8_t *)value->data)[value->size - 1] == *(const uint8_t *)__wt_tombstone.data,
+          "layered tombstone decode found a non-tombstone trailing byte");
         --value->size;
     }
 }
@@ -1623,6 +1625,12 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WTI_CURSOR_LAYERED *clayered_stop = (WTI_CURSOR_LAYERED *)trunc_info->stop;
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
     WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
+
+    /*
+     * Conflict detection can fail before truncate-list insertion checks isolation and allocates a
+     * transaction ID, so reject unsupported isolation levels first.
+     */
+    WT_RET(__wt_txn_isolation_write_check(trunc_info->session));
 
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
     WT_RET_NOTFOUND_OK(ret_start);
