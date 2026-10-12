@@ -217,7 +217,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
     /* For disaggregated stable tree opens, separate any trailing checkpoint indicator. */
-    WT_ERR(__wt_dhandle_shared_base_name(session, dhandle, &dhandle_name, &checkpoint, &name_buf));
+    WT_ERR(__wt_dhandle_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     if (checkpoint != NULL) {

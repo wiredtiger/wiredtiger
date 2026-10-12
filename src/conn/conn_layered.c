@@ -1353,8 +1353,11 @@ err:
 
 /*
  * __disagg_metadata_table_mark_shared --
- *     Add block_manager=disagg to the shared metadata table's entry if it was created without it,
- *     as it was by earlier versions that recognized shared trees by name.
+ *     Update the shared metadata table's entry in the local metadata to add block_manager=disagg if
+ *     it was created without it, as it was by earlier versions that recognized shared trees by
+ *     name. Only the local metadata changes, so this is valid on any role. It must run before the
+ *     table is first opened, because the setting at open decides whether the btree is
+ *     disaggregated.
  */
 static int
 __disagg_metadata_table_mark_shared(WT_SESSION_IMPL *session)

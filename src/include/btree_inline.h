@@ -387,16 +387,16 @@ err:
 
 /*
  * __wt_dhandle_shared_base_name --
- *     Break an open handle's name down into its base name and checkpoint id string. The handle
- *     already knows whether its name carries a checkpoint id.
+ *     Break the session's open handle name down into its base name and checkpoint id string. The
+ *     handle already knows whether its name carries a checkpoint id.
  */
 static WT_INLINE int
-__wt_dhandle_shared_base_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char **namep,
-  const char **checkpointp, WT_ITEM **name_bufp)
+__wt_dhandle_shared_base_name(
+  WT_SESSION_IMPL *session, const char **namep, const char **checkpointp, WT_ITEM **name_bufp)
 {
     const char *slash;
 
-    if (!F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT))
+    if (!F_ISSET(session->dhandle, WT_DHANDLE_SHARED_CKPT))
         return (0);
 
     slash = strrchr(*namep, '/');
