@@ -3038,6 +3038,18 @@ __wt_btcur_skip_page(
         return (0);
 
     /*
+     * A clean in-memory internal page of a read-only btree is checked without the lock: its address
+     * cannot change, and the split generation held by the walk keeps the parent's image valid. The
+     * state is only a hint; eviction leaves the address unchanged.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && WT_REF_GET_STATE(ref) == WT_REF_MEM &&
+      __wt_btcur_skip_internal_page_read_only(session, ref)) {
+        *skipp = true;
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats, true);
+        return (0);
+    }
+
+    /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
      * our transaction. If so, we can avoid reading the records on the page and move to the next
      * page.
@@ -3054,14 +3066,9 @@ __wt_btcur_skip_page(
     if (yield_count != 0)
         ++walk_skip_stats->total_skip_lock_contended;
 
-    /* Check a clean in-memory internal page separately from the on-disk and leaf-page paths. */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK) {
-        if (previous_state == WT_REF_MEM && __wt_btcur_skip_internal_page_read_only(session, ref)) {
-            *skipp = true;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats, true);
-        }
+    /* Only an on-disk internal page goes through the address checks below. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
         goto unlock;
-    }
 
     /*
      * Check the fast-truncate information; there are 3 cases:
