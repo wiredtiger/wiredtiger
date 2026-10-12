@@ -54,12 +54,18 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_leader(keys=range(1, 101))
         self.setup_follower(keys=range(1, 101) if ingest else None)
 
-    # Read a truncate statistic at connection scope or for the specified table.
-    def metric(self, name, uri=None):
-        with closing(self.session.open_cursor('statistics:' + (uri or ''), None,
-                'statistics=(all)')) as cursor:
-            key = getattr(stat.dsrc if uri else stat.conn, 'layered_truncate_' + name)
-            return cursor[key][2]
+    # Read a truncate statistic for the specified table.
+    def get_table_lt_stat(self, name, uri):
+        return self.get_stat(getattr(stat.dsrc, 'layered_truncate_' + name), uri=uri)
+
+    # Read a connection-wide truncate statistic.
+    def get_conn_lt_stat(self, name):
+        return self.get_stat(getattr(stat.conn, 'layered_truncate_' + name))
+
+    # Read a named snapshot of connection-wide truncate statistics.
+    def get_conn_lt_stats(self, stats, session=None):
+        values = self.get_stats(stats.values(), '', session if session is not None else self.session)
+        return {name: values[stat_key] for name, stat_key in stats.items()}
 
     # Truncate a bounded range on the supplied session without managing its transaction.
     def truncate_on(self, session, start, stop):
@@ -70,7 +76,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             session.truncate(None, start_cursor, stop_cursor, None)
 
     # 1. Commit a range truncate on the primary table and check the other table's count stays zero.
-    # 2. Populate and truncate the other table from another session; check both insertion counts.
+    # 2. Populate the other table, truncate it from another session and check both insertion counts.
     # 3. Roll back another primary-table truncate and check insertion and rollback-removal counts.
     # 4. Reconfigure as a leader and check that clearing counts the two remaining entries.
     def test_list_lifecycle(self):
@@ -79,7 +85,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_tables()
         self.ignoreStdoutPattern('Picking up the same checkpoint')
         self.truncate(20, 40, commit_timestamp=20)
-        self.assertEqual(self.metric('list_entries_inserted', self.other_uri), 0)
+        self.assertEqual(self.get_table_lt_stat('list_entries_inserted', self.other_uri), 0)
         with closing(self.session.open_cursor(self.other_uri)) as cursor:
             with self.transaction(commit_timestamp=30):
                 cursor[1] = 'v'
@@ -87,21 +93,23 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             other.begin_transaction()
             other.truncate(self.other_uri, None, None, None)
             other.commit_transaction('commit_timestamp=' + self.timestamp_str(40))
-            self.assertEqual(self.metric('list_entries_inserted'), 2)
+            self.assertEqual(self.get_conn_lt_stat('list_entries_inserted'), 2)
             for uri in (self.uri, self.other_uri):
-                self.assertEqual(self.metric('list_entries_inserted', uri), 1)
+                self.assertEqual(self.get_table_lt_stat('list_entries_inserted', uri), 1)
+
             other.begin_transaction()
             self.truncate_on(other, 60, 80)
-            self.assertEqual(self.metric('list_entries_inserted'), 3)
-            self.assertEqual(self.metric('list_entries_inserted', self.uri), 2)
+            self.assertEqual(self.get_conn_lt_stat('list_entries_inserted'), 3)
+            self.assertEqual(self.get_table_lt_stat('list_entries_inserted', self.uri), 2)
             other.rollback_transaction()
-            for uri in (None, self.uri):
-                self.assertEqual(self.metric('list_rollback_entries_removed', uri), 1)
+            self.assertEqual(self.get_conn_lt_stat('list_rollback_entries_removed'), 1)
+            self.assertEqual(self.get_table_lt_stat('list_rollback_entries_removed', self.uri), 1)
+
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.reconfigure('disaggregated=(role="leader")')
-        self.assertEqual(self.metric('list_clear_entries_removed'), 2)
+        self.assertEqual(self.get_conn_lt_stat('list_clear_entries_removed'), 2)
         for uri in (self.uri, self.other_uri):
-            self.assertEqual(self.metric('list_clear_entries_removed', uri), 1)
+            self.assertEqual(self.get_table_lt_stat('list_clear_entries_removed', uri), 1)
 
     # 1. Open a separate follower and commit two truncate ranges at different timestamps.
     # 2. Record GC counters, then checkpoint the leader with the older range truncated.
@@ -116,24 +124,24 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
                 with self.transaction(session=session, commit_timestamp=timestamp):
                     self.truncate_on(session, start, stop)
 
-            metrics = {
+            counters = {
                 'runs': stat.conn.layered_truncate_list_gc_runs,
                 'examined': stat.conn.layered_truncate_list_gc_entries_examined,
                 'removed': stat.conn.layered_truncate_list_gc_entries_removed,
             }
-            before = {name: self.get_stat(metric, conn=follower) for name, metric in metrics.items()}
+            before = self.get_conn_lt_stats(counters, session=session)
             self.assertEqual(before['removed'], 0)
             self.truncate(20, 40, commit_timestamp=20)
             self.leader_checkpoint(20)
             self.disagg_advance_checkpoint_and_wait(follower)
 
             deadline = time.time() + 60
-            while self.get_stat(metrics['removed'], conn=follower) == before['removed']:
+            while self.get_stat(counters['removed'], session=session) == before['removed']:
                 self.assertLess(time.time(), deadline, 'truncate list garbage collection timed out')
                 with self.transaction(session=session, rollback=True):
                     self.truncate_on(session, 80, 80)
 
-            after = {name: self.get_stat(metric, conn=follower) for name, metric in metrics.items()}
+            after = self.get_conn_lt_stats(counters, session=session)
             self.assertGreater(after['runs'], before['runs'])
             self.assertGreater(after['examined'], before['examined'])
             self.assertEqual(after['removed'] - before['removed'], 1)
@@ -145,41 +153,44 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
     # 5. Add a second range and check reads matching the first, second or neither range walk 1, 2 or 2 entries.
     def test_search_hits_and_misses(self):
         self.setup_tables()
-        before_calls = self.metric('list_search_calls')
-        before_hits = self.metric('list_search_hits')
-        before_misses = self.metric('list_search_misses')
-        before_walked = self.metric('list_search_entries_walked')
+        counters = {
+            'calls': stat.conn.layered_truncate_list_search_calls,
+            'hits': stat.conn.layered_truncate_list_search_hits,
+            'misses': stat.conn.layered_truncate_list_search_misses,
+            'walked': stat.conn.layered_truncate_list_search_entries_walked,
+        }
+        before = self.get_conn_lt_stats(counters)
         self.key_exists(80)
-        self.assertEqual(self.metric('list_search_calls') - before_calls, 1)
-        self.assertEqual(self.metric('list_search_hits'), before_hits)
-        self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
-        self.assertEqual(self.metric('list_search_entries_walked'), before_walked)
+        after = self.get_conn_lt_stats(counters)
+        self.assertEqual(after['calls'] - before['calls'], 1, 'empty-list search should count one call')
+        self.assertEqual(after['hits'] - before['hits'], 0, 'empty-list search should not count a hit')
+        self.assertEqual(after['misses'] - before['misses'], 1, 'empty-list search should count one miss')
+        self.assertEqual(after['walked'] - before['walked'], 0, 'empty-list search should walk no entries')
 
         self.truncate(20, 40, commit_timestamp=20)
-        before_calls = self.metric('list_search_calls')
-        before_hits = self.metric('list_search_hits')
-        before_misses = self.metric('list_search_misses')
-        before_walked = self.metric('list_search_entries_walked')
-        before_table_hits = self.metric('list_search_hits', self.uri)
-        before_table_misses = self.metric('list_search_misses', self.uri)
+        before = self.get_conn_lt_stats(counters)
+        table_hits_before = self.get_table_lt_stat('list_search_hits', self.uri)
+        table_misses_before = self.get_table_lt_stat('list_search_misses', self.uri)
         self.key_exists(25)
-        self.assertEqual(self.metric('list_search_calls') - before_calls, 1)
-        self.assertEqual(self.metric('list_search_hits') - before_hits, 1)
-        self.assertEqual(self.metric('list_search_misses'), before_misses)
-        self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 1)
+        after = self.get_conn_lt_stats(counters)
+        self.assertEqual(after['calls'] - before['calls'], 1, 'matching search should count one call')
+        self.assertEqual(after['hits'] - before['hits'], 1, 'matching search should count one hit')
+        self.assertEqual(after['misses'] - before['misses'], 0, 'matching search should not count a miss')
+        self.assertEqual(after['walked'] - before['walked'], 1, 'matching search should walk one entry')
 
+        before = after
         self.key_exists(80)
-        self.assertEqual(self.metric('list_search_calls') - before_calls, 2)
-        self.assertEqual(self.metric('list_search_hits') - before_hits, 1)
-        self.assertEqual(self.metric('list_search_misses') - before_misses, 1)
-        self.assertEqual(self.metric('list_search_entries_walked') - before_walked, 2)
-        self.assertEqual(self.metric('list_search_hits', self.uri) - before_table_hits, 1)
-        self.assertEqual(self.metric('list_search_hits', self.other_uri), 0)
-        self.assertEqual(self.metric('list_search_misses', self.uri) - before_table_misses, 1)
-        self.assertEqual(self.metric('list_search_misses', self.other_uri), 0)
+        after = self.get_conn_lt_stats(counters)
+        self.assertEqual(after['calls'] - before['calls'], 1, 'full-list miss should count one call')
+        self.assertEqual(after['hits'] - before['hits'], 0, 'full-list miss should add no hits')
+        self.assertEqual(after['misses'] - before['misses'], 1, 'full-list miss should add one miss')
+        self.assertEqual(after['walked'] - before['walked'], 1, 'full-list miss should walk one entry')
+        self.assertEqual(self.get_table_lt_stat('list_search_hits', self.uri) - table_hits_before, 1)
+        self.assertEqual(self.get_table_lt_stat('list_search_hits', self.other_uri), 0)
+        self.assertEqual(self.get_table_lt_stat('list_search_misses', self.uri) - table_misses_before, 1)
+        self.assertEqual(self.get_table_lt_stat('list_search_misses', self.other_uri), 0)
 
-        before_hits = self.metric('list_search_hits')
-        before_misses = self.metric('list_search_misses')
+        before = self.get_conn_lt_stats(counters)
         with closing(self.session.open_cursor(self.uri, None, 'overwrite=false')) as cursor:
             with self.transaction(rollback=True):
                 cursor.set_key(80)
@@ -188,14 +199,17 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
                     cursor.insert()
                 except wiredtiger.WiredTigerError:
                     pass
-        self.assertEqual(self.metric('list_search_hits'), before_hits)
-        self.assertGreater(self.metric('list_search_misses'), before_misses)
+        after = self.get_conn_lt_stats(counters)
+        self.assertEqual(after['hits'] - before['hits'], 0, 'duplicate insert outside the range should add no hits')
+        self.assertGreater(after['misses'], before['misses'], 'duplicate insert should exercise search misses')
 
         self.truncate(60, 70, commit_timestamp=30)
         for key, expected_walked in ((25, 1), (65, 2), (80, 2)):
-            before_walked = self.metric('list_search_entries_walked')
+            walked_before = self.get_conn_lt_stat('list_search_entries_walked')
             self.key_exists(key)
-            self.assertEqual(self.metric('list_search_entries_walked') - before_walked, expected_walked)
+            walked_after = self.get_conn_lt_stat('list_search_entries_walked')
+            self.assertEqual(walked_after - walked_before, expected_walked,
+                f'search for key {key} should walk {expected_walked} entries')
 
     # 1. Populate follower ingest, truncate keys 20 through 40, and check 21 tombstones are counted.
     # 2. Extend the truncate to keys 19 through 41 and check only the two additional keys are counted.
@@ -205,13 +219,13 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.skipTest('Layered table statistics reporting is incomplete.')
         self.setup_tables(ingest=True)
         self.truncate(20, 40, commit_timestamp=20)
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('ingest_tombstones_written', uri), 21)
+        self.assertEqual(self.get_conn_lt_stat('ingest_tombstones_written'), 21)
+        self.assertEqual(self.get_table_lt_stat('ingest_tombstones_written', self.uri), 21)
         # Revisit the deleted keys and add one live key at each boundary.
         self.truncate(19, 41, commit_timestamp=30)
-        for uri in (None, self.uri):
-            self.assertEqual(self.metric('ingest_tombstones_written', uri), 23)
-        self.assertEqual(self.metric('ingest_tombstones_written', self.other_uri), 0)
+        self.assertEqual(self.get_conn_lt_stat('ingest_tombstones_written'), 23)
+        self.assertEqual(self.get_table_lt_stat('ingest_tombstones_written', self.uri), 23)
+        self.assertEqual(self.get_table_lt_stat('ingest_tombstones_written', self.other_uri), 0)
 
     # 1. Leave a truncate of keys 20 through 40 pending in the primary session.
     # 2. Attempt an overlapping truncate and an insert within that range from another session.
@@ -231,8 +245,8 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             except wiredtiger.WiredTigerError:
                 pass
             other.rollback_transaction()
-            for uri in (None, self.uri):
-                self.assertEqual(self.metric('list_write_conflicts', uri), 1)
+            self.assertEqual(self.get_conn_lt_stat('list_write_conflicts'), 1)
+            self.assertEqual(self.get_table_lt_stat('list_write_conflicts', self.uri), 1)
 
             other.begin_transaction()
             cursor.set_key(25)
@@ -242,6 +256,6 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             except wiredtiger.WiredTigerError:
                 pass
             other.rollback_transaction()
-            for uri in (None, self.uri):
-                self.assertEqual(self.metric('list_write_conflicts', uri), 2)
+            self.assertEqual(self.get_conn_lt_stat('list_write_conflicts'), 2)
+            self.assertEqual(self.get_table_lt_stat('list_write_conflicts', self.uri), 2)
         self.session.rollback_transaction()
