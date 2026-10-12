@@ -2056,13 +2056,13 @@ retry:
         WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
         if (track_stats) {
             if (start->ref != last_ref) {
-                WT_STAT_CONN_DSRC_INCR(session, truncate_slow_path_leaf_pages);
+                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_slow_path_leaf_pages);
                 last_ref = start->ref;
             }
             /* A concurrent writer may dirty the page first, so this count is approximate. */
             if (page_was_clean && __wt_page_is_modified(page)) {
-                WT_STAT_CONN_DSRC_INCR(session, truncate_leaf_pages_dirtied);
-                WT_STAT_CONN_DSRC_INCRV(session, truncate_leaf_bytes_dirtied,
+                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_leaf_pages_dirtied);
+                WT_STAT_CONN_DSRC_INCRV(session, cursor_truncate_leaf_bytes_dirtied,
                   (int64_t)__wt_atomic_load_size_relaxed(&page->memory_footprint));
             }
         }

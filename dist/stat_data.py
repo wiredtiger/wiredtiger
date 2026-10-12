@@ -169,10 +169,6 @@ class TxnStat(Stat):
     prefix = 'transaction'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, TxnStat.prefix, desc, flags)
-class TruncateStat(Stat):
-    prefix = 'truncate'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, TruncateStat.prefix, desc, flags)
 class YieldStat(Stat):
     prefix = 'thread-yield'
     def __init__(self, name, desc, flags=''):
@@ -1421,6 +1417,13 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
+    CursorStat('cursor_truncate_fast_delete_fallback_in_memory', 'range truncate fast-delete candidates in memory or busy'),
+    CursorStat('cursor_truncate_fast_delete_fallback_pages', 'range truncate fast-delete candidates rejected'),
+    CursorStat('cursor_truncate_internal_bytes_dirtied', 'range truncate internal page bytes newly dirtied', 'size'),
+    CursorStat('cursor_truncate_internal_pages_dirtied', 'range truncate internal pages newly dirtied'),
+    CursorStat('cursor_truncate_leaf_bytes_dirtied', 'range truncate leaf page bytes newly dirtied', 'size'),
+    CursorStat('cursor_truncate_leaf_pages_dirtied', 'range truncate leaf pages newly dirtied'),
+    CursorStat('cursor_truncate_slow_path_leaf_pages', 'range truncate leaf pages modified through the slow path'),
 
     ##########################################
     # Cursor API error statistics
@@ -1603,17 +1606,6 @@ conn_dsrc_stats = [
     TxnStat('txn_rts_sweep_hs_keys', 'rollback to stable sweeping history store keys'),
     TxnStat('txn_rts_sweep_hs_keys_dryrun', 'rollback to stable history store keys that would have been swept in non-dryrun mode'),
     TxnStat('txn_update_conflict', 'update conflicts'),
-
-    ##########################################
-    # Range truncate statistics
-    ##########################################
-    TruncateStat('truncate_fast_delete_fallback_in_memory', 'fast-delete candidates in memory or busy'),
-    TruncateStat('truncate_fast_delete_fallback_pages', 'fast-delete candidates rejected'),
-    TruncateStat('truncate_internal_bytes_dirtied', 'internal page bytes newly dirtied', 'size'),
-    TruncateStat('truncate_internal_pages_dirtied', 'internal pages newly dirtied'),
-    TruncateStat('truncate_leaf_bytes_dirtied', 'leaf page bytes newly dirtied', 'size'),
-    TruncateStat('truncate_leaf_pages_dirtied', 'leaf pages newly dirtied'),
-    TruncateStat('truncate_slow_path_leaf_pages', 'leaf pages modified through the slow path'),
 ]
 
 ##########################################

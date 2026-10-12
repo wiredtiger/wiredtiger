@@ -375,8 +375,8 @@ writing tests.
 
 Range-truncate activity counters are available in connection and data-source statistics;
 \c rec_page_delete_fast counts the leaf pages that were fast-deleted.
-The \c truncate_fast_delete_fallback_in_memory count is a subset of
-\c truncate_fast_delete_fallback_pages; slow-path visits and fallback candidates may refer to
+The \c cursor_truncate_fast_delete_fallback_in_memory count is a subset of
+\c cursor_truncate_fast_delete_fallback_pages; slow-path visits and fallback candidates may refer to
 the same page. Newly dirtied leaf and internal page bytes count the memory footprint when a
 page first becomes dirty, not the size of the tombstones; these cumulative counters are not
 reduced on rollback or eviction, and are approximate when other writers modify the same pages.

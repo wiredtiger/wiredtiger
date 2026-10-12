@@ -330,6 +330,13 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: open cursor time internal (usecs)",
   "cursor: operation restarted",
   "cursor: prev calls",
+  "cursor: range truncate fast-delete candidates in memory or busy",
+  "cursor: range truncate fast-delete candidates rejected",
+  "cursor: range truncate internal page bytes newly dirtied",
+  "cursor: range truncate internal pages newly dirtied",
+  "cursor: range truncate leaf page bytes newly dirtied",
+  "cursor: range truncate leaf pages modified through the slow path",
+  "cursor: range truncate leaf pages newly dirtied",
   "cursor: remove calls",
   "cursor: remove key bytes removed",
   "cursor: reserve calls",
@@ -486,13 +493,6 @@ static const char *const __stats_dsrc_desc[] = {
   "transaction: rollback to stable updates that would have been removed from history store in "
   "non-dryrun mode",
   "transaction: update conflicts",
-  "truncate: fast-delete candidates in memory or busy",
-  "truncate: fast-delete candidates rejected",
-  "truncate: internal page bytes newly dirtied",
-  "truncate: internal pages newly dirtied",
-  "truncate: leaf page bytes newly dirtied",
-  "truncate: leaf pages modified through the slow path",
-  "truncate: leaf pages newly dirtied",
 };
 
 int
@@ -839,6 +839,13 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cursor_open_time_internal_usecs */
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
+    stats->cursor_truncate_fast_delete_fallback_in_memory = 0;
+    stats->cursor_truncate_fast_delete_fallback_pages = 0;
+    stats->cursor_truncate_internal_bytes_dirtied = 0;
+    stats->cursor_truncate_internal_pages_dirtied = 0;
+    stats->cursor_truncate_leaf_bytes_dirtied = 0;
+    stats->cursor_truncate_slow_path_leaf_pages = 0;
+    stats->cursor_truncate_leaf_pages_dirtied = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
     stats->cursor_reserve = 0;
@@ -984,13 +991,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->txn_rts_hs_removed = 0;
     stats->txn_rts_hs_removed_dryrun = 0;
     stats->txn_update_conflict = 0;
-    stats->truncate_fast_delete_fallback_in_memory = 0;
-    stats->truncate_fast_delete_fallback_pages = 0;
-    stats->truncate_internal_bytes_dirtied = 0;
-    stats->truncate_internal_pages_dirtied = 0;
-    stats->truncate_leaf_bytes_dirtied = 0;
-    stats->truncate_slow_path_leaf_pages = 0;
-    stats->truncate_leaf_pages_dirtied = 0;
 }
 
 void
@@ -1348,6 +1348,15 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_open_time_internal_usecs += from->cursor_open_time_internal_usecs;
     to->cursor_restart += from->cursor_restart;
     to->cursor_prev += from->cursor_prev;
+    to->cursor_truncate_fast_delete_fallback_in_memory +=
+      from->cursor_truncate_fast_delete_fallback_in_memory;
+    to->cursor_truncate_fast_delete_fallback_pages +=
+      from->cursor_truncate_fast_delete_fallback_pages;
+    to->cursor_truncate_internal_bytes_dirtied += from->cursor_truncate_internal_bytes_dirtied;
+    to->cursor_truncate_internal_pages_dirtied += from->cursor_truncate_internal_pages_dirtied;
+    to->cursor_truncate_leaf_bytes_dirtied += from->cursor_truncate_leaf_bytes_dirtied;
+    to->cursor_truncate_slow_path_leaf_pages += from->cursor_truncate_slow_path_leaf_pages;
+    to->cursor_truncate_leaf_pages_dirtied += from->cursor_truncate_leaf_pages_dirtied;
     to->cursor_remove += from->cursor_remove;
     to->cursor_remove_bytes += from->cursor_remove_bytes;
     to->cursor_reserve += from->cursor_reserve;
@@ -1504,13 +1513,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->txn_rts_hs_removed += from->txn_rts_hs_removed;
     to->txn_rts_hs_removed_dryrun += from->txn_rts_hs_removed_dryrun;
     to->txn_update_conflict += from->txn_update_conflict;
-    to->truncate_fast_delete_fallback_in_memory += from->truncate_fast_delete_fallback_in_memory;
-    to->truncate_fast_delete_fallback_pages += from->truncate_fast_delete_fallback_pages;
-    to->truncate_internal_bytes_dirtied += from->truncate_internal_bytes_dirtied;
-    to->truncate_internal_pages_dirtied += from->truncate_internal_pages_dirtied;
-    to->truncate_leaf_bytes_dirtied += from->truncate_leaf_bytes_dirtied;
-    to->truncate_slow_path_leaf_pages += from->truncate_slow_path_leaf_pages;
-    to->truncate_leaf_pages_dirtied += from->truncate_leaf_pages_dirtied;
 }
 
 void
@@ -1909,6 +1911,20 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_open_time_internal_usecs += WT_STAT_DSRC_READ(from, cursor_open_time_internal_usecs);
     to->cursor_restart += WT_STAT_DSRC_READ(from, cursor_restart);
     to->cursor_prev += WT_STAT_DSRC_READ(from, cursor_prev);
+    to->cursor_truncate_fast_delete_fallback_in_memory +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
+    to->cursor_truncate_fast_delete_fallback_pages +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_pages);
+    to->cursor_truncate_internal_bytes_dirtied +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_internal_bytes_dirtied);
+    to->cursor_truncate_internal_pages_dirtied +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_internal_pages_dirtied);
+    to->cursor_truncate_leaf_bytes_dirtied +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_leaf_bytes_dirtied);
+    to->cursor_truncate_slow_path_leaf_pages +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_slow_path_leaf_pages);
+    to->cursor_truncate_leaf_pages_dirtied +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_leaf_pages_dirtied);
     to->cursor_remove += WT_STAT_DSRC_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_DSRC_READ(from, cursor_remove_bytes);
     to->cursor_reserve += WT_STAT_DSRC_READ(from, cursor_reserve);
@@ -2094,15 +2110,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->txn_rts_hs_removed += WT_STAT_DSRC_READ(from, txn_rts_hs_removed);
     to->txn_rts_hs_removed_dryrun += WT_STAT_DSRC_READ(from, txn_rts_hs_removed_dryrun);
     to->txn_update_conflict += WT_STAT_DSRC_READ(from, txn_update_conflict);
-    to->truncate_fast_delete_fallback_in_memory +=
-      WT_STAT_DSRC_READ(from, truncate_fast_delete_fallback_in_memory);
-    to->truncate_fast_delete_fallback_pages +=
-      WT_STAT_DSRC_READ(from, truncate_fast_delete_fallback_pages);
-    to->truncate_internal_bytes_dirtied += WT_STAT_DSRC_READ(from, truncate_internal_bytes_dirtied);
-    to->truncate_internal_pages_dirtied += WT_STAT_DSRC_READ(from, truncate_internal_pages_dirtied);
-    to->truncate_leaf_bytes_dirtied += WT_STAT_DSRC_READ(from, truncate_leaf_bytes_dirtied);
-    to->truncate_slow_path_leaf_pages += WT_STAT_DSRC_READ(from, truncate_slow_path_leaf_pages);
-    to->truncate_leaf_pages_dirtied += WT_STAT_DSRC_READ(from, truncate_leaf_pages_dirtied);
 }
 
 static const char *const __stats_connection_desc[] = {
@@ -2737,6 +2744,13 @@ static const char *const __stats_connection_desc[] = {
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
   "cursor: open cursor time internal (usecs)",
+  "cursor: range truncate fast-delete candidates in memory or busy",
+  "cursor: range truncate fast-delete candidates rejected",
+  "cursor: range truncate internal page bytes newly dirtied",
+  "cursor: range truncate internal pages newly dirtied",
+  "cursor: range truncate leaf page bytes newly dirtied",
+  "cursor: range truncate leaf pages modified through the slow path",
+  "cursor: range truncate leaf pages newly dirtied",
   "data-handle: Layered connection data handles currently active",
   "data-handle: Table connection data handles currently active",
   "data-handle: btree connection data handles currently active",
@@ -3247,13 +3261,6 @@ static const char *const __stats_connection_desc[] = {
   "transaction: update conflicts",
   "transaction: write transactions rolled back for straddling the step-down timestamp setting "
   "boundary",
-  "truncate: fast-delete candidates in memory or busy",
-  "truncate: fast-delete candidates rejected",
-  "truncate: internal page bytes newly dirtied",
-  "truncate: internal pages newly dirtied",
-  "truncate: leaf page bytes newly dirtied",
-  "truncate: leaf pages modified through the slow path",
-  "truncate: leaf pages newly dirtied",
 };
 
 int
@@ -3874,6 +3881,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_open_count */
     /* not clearing cursor_open_time_user_usecs */
     /* not clearing cursor_open_time_internal_usecs */
+    stats->cursor_truncate_fast_delete_fallback_in_memory = 0;
+    stats->cursor_truncate_fast_delete_fallback_pages = 0;
+    stats->cursor_truncate_internal_bytes_dirtied = 0;
+    stats->cursor_truncate_internal_pages_dirtied = 0;
+    stats->cursor_truncate_leaf_bytes_dirtied = 0;
+    stats->cursor_truncate_slow_path_leaf_pages = 0;
+    stats->cursor_truncate_leaf_pages_dirtied = 0;
     /* not clearing dh_conn_handle_layered_count */
     /* not clearing dh_conn_handle_table_count */
     /* not clearing dh_conn_handle_btree_count */
@@ -4367,13 +4381,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_truncate_dirty_cache_rollback = 0;
     stats->txn_update_conflict = 0;
     stats->txn_rollback_stepdown = 0;
-    stats->truncate_fast_delete_fallback_in_memory = 0;
-    stats->truncate_fast_delete_fallback_pages = 0;
-    stats->truncate_internal_bytes_dirtied = 0;
-    stats->truncate_internal_pages_dirtied = 0;
-    stats->truncate_leaf_bytes_dirtied = 0;
-    stats->truncate_slow_path_leaf_pages = 0;
-    stats->truncate_leaf_pages_dirtied = 0;
 }
 
 void
@@ -5132,6 +5139,20 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
+    to->cursor_truncate_fast_delete_fallback_in_memory +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
+    to->cursor_truncate_fast_delete_fallback_pages +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_fallback_pages);
+    to->cursor_truncate_internal_bytes_dirtied +=
+      WT_STAT_CONN_READ(from, cursor_truncate_internal_bytes_dirtied);
+    to->cursor_truncate_internal_pages_dirtied +=
+      WT_STAT_CONN_READ(from, cursor_truncate_internal_pages_dirtied);
+    to->cursor_truncate_leaf_bytes_dirtied +=
+      WT_STAT_CONN_READ(from, cursor_truncate_leaf_bytes_dirtied);
+    to->cursor_truncate_slow_path_leaf_pages +=
+      WT_STAT_CONN_READ(from, cursor_truncate_slow_path_leaf_pages);
+    to->cursor_truncate_leaf_pages_dirtied +=
+      WT_STAT_CONN_READ(from, cursor_truncate_leaf_pages_dirtied);
     to->dh_conn_handle_layered_count += WT_STAT_CONN_READ(from, dh_conn_handle_layered_count);
     to->dh_conn_handle_table_count += WT_STAT_CONN_READ(from, dh_conn_handle_table_count);
     to->dh_conn_handle_btree_count += WT_STAT_CONN_READ(from, dh_conn_handle_btree_count);
@@ -5777,15 +5798,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, txn_truncate_dirty_cache_rollback);
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
     to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
-    to->truncate_fast_delete_fallback_in_memory +=
-      WT_STAT_CONN_READ(from, truncate_fast_delete_fallback_in_memory);
-    to->truncate_fast_delete_fallback_pages +=
-      WT_STAT_CONN_READ(from, truncate_fast_delete_fallback_pages);
-    to->truncate_internal_bytes_dirtied += WT_STAT_CONN_READ(from, truncate_internal_bytes_dirtied);
-    to->truncate_internal_pages_dirtied += WT_STAT_CONN_READ(from, truncate_internal_pages_dirtied);
-    to->truncate_leaf_bytes_dirtied += WT_STAT_CONN_READ(from, truncate_leaf_bytes_dirtied);
-    to->truncate_slow_path_leaf_pages += WT_STAT_CONN_READ(from, truncate_slow_path_leaf_pages);
-    to->truncate_leaf_pages_dirtied += WT_STAT_CONN_READ(from, truncate_leaf_pages_dirtied);
 }
 
 static const char *const __stats_session_desc[] = {

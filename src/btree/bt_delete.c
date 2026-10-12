@@ -105,8 +105,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
             if (track_stats) {
-                WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
-                WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_in_memory);
+                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
             }
             return (0);
         }
@@ -129,16 +129,16 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     previous_state = WT_REF_GET_STATE(ref);
     if (previous_state != WT_REF_DISK) {
         if (track_stats) {
-            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
-            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_in_memory);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
         }
         return (0);
     }
 
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         if (track_stats) {
-            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
-            WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_in_memory);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
         }
         return (0);
     }
@@ -258,8 +258,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     if (parent_was_clean && track_stats) {
         footprint = __wt_atomic_load_size_relaxed(&parent->memory_footprint);
         session->txn->truncate_dirty_bytes += footprint;
-        WT_STAT_CONN_DSRC_INCR(session, truncate_internal_pages_dirtied);
-        WT_STAT_CONN_DSRC_INCRV(session, truncate_internal_bytes_dirtied, (int64_t)footprint);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_internal_pages_dirtied);
+        WT_STAT_CONN_DSRC_INCRV(
+          session, cursor_truncate_internal_bytes_dirtied, (int64_t)footprint);
 
         /*
          * These pages are dirty content the transaction has not resolved, tracked separately from
@@ -284,7 +285,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 err:
     if (ret == 0 && track_stats)
-        WT_STAT_CONN_DSRC_INCR(session, truncate_fast_delete_fallback_pages);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
     __wt_free(session, ref->page_del);
 
     /* Return the page to its previous state. */

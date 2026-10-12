@@ -85,12 +85,12 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
     def assert_replay_stats_increased(self, msg):
         fast_before = self.get_stat(stat.conn.rec_page_delete_fast, conn=self.conn_follow)
         slow_pages_before = self.get_stat(
-            stat.conn.truncate_slow_path_leaf_pages, conn=self.conn_follow)
+            stat.conn.cursor_truncate_slow_path_leaf_pages, conn=self.conn_follow)
         self.step_up()
         self.assertGreater(
             self.get_stat(stat.conn.rec_page_delete_fast, conn=self.conn_follow), fast_before, msg)
         self.assertGreater(self.get_stat(
-            stat.conn.truncate_slow_path_leaf_pages, conn=self.conn_follow),
+            stat.conn.cursor_truncate_slow_path_leaf_pages, conn=self.conn_follow),
             slow_pages_before, "Range truncate slow-path statistics did not increase.")
 
     def test_fast_truncate_fires_during_replay(self):
