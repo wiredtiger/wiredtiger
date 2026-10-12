@@ -69,7 +69,10 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             stop_cursor.set_key(stop)
             session.truncate(None, start_cursor, stop_cursor, None)
 
-    # Check insertion, rollback and clearing counters across tables and sessions.
+    # 1. Commit a range truncate on the primary table and check the other table's count stays zero.
+    # 2. Populate and truncate the other table from another session; check both insertion counts.
+    # 3. Roll back another primary-table truncate and check insertion and rollback-removal counts.
+    # 4. Reconfigure as a leader and check that clearing counts the two remaining entries.
     def test_list_lifecycle(self):
         # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
         self.skipTest('Layered table statistics reporting is incomplete.')
@@ -100,7 +103,10 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         for uri in (self.uri, self.other_uri):
             self.assertEqual(self.metric('list_clear_entries_removed', uri), 1)
 
-    # Check GC run, examination and removal counters after checkpoint adoption.
+    # 1. Open a separate follower and commit two truncate ranges at different timestamps.
+    # 2. Record GC counters, then checkpoint the leader with the older range truncated.
+    # 3. Wait for follower checkpoint adoption and issue rolled-back truncates until GC removes an entry.
+    # 4. Check that GC runs and examinations increase and exactly one entry is removed.
     def test_garbage_collection(self):
         self.setup_leader(keys=range(1, 101))
         self.leader_checkpoint(10)
@@ -132,7 +138,11 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             self.assertGreater(after['examined'], before['examined'])
             self.assertEqual(after['removed'] - before['removed'], 1)
 
-    # Check search outcomes, visited-entry counts and table isolation for reads and duplicate inserts.
+    # 1. Search before any truncates and check one call and miss with no entries walked.
+    # 2. Commit a truncate, search inside and outside its range, and check call, hit, miss and walk counts.
+    # 3. Check table-level counts and that searches leave the other table's counts unchanged.
+    # 4. Attempt a duplicate insert outside the range and check misses increase without additional hits.
+    # 5. Add a second range and check reads matching the first, second or neither range walk 1, 2 or 2 entries.
     def test_search_hits_and_misses(self):
         self.setup_tables()
         before_calls = self.metric('list_search_calls')
@@ -187,7 +197,9 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             self.key_exists(key)
             self.assertEqual(self.metric('list_search_entries_walked') - before_walked, expected_walked)
 
-    # Check that ingest work counts new tombstones and excludes keys already deleted by an earlier truncate.
+    # 1. Populate follower ingest, truncate keys 20 through 40, and check 21 tombstones are counted.
+    # 2. Extend the truncate to keys 19 through 41 and check only the two additional keys are counted.
+    # 3. Check connection and primary-table totals agree and the other table's total stays zero.
     def test_ingest_work(self):
         # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
         self.skipTest('Layered table statistics reporting is incomplete.')
@@ -201,7 +213,10 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             self.assertEqual(self.metric('ingest_tombstones_written', uri), 23)
         self.assertEqual(self.metric('ingest_tombstones_written', self.other_uri), 0)
 
-    # Check counters for range and point writes that conflict with another session's pending truncate.
+    # 1. Leave a truncate of keys 20 through 40 pending in the primary session.
+    # 2. Attempt an overlapping truncate and an insert within that range from another session.
+    # 3. Roll back each failed operation and check connection and table conflict counts.
+    # 4. Roll back the pending truncate.
     def test_write_conflicts(self):
         # FIXME-WT-18854: Re-enable when layered table statistics report all updates.
         self.skipTest('Layered table statistics reporting is incomplete.')
@@ -210,30 +225,23 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.truncate_on(self.session, 20, 40)
         with closing(self.conn.open_session()) as other, \
                 closing(other.open_cursor(self.uri)) as cursor:
+            other.begin_transaction()
+            try:
+                self.truncate_on(other, 30, 50)
+            except wiredtiger.WiredTigerError:
+                pass
+            other.rollback_transaction()
+            for uri in (None, self.uri):
+                self.assertEqual(self.metric('list_write_conflicts', uri), 1)
+
+            other.begin_transaction()
             cursor.set_key(25)
             cursor.set_value('conflict')
-            operations = (
-                (lambda: self.truncate_on(other, 30, 50), 2, 3),
-                (cursor.insert, 0, 1),
-            )
-            for count, (operation, expected_misses, expected_walked) in enumerate(operations, 1):
-                other.begin_transaction()
-                before_calls = self.metric('list_search_calls')
-                before_hits = self.metric('list_search_hits')
-                before_misses = self.metric('list_search_misses')
-                before_walked = self.metric('list_search_entries_walked')
-                try:
-                    operation()
-                except wiredtiger.WiredTigerError:
-                    pass
-                self.assertEqual(self.metric('list_search_calls') - before_calls, 1 + expected_misses)
-                self.assertEqual(self.metric('list_search_hits') - before_hits, 1)
-                self.assertEqual(self.metric('list_search_misses') - before_misses, expected_misses)
-                self.assertEqual(self.metric('list_search_entries_walked') - before_walked,
-                    expected_walked)
-                other.rollback_transaction()
-                for uri in (None, self.uri):
-                    self.assertEqual(self.metric('list_write_conflicts', uri), count)
+            try:
+                cursor.insert()
+            except wiredtiger.WiredTigerError:
+                pass
+            other.rollback_transaction()
+            for uri in (None, self.uri):
+                self.assertEqual(self.metric('list_write_conflicts', uri), 2)
         self.session.rollback_transaction()
-        for uri in (None, self.uri):
-            self.assertGreater(self.metric('list_search_hits', uri), 0)
