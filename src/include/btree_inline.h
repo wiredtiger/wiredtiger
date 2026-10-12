@@ -213,6 +213,19 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 }
 
 /*
+ * __wt_btree_block_free_root --
+ *     Helper function to free a checkpoint's root page from the current tree.
+ */
+static WT_INLINE int
+__wt_btree_block_free_root(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+    return (bm->free(bm, session, addr, addr_size, true));
+}
+
+/*
  * __wt_btree_bytes_inuse --
  *     Return the number of bytes in use.
  */
