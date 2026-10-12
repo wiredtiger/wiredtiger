@@ -214,9 +214,8 @@ __evict_page_victim_cache_eligible(
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (WTI_EVICT_VICTIM_NOT_DISAGG);
 
-    /* A checkpoint cursor or a shared checkpoint view is not eligible for the victim cache. */
-    if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle) ||
-      F_ISSET(S2BT(session)->dhandle, WT_DHANDLE_SHARED_CKPT))
+    /* A checkpoint cursor's btree is not eligible for the victim cache. */
+    if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
         return (WTI_EVICT_VICTIM_CHECKPOINT_CURSOR);
 
     /*
