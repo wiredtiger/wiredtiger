@@ -156,13 +156,36 @@ __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
 }
 
 /*
+ * __create_next_file_id --
+ *     Allocate the next file ID, checking for overflow.
+ */
+static int
+__create_next_file_id(WT_SESSION_IMPL *session, uint32_t *fileidp)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    *fileidp = 0;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    const uint32_t max_file_id = UINT32_MAX >> WT_BTREE_ID_NAMESPACE_BITS;
+    if (conn->next_file_id >= max_file_id)
+        WT_RET_MSG(session, WT_ERROR, "out of file IDs");
+
+    *fileidp = ++conn->next_file_id;
+
+    return (0);
+}
+
+/*
  * __wt_generate_file_id --
  *     Generate a unique file ID for the provided URI and assign it to all required namespaces.
  */
-uint32_t
-__wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
+int
+__wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared, uint32_t *fileidp)
 {
+    WT_DECL_RET;
     uint32_t file_id;
+    *fileidp = 0;
 
     typedef struct {
         uint32_t id;
@@ -184,16 +207,21 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
             /* Entry should be already in the namespace here. */
             WT_ASSERT(
               session, WT_BTREE_ID_NAMESPACE_ID(entry->id) == WT_BTREE_ID_NAMESPACE_SPECIAL);
-            return (entry->id);
+            *fileidp = entry->id;
+            return (0);
         }
     }
 
     /* Use the counter if there is no predefined ID for the table. */
     uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
-    WT_WITH_SCHEMA_LOCK(session, file_id = ++S2C(session)->next_file_id);
+    WT_WITH_SCHEMA_LOCK(session, ret = __create_next_file_id(session, &file_id));
+    WT_RET(ret);
+
     uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(file_id, ns);
     __validate_file_id(session, namespaced_id);
-    return (namespaced_id);
+    *fileidp = namespaced_id;
+
+    return (0);
 }
 
 /*
@@ -344,7 +372,7 @@ __create_file(
     if (!is_metadata) {
         if (!import_repair) {
             WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
-            fileid = __wt_generate_file_id(session, uri, is_shared);
+            WT_ERR(__wt_generate_file_id(session, uri, is_shared, &fileid));
 
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
@@ -1277,7 +1305,7 @@ __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *valu
 static int
 __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
 {
-    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     size_t i;
     int64_t new_file_id, prev_file_id;
     char *config_tmp, fileid_cfg[64];
@@ -1286,7 +1314,6 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
 
     config_tmp = NULL;
     new_file_id = prev_file_id = -1;
-    conn = S2C(session);
 
     /* Sort the array of entries by file ID. */
     __wt_qsort(import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY),
@@ -1304,7 +1331,8 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
             if (WT_BTREE_ID_SHARED(prev_file_id))
                 WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
 
-            WT_WITH_SCHEMA_LOCK(session, next_raw_id = ++conn->next_file_id);
+            WT_WITH_SCHEMA_LOCK(session, ret = __create_next_file_id(session, &next_raw_id));
+            WT_RET(ret);
             new_file_id = WT_BTREE_ID_NAMESPACED(next_raw_id, WT_BTREE_ID_NAMESPACE_LOCAL);
         }
 
