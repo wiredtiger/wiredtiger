@@ -40,7 +40,6 @@ from wtbackup import backup_base
 # identifier that a subsequent incremental backup uses as its source.
 class test_backup32(backup_base):
     test_name = __qualname__
-    conn_config = 'cache_size=10MB'
     uri = f'table:{test_name}'
 
     def setUp(self):
