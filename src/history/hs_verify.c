@@ -24,9 +24,9 @@ typedef struct {
  *     shared checkpoint. WT_TS_NONE otherwise.
  */
 static WT_INLINE wt_timestamp_t
-__hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, bool shared_checkpoint)
+__hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
-    if (!shared_checkpoint)
+    if (!F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT))
         return (WT_TS_NONE);
 
     /* The value is only stable, and only describes the data store being walked, under the lock. */
@@ -360,8 +360,7 @@ __wt_hs_verify_one(
         return (0);
     }
 
-    checkpoint_oldest_ts =
-      __hs_verify_checkpoint_oldest(session, F_ISSET(session->dhandle, WT_DHANDLE_SHARED_CKPT));
+    checkpoint_oldest_ts = __hs_verify_checkpoint_oldest(session, session->dhandle);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
@@ -484,7 +483,8 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
         } else
             WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
         F_SET(ds_cursor, WT_CURSOR_RAW_OK);
-        checkpoint_oldest_ts = __hs_verify_checkpoint_oldest(session, ds_checkpoint_name != NULL);
+        checkpoint_oldest_ts =
+          __hs_verify_checkpoint_oldest(session, ((WT_CURSOR_BTREE *)ds_cursor)->dhandle);
         WT_STAT_CONN_INCR(session, session_hs_verify_btrees_checked);
 
         /* Note that the following call moves the hs cursor internally. */
