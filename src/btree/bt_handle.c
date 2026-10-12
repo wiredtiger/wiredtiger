@@ -584,7 +584,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
     else {
         WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-        if (WT_CONFIG_LIT_MATCH("disagg", cval)) {
+        /* FIXME-WT-18866: Drop the name check once no database has legacy entries. */
+        if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
             F_SET(btree, WT_BTREE_DISAGGREGATED);
 
             /*

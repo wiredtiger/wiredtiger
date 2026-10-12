@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_config16.py
-#    A database whose shared metadata table entry was created without the disaggregated block
-#    manager is upgraded when the connection opens.
+#    A database whose shared tree metadata entries lack the disaggregated block manager, as
+#    written by earlier versions, behaves like one whose entries have it.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -37,52 +37,13 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_config16(wttest.WiredTigerTestCase):
     conn_config = 'precise_checkpoint=true,disaggregated=(role="leader")'
+    follower_config = 'precise_checkpoint=true,disaggregated=(role="follower")'
     uri = 'layered:test_layered_config16'
     shared_metadata_uri = 'file:WiredTigerShared.wt_stable'
+    stable_uri = 'file:test_layered_config16.wt_stable'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def shared_metadata_config(self):
-        cursor = self.session.open_cursor('file:WiredTiger.wt')
-        cursor.set_key(self.shared_metadata_uri)
-        self.assertEqual(cursor.search(), 0)
-        value = cursor.get_value()
-        cursor.close()
-        return value
-
-    def test_legacy_shared_metadata(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        cursor['key'] = 'value'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
-        cursor.close()
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-            ',stable_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
-
-        value = self.shared_metadata_config()
-        self.assertIn('block_manager=disagg', value)
-
-        # A follower does not checkpoint the shared metadata table, so the rewritten entry survives
-        # the restart, as an entry written by an older version would.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        cursor = self.session.open_cursor('file:WiredTiger.wt')
-        cursor.set_key(self.shared_metadata_uri)
-        cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
-        self.assertEqual(cursor.insert(), 0)
-        cursor.close()
-        self.assertNotIn('block_manager=disagg', self.shared_metadata_config())
-
-        self.reopen_conn()
-        self.assertIn('block_manager=disagg', self.shared_metadata_config())
-
-        cursor = self.session.open_cursor(self.uri)
-        self.assertEqual(cursor['key'], 'value')
-        cursor.close()
-        self.session.checkpoint()
-        self.assertEqual(self.session.verify(self.shared_metadata_uri), 0)
 
     def local_config(self, uri):
         cursor = self.session.open_cursor('file:WiredTiger.wt')
@@ -92,9 +53,17 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         cursor.close()
         return value
 
-    def test_legacy_local_file_entry(self):
-        stable_uri = 'file:test_layered_config16.wt_stable'
+    def make_legacy(self, uri):
+        value = self.local_config(uri)
+        self.assertIn('block_manager=disagg', value)
+        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        cursor.set_key(uri)
+        cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
+        self.assertEqual(cursor.insert(), 0)
+        cursor.close()
+        self.assertNotIn('block_manager=disagg', self.local_config(uri))
 
+    def populate_table(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
@@ -104,61 +73,50 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
+
+    def populate(self):
+        self.populate_table()
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+
+        # A follower does not checkpoint, so the rewritten entries survive the restart.
         self.conn.reconfigure('disaggregated=(role="follower")')
+        self.make_legacy(self.shared_metadata_uri)
+        self.make_legacy(self.stable_uri)
+        return checkpoint_meta
 
-        # Rewrite the local stable entry as an older version would have written it.
-        value = self.local_config(stable_uri)
-        self.assertIn('block_manager=disagg', value)
-        cursor = self.session.open_cursor('file:WiredTiger.wt')
-        cursor.set_key(stable_uri)
-        cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
-        self.assertEqual(cursor.insert(), 0)
-        cursor.close()
-        self.assertNotIn('block_manager=disagg', self.local_config(stable_uri))
-
-        # The rewritten entry survives a restart. Picking up the checkpoint the entry already holds
-        # still marks it as a shared tree.
-        self.reopen_conn(config='precise_checkpoint=true,disaggregated=(role="follower")')
-        self.assertNotIn('block_manager=disagg', self.local_config(stable_uri))
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
-        self.assertIn('block_manager=disagg', self.local_config(stable_uri))
-
-    def shared_entry(self, uri):
-        cursor = self.session.open_cursor(self.shared_metadata_uri)
-        cursor.set_key(uri)
-        self.assertEqual(cursor.search(), 0)
-        value = cursor.get_value()
-        cursor.close()
-        return value
-
-    def test_legacy_stable_entry_rewritten_by_checkpoint(self):
-        stable_uri = 'file:test_layered_config16.wt_stable'
-
-        self.session.create(self.uri, 'key_format=S,value_format=S')
+    def check_read(self):
         cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        cursor['key1'] = 'value1'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-            ',stable_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
-        value = self.shared_entry(stable_uri)
-        self.assertIn('block_manager=disagg', value)
-
-        # Leave the stable entry in the shared metadata table as an older version wrote it.
-        shared_cursor = self.session.open_cursor(self.shared_metadata_uri)
-        shared_cursor.set_key(stable_uri)
-        shared_cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
-        self.assertEqual(shared_cursor.insert(), 0)
-        shared_cursor.close()
-        self.assertNotIn('block_manager=disagg', self.shared_entry(stable_uri))
-
-        # Checkpointing the table writes its entry to the shared metadata table again.
-        self.session.begin_transaction()
-        cursor['key2'] = 'value2'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+        self.assertEqual(cursor['key'], 'value')
         cursor.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(2))
+
+    def test_legacy_leader(self):
+        self.populate()
+        self.reopen_conn()
+        self.check_read()
         self.session.checkpoint()
-        self.assertIn('block_manager=disagg', self.shared_entry(stable_uri))
+        self.assertEqual(self.session.verify(self.shared_metadata_uri), 0)
+        self.assertEqual(self.session.verify(self.stable_uri), 0)
+
+    def test_legacy_follower(self):
+        checkpoint_meta = self.populate()
+        self.reopen_conn(config=self.follower_config)
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.check_read()
+
+    def test_new_shared_files_have_disagg_block_manager(self):
+        self.populate_table()
+        self.session.create('file:test_layered_config16_plain.wt_stable',
+            'key_format=S,value_format=S')
+        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        shared = {}
+        while cursor.next() == 0:
+            key = cursor.get_key()
+            if key.startswith('file:') and key.endswith('.wt_stable'):
+                shared[key] = cursor.get_value()
+        cursor.close()
+
+        for uri in (self.shared_metadata_uri, self.stable_uri,
+          'file:test_layered_config16_plain.wt_stable', 'file:WiredTigerSharedHS.wt_stable'):
+            self.assertIn(uri, shared)
+        for uri, value in shared.items():
+            self.assertIn('block_manager=disagg', value, uri)

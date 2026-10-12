@@ -190,7 +190,7 @@ __repair_fix_btree_size(WT_SESSION_IMPL *session, WT_ITEM *report, const char *u
         while ((ret = cursor->next(cursor)) == 0) {
             WT_ERR(cursor->get_key(cursor, &key));
             WT_ERR(cursor->get_value(cursor, &value));
-            if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_config_is_shared(session, value))
+            if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_entry_is_shared(session, key, value))
                 continue;
             /*
              * The shared metadata and history store files are always open and cannot be verified.

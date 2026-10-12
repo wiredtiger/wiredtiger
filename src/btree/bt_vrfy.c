@@ -272,7 +272,7 @@ __verify_unique_internal(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         const char *key, *value;
         WT_ERR(cursor->get_key(cursor, &key));
         WT_ERR(cursor->get_value(cursor, &value));
-        if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_config_is_shared(session, value))
+        if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_entry_is_shared(session, key, value))
             continue;
 
         WT_CONFIG_ITEM id_val;
@@ -367,7 +367,7 @@ __wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
 
         /* Only consider shared file entries as only they contribute to database_size. */
         WT_ERR(cursor->get_value(cursor, &value));
-        if (!WT_PREFIX_MATCH(uri, "file:") || !__wt_btree_config_is_shared(session, value))
+        if (!WT_PREFIX_MATCH(uri, "file:") || !__wt_btree_entry_is_shared(session, uri, value))
             continue;
 
         /* Extract the most recent checkpoint size from the metadata string. */

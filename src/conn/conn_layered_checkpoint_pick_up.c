@@ -683,24 +683,10 @@ static int
 __disagg_stable_btree_ids_add(WT_SESSION_IMPL *session,
   WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids, const char *key, const char *value)
 {
-    if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_config_is_shared(session, value))
+    if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_entry_is_shared(session, key, value))
         return (0);
 
     return (__disagg_stable_btree_ids_add_id(session, stable_btree_ids, value));
-}
-
-/*
- * __disagg_file_value_mark_shared --
- *     Return a file entry's configuration with block_manager=disagg set. Every file entry of the
- *     shared metadata is a shared tree, but checkpoints written by earlier versions may lack the
- *     setting.
- */
-static int
-__disagg_file_value_mark_shared(WT_SESSION_IMPL *session, const char *value, char **new_valuep)
-{
-    const char *cfg[] = {value, "block_manager=disagg", NULL};
-
-    return (__wt_config_collapse(session, cfg, new_valuep));
 }
 
 /*
@@ -713,19 +699,10 @@ __disagg_insert_meta(
 {
     WT_DECL_RET;
     size_t prev_count;
-    char *marked_value;
     const char *key, *value;
-    bool shared_file;
 
-    marked_value = NULL;
-
-    WT_ERR(sh_cursor->get_key(sh_cursor, &key));
-    WT_ERR(sh_cursor->get_value(sh_cursor, &value));
-    shared_file = WT_PREFIX_MATCH(key, "file:");
-    if (shared_file && !__wt_btree_config_is_shared(session, value)) {
-        WT_ERR(__disagg_file_value_mark_shared(session, value, &marked_value));
-        value = marked_value;
-    }
+    WT_RET(sh_cursor->get_key(sh_cursor, &key));
+    WT_RET(sh_cursor->get_value(sh_cursor, &value));
     /* A tracked insert, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_insert(session, key, value),
       "Failed to insert metadata for key \"%s\"", key);
@@ -735,12 +712,11 @@ __disagg_insert_meta(
 
     /* Track from here so that every path that adopts a leader-assigned ID is covered. */
     prev_count = stable_btree_ids->count;
-    if (shared_file)
+    if (WT_PREFIX_MATCH(key, "file:"))
         WT_ERR(__disagg_stable_btree_ids_add_id(session, stable_btree_ids, value));
     stable_btree_ids->have_new_stable_id |= (stable_btree_ids->count > prev_count);
 
 err:
-    __wt_free(session, marked_value);
     return (ret);
 }
 
@@ -830,9 +806,8 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
 /*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
- *     the shared metadata and mark it as a shared tree, then mark stale data handles as outdated.
- *     The caller has already parsed both entries and validated their identity; md_value must
- *     outlive the metadata update.
+ *     the shared metadata, then mark stale data handles as outdated. The caller has already parsed
+ *     both entries and validated their identity; md_value must outlive the metadata update.
  */
 static int
 __disagg_update_file_meta(
@@ -840,33 +815,23 @@ __disagg_update_file_meta(
 {
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    char *cfg_ret, *marked_cfg;
+    char *cfg_ret;
     const char *checkpoint_name;
-    bool ckpt_changed, discard, unmarked;
+    bool discard;
 
-    cfg_ret = marked_cfg = NULL;
+    cfg_ret = NULL;
     checkpoint_name = NULL;
     discard = false;
 
     WT_ASSERT(session, entry->md_value != NULL);
 
-    /* Nothing to do if the local entry has the shared checkpoint and is already a shared tree. */
-    ckpt_changed = __wt_string_slice_cmp(entry->md_ckpt.str, entry->md_ckpt.len, entry->sh_ckpt.str,
-                     entry->sh_ckpt.len) != 0;
-    unmarked = !__wt_btree_config_is_shared(session, entry->md_value);
-    if (!ckpt_changed && !unmarked)
+    /* Nothing to do if the local checkpoint already matches the shared one. */
+    if (__wt_string_slice_cmp(
+          entry->md_ckpt.str, entry->md_ckpt.len, entry->sh_ckpt.str, entry->sh_ckpt.len) == 0)
         return (0);
 
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
-    if (ckpt_changed)
-        WT_ERR(__disagg_replace_checkpoint(session, entry->md_value, &entry->sh_ckpt, &cfg_ret));
-    if (unmarked) {
-        WT_ERR(__disagg_file_value_mark_shared(
-          session, cfg_ret != NULL ? cfg_ret : entry->md_value, &marked_cfg));
-        __wt_free(session, cfg_ret);
-        cfg_ret = marked_cfg;
-        marked_cfg = NULL;
-    }
+    WT_ERR(__disagg_replace_checkpoint(session, entry->md_value, &entry->sh_ckpt, &cfg_ret));
 
     /* A tracked update, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_update(session, file_key, cfg_ret),
@@ -881,9 +846,8 @@ __disagg_update_file_meta(
      * Mark any matching data handles associated with the previous checkpoint to be out of date. Any
      * new opens will get the new metadata.
      */
-    if (ckpt_changed)
-        WT_ERR(__disagg_discard_old_checkpoint_check(
-          session, entry->md_value, cfg_ret, &checkpoint_name, &discard));
+    WT_ERR(__disagg_discard_old_checkpoint_check(
+      session, entry->md_value, cfg_ret, &checkpoint_name, &discard));
     if (discard) {
         WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", file_key, checkpoint_name));
         WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
@@ -903,7 +867,6 @@ __disagg_update_file_meta(
 err:
     __wt_scr_free(session, &old_uri_buf);
     __wt_free(session, cfg_ret);
-    __wt_free(session, marked_cfg);
     __wt_free(session, checkpoint_name);
     return (ret);
 }

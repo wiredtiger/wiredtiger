@@ -87,7 +87,8 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
     npage_log = NULL;
 
     WT_RET(__wt_config_gets(session, cfg, "block_manager", &bm_item));
-    if (WT_CONFIG_LIT_MATCH("disagg", bm_item)) {
+    /* FIXME-WT-18866: Drop the name check once no database has legacy entries. */
+    if (WT_URI_IS_STABLE(uri) || WT_CONFIG_LIT_MATCH("disagg", bm_item)) {
         WT_RET_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
         if (ret == WT_NOTFOUND || page_log_item.len == 0)
@@ -349,8 +350,9 @@ __create_file(
 
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
-              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-              fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=%s",
+              fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor,
+              is_shared ? ",block_manager=disagg" : ""));
 
             for (p = filecfg; *p != NULL; ++p)
                 ;

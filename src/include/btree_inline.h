@@ -337,7 +337,8 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
     *shared = false;
 
     WT_RET(__wt_config_gets(session, bt_cfg, "block_manager", &cval));
-    *shared = WT_CONFIG_LIT_MATCH("disagg", cval);
+    /* FIXME-WT-18866: Drop the name check once no database has legacy entries. */
+    *shared = WT_URI_IS_STABLE(uri) || WT_CONFIG_LIT_MATCH("disagg", cval);
 
     /* Ingest btrees must never be shared. */
     WT_ASSERT_ALWAYS(
@@ -347,16 +348,19 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
 }
 
 /*
- * __wt_btree_config_is_shared --
- *     Whether a file's metadata configuration describes a shared tree.
+ * __wt_btree_entry_is_shared --
+ *     Whether a file's metadata entry describes a shared tree. Entries written by earlier versions
+ *     carry no block_manager setting and are recognized by their name.
  */
 static WT_INLINE bool
-__wt_btree_config_is_shared(WT_SESSION_IMPL *session, const char *config)
+__wt_btree_entry_is_shared(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
     WT_CONFIG_ITEM cval;
 
-    return (__wt_config_getones(session, config, "block_manager", &cval) == 0 &&
-      WT_CONFIG_LIT_MATCH("disagg", cval));
+    /* FIXME-WT-18866: Drop the name check once no database has legacy entries. */
+    return (WT_URI_IS_STABLE(uri) ||
+      (__wt_config_getones(session, config, "block_manager", &cval) == 0 &&
+        WT_CONFIG_LIT_MATCH("disagg", cval)));
 }
 
 /*
@@ -427,10 +431,15 @@ __wt_btree_shared_base_name(
     /* A slash can also be part of a local file's path: only a shared base has a checkpoint id. */
     WT_RET(__wt_scr_alloc(session, 0, &name_buf));
     WT_ERR(__wt_buf_fmt(session, name_buf, "%.*s", (int)(slash - name), name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, (const char *)name_buf->data, &config), true);
-    if (ret == WT_NOTFOUND || !__wt_btree_config_is_shared(session, config)) {
-        ret = 0;
-        goto done;
+    /* FIXME-WT-18866: Drop the name check once no database has legacy entries. */
+    if (!WT_URI_IS_STABLE((const char *)name_buf->data)) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_metadata_search(session, (const char *)name_buf->data, &config), true);
+        if (ret == WT_NOTFOUND ||
+          !__wt_btree_entry_is_shared(session, (const char *)name_buf->data, config)) {
+            ret = 0;
+            goto done;
+        }
     }
     __wt_scr_free(session, &name_buf);
     WT_ERR(__btree_name_split(session, slash, namep, checkpointp, name_bufp));

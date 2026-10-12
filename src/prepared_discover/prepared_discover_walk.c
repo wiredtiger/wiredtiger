@@ -465,7 +465,7 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         if (!has_prepare)
             continue;
         if (__prepared_discover_is_follower(session) && config != NULL &&
-          __wt_btree_config_is_shared(session, config)) {
+          __wt_btree_entry_is_shared(session, uri, config)) {
             /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
             WT_ERR(__wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL));
             WT_ASSERT(session, ret == 0);
