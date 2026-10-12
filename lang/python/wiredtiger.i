@@ -304,11 +304,10 @@ from packing import pack, unpack
     } else
         pbo = PyUnicode_FromStringAndSize("", 0);
 
-    $result = PyTuple_New(4);
+    $result = PyTuple_New(3);
     PyTuple_SetItem($result, 0, PyLong_FromUnsignedLongLong(args->checkpoint_lsn));
-    PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(args->checkpoint_id));
-    PyTuple_SetItem($result, 2, PyLong_FromUnsignedLongLong(args->checkpoint_timestamp));
-    PyTuple_SetItem($result, 3, pbo);
+    PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(args->checkpoint_timestamp));
+    PyTuple_SetItem($result, 2, pbo);
 }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -800,7 +799,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
 %ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *);
-%ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
 %ignore __wt_page_log_complete_checkpoint_args::checkpoint_metadata;
 %ignore __wt_page_log_get_complete_checkpoint_args;
 
@@ -808,7 +806,6 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 OVERRIDE_METHOD(__wt_page_log, WT_PAGE_LOG, get_complete_checkpoint, (self))
-OVERRIDE_METHOD(__wt_page_log, WT_PAGE_LOG, get_open_checkpoint, (self))
 
 /* SWIG magic to turn Python byte strings into data / size. */
 %apply (char *STRING, int LENGTH) { (char *data, int size) };
@@ -1268,10 +1265,6 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_last_lsn,
   (WT_SESSION *session, uint64_t *lsn),
   ($self, session, lsn))
 
-SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
-  (WT_SESSION *session, uint64_t *checkpoint_id),
-  ($self, session, checkpoint_id))
-
 SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
   (WT_SESSION *session, int table_id, WT_PAGE_LOG_HANDLE **handle),
   ($self, session, table_id, handle))
@@ -1293,21 +1286,21 @@ SIDESTEP_METHOD(__wt_key_provider, set_key,
   ($self, session, crypt))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_PUT_ARGS *put_args, const WT_ITEM *buf),
-  ($self, session, page_id, checkpoint_id, put_args, buf))
+  (WT_SESSION *session, int page_id, WT_PAGE_LOG_PUT_ARGS *put_args, const WT_ITEM *buf),
+  ($self, session, page_id, put_args, buf))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args,
+  (WT_SESSION *session, int page_id, WT_PAGE_LOG_GET_ARGS *get_args,
     WT_ITEM *results_array, u_int *results_count),
-  ($self, session, page_id, checkpoint_id, get_args, results_array, results_count))
+  ($self, session, page_id, get_args, results_array, results_count))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get_page_ids,
   (WT_SESSION *session, int checkpoint_lsn, WT_ITEM *item, size_t *size),
   ($self, session, checkpoint_lsn, item, size))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_discard,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args),
-  ($self, session, page_id, checkpoint_id, discard_args))
+  (WT_SESSION *session, int page_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args),
+  ($self, session, page_id, discard_args))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
   (WT_SESSION *session),

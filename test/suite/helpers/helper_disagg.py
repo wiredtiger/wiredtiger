@@ -208,7 +208,7 @@ class DisaggConfigMixin:
             extlist.skip_if_missing = True
         extlist.extension('page_log', self.ds_name + config)
 
-    # Get the information about the last completed checkpoint: LSN, ID, timestamp, and metadata
+    # Get the information about the last completed checkpoint: LSN, timestamp, and metadata
     def disagg_get_complete_checkpoint_ext(self, conn=None):
         if conn is None:
             conn = self.conn
@@ -222,7 +222,7 @@ class DisaggConfigMixin:
 
     # Get the metadata about the last completed checkpoint
     def disagg_get_complete_checkpoint_meta(self, conn=None):
-        (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
+        (_, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
     # Deliver the newest checkpoint to the follower. Adopting it is asynchronous while transaction

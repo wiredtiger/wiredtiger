@@ -108,7 +108,7 @@ class test_disagg_stepup(compatibility_test.CompatibilityTestCase):
 
         # Hand the last complete checkpoint's metadata to the new node.
         page_log = conn.get_page_log('palite')
-        (_, _, _, meta) = page_log.pl_get_complete_checkpoint(session)
+        (_, _, meta) = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session)
         with open(self.meta_file, 'w') as f:
             f.write(meta)
