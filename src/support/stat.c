@@ -491,10 +491,8 @@ static const char *const __stats_dsrc_desc[] = {
   "truncate: internal page bytes newly dirtied",
   "truncate: internal pages newly dirtied",
   "truncate: leaf page bytes newly dirtied",
-  "truncate: leaf pages fast-deleted",
   "truncate: leaf pages modified through the slow path",
   "truncate: leaf pages newly dirtied",
-  "truncate: tombstone bytes added to cache",
 };
 
 int
@@ -991,10 +989,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->truncate_internal_bytes_dirtied = 0;
     stats->truncate_internal_pages_dirtied = 0;
     stats->truncate_leaf_bytes_dirtied = 0;
-    stats->truncate_fast_deleted_leaf_pages = 0;
     stats->truncate_slow_path_leaf_pages = 0;
     stats->truncate_leaf_pages_dirtied = 0;
-    stats->truncate_slow_path_update_bytes = 0;
 }
 
 void
@@ -1513,10 +1509,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->truncate_internal_bytes_dirtied += from->truncate_internal_bytes_dirtied;
     to->truncate_internal_pages_dirtied += from->truncate_internal_pages_dirtied;
     to->truncate_leaf_bytes_dirtied += from->truncate_leaf_bytes_dirtied;
-    to->truncate_fast_deleted_leaf_pages += from->truncate_fast_deleted_leaf_pages;
     to->truncate_slow_path_leaf_pages += from->truncate_slow_path_leaf_pages;
     to->truncate_leaf_pages_dirtied += from->truncate_leaf_pages_dirtied;
-    to->truncate_slow_path_update_bytes += from->truncate_slow_path_update_bytes;
 }
 
 void
@@ -2107,11 +2101,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->truncate_internal_bytes_dirtied += WT_STAT_DSRC_READ(from, truncate_internal_bytes_dirtied);
     to->truncate_internal_pages_dirtied += WT_STAT_DSRC_READ(from, truncate_internal_pages_dirtied);
     to->truncate_leaf_bytes_dirtied += WT_STAT_DSRC_READ(from, truncate_leaf_bytes_dirtied);
-    to->truncate_fast_deleted_leaf_pages +=
-      WT_STAT_DSRC_READ(from, truncate_fast_deleted_leaf_pages);
     to->truncate_slow_path_leaf_pages += WT_STAT_DSRC_READ(from, truncate_slow_path_leaf_pages);
     to->truncate_leaf_pages_dirtied += WT_STAT_DSRC_READ(from, truncate_leaf_pages_dirtied);
-    to->truncate_slow_path_update_bytes += WT_STAT_DSRC_READ(from, truncate_slow_path_update_bytes);
 }
 
 static const char *const __stats_connection_desc[] = {
@@ -3261,10 +3252,8 @@ static const char *const __stats_connection_desc[] = {
   "truncate: internal page bytes newly dirtied",
   "truncate: internal pages newly dirtied",
   "truncate: leaf page bytes newly dirtied",
-  "truncate: leaf pages fast-deleted",
   "truncate: leaf pages modified through the slow path",
   "truncate: leaf pages newly dirtied",
-  "truncate: tombstone bytes added to cache",
 };
 
 int
@@ -4383,10 +4372,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->truncate_internal_bytes_dirtied = 0;
     stats->truncate_internal_pages_dirtied = 0;
     stats->truncate_leaf_bytes_dirtied = 0;
-    stats->truncate_fast_deleted_leaf_pages = 0;
     stats->truncate_slow_path_leaf_pages = 0;
     stats->truncate_leaf_pages_dirtied = 0;
-    stats->truncate_slow_path_update_bytes = 0;
 }
 
 void
@@ -5797,11 +5784,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->truncate_internal_bytes_dirtied += WT_STAT_CONN_READ(from, truncate_internal_bytes_dirtied);
     to->truncate_internal_pages_dirtied += WT_STAT_CONN_READ(from, truncate_internal_pages_dirtied);
     to->truncate_leaf_bytes_dirtied += WT_STAT_CONN_READ(from, truncate_leaf_bytes_dirtied);
-    to->truncate_fast_deleted_leaf_pages +=
-      WT_STAT_CONN_READ(from, truncate_fast_deleted_leaf_pages);
     to->truncate_slow_path_leaf_pages += WT_STAT_CONN_READ(from, truncate_slow_path_leaf_pages);
     to->truncate_leaf_pages_dirtied += WT_STAT_CONN_READ(from, truncate_leaf_pages_dirtied);
-    to->truncate_slow_path_update_bytes += WT_STAT_CONN_READ(from, truncate_slow_path_update_bytes);
 }
 
 static const char *const __stats_session_desc[] = {

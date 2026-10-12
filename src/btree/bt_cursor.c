@@ -2020,13 +2020,16 @@ __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
   int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
 {
     WT_DECL_RET;
-    WT_REF *last_slow_ref, *slow_ref;
+    WT_PAGE *page;
+    WT_REF *last_ref;
     WT_SESSION_IMPL *session = CUR2S(start);
     size_t records_truncated = 0;
     uint64_t sleep_usecs = 0, yield_count = 0;
     const bool fast_truncate = !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
+    const bool track_stats = !WT_IS_HS(CUR2BT(start)->dhandle);
+    bool page_was_clean;
 
-    last_slow_ref = NULL;
+    last_ref = NULL;
 
 /*
  * First, call the cursor search method to re-position the cursor: we may not have a cursor position
@@ -2048,11 +2051,20 @@ retry:
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
-        slow_ref = start->ref;
+        page = start->ref->page;
+        page_was_clean = track_stats && !__wt_page_is_modified(page);
         WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
-        if (session->range_truncate && slow_ref != last_slow_ref) {
-            WT_STAT_CONN_DSRC_INCR(session, truncate_slow_path_leaf_pages);
-            last_slow_ref = slow_ref;
+        if (track_stats) {
+            if (start->ref != last_ref) {
+                WT_STAT_CONN_DSRC_INCR(session, truncate_slow_path_leaf_pages);
+                last_ref = start->ref;
+            }
+            /* A concurrent writer may dirty the page first, so this count is approximate. */
+            if (page_was_clean && __wt_page_is_modified(page)) {
+                WT_STAT_CONN_DSRC_INCR(session, truncate_leaf_pages_dirtied);
+                WT_STAT_CONN_DSRC_INCRV(session, truncate_leaf_bytes_dirtied,
+                  (int64_t)__wt_atomic_load_size_relaxed(&page->memory_footprint));
+            }
         }
         ++records_truncated;
 
@@ -2119,8 +2131,6 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
      * truncate so we're good to go: if that ever changes, we'd need to do something here to ensure
      * a fully instantiated cursor.
      */
-    WT_ASSERT(session, !session->range_truncate);
-    session->range_truncate = true;
     if (F_ISSET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE)) {
         /*
          * A non-transactional truncate writes globally visible tombstones that cannot be rolled
@@ -2134,7 +2144,6 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         WT_ERR(__wt_cursor_truncate(start, stop, __cursor_modify));
 
 err:
-    session->range_truncate = false;
     if (logging)
         __wt_txn_truncate_end(session);
     return (ret);

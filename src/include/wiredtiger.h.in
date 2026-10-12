@@ -9190,14 +9190,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TRUNCATE_INTERNAL_PAGES_DIRTIED	2076
 /*! truncate: leaf page bytes newly dirtied */
 #define	WT_STAT_CONN_TRUNCATE_LEAF_BYTES_DIRTIED	2077
-/*! truncate: leaf pages fast-deleted */
-#define	WT_STAT_CONN_TRUNCATE_FAST_DELETED_LEAF_PAGES	2078
 /*! truncate: leaf pages modified through the slow path */
-#define	WT_STAT_CONN_TRUNCATE_SLOW_PATH_LEAF_PAGES	2079
+#define	WT_STAT_CONN_TRUNCATE_SLOW_PATH_LEAF_PAGES	2078
 /*! truncate: leaf pages newly dirtied */
-#define	WT_STAT_CONN_TRUNCATE_LEAF_PAGES_DIRTIED	2080
-/*! truncate: tombstone bytes added to cache */
-#define	WT_STAT_CONN_TRUNCATE_SLOW_PATH_UPDATE_BYTES	2081
+#define	WT_STAT_CONN_TRUNCATE_LEAF_PAGES_DIRTIED	2079
 
 /*!
  * @}
@@ -10587,14 +10583,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_TRUNCATE_INTERNAL_PAGES_DIRTIED	2454
 /*! truncate: leaf page bytes newly dirtied */
 #define	WT_STAT_DSRC_TRUNCATE_LEAF_BYTES_DIRTIED	2455
-/*! truncate: leaf pages fast-deleted */
-#define	WT_STAT_DSRC_TRUNCATE_FAST_DELETED_LEAF_PAGES	2456
 /*! truncate: leaf pages modified through the slow path */
-#define	WT_STAT_DSRC_TRUNCATE_SLOW_PATH_LEAF_PAGES	2457
+#define	WT_STAT_DSRC_TRUNCATE_SLOW_PATH_LEAF_PAGES	2456
 /*! truncate: leaf pages newly dirtied */
-#define	WT_STAT_DSRC_TRUNCATE_LEAF_PAGES_DIRTIED	2458
-/*! truncate: tombstone bytes added to cache */
-#define	WT_STAT_DSRC_TRUNCATE_SLOW_PATH_UPDATE_BYTES	2459
+#define	WT_STAT_DSRC_TRUNCATE_LEAF_PAGES_DIRTIED	2457
 
 /*!
  * @}

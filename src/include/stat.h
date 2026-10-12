@@ -1493,10 +1493,8 @@ struct __wt_connection_stats {
     int64_t truncate_internal_bytes_dirtied;
     int64_t truncate_internal_pages_dirtied;
     int64_t truncate_leaf_bytes_dirtied;
-    int64_t truncate_fast_deleted_leaf_pages;
     int64_t truncate_slow_path_leaf_pages;
     int64_t truncate_leaf_pages_dirtied;
-    int64_t truncate_slow_path_update_bytes;
 };
 
 /*
@@ -1960,10 +1958,8 @@ struct __wt_dsrc_stats {
     int64_t truncate_internal_bytes_dirtied;
     int64_t truncate_internal_pages_dirtied;
     int64_t truncate_leaf_bytes_dirtied;
-    int64_t truncate_fast_deleted_leaf_pages;
     int64_t truncate_slow_path_leaf_pages;
     int64_t truncate_leaf_pages_dirtied;
-    int64_t truncate_slow_path_update_bytes;
 };
 
 /*

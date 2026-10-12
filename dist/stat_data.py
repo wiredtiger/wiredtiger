@@ -1609,13 +1609,11 @@ conn_dsrc_stats = [
     ##########################################
     TruncateStat('truncate_fast_delete_fallback_in_memory', 'fast-delete candidates in memory or busy'),
     TruncateStat('truncate_fast_delete_fallback_pages', 'fast-delete candidates rejected'),
-    TruncateStat('truncate_fast_deleted_leaf_pages', 'leaf pages fast-deleted'),
     TruncateStat('truncate_internal_bytes_dirtied', 'internal page bytes newly dirtied', 'size'),
     TruncateStat('truncate_internal_pages_dirtied', 'internal pages newly dirtied'),
     TruncateStat('truncate_leaf_bytes_dirtied', 'leaf page bytes newly dirtied', 'size'),
     TruncateStat('truncate_leaf_pages_dirtied', 'leaf pages newly dirtied'),
     TruncateStat('truncate_slow_path_leaf_pages', 'leaf pages modified through the slow path'),
-    TruncateStat('truncate_slow_path_update_bytes', 'tombstone bytes added to cache', 'size'),
 ]
 
 ##########################################

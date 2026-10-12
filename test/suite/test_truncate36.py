@@ -68,13 +68,11 @@ class test_truncate36(wttest.WiredTigerTestCase):
         names = (
             'truncate_fast_delete_fallback_in_memory',
             'truncate_fast_delete_fallback_pages',
-            'truncate_fast_deleted_leaf_pages',
             'truncate_internal_bytes_dirtied',
             'truncate_internal_pages_dirtied',
             'truncate_leaf_bytes_dirtied',
             'truncate_leaf_pages_dirtied',
             'truncate_slow_path_leaf_pages',
-            'truncate_slow_path_update_bytes',
         )
         before_conn = {name: self.get_stat('', name) for name in names}
         before_first = {name: self.get_stat(self.uri, name) for name in names}
@@ -87,19 +85,14 @@ class test_truncate36(wttest.WiredTigerTestCase):
             self.assertEqual(self.get_stat('', name) - before_conn[name], first[name])
             self.assertEqual(self.get_stat(self.other_uri, name), before_other[name])
 
-        self.assertGreater(first['truncate_fast_deleted_leaf_pages'], 0)
         self.assertGreater(first['truncate_slow_path_leaf_pages'], 0)
         self.assertGreater(first['truncate_leaf_pages_dirtied'], 0)
         self.assertGreater(first['truncate_leaf_bytes_dirtied'], 0)
         self.assertGreater(first['truncate_internal_pages_dirtied'], 0)
         self.assertGreater(first['truncate_internal_bytes_dirtied'], 0)
-        self.assertGreater(first['truncate_slow_path_update_bytes'], 0)
         self.assertGreater(
             first['truncate_fast_delete_fallback_pages'],
             first['truncate_fast_delete_fallback_in_memory'])
-        self.assertGreaterEqual(
-            self.get_stat(self.uri, 'rec_page_delete_fast'),
-            first['truncate_fast_deleted_leaf_pages'])
 
         cursor = self.session.open_cursor(self.other_uri)
         cursor[5000] = 'b' * 100
