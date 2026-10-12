@@ -30,7 +30,7 @@
 #    A database whose shared tree metadata entries lack the disaggregated block manager, as
 #    written by earlier versions, behaves like one whose entries have it.
 
-import wttest
+import re, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -120,3 +120,21 @@ class test_layered_config16(wttest.WiredTigerTestCase):
             self.assertIn(uri, shared)
         for uri, value in shared.items():
             self.assertIn('block_manager=disagg', value, uri)
+
+    def test_config_only_shared_checkpoint_view(self):
+        uri = 'file:test_layered_config16_plain.wt'
+        self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg')
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        cursor['key'] = 'value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+        cursor.close()
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+        self.session.checkpoint()
+
+        # A shared file without a ".wt_stable" name is read at a checkpoint by its configuration.
+        name = re.search(r'WiredTigerCheckpoint\.\d+', self.local_config(uri)).group(0)
+        cursor = self.session.open_cursor(uri + '/' + name)
+        self.assertEqual(cursor['key'], 'value')
+        cursor.close()
