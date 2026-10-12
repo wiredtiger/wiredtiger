@@ -2897,7 +2897,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
 copy_image:
     if (F_ISSET(multi, WT_MULTI_SKIP_WRITE)) {
-        /* A skipped write keeps the previous block and its generation. */
+        /* A skipped write reuses the backing block, so the image carries its write generation. */
         uint64_t write_gen = __wt_page_write_gen(page);
         WT_ASSERT_ALWAYS(
           session, write_gen != 0, "A skipped write must have a previous write generation");

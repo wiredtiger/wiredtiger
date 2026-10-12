@@ -259,10 +259,9 @@ __evict_page_victim_cache_eligible(
         return (WTI_EVICT_VICTIM_NO_IMAGE);
 
     /*
-     * The image and the metadata must also agree on the version they represent. After a delta write
-     * the metadata names the delta's block while the page's own image still predates it, and
-     * caching that image under the new block's identity would mislabel it; the next read of the
-     * page restores them together, so skipping here only delays the put.
+     * The cache stores the image under the backing block's identity, so only cache an image that
+     * carries the backing block's write generation. Skipping a stale image only delays the put
+     * until the page is read back.
      */
     if (disk_image->write_gen != __wt_page_write_gen(page))
         return (WTI_EVICT_VICTIM_NO_IMAGE);
@@ -313,7 +312,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page = ref->page;
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
 
-    /* Eligibility has already confirmed the image matches its metadata. */
+    /* Eligibility has already confirmed the image carries the backing block's write generation. */
     WT_ASSERT(session, __wt_page_write_gen(page) == disk_image->write_gen);
 
     /* Time every attempt: compression and checksum are spent whether or not the put succeeds. */

@@ -408,7 +408,13 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
-    uint64_t rec_write_gen; /* Disaggregated backing block generation; zero uses the page image. */
+    /*
+     * Write generation of the disaggregated backing block written by the last single-block
+     * reconciliation, needed because the page keeps its old disk image while it stays in memory.
+     * Zero means no such block was written and the disk image's write generation applies. Only
+     * meaningful for a single-block result.
+     */
+    uint64_t rec_write_gen;
 
     /*
      * Track the pinned stable timestamp used for the most recent reconciliation. It's useful to
