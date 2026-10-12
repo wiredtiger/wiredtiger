@@ -267,7 +267,6 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
     WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_calls);
 
     WT_TRUNCATE *entry = NULL;
-    WT_DECL_RET;
     uint64_t walked = 0;
 
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
@@ -282,7 +281,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
         if (visible != want_visible)
             continue;
 
-        WT_ERR(__key_within_truncate_range(
+        WT_RET(__key_within_truncate_range(
           session, collator, &entry->start_key, &entry->stop_key, key, is_foundp));
 
         if (*is_foundp) {
@@ -292,16 +291,13 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
         }
     }
 
-err:
-    if (ret == 0) {
-        if (*is_foundp)
-            WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
-        else
-            WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
-        if (walked != 0)
-            WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
-    }
-    return (ret);
+    if (*is_foundp)
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_misses);
+    if (walked != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_search_entries_walked, walked);
+    return (0);
 }
 
 /*
