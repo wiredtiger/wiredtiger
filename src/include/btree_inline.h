@@ -213,6 +213,19 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 }
 
 /*
+ * __wt_btree_block_free_root --
+ *     Helper function to free a checkpoint's root page from the current tree.
+ */
+static WT_INLINE int
+__wt_btree_block_free_root(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+    return (bm->free(bm, session, addr, addr_size, true));
+}
+
+/*
  * __wt_btree_bytes_inuse --
  *     Return the number of bytes in use.
  */
@@ -3043,15 +3056,46 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
+ * __wt_btcur_skip_internal_page_read_only --
+ *     Return whether an in-memory internal page of a read-only btree can be skipped.
+ */
+static WT_INLINE bool
+__wt_btcur_skip_internal_page_read_only(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR_COPY addr;
+
+    /*
+     * Only a checkpoint cursor tree or a stable checkpoint handle is immutable. On a writable tree
+     * a child can change without dirtying its parent, which leaves the parent's aggregate stale.
+     */
+    if (!F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY))
+        return (false);
+
+    if (!WT_READING_CHECKPOINT(session) && !F_ISSET(session->dhandle, WT_DHANDLE_SHARED_CKPT))
+        return (false);
+
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        return (false);
+
+    return ((addr.del_set && __wt_page_del_visible(session, &addr.del, true)) ||
+      (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
+        __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+          addr.ta.newest_stop_durable_ts)));
+}
+
+/*
  * __wt_btcur_skip_page_inc --
  *     Count a skipped deleted page as internal or leaf.
  */
 static WT_INLINE void
-__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats)
+__wt_btcur_skip_page_inc(WT_REF *ref, WT_PAGE_WALK_SKIP_STATS *walk_skip_stats, bool inmem_internal)
 {
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        walk_skip_stats->total_del_internal_pages_skipped++;
-    else
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        if (inmem_internal)
+            walk_skip_stats->total_read_only_del_internal_pages_skipped++;
+        else
+            walk_skip_stats->total_ondisk_del_internal_pages_skipped++;
+    } else
         walk_skip_stats->total_del_leaf_pages_skipped++;
 }
 
@@ -3091,6 +3135,15 @@ __wt_btcur_skip_page(
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (0);
 
+    /* An internal page of a read-only btree is checked without the lock, its address cannot change.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && WT_REF_GET_STATE(ref) == WT_REF_MEM &&
+      __wt_btcur_skip_internal_page_read_only(session, ref)) {
+        *skipp = true;
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats, true);
+        return (0);
+    }
+
     /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
      * our transaction. If so, we can avoid reading the records on the page and move to the next
@@ -3108,15 +3161,7 @@ __wt_btcur_skip_page(
     if (yield_count != 0)
         ++walk_skip_stats->total_skip_lock_contended;
 
-    /*
-     * An internal page resident in memory cannot be judged by its aggregate: a descendant may be
-     * dirty with newer data than the aggregate reports, and reconciliation is what propagates that
-     * upwards. One still on disk has no resident descendants, so the aggregate in its address cell
-     * describes the whole subtree, and skipping it skips the subtree.
-     *
-     * FIXME-WT-18565: a clean resident internal page could be treated the same as one on disk and
-     * evaluated through its address cell.
-     */
+    /* Only an on-disk internal page goes through the address checks below. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && previous_state != WT_REF_DISK)
         goto unlock;
 
@@ -3137,7 +3182,7 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
-        __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+        __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
         goto unlock;
     }
 
@@ -3149,7 +3194,7 @@ __wt_btcur_skip_page(
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
             goto unlock;
         }
 
@@ -3162,7 +3207,7 @@ __wt_btcur_skip_page(
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            __wt_btcur_skip_page_inc(ref, walk_skip_stats);
+            __wt_btcur_skip_page_inc(ref, walk_skip_stats, false);
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
       __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
