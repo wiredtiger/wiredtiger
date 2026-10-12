@@ -662,20 +662,6 @@ __disagg_stable_btree_ids_append(
 }
 
 /*
- * __disagg_stable_btree_ids_add_id --
- *     Record the btree ID of a metadata entry.
- */
-static int
-__disagg_stable_btree_ids_add_id(
-  WT_SESSION_IMPL *session, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids, const char *value)
-{
-    WT_CONFIG_ITEM id_val;
-
-    WT_RET(__wt_config_getones(session, value, "id", &id_val));
-    return (__disagg_stable_btree_ids_append(session, stable_btree_ids, (uint32_t)id_val.val));
-}
-
-/*
  * __disagg_stable_btree_ids_add --
  *     Record a local metadata entry's btree ID, skipping anything that is not a shared tree.
  */
@@ -683,10 +669,13 @@ static int
 __disagg_stable_btree_ids_add(WT_SESSION_IMPL *session,
   WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids, const char *key, const char *value)
 {
+    WT_CONFIG_ITEM id_val;
+
     if (!WT_PREFIX_MATCH(key, "file:") || !__wt_btree_entry_is_shared(session, key, value))
         return (0);
 
-    return (__disagg_stable_btree_ids_add_id(session, stable_btree_ids, value));
+    WT_RET(__wt_config_getones(session, value, "id", &id_val));
+    return (__disagg_stable_btree_ids_append(session, stable_btree_ids, (uint32_t)id_val.val));
 }
 
 /*
@@ -701,8 +690,8 @@ __disagg_insert_meta(
     size_t prev_count;
     const char *key, *value;
 
-    WT_RET(sh_cursor->get_key(sh_cursor, &key));
-    WT_RET(sh_cursor->get_value(sh_cursor, &value));
+    WT_ERR(sh_cursor->get_key(sh_cursor, &key));
+    WT_ERR(sh_cursor->get_value(sh_cursor, &value));
     /* A tracked insert, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_insert(session, key, value),
       "Failed to insert metadata for key \"%s\"", key);
@@ -712,8 +701,7 @@ __disagg_insert_meta(
 
     /* Track from here so that every path that adopts a leader-assigned ID is covered. */
     prev_count = stable_btree_ids->count;
-    if (WT_PREFIX_MATCH(key, "file:"))
-        WT_ERR(__disagg_stable_btree_ids_add_id(session, stable_btree_ids, value));
+    WT_ERR(__disagg_stable_btree_ids_add(session, stable_btree_ids, key, value));
     stable_btree_ids->have_new_stable_id |= (stable_btree_ids->count > prev_count);
 
 err:
@@ -797,7 +785,8 @@ __disagg_file_entry_reconcile(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, WT
     WT_RET(__disagg_check_meta_identity(session, key, &md_id, &sh_id));
 
     /* Applying a checkpoint moves an entry's checkpoint forward, never its id. */
-    WT_RET(__disagg_stable_btree_ids_add_id(session, stable_btree_ids, md_copy));
+    if (__wt_btree_entry_is_shared(session, key, md_copy))
+        WT_RET(__disagg_stable_btree_ids_append(session, stable_btree_ids, (uint32_t)md_id.val));
 
     entry->md_value = md_copy;
     return (0);
