@@ -231,8 +231,7 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
-    bool range_truncate;          /* A range truncate is modifying the btree. */
-    bool range_truncate_boundary; /* A range truncate is positioning its boundary cursors. */
+    bool range_truncate; /* A range truncate is modifying the btree. */
 
     struct {
         uint64_t txn_id;

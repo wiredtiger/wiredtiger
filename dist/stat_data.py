@@ -1607,7 +1607,6 @@ conn_dsrc_stats = [
     ##########################################
     # Range truncate statistics
     ##########################################
-    TruncateStat('truncate_boundary_leaf_pages_read', 'boundary leaf pages read'),
     TruncateStat('truncate_fast_delete_fallback_in_memory', 'fast-delete candidates in memory or busy'),
     TruncateStat('truncate_fast_delete_fallback_pages', 'fast-delete candidates rejected'),
     TruncateStat('truncate_fast_deleted_leaf_pages', 'leaf pages fast-deleted'),

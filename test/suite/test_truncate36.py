@@ -66,7 +66,6 @@ class test_truncate36(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         names = (
-            'truncate_boundary_leaf_pages_read',
             'truncate_fast_delete_fallback_in_memory',
             'truncate_fast_delete_fallback_pages',
             'truncate_fast_deleted_leaf_pages',
@@ -95,7 +94,6 @@ class test_truncate36(wttest.WiredTigerTestCase):
         self.assertGreater(first['truncate_internal_pages_dirtied'], 0)
         self.assertGreater(first['truncate_internal_bytes_dirtied'], 0)
         self.assertGreater(first['truncate_slow_path_update_bytes'], 0)
-        self.assertGreater(first['truncate_boundary_leaf_pages_read'], 0)
         self.assertGreater(
             first['truncate_fast_delete_fallback_pages'],
             first['truncate_fast_delete_fallback_in_memory'])

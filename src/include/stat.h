@@ -1488,7 +1488,6 @@ struct __wt_connection_stats {
     int64_t txn_truncate_dirty_cache_rollback;
     int64_t txn_update_conflict;
     int64_t txn_rollback_stepdown;
-    int64_t truncate_boundary_leaf_pages_read;
     int64_t truncate_fast_delete_fallback_in_memory;
     int64_t truncate_fast_delete_fallback_pages;
     int64_t truncate_internal_bytes_dirtied;
@@ -1956,7 +1955,6 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_hs_removed;
     int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_update_conflict;
-    int64_t truncate_boundary_leaf_pages_read;
     int64_t truncate_fast_delete_fallback_in_memory;
     int64_t truncate_fast_delete_fallback_pages;
     int64_t truncate_internal_bytes_dirtied;
