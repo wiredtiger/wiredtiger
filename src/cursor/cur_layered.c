@@ -1599,6 +1599,7 @@ __clayered_range_truncate_ingest(
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
+    /* Batch statistics updates to avoid atomic increments for each tombstone. */
     WT_STAT_CONN_DSRC_INCRV(
       session, layered_truncate_ingest_tombstones_written, tombstones_written);
     return (ret);

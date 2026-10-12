@@ -113,6 +113,7 @@ __layered_table_truncate_gc(
         __disagg_truncate_free(session, &entry);
         ++removed;
     }
+    /* Batch statistics updates to avoid atomic increments for each entry. */
     if (examined != 0)
         WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_gc_entries_examined, examined);
     if (removed != 0)
@@ -291,6 +292,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
         }
     }
 
+    /* Batch statistics updates to reduce atomic operations and exclude failed searches. */
     if (*is_foundp)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
     else
@@ -394,6 +396,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
 
 err:
     __wt_readunlock(session, &truncate_list->lock);
+    /* Batch statistics updates to reduce atomic operations and exclude failed searches. */
     if (is_found)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
     else if (ret == 0)
@@ -586,6 +589,7 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
         ++removed;
     }
     __wt_writeunlock(session, &truncate_list->lock);
+    /* Batch statistics updates to reduce atomic operations and shorten the write-locked region. */
     if (removed != 0)
         WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_clear_entries_removed, removed);
 }
