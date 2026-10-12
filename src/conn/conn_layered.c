@@ -823,9 +823,26 @@ __disagg_shared_metadata_op(
 {
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
+    char *marked_value;
+    const char *cfg[] = {NULL, "block_manager=disagg", NULL};
+    const char *stable_value;
+
+    marked_value = NULL;
+    stable_value = entry->stable_value;
 
     /* Only the stable constituent carries a size, and only a REMOVE takes one out. */
     *drop_sizep = 0;
+
+    /*
+     * Checkpoints written by earlier versions hold the stable entry without block_manager=disagg,
+     * which makes a reader treat the shared tree as a local file. Write it with the setting.
+     */
+    if (entry->metadata_op != WT_SHARED_METADATA_REMOVE && stable_value != NULL &&
+      !__wt_btree_config_is_shared(session, stable_value)) {
+        cfg[0] = stable_value;
+        WT_ERR(__wt_config_collapse(session, cfg, &marked_value));
+        stable_value = marked_value;
+    }
 
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
@@ -841,8 +858,9 @@ __disagg_shared_metadata_op(
       session, md_key->data, entry->table_value, entry->metadata_op, NULL));
 
     WT_ERR(__disagg_shared_metadata_op_helper(
-      session, entry->stable_uri, entry->stable_value, entry->metadata_op, drop_sizep));
+      session, entry->stable_uri, stable_value, entry->metadata_op, drop_sizep));
 err:
+    __wt_free(session, marked_value);
     __wt_scr_free(session, &md_key);
     return (ret);
 }
