@@ -83,3 +83,43 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.checkpoint()
         self.assertEqual(self.session.verify(self.shared_metadata_uri), 0)
+
+    def local_config(self, uri):
+        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        cursor.set_key(uri)
+        self.assertEqual(cursor.search(), 0)
+        value = cursor.get_value()
+        cursor.close()
+        return value
+
+    def test_legacy_local_file_entry(self):
+        stable_uri = 'file:test_layered_config16.wt_stable'
+
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor['key'] = 'value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+        cursor.close()
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+        self.session.checkpoint()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
+        # Rewrite the local stable entry as an older version would have written it.
+        value = self.local_config(stable_uri)
+        self.assertIn('block_manager=disagg', value)
+        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        cursor.set_key(stable_uri)
+        cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
+        self.assertEqual(cursor.insert(), 0)
+        cursor.close()
+        self.assertNotIn('block_manager=disagg', self.local_config(stable_uri))
+
+        # The rewritten entry survives a restart. Picking up the checkpoint the entry already holds
+        # still marks it as a shared tree.
+        self.reopen_conn(config='precise_checkpoint=true,disaggregated=(role="follower")')
+        self.assertNotIn('block_manager=disagg', self.local_config(stable_uri))
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.assertIn('block_manager=disagg', self.local_config(stable_uri))
