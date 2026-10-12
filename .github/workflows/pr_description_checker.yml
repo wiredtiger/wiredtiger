@@ -12,7 +12,8 @@ jobs:
     name: Ensure placeholder text is removed
     runs-on: ubuntu-latest
     steps:
-      - shell: bash
+      - name: Check for placeholder text
+        shell: bash
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
