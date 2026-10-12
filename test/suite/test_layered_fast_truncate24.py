@@ -195,10 +195,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             with self.transaction(rollback=True):
                 cursor.set_key(80)
                 cursor.set_value('duplicate')
-                try:
-                    cursor.insert()
-                except wiredtiger.WiredTigerError:
-                    pass
+                self.assertRaises(wiredtiger.WiredTigerError, cursor.insert)
         after = self.get_conn_lt_stats(counters)
         self.assertEqual(after['hits'] - before['hits'], 0, 'duplicate insert outside the range should add no hits')
         self.assertGreater(after['misses'], before['misses'], 'duplicate insert should exercise search misses')
@@ -240,10 +237,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
         with closing(self.conn.open_session()) as other, \
                 closing(other.open_cursor(self.uri)) as cursor:
             other.begin_transaction()
-            try:
-                self.truncate_on(other, 30, 50)
-            except wiredtiger.WiredTigerError:
-                pass
+            self.assertRaises(wiredtiger.WiredTigerError, self.truncate_on, other, 30, 50)
             other.rollback_transaction()
             self.assertEqual(self.get_conn_lt_stat('list_write_conflicts'), 1)
             self.assertEqual(self.get_table_lt_stat('list_write_conflicts', self.uri), 1)
@@ -251,10 +245,7 @@ class test_layered_fast_truncate24(LayeredFastTruncateConfigMixin, wttest.WiredT
             other.begin_transaction()
             cursor.set_key(25)
             cursor.set_value('conflict')
-            try:
-                cursor.insert()
-            except wiredtiger.WiredTigerError:
-                pass
+            self.assertRaises(wiredtiger.WiredTigerError, cursor.insert)
             other.rollback_transaction()
             self.assertEqual(self.get_conn_lt_stat('list_write_conflicts'), 2)
             self.assertEqual(self.get_table_lt_stat('list_write_conflicts', self.uri), 2)
