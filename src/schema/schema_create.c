@@ -539,18 +539,18 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     WT_ITEM confbuf, fmt, namebuf;
     WT_TABLE *table;
     size_t tlen;
-    char *cgconf, *origconf;
+    char *cgconf, *layered_config, *origconf;
     const char **cfgp, *cfg[4] = {WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL};
-    const char *cgname, *source, *sourceconf, *tablename;
+    const char *cgname, *layered_name, *source, *sourceconf, *tablename;
     const char *sourcecfg[] = {config, NULL, NULL};
-    bool exists, tracked;
+    bool tracked;
 
     sourceconf = NULL;
-    cgconf = origconf = NULL;
+    cgconf = layered_config = origconf = NULL;
     WT_CLEAR(fmt);
     WT_CLEAR(confbuf);
     WT_CLEAR(namebuf);
-    exists = tracked = false;
+    tracked = false;
 
     if (session->import_list != NULL)
         WT_RET(__find_import_metadata(session, name, &cfg[1]));
@@ -584,12 +584,8 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
           "Column group '%s' not found in table '%.*s'", cgname, (int)tlen, tablename);
 
     /* Check if the column group already exists. */
-    if ((ret = __wt_metadata_search(session, name, &origconf)) == 0) {
-        if (exclusive)
-            WT_ERR(EEXIST);
-        exists = true;
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, name, &origconf), true);
+    WT_ERR_TEST(ret == 0, exclusive ? EEXIST : 0, false);
 
     /* Find the first NULL entry in the cfg stack. */
     for (cfgp = &cfg[1]; *cfgp; cfgp++)
@@ -604,6 +600,23 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         source = namebuf.data;
         WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
         *cfgp++ = confbuf.data;
+    }
+
+    /*
+     * Only a new layered source queues a create, and it shares the table under the source's name,
+     * so the source must be new, the table's only column group, and named after the table.
+     */
+    layered_name = source;
+    if (WT_PREFIX_SKIP(layered_name, "layered:")) {
+        if (cgname != NULL || !WT_STRING_MATCH(layered_name, tablename, tlen))
+            WT_ERR_MSG(session, EINVAL,
+              "%s: a layered source must be named after its table and be its only column group",
+              name);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, source, &layered_config), true);
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            WT_ERR_MSG(session, EEXIST,
+              "%s: cannot create a table over the existing layered table %s", table->iface.name,
+              source);
     }
 
     if (session->import_list != NULL)
@@ -632,7 +645,6 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
     __wt_free(session, sourceconf);
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
-    WT_ERR(__wt_schema_create(session, source, sourceconf));
 
     __wt_free(session, cgconf);
     WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
@@ -640,13 +652,14 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP,
       "before inserting a colgroup", name);
 
-    if (!exists) {
-        WT_ERR(__wt_metadata_insert(session, name, cgconf));
-        WT_ERR(__wti_schema_open_colgroups(session, table));
-    }
+    /* Write the column group first, so a layered source's queued create includes it. */
+    WT_ERR(__wt_metadata_insert(session, name, cgconf));
+    WT_ERR(__wt_schema_create(session, source, sourceconf));
+    WT_ERR(__wti_schema_open_colgroups(session, table));
 
 err:
     __wt_free(session, cgconf);
+    __wt_free(session, layered_config);
     __wt_free(session, sourceconf);
     __wt_free(session, origconf);
     __wt_buf_free(session, &confbuf);
@@ -897,7 +910,6 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 {
     WT_CONFIG conf;
     WT_CONFIG_ITEM cgkey, cgval, ckey, cval;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TABLE *table;
     size_t len;
@@ -966,6 +978,11 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         ;
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* A layered table supports only its implicit column group. */
+    if (ncolgroups != 0 && __wt_config_gets(session, cfg, "type", &cval) == 0 &&
+      WT_CONFIG_LIT_MATCH("layered", cval))
+        WT_ERR_MSG(session, EINVAL, "%s: a layered table cannot have named column groups", uri);
+
     WT_ERR(__wt_config_collapse(session, cfg, &tablecfg));
 
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
@@ -1001,27 +1018,8 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         table = NULL;
     }
 
-    /*
-     * Update the table info in the shared metadata if this is a layered table. This has to get done
-     * after the column groups are created, so that the metadata is complete.
-     *
-     * FIXME-WT-16462 We should determine if there is a better way to determine if this is a layered
-     * table and to determine the stable component's URI. The correct logic works well with the
-     * current implementation, but may not be robust to future changes.
-     */
-    if (__wt_conn_is_disagg(session))
-        if (__wt_config_getones(session, config, "type", &cval) == 0 &&
-          WT_CONFIG_LIT_MATCH("layered", cval)) {
-            __wt_scr_free(session, &tmp);
-            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s.wt_stable", tablename));
-            WT_ERR(__wt_disagg_enqueue_metadata_operation(session, tmp->data, tablename,
-              WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL, NULL));
-        }
-
 err:
     WT_TRET(__wt_schema_release_table(session, &table));
-    __wt_scr_free(session, &tmp);
     __wt_free(session, cgcfg);
     __wt_free(session, cgname);
     __wt_free(session, filecfg);
@@ -1159,12 +1157,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         }
     }
 
-    /*
-     * Update the shared metadata for the disaggregated storage.
-     *
-     * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a part
-     * of a table creation, it would result in doing extra work.
-     */
+    /* Update the shared metadata for the disaggregated storage. */
     WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
       WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL, constituent_cfg));
 
