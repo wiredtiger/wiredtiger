@@ -99,11 +99,8 @@ class test_config09(wttest.WiredTigerTestCase):
         # skips trees that stayed clean without locking them. If the reset is
         # missing, the second value will be larger than the first.
         locked_1 = self.get_stat(stat.conn.checkpoint_handle_locked)
-        meta_checked_1 = self.get_stat(stat.conn.checkpoint_handle_meta_checked)
         self.session.checkpoint()
         locked_2 = self.get_stat(stat.conn.checkpoint_handle_locked)
-        meta_checked_2 = self.get_stat(stat.conn.checkpoint_handle_meta_checked)
         self.assertLessEqual(locked_2, locked_1)
-        self.assertLessEqual(meta_checked_2, meta_checked_1)
 
         self.conn.close()

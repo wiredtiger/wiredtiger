@@ -235,6 +235,10 @@ conn_stats = [
     ##########################################
     # Block cache statistics
     ##########################################
+    # FIXME-WT-18764: seven of the stats below describe the disaggregated victim cache, not the
+    # block cache: app_thread_put_time, app_thread_puts, cold_not_cached, put_failures, put_time,
+    # put_time_max and puts. Eviction increments them on the page log cache path. That ticket moves
+    # them to the disagg group as disagg_victim_cache_*.
     BlockCacheStat('block_cache_app_thread_put_time', 'time application threads spent adding pages to the disaggregated victim cache (usecs)'),
     BlockCacheStat('block_cache_app_thread_puts', 'pages added to the disaggregated victim cache by application threads'),
     BlockCacheStat('block_cache_blocks', 'total blocks'),
@@ -544,8 +548,6 @@ conn_stats = [
     CheckpointStat('checkpoint_handle_duration', 'most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_lock_duration', 'most recent duration for locking the handles (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_locked', 'most recent handles metadata locked'),
-    CheckpointStat('checkpoint_handle_meta_check_duration', 'most recent duration for handles metadata checked (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_handle_meta_checked', 'most recent handles metadata checked'),
     CheckpointStat('checkpoint_handle_skip_duration', 'most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_skipped', 'most recent handles skipped'),
     CheckpointStat('checkpoint_handle_walked', 'most recent handles walked'),
@@ -696,10 +698,6 @@ conn_stats = [
     ##########################################
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
-    LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),
-    LayeredStat('layered_truncate_list_gc_runs', 'the number of times truncate list garbage collection ran with a valid prune timestamp'),
-    LayeredStat('layered_truncate_list_search_calls', 'the number of times the truncate list was searched'),
-    LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
 
     ##########################################
     # Live Restore statistics
@@ -750,6 +748,10 @@ conn_stats = [
     LockStat('lock_table_wait_application', 'table lock application thread time waiting for the table lock (usecs)'),
     LockStat('lock_table_wait_internal', 'table lock internal thread time waiting for the table lock (usecs)'),
     LockStat('lock_table_write_count', 'table write lock acquisitions'),
+    LockStat('lock_truncate_list_read_count', 'truncate list read lock acquisitions'),
+    LockStat('lock_truncate_list_wait_application', 'truncate list lock application thread wait time (usecs)'),
+    LockStat('lock_truncate_list_wait_internal', 'truncate list lock internal thread wait time (usecs)'),
+    LockStat('lock_truncate_list_write_count', 'truncate list write lock acquisitions'),
     LockStat('lock_txn_global_read_count', 'txn global read lock acquisitions'),
     LockStat('lock_txn_global_wait_application', 'txn global lock application thread time waiting (usecs)'),
     LockStat('lock_txn_global_wait_internal', 'txn global lock internal thread time waiting (usecs)'),
@@ -1426,10 +1428,11 @@ conn_dsrc_stats = [
     CursorStat('cursor_reposition_failed', 'Total number of times cursor fails to temporarily release pinned page to encourage eviction of hot or large page'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
-    CursorStat('cursor_tree_walk_del_internal_page_skip', 'Total number of deleted internal pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_del_leaf_page_skip', 'Total number of deleted leaf pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_ondisk_del_internal_page_skip', 'Total number of on-disk deleted internal pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_read_only_del_internal_page_skip', 'Total number of in-memory deleted internal pages of a read-only btree skipped during tree walk'),
     CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
 
     ##########################################
@@ -1442,7 +1445,6 @@ conn_dsrc_stats = [
     CursorErrorStat('cursor_equals_error', 'cursor equals calls that return an error'),
     CursorErrorStat('cursor_get_key_error', 'cursor get key calls that return an error'),
     CursorErrorStat('cursor_get_value_error', 'cursor get value calls that return an error'),
-    CursorErrorStat('cursor_insert_check_error', 'cursor insert check calls that return an error'),
     CursorErrorStat('cursor_insert_error', 'cursor insert calls that return an error'),
     CursorErrorStat('cursor_largest_key_error', 'cursor largest key calls that return an error'),
     CursorErrorStat('cursor_modify_error', 'cursor modify calls that return an error'),
@@ -1510,6 +1512,19 @@ conn_dsrc_stats = [
     LayeredStat('layered_table_manager_logops_skipped', 'how many log applications the layered table manager skipped on this tree'),
     LayeredStat('layered_table_manager_skip_lsn', 'how many previously-applied LSNs the layered table manager skipped on this tree'),
 
+    LayeredStat('layered_truncate_ingest_tombstones_written', 'follower truncate ingest tombstones written'),
+    LayeredStat('layered_truncate_list_clear_entries_removed', 'truncate list entries removed by clearing'),
+    LayeredStat('layered_truncate_list_entries_inserted', 'truncate list entries inserted'),
+    LayeredStat('layered_truncate_list_gc_entries_examined', 'truncate list entries examined by garbage collection'),
+    LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),
+    LayeredStat('layered_truncate_list_gc_runs', 'the number of times truncate list garbage collection ran with a valid prune timestamp'),
+    LayeredStat('layered_truncate_list_rollback_entries_removed', 'truncate list entries removed by transaction rollback'),
+    LayeredStat('layered_truncate_list_search_calls', 'the number of times the truncate list was searched'),
+    LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
+    LayeredStat('layered_truncate_list_search_hits', 'truncate list searches that completed with a matching range'),
+    LayeredStat('layered_truncate_list_search_misses', 'truncate list searches that completed without a matching range'),
+    LayeredStat('layered_truncate_list_write_conflicts', 'truncate list write conflicts'),
+
     ##########################################
     # Reconciliation statistics
     ##########################################
@@ -1542,8 +1557,12 @@ conn_dsrc_stats = [
     RecStat('rec_page_delta_rejected_non_single_page', 'page deltas rejected due to non-single page in previous reconciliation'),
     RecStat('rec_page_delta_rejected_size_threshold', 'page deltas rejected due to size threshold'),
     RecStat('rec_page_delta_rejected_zero_entries', 'page deltas rejected due to zero entries'),
+    RecStat('rec_page_delta_shared_hs_internal', 'internal page deltas written for the shared history store'),
+    RecStat('rec_page_delta_shared_hs_leaf', 'leaf page deltas written for the shared history store'),
     RecStat('rec_page_full_image_internal', 'full internal pages written instead of a page delta'),
     RecStat('rec_page_full_image_leaf', 'full leaf pages written instead of a page delta'),
+    RecStat('rec_page_full_image_shared_hs_internal', 'full internal pages written instead of a page delta for the shared history store'),
+    RecStat('rec_page_full_image_shared_hs_leaf', 'full leaf pages written instead of a page delta for the shared history store'),
     RecStat('rec_page_mods_gt500', 'changes since prior reconciliation (bucket 8) greater than 500'),
     RecStat('rec_page_mods_le10', 'changes since prior reconciliation (bucket 2) between 6 and 10'),
     RecStat('rec_page_mods_le100', 'changes since prior reconciliation (bucket 5) between 51 and 100'),

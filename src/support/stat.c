@@ -270,12 +270,14 @@ static const char *const __stats_dsrc_desc[] = {
   "compression: pages written to disk with compression ratio smaller than 16",
   "compression: pages written to disk with compression ratio smaller than 32",
   "compression: pages written to disk with compression ratio smaller than 64",
-  "cursor: Total number of deleted internal pages skipped during tree walk",
   "cursor: Total number of deleted leaf pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of in-memory deleted internal pages of a read-only btree skipped during "
+  "tree walk",
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
+  "cursor: Total number of on-disk deleted internal pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
@@ -303,7 +305,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls that return an error",
-  "cursor: cursor insert check calls that return an error",
   "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls that return an error",
   "cursor: cursor next calls that return an error",
@@ -376,9 +377,21 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
+  "layered: follower truncate ingest tombstones written",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
+  "layered: the number of times the truncate list was searched",
+  "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
+  "layered: the number of truncate list entries removed by garbage collection",
+  "layered: the number of truncate list entries walked during search",
+  "layered: truncate list entries examined by garbage collection",
+  "layered: truncate list entries inserted",
+  "layered: truncate list entries removed by clearing",
+  "layered: truncate list entries removed by transaction rollback",
+  "layered: truncate list searches that completed with a matching range",
+  "layered: truncate list searches that completed without a matching range",
+  "layered: truncate list write conflicts",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -398,16 +411,21 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
+  "reconciliation: full internal pages written instead of a page delta for the shared history "
+  "store",
   "reconciliation: full leaf pages written instead of a page delta",
+  "reconciliation: full leaf pages written instead of a page delta for the shared history store",
   "reconciliation: ingest btree reconciliation keeps the aborted prepare updates",
   "reconciliation: internal page delta keys deleted",
   "reconciliation: internal page delta keys updated/inserted",
   "reconciliation: internal page deltas written",
+  "reconciliation: internal page deltas written for the shared history store",
   "reconciliation: internal page key bytes discarded using suffix compression",
   "reconciliation: internal page multi-block writes",
   "reconciliation: leaf delta page key bytes discarded using prefix compression",
   "reconciliation: leaf full page key bytes discarded using prefix compression",
   "reconciliation: leaf page deltas written",
+  "reconciliation: leaf page deltas written for the shared history store",
   "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
   "reconciliation: max deltas seen on internal page during reconciliation",
@@ -778,12 +796,13 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->compress_write_ratio_hist_16 = 0;
     stats->compress_write_ratio_hist_32 = 0;
     stats->compress_write_ratio_hist_64 = 0;
-    stats->cursor_tree_walk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_del_leaf_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_tree_walk_read_only_del_internal_page_skip = 0;
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
+    stats->cursor_tree_walk_ondisk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_tree_walk_skip_lock_contended = 0;
@@ -809,7 +828,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_get_key_error = 0;
     stats->cursor_get_value_error = 0;
     stats->cursor_insert_error = 0;
-    stats->cursor_insert_check_error = 0;
     stats->cursor_largest_key_error = 0;
     stats->cursor_modify_error = 0;
     stats->cursor_next_error = 0;
@@ -880,9 +898,21 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
+    stats->layered_truncate_ingest_tombstones_written = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
+    stats->layered_truncate_list_search_calls = 0;
+    stats->layered_truncate_list_gc_runs = 0;
+    stats->layered_truncate_list_gc_entries_removed = 0;
+    stats->layered_truncate_list_search_entries_walked = 0;
+    stats->layered_truncate_list_gc_entries_examined = 0;
+    stats->layered_truncate_list_entries_inserted = 0;
+    stats->layered_truncate_list_clear_entries_removed = 0;
+    stats->layered_truncate_list_rollback_entries_removed = 0;
+    stats->layered_truncate_list_search_hits = 0;
+    stats->layered_truncate_list_search_misses = 0;
+    stats->layered_truncate_list_write_conflicts = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -902,16 +932,20 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
+    stats->rec_page_full_image_shared_hs_internal = 0;
     stats->rec_page_full_image_leaf = 0;
+    stats->rec_page_full_image_shared_hs_leaf = 0;
     stats->rec_ingest_keep_prepare_rollback = 0;
     stats->rec_page_delta_internal_key_deleted = 0;
     stats->rec_page_delta_internal_key_updated = 0;
     stats->rec_page_delta_internal = 0;
+    stats->rec_page_delta_shared_hs_internal = 0;
     stats->rec_suffix_compression = 0;
     stats->rec_multiblock_internal = 0;
     stats->rec_prefix_compression_delta = 0;
     stats->rec_prefix_compression_full = 0;
     stats->rec_page_delta_leaf = 0;
+    stats->rec_page_delta_shared_hs_leaf = 0;
     stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
     stats->rec_max_internal_page_deltas = 0;
@@ -1283,12 +1317,15 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->compress_write_ratio_hist_16 += from->compress_write_ratio_hist_16;
     to->compress_write_ratio_hist_32 += from->compress_write_ratio_hist_32;
     to->compress_write_ratio_hist_64 += from->compress_write_ratio_hist_64;
-    to->cursor_tree_walk_del_internal_page_skip += from->cursor_tree_walk_del_internal_page_skip;
     to->cursor_tree_walk_del_leaf_page_skip += from->cursor_tree_walk_del_leaf_page_skip;
     to->cursor_next_skip_total += from->cursor_next_skip_total;
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
+    to->cursor_tree_walk_read_only_del_internal_page_skip +=
+      from->cursor_tree_walk_read_only_del_internal_page_skip;
     to->cursor_tree_walk_inmem_del_page_skip += from->cursor_tree_walk_inmem_del_page_skip;
+    to->cursor_tree_walk_ondisk_del_internal_page_skip +=
+      from->cursor_tree_walk_ondisk_del_internal_page_skip;
     to->cursor_tree_walk_ondisk_del_page_skip += from->cursor_tree_walk_ondisk_del_page_skip;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
     to->cursor_tree_walk_skip_lock_contended += from->cursor_tree_walk_skip_lock_contended;
@@ -1315,7 +1352,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_get_key_error += from->cursor_get_key_error;
     to->cursor_get_value_error += from->cursor_get_value_error;
     to->cursor_insert_error += from->cursor_insert_error;
-    to->cursor_insert_check_error += from->cursor_insert_check_error;
     to->cursor_largest_key_error += from->cursor_largest_key_error;
     to->cursor_modify_error += from->cursor_modify_error;
     to->cursor_next_error += from->cursor_next_error;
@@ -1391,9 +1427,26 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->layered_table_manager_checkpoints_disagg_pick_up_failed;
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       from->layered_table_manager_checkpoints_disagg_pick_up_succeed;
+    to->layered_truncate_ingest_tombstones_written +=
+      from->layered_truncate_ingest_tombstones_written;
     to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
     to->layered_table_manager_logops_skipped += from->layered_table_manager_logops_skipped;
     to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
+    to->layered_truncate_list_search_calls += from->layered_truncate_list_search_calls;
+    to->layered_truncate_list_gc_runs += from->layered_truncate_list_gc_runs;
+    to->layered_truncate_list_gc_entries_removed += from->layered_truncate_list_gc_entries_removed;
+    to->layered_truncate_list_search_entries_walked +=
+      from->layered_truncate_list_search_entries_walked;
+    to->layered_truncate_list_gc_entries_examined +=
+      from->layered_truncate_list_gc_entries_examined;
+    to->layered_truncate_list_entries_inserted += from->layered_truncate_list_entries_inserted;
+    to->layered_truncate_list_clear_entries_removed +=
+      from->layered_truncate_list_clear_entries_removed;
+    to->layered_truncate_list_rollback_entries_removed +=
+      from->layered_truncate_list_rollback_entries_removed;
+    to->layered_truncate_list_search_hits += from->layered_truncate_list_search_hits;
+    to->layered_truncate_list_search_misses += from->layered_truncate_list_search_misses;
+    to->layered_truncate_list_write_conflicts += from->layered_truncate_list_write_conflicts;
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
@@ -1415,16 +1468,20 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       from->rec_free_page_id_due_to_failed_replacement_reconciliation;
     to->rec_page_full_image_internal += from->rec_page_full_image_internal;
+    to->rec_page_full_image_shared_hs_internal += from->rec_page_full_image_shared_hs_internal;
     to->rec_page_full_image_leaf += from->rec_page_full_image_leaf;
+    to->rec_page_full_image_shared_hs_leaf += from->rec_page_full_image_shared_hs_leaf;
     to->rec_ingest_keep_prepare_rollback += from->rec_ingest_keep_prepare_rollback;
     to->rec_page_delta_internal_key_deleted += from->rec_page_delta_internal_key_deleted;
     to->rec_page_delta_internal_key_updated += from->rec_page_delta_internal_key_updated;
     to->rec_page_delta_internal += from->rec_page_delta_internal;
+    to->rec_page_delta_shared_hs_internal += from->rec_page_delta_shared_hs_internal;
     to->rec_suffix_compression += from->rec_suffix_compression;
     to->rec_multiblock_internal += from->rec_multiblock_internal;
     to->rec_prefix_compression_delta += from->rec_prefix_compression_delta;
     to->rec_prefix_compression_full += from->rec_prefix_compression_full;
     to->rec_page_delta_leaf += from->rec_page_delta_leaf;
+    to->rec_page_delta_shared_hs_leaf += from->rec_page_delta_shared_hs_leaf;
     to->rec_multiblock_leaf += from->rec_multiblock_leaf;
     to->rec_overflow_key_leaf += from->rec_overflow_key_leaf;
     to->rec_max_internal_page_deltas += from->rec_max_internal_page_deltas;
@@ -1837,15 +1894,17 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->compress_write_ratio_hist_16 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_16);
     to->compress_write_ratio_hist_32 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_32);
     to->compress_write_ratio_hist_64 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_64);
-    to->cursor_tree_walk_del_internal_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_del_internal_page_skip);
     to->cursor_tree_walk_del_leaf_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_del_leaf_page_skip);
     to->cursor_next_skip_total += WT_STAT_DSRC_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_DSRC_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_DSRC_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_tree_walk_read_only_del_internal_page_skip +=
+      WT_STAT_DSRC_READ(from, cursor_tree_walk_read_only_del_internal_page_skip);
     to->cursor_tree_walk_inmem_del_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_inmem_del_page_skip);
+    to->cursor_tree_walk_ondisk_del_internal_page_skip +=
+      WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_internal_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
       WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
@@ -1875,7 +1934,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_get_key_error += WT_STAT_DSRC_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_DSRC_READ(from, cursor_get_value_error);
     to->cursor_insert_error += WT_STAT_DSRC_READ(from, cursor_insert_error);
-    to->cursor_insert_check_error += WT_STAT_DSRC_READ(from, cursor_insert_check_error);
     to->cursor_largest_key_error += WT_STAT_DSRC_READ(from, cursor_largest_key_error);
     to->cursor_modify_error += WT_STAT_DSRC_READ(from, cursor_modify_error);
     to->cursor_next_error += WT_STAT_DSRC_READ(from, cursor_next_error);
@@ -1957,11 +2015,34 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
+    to->layered_truncate_ingest_tombstones_written +=
+      WT_STAT_DSRC_READ(from, layered_truncate_ingest_tombstones_written);
     to->layered_table_manager_logops_applied +=
       WT_STAT_DSRC_READ(from, layered_table_manager_logops_applied);
     to->layered_table_manager_logops_skipped +=
       WT_STAT_DSRC_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
+    to->layered_truncate_list_search_calls +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_search_calls);
+    to->layered_truncate_list_gc_runs += WT_STAT_DSRC_READ(from, layered_truncate_list_gc_runs);
+    to->layered_truncate_list_gc_entries_removed +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_removed);
+    to->layered_truncate_list_search_entries_walked +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_search_entries_walked);
+    to->layered_truncate_list_gc_entries_examined +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_examined);
+    to->layered_truncate_list_entries_inserted +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_entries_inserted);
+    to->layered_truncate_list_clear_entries_removed +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_clear_entries_removed);
+    to->layered_truncate_list_rollback_entries_removed +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_rollback_entries_removed);
+    to->layered_truncate_list_search_hits +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_search_hits);
+    to->layered_truncate_list_search_misses +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_search_misses);
+    to->layered_truncate_list_write_conflicts +=
+      WT_STAT_DSRC_READ(from, layered_truncate_list_write_conflicts);
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
@@ -1985,7 +2066,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_DSRC_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
     to->rec_page_full_image_internal += WT_STAT_DSRC_READ(from, rec_page_full_image_internal);
+    to->rec_page_full_image_shared_hs_internal +=
+      WT_STAT_DSRC_READ(from, rec_page_full_image_shared_hs_internal);
     to->rec_page_full_image_leaf += WT_STAT_DSRC_READ(from, rec_page_full_image_leaf);
+    to->rec_page_full_image_shared_hs_leaf +=
+      WT_STAT_DSRC_READ(from, rec_page_full_image_shared_hs_leaf);
     to->rec_ingest_keep_prepare_rollback +=
       WT_STAT_DSRC_READ(from, rec_ingest_keep_prepare_rollback);
     to->rec_page_delta_internal_key_deleted +=
@@ -1993,11 +2078,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_delta_internal_key_updated +=
       WT_STAT_DSRC_READ(from, rec_page_delta_internal_key_updated);
     to->rec_page_delta_internal += WT_STAT_DSRC_READ(from, rec_page_delta_internal);
+    to->rec_page_delta_shared_hs_internal +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_shared_hs_internal);
     to->rec_suffix_compression += WT_STAT_DSRC_READ(from, rec_suffix_compression);
     to->rec_multiblock_internal += WT_STAT_DSRC_READ(from, rec_multiblock_internal);
     to->rec_prefix_compression_delta += WT_STAT_DSRC_READ(from, rec_prefix_compression_delta);
     to->rec_prefix_compression_full += WT_STAT_DSRC_READ(from, rec_prefix_compression_full);
     to->rec_page_delta_leaf += WT_STAT_DSRC_READ(from, rec_page_delta_leaf);
+    to->rec_page_delta_shared_hs_leaf += WT_STAT_DSRC_READ(from, rec_page_delta_shared_hs_leaf);
     to->rec_multiblock_leaf += WT_STAT_DSRC_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_DSRC_READ(from, rec_overflow_key_leaf);
     to->rec_max_internal_page_deltas += WT_STAT_DSRC_READ(from, rec_max_internal_page_deltas);
@@ -2586,11 +2674,9 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent duration for gathering all handles (usecs)",
   "checkpoint: most recent duration for gathering applied handles (usecs)",
   "checkpoint: most recent duration for gathering skipped handles (usecs)",
-  "checkpoint: most recent duration for handles metadata checked (usecs)",
   "checkpoint: most recent duration for locking the handles (usecs)",
   "checkpoint: most recent handles applied",
   "checkpoint: most recent handles checkpoint dropped",
-  "checkpoint: most recent handles metadata checked",
   "checkpoint: most recent handles metadata locked",
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
@@ -2645,12 +2731,14 @@ static const char *const __stats_connection_desc[] = {
   "connection: total fsync I/Os",
   "connection: total read I/Os",
   "connection: total write I/Os",
-  "cursor: Total number of deleted internal pages skipped during tree walk",
   "cursor: Total number of deleted leaf pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of in-memory deleted internal pages of a read-only btree skipped during "
+  "tree walk",
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
+  "cursor: Total number of on-disk deleted internal pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
@@ -2680,7 +2768,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
-  "cursor: cursor insert check calls that return an error",
   "cursor: cursor insert key and value bytes",
   "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls",
@@ -2808,6 +2895,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
+  "layered: follower truncate ingest tombstones written",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
@@ -2817,6 +2905,13 @@ static const char *const __stats_connection_desc[] = {
   "layered: the number of times truncate list garbage collection ran with a valid prune timestamp",
   "layered: the number of truncate list entries removed by garbage collection",
   "layered: the number of truncate list entries walked during search",
+  "layered: truncate list entries examined by garbage collection",
+  "layered: truncate list entries inserted",
+  "layered: truncate list entries removed by clearing",
+  "layered: truncate list entries removed by transaction rollback",
+  "layered: truncate list searches that completed with a matching range",
+  "layered: truncate list searches that completed without a matching range",
+  "layered: truncate list write conflicts",
   "live-restore: number of bytes copied from the source to the destination",
   "live-restore: number of files remaining for migration completion",
   "live-restore: number of reads from the source database",
@@ -2855,6 +2950,10 @@ static const char *const __stats_connection_desc[] = {
   "lock: table lock internal thread time waiting for the table lock (usecs)",
   "lock: table read lock acquisitions",
   "lock: table write lock acquisitions",
+  "lock: truncate list lock application thread wait time (usecs)",
+  "lock: truncate list lock internal thread wait time (usecs)",
+  "lock: truncate list read lock acquisitions",
+  "lock: truncate list write lock acquisitions",
   "lock: txn global lock application thread time waiting (usecs)",
   "lock: txn global lock internal thread time waiting (usecs)",
   "lock: txn global read lock acquisitions",
@@ -3033,13 +3132,18 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
+  "reconciliation: full internal pages written instead of a page delta for the shared history "
+  "store",
   "reconciliation: full leaf pages written instead of a page delta",
+  "reconciliation: full leaf pages written instead of a page delta for the shared history store",
   "reconciliation: ingest btree reconciliation keeps the aborted prepare updates",
   "reconciliation: internal page delta keys deleted",
   "reconciliation: internal page delta keys updated/inserted",
   "reconciliation: internal page deltas written",
+  "reconciliation: internal page deltas written for the shared history store",
   "reconciliation: internal page multi-block writes",
   "reconciliation: leaf page deltas written",
+  "reconciliation: leaf page deltas written for the shared history store",
   "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
   "reconciliation: max deltas seen on internal page during reconciliation",
@@ -3729,11 +3833,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_handle_duration */
     /* not clearing checkpoint_handle_apply_duration */
     /* not clearing checkpoint_handle_skip_duration */
-    /* not clearing checkpoint_handle_meta_check_duration */
     /* not clearing checkpoint_handle_lock_duration */
     stats->checkpoint_handle_applied = 0;
     stats->checkpoint_handle_dropped = 0;
-    stats->checkpoint_handle_meta_checked = 0;
     stats->checkpoint_handle_locked = 0;
     stats->checkpoint_handle_skipped = 0;
     stats->checkpoint_handle_walked = 0;
@@ -3787,12 +3889,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->fsync_io = 0;
     stats->read_io = 0;
     stats->write_io = 0;
-    stats->cursor_tree_walk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_del_leaf_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_tree_walk_read_only_del_internal_page_skip = 0;
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
+    stats->cursor_tree_walk_ondisk_del_internal_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_tree_walk_skip_lock_contended = 0;
@@ -3820,7 +3923,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_get_value_error = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_error = 0;
-    stats->cursor_insert_check_error = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_largest_key_error = 0;
     stats->cursor_modify = 0;
@@ -3945,6 +4047,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
+    stats->layered_truncate_ingest_tombstones_written = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
@@ -3954,6 +4057,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_truncate_list_gc_runs = 0;
     stats->layered_truncate_list_gc_entries_removed = 0;
     stats->layered_truncate_list_search_entries_walked = 0;
+    stats->layered_truncate_list_gc_entries_examined = 0;
+    stats->layered_truncate_list_entries_inserted = 0;
+    stats->layered_truncate_list_clear_entries_removed = 0;
+    stats->layered_truncate_list_rollback_entries_removed = 0;
+    stats->layered_truncate_list_search_hits = 0;
+    stats->layered_truncate_list_search_misses = 0;
+    stats->layered_truncate_list_write_conflicts = 0;
     stats->live_restore_bytes_copied = 0;
     /* not clearing live_restore_work_remaining */
     stats->live_restore_source_read_count = 0;
@@ -3992,6 +4102,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->lock_table_wait_internal = 0;
     stats->lock_table_read_count = 0;
     stats->lock_table_write_count = 0;
+    stats->lock_truncate_list_wait_application = 0;
+    stats->lock_truncate_list_wait_internal = 0;
+    stats->lock_truncate_list_read_count = 0;
+    stats->lock_truncate_list_write_count = 0;
     stats->lock_txn_global_wait_application = 0;
     stats->lock_txn_global_wait_internal = 0;
     stats->lock_txn_global_read_count = 0;
@@ -4170,13 +4284,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
+    stats->rec_page_full_image_shared_hs_internal = 0;
     stats->rec_page_full_image_leaf = 0;
+    stats->rec_page_full_image_shared_hs_leaf = 0;
     stats->rec_ingest_keep_prepare_rollback = 0;
     stats->rec_page_delta_internal_key_deleted = 0;
     stats->rec_page_delta_internal_key_updated = 0;
     stats->rec_page_delta_internal = 0;
+    stats->rec_page_delta_shared_hs_internal = 0;
     stats->rec_multiblock_internal = 0;
     stats->rec_page_delta_leaf = 0;
+    stats->rec_page_delta_shared_hs_leaf = 0;
     stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
     stats->rec_max_internal_page_deltas = 0;
@@ -4979,12 +5097,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_apply_duration +=
       WT_STAT_CONN_READ(from, checkpoint_handle_apply_duration);
     to->checkpoint_handle_skip_duration += WT_STAT_CONN_READ(from, checkpoint_handle_skip_duration);
-    to->checkpoint_handle_meta_check_duration +=
-      WT_STAT_CONN_READ(from, checkpoint_handle_meta_check_duration);
     to->checkpoint_handle_lock_duration += WT_STAT_CONN_READ(from, checkpoint_handle_lock_duration);
     to->checkpoint_handle_applied += WT_STAT_CONN_READ(from, checkpoint_handle_applied);
     to->checkpoint_handle_dropped += WT_STAT_CONN_READ(from, checkpoint_handle_dropped);
-    to->checkpoint_handle_meta_checked += WT_STAT_CONN_READ(from, checkpoint_handle_meta_checked);
     to->checkpoint_handle_locked += WT_STAT_CONN_READ(from, checkpoint_handle_locked);
     to->checkpoint_handle_skipped += WT_STAT_CONN_READ(from, checkpoint_handle_skipped);
     to->checkpoint_handle_walked += WT_STAT_CONN_READ(from, checkpoint_handle_walked);
@@ -5042,15 +5157,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->fsync_io += WT_STAT_CONN_READ(from, fsync_io);
     to->read_io += WT_STAT_CONN_READ(from, read_io);
     to->write_io += WT_STAT_CONN_READ(from, write_io);
-    to->cursor_tree_walk_del_internal_page_skip +=
-      WT_STAT_CONN_READ(from, cursor_tree_walk_del_internal_page_skip);
     to->cursor_tree_walk_del_leaf_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_del_leaf_page_skip);
     to->cursor_next_skip_total += WT_STAT_CONN_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_CONN_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_CONN_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_tree_walk_read_only_del_internal_page_skip +=
+      WT_STAT_CONN_READ(from, cursor_tree_walk_read_only_del_internal_page_skip);
     to->cursor_tree_walk_inmem_del_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_inmem_del_page_skip);
+    to->cursor_tree_walk_ondisk_del_internal_page_skip +=
+      WT_STAT_CONN_READ(from, cursor_tree_walk_ondisk_del_internal_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
       WT_STAT_CONN_READ(from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
@@ -5082,7 +5199,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
     to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
-    to->cursor_insert_check_error += WT_STAT_CONN_READ(from, cursor_insert_check_error);
     to->cursor_insert_bytes += WT_STAT_CONN_READ(from, cursor_insert_bytes);
     to->cursor_largest_key_error += WT_STAT_CONN_READ(from, cursor_largest_key_error);
     to->cursor_modify += WT_STAT_CONN_READ(from, cursor_modify);
@@ -5239,6 +5355,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
+    to->layered_truncate_ingest_tombstones_written +=
+      WT_STAT_CONN_READ(from, layered_truncate_ingest_tombstones_written);
     to->layered_table_manager_logops_applied +=
       WT_STAT_CONN_READ(from, layered_table_manager_logops_applied);
     to->layered_table_manager_logops_skipped +=
@@ -5254,6 +5372,20 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_truncate_list_gc_entries_removed);
     to->layered_truncate_list_search_entries_walked +=
       WT_STAT_CONN_READ(from, layered_truncate_list_search_entries_walked);
+    to->layered_truncate_list_gc_entries_examined +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_gc_entries_examined);
+    to->layered_truncate_list_entries_inserted +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_entries_inserted);
+    to->layered_truncate_list_clear_entries_removed +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_clear_entries_removed);
+    to->layered_truncate_list_rollback_entries_removed +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_rollback_entries_removed);
+    to->layered_truncate_list_search_hits +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_hits);
+    to->layered_truncate_list_search_misses +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_misses);
+    to->layered_truncate_list_write_conflicts +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_write_conflicts);
     to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
     to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
     to->live_restore_source_read_count += WT_STAT_CONN_READ(from, live_restore_source_read_count);
@@ -5304,6 +5436,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lock_table_wait_internal += WT_STAT_CONN_READ(from, lock_table_wait_internal);
     to->lock_table_read_count += WT_STAT_CONN_READ(from, lock_table_read_count);
     to->lock_table_write_count += WT_STAT_CONN_READ(from, lock_table_write_count);
+    to->lock_truncate_list_wait_application +=
+      WT_STAT_CONN_READ(from, lock_truncate_list_wait_application);
+    to->lock_truncate_list_wait_internal +=
+      WT_STAT_CONN_READ(from, lock_truncate_list_wait_internal);
+    to->lock_truncate_list_read_count += WT_STAT_CONN_READ(from, lock_truncate_list_read_count);
+    to->lock_truncate_list_write_count += WT_STAT_CONN_READ(from, lock_truncate_list_write_count);
     to->lock_txn_global_wait_application +=
       WT_STAT_CONN_READ(from, lock_txn_global_wait_application);
     to->lock_txn_global_wait_internal += WT_STAT_CONN_READ(from, lock_txn_global_wait_internal);
@@ -5544,7 +5682,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_CONN_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
     to->rec_page_full_image_internal += WT_STAT_CONN_READ(from, rec_page_full_image_internal);
+    to->rec_page_full_image_shared_hs_internal +=
+      WT_STAT_CONN_READ(from, rec_page_full_image_shared_hs_internal);
     to->rec_page_full_image_leaf += WT_STAT_CONN_READ(from, rec_page_full_image_leaf);
+    to->rec_page_full_image_shared_hs_leaf +=
+      WT_STAT_CONN_READ(from, rec_page_full_image_shared_hs_leaf);
     to->rec_ingest_keep_prepare_rollback +=
       WT_STAT_CONN_READ(from, rec_ingest_keep_prepare_rollback);
     to->rec_page_delta_internal_key_deleted +=
@@ -5552,8 +5694,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_delta_internal_key_updated +=
       WT_STAT_CONN_READ(from, rec_page_delta_internal_key_updated);
     to->rec_page_delta_internal += WT_STAT_CONN_READ(from, rec_page_delta_internal);
+    to->rec_page_delta_shared_hs_internal +=
+      WT_STAT_CONN_READ(from, rec_page_delta_shared_hs_internal);
     to->rec_multiblock_internal += WT_STAT_CONN_READ(from, rec_multiblock_internal);
     to->rec_page_delta_leaf += WT_STAT_CONN_READ(from, rec_page_delta_leaf);
+    to->rec_page_delta_shared_hs_leaf += WT_STAT_CONN_READ(from, rec_page_delta_shared_hs_leaf);
     to->rec_multiblock_leaf += WT_STAT_CONN_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_CONN_READ(from, rec_overflow_key_leaf);
     to->rec_max_internal_page_deltas += WT_STAT_CONN_READ(from, rec_max_internal_page_deltas);
