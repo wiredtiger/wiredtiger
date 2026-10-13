@@ -31,7 +31,9 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 def disagg_ignore_expected_output(testcase):
-    testcase.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+    testcase.ignoreStdoutPattern(
+        'WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)'
+        + '|disaggregated storage requires precise checkpoints')
 
 helper_disagg.disagg_ignore_expected_output = disagg_ignore_expected_output
 
