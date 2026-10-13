@@ -63,9 +63,11 @@ def gen_disagg_storages(disagg_only = False):
 
     return disagg_storages
 
-# For disaggregated test cases, we generally want to ignore verbose warnings about RTS at shutdown.
+# Disaggregated test cases generate verbose output we generally want to ignore: warnings about RTS
+# at shutdown, and the warning a disaggregated leader emits at open when it is not configured with
+# precise checkpoints. Most disagg tests still run fuzzy checkpoints, so ignore that warning here.
 def disagg_ignore_expected_output(testcase):
-    testcase.ignoreStdoutPattern('WT_VERB_RTS')
+    testcase.ignoreStdoutPattern('WT_VERB_RTS|disaggregated storage requires precise checkpoints')
 
 # Several tests access pages data directly by table id.
 # This function computes the shard id for a given table id, which is needed to
