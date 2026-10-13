@@ -3281,7 +3281,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool config_base_set, try_salvage, verify_meta;
+    bool config_base_set, leader, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -3572,7 +3572,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /*
      * FIXME-WT-14721: Disaggregated storage should only support precise checkpoint but mongod is
      * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
-     * the future.
+     * the future, which makes the warning below unnecessary.
      */
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
@@ -3583,6 +3583,21 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
             F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
     } else
         F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
+
+    /*
+     * Checkpoints in disaggregated storage must be precise. Warn rather than reject because
+     * existing configurations still run without it.
+     */
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+        if (cval.len != 0) {
+            WT_ERR(__wt_disagg_config_get_role(session, cfg, &leader));
+            if (leader)
+                __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+                  "disaggregated storage requires precise checkpoints: configure "
+                  "precise_checkpoint=true");
+        }
+    }
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
     if (cval.val) {
