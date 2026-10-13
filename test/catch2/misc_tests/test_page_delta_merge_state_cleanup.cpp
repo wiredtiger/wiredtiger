@@ -57,8 +57,8 @@ TEST_CASE_METHOD(delta_state_cleanup_fixture,
 
     /*
      * A delta_size whose product with the merge-state size overflows size_t can never be allocated.
-     * The merge must report the failure and release the merge state -- here never allocated -- rather
-     * than dereferencing a NULL pointer during cleanup.
+     * The merge must report the failure and release the merge state -- here never allocated --
+     * rather than dereferencing a NULL pointer during cleanup.
      */
     size_t delta_size = SIZE_MAX / sizeof(WTI_DELTA_LEAF_MERGE_STATE) + 1;
 
