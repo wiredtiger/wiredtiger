@@ -2,13 +2,13 @@
 # The oplog is loaded as a leader, the connection then steps down in place, appends to its ingest
 # table and trims. Nothing is adopted and the cache stays warm, so this measures the step down and
 # the truncates after it.
-# The insert volume has to fit the cache: a follower's ingest table is in memory and nothing
-# collects it here, since a stepped down connection adopts no checkpoints.
+# The 768MB insert budget reaches the ingest table and fits in the 2GB cache. A stepped-down
+# connection does not adopt checkpoints to collect ingest data.
 cache_size_mb=2048,
 duration_seconds=10,
-insert_mb=256,
+insert_mb=768,
 marker_size_mb=8,
-oplog_size_mb=512,
+oplog_size_mb=256,
 role=switch,
 value_size=1000,
 metrics_monitor=(enabled=false),

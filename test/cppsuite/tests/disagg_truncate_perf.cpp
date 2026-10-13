@@ -47,10 +47,9 @@ using namespace test_harness;
 
 /*
  * This test measures truncation latency on layered:oplog while insert workers maintain a rolling
- * retention window. It loads the table as a leader, then measures as a leader, after a follower
- * restart with checkpoint pickup, or after an in-place step-down without pickup. The test
- * configuration sets the role, workload sizes, marker size, and worker counts. See the
- * disagg_truncate_perf config files for examples.
+ * retention window. Each operation trims one expired marker. The role selects leader operation,
+ * follower restart with checkpoint pickup, or in-place step-down. See the role config files for
+ * workload settings.
  */
 class disagg_truncate_perf : public test {
 public:
@@ -98,28 +97,32 @@ public:
     void
     custom_operation(thread_worker *tc) override final
     {
-        scoped_cursor cursor = tc->session.open_scoped_cursor("layered:oplog");
+        scoped_cursor start_cursor = tc->session.open_scoped_cursor("layered:oplog");
+        scoped_cursor stop_cursor = tc->session.open_scoped_cursor("layered:oplog");
         scoped_session stat_session = connection_manager::instance().create_session();
         scoped_cursor stats = stat_session.open_scoped_cursor(STATISTICS_URI);
-        execution_timer timer("truncate", _args.test_name);
-        while (tc->running()) {
-            /* Drain in-flight inserts before reading the head and connection-wide cache counters.
-             */
+        execution_timer timer("truncate_attempt", _args.test_name);
+        while (true) {
+            /* Drain in-flight inserts before selecting the next expired marker. */
             std::unique_lock<std::shared_mutex> gate(_insert_gate);
             const uint64_t append_head = _next_key.load();
             const uint64_t untrimmed_records = append_head - _truncated_key;
             /* Trim only after a full marker expires beyond the retained window. */
             if (untrimmed_records <= _retained_records + _records_per_marker) {
-                /* Reaching the append cap ends trimming only after expired ranges are drained. */
-                if (_inserted_bytes.load() >= _insert_target_bytes)
+                if (!tc->running() || _inserted_bytes.load() >= _insert_target_bytes)
                     break;
                 gate.unlock();
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 continue;
             }
-            const uint64_t marker_key = append_head - _retained_records;
-            const int truncate_result = timer.track(
-              [&]() { return (truncate_marker(tc, cursor, stats, marker_key) ? 0 : WT_ROLLBACK); });
+            const uint64_t marker_start_key = _truncated_key + 1;
+            const uint64_t marker_stop_key = _truncated_key + _records_per_marker;
+            const int truncate_result = timer.track([&]() {
+                return (truncate_marker(
+                          tc, start_cursor, stop_cursor, stats, marker_start_key, marker_stop_key) ?
+                    0 :
+                    WT_ROLLBACK);
+            });
             if (truncate_result != 0)
                 ++_truncate_rollbacks;
         }
@@ -141,11 +144,15 @@ public:
             pick_up_checkpoints(tc);
         else {
             /* Switch mode keeps timestamps moving without writing or adopting checkpoints. */
-            while (tc->running() && !_truncation_done.load()) {
+            while (!_truncation_done.load()) {
+                if (!tc->running()) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    continue;
+                }
                 tc->sleep();
-                if (!tc->running() || _truncation_done.load())
+                if (_truncation_done.load())
                     break;
-                if (_role == "leader")
+                if (tc->running() && _role == "leader")
                     testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
             }
         }
@@ -175,6 +182,7 @@ public:
               metric_prefix + "truncate_list_entries_peak", _truncate_list_entries_peak);
         }
         writer.add_stat(metric_prefix + "duration_ms", _phase_duration_ms);
+        writer.add_stat(metric_prefix + "truncate_attempts", _truncate_ops + _truncate_rollbacks);
         writer.add_stat(metric_prefix + "truncate_ops", _truncate_ops);
         writer.add_stat(metric_prefix + "truncate_rollbacks", _truncate_rollbacks);
         writer.add_stat(metric_prefix + "truncate_dirty_bytes_peak", _truncate_dirty_bytes_peak);
@@ -254,15 +262,33 @@ private:
         }
         populate_threads.add_thread(&disagg_truncate_perf::checkpoint_during_load, this);
         populate_threads.join();
-        /* Checkpoint the completed load while timestamp updates can still unblock checkpointing. */
+        wait_for_stable_timestamp(_last_commit_ts.load());
         testutil_check(session->checkpoint(session.get(), nullptr));
+        if (_role == "follower")
+            capture_checkpoint(session.get());
 
         /* change_role() may close the connection as soon as this phase returns. */
         stop_timestamp_updates.store(true);
         timestamp_threads.join();
     }
 
-    /* Checkpoint the growing leader table and save metadata for restarted-follower pickup. */
+    /* Wait until the final load transaction is visible to a stable checkpoint. */
+    void
+    wait_for_stable_timestamp(wt_timestamp_t target)
+    {
+        WT_CONNECTION *conn = connection_manager::instance().get_connection();
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        char stable_timestamp[256];
+        while (true) {
+            testutil_check(conn->query_timestamp(conn, stable_timestamp, "get=stable"));
+            if (timestamp_manager::hex_to_decimal(stable_timestamp) >= target)
+                return;
+            testutil_assert(std::chrono::steady_clock::now() < deadline);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+
+    /* Save completed leader checkpoints for the follower to pick up after restart. */
     void
     checkpoint_during_load()
     {
@@ -334,7 +360,7 @@ private:
         size_t checkpoint_index = 0;
         /* Exhausting metadata must not stop timestamp progress while truncation is still running.
          */
-        while (tc->running() && !_truncation_done.load()) {
+        while (!_truncation_done.load()) {
             if (checkpoint_index < _checkpoints.size()) {
                 const std::string pickup_config =
                   "disaggregated=(checkpoint_meta=\"" + _checkpoints[checkpoint_index++] + "\")";
@@ -349,16 +375,28 @@ private:
     }
 
     bool
-    begin_timestamped_transaction(thread_worker *tc)
+    begin_timestamped_transaction(thread_worker *tc, wt_timestamp_t *commit_timestamp = nullptr)
     {
         tc->tsm = _timestamps.get();
         tc->begin();
-        int ret = tc->set_commit_timestamp(tc->tsm->get_next_ts());
+        const wt_timestamp_t timestamp = tc->tsm->get_next_ts();
+        int ret = tc->set_commit_timestamp(timestamp);
         /* A concurrent stable/oldest update can overtake the chosen timestamp. */
         testutil_assert(ret == 0 || ret == EINVAL);
         if (ret != 0)
             tc->rollback();
+        else if (commit_timestamp != nullptr)
+            *commit_timestamp = timestamp;
         return (ret == 0);
+    }
+
+    void
+    record_commit_timestamp(wt_timestamp_t timestamp)
+    {
+        wt_timestamp_t last_timestamp = _last_commit_ts.load();
+        while (last_timestamp < timestamp &&
+          !_last_commit_ts.compare_exchange_weak(last_timestamp, timestamp)) {
+        }
     }
 
     /* Reuse the fixed-record append loop for loading and measurement, with separate byte budgets.
@@ -373,7 +411,8 @@ private:
             std::shared_lock<std::shared_mutex> gate(_insert_gate);
             if (_inserted_bytes.load() >= target_bytes)
                 break;
-            if (!begin_timestamped_transaction(tc))
+            wt_timestamp_t commit_timestamp;
+            if (!begin_timestamped_transaction(tc, &commit_timestamp))
                 continue;
             cursor->set_key(cursor.get(), static_cast<int64_t>(_next_key.fetch_add(1)));
             cursor->set_value(cursor.get(), value.c_str());
@@ -384,22 +423,27 @@ private:
                 continue;
             }
             /* Rolled-back inserts must not consume the byte budget. */
-            if (tc->commit())
+            if (tc->commit()) {
                 _inserted_bytes.fetch_add(_record_bytes);
+                record_commit_timestamp(commit_timestamp);
+            }
         }
     }
 
     /* Sample the dirty cache bytes recorded for the truncate transaction. */
     bool
-    truncate_marker(
-      thread_worker *tc, scoped_cursor &cursor, scoped_cursor &stats, uint64_t marker_key)
+    truncate_marker(thread_worker *tc, scoped_cursor &start_cursor, scoped_cursor &stop_cursor,
+      scoped_cursor &stats, uint64_t marker_start_key, uint64_t marker_stop_key)
     {
         const bool is_leader = _role == "leader";
         if (!begin_timestamped_transaction(tc))
             return (false);
-        testutil_check(cursor->reset(cursor.get()));
-        cursor->set_key(cursor.get(), static_cast<int64_t>(marker_key));
-        int ret = tc->session->truncate(tc->session.get(), nullptr, nullptr, cursor.get(), nullptr);
+        testutil_check(start_cursor->reset(start_cursor.get()));
+        start_cursor->set_key(start_cursor.get(), static_cast<int64_t>(marker_start_key));
+        testutil_check(stop_cursor->reset(stop_cursor.get()));
+        stop_cursor->set_key(stop_cursor.get(), static_cast<int64_t>(marker_stop_key));
+        int ret = tc->session->truncate(
+          tc->session.get(), nullptr, start_cursor.get(), stop_cursor.get(), nullptr);
         if (ret != 0) {
             testutil_assert(ret == WT_ROLLBACK);
             tc->rollback();
@@ -423,7 +467,7 @@ private:
         if (cache_charge_bytes > 0)
             _truncate_dirty_bytes_peak =
               std::max(_truncate_dirty_bytes_peak, static_cast<uint64_t>(cache_charge_bytes));
-        _truncated_key = marker_key;
+        _truncated_key = marker_stop_key;
         return (true);
     }
 
@@ -452,6 +496,7 @@ private:
 
     std::atomic<uint64_t> _next_key{1};
     std::atomic<uint64_t> _inserted_bytes{0};
+    std::atomic<wt_timestamp_t> _last_commit_ts{0};
     std::atomic<bool> _truncation_done{false};
 
     uint64_t _truncated_key{0};
@@ -467,6 +512,6 @@ private:
     std::chrono::milliseconds _checkpoint_interval;
     std::unique_ptr<timestamp_manager> _timestamps;
     std::mutex _timestamp_api_mutex;
-    /* Exclude inserts while measuring the connection-wide cache delta for a truncate. */
+    /* Exclude inserts while measuring a marker truncate. */
     std::shared_mutex _insert_gate;
 };
