@@ -319,8 +319,8 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __checkpoint_tree_not_gathered --
- *     Return if the handle gather leaves the tree out. The history store is checkpointed later, on
- *     its own.
+ *     Return if the handle gather leaves the tree out. In-memory and read-only trees are not
+ *     checkpointed, and the history store is checkpointed later, on its own.
  */
 static WT_INLINE bool
 __checkpoint_tree_not_gathered(WT_BTREE *btree)
@@ -462,8 +462,11 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
 
-    /* Skip the history store file as it is checkpointed manually later. */
-    if (__checkpoint_tree_not_gathered(btree) || F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+    /* Skip a tree that is still waiting to be published. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return (0);
+
+    if (__checkpoint_tree_not_gathered(btree))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
