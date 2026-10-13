@@ -2021,13 +2021,10 @@ static int
 __disagg_merge_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   const WT_DISAGG_METADATA *metadata, bool is_startup)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
-    conn = S2C(session);
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     WT_RET(__wt_meta_track_on(session));
 
