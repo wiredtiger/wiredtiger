@@ -2179,7 +2179,7 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RELEASE_BARRIER();
 
     ret = __checkpoint_db_internal(session, cfg);
-    session->ckpt.db_cfg = NULL;
+    __wt_atomic_store_ptr_release(&session->ckpt.db_cfg, NULL);
 
     /*
      * The checkpoint retires its published eviction snapshot before releasing it. Repeat that here
