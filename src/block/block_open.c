@@ -143,6 +143,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_DECL_RET;
     uint64_t bucket, hash;
     uint32_t flags;
+    bool in_memory;
 
     *blockp = NULL;
 
@@ -152,6 +153,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 
     block = NULL;
     conn = S2C(session);
+    in_memory = false;
 
     /* Block objects can be shared (although there can be only one writer). */
     hash = __wt_hash_city64(filename, strlen(filename));
@@ -194,68 +196,66 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     block->extend_len = conn->data_extend_len;
 
     /*
-     * Ingest has a metadata entry and no file. The handle still needs a size and a live-checkpoint
-     * lock so an empty tree can be opened; nothing is read or written.
+     * An object configured in-memory never reads or writes its file. Give it a size so an empty
+     * checkpoint can load, and skip the descriptor. A connection-wide in-memory database does not
+     * set this on the object, and still opens its file.
      */
-    if (WT_URI_IS_INGEST(filename)) {
+    if (__wt_config_gets(session, cfg, "in_memory", &cval) == 0 && cval.val != 0)
+        in_memory = true;
+
+    if (!in_memory) {
+        /*
+         * Open the underlying file handle.
+         */
+        flags = 0;
+        WT_ERR(__wt_config_gets(session, cfg, "access_pattern_hint", &cval));
+        if (WT_CONFIG_LIT_MATCH("random", cval))
+            LF_SET(WT_FS_OPEN_ACCESS_RAND);
+        else if (WT_CONFIG_LIT_MATCH("sequential", cval))
+            LF_SET(WT_FS_OPEN_ACCESS_SEQ);
+
+        if (fixed)
+            LF_SET(WT_FS_OPEN_FIXED);
+        /*
+         * This flag means the underlying file is read-only, and NOT that the handle access pattern
+         * is read-only.
+         */
+        if (readonly) {
+            LF_SET(WT_FS_OPEN_READONLY);
+            block->readonly = true;
+        }
+        WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
+
+        /*
+         * We need to do this as close to __wt_open as possible as there is a descriptor block read
+         * further down which requires the extent lists to be initialized. Even if the extent list
+         * is NULL there is bookkeeping to do.
+         */
+        WT_ERR(__wt_live_restore_metadata_to_fh(session, block->fh->handle, lr_fh_meta));
+
+        /* Set the file's size. */
+        WT_ERR(__wt_filesize(session, block->fh, &block->size));
+        /*
+         * If we're opening a file and it only contains a header and we're doing incremental backup
+         * indicate this so that the first checkpoint is sure to set all the bits as dirty to cover
+         * the header so that the header gets copied.
+         */
+        if (block->size == allocsize && F_ISSET_ATOMIC_32(conn, WT_CONN_INCR_BACKUP))
+            block->created_during_backup = true;
+
+        /*
+         * Read the description information from the first block.
+         *
+         * Salvage is a special case: if we're forcing the salvage, we don't look at anything,
+         * including the description information.
+         */
+        if (!forced_salvage)
+            WT_ERR(__desc_read(session, allocsize, block));
+    } else
         block->size = block->allocsize;
-        WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
-        WT_CONN_BLOCK_INSERT(conn, block, bucket);
-        __wt_spin_unlock(session, &conn->block_lock);
-        *blockp = block;
-        return (0);
-    }
-
-    /*
-     * Open the underlying file handle.
-     */
-    flags = 0;
-    WT_ERR(__wt_config_gets(session, cfg, "access_pattern_hint", &cval));
-    if (WT_CONFIG_LIT_MATCH("random", cval))
-        LF_SET(WT_FS_OPEN_ACCESS_RAND);
-    else if (WT_CONFIG_LIT_MATCH("sequential", cval))
-        LF_SET(WT_FS_OPEN_ACCESS_SEQ);
-
-    if (fixed)
-        LF_SET(WT_FS_OPEN_FIXED);
-    /*
-     * This flag means the underlying file is read-only, and NOT that the handle access pattern is
-     * read-only.
-     */
-    if (readonly) {
-        LF_SET(WT_FS_OPEN_READONLY);
-        block->readonly = true;
-    }
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
-
-    /*
-     * We need to do this as close to __wt_open as possible as there is a descriptor block read
-     * further down which requires the extent lists to be initialized. Even if the extent list is
-     * NULL there is bookkeeping to do.
-     */
-    WT_ERR(__wt_live_restore_metadata_to_fh(session, block->fh->handle, lr_fh_meta));
-
-    /* Set the file's size. */
-    WT_ERR(__wt_filesize(session, block->fh, &block->size));
-    /*
-     * If we're opening a file and it only contains a header and we're doing incremental backup
-     * indicate this so that the first checkpoint is sure to set all the bits as dirty to cover the
-     * header so that the header gets copied.
-     */
-    if (block->size == allocsize && F_ISSET_ATOMIC_32(conn, WT_CONN_INCR_BACKUP))
-        block->created_during_backup = true;
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
-
-    /*
-     * Read the description information from the first block.
-     *
-     * Salvage is a special case: if we're forcing the salvage, we don't look at anything, including
-     * the description information.
-     */
-    if (!forced_salvage)
-        WT_ERR(__desc_read(session, allocsize, block));
 
     /* Block is valid, so make it visible in the connection. */
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
