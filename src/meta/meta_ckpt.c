@@ -1779,10 +1779,10 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
 
         /* Extract the checkpoint time. */
         if (ckpttime != NULL) {
-            ret = __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval);
-            if (ret == 0)
+            WT_ERR_NOTFOUND_OK(
+              __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval), true);
+            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
                 WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
-            WT_ERR_NOTFOUND_OK(ret, false);
         }
 
         /*
@@ -1832,10 +1832,10 @@ __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,
 
         if (ckpttime != NULL) {
             /* Extract the checkpoint time. */
-            ret = __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval);
-            if (ret == 0)
+            WT_ERR_NOTFOUND_OK(
+              __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval), true);
+            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
                 WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
-            WT_ERR_NOTFOUND_OK(ret, false);
         }
     }
 
