@@ -1169,7 +1169,6 @@ __disagg_pick_up_new_layered_table(WT_SESSION_IMPL *session, WT_CURSOR *md_curso
       sh_values[WT_DISAGG_CURSOR_LAYERED] != NULL && sh_keys[WT_DISAGG_CURSOR_FILE] != NULL &&
         sh_values[WT_DISAGG_CURSOR_FILE] != NULL);
 
-    /* Create the ingest table if needed, then copy the table's shared entries. */
     WT_RET(__disagg_ensure_ingest_table(
       session, md_cursor, sh_values[WT_DISAGG_CURSOR_LAYERED], is_startup, &ingest_created));
     if (ingest_created)
@@ -1332,10 +1331,11 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
         WT_ERR(__disagg_bound_cursor(session, sh_cursors[i], __disagg_cursor_prefixes[i]));
     }
 
-    /* Calling next on a cursor with no position moves it to the first entry within its bounds. */
+    /* Start every cursor at its first entry within its bounds: next on an unpositioned cursor. */
     __disagg_scheme_keys_init(&md);
     __disagg_scheme_keys_init(&sh);
     for (;;) {
+        /* Move to the next table name that either metadata has; stop when both are exhausted. */
         WT_ERR(__disagg_apply_checkpoint_meta_merge_next(
           session, md_cursors, sh_cursors, &md, &sh, current_buf, &current));
         if (current == NULL)
@@ -1387,10 +1387,8 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
                   __disagg_update_file_meta(session, sh.keys[WT_DISAGG_CURSOR_FILE], &file_entry));
             else {
                 /*
-                 * Skip the shared "file:" entry if a queued local create defers it. The full merge
-                 * finds the local "file:" entry missing at every pickup, even when the checkpoint
-                 * leaves the dropped table's entry unchanged, so each pickup checks the deferral
-                 * again until a checkpoint covers the create.
+                 * Skip the shared "file:" entry if a queued local create defers it. The merge sees
+                 * the local entry missing at every pickup, so the deferral is rechecked each time.
                  */
                 if (__disagg_stable_file_pickup_deferred(session, current, ckpt_schema_epoch))
                     continue;
@@ -1415,19 +1413,23 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
                     WT_ERR(sh_cursors[i]->get_value(sh_cursors[i], &sh_table_values[i]));
                 }
             }
-            WT_ERR(__disagg_check_layered_stable_file(session, current,
-              sh_table_values[WT_DISAGG_CURSOR_LAYERED], sh_table_keys[WT_DISAGG_CURSOR_FILE]));
 
+            /* Do not recreate a table that this node dropped. */
             WT_ERR(
               __disagg_check_shared_only_table(session, current, ckpt_schema_epoch, &local_drop));
             if (local_drop)
                 continue;
+
+            /* The shared "file:" entry must be the stable constituent the table names. */
+            WT_ERR(__disagg_check_layered_stable_file(session, current,
+              sh_table_values[WT_DISAGG_CURSOR_LAYERED], sh_table_keys[WT_DISAGG_CURSOR_FILE]));
 
             if (md.has[WT_DISAGG_CURSOR_FILE] || md.has[WT_DISAGG_CURSOR_COLGROUP] ||
               md.has[WT_DISAGG_CURSOR_TABLE])
                 WT_ERR_MSG(session, EINVAL,
                   "Unexpected local metadata entries for new layered table \"%s\"", current);
 
+            /* Copy the table's shared entries into the local metadata. */
             WT_ERR(__disagg_pick_up_new_layered_table(session, md_write_cursor, sh_table_keys,
               sh_table_values, is_startup, &stable_btree_ids, new_tablesp, new_ingestp));
         } else if (md.has[WT_DISAGG_CURSOR_LAYERED] && !sh.has[WT_DISAGG_CURSOR_LAYERED]) {
@@ -1589,7 +1591,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     if (metadata_checkpoint_name == NULL)
         goto err;
 
-    /* Merge the shared metadata into the local metadata. */
     WT_ERR(__disagg_apply_checkpoint_meta_merge(session, metadata_checkpoint_name,
       ckpt_schema_epoch, is_startup, &existing_tables, &new_tables, &new_ingest));
 
