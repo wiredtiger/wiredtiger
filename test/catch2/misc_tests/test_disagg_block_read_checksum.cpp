@@ -211,7 +211,8 @@ struct read_checksum_fixture {
     static constexpr uint64_t LSN = 100;
     static constexpr uint64_t BASE_LSN = 50;
 
-    read_checksum_fixture() : conn_wrapper("WT_TEST.block_disagg_read_checksum", "create")
+    read_checksum_fixture()
+        : conn_wrapper("WT_TEST.block_disagg_read_checksum", "create,statistics=(all)")
     {
         memset(results, 0, sizeof(results));
 
@@ -469,5 +470,38 @@ TEST_CASE_METHOD(
 
         REQUIRE(read_multiple(blocks[0].checksum) == WT_ERROR);
         CHECK(corruption_flagged());
+    }
+}
+
+/*
+ * The byte-read statistics describe what the read actually returned. The address cookie records the
+ * cumulative size of the chain as written, which matches the sum of the returned blocks for an
+ * ordinary read, but a page rewritten offline is served as a compressed image whose size is
+ * unrelated to the cookie, so the statistic must follow the returned image rather than the cookie.
+ */
+TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: byte-read statistics", "[block_disagg]")
+{
+    auto block_byte_read = [&]() { return (WT_STAT_CONN_READ(conn->stats, block_byte_read)); };
+
+    SECTION("a delta chain counts the base image plus every delta")
+    {
+        uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
+
+        int64_t before = block_byte_read();
+        REQUIRE(read_multiple(cookie_checksum) == 0);
+        CHECK(block_byte_read() - before == static_cast<int64_t>(cumulative_size()));
+    }
+
+    SECTION("an offline-modified page counts the returned image, not the cookie size")
+    {
+        const uint32_t original_checksum = 0xabcd1234;
+        blocks = {make_offline_modified_page(original_checksum)};
+        page_log.delta_count = 2;
+
+        int64_t before = block_byte_read();
+        /* The cookie size is unrelated to the image the read hands back. */
+        REQUIRE(read_multiple(original_checksum, 4096) == 0);
+        CHECK(block_byte_read() - before == static_cast<int64_t>(blocks[0].size()));
+        CHECK(blocks[0].size() != 4096);
     }
 }
