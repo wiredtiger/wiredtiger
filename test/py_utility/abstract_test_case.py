@@ -28,6 +28,15 @@
 
 import inspect, os, re, shutil, sys, time, traceback, unittest
 
+# Patterns ignored in every test's output check. A harness registers a message here when it is
+# expected across many tests that each manage their own ignore patterns. Kept separate from the
+# per-test patterns so a test's own ignore pattern cannot drop it.
+_always_ignore_stdout_patterns = []
+
+def always_ignore_stdout(pattern):
+    """Ignore lines matching pattern in every test's output check."""
+    _always_ignore_stdout_patterns.append(re.compile(pattern))
+
 class TeeFile(object):
     """
     A file-like object that writes to multiple destinations simultaneously.
@@ -145,7 +154,7 @@ class CapturedFd(object):
             self.file.flush()
         new_size = os.path.getsize(self.filename)
 
-        ignore = []
+        ignore = list(_always_ignore_stdout_patterns)
         if self.ignore_regex is not None:
             ignore.append(self.ignore_regex)
         if ignore_pat is not None:

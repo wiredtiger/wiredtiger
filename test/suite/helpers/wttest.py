@@ -54,6 +54,11 @@ class ReadonlySimpleNamespace(SimpleNamespace):
 # The pattern for ignoring file/line number messages.
 WT_ERROR_LOG_PATTERN = "WT_VERB_ERROR_RETURNS.*Error at "
 
+# A disaggregated leader opened without precise checkpoints warns at open. Most disaggregated
+# tests still run fuzzy checkpoints, so the warning is expected across the suite.
+# FIXME-WT-15227: remove this once the disaggregated Python tests run with precise checkpoints.
+abstract_test_case.always_ignore_stdout('disaggregated storage requires precise checkpoints')
+
 # Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
 # and only available (with non-zero argument) on Unix systems.
 class timeout(object):
