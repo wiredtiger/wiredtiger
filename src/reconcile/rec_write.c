@@ -156,6 +156,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* Can't do history store eviction for history store itself or for metadata. */
     WT_ASSERT(session,
       !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_ANY_METADATA(btree->dhandle)));
+
+    /* Eviction stays disabled on a btree awaiting publication, and checkpoint skips it. */
+    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH),
+      "Reconciling a btree that is awaiting publication");
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
@@ -314,13 +318,29 @@ __reconcile_post_wrapup(
 
 /*
  * __rec_timeline_publish --
- *     Stamp a reconciliation as finished. Eviction reports these timings after reconciliation
- *     returns, and does so whether or not it succeeded.
+ *     Stamp a reconciliation as finished, and warn if it took more than a minute. Eviction reports
+ *     these timings after reconciliation returns, and does so whether or not it succeeded.
  */
-static WT_INLINE void
-__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline)
+static void
+__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline, uint32_t flags)
 {
     timeline->reconcile_finish = __wt_clock(session);
+
+    uint64_t rec_us = WT_CLOCKDIFF_US(timeline->reconcile_finish, timeline->reconcile_start);
+    if (rec_us <= WT_MINUTE * WT_MILLION)
+        return;
+
+    const char *operation = "Reconciliation";
+    if (LF_ISSET(WT_REC_EVICT))
+        operation = "Eviction";
+    else if (LF_ISSET(WT_REC_CHECKPOINT))
+        operation = "Checkpoint";
+    uint64_t build_us = WT_CLOCKDIFF_US(timeline->image_build_finish, timeline->image_build_start);
+    uint64_t hs_wrapup_us = WT_CLOCKDIFF_US(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
+    __wt_verbose_warning(session, WT_VERB_RECONCILE,
+      "%s took more than 1 minute (%" PRIu64 "us) reconciling %s. Building disk image took %" PRIu64
+      "us. History store wrapup took %" PRIu64 "us.",
+      operation, rec_us, S2BT(session)->dhandle->name, build_us, hs_wrapup_us);
 }
 
 /*
@@ -415,11 +435,17 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Do not return an error if we are syncing the file with eviction disabled or as part of a
      * checkpoint.
      */
-    if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
-      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
-      !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) && F_ISSET(r, WT_REC_CALL_URGENT) &&
+    const bool tree_evictable =
+      __wt_btree_eviction_enabled(btree) && F_ISSET(btree->dhandle, WT_DHANDLE_OPEN);
+
+    const bool forced_leaf_eviction =
+      F_ISSET(r, WT_REC_EVICT) && F_ISSET(r, WT_REC_CALL_URGENT) && !WT_PAGE_IS_INTERNAL(page);
+
+    const bool no_progress = r->multi_next == 1 && !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) &&
       !r->update_used && r->cache_write_restore_invisible && !r->has_upd_chain_all_aborted &&
-      r->keys_removed_from_disk_image_count == 0) {
+      r->keys_removed_from_disk_image_count == 0;
+
+    if (ret == 0 && tree_evictable && forced_leaf_eviction && no_progress) {
         /*
          * For disaggregated btree, we should have skipped the write if this page has been
          * reconciled before except for internal pages that have built maximum number of consecutive
@@ -463,7 +489,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
         /* Publish what was measured before the failure; stale timings are worse than partial. */
-        __rec_timeline_publish(session, timeline);
+        __rec_timeline_publish(session, timeline, flags);
 
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
@@ -500,7 +526,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
             goto err;
 
         /* The nested root write measured a different page; report this one. */
-        __rec_timeline_publish(session, timeline);
+        __rec_timeline_publish(session, timeline, flags);
         return (0);
     }
 
@@ -515,7 +541,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    __rec_timeline_publish(session, timeline);
+    __rec_timeline_publish(session, timeline, flags);
 
     rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
     rec_img_build = WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
@@ -1119,9 +1145,9 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
             (checkpoint && addr == NULL && addr_sizep == NULL),
           "Incorrect arguments passed to rec_write for a checkpoint call");
 
-        /* In-memory btrees, and btrees awaiting publication, shouldn't write pages. */
-        WT_ASSERT_ALWAYS(session, !__wt_btree_stays_in_memory(btree),
-          "Attempted to write page to disk when the btree must be kept in memory");
+        /* In-memory btrees shouldn't write pages. */
+        WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY),
+          "Attempted to write page to disk for an in-memory btree");
 
         /*
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
@@ -1332,8 +1358,6 @@ __wti_rec_split_init(
         r->space_avail = r->page_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
     } else {
         r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
-        /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas.
-         */
         r->space_avail = r->split_size - WT_PAGE_HEADER_WRITE_SIZE(btree);
         r->min_split_size =
           __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
@@ -1352,7 +1376,6 @@ __wti_rec_split_init(
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
-    /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas. */
     r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
@@ -1405,7 +1428,7 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * checkpoint, before writing the checkpoint. In short, we don't do checkpoint writes here;
      * clear the boundary information as a reminder and create the checkpoint during wrapup.
      */
-    return (!__wt_btree_stays_in_memory(btree) && __wt_ref_is_root(r->ref));
+    return (!F_ISSET(btree, WT_BTREE_IN_MEMORY) && __wt_ref_is_root(r->ref));
 }
 
 /*
@@ -1970,7 +1993,8 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
             else
                 upd = r->supd[i].ins->upd;
             /* Only count the size if we need to restore or have an onpage value. */
-            if (r->supd[i].onpage_upd != NULL || r->supd[i].restore) {
+            if ((r->supd[i].onpage_upd != NULL || r->supd[i].restore) &&
+              r->supd[i].count_for_split) {
                 r->supd_memsize += __wt_update_list_memsize(upd);
                 ++r->supd_onpage_or_restore;
             }
@@ -2335,12 +2359,14 @@ static int
 __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, uint8_t *addr,
   size_t *addr_sizep, size_t *compressed_sizep)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE_BLOCK_META *block_meta;
     uint64_t delta_pct;
     uint64_t _write_start = 0;
 
+    btree = S2BT(session);
     conn = S2C(session);
     multi = &r->multi[r->multi_next - 1];
     block_meta = &r->ref->page->disagg_info->block_meta;
@@ -2381,6 +2407,8 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
               r->count_internal_page_delta_key_updated);
 
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
+        if (WT_IS_SHARED_HS(btree))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_shared_hs_internal);
 
         /*
          * If we decide to write the delta we packed, track the number of bytes saved by avoiding
@@ -2414,6 +2442,8 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
               &conn->page_delta.max_internal_delta_count, multi->block_meta->delta_count);
     } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
+        if (WT_IS_SHARED_HS(btree))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_shared_hs_leaf);
         WT_STAT_CONN_INCRV(
           session, block_byte_write_saved_delta_leaf, chunk->image.size - r->delta.size);
         WT_STAT_DSRC_INCRV(
@@ -2453,10 +2483,12 @@ static int
 __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, uint8_t *addr,
   size_t *addr_sizep, size_t *compressed_sizep, bool last_block)
 {
+    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
 
+    btree = S2BT(session);
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
 
@@ -2483,12 +2515,67 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
-    if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
+    if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_internal);
-    else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
+        if (WT_IS_SHARED_HS(btree))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_shared_hs_internal);
+    } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_leaf);
+        if (WT_IS_SHARED_HS(btree))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_shared_hs_leaf);
+    }
 
     return (0);
+}
+
+/*
+ * __rec_ref_addr_is_deleted --
+ *     Return whether the reference's address is a fast-truncate proxy cell.
+ */
+static bool
+__rec_ref_addr_is_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR *addr;
+    WT_PAGE *home;
+
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+      "Any thread accessing ref address must hold a valid split generation");
+
+    /*
+     * The proxy cell cannot be modified concurrently and split generations protect its lifetime, so
+     * no copy is needed; parent splits can replace the address, requiring home to be read before
+     * addr with acquire ordering.
+     */
+    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
+    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
+    return (addr != NULL && !__wt_off_page(home, addr) &&
+      __wt_cell_type_raw((WT_CELL *)addr) == WT_CELL_ADDR_DEL);
+}
+
+/*
+ * __rec_proxy_cell_orphaned --
+ *     Return whether the page's only address is a fast-truncate proxy cell whose page-delete
+ *     information has been discarded.
+ */
+static bool
+__rec_proxy_cell_orphaned(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_PAGE_MODIFY *mod;
+
+    mod = r->page->modify;
+
+    /*
+     * A committed fast truncate can be checkpointed as a proxy cell before the leaf is
+     * instantiated. If the truncate durable timestamp is newer than stable, rollback-to-stable
+     * aborts the instantiated tombstones and clears the page-delete information and instantiated
+     * flag, but leaves the parent's proxy cell as the leaf's address. A subsequent skipped write
+     * would leave no replacement address for parent reconciliation, so this leaf be forced to
+     * perform a write that provides one.
+     */
+    if (mod->instantiated ||
+      (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL))
+        return (false);
+    return (__rec_ref_addr_is_deleted(session, r->ref));
 }
 
 /*
@@ -2621,11 +2708,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (r->supd_next != 0) {
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
 
-        /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
             WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
-            __rec_set_updates_durable(session, multi);
+            /* No updates were written for the empty chunk, so do not mark them durable. */
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
             __wt_free(session, multi->supd);
@@ -2723,6 +2809,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                   page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   WT_REC_RESULT_SINGLE_PAGE(session, r) && !r->newer_updates_than_last_rec_used &&
                   !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT)) {
+                    WT_ASSERT(session, !__rec_proxy_cell_orphaned(session, r));
                     WT_RET(__rec_copy_prev_addr(session, r));
                     F_SET(multi, WT_MULTI_SKIP_WRITE);
                     WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
@@ -2741,8 +2828,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
+        /*
+         * A page referenced only by a proxy cell with no page-delete information behind it must
+         * write a full image: neither a skipped write nor a delta gives the parent an address to
+         * replace that cell with.
+         */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-          WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
+          WT_REC_RESULT_SINGLE_PAGE((session), (r)) && !__rec_proxy_cell_orphaned(session, r)) {
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
@@ -2817,6 +2909,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     __rec_page_time_stats(session, r, build_delta);
 
 copy_image:
+    if (F_ISSET(multi, WT_MULTI_SKIP_WRITE)) {
+        /* A skipped write reuses the backing block, so the image carries its write generation. */
+        uint64_t write_gen = __wt_page_write_gen(page);
+        WT_ASSERT_ALWAYS(
+          session, write_gen != 0, "A skipped write must have a previous write generation");
+        ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen = write_gen;
+    }
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
@@ -3133,6 +3232,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     bool disagg_delta_chain_end;
     bool disagg_page_free_required;
     bool disagg_page_is_valid;
+    bool skipped_write;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -3311,6 +3411,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
       (void *)ref, r->multi_next);
 
+    /*
+     * Decide whether the page kept its existing block before the multi array is handed to the page:
+     * the fast-truncate state below is only discarded once a new image exists on disk.
+     */
+    skipped_write = r->multi_next == 1 && F_ISSET(r->multi, WT_MULTI_SKIP_WRITE);
+
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
@@ -3341,6 +3447,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
          * again.
          */
         mod->rec_result = WT_PM_REC_EMPTY;
+        mod->rec_write_gen = 0;
         break;
     case 1: /* 1-for-1 page swap */
         /*
@@ -3354,8 +3461,15 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || F_ISSET(r->multi, WT_MULTI_SUPD_RESTORE)) {
-            if (page->disagg_info != NULL)
+            if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
+                if (!F_ISSET(r, WT_REC_IN_MEMORY) && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
+                    mod->rec_write_gen = ((WT_PAGE_HEADER *)r->cur_ptr->image.mem)->write_gen;
+                    WT_ASSERT(session,
+                      page->disagg_info->block_meta.delta_count == 0 ||
+                        mod->rec_write_gen == ((WT_PAGE_HEADER *)r->delta.data)->write_gen);
+                }
+            }
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -3402,6 +3516,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
+        /*
+         * The full image's write generation describes the backing block even when a delta was
+         * written: the delta header copies the full image's generation, and reading the page back
+         * takes its generation from the newest delta. Both must stay in sync with this assignment.
+         */
+        if (page->disagg_info != NULL && !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
+            mod->rec_write_gen = ((WT_PAGE_HEADER *)r->cur_ptr->image.mem)->write_gen;
+            WT_ASSERT(session,
+              page->disagg_info->block_meta.delta_count == 0 ||
+                mod->rec_write_gen == ((WT_PAGE_HEADER *)r->delta.data)->write_gen);
+        }
         mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */
@@ -3413,6 +3538,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
         /* Optionally display the actual split keys in verbose mode. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_SPLIT, WT_VERBOSE_DEBUG_2))
             WT_RET(__rec_split_dump_keys(session, r));
+
+        /* The page no longer has a single backing block. */
+        mod->rec_write_gen = 0;
 
 split:
         mod->mod_multi = r->multi;
@@ -3443,8 +3571,12 @@ split:
      * will wait for it; and if we are checkpointing the leaf, we can't simultaneously be
      * checkpointing the parent, and we can't be evicting the parent either because internal pages
      * can't be evicted while they have in-memory children.
+     *
+     * A reconciliation that skipped the write is the exception: the on-disk image still predates
+     * the instantiation and the parent's cell may still be a fast-truncate proxy cell, so the
+     * page-delete information stays until an image is actually written.
      */
-    if (mod->instantiated) {
+    if (mod->instantiated && !skipped_write) {
         /*
          * Unfortunately, it seems we need to lock the ref at this point. Ultimately the page_del
          * structure and the instantiated flag need to both be cleared simultaneously (otherwise

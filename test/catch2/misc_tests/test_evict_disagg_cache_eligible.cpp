@@ -76,6 +76,7 @@ struct eligibility_fixture {
     /* Value-initialized, so every field the gate does not care about reads as zero. */
     WT_DATA_HANDLE dhandle{};
     WT_BTREE btree{};
+    WT_KEYED_ENCRYPTOR kencryptor{};
     WT_BM bm{};
     WT_BLOCK_DISAGG block_disagg{};
     WT_PAGE_LOG_HANDLE plhandle{};
@@ -214,6 +215,9 @@ provoke(eligibility_fixture &f, WTI_EVICT_VICTIM_REASON reason)
     case WTI_EVICT_VICTIM_COLD_TIER:
         f.btree.storage_tier = WT_BTREE_STORAGE_TIER_COLD;
         break;
+    case WTI_EVICT_VICTIM_ENCRYPTED:
+        f.btree.kencryptor = &f.kencryptor;
+        break;
     case WTI_EVICT_VICTIM_COUNT:
         /* Not a reason; the loop below never reaches it. */
         REQUIRE(false);
@@ -304,6 +308,40 @@ TEST_CASE("Victim cache eligibility: a replacement that retained no image is rej
     const WT_PAGE_HEADER *disk_image = f.dsk;
     REQUIRE(f.check(&disk_image) == WTI_EVICT_VICTIM_NO_IMAGE);
     REQUIRE(disk_image == nullptr);
+}
+
+TEST_CASE(
+  "Victim cache eligibility: the image must match the backing generation", "[evict][disagg_cache]")
+{
+    eligibility_fixture f;
+    f.dsk->write_gen = 10;
+    f.set_rec_result(0);
+    f.modify.rec_write_gen = 20;
+
+    WT_PAGE_HEADER replacement{};
+    replacement.write_gen = 20;
+    const WT_PAGE_HEADER *disk_image = f.dsk;
+
+    SECTION("The original image predates a write")
+    {
+        REQUIRE(f.check(&disk_image) == WTI_EVICT_VICTIM_NO_IMAGE);
+        REQUIRE(disk_image == nullptr);
+    }
+    SECTION("A retained replacement matches the write")
+    {
+        f.modify.rec_result = WT_PM_REC_REPLACE;
+        f.modify.mod_disk_image = &replacement;
+        REQUIRE(f.check(&disk_image) == WTI_EVICT_VICTIM_OK);
+        REQUIRE(disk_image == &replacement);
+    }
+    SECTION("A retained replacement has an orphaned generation")
+    {
+        replacement.write_gen = 30;
+        f.modify.rec_result = WT_PM_REC_REPLACE;
+        f.modify.mod_disk_image = &replacement;
+        REQUIRE(f.check(&disk_image) == WTI_EVICT_VICTIM_NO_IMAGE);
+        REQUIRE(disk_image == nullptr);
+    }
 }
 
 TEST_CASE("Victim cache eligibility: rejecting a cold page is counted", "[evict][disagg_cache]")
