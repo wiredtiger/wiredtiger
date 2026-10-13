@@ -1081,7 +1081,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     uint64_t original_snap_min;
-    int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *);
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -1338,16 +1337,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     /*
      * Get a list of handles we want to sync; for named checkpoints this may pull closed objects
      * into the session cache.
-     *
-     * The gather can skip only the clean trees the fast path in __checkpoint_lock_dirty_tree would
-     * skip, and that path is never taken for a forced, named or drop checkpoint.
      */
     WT_ASSERT(session, session->ckpt.handle_next == 0);
-    skip_func =
-      ckpt_cfg->force || ckpt_cfg->named || ckpt_cfg->drop ? NULL : __checkpoint_gather_skip;
     WT_WITH_TABLE_READ_LOCK(session,
-      ret =
-        __checkpoint_apply_operation(session, ckpt_cfg, __wt_checkpoint_get_handles, skip_func));
+      ret = __checkpoint_apply_operation(session, ckpt_cfg, __wt_checkpoint_get_handles,
+        ckpt_cfg->force ? NULL : __checkpoint_gather_skip));
 
     __wt_epoch(session, &conn->ckpt.prepare.timer_end);
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
