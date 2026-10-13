@@ -214,8 +214,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.assert_no_ingest_file('', 'dh01_trunc.wt_ingest')
         self.assert_no_ingest_file('follower', 'dh01_trunc.wt_ingest')
 
-        # Churn with checkpoints so sweep closes the idle ingest btree. The handle dump
-        # reports that btree, rather than an open file descriptor.
+        # Churn with checkpoints so sweep closes the idle ingest btree.
         ingest = 'file:dh01_trunc.wt_ingest'
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
