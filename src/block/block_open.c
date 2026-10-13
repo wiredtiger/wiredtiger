@@ -194,6 +194,19 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     block->extend_len = conn->data_extend_len;
 
     /*
+     * Ingest has a metadata entry and no file. The handle still needs a size and a live-checkpoint
+     * lock so an empty tree can be opened; nothing is read or written.
+     */
+    if (WT_URI_IS_INGEST(filename)) {
+        block->size = block->allocsize;
+        WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
+        WT_CONN_BLOCK_INSERT(conn, block, bucket);
+        __wt_spin_unlock(session, &conn->block_lock);
+        *blockp = block;
+        return (0);
+    }
+
+    /*
      * Open the underlying file handle.
      */
     flags = 0;

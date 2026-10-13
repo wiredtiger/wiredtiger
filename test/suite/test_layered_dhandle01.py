@@ -36,10 +36,13 @@
 # than the latest checkpoint (making all content in the ingest redundant relative
 # to the matching stable table).
 
-import os, sys, time
+import os, time
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
+
+# WT_DHANDLE_OPEN. A handle still in the list with this clear has been closed.
+WT_DHANDLE_OPEN = 0x200
 
 @disagg_test_class
 class test_layered_dhandle01(wttest.WiredTigerTestCase):
@@ -55,19 +58,29 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         return self.wiredtiger_open(
             'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
 
-    # Count the follower's open ingest-table file descriptors (its home is the
-    # "follower/" subdirectory), optionally only those for a specific file name.
-    # This is Linux only.
-    def count_follower_ingest_fds(self, suffix='.wt_ingest'):
-        n = 0
-        for fd in os.listdir('/proc/self/fd'):
-            try:
-                target = os.readlink('/proc/self/fd/' + fd)
-            except OSError:
-                continue
-            if target.endswith(suffix) and '/follower/' in target:
-                n += 1
-        return n
+    # Names of ingest dhandles that are still open. Closed handles remain in the dump until sweep
+    # removes them, so the open flag is the signal, not the name being present.
+    def open_ingest(self, conn):
+        self.cleanStdout()
+        conn.debug_info('handles')
+        dump = self.readStdout(maxchars=2000000)
+        self.cleanStdout()
+        open_names = []
+        name = None
+        for line in dump.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('Name: '):
+                name = stripped[len('Name: '):]
+            elif stripped.startswith('Flags:') and name is not None:
+                flags = int(stripped.split()[-1], 16)
+                if name.endswith('.wt_ingest') and flags & WT_DHANDLE_OPEN:
+                    open_names.append(name)
+                name = None
+        return open_names
+
+    def assert_no_ingest_file(self, home, name):
+        path = os.path.join(home, name) if home else name
+        self.assertFalse(os.path.exists(path), path + ' should not exist')
 
     # Advance the global checkpoint timestamp by writing to a churn table at
     # successive whole-second timestamps and taking leader checkpoints the follower
@@ -96,10 +109,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
             if predicate():
                 break
 
-    def test_ingest_fd_reclaimed(self):
-        if not sys.platform.startswith('linux'):
-            self.skipTest('ingest fd counting uses /proc, Linux only')
-
+    def test_ingest_reclaimed(self):
         ntables = 60
         conn_follow = self.open_follower()
         sfollow = conn_follow.open_session('')
@@ -124,20 +134,23 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 
+        # Create does not leave a file behind. The metadata entry is the object.
+        self.assert_no_ingest_file('', 'dh01_00000.wt_ingest')
+        self.assert_no_ingest_file('follower', 'dh01_00000.wt_ingest')
+
         # Every table now has an open, dirty ingest btree on the follower.
-        self.assertGreaterEqual(self.count_follower_ingest_fds(), ntables)
+        self.assertGreaterEqual(len(self.open_ingest(conn_follow)), ntables)
 
         # Drive the global checkpoint timestamp past every table's
         # max_ingest_write_ts; sweep then discards the now-durable ingest btrees.
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: self.count_follower_ingest_fds() <= 5)
+            lambda: len([n for n in self.open_ingest(conn_follow) if 'churn' not in n]) <= 5)
 
-        # The idle ingest btrees must be reclaimed: only a small active set (the
-        # churn table and any in-flight handles) remains, not one per table.
-        self.assertLessEqual(self.count_follower_ingest_fds(), 5,
-            'follower ingest file descriptors were not reclaimed')
+        # The idle ingest btrees must be reclaimed. The churn table can remain.
+        idle = [n for n in self.open_ingest(conn_follow) if 'churn' not in n]
+        self.assertLessEqual(len(idle), 5, 'follower ingest btrees were not reclaimed')
 
         # No data was lost: every key reads back on the follower, served from the
         # stable component now that the ingest btrees are gone.
@@ -147,9 +160,6 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         conn_follow.close()
 
     def test_truncate_durable_reclaim(self):
-        if not sys.platform.startswith('linux'):
-            self.skipTest('ingest fd counting uses /proc, Linux only')
-
         uri = 'layered:dh01_trunc'
         nrows = 1000
         lo, hi = 100, 700      # truncate removes keys [lo, hi] inclusive
@@ -201,14 +211,18 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
             c.close()
             return count
 
-        # Churn with checkpoints so sweep eventually discards its ingest btree on the follower.
-        ingest = 'dh01_trunc.wt_ingest'
+        self.assert_no_ingest_file('', 'dh01_trunc.wt_ingest')
+        self.assert_no_ingest_file('follower', 'dh01_trunc.wt_ingest')
+
+        # Churn with checkpoints so sweep closes the idle ingest btree. The handle dump
+        # reports that btree, rather than an open file descriptor.
+        ingest = 'file:dh01_trunc.wt_ingest'
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: self.count_follower_ingest_fds(ingest) == 0)
+            lambda: ingest not in self.open_ingest(conn_follow))
 
-        self.assertEqual(self.count_follower_ingest_fds(ingest), 0,
+        self.assertNotIn(ingest, self.open_ingest(conn_follow),
             'follower ingest btree with a pending truncate was not reclaimed')
 
         # The truncate must still be reflected after the ingest btree is gone: the

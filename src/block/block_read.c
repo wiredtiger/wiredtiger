@@ -184,6 +184,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     WT_RET(__wt_buf_init(session, buf, bufsize));
     buf->size = size;
 
+    WT_ASSERT(session, block->fh != NULL);
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
     WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 

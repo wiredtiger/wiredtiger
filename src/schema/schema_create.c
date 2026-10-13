@@ -86,6 +86,13 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 
     npage_log = NULL;
 
+    /*
+     * Ingest is an in-memory btree. The metadata entry is the object; there is no file to create or
+     * to roll back. Open synthesizes a block handle.
+     */
+    if (WT_URI_IS_INGEST(uri))
+        return (0);
+
     if (WT_URI_IS_STABLE(uri)) {
         WT_RET_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));

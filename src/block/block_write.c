@@ -32,6 +32,10 @@ __wti_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
      */
     block->size = block->extend_size = len;
 
+    /* Ingest has no file. The size above is the in-memory one. */
+    if (block->fh == NULL)
+        return (0);
+
     /*
      * Backups are done by copying files outside of WiredTiger, potentially by system utilities. We
      * cannot truncate the file during the backup window, we might surprise an application.
@@ -236,6 +240,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     *checksump = 0; /* -Werror=maybe-uninitialized */
 
     fh = block->fh;
+    WT_ASSERT(session, fh != NULL);
 
     /*
      * File checkpoint/recovery magic: done before sizing the buffer as it may grow the buffer.
