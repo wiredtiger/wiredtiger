@@ -77,6 +77,8 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
     def test_reinsert_after_checkpoint_pickup(self):
         self.setup_follower()
         conn, sess = self.conn_follow, self.session_follow
+        gc_removed = wiredtiger.stat.conn.layered_truncate_list_gc_entries_removed
+        removed = self.get_stat(gc_removed, session=sess)
 
         # Truncate on both nodes while the follower still reads the initial checkpoint.
         self.truncate_range(self.session, 100, 300, 20)
@@ -88,6 +90,7 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.populate_at(self.session, [150, 250], 'new', 30)
         self.leader_checkpoint(30)
         self.disagg_advance_checkpoint_and_wait(conn, self.conn)
+        self.assertStatGreaterSoon(gc_removed, removed, session=sess, timeout=60)
 
         # Only the reinserted keys return; untouched keys stay deleted and exterior keys are unchanged.
         for key in [150, 250]:
@@ -171,3 +174,29 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.assertStatGreaterSoon(gc_removed, removed, session=sess, timeout=60)
         self.assertEqual(self.visible_keys_at(sess, 40), [50, 150, 250, 350])
         self.assertEqual(self.visible_keys_at(sess, 40, forward=False), [350, 250, 150, 50])
+
+    def test_reinsert_visible_while_old_checkpoint_in_use(self):
+        self.setup_follower()
+        conn, sess = self.conn_follow, self.session_follow
+        gc_removed = wiredtiger.stat.conn.layered_truncate_list_gc_entries_removed
+
+        # Keep the initial checkpoint in use after the reader's transaction ends.
+        with closing(sess.open_cursor(self.uri)) as old_cursor:
+            with self.transaction(session=sess):
+                self.assertEqual(old_cursor.next(), 0)
+                self.assertEqual(old_cursor.get_key(), 50)
+
+            removed = self.get_stat(gc_removed, session=sess)
+
+            self.truncate_range(self.session, 100, 300, 20)
+            self.truncate_range(sess, 100, 300, 20)
+            self.populate_at(self.session, [150], 'new', 30)
+            self.populate_at(sess, [150], 'new', 30)
+            self.leader_checkpoint(30)
+            self.disagg_advance_checkpoint_and_wait(conn, self.conn)
+
+            # The old cursor holds back pruning, but a fresh read still sees the reinserted value.
+            self.assertEqual(self.get_stat(gc_removed, session=sess), removed)
+            ret, val = self.search_at(sess, 150, 40)
+            self.assertEqual(ret, 0)
+            self.assertEqual(val, 'new')

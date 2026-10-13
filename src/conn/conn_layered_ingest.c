@@ -1220,14 +1220,18 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
       layered_table->last_ckpt_inuse, ckpt_inuse);
 
     /*
+     * Retire truncate entries on the same watermark as their ingest tombstones. Do it before the
+     * watermark is published, so ingest content written after a truncate is never pruned while the
+     * truncate entry could still hide the same key in the stable table.
+     */
+    __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
+
+    /*
      * The prune timestamp should be monotonically increasing. It is fine for the user to read the
      * obsolete value. Therefore, no synchronization is required.
      */
     __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
     layered_table->last_ckpt_inuse = ckpt_inuse;
-
-    /* Retire truncate entries on the same watermark as their ingest tombstones. */
-    __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
 
     WT_ERR(__wt_session_release_dhandle(session));
 

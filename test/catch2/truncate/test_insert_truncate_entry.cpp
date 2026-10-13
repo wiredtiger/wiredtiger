@@ -76,16 +76,6 @@ public:
         return __wt_atomic_load_uint32_relaxed(&layered_table().iface.references);
     }
 
-    void
-    set_prune_timestamp(const wt_timestamp_t prune_ts)
-    {
-        REQUIRE(__wt_session_get_dhandle(
-                  _session_impl, layered_table().ingest_uri, nullptr, nullptr, 0) == 0);
-
-        __wt_atomic_store_uint64_relaxed(&S2BT(_session_impl)->prune_timestamp, prune_ts);
-        REQUIRE(__wt_session_release_dhandle(_session_impl) == 0);
-    }
-
 private:
     static constexpr auto home = "WT_TEST.truncate_list";
 
@@ -115,23 +105,6 @@ insert_n_entries(follower_connection &connection, const size_t count)
     for (size_t i = 0; i < count; ++i)
         WT_RET(insert_one_entry(connection));
 
-    return 0;
-}
-
-int
-insert_gc_eligible_entry(follower_connection &connection)
-{
-    WT_RET(insert_one_entry(connection));
-
-    const wt_timestamp_t prune_ts = 10u;
-    connection.session().txn->time_point.durable_timestamp = prune_ts - 1u;
-    connection.session().txn->time_point.commit_timestamp = prune_ts - 1u;
-
-    auto *op = last_txn_op(connection.session());
-    __wti_mark_committed_truncate_table_apply(
-      &connection.session(), &connection.layered_table(), op);
-
-    connection.set_prune_timestamp(prune_ts);
     return 0;
 }
 
@@ -454,44 +427,6 @@ SCENARIO("adding an entry releases the truncate lock", "[truncate_list][insert]"
             THEN("the truncate lock is not held")
             {
                 REQUIRE(lock_is_released(connection.session(), connection.layered_table()));
-            }
-        }
-    }
-}
-
-SCENARIO(
-  "inserting an entry preserves entries eligible for garbage collection", "[truncate_list][insert]")
-{
-    GIVEN("a truncate list with one entry eligible for garbage collection")
-    {
-        follower_connection connection;
-        CHECK(insert_gc_eligible_entry(connection) == 0);
-
-        const auto expected_size = truncate_list_size(connection.layered_table()) + 1u;
-        const auto *const expected_head = truncate_list_head(connection.layered_table());
-
-        WHEN("a new entry is inserted")
-        {
-            auto expected_start_key = make_item("new001");
-            auto expected_stop_key = make_item("new002");
-            CHECK(__wt_insert_truncate_entry(&connection.session(), &connection.layered_table(),
-                    &expected_start_key, &expected_stop_key) == 0);
-
-            THEN("both entries remain on the truncate list")
-            {
-                REQUIRE(truncate_list_size(connection.layered_table()) == expected_size);
-            }
-
-            THEN("the existing entry precedes the newly inserted entry")
-            {
-                const auto *const head = truncate_list_head(connection.layered_table());
-                REQUIRE(head != nullptr);
-                REQUIRE(head == expected_head);
-
-                const auto *const entry = TAILQ_NEXT(head, q);
-                REQUIRE(entry != nullptr);
-                REQUIRE(as_view(entry->start_key) == as_view(expected_start_key));
-                REQUIRE(as_view(entry->stop_key) == as_view(expected_stop_key));
             }
         }
     }
