@@ -2161,8 +2161,13 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
+    WT_CLEAR(ckpt_cfg);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    /* The parsed configuration is read from the session for the whole database checkpoint. */
+    if (!__wt_atomic_cas_ptr(&session->ckpt.db_cfg, NULL, &ckpt_cfg))
+        WT_RET_PANIC(session, EINVAL, "database checkpoint configuration is already set");
 
     __wt_atomic_store_bool_v_release(&txn_global->checkpoint_running, true);
 
@@ -2173,10 +2178,6 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RELEASE_BARRIER();
 
-    /* The parsed configuration is read from the session for the whole database checkpoint. */
-    WT_ASSERT(session, session->ckpt.db_cfg == NULL);
-    WT_CLEAR(ckpt_cfg);
-    session->ckpt.db_cfg = &ckpt_cfg;
     ret = __checkpoint_db_internal(session, cfg);
     session->ckpt.db_cfg = NULL;
 
