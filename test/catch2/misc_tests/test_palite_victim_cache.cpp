@@ -613,7 +613,7 @@ TEST_CASE("Layered skip-write retains the backing generation in the victim cache
     REQUIRE(ret == 0);
     REQUIRE(__wt_page_is_modified(page));
     int64_t skips_before = victim_cache_stat(session, WT_STAT_CONN_REC_SKIP_WRITE);
-    int64_t puts_before = victim_cache_stat(session, WT_STAT_CONN_BLOCK_CACHE_PUTS);
+    int64_t puts_before = victim_cache_stat(session, WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUTS);
     REQUIRE(cursor->reset(cursor) == 0);
     REQUIRE(victim_cache_stat(session, WT_STAT_CONN_REC_SKIP_WRITE) > skips_before);
 
@@ -640,7 +640,7 @@ TEST_CASE("Layered skip-write retains the backing generation in the victim cache
         } else
             REQUIRE(cursor->reset(cursor) == 0);
     }
-    REQUIRE(victim_cache_stat(session, WT_STAT_CONN_BLOCK_CACHE_PUTS) > puts_before);
+    REQUIRE(victim_cache_stat(session, WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUTS) > puts_before);
     REQUIRE(cursor->close(cursor) == 0);
 }
 
