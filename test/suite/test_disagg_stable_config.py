@@ -27,18 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # Creating a missing stable constituent during step-up must preserve the
-# table's file settings. Check that startup aborts when shared metadata
+# table's file settings. Check that verification fails when shared metadata
 # indicates those settings were lost.
 
-import os
-import signal
+import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
-from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_disagg_stable_config(wttest.WiredTigerTestCase, suite_subprocess):
+class test_disagg_stable_config(wttest.WiredTigerTestCase):
     table = __qualname__
     uri = f"layered:{table}"
     stable_uri = f"file:{table}.wt_stable"
@@ -54,19 +52,8 @@ class test_disagg_stable_config(wttest.WiredTigerTestCase, suite_subprocess):
 
         return f"{self.extensionsConfig()},create,disaggregated=({disagg_config})"
 
-    def test_persisted_bad_config_aborts(self):
-        """Check that follower startup aborts with invalid persisted stable configuration."""
-        test_case = self.subprocess_persisted_bad_config
-        test_case_name = f"{test_case.__module__}.{test_case.__qualname__}"
-        home = self.crash_in_subprocess(test_case_name, test_case_name, signal.SIGABRT)
-        stderr_path = os.path.join(home, "stderr.txt")
-        self.check_file_contains(
-            stderr_path,
-            f'Shared stable metadata for "{self.stable_uri}" has '
-            'block_manager="default", expected "disagg"',
-        )
-
-    def subprocess_persisted_bad_config(self):
+    def test_persisted_bad_config_fails(self):
+        """Check that verification fails with invalid persisted stable configuration."""
         # Begin with a valid stable config.
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(10))
@@ -79,20 +66,29 @@ class test_disagg_stable_config(wttest.WiredTigerTestCase, suite_subprocess):
             c[self.stable_uri] = config.replace("block_manager=disagg", "block_manager=default")
         self.session.checkpoint()
 
-        # The follower aborts when it loads the invalid stable config.
+        # The follower reports an error when it verifies the invalid stable config.
         meta = self.disagg_get_complete_checkpoint_meta()
-        self.wiredtiger_open("follower", self.conn_config(role="follower", checkpoint_meta=meta))
+        follow_conn = self.wiredtiger_open(
+            "follower", self.conn_config(role="follower", checkpoint_meta=meta)
+        )
+        follow_session = follow_conn.open_session("")
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError,
+            lambda: follow_session.verify(self.uri),
+            f'/Shared stable metadata for "{self.stable_uri}" has '
+            'block_manager="default", expected "disagg"/',
+        )
 
-    def test_healthy_config_opens(self):
-        """Check that follower startup succeeds with valid persisted stable configuration."""
+    def test_healthy_config_verifies(self):
+        """Check that verification succeeds with valid persisted stable configuration."""
         # Begin with a valid stable config.
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(10))
         self.session.checkpoint()
 
-        # The follower opens successfully.
+        # The follower verifies successfully.
         meta = self.disagg_get_complete_checkpoint_meta()
         follow_conn = self.wiredtiger_open(
             "follower", self.conn_config(role="follower", checkpoint_meta=meta)
         )
-        self.assertIsNotNone(follow_conn)
+        self.assertEqual(follow_conn.open_session("").verify(self.uri), 0)
