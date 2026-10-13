@@ -28,19 +28,23 @@
 
 #pragma once
 
+#include "src/common/logger.h"
+#include "src/main/test.h"
+
+namespace test_harness {
+
+#ifdef __linux__
+
+#include <cerrno>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 
-#include "src/main/test.h"
-
-namespace test_harness {
-
 /*
  * Class that measures the number of instructions execute by a given function and adds the stats to
- * the statistics writer when destroyed.
+ * the statistics writer when destroyed. Only available on Linux.
  */
 class instruction_counter {
 public:
@@ -63,6 +67,12 @@ public:
           -1, // cpu: any CPU
           -1, // groupd_fd: group with only 1 member
           0); // flags
+        if (fd == -1 && (errno == EACCES || errno == EPERM)) {
+            logger::log_msg(LOG_WARN,
+              "instruction_counter: perf_event_open failed, insufficient permissions. "
+              "Instruction counts will not be recorded.");
+            return lambda();
+        }
         testutil_assert(fd != -1);
         ioctl(fd, PERF_EVENT_IOC_RESET, 0);
         ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
@@ -89,4 +99,31 @@ private:
     uint64_t _instruction_count;
     struct perf_event_attr _pe;
 };
+
+#else
+
+/*
+ * No-op stub for non-Linux platforms. Has the same interface as the real instruction_counter so
+ * call sites compile unchanged; track() simply calls the lambda without any measurement.
+ */
+class instruction_counter {
+public:
+    instruction_counter(const std::string &, const std::string &) {}
+    virtual ~instruction_counter() {}
+
+    void
+    append_stats()
+    {
+    }
+
+    template <typename T>
+    int
+    track(T lambda)
+    {
+        return lambda();
+    }
+};
+
+#endif /* __linux__ */
+
 } // namespace test_harness
