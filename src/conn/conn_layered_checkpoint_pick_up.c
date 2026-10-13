@@ -637,11 +637,7 @@ __disagg_check_stable_config(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_RET_MSG_CHK(session, __wt_config_getones(session, value, "block_manager", &cval),
       "Missing or malformed block_manager in shared stable metadata for \"%s\"", uri);
 
-    const bool correct_block_manager =
-      (cval.type == WT_CONFIG_ITEM_ID || cval.type == WT_CONFIG_ITEM_STRING) &&
-      WT_CONFIG_LIT_MATCH("disagg", cval);
-
-    WT_ASSERT_ALWAYS(session, correct_block_manager,
+    WT_ASSERT_ALWAYS(session, WT_CONFIG_LIT_MATCH("disagg", cval),
       "Shared stable metadata for \"%s\" has block_manager=\"%.*s\", expected \"disagg\"", uri,
       (int)cval.len, cval.str);
 
