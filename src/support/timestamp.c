@@ -141,9 +141,13 @@ static void
 __time_validate_context_init(
   WT_SESSION_IMPL *session, bool from_delta, WT_TIME_VALIDATE_CONTEXT *context)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT_SAFE(session);
     context->connection_stable = __wt_get_stable_timestamp(session);
     context->connection_oldest = __wt_get_oldest_timestamp(session);
-    context->checkpoint_stable = S2BT(session)->checkpoint_timestamp;
+    /* Checkpoint metadata validation does not require an active B-tree. */
+    context->checkpoint_stable = btree == NULL ? WT_TS_NONE : btree->checkpoint_timestamp;
     context->checkpoint_oldest = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
     context->from_delta = from_delta;
@@ -171,7 +175,9 @@ __time_validate_error(
       "page built from delta: %s",
       __wt_timestamp_to_string(context->connection_stable, connection_stable),
       __wt_timestamp_to_string(context->connection_oldest, connection_oldest),
-      __wt_timestamp_to_string(context->checkpoint_stable, checkpoint_stable),
+      context->checkpoint_stable == WT_TS_NONE ?
+        "unavailable" :
+        __wt_timestamp_to_string(context->checkpoint_stable, checkpoint_stable),
       __wt_timestamp_to_string(context->checkpoint_oldest, checkpoint_oldest),
       context->from_delta ? "true" : "false"));
 
