@@ -341,7 +341,7 @@ __checkpoint_clean_tree_skippable(WT_SESSION_IMPL *session, WT_BTREE *btree, boo
         return (false);
 
     /* In the common case of the timer set forever, don't even check the time. */
-    timer = __wt_atomic_load_uint64_relaxed(&btree->clean_ckpt_timer);
+    timer = btree->clean_ckpt_timer;
     if (timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
         __wt_seconds(session, &now);
         if (now > timer)
