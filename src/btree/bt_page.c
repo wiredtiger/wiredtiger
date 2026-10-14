@@ -223,7 +223,6 @@ __page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT
 {
     WTI_DELTA_LEAF_MERGE_STATE *s = NULL;
 
-    *sp = NULL;
     WT_RET(__wt_calloc_def(session, delta_size, &s));
 
     /*
