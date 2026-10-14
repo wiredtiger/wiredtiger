@@ -167,6 +167,8 @@ struct __wt_session_impl {
     uint64_t last_cursor_sweep;      /* Last regular sweep for dead cursors */
     u_int sweep_warning_5min;        /* Whether the session was without sweep for 5 min. */
     u_int sweep_warning_60min;       /* Whether the session was without sweep for 60 min. */
+    /* Count of cursors in the open list, written by the session's thread, summed for statistics. */
+    wt_shared uint32_t open_cursor_count;
 
 #ifdef HAVE_DIAGNOSTIC
     bool cursor_open_timer_running; /* Flag used to track timer across nested calls. */
