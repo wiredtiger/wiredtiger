@@ -56,7 +56,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     /* Adjust the dhandle name for disaggregated storage. */
     WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
     if (checkpoint != NULL)
-        F_SET(dhandle, WT_DHANDLE_SHARED_CKPT);
+        F_SET(dhandle, WT_DHANDLE_SHARED_BTREE_CHECKPOINT);
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.

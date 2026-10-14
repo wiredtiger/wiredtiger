@@ -410,7 +410,7 @@ err:
 static WT_INLINE WT_SHARED_BTREE_KIND
 __wt_dhandle_shared_btree_kind(WT_DATA_HANDLE *dhandle)
 {
-    if (F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT))
+    if (F_ISSET(dhandle, WT_DHANDLE_SHARED_BTREE_CHECKPOINT))
         return (WT_SHARED_BTREE_CHECKPOINT);
     if (WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
       F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_DISAGGREGATED))
