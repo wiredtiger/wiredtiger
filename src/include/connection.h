@@ -1038,6 +1038,9 @@ struct __wt_connection_impl {
     WT_BLKCACHE blkcache;             /* Block cache */
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
 
+    /* Maximum by-size buckets a relaxed first-fit allocation searches; 0 means no cap. */
+    wt_shared uint64_t block_first_fit_bucket_cap;
+
     uint64_t *dh_bucket_count;                   /* Locked: handles in each bucket */
     wt_shared uint64_t dhandle_count;            /* Locked: handles in the queue */
     wt_shared uint64_t dhandle_checkpoint_count; /* Locked: checkpoint handles in the queue */

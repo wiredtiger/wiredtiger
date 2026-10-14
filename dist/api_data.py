@@ -585,6 +585,13 @@ connection_runtime_config = [
         Config('type', '', r'''
             cache location: DRAM or NVRAM'''),
         ]),
+    Config('block_first_fit_bucket_cap', '2000', r'''
+        the number of candidate extent sizes a first-fit block allocation inspects before it may
+        stop early, during compaction, once it has found an extent in the front of the file. This
+        is an early-stop threshold, not a hard limit on the work done: a search that has not found
+        such an extent keeps going. It has no effect outside compaction, and does not apply to
+        checkpoint root page and extent list allocations''',
+        min=500, max=100000),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either
         \c cache_size or \c shared_cache but not both''',

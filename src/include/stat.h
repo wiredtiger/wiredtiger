@@ -511,6 +511,7 @@ struct __wt_connection_stats {
     int64_t block_byte_write_leaf;
     int64_t block_byte_write_mmap;
     int64_t block_byte_write_syscall;
+    int64_t block_first_srch_bucket_cap_relaxed;
     int64_t block_map_read;
     int64_t block_byte_map_read;
     int64_t block_byte_write_intl_delta_lt20;

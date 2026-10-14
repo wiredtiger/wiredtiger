@@ -39,15 +39,36 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
-    block->compact_pct_tenths = 0;
     block->compact_prev_pages_rewritten = 0;
     block->compact_prev_size = 0;
+
+    /* The allocator reads this under the live lock, so reset it under that lock. */
+    __wt_spin_lock(session, &block->live_lock);
+    block->compact_pct_tenths = 0;
+    __wt_spin_unlock(session, &block->live_lock);
+
     block->compact_session_id = session->id;
 
     if (session == S2C(session)->background_compact.session)
         WT_RET(__wt_background_compact_start(session));
 
     return (0);
+}
+
+/*
+ * __wti_block_compact_relax_limit --
+ *     Return the offset a first-fit search may settle for while compaction is active, or 0 when it
+ *     must take the lowest offset. The caller must hold the live lock.
+ */
+wt_off_t
+__wti_block_compact_relax_limit(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
+    if (block->compact_pct_tenths == 0)
+        return (0);
+
+    return (block->size - ((block->size / 10) * block->compact_pct_tenths));
 }
 
 /*
@@ -62,14 +83,21 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Ensure this the same session that started compaction. */
     WT_ASSERT(session, block->compact_session_id == session->id);
-    block->compact_session_id = WT_SESSION_ID_INVALID;
+
+    /*
+     * Clear the compaction region under the lock the allocator reads it with: the passes do not
+     * reset it themselves, so this is what stops first-fit searches relaxing afterwards. Do it
+     * before releasing ownership, or this could clear the region a next compaction just chose.
+     */
+    __wt_spin_lock(session, &block->live_lock);
+    block->compact_pct_tenths = 0;
 
     /* Dump the results of the compaction pass. */
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1)) {
-        __wt_spin_lock(session, &block->live_lock);
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1))
         __block_dump_file_stat(session, block, false);
-        __wt_spin_unlock(session, &block->live_lock);
-    }
+    __wt_spin_unlock(session, &block->live_lock);
+
+    block->compact_session_id = WT_SESSION_ID_INVALID;
 
     if (session == S2C(session)->background_compact.session)
         WT_RET(__wt_background_compact_end(session));
@@ -658,7 +686,8 @@ __wt_block_compact_page_rewrite(
     /* Allocate a replacement block. */
     WT_ERR(__wti_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    ret = __wti_block_alloc(session, block, &new_offset, (wt_off_t)size);
+    ret = __wti_block_alloc(
+      session, block, &new_offset, (wt_off_t)size, __wti_block_compact_relax_limit(session, block));
     __wt_spin_unlock(session, &block->live_lock);
     WT_ERR(ret);
     discard_block = true;

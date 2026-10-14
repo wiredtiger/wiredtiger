@@ -2801,6 +2801,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written for leaf pages before compression and encryption",
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API",
+  "block-manager: first-fit allocations relaxed by bucket cap",
   "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
   "block-manager: number of internal page deltas written that were between 0-20 percent the size "
@@ -2830,8 +2831,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
-  "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
-  "allocation",
+  "block-manager: time spent(usecs) on the most recent search of available extents during "
+  "first-fit allocation",
   "cache: application eviction assists stopped when the bounded wait was exhausted",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
@@ -4004,6 +4005,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF,
   WT_STAT_CONN_BLOCK_BYTE_WRITE_MMAP,
   WT_STAT_CONN_BLOCK_BYTE_WRITE_SYSCALL,
+  WT_STAT_CONN_BLOCK_FIRST_SRCH_BUCKET_CAP_RELAXED,
   WT_STAT_CONN_BLOCK_MAP_READ,
   WT_STAT_CONN_BLOCK_BYTE_MAP_READ,
   WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT20,
@@ -5153,6 +5155,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_leaf = 0;
     stats->block_byte_write_mmap = 0;
     stats->block_byte_write_syscall = 0;
+    stats->block_first_srch_bucket_cap_relaxed = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
     stats->block_byte_write_intl_delta_lt20 = 0;
@@ -6286,6 +6289,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_leaf += WT_STAT_CONN_READ(from, block_byte_write_leaf);
     to->block_byte_write_mmap += WT_STAT_CONN_READ(from, block_byte_write_mmap);
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
+    to->block_first_srch_bucket_cap_relaxed +=
+      WT_STAT_CONN_READ(from, block_first_srch_bucket_cap_relaxed);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_CONN_READ(from, block_byte_map_read);
     to->block_byte_write_intl_delta_lt20 +=

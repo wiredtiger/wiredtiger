@@ -289,7 +289,7 @@ __wt_block_checkpoint(
         ci->root_objectid = ci->root_size = ci->root_checksum = 0;
     } else {
         WT_ERR(__wti_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
-          &ci->root_checksum, data_checksum, true, false));
+          &ci->root_checksum, data_checksum, true, false, true));
         ci->root_objectid = block->objectid;
     }
 

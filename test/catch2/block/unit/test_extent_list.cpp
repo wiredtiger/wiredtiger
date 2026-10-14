@@ -12,6 +12,7 @@
  */
 
 #include <memory>
+#include <vector>
 
 #include <catch2/catch.hpp>
 
@@ -312,43 +313,99 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
     WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     /*
-     * Note that we're not checking stack here, since __block_first_srch delegates most of its work
-     * to __block_off_srch, which we're testing elsewhere.
+     * The by-size skiplist is only maintained by the insert path, and __block_first_srch searches
+     * it, so these lists have to be built with __ut_block_off_insert rather than by hand.
+     *
+     * Note that we're not checking stack contents here beyond the extent it resolves to, since
+     * __block_first_srch delegates that work to __block_off_srch, which we're testing elsewhere.
      */
+    auto insert = [&](WT_EXTLIST *extlist, const std::vector<off_size> &extents) {
+        extlist->track_size = 1;
+        for (const off_size &one : extents)
+            REQUIRE(__ut_block_off_insert(session, extlist, one.off, one.size) == 0);
+    };
 
     SECTION("empty list doesn't yield a chunk")
     {
-        std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
+        WT_EXTLIST extlist = {};
+        extlist.track_size = 1;
 
-        REQUIRE(__ut_block_first_srch(session, &head[0], 0, &stack[0]) == false);
+        REQUIRE(__ut_block_first_srch(session, &extlist, 0, 0, &stack[0]) == false);
+
+        extlist_free(session, extlist);
     }
 
     SECTION("list with too-small chunks doesn't yield a larger chunk")
     {
-        auto wrapper = ExtentListWrapper();
-        auto &head = wrapper._raw_list;
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(3, 2), off_size(6, 3)});
 
-        create_default_test_extent_list(wrapper);
+        REQUIRE(__ut_block_first_srch(session, &extlist, 4, 0, &stack[0]) == false);
 
-        head[0]->size = 1;
-        head[1]->size = 2;
-        head[2]->size = 3;
-
-        REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == false);
+        extlist_free(session, extlist);
     }
 
     SECTION("find an appropriate chunk")
     {
-        auto wrapper = ExtentListWrapper();
-        auto &head = wrapper._raw_list;
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 10), off_size(12, 20), off_size(33, 30)});
 
-        create_default_test_extent_list(wrapper);
+        REQUIRE(__ut_block_first_srch(session, &extlist, 4, 0, &stack[0]) == true);
 
-        head[0]->size = 10;
-        head[1]->size = 20;
-        head[2]->size = 30;
+        /* The head of the by-offset list is large enough, so it is the first-fit answer. */
+        REQUIRE((*stack[0])->off == 1);
 
-        REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == true);
+        extlist_free(session, extlist);
+    }
+
+    SECTION("skip chunks at the front of the file that are too small")
+    {
+        /*
+         * This is the case the by-size lookup replaces: the lowest-offset extents cannot satisfy
+         * the request, so the answer has to come from the size buckets.
+         */
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(3, 1), off_size(5, 1), off_size(10, 8)});
+
+        REQUIRE(__ut_block_first_srch(session, &extlist, 2, 0, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 10);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("lowest offset wins across several size buckets")
+    {
+        /*
+         * The qualifying extents live in different buckets and the lowest offset is not in the
+         * first one, so the search has to compare the head of every large-enough bucket.
+         */
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(50, 4), off_size(20, 16), off_size(80, 8)});
+
+        /* The extent at offset 20 is larger than the one at offset 50, but starts earlier. */
+        REQUIRE(__ut_block_first_srch(session, &extlist, 4, 0, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 20);
+
+        /* First-fit is not best-fit: a lower offset wins over an exact size match. */
+        REQUIRE(__ut_block_first_srch(session, &extlist, 8, 0, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 20);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("a bucket head is the lowest offset of its size")
+    {
+        /*
+         * Extents of the same size share a bucket and are sorted by offset. The search only looks
+         * at each bucket's head, so inserting the higher offset first must not leave it as head.
+         */
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(90, 8), off_size(2, 8)});
+
+        REQUIRE(__ut_block_first_srch(session, &extlist, 8, 0, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 2);
+
+        extlist_free(session, extlist);
     }
 }
 
