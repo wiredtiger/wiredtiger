@@ -31,7 +31,7 @@
  * three times. The perf file reports the average of those three runs, in milliseconds:
  * - startup_open_avg_ms: wiredtiger_open.
  * - startup_pickup_avg_ms: checkpoint pickup.
- * - startup_avg_ms: both stages.
+ * - startup_total_avg_ms: both stages.
  */
 
 #include "src/common/constants.h"
@@ -246,7 +246,7 @@ main(int argc, char *argv[])
 
     metrics_writer::instance().add_stat("startup_open_avg_ms", open_sum / RESTARTS);
     metrics_writer::instance().add_stat("startup_pickup_avg_ms", pickup_sum / RESTARTS);
-    metrics_writer::instance().add_stat("startup_avg_ms", total_sum / RESTARTS);
+    metrics_writer::instance().add_stat("startup_total_avg_ms", total_sum / RESTARTS);
     metrics_writer::instance().output_perf_file(progname);
 
     delete database_model;
