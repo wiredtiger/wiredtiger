@@ -128,7 +128,9 @@ NUMA
 NoSQL
 OOP
 OPTYPE
+OTel
 Observability
+OpenTelemetry
 PALI
 PALite
 PMU
@@ -591,12 +593,14 @@ objectid
 objectsin
 ol
 oltp
+ondisk
 oob
 oop
 oplog
 optrack
 optype
 os
+otel
 outlier
 outliers
 ovfl

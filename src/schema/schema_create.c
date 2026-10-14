@@ -80,13 +80,15 @@ static int
 __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
   uint32_t allocsize, const char **cfg)
 {
-    WT_CONFIG_ITEM page_log_item;
+    WT_CONFIG_ITEM bm_item, page_log_item;
     WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
 
     npage_log = NULL;
 
-    if (WT_URI_IS_STABLE(uri)) {
+    WT_RET(__wt_config_gets(session, cfg, "block_manager", &bm_item));
+    /* FIXME-WT-18866: Drop the name check once no database has legacy entries. */
+    if (WT_URI_IS_STABLE(uri) || WT_CONFIG_LIT_MATCH("disagg", bm_item)) {
         WT_RET_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
         if (ret == WT_NOTFOUND || page_log_item.len == 0)
@@ -194,6 +196,25 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
     uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(file_id, ns);
     __validate_file_id(session, namespaced_id);
     return (namespaced_id);
+}
+
+/*
+ * __create_file_verify_import --
+ *     Verify an imported file through a dedicated verify-mode handle. Open it directly, not through
+ *     the schema worker, which under metadata tracking holds a close lock until the create
+ *     resolves.
+ */
+static int
+__create_file_verify_import(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+    const char *verify_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_verify), NULL};
+
+    WT_RET(
+      __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+    ret = __wt_verify(session, verify_cfg);
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
 }
 
 /*
@@ -328,9 +349,14 @@ __create_file(
             fileid = __wt_generate_file_id(session, uri, is_shared);
 
             WT_ERR(__wt_scr_alloc(session, 0, &val));
+            /*
+             * Persist block_manager=disagg for a shared file, so readers can identify its base tree
+             * as shared from the metadata without opening it.
+             */
             WT_ERR(__wt_buf_fmt(session, val,
-              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-              fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=%s",
+              fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor,
+              is_shared ? ",block_manager=disagg" : ""));
 
             for (p = filecfg; *p != NULL; ++p)
                 ;
@@ -340,6 +366,13 @@ __create_file(
             /* Try to recreate the associated metadata from the imported data source. */
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
+
+        /*
+         * Imported configuration bypasses API configuration checks, check it before it reaches the
+         * metadata.
+         */
+        if (import)
+            WT_ERR(__wt_config_check(session, WT_CONFIG_REF(session, file_meta), fileconf, 0));
 
         /* Strip any configuration settings that should not be persisted. */
         filecfg[1] = fileconf;
@@ -362,6 +395,13 @@ __create_file(
 
     if (!open_dhandle)
         goto err;
+
+    /*
+     * Verify imported file before the normal open so a corrupt file fails the import rather than a
+     * later read. Verify needs its own handle.
+     */
+    if (import)
+        WT_ERR(__create_file_verify_import(session, uri));
 
     /*
      * Open the file to check that it was setup correctly. We don't need to pass the configuration,
@@ -1100,6 +1140,9 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     stable_cfg[1] = disagg_config->data;
 
     /*
+     * A stable constituent uses the disaggregated block manager. Persist this setting in metadata
+     * so readers can identify its base tree as shared without opening it.
+     *
      * Disable logging on the stable table to ensure we have timestamps. Force block_manager=disagg:
      * a legacy step-up derives a missing stable constituent from the ingest metadata, cannot
      * recover the user's value and forces disagg, so the create-time metadata must match.

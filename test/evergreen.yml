@@ -18,6 +18,9 @@ post:
   - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
   - func: "upload stat files"
+  # Drop the test databases of tests that passed before packaging the artifacts. This must run
+  # after the functions above, which still need the test output.
+  - func: "cleanup test artifacts"
   - func: "upload artifact"
     vars:
       postfix: -${execution}
@@ -1285,6 +1288,17 @@ functions:
         content_type: application/tar
         display_name: WT_TEST
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
+  "cleanup test artifacts":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        # Never fail the task on cleanup: keeping the test data is the safe outcome.
+        ${python_binary|python3} ../test/evergreen/cleanup_test_artifacts.py 2>&1 ||
+          echo "Test artifact cleanup failed, keeping all test data."
   "cleanup":
     command: shell.exec
     type: setup
@@ -1760,11 +1774,11 @@ variables:
       - func: "fetch artifacts"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=leader runs.timer=5:10
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=leader disagg.victim_cache=1 runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=leader runs.timer=5:10
+          format_args: disagg.mode=leader disagg.victim_cache=1 runs.timer=5:10
           times: 5
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
@@ -1834,12 +1848,12 @@ variables:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.victim_cache=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
-          format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_args: disagg.mode=switch disagg.victim_cache=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
   - &format-stress-test-disagg-switch-pull-request
@@ -1879,12 +1893,12 @@ variables:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.stepdown_async=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.stepdown_async=1 disagg.victim_cache=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_args: disagg.mode=switch disagg.stepdown_async=1 disagg.victim_cache=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
   - &format-stress-test-disagg-switch-pull-request-stepdown-async
@@ -1921,6 +1935,27 @@ variables:
         vars:
           # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.rows=20000 runs.ops=100000 ops.truncate=0
+          times: 10
+
+  # Long-running randomized stress for snapshot transactions without a read timestamp racing
+  # checkpoint pickups on a follower: multi-node runs verify pre-commit re-reads through freshly
+  # opened cursors, exercising the stable bind checks and the deferral queue. The operation mix is
+  # left to format: the reader threads do their own reads, so what matters from the workers is
+  # churn, and a randomized mix covers more shapes across the iterations than a pinned one.
+  - &format-stress-test-disagg-multi-snapshot-read
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # The row and operation counts are load-bearing, not decoration: the reproduction needs
+          # enough rows for a scan window to contain a changed key, and enough operations for a
+          # pickup to land inside a reader's transaction. Trimming them to the defaults stops the
+          # stress reproducing the violation at all.
+          format_args: >-
+            disagg.multi=1 disagg.multi_validation=1 disagg.snapshot_read=1
+            runs.predictable_replay=1 runs.rows=50000:200000 runs.ops=500000:2000000
           times: 10
 
   - &timestamp-abort-test-disagg
@@ -5527,6 +5562,9 @@ tasks:
   - <<: *format-stress-test-disagg-multi-pull-request
     name: format-stress-test-disagg-multi-pull-request
     tags: ["pull_request"]
+  - <<: *format-stress-test-disagg-multi-snapshot-read
+    name: format-stress-test-disagg-multi-snapshot-read-1
+    tags: ["stress-test-disagg"]
 
   - <<: *timestamp-abort-test-disagg
     name: timestamp-abort-test-disagg-1
@@ -7440,9 +7478,8 @@ buildvariants:
       distros: ubuntu2004-large
     - name: format-stress-test-disagg-switch-tsan-stepdown-async
       distros: ubuntu2004-large
-    # FIXME-WT-18743: Enable once concurrent connection API calls no longer race under TSan.
-    # - name: schema-disagg-abort-smoke-test-disagg-1
-    #   distros: ubuntu2004-large
+    - name: schema-disagg-abort-smoke-test-disagg-1
+      distros: ubuntu2004-large
     - name: format-stress-test-tsan
       distros: ubuntu2004-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN
@@ -8242,9 +8279,8 @@ buildvariants:
       distros: amazon2023.3-arm64-large
     - name: format-stress-test-disagg-switch-tsan-stepdown-async
       distros: amazon2023.3-arm64-large
-    # FIXME-WT-18743: Enable once concurrent connection API calls no longer race under TSan.
-    # - name: schema-disagg-abort-smoke-test-disagg-1
-    #   distros: amazon2023.3-arm64-large
+    - name: schema-disagg-abort-smoke-test-disagg-1
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-tsan
       distros: amazon2023.3-arm64-large

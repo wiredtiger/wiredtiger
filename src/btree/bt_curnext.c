@@ -136,6 +136,7 @@ restart_read:
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
         cbt->slot = WT_COL_SLOT(page, cip);
+        F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
 
         /* Check any insert list for a matching record. */
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
@@ -648,9 +649,10 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     key_out_of_bounds = need_walk = newpage = repositioned = false;
     session = CUR2S(cbt);
     total_skipped = 0;
-    walk_skip_stats.total_del_internal_pages_skipped = 0;
+    walk_skip_stats.total_ondisk_del_internal_pages_skipped = 0;
     walk_skip_stats.total_del_leaf_pages_skipped = 0;
     walk_skip_stats.total_inmem_del_pages_skipped = 0;
+    walk_skip_stats.total_read_only_del_internal_pages_skipped = 0;
     walk_skip_stats.total_skip_lock_contended = 0;
     WT_NOT_READ(time_start, 0);
 
@@ -756,6 +758,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
              */
             if (page->type != WT_PAGE_ROW_LEAF && (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
                 F_SET(cbt, WT_CBT_ITERATE_APPEND);
+                F_CLR(cbt, WT_CBT_VAR_ONPAGE_MATCH);
                 continue;
             }
         }
@@ -815,15 +818,18 @@ err:
     }
 
     WT_STAT_CONN_DSRC_INCRV(session, cursor_next_skip_total, total_skipped);
-    if (walk_skip_stats.total_del_internal_pages_skipped != 0)
-        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_del_internal_page_skip,
-          walk_skip_stats.total_del_internal_pages_skipped);
+    if (walk_skip_stats.total_ondisk_del_internal_pages_skipped != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_ondisk_del_internal_page_skip,
+          walk_skip_stats.total_ondisk_del_internal_pages_skipped);
     if (walk_skip_stats.total_del_leaf_pages_skipped != 0)
         WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_del_leaf_page_skip,
           walk_skip_stats.total_del_leaf_pages_skipped);
     if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
         WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
           walk_skip_stats.total_inmem_del_pages_skipped);
+    if (walk_skip_stats.total_read_only_del_internal_pages_skipped != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_read_only_del_internal_page_skip,
+          walk_skip_stats.total_read_only_del_internal_pages_skipped);
     if (walk_skip_stats.total_skip_lock_contended != 0)
         WT_STAT_CONN_DSRC_INCRV(
           session, cursor_tree_walk_skip_lock_contended, walk_skip_stats.total_skip_lock_contended);

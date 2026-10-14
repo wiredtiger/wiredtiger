@@ -63,7 +63,7 @@ workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
 /*
  * workload_set_frontier --
  *     Set the frontier timestamps on the connection and mirror the stable schema epoch, so the
- *     generator can free slots whose published drops the epoch has covered.
+ *     generator can free tables whose published drops the epoch has covered.
  */
 void
 workload_set_frontier(WORKLOAD_STATE *state, uint64_t ts)
@@ -92,6 +92,17 @@ bool
 node_is_lone(const TEST_CONFIG *cfg)
 {
     return (cfg->pipe_read_fd < 0);
+}
+
+/*
+ * node_peer_alive --
+ *     Whether this node still has a live peer. The reader and the relaying workers clear it when
+ *     the peer dies, so it can change while the node's threads run.
+ */
+bool
+node_peer_alive(TEST_CONFIG *cfg)
+{
+    return (__wt_atomic_load_bool(&cfg->peer_alive));
 }
 
 /*
@@ -168,7 +179,7 @@ node_trigger_wait(WORKLOAD_STATE *state)
         if (__wt_atomic_load_bool(&state->handover_received))
             return (TRIGGER_SWITCH);
 
-        const bool abandoned_follower = !state->generates && !state->cfg->peer_alive;
+        const bool abandoned_follower = !state->generates && !node_peer_alive(state->cfg);
         if (abandoned_follower && node_switch_request_consume())
             return (TRIGGER_SWITCH);
 
@@ -261,11 +272,11 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->worker_count = cfg->thread_count;
     state->leads = as_leader;
     /* A leader feeds itself; so does a follower with no peer. Snapshot it: peer_alive can flip. */
-    state->generates = as_leader || !cfg->peer_alive;
+    state->generates = as_leader || !node_peer_alive(cfg);
     state->stop_stage = STAGE_NONE;
     state->handover_received = false;
-    state->emitted = state->applied = 0;
-    state->stepdown_ts = state->stepdown_ckpt_lsn = 0;
+    state->applied = 0;
+    state->stepdown_ts = state->reserved_ts = state->stepdown_ckpt_lsn = 0;
     state->stepdown_ckpt_due = false;
 
     /* The frontier continues from the previous phase; nothing above it is completed yet. */
@@ -278,13 +289,13 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
         testutil_random_from_random(&state->workers[i].rnd, &cfg->opts->data_rnd);
         /*
-         * A leading phase checkpoints every slot, including inherited ingest data; a follower phase
-         * covers nothing, so the slots it inherits stay blocked.
+         * A leading phase checkpoints every table, including inherited ingest data; a follower
+         * phase covers nothing, so the tables it inherits stay blocked.
          */
         if (as_leader)
             for (uint32_t j = 0; j < cfg->pool_size; j++)
                 state->workers[i].table[j].uncovered_insert = false;
-        /* State and slot generation survive role transitioning. */
+        /* Table states survive role transitions. */
     }
 
     /* Re-seed the auxiliary stream. */
@@ -335,7 +346,7 @@ node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
     ev.event_ts = final_ts;
     /* Peer death is the only reason a hand-over may go undelivered; the write itself detects it. */
     if (!pipe_relay_event(state->cfg, &ev)) {
-        testutil_assert(!state->cfg->peer_alive);
+        testutil_assert(!node_peer_alive(state->cfg));
         println("Node %" PRIu32 ": no peer to hand over to; continuing alone", state->cfg->node_id);
     }
 
@@ -346,6 +357,7 @@ node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
 
     /* Reset transition tracking. */
     __wt_atomic_store_uint64(&state->stepdown_ts, 0);
+    __wt_atomic_store_uint64(&state->reserved_ts, 0);
     __wt_atomic_store_uint64(&state->stepdown_ckpt_lsn, 0);
     __wt_atomic_store_bool(&state->stepdown_ckpt_due, false);
 }
@@ -413,7 +425,7 @@ node_run(TEST_CONFIG *cfg, WORKLOAD_STATE *state, const NODE_ROLE *role)
             role = node_role(!role->leads);
             println("Node %" PRIu32 ": now %s", cfg->node_id, role->name);
             /* The swap-completing transition: entering leadership, or a lone node's only one. */
-            node_transition_done(cfg, state, role->leads || !cfg->peer_alive);
+            node_transition_done(cfg, state, role->leads || !node_peer_alive(cfg));
         }
     } while (trigger != TRIGGER_STOP);
 

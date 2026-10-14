@@ -660,6 +660,8 @@ err:
 static int
 __curstat_size(WT_SESSION_IMPL *session, const char *uri, bool *was_fastp, int64_t *sizep)
 {
+    bool checkpoint_view;
+
     WT_ASSERT(session, uri != NULL);
     WT_ASSERT(session, was_fastp != NULL);
     WT_ASSERT(session, sizep != NULL);
@@ -673,7 +675,10 @@ __curstat_size(WT_SESSION_IMPL *session, const char *uri, bool *was_fastp, int64
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
 
     /* Checkpoint-view URIs require the slow path. */
-    if (WT_URI_IS_STABLE_CHECKPOINT(uri))
+    checkpoint_view = false;
+    if (__wt_conn_is_disagg(session))
+        WT_RET(__wt_btree_name_is_shared_checkpoint(session, uri, &checkpoint_view));
+    if (checkpoint_view)
         return (0);
 
     return (__curstat_file_size(session, uri, was_fastp, sizep));
@@ -913,6 +918,34 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         /* If the connection configures clear, so do we. */
         if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR))
             F_SET(cst, WT_STAT_CLEAR);
+
+        /*
+         * Parse the OTel-specific statistics type flags after inheriting the connection's
+         * configurations.
+         */
+        uint32_t otel_flags = 0;
+        if ((ret = __wt_config_subgets(session, &cval, "otel_none", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_NONE;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "otel_counters", &sval)) == 0 &&
+          sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_COUNTERS;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "otel_gauges", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_GAUGES;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "otel_histograms", &sval)) == 0 &&
+          sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_HISTOGRAMS;
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Clearing the lowest set bit leaves a nonzero result only if more than one was set. */
+        if ((otel_flags & (otel_flags - 1)) != 0)
+            WT_ERR_MSG(session, EINVAL,
+              "Only one of otel_none, otel_counters, otel_gauges, otel_histograms configuration "
+              "values should be "
+              "specified");
+        F_SET(cst, otel_flags);
     }
 
     /*
