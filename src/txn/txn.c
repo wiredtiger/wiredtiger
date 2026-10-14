@@ -289,10 +289,11 @@ __txn_snapshot_validate_disagg(WT_SESSION_IMPL *session)
 
 /*
  * __txn_get_snapshot_int --
- *     Allocate a snapshot, optionally update our shared txn ids.
+ *     Allocate a snapshot, optionally update our shared txn ids. If the caller holds the global
+ *     transaction lock for read, the snapshot is built under it and the lock is released.
  */
 static void
-__txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
+__txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state, bool locked)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
@@ -318,13 +319,19 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      */
     record_disagg = update_shared_state && __wt_conn_is_disagg(session);
 
+    /* A disaggregated build may retry, and a retry takes the lock itself. */
+    WT_ASSERT(session, !locked || !record_disagg);
+
     /* Fast path if we already have the current snapshot. */
     if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
         WT_ASSERT(
           session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || !F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT));
         if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) &&
-          snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
+          snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT)) {
+            if (locked)
+                __wt_readunlock(session, &txn_global->rwlock);
             return;
+        }
 
         /*
          * Leave the generations here and enter again later to acquire a new snapshot. The
@@ -347,7 +354,8 @@ retry:
     }
 
     /* We're going to scan the table: wait for the lock. */
-    __wt_readlock(session, &txn_global->rwlock);
+    if (!locked)
+        __wt_readlock(session, &txn_global->rwlock);
 
     current_id = pinned_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->current);
     prev_oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
@@ -456,7 +464,18 @@ done:
 void
 __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 {
-    __txn_get_snapshot_int(session, true);
+    __txn_get_snapshot_int(session, true, false);
+}
+
+/*
+ * __wti_txn_get_snapshot_and_unlock --
+ *     Allocate a snapshot and update our shared ids under the global transaction read lock the
+ *     caller holds, then release the lock.
+ */
+void
+__wti_txn_get_snapshot_and_unlock(WT_SESSION_IMPL *session)
+{
+    __txn_get_snapshot_int(session, true, true);
 }
 
 /*
@@ -466,7 +485,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 void
 __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 {
-    __txn_get_snapshot_int(session, false);
+    __txn_get_snapshot_int(session, false, false);
 }
 
 /*

@@ -2010,6 +2010,7 @@ extern void __wti_txn_clear_durable_timestamp(WT_SESSION_IMPL *session);
 extern void __wti_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
 extern void __wti_txn_get_pinned_timestamp(
   WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags);
+extern void __wti_txn_get_snapshot_and_unlock(WT_SESSION_IMPL *session);
 static WT_INLINE WT_BTREE *__wt_curhs_get_btree(WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE WT_CELL *__wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
