@@ -381,3 +381,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt17597_backup_force_stop_race
+    SOURCES wt17597_backup_force_stop_race/main.c
+    DIR_NAME wt17597_backup_force_stop_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
