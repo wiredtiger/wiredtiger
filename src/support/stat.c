@@ -3194,6 +3194,8 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of pages whose reconciliation was skipped because eviction already "
   "reconciled them under the checkpoint snapshot",
   "checkpoint: number of waits for in-progress evictions before syncing a tree",
+  "checkpoint: number of waits for in-progress evictions skipped because the tree had no eviction "
+  "in progress",
   "checkpoint: prepare currently running",
   "checkpoint: prepare max time (msecs)",
   "checkpoint: prepare min time (msecs)",
@@ -4345,6 +4347,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINT_PARALLEL_PAGES_RECONCILED,
   WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILIATION_SKIPPED_EVICT_SNAPSHOT,
   WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN,
+  WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN_SKIPPED,
   WT_STAT_CONN_CHECKPOINT_PREP_RUNNING,
   WT_STAT_CONN_CHECKPOINT_PREP_MAX,
   WT_STAT_CONN_CHECKPOINT_PREP_MIN,
@@ -5491,6 +5494,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_parallel_pages_reconciled = 0;
     stats->checkpoint_pages_reconciliation_skipped_evict_snapshot = 0;
     stats->checkpoint_evict_drain = 0;
+    stats->checkpoint_evict_drain_skipped = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
@@ -6761,6 +6765,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_pages_reconciliation_skipped_evict_snapshot +=
       WT_STAT_CONN_READ(from, checkpoint_pages_reconciliation_skipped_evict_snapshot);
     to->checkpoint_evict_drain += WT_STAT_CONN_READ(from, checkpoint_evict_drain);
+    to->checkpoint_evict_drain_skipped += WT_STAT_CONN_READ(from, checkpoint_evict_drain_skipped);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_CONN_READ(from, checkpoint_prep_min);
