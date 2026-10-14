@@ -771,7 +771,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* A checkpoint taken while the step-down timestamp is set is the step-down checkpoint. */
     if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
-        WT_STAT_CONN_SET(session, checkpoint_stepdown_time, msec);
+        __checkpoint_timer_stats_set(&conn->ckpt.stepdown, msec);
 
     /* Compute timer statistics for the scrub. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.scrub.timer_start);
