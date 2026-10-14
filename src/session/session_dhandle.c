@@ -141,11 +141,12 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
 {
     WT_DATA_HANDLE *dhandle;
     WT_DATA_HANDLE_CACHE *dhandle_cache;
-    uint64_t bucket;
+    uint64_t bucket, hash;
 
     dhandle = NULL;
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) & (S2C(session)->dh_hash_size - 1);
+    hash = __wt_hash_city64(uri, strlen(uri));
+    bucket = hash & (S2C(session)->dh_hash_size - 1);
 retry:
     TAILQ_FOREACH (dhandle_cache, &session->dhhash[bucket], hashq) {
         dhandle = dhandle_cache->dhandle;
@@ -156,7 +157,7 @@ retry:
             goto retry;
         }
 
-        if (strcmp(uri, dhandle->name) != 0)
+        if (dhandle->name_hash != hash || strcmp(uri, dhandle->name) != 0)
             continue;
         if (checkpoint == NULL && dhandle->checkpoint == NULL)
             break;

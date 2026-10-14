@@ -266,17 +266,19 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    uint64_t bucket;
+    uint64_t bucket, hash;
 
     conn = S2C(session);
 
     /* We must be holding the handle list lock at a higher level. */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
+    /* Check the name hash first, so mismatched handles are skipped without reading their flags. */
+    hash = __wt_hash_city64(uri, strlen(uri));
+    bucket = hash & (conn->dh_hash_size - 1);
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
+            if (dhandle->name_hash != hash || F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
             if (__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
                 /*
@@ -302,7 +304,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
     } else
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+            if (dhandle->name_hash != hash || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               __wt_atomic_load_bool_relaxed(&dhandle->outdated))
                 continue;
             if (dhandle->checkpoint != NULL && strcmp(uri, dhandle->name) == 0 &&
@@ -797,7 +799,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    uint64_t bucket, time_diff, time_start, time_stop;
+    uint64_t bucket, hash, time_diff, time_start, time_stop;
 
     conn = S2C(session);
     /*
@@ -805,7 +807,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
      * we walk the entire dhandle list.
      */
     if (uri != NULL) {
-        bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
+        hash = __wt_hash_city64(uri, strlen(uri));
+        bucket = hash & (conn->dh_hash_size - 1);
 
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
@@ -813,7 +816,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 return (0);
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+            if (dhandle->name_hash != hash || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               __wt_atomic_load_bool_relaxed(&dhandle->outdated) || dhandle->checkpoint != NULL ||
               strcmp(uri, dhandle->name) != 0)
                 continue;
@@ -971,7 +975,7 @@ __wt_conn_dhandle_close_all(
     WT_DATA_HANDLE *dhandle, **handles;
     WT_DECL_RET;
     size_t handles_allocated;
-    uint64_t bucket;
+    uint64_t bucket, hash;
     u_int i, nhandles;
     bool tracked;
 
@@ -1002,10 +1006,11 @@ __wt_conn_dhandle_close_all(
     handles[nhandles++] = session->dhandle;
     WT_DHANDLE_CLEAR(session);
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
+    hash = __wt_hash_city64(uri, strlen(uri));
+    bucket = hash & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-        if (strcmp(dhandle->name, uri) != 0 || dhandle->checkpoint == NULL ||
-          F_ISSET(dhandle, WT_DHANDLE_DEAD))
+        if (dhandle->name_hash != hash || strcmp(dhandle->name, uri) != 0 ||
+          dhandle->checkpoint == NULL || F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
 
         WT_ERR(__wt_realloc_def(session, &handles_allocated, nhandles + 1, &handles));
