@@ -2618,6 +2618,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub min time (msecs)",
   "checkpoint: scrub most recent time (msecs)",
   "checkpoint: scrub total time (msecs)",
+  "checkpoint: step down checkpoint most recent time (msecs)",
   "checkpoint: stop timing stress active",
   "checkpoint: the percentage of checkpoint sync time spent in reconciliation across all threads",
   "checkpoint: time spent on per-tree checkpoint work (usecs)",
@@ -2765,6 +2766,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step downs attempted",
+  "disagg: step downs completed",
   "disagg: step up checkpoint restart most recent time (msecs)",
   "disagg: step up deferred checkpoint pickup retries before stepping up",
   "disagg: step up deferred checkpoint pickup retry most recent time (msecs)",
@@ -3760,6 +3763,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_min */
     /* not clearing checkpoint_scrub_recent */
     /* not clearing checkpoint_scrub_total */
+    stats->checkpoint_stepdown_time = 0;
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_sync_rec_pct */
     stats->checkpoint_tree_duration = 0;
@@ -3904,6 +3908,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    stats->disagg_step_down_attempted = 0;
+    stats->disagg_step_down_completed = 0;
     stats->disagg_step_up_checkpoint_restart_time = 0;
     stats->disagg_step_up_deferred_pickup_retries = 0;
     stats->disagg_step_up_deferred_pickup_retry_time = 0;
@@ -5015,6 +5021,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_min += WT_STAT_CONN_READ(from, checkpoint_scrub_min);
     to->checkpoint_scrub_recent += WT_STAT_CONN_READ(from, checkpoint_scrub_recent);
     to->checkpoint_scrub_total += WT_STAT_CONN_READ(from, checkpoint_scrub_total);
+    to->checkpoint_stepdown_time += WT_STAT_CONN_READ(from, checkpoint_stepdown_time);
     to->checkpoint_stop_stress_active += WT_STAT_CONN_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_sync_rec_pct += WT_STAT_CONN_READ(from, checkpoint_sync_rec_pct);
     to->checkpoint_tree_duration += WT_STAT_CONN_READ(from, checkpoint_tree_duration);
@@ -5178,6 +5185,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_down_attempted += WT_STAT_CONN_READ(from, disagg_step_down_attempted);
+    to->disagg_step_down_completed += WT_STAT_CONN_READ(from, disagg_step_down_completed);
     to->disagg_step_up_checkpoint_restart_time +=
       WT_STAT_CONN_READ(from, disagg_step_up_checkpoint_restart_time);
     to->disagg_step_up_deferred_pickup_retries +=

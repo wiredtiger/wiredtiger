@@ -897,6 +897,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_scrub_min;
     int64_t checkpoint_scrub_recent;
     int64_t checkpoint_scrub_total;
+    int64_t checkpoint_stepdown_time;
     int64_t checkpoint_stop_stress_active;
     int64_t checkpoint_sync_rec_pct;
     int64_t checkpoint_tree_duration;
@@ -1041,6 +1042,8 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_down_attempted;
+    int64_t disagg_step_down_completed;
     int64_t disagg_step_up_checkpoint_restart_time;
     int64_t disagg_step_up_deferred_pickup_retries;
     int64_t disagg_step_up_deferred_pickup_retry_time;
