@@ -454,25 +454,28 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
 }
 
 /*
- * The current key of a source of metadata entries for each URI scheme.
+ * WT_DISAGG_META_SCAN --
+ *     The position of a scan of one metadata source with one cursor per URI scheme. Scans of
+ *     several sources step through table names together: each step takes the minimum table name
+ *     across all their keys, and only the cursors at that name advance.
  */
 typedef struct {
     const char *keys[WT_DISAGG_CURSOR_COUNT]; /* Current keys, NULL if exhausted */
     bool has[WT_DISAGG_CURSOR_COUNT];         /* Whether the key is at the current table name */
-} WT_DISAGG_SCHEME_KEYS;
+} WT_DISAGG_META_SCAN;
 
 /*
- * __disagg_scheme_keys_init --
+ * __disagg_meta_scan_init --
  *     Mark every scheme as positioned at the current table name, so the first move advances all.
  */
 static void
-__disagg_scheme_keys_init(WT_DISAGG_SCHEME_KEYS *scheme_keys)
+__disagg_meta_scan_init(WT_DISAGG_META_SCAN *scan)
 {
     int i;
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
-        scheme_keys->keys[i] = NULL;
-        scheme_keys->has[i] = true;
+        scan->keys[i] = NULL;
+        scan->has[i] = true;
     }
 }
 
@@ -482,7 +485,7 @@ __disagg_scheme_keys_init(WT_DISAGG_SCHEME_KEYS *scheme_keys)
  *     and mark which keys are at it. Return NULL if all sources are exhausted.
  */
 static int
-__disagg_next_table_name(WT_SESSION_IMPL *session, WT_DISAGG_SCHEME_KEYS *const *sources,
+__disagg_next_table_name(WT_SESSION_IMPL *session, WT_DISAGG_META_SCAN *const *sources,
   int source_count, WT_ITEM *name_buf, const char **namep)
 {
     size_t name_len;
@@ -1040,6 +1043,14 @@ __disagg_ensure_ingest_table(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor,
 
     WT_RET(__wt_strndup(session, cval.str, cval.len, &ingest_uri));
     WT_ERR(__wt_cursor_lookup_str(md_cursor, ingest_uri, &md_value));
+
+    /*
+     * A missing ingest table is expected, not an error: ingest tables are local to each node and
+     * never appear in the shared metadata, and the pickup may install a table this node does not
+     * yet know about. That happens at startup, and would happen if the application installed a
+     * checkpoint ahead of oplog application to catch up a lagging node, which is cheaper than
+     * restarting it.
+     */
     if (md_value == NULL) {
         WT_ERR_MSG_CHK(session,
           __layered_create_missing_ingest_table(session, ingest_uri, layered_value, is_startup),
@@ -1196,10 +1207,10 @@ __disagg_pick_up_new_layered_table(WT_SESSION_IMPL *session, WT_CURSOR *md_curso
  */
 static int
 __disagg_apply_checkpoint_meta_merge_next(WT_SESSION_IMPL *session, WT_CURSOR **md_cursors,
-  WT_CURSOR **sh_cursors, WT_DISAGG_SCHEME_KEYS *md, WT_DISAGG_SCHEME_KEYS *sh, WT_ITEM *name_buf,
+  WT_CURSOR **sh_cursors, WT_DISAGG_META_SCAN *md, WT_DISAGG_META_SCAN *sh, WT_ITEM *name_buf,
   const char **namep)
 {
-    WT_DISAGG_SCHEME_KEYS *sources[2];
+    WT_DISAGG_META_SCAN *sources[2];
     int i;
     const char *metadata_value, *name;
 
@@ -1267,7 +1278,7 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_DISAGG_FILE_ENTRY file_entry;
-    WT_DISAGG_SCHEME_KEYS md, sh;
+    WT_DISAGG_META_SCAN md, sh;
     WT_DISAGG_STABLE_BTREE_IDS stable_btree_ids;
     WT_PREFETCH_SCAN prefetch_scan;
     int i;
@@ -1332,8 +1343,8 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
     }
 
     /* Start every cursor at its first entry within its bounds: next on an unpositioned cursor. */
-    __disagg_scheme_keys_init(&md);
-    __disagg_scheme_keys_init(&sh);
+    __disagg_meta_scan_init(&md);
+    __disagg_meta_scan_init(&sh);
     for (;;) {
         /* Move to the next table name that either metadata has; stop when both are exhausted. */
         WT_ERR(__disagg_apply_checkpoint_meta_merge_next(
