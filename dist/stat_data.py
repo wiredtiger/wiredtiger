@@ -1421,9 +1421,6 @@ conn_dsrc_stats = [
     CursorStat('cursor_truncate_fast_delete_fallback_pages', 'range truncate fast-delete candidates rejected'),
     CursorStat('cursor_truncate_internal_bytes_dirtied', 'range truncate internal page bytes newly dirtied', 'size'),
     CursorStat('cursor_truncate_internal_pages_dirtied', 'range truncate internal pages newly dirtied'),
-    CursorStat('cursor_truncate_leaf_bytes_dirtied', 'range truncate leaf page bytes newly dirtied', 'size'),
-    CursorStat('cursor_truncate_leaf_pages_dirtied', 'range truncate leaf pages newly dirtied'),
-    CursorStat('cursor_truncate_slow_path_leaf_pages', 'range truncate leaf pages modified through the slow path'),
 
     ##########################################
     # Cursor API error statistics

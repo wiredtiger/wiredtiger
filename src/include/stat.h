@@ -999,9 +999,6 @@ struct __wt_connection_stats {
     int64_t cursor_truncate_fast_delete_fallback_pages;
     int64_t cursor_truncate_internal_bytes_dirtied;
     int64_t cursor_truncate_internal_pages_dirtied;
-    int64_t cursor_truncate_leaf_bytes_dirtied;
-    int64_t cursor_truncate_slow_path_leaf_pages;
-    int64_t cursor_truncate_leaf_pages_dirtied;
     int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_btree_count;
@@ -1812,9 +1809,6 @@ struct __wt_dsrc_stats {
     int64_t cursor_truncate_fast_delete_fallback_pages;
     int64_t cursor_truncate_internal_bytes_dirtied;
     int64_t cursor_truncate_internal_pages_dirtied;
-    int64_t cursor_truncate_leaf_bytes_dirtied;
-    int64_t cursor_truncate_slow_path_leaf_pages;
-    int64_t cursor_truncate_leaf_pages_dirtied;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;

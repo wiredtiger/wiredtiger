@@ -334,9 +334,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: range truncate fast-delete candidates rejected",
   "cursor: range truncate internal page bytes newly dirtied",
   "cursor: range truncate internal pages newly dirtied",
-  "cursor: range truncate leaf page bytes newly dirtied",
-  "cursor: range truncate leaf pages modified through the slow path",
-  "cursor: range truncate leaf pages newly dirtied",
   "cursor: remove calls",
   "cursor: remove key bytes removed",
   "cursor: reserve calls",
@@ -843,9 +840,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_truncate_fast_delete_fallback_pages = 0;
     stats->cursor_truncate_internal_bytes_dirtied = 0;
     stats->cursor_truncate_internal_pages_dirtied = 0;
-    stats->cursor_truncate_leaf_bytes_dirtied = 0;
-    stats->cursor_truncate_slow_path_leaf_pages = 0;
-    stats->cursor_truncate_leaf_pages_dirtied = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
     stats->cursor_reserve = 0;
@@ -1354,9 +1348,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cursor_truncate_fast_delete_fallback_pages;
     to->cursor_truncate_internal_bytes_dirtied += from->cursor_truncate_internal_bytes_dirtied;
     to->cursor_truncate_internal_pages_dirtied += from->cursor_truncate_internal_pages_dirtied;
-    to->cursor_truncate_leaf_bytes_dirtied += from->cursor_truncate_leaf_bytes_dirtied;
-    to->cursor_truncate_slow_path_leaf_pages += from->cursor_truncate_slow_path_leaf_pages;
-    to->cursor_truncate_leaf_pages_dirtied += from->cursor_truncate_leaf_pages_dirtied;
     to->cursor_remove += from->cursor_remove;
     to->cursor_remove_bytes += from->cursor_remove_bytes;
     to->cursor_reserve += from->cursor_reserve;
@@ -1919,12 +1910,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cursor_truncate_internal_bytes_dirtied);
     to->cursor_truncate_internal_pages_dirtied +=
       WT_STAT_DSRC_READ(from, cursor_truncate_internal_pages_dirtied);
-    to->cursor_truncate_leaf_bytes_dirtied +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_leaf_bytes_dirtied);
-    to->cursor_truncate_slow_path_leaf_pages +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_slow_path_leaf_pages);
-    to->cursor_truncate_leaf_pages_dirtied +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_leaf_pages_dirtied);
     to->cursor_remove += WT_STAT_DSRC_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_DSRC_READ(from, cursor_remove_bytes);
     to->cursor_reserve += WT_STAT_DSRC_READ(from, cursor_reserve);
@@ -2748,9 +2733,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: range truncate fast-delete candidates rejected",
   "cursor: range truncate internal page bytes newly dirtied",
   "cursor: range truncate internal pages newly dirtied",
-  "cursor: range truncate leaf page bytes newly dirtied",
-  "cursor: range truncate leaf pages modified through the slow path",
-  "cursor: range truncate leaf pages newly dirtied",
   "data-handle: Layered connection data handles currently active",
   "data-handle: Table connection data handles currently active",
   "data-handle: btree connection data handles currently active",
@@ -3885,9 +3867,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_truncate_fast_delete_fallback_pages = 0;
     stats->cursor_truncate_internal_bytes_dirtied = 0;
     stats->cursor_truncate_internal_pages_dirtied = 0;
-    stats->cursor_truncate_leaf_bytes_dirtied = 0;
-    stats->cursor_truncate_slow_path_leaf_pages = 0;
-    stats->cursor_truncate_leaf_pages_dirtied = 0;
     /* not clearing dh_conn_handle_layered_count */
     /* not clearing dh_conn_handle_table_count */
     /* not clearing dh_conn_handle_btree_count */
@@ -5147,12 +5126,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cursor_truncate_internal_bytes_dirtied);
     to->cursor_truncate_internal_pages_dirtied +=
       WT_STAT_CONN_READ(from, cursor_truncate_internal_pages_dirtied);
-    to->cursor_truncate_leaf_bytes_dirtied +=
-      WT_STAT_CONN_READ(from, cursor_truncate_leaf_bytes_dirtied);
-    to->cursor_truncate_slow_path_leaf_pages +=
-      WT_STAT_CONN_READ(from, cursor_truncate_slow_path_leaf_pages);
-    to->cursor_truncate_leaf_pages_dirtied +=
-      WT_STAT_CONN_READ(from, cursor_truncate_leaf_pages_dirtied);
     to->dh_conn_handle_layered_count += WT_STAT_CONN_READ(from, dh_conn_handle_layered_count);
     to->dh_conn_handle_table_count += WT_STAT_CONN_READ(from, dh_conn_handle_table_count);
     to->dh_conn_handle_btree_count += WT_STAT_CONN_READ(from, dh_conn_handle_btree_count);

@@ -2020,16 +2020,10 @@ __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
   int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
 {
     WT_DECL_RET;
-    WT_PAGE *page;
-    WT_REF *last_ref;
     WT_SESSION_IMPL *session = CUR2S(start);
     size_t records_truncated = 0;
     uint64_t sleep_usecs = 0, yield_count = 0;
     const bool fast_truncate = !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
-    const bool track_stats = !WT_IS_HS(CUR2BT(start)->dhandle);
-    bool page_was_clean;
-
-    last_ref = NULL;
 
 /*
  * First, call the cursor search method to re-position the cursor: we may not have a cursor position
@@ -2051,21 +2045,7 @@ retry:
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
-        page = start->ref->page;
-        page_was_clean = track_stats && !__wt_page_is_modified(page);
         WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
-        if (track_stats) {
-            if (start->ref != last_ref) {
-                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_slow_path_leaf_pages);
-                last_ref = start->ref;
-            }
-            /* A concurrent writer may dirty the page first, so this count is approximate. */
-            if (page_was_clean && __wt_page_is_modified(page)) {
-                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_leaf_pages_dirtied);
-                WT_STAT_CONN_DSRC_INCRV(session, cursor_truncate_leaf_bytes_dirtied,
-                  (int64_t)__wt_atomic_load_size_relaxed(&page->memory_footprint));
-            }
-        }
         ++records_truncated;
 
         if (stop != NULL && __cursor_equals(start, stop)) {

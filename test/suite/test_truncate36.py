@@ -30,11 +30,11 @@ import wiredtiger, wttest
 
 # Range truncate statistics. Truncate a range that spans many on-disk leaf pages, one of
 # which carries an overflow value and so cannot be fast-deleted. The pages that fall back
-# to the slow path are counted, as are the leaf pages the slow path dirties and the parent
-# internal pages dirtied by fast delete, with the byte totals of each. Pages already in
-# memory are reported as a subset of the pages that fell back. The connection statistics
-# must equal the sum of the per-table ones, a truncate on one table must not move another
-# table's counters, and an ordinary update must not move them at all.
+# to the slow path are counted, as are the parent internal pages dirtied by fast delete
+# and their byte total. Pages already in memory are reported as a subset of the pages
+# that fell back. The connection statistics must equal the sum of the per-table ones, a
+# truncate on one table must not move another table's counters, and an ordinary update
+# must not move them at all.
 class test_truncate36(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=200MB,statistics=(fast)'
     uri = 'table:test_truncate36'
@@ -76,9 +76,6 @@ class test_truncate36(wttest.WiredTigerTestCase):
             'cursor_truncate_fast_delete_fallback_pages',
             'cursor_truncate_internal_bytes_dirtied',
             'cursor_truncate_internal_pages_dirtied',
-            'cursor_truncate_leaf_bytes_dirtied',
-            'cursor_truncate_leaf_pages_dirtied',
-            'cursor_truncate_slow_path_leaf_pages',
         )
         before_conn = {name: self.get_stat('', name) for name in names}
         before_first = {name: self.get_stat(self.uri, name) for name in names}
@@ -91,9 +88,6 @@ class test_truncate36(wttest.WiredTigerTestCase):
             self.assertEqual(self.get_stat('', name) - before_conn[name], first[name])
             self.assertEqual(self.get_stat(self.other_uri, name), before_other[name])
 
-        self.assertGreater(first['cursor_truncate_slow_path_leaf_pages'], 0)
-        self.assertGreater(first['cursor_truncate_leaf_pages_dirtied'], 0)
-        self.assertGreater(first['cursor_truncate_leaf_bytes_dirtied'], 0)
         self.assertGreater(first['cursor_truncate_internal_pages_dirtied'], 0)
         self.assertGreater(first['cursor_truncate_internal_bytes_dirtied'], 0)
         self.assertGreater(
