@@ -341,7 +341,7 @@ __checkpoint_clean_tree_skippable(WT_SESSION_IMPL *session, WT_BTREE *btree, boo
         return (false);
 
     /* In the common case of the timer set forever, don't even check the time. */
-    timer = __wt_atomic_load_uint64_relaxed(&btree->clean_ckpt_timer);
+    timer = btree->clean_ckpt_timer;
     if (timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
         __wt_seconds(session, &now);
         if (now > timer)
@@ -402,7 +402,7 @@ __checkpoint_gather_skip(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool
     if (!__checkpoint_clean_tree_skippable(session, btree, false))
         return (0);
 
-    /* Do what the fast path does for a skipped tree. */
+    /* Maintain parity with the normal checkpoint fast path for skipped trees. */
     __checkpoint_prepare_progress(session, false);
     F_SET_ATOMIC_32(btree, WT_BTREE_SKIP_CKPT);
     WT_WITH_DHANDLE(session, dhandle, __wt_checkpoint_update_generation(session, btree));
@@ -451,7 +451,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
 
-    /* Skip a tree that is still waiting to be published. */
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         return (0);
 

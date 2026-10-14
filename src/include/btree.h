@@ -325,7 +325,11 @@ struct __wt_btree {
 /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
 #define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
 #define WT_BTREE_CLEAN_MINUTES 10
-    wt_shared uint64_t clean_ckpt_timer;
+    /*
+     * Writers hold either the checkpoint lock or the schema lock. Checkpoint handle gather holds
+     * both, so it can safely read the timer without locking the handle.
+     */
+    uint64_t clean_ckpt_timer;
 
     /*
      * Track the number of obsolete time window pages that are changed into dirty page
