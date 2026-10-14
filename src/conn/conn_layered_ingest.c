@@ -1226,7 +1226,10 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
       layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
       layered_table->last_ckpt_inuse, ckpt_inuse);
 
-    /* Prune the truncate list. */
+    /*
+     * Prune the truncate list before the new prune timestamp is published, so garbage collection
+     * never runs ahead of the entries still masking ingest content.
+     */
     __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
 
     /*
