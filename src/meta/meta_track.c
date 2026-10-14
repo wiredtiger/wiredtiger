@@ -25,6 +25,7 @@ typedef struct __wt_meta_track {
         WT_ST_SET          /* Reset a metadata entry */
     } op;
     char *a, *b;             /* Strings */
+    WT_DROP_PENDING *dp;     /* Removal queued at commit */
     WT_DATA_HANDLE *dhandle; /* Locked handle */
     uint32_t btree_id;       /* Btree whose history store content is dropped */
     bool created;            /* Handle on newly created file */
@@ -74,6 +75,8 @@ __meta_track_clear(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
 {
     __wt_free(session, trk->a);
     __wt_free(session, trk->b);
+    if (trk->dp != NULL)
+        __wt_drop_pending_free(session, trk->dp);
     memset(trk, 0, sizeof(WT_META_TRACK));
 }
 
@@ -135,30 +138,24 @@ static int
 __meta_track_drop_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
 {
     WT_DECL_RET;
-    WT_ITEM *buf;
-    size_t len;
-    const char *name;
+    WT_DROP_PENDING *dp;
 
-    name = trk->a;
-    if (trk->b != NULL && __wt_fs_rename(session, trk->a, trk->b, false) == 0) {
-        /*
-         * The metadata is already committed and an apply failure panics the connection, so the
-         * space was reserved while the drop could still be unrolled.
-         */
-        buf = &session->drop_pending;
-        len = strlen(trk->b) + 1;
-        WT_ASSERT(session, buf->size + len <= buf->memsize);
-        if (buf->size + len <= buf->memsize) {
-            memcpy((uint8_t *)buf->mem + buf->size, trk->b, len);
-            buf->size += len;
+    /*
+     * The metadata is already committed and an apply failure panics the connection, so the entry
+     * was allocated while the drop could still be unrolled.
+     */
+    if ((dp = trk->dp) != NULL) {
+        trk->dp = NULL;
+        if (__wt_fs_rename(session, trk->a, dp->name, false) == 0) {
+            TAILQ_INSERT_TAIL(&session->drop_pending, dp, q);
             WT_STAT_CONN_INCR(session, session_table_drop_deferred);
             return (0);
         }
-        name = trk->b;
+        __wt_drop_pending_free(session, dp);
     }
 
-    if ((ret = __wt_block_manager_drop(session, name, false)) != 0)
-        __wt_err(session, ret, "metadata remove dropped file %s", name);
+    if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
+        __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
     return (ret);
 }
 
@@ -544,20 +541,21 @@ err:
 /*
  * __wt_meta_track_drop_defer --
  *     Schedule the drop just tracked to rename its file at commit instead of removing it, and
- *     reserve the space to remove it once the drop's locks are released. The target must not exist:
- *     replacing a file frees its extents inside the rename.
+ *     allocate the entry that removes it once the drop's locks are released. The target must not
+ *     exist: replacing a file frees its extents inside the rename.
  */
 void
 __wt_meta_track_drop_defer(WT_SESSION_IMPL *session, uint32_t id)
 {
     WT_DECL_RET;
+    WT_DROP_PENDING *dp;
     WT_META_TRACK *trk;
     size_t len;
     int suffix;
     bool exist;
 
     trk = (WT_META_TRACK *)session->meta_track_next - 1;
-    WT_ASSERT(session, trk->op == WT_ST_DROP_COMMIT && trk->b == NULL);
+    WT_ASSERT(session, trk->op == WT_ST_DROP_COMMIT && trk->dp == NULL);
 
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_LIVE_RESTORE_FS))
         return;
@@ -565,19 +563,20 @@ __wt_meta_track_drop_defer(WT_SESSION_IMPL *session, uint32_t id)
     if (!exist)
         return;
 
+    WT_ERR(__wt_calloc_one(session, &dp));
+    trk->dp = dp;
     len = strlen(trk->a) + strlen(".4294967295.wtdrop.2147483647") + 1;
-    WT_ERR(__wt_malloc(session, len, &trk->b));
-    WT_ERR(__wt_snprintf(trk->b, len, "%s.%" PRIu32 ".wtdrop", trk->a, id));
-    for (suffix = 1; (ret = __wt_fs_exist(session, trk->b, &exist)) == 0 && exist; ++suffix)
-        WT_ERR(__wt_snprintf(trk->b, len, "%s.%" PRIu32 ".wtdrop.%d", trk->a, id, suffix));
+    WT_ERR(__wt_malloc(session, len, &dp->name));
+    WT_ERR(__wt_snprintf(dp->name, len, "%s.%" PRIu32 ".wtdrop", trk->a, id));
+    for (suffix = 1; (ret = __wt_fs_exist(session, dp->name, &exist)) == 0 && exist; ++suffix)
+        WT_ERR(__wt_snprintf(dp->name, len, "%s.%" PRIu32 ".wtdrop.%d", trk->a, id, suffix));
     WT_ERR(ret);
-
-    WT_ERR(__wt_buf_extend(
-      session, &session->drop_pending, session->drop_pending.memsize + strlen(trk->b) + 1));
     return;
 
 err:
-    __wt_free(session, trk->b);
+    if (trk->dp != NULL)
+        __wt_drop_pending_free(session, trk->dp);
+    trk->dp = NULL;
     __wt_verbose_notice(session, WT_VERB_FILEOPS, "%s: could not defer file removal: %s", trk->a,
       __wt_strerror(session, ret, NULL, 0));
 }

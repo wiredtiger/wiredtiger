@@ -1810,6 +1810,7 @@ extern void __wt_disagg_cancel_unpublished_op(
 extern void __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen);
 extern void __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size);
 extern void __wt_drop_pending_apply(WT_SESSION_IMPL *session);
+extern void __wt_drop_pending_free(WT_SESSION_IMPL *session, WT_DROP_PENDING *dp);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);
 extern void __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
