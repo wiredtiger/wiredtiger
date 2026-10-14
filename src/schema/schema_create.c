@@ -654,6 +654,10 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
     /* Write the column group first, so a layered source's queued create includes it. */
     WT_ERR(__wt_metadata_insert(session, name, cgconf));
+
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE,
+      "before inserting a file entry", source);
+
     WT_ERR(__wt_schema_create(session, source, sourceconf));
     WT_ERR(__wti_schema_open_colgroups(session, table));
 
@@ -987,9 +991,6 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
-    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE,
-      "before inserting a file entry for table", uri);
-
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;
         WT_ERR(__wt_calloc_def(session, len, &cgname));
@@ -1157,7 +1158,11 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         }
     }
 
-    /* Update the shared metadata for the disaggregated storage. */
+    /*
+     * Update the shared metadata for the disaggregated storage. All metadata entries must be
+     * inserted by this point: `colgroup:`, `file:` (for the stable table), `layered:`, and
+     * `table:`.
+     */
     WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
       WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL, constituent_cfg));
 
