@@ -51,6 +51,7 @@ class test_stat16(wttest.WiredTigerTestCase):
         finally:
             cursor.close()
 
+    @wttest.skip_for_hook("disagg", "B-tree preload is disabled for disaggregated connections")
     def test_preload_not_counted_as_cache_read(self):
         # Keep the tree shallow so opening it loads only the root into cache.
         self.session.create(self.uri,
