@@ -28,8 +28,10 @@
 
 /*
  * [test_disagg_startup_perf]: Create N layered tables, checkpoint them into palite, then restart
- * three times. Each restart times the open that drops local files and the checkpoint pickup that
- * rebuilds the ingest tables.
+ * three times. The perf file reports the average of those three runs, in milliseconds:
+ * - startup_open_avg_ms: wiredtiger_open.
+ * - startup_pickup_avg_ms: checkpoint pickup.
+ * - startup_avg_ms: both stages.
  */
 
 #include "src/common/constants.h"
@@ -50,11 +52,9 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 }
 
-#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <string>
-#include <vector>
 
 using namespace test_harness;
 
@@ -165,8 +165,8 @@ base_config()
 static void
 setup()
 {
-    logger::log_msg(LOG_INFO,
-      "Setup: creating " + std::to_string(opt.collection_count) + " layered tables.");
+    logger::log_msg(
+      LOG_INFO, "Setup: creating " + std::to_string(opt.collection_count) + " layered tables.");
     connection_manager::instance().create(
       base_config() + ",role=\"leader\")" + extension_config(), opt.home_path);
 
@@ -229,27 +229,24 @@ main(int argc, char *argv[])
         return (1);
     }
 
-    logger::log_msg(
-      LOG_INFO, "collection_count = " + std::to_string(opt.collection_count));
+    logger::log_msg(LOG_INFO, "collection_count = " + std::to_string(opt.collection_count));
     logger::log_msg(LOG_INFO, "cache_size_gb = " + std::to_string(opt.cache_size_gb));
 
     testutil_remove(opt.home_path.c_str());
     setup();
 
-    std::vector<int64_t> totals;
-    totals.reserve(RESTARTS);
+    int64_t open_sum = 0, pickup_sum = 0, total_sum = 0;
     for (int i = 1; i <= RESTARTS; ++i) {
         int64_t open_ms, pickup_ms;
         restart_once(i, &open_ms, &pickup_ms);
-        int64_t total = open_ms + pickup_ms;
-        totals.push_back(total);
-        metrics_writer::instance().add_stat("startup_open_ms_" + std::to_string(i), open_ms);
-        metrics_writer::instance().add_stat("startup_pickup_ms_" + std::to_string(i), pickup_ms);
-        metrics_writer::instance().add_stat("startup_ms_" + std::to_string(i), total);
+        open_sum += open_ms;
+        pickup_sum += pickup_ms;
+        total_sum += open_ms + pickup_ms;
     }
 
-    std::sort(totals.begin(), totals.end());
-    metrics_writer::instance().add_stat("startup_ms_median", totals[totals.size() / 2]);
+    metrics_writer::instance().add_stat("startup_open_avg_ms", open_sum / RESTARTS);
+    metrics_writer::instance().add_stat("startup_pickup_avg_ms", pickup_sum / RESTARTS);
+    metrics_writer::instance().add_stat("startup_avg_ms", total_sum / RESTARTS);
     metrics_writer::instance().output_perf_file(progname);
 
     delete database_model;
