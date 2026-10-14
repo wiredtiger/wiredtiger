@@ -884,6 +884,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_reconciled;
     int64_t checkpoint_parallel_pages_reconciled;
     int64_t checkpoint_pages_reconciliation_skipped_evict_snapshot;
+    int64_t checkpoint_evict_drain;
     int64_t checkpoint_prep_running;
     int64_t checkpoint_prep_max;
     int64_t checkpoint_prep_min;
@@ -898,6 +899,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_stop_stress_active;
     int64_t checkpoint_sync_rec_pct;
     int64_t checkpoint_tree_duration;
+    int64_t checkpoint_evict_drain_time;
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
