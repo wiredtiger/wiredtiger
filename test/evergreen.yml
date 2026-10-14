@@ -869,7 +869,7 @@ functions:
     - *cppsuite_s3_put
     - *cppsuite_remove_dir
 
-  "cppsuite binary perf test":
+  "disagg failover perf test":
     - command: shell.exec
       params:
         working_dir: "wiredtiger/cmake_build/test/cppsuite"
@@ -878,7 +878,7 @@ functions:
           set -o errexit
           set -o verbose
           ${PREPARE_TEST_ENV}
-          ./${test_executable} ${test_args|}
+          ./test_disagg_failover_perf ${test_args|}
     - *dump_stacktraces
     - *upload_stacktraces
     - command: subprocess.exec
@@ -887,7 +887,7 @@ functions:
         args:
           - ./wiredtiger/test/evergreen/perf_submission.sh
         env:
-          perf_file_path: ./wiredtiger/cmake_build/test/cppsuite/${test_executable}.json
+          perf_file_path: ./wiredtiger/cmake_build/test/cppsuite/test_disagg_failover_perf.json
         include_expansions_in_env:
           - requester
           - revision_order_id
@@ -2579,27 +2579,14 @@ tasks:
           test_config_filename: configs/api_timing_benchmarks_default.txt
           test_name: api_timing_benchmarks
 
-  - name: cppsuite-disagg-startup-perf
-    depends_on:
-      - name: compile
-    tags: ["cppsuite-perf-test-arm"]
-    commands:
-      - func: "fetch artifacts"
-      - func: "cppsuite binary perf test"
-        vars:
-          test_executable: test_disagg_startup_perf
-          # Ten thousand empty layered tables. Each restart drops local files and rebuilds ingest.
-          test_args: "-c 10000 -g 8 -V 1"
-
   - name: cppsuite-disagg-failover-perf-append
     depends_on:
       - name: compile
     tags: ["cppsuite-perf-test-arm"]
     commands:
       - func: "fetch artifacts"
-      - func: "cppsuite binary perf test"
+      - func: "disagg failover perf test"
         vars:
-          test_executable: test_disagg_failover_perf
           # Ingest 3.2GB of data into 10 1GB tables using append operations, keys are 10 bytes and
           # values 1014 bytes. Cache size is 32GB.
           test_args: "-c 10 -k 1000000 -i 3200 -S append -g 32 -s 10 -v 1014 -V 1"
@@ -2610,9 +2597,8 @@ tasks:
     tags: ["cppsuite-perf-test-arm"]
     commands:
       - func: "fetch artifacts"
-      - func: "cppsuite binary perf test"
+      - func: "disagg failover perf test"
         vars:
-          test_executable: test_disagg_failover_perf
           # Ingest 3.2GB of data into 10 1GB tables using update operations, keys are 10 bytes and
           # values 1014 bytes. Cache size is 32GB.
           test_args: "-c 10 -k 1000000 -i 3200 -S updates -g 32 -s 10 -v 1014 -V 1"
