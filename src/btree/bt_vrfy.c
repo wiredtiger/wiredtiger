@@ -645,7 +645,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      *
      * FIXME-WT-18582: Having these per-URI means we do a metadata scan for each verified URI.
      */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+    if (__wt_dhandle_shared_btree_kind(btree->dhandle) != WT_SHARED_BTREE_NONE) {
         WT_ERR(__verify_unique_btree_ids(session));
 
         /* If we're already verifying shared metadata, don't manually perform this step. */

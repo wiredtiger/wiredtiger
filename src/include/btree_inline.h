@@ -404,8 +404,10 @@ err:
 
 /*
  * __wt_dhandle_shared_btree_kind --
- *     Classify an already-open tree from its handle flags alone. This never accesses the metadata,
- *     so it is safe on hot paths such as eviction and sweep.
+ *     Classify a tree from its handle flags alone. This never accesses the metadata, so it is safe
+ *     on hot paths such as eviction and sweep. A checkpoint view is reported from the time the
+ *     handle's configuration is set, but a live shared btree only once its handle is open, because
+ *     that is when the btree flag is set; before that it reads as not shared.
  */
 static WT_INLINE WT_SHARED_BTREE_KIND
 __wt_dhandle_shared_btree_kind(WT_DATA_HANDLE *dhandle)

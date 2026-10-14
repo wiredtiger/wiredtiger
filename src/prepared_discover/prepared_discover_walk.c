@@ -27,8 +27,8 @@ __prepared_discover_is_follower(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __prepared_discover_is_follower_stable_walk(WT_SESSION_IMPL *session)
 {
-    return (
-      __prepared_discover_is_follower(session) && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
+    return (__prepared_discover_is_follower(session) &&
+      __wt_dhandle_shared_btree_kind(S2BT(session)->dhandle) != WT_SHARED_BTREE_NONE);
 }
 
 /*

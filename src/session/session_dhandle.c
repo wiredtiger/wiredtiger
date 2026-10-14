@@ -983,8 +983,7 @@ __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
 
     /* Only an open shared tree can be in the pickup's prune window. */
     dhandle = session->dhandle;
-    if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-      !F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_DISAGGREGATED))
+    if (__wt_dhandle_shared_btree_kind(dhandle) == WT_SHARED_BTREE_NONE)
         return;
 
     /* The history store has its own dhandle lifecycle, not the pickup's outdated/prune pairing. */
