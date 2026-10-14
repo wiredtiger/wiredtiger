@@ -290,7 +290,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
                 if (WT_DHANDLE_BTREE(dhandle) &&
                   F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
                     if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0 ||
-                      __wt_dhandle_shared_tree_kind(dhandle) != WT_SHARED_TREE_CHECKPOINT)
+                      __wt_dhandle_shared_btree_kind(dhandle) != WT_SHARED_BTREE_CHECKPOINT)
                         continue;
                 } else
                     continue;

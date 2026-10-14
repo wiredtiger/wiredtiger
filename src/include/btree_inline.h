@@ -403,29 +403,29 @@ err:
 }
 
 /*
- * __wt_dhandle_shared_tree_kind --
+ * __wt_dhandle_shared_btree_kind --
  *     Classify an already-open tree from its handle flags alone. This never accesses the metadata,
  *     so it is safe on hot paths such as eviction and sweep.
  */
-static WT_INLINE WT_SHARED_TREE_KIND
-__wt_dhandle_shared_tree_kind(WT_DATA_HANDLE *dhandle)
+static WT_INLINE WT_SHARED_BTREE_KIND
+__wt_dhandle_shared_btree_kind(WT_DATA_HANDLE *dhandle)
 {
     if (F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT))
-        return (WT_SHARED_TREE_CHECKPOINT);
+        return (WT_SHARED_BTREE_CHECKPOINT);
     if (WT_DHANDLE_BTREE(dhandle) && F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
       F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_DISAGGREGATED))
-        return (WT_SHARED_TREE_LIVE);
-    return (WT_SHARED_TREE_NONE);
+        return (WT_SHARED_BTREE_LIVE);
+    return (WT_SHARED_BTREE_NONE);
 }
 
 /*
- * __wt_name_shared_tree_kind --
+ * __wt_name_shared_btree_kind --
  *     Classify a tree from its name when no open handle is available. This can search the metadata,
- *     so it is meant for open-time and metadata-only callers: use __wt_dhandle_shared_tree_kind
+ *     so it is meant for open-time and metadata-only callers: use __wt_dhandle_shared_btree_kind
  *     where a handle is open or the path is performance-sensitive.
  */
 static WT_INLINE int
-__wt_name_shared_tree_kind(WT_SESSION_IMPL *session, const char *name, WT_SHARED_TREE_KIND *kindp)
+__wt_name_shared_btree_kind(WT_SESSION_IMPL *session, const char *name, WT_SHARED_BTREE_KIND *kindp)
 {
     WT_DECL_ITEM(base);
     WT_DECL_RET;
@@ -433,7 +433,7 @@ __wt_name_shared_tree_kind(WT_SESSION_IMPL *session, const char *name, WT_SHARED
     const char *slash;
     bool shared;
 
-    *kindp = WT_SHARED_TREE_NONE;
+    *kindp = WT_SHARED_BTREE_NONE;
     config = NULL;
 
     if (!WT_PREFIX_MATCH(name, "file:"))
@@ -456,7 +456,7 @@ __wt_name_shared_tree_kind(WT_SESSION_IMPL *session, const char *name, WT_SHARED
     }
 
     if (shared)
-        *kindp = slash == NULL ? WT_SHARED_TREE_LIVE : WT_SHARED_TREE_CHECKPOINT;
+        *kindp = slash == NULL ? WT_SHARED_BTREE_LIVE : WT_SHARED_BTREE_CHECKPOINT;
 
 err:
     __wt_free(session, config);
@@ -475,7 +475,7 @@ __wt_dhandle_shared_base_name(
 {
     const char *slash;
 
-    if (__wt_dhandle_shared_tree_kind(session->dhandle) != WT_SHARED_TREE_CHECKPOINT)
+    if (__wt_dhandle_shared_btree_kind(session->dhandle) != WT_SHARED_BTREE_CHECKPOINT)
         return (0);
 
     slash = strrchr(*namep, '/');
@@ -492,14 +492,14 @@ static WT_INLINE int
 __wt_btree_shared_base_name(
   WT_SESSION_IMPL *session, const char **namep, const char **checkpointp, WT_ITEM **name_bufp)
 {
-    WT_SHARED_TREE_KIND kind;
+    WT_SHARED_BTREE_KIND kind;
     const char *slash;
 
     if (!WT_PREFIX_MATCH(*namep, "file:") || (slash = strrchr(*namep, '/')) == NULL)
         return (0);
 
-    WT_RET(__wt_name_shared_tree_kind(session, *namep, &kind));
-    if (kind != WT_SHARED_TREE_CHECKPOINT)
+    WT_RET(__wt_name_shared_btree_kind(session, *namep, &kind));
+    if (kind != WT_SHARED_BTREE_CHECKPOINT)
         return (0);
     return (__btree_name_split(session, slash, namep, checkpointp, name_bufp));
 }
@@ -511,14 +511,14 @@ __wt_btree_shared_base_name(
 static WT_INLINE int
 __wt_btree_name_is_shared_checkpoint(WT_SESSION_IMPL *session, const char *uri, bool *resultp)
 {
-    WT_SHARED_TREE_KIND kind;
+    WT_SHARED_BTREE_KIND kind;
 
     *resultp = false;
     if (!WT_PREFIX_MATCH(uri, "file:") || strrchr(uri, '/') == NULL)
         return (0);
 
-    WT_RET(__wt_name_shared_tree_kind(session, uri, &kind));
-    *resultp = kind == WT_SHARED_TREE_CHECKPOINT;
+    WT_RET(__wt_name_shared_btree_kind(session, uri, &kind));
+    *resultp = kind == WT_SHARED_BTREE_CHECKPOINT;
     return (0);
 }
 
@@ -3111,7 +3111,7 @@ __wt_btcur_skip_internal_page_read_only(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     if (!WT_READING_CHECKPOINT(session) &&
-      __wt_dhandle_shared_tree_kind(session->dhandle) != WT_SHARED_TREE_CHECKPOINT)
+      __wt_dhandle_shared_btree_kind(session->dhandle) != WT_SHARED_BTREE_CHECKPOINT)
         return (false);
 
     if (!__wt_ref_addr_copy(session, ref, &addr))

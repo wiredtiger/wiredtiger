@@ -101,14 +101,14 @@ struct __wt_dhandle_clear_log {
 #define WT_DHANDLE_IS_CHECKPOINT(dhandle) ((dhandle)->checkpoint != NULL)
 
 /*
- * WT_SHARED_TREE_KIND --
+ * WT_SHARED_BTREE_KIND --
  *     Whether a tree is shared, and whether it is the live tree or a checkpoint view of it.
  */
 typedef enum {
-    WT_SHARED_TREE_NONE,      /* Not a shared tree */
-    WT_SHARED_TREE_LIVE,      /* The live shared tree */
-    WT_SHARED_TREE_CHECKPOINT /* A checkpoint view of a shared tree */
-} WT_SHARED_TREE_KIND;
+    WT_SHARED_BTREE_NONE,      /* Not a shared tree */
+    WT_SHARED_BTREE_LIVE,      /* The live shared tree */
+    WT_SHARED_BTREE_CHECKPOINT /* A checkpoint view of a shared tree */
+} WT_SHARED_BTREE_KIND;
 
 /*
  * WT_WITH_DHANDLE_WRITE_LOCK_NOWAIT --
