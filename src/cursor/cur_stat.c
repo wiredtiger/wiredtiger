@@ -875,7 +875,7 @@ __curstat_init_stats(
  *     Select the statistics of the cursor's OTel type, if one was requested.
  */
 static int
-__curstat_otel_init(WT_CURSOR_STAT *cst)
+__curstat_otel_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
     uint32_t otel_flag;
 
@@ -887,11 +887,16 @@ __curstat_otel_init(WT_CURSOR_STAT *cst)
         return (0);
 
     otel_flag = F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS);
-    if (cst->stats_base == WT_CONNECTION_STATS_BASE)
+    switch (cst->stats_base) {
+    case WT_CONNECTION_STATS_BASE:
         return (__wt_stat_connection_otel_keys(otel_flag, &cst->otel_keys, &cst->otel_count));
-    if (cst->stats_base == WT_DSRC_STATS_BASE)
+    case WT_DSRC_STATS_BASE:
         return (__wt_stat_dsrc_otel_keys(otel_flag, &cst->otel_keys, &cst->otel_count));
-    return (__wt_stat_session_otel_keys(otel_flag, &cst->otel_keys, &cst->otel_count));
+    case WT_SESSION_STATS_BASE:
+        return (__wt_stat_session_otel_keys(otel_flag, &cst->otel_keys, &cst->otel_count));
+    default:
+        return (__wt_illegal_value(session, cst->stats_base));
+    }
 }
 
 /*
@@ -902,7 +907,7 @@ int
 __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
 {
     WT_RET(__curstat_init_stats(session, uri, cfg, cst));
-    return (__curstat_otel_init(cst));
+    return (__curstat_otel_init(session, cst));
 }
 
 /*
