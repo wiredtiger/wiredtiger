@@ -293,6 +293,7 @@ struct __wt_block {
     bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
     bool remote;                /* Handle references non-local object */
     bool readonly;              /* Underlying file was opened only for reading */
+    bool in_memory;             /* Opened with in_memory configured; no backing file */
 
     /* Configuration information, set when the file is opened. */
     wt_shared uint32_t allocfirst; /* Allocation is first-fit */

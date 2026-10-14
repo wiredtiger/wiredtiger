@@ -256,11 +256,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
 
-    /*
-     * In-memory objects have no backing file (fh stays NULL). Checkpoint load sets block size for
-     * an empty metadata cookie.
-     */
-    if (__wt_config_gets(session, cfg, "in_memory", &cval) != 0 || cval.val == 0)
+    if (__wt_config_gets(session, cfg, "in_memory", &cval) == 0 && cval.val != 0)
+        block->in_memory = true;
+    else
         WT_ERR(__block_open_file(session, conn, block, filename, cfg, forced_salvage, readonly,
           fixed, allocsize, lr_fh_meta));
 

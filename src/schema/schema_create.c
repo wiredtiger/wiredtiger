@@ -86,10 +86,7 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 
     npage_log = NULL;
 
-    /*
-     * An object configured in-memory never writes a file. The metadata entry is the object, and
-     * open synthesizes a block handle. There is nothing to roll back.
-     */
+    /* in_memory objects don't have a data file, skip create and file-op rollback tracking below. */
     WT_RET(__wt_config_gets(session, cfg, "in_memory", &page_log_item));
     if (page_log_item.val != 0)
         return (0);
