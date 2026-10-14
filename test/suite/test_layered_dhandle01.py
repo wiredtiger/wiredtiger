@@ -41,9 +41,6 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
-# WT_DHANDLE_OPEN. A handle still in the list with this clear has been closed.
-WT_DHANDLE_OPEN = 0x200
-
 @disagg_test_class
 class test_layered_dhandle01(wttest.WiredTigerTestCase):
     conn_base_config = 'create,statistics=(all),' + \
@@ -58,25 +55,18 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         return self.wiredtiger_open(
             'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
 
-    # Names of ingest dhandles that are still open. Closed handles remain in the dump until sweep
-    # removes them, so the open flag is the signal, not the name being present.
-    def open_ingest(self, conn):
+    # Ingest dhandles stay listed after close. Sweep removes one only once it is closed.
+    def ingest_handles(self, conn):
         self.cleanStdout()
         conn.debug_info('handles')
         dump = self.readStdout(maxchars=2000000)
         self.cleanStdout()
-        open_names = []
-        name = None
+        names = []
         for line in dump.splitlines():
             stripped = line.strip()
-            if stripped.startswith('Name: '):
-                name = stripped[len('Name: '):]
-            elif stripped.startswith('Flags:') and name is not None:
-                flags = int(stripped.split()[-1], 16)
-                if name.endswith('.wt_ingest') and flags & WT_DHANDLE_OPEN:
-                    open_names.append(name)
-                name = None
-        return open_names
+            if stripped.startswith('Name: ') and stripped.endswith('.wt_ingest'):
+                names.append(stripped[len('Name: '):])
+        return names
 
     def assert_no_ingest_file(self, home, name):
         path = os.path.join(home, name) if home else name
@@ -139,17 +129,17 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.assert_no_ingest_file('follower', 'dh01_00000.wt_ingest')
 
         # Every table now has an open, dirty ingest btree on the follower.
-        self.assertGreaterEqual(len(self.open_ingest(conn_follow)), ntables)
+        self.assertGreaterEqual(len(self.ingest_handles(conn_follow)), ntables)
 
         # Drive the global checkpoint timestamp past every table's
         # max_ingest_write_ts; sweep then discards the now-durable ingest btrees.
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: len([n for n in self.open_ingest(conn_follow) if 'churn' not in n]) <= 5)
+            lambda: len([n for n in self.ingest_handles(conn_follow) if 'churn' not in n]) <= 5)
 
         # The idle ingest btrees must be reclaimed. The churn table can remain.
-        idle = [n for n in self.open_ingest(conn_follow) if 'churn' not in n]
+        idle = [n for n in self.ingest_handles(conn_follow) if 'churn' not in n]
         self.assertLessEqual(len(idle), 5, 'follower ingest btrees were not reclaimed')
 
         # No data was lost: every key reads back on the follower, served from the
@@ -219,9 +209,9 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: ingest not in self.open_ingest(conn_follow))
+            lambda: ingest not in self.ingest_handles(conn_follow))
 
-        self.assertNotIn(ingest, self.open_ingest(conn_follow),
+        self.assertNotIn(ingest, self.ingest_handles(conn_follow),
             'follower ingest btree with a pending truncate was not reclaimed')
 
         # The truncate must still be reflected after the ingest btree is gone: the

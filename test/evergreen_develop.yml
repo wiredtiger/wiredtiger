@@ -33,6 +33,8 @@ variables:
     - name: prefetch-on-verify
     - name: perf-disagg-many-tables-follower-startup
     - name: perf-disagg-many-tables-follower-update
+    - name: cppsuite-disagg-startup-perf
+      distros: amazon2023-arm64-large-m8g-wt
 
 # Build variants that need to be run only on the develop branch.
 buildvariants:
