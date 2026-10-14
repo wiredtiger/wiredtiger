@@ -29,9 +29,9 @@
 /*
  * [test_disagg_startup_perf]: Create N layered tables, checkpoint them into palite, then restart
  * three times. The perf file reports the average of those three runs, in milliseconds:
- * - startup_open_avg_ms: wiredtiger_open.
- * - startup_pickup_avg_ms: checkpoint pickup.
- * - startup_total_avg_ms: both stages.
+ * - startup_open_ms: wiredtiger_open.
+ * - startup_pickup_ms: checkpoint pickup.
+ * - startup_total_ms: both stages.
  */
 
 #include "src/common/constants.h"
@@ -244,9 +244,9 @@ main(int argc, char *argv[])
         total_sum += open_ms + pickup_ms;
     }
 
-    metrics_writer::instance().add_stat("startup_open_avg_ms", open_sum / RESTARTS);
-    metrics_writer::instance().add_stat("startup_pickup_avg_ms", pickup_sum / RESTARTS);
-    metrics_writer::instance().add_stat("startup_total_avg_ms", total_sum / RESTARTS);
+    metrics_writer::instance().add_stat("startup_open_ms", open_sum / RESTARTS);
+    metrics_writer::instance().add_stat("startup_pickup_ms", pickup_sum / RESTARTS);
+    metrics_writer::instance().add_stat("startup_total_ms", total_sum / RESTARTS);
     metrics_writer::instance().output_perf_file(progname);
 
     delete database_model;
