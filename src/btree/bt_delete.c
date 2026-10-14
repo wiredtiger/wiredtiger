@@ -93,7 +93,6 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_REF_STATE previous_state;
     size_t footprint;
     WT_BTREE *btree = S2BT(session);
-    const bool track_stats = !WT_IS_HS(session->dhandle);
     bool parent_was_clean;
 
     *skipp = false;
@@ -104,10 +103,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
-            if (track_stats) {
-                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
-                WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
-            }
+            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
             return (0);
         }
 
@@ -128,18 +125,14 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     previous_state = WT_REF_GET_STATE(ref);
     if (previous_state != WT_REF_DISK) {
-        if (track_stats) {
-            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
-            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
-        }
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
         return (0);
     }
 
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
-        if (track_stats) {
-            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
-            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
-        }
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
         return (0);
     }
 
@@ -252,15 +245,19 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * it and let the transaction's cache-pressure check roll the truncate back if it has pinned too
      * much; the delete just performed unwinds normally on rollback.
      *
-     * Skipped for the history store, whose truncation is non-transactional: there would be no
-     * transaction to bound, and none to resolve and give back the bytes counted below.
+     * The transaction accounting is skipped for the history store, whose truncation is
+     * non-transactional: there would be no transaction to bound, and none to resolve and give back
+     * the bytes counted below.
      */
-    if (parent_was_clean && track_stats) {
+    if (parent_was_clean) {
         footprint = __wt_atomic_load_size_relaxed(&parent->memory_footprint);
-        session->txn->truncate_dirty_bytes += footprint;
         WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_internal_pages_dirtied);
         WT_STAT_CONN_DSRC_INCRV(
           session, cursor_truncate_internal_bytes_dirtied, (int64_t)footprint);
+        if (WT_IS_HS(session->dhandle))
+            return (0);
+
+        session->txn->truncate_dirty_bytes += footprint;
 
         /*
          * These pages are dirty content the transaction has not resolved, tracked separately from
@@ -284,7 +281,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     return (ret);
 
 err:
-    if (ret == 0 && track_stats)
+    if (ret == 0)
         WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
     __wt_free(session, ref->page_del);
 
