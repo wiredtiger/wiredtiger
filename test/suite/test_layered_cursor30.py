@@ -173,7 +173,7 @@ class test_layered_cursor30_prepare_stall(LayeredFastTruncateConfigMixin,
 
     def test_write_while_stalled(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.write(self.session, [100, 640], 10)
+        self.write(self.session, [100, 400, 640], 10)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
         self.conn_follow, self.session_follow = self.open_follower()
@@ -183,10 +183,10 @@ class test_layered_cursor30_prepare_stall(LayeredFastTruncateConfigMixin,
 
         if self.forward:
             prepared_key, new_key, truncate_range = 300, 700, (600, 640)
-            visited, remaining = [100, 200], [(550, 'value'), (700, 'new')]
+            visited, remaining = [100, 200], [(400, 'value'), (550, 'value'), (700, 'new')]
         else:
             prepared_key, new_key, truncate_range = 500, 50, (100, 150)
-            visited, remaining = [640, 550], [(200, 'value'), (50, 'new')]
+            visited, remaining = [640, 550], [(400, 'value'), (200, 'value'), (50, 'new')]
 
         prep_session = self.conn_follow.open_session()
         with closing(prep_session.open_cursor(self.uri)) as prep_cursor:

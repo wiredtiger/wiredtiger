@@ -1201,8 +1201,8 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
      * If the transaction context has changed since the last call (different read timestamp, a new
      * snapshot, or a write by this transaction through another cursor), the parked alternate
      * cursor's cached position and value may be stale. Clear the iteration flags to force a
-     * re-search under the new context. While ingest is stalled on a prepare conflict the re-search
-     * is deferred until the stall resolves, see __clayered_advance_positioned.
+     * re-search under the new context. While ingest is stalled on a prepare conflict the parked
+     * stable position is kept and rechecked instead, see __clayered_advance_positioned.
      */
     if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp ||
       clayered->txn_mod_count != txn_mod_count)
@@ -1917,23 +1917,20 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
      */
     if (__clayered_ingest_prepare_blocked(op, c_current)) {
         /*
-         * While the iteration flag is set the read context is unchanged since the alternate
-         * (stable) cursor was parked, so it still holds its correct position and prepared updates
-         * never move it. That position may be exhausted: on a walk where the stable cursor ran out
-         * of keys before ingest, it is legitimately unpositioned here.
+         * The alternate (stable) cursor keeps its parked position: the blocked cursor carries no
+         * key to re-search it from, and the key it resolves to may lie past stable keys that still
+         * have to be returned. Writes by this transaction during the stall cannot reveal stable
+         * keys, only a truncate can hide the parked one, so recheck it against the truncate list
+         * regardless of the iteration flag. The parked position may legitimately be exhausted.
          *
-         * A context change during the stall clears the flag, and the blocked cursor has no key to
-         * reposition the alternate from. Defer that until the conflict resolves and the current
-         * cursor carries a key again.
-         *
-         * FIXME-WT-17960: if the current cursor resolves straight to the end of the walk, the
-         * alternate stays parked under the old context with no anchor to re-search it from.
+         * FIXME-WT-17960: a read timestamp change during the stall can reveal stable keys before
+         * the parked position, and there is no anchor to re-search them from.
          */
         WT_ASSERT(CUR2S(clayered), c_alternate == op->stable);
+        if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT))
+            WT_RET_NOTFOUND_OK(__clayered_reposition_truncate_iterate(op, c_alternate, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_current, forward));
         current_moved = true;
-        if (!F_ISSET(clayered, iter_flag) && F_ISSET(c_current, WT_CURSTD_KEY_INT))
-            WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
     } else if (!F_ISSET(clayered, iter_flag))
         /*
          * The current cursor is positioned but `iter_flag` is not set, so the alternate cannot be
@@ -1977,17 +1974,12 @@ __clayered_iterate_finish(
          * has advanced. Reset ingest so the next call restarts cleanly.
          */
         WT_TRET(__clayered_reset_cursors(clayered, false));
-    else if (ret == 0) {
-        /*
-         * Only a completed step leaves both constituents consistently positioned. A step blocked by
-         * a prepared conflict keeps the flags as they were, so a context change noticed during the
-         * stall still forces the alternate to be repositioned once the conflict resolves.
-         */
+    else if (ret == 0 || ret == WT_PREPARE_CONFLICT) {
         if (!F_ISSET(clayered, iter_flag)) {
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
             F_SET(clayered, iter_flag);
         }
-    } else if (ret != WT_PREPARE_CONFLICT) {
+    } else {
         /*
          * The constituent-stepping helpers map WT_NOTFOUND to 0 (WT_ERR_NOTFOUND_OK with keep ==
          * false), so an error reaching here is never WT_NOTFOUND.
@@ -2029,9 +2021,9 @@ __clayered_iterate_finish(
  *     cursor - the stable cursor ignores prepared updates - and a prepared conflict clears the
  *     ingest cursor's WT_CURSTD_KEY_INT while leaving its page reference intact. A walk blocked
  *     this way is therefore detected through the reference rather than the key, and on the next
- *     call the ingest cursor is driven again so it rechecks the key it is currently blocked on. If
- *     the read context changed during the stall, the alternate is repositioned from the key the
- *     ingest cursor resolves to.
+ *     call the ingest cursor is driven again so it rechecks the key it is currently blocked on. The
+ *     stable cursor keeps its parked position across the stall, rechecked against truncates by this
+ *     transaction.
  */
 static int
 __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
