@@ -81,6 +81,22 @@
  */
 
 /*
+ * __delete_page_fallback_stat --
+ *     Count a leaf page that range truncate could not fast-delete.
+ */
+static WT_INLINE void
+__delete_page_fallback_stat(WT_SESSION_IMPL *session, WT_REF *ref, bool in_memory)
+{
+    /* Internal pages are never fast-deleted: the walk descends into them instead. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return;
+
+    WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+    if (in_memory)
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
+}
+
+/*
  * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
@@ -103,8 +119,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
-            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
-            WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
+            __delete_page_fallback_stat(session, ref, true);
             return (0);
         }
 
@@ -125,14 +140,12 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     previous_state = WT_REF_GET_STATE(ref);
     if (previous_state != WT_REF_DISK) {
-        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
-        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
+        __delete_page_fallback_stat(session, ref, true);
         return (0);
     }
 
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
-        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
-        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
+        __delete_page_fallback_stat(session, ref, true);
         return (0);
     }
 
@@ -282,7 +295,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 err:
     if (ret == 0)
-        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+        __delete_page_fallback_stat(session, ref, false);
     __wt_free(session, ref->page_del);
 
     /* Return the page to its previous state. */

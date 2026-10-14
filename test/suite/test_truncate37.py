@@ -28,9 +28,10 @@
 
 import wiredtiger, wttest
 
-# Range truncate statistics. Truncate a range that spans many on-disk leaf pages, one of
-# which carries an overflow value and so cannot be fast-deleted. The pages that fall back
-# to the slow path are counted, as are the parent internal pages dirtied by fast delete
+# Range truncate statistics. Truncate a range that spans many on-disk leaf pages, some of
+# which cannot be fast-deleted: pages with overflow values (not available in a disaggregated
+# btree) or pages whose entries all carry a stop time. The pages that fall back to the slow
+# path are counted, as are the parent internal pages dirtied by fast delete
 # and their byte total. Pages already in memory are reported as a subset of the pages
 # that fell back. The connection statistics must equal the sum of the per-table ones, a
 # truncate on one table must not move another table's counters, and an ordinary update
@@ -48,7 +49,7 @@ class test_truncate37(wttest.WiredTigerTestCase):
         cursor.close()
         return value
 
-    def truncate(self, uri, first, last):
+    def truncate(self, uri, first, last, ts=None):
         start = self.session.open_cursor(uri)
         stop = self.session.open_cursor(uri)
         start.set_key(first)
@@ -57,8 +58,14 @@ class test_truncate37(wttest.WiredTigerTestCase):
         self.session.truncate(None, start, stop, None)
         start.close()
         stop.close()
-        self.session.commit_transaction()
+        if ts is None:
+            self.session.commit_transaction()
+        else:
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
 
+    # A disaggregated btree has no overflow items, so this case cannot make an on-disk page fall
+    # back; test_range_truncate_stats_deleted covers that outcome there.
+    @wttest.skip_for_hook("disagg", "a disaggregated btree has no overflow items")
     def test_range_truncate_stats(self):
         for uri in (self.uri, self.other_uri):
             self.session.create(uri, self.config)
@@ -108,3 +115,36 @@ class test_truncate37(wttest.WiredTigerTestCase):
             self.assertEqual(
                 self.get_stat('', name) - before_conn[name],
                 first[name] + self.get_stat(self.other_uri, name) - before_other[name])
+
+    # Pages whose entries all carry a stop time are rejected by range truncate even though they
+    # have no overflow items, so they fall back to the slow path without being in memory.
+    def test_range_truncate_stats_deleted(self):
+        self.session.create(self.uri, self.config)
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for key in range(1, 10001):
+            cursor[key] = 'a' * 100
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+        self.session.begin_transaction()
+        for key in range(2001, 4001):
+            cursor.set_key(key)
+            cursor.remove()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.session.checkpoint()
+        self.reopen_conn()
+
+        in_memory = 'cursor_truncate_fast_delete_fallback_in_memory'
+        pages = 'cursor_truncate_fast_delete_fallback_pages'
+        before_pages = self.get_stat(self.uri, pages)
+        before_in_memory = self.get_stat(self.uri, in_memory)
+        before_skipped = self.get_stat('', 'rec_page_delete_fast_skip_deleted')
+
+        self.truncate(self.uri, 100, 9900, 20)
+
+        self.assertGreater(self.get_stat('', 'rec_page_delete_fast_skip_deleted'), before_skipped)
+        self.assertGreater(
+            self.get_stat(self.uri, pages) - before_pages,
+            self.get_stat(self.uri, in_memory) - before_in_memory)
