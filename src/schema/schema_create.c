@@ -349,6 +349,10 @@ __create_file(
             fileid = __wt_generate_file_id(session, uri, is_shared);
 
             WT_ERR(__wt_scr_alloc(session, 0, &val));
+            /*
+             * Persist block_manager=disagg for a shared file, so readers can identify its base tree
+             * as shared from the metadata without opening it.
+             */
             WT_ERR(__wt_buf_fmt(session, val,
               "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=%s",
               fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor,
@@ -1136,6 +1140,9 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     stable_cfg[1] = disagg_config->data;
 
     /*
+     * A stable constituent uses the disaggregated block manager. Persist this setting in metadata
+     * so readers can identify its base tree as shared without opening it.
+     *
      * Disable logging on the stable table to ensure we have timestamps. Force block_manager=disagg:
      * a legacy step-up derives a missing stable constituent from the ingest metadata, cannot
      * recover the user's value and forces disagg, so the create-time metadata must match.

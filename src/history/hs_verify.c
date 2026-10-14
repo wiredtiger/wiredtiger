@@ -26,7 +26,7 @@ typedef struct {
 static WT_INLINE wt_timestamp_t
 __hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
-    if (!F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT))
+    if (__wt_dhandle_shared_tree_kind(dhandle) != WT_SHARED_TREE_CHECKPOINT)
         return (WT_TS_NONE);
 
     /* The value is only stable, and only describes the data store being walked, under the lock. */
@@ -328,7 +328,8 @@ __hs_verify_cursor_open(WT_SESSION_IMPL *session, uint32_t btree_id, WT_CURSOR *
     btree = S2BT(session);
     *hs_cursorp = NULL;
 
-    if (F_ISSET(session->dhandle, WT_DHANDLE_SHARED_CKPT) && btree->hs_checkpoint_name == NULL)
+    if (__wt_dhandle_shared_tree_kind(session->dhandle) == WT_SHARED_TREE_CHECKPOINT &&
+      btree->hs_checkpoint_name == NULL)
         return (0);
 
     WT_RET(__wt_curhs_open(session, btree_id, btree->hs_checkpoint_name, NULL, hs_cursorp));

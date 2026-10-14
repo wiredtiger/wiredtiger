@@ -460,7 +460,8 @@ retry:
          * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
          * with dedicated handling instead of matching the shared checkpoint handles.
          */
-        if (F_ISSET(dhandle, WT_DHANDLE_SHARED_CKPT) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        if (__wt_dhandle_shared_tree_kind(dhandle) == WT_SHARED_TREE_CHECKPOINT &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;

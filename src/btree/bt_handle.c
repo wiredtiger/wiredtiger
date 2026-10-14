@@ -579,6 +579,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     }
 
     /* Detect if the btree is disaggregated. */
+    /* FIXME-WT-18895: Identify an ingest btree by a flag instead of its name. */
     if (WT_URI_IS_INGEST(btree->dhandle->name))
         /* Flag the ingest btree as participating in automatic garbage collection */
         F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
@@ -606,7 +607,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
              */
             if (!__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) &&
               WT_URI_IS_STABLE(btree->dhandle->name) &&
-              !F_ISSET(btree->dhandle, WT_DHANDLE_SHARED_CKPT) &&
+              __wt_dhandle_shared_tree_kind(btree->dhandle) != WT_SHARED_TREE_CHECKPOINT &&
               !WT_IS_URI_METADATA(btree->dhandle->name) && !WT_IS_URI_HS(btree->dhandle->name)) {
                 WT_ASSERT(session, __wt_conn_is_disagg(session));
                 WT_STAT_CONN_INCR(session, layered_stable_live_open_refused);
@@ -834,7 +835,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      */
     if (F_ISSET(session, WT_SESSION_IMPORT) ||
       ckpt->run_write_gen < __wt_atomic_load_uint64_relaxed(&conn->base_write_gen) ||
-      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(btree->dhandle, WT_DHANDLE_SHARED_CKPT)))
+      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+        __wt_dhandle_shared_tree_kind(btree->dhandle) == WT_SHARED_TREE_CHECKPOINT))
         btree->run_write_gen = btree->write_gen;
     else
         btree->run_write_gen = ckpt->run_write_gen;

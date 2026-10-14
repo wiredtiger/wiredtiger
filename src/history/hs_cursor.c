@@ -110,7 +110,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * data.
      */
     if (btree->hs_checkpoint_name == NULL && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      F_ISSET(btree->dhandle, WT_DHANDLE_SHARED_CKPT)) {
+      __wt_dhandle_shared_tree_kind(btree->dhandle) == WT_SHARED_TREE_CHECKPOINT) {
         ret = 0;
         goto done;
     }
