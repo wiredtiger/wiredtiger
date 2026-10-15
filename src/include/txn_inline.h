@@ -2294,6 +2294,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      * Then we do an atomic increment to allocate a unique ID. This will give the valid ID to this
      * transaction that we release to the global transaction table.
      *
+     * Finally, clear the flag. If a snapshot has stopped waiting for this allocation and marked it
+     * to retry, the snapshot excludes this transaction, and the ID we got might be older than the
+     * current ID the snapshot read. Discard the ID and allocate again: the snapshot read the
+     * current ID before marking the flag, and the next increment is ordered after the mark, so the
+     * new ID is not visible to that snapshot.
+     *
      * We want the global value to lead the allocated values, so that any allocated transaction ID
      * eventually becomes globally visible. When there are no transactions running, the oldest_id
      * will reach the global current ID, so we want post-increment (fetch_add) semantics.
@@ -2301,15 +2307,20 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      * We rely on atomic reads of the current ID to create snapshots, so for unlocked reads to be
      * well defined, we must use an atomic increment here.
      */
-    if (publish) {
-        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
-        WT_RELEASE_WRITE_WITH_BARRIER(
-          txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
-        id = __wt_atomic_fetch_add_uint64_v(&txn_global->current, 1);
-        session->txn->time_point.id = id;
-        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);
-        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, false);
-    } else
+    if (publish)
+        for (;;) {
+            WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, WT_TXN_ID_ALLOCATING);
+            WT_RELEASE_WRITE_WITH_BARRIER(
+              txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
+            id = __wt_atomic_fetch_add_uint64_v(&txn_global->current, 1);
+            session->txn->time_point.id = id;
+            WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);
+            if (__wt_atomic_cas_uint8_v(
+                  &txn_shared->is_allocating, WT_TXN_ID_ALLOCATING, WT_TXN_ID_ALLOC_DONE))
+                break;
+            WT_STAT_CONN_INCR(session, txn_id_alloc_retry);
+        }
+    else
         id = __wt_atomic_fetch_add_uint64_v(&txn_global->current, 1);
 
     return (id);

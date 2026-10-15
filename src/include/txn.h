@@ -152,9 +152,24 @@ struct __wt_txn_shared {
      */
     wt_shared wt_timestamp_t read_timestamp;
 
+    /*
+     * The state of the transaction ID allocation: WT_TXN_ID_ALLOCATING while the published ID may
+     * not be final, WT_TXN_ID_ALLOC_RETRY once a snapshot has stopped waiting for the allocation
+     * and the ID must be allocated again, otherwise WT_TXN_ID_ALLOC_DONE.
+     */
     wt_shared volatile uint8_t is_allocating;
     WT_CACHE_LINE_PAD_END
 };
+
+#define WT_TXN_ID_ALLOC_DONE 0
+#define WT_TXN_ID_ALLOCATING 1
+#define WT_TXN_ID_ALLOC_RETRY 2
+
+/*
+ * The number of times a snapshot checks a transaction that is allocating its ID before it stops
+ * waiting and makes the allocation retry.
+ */
+#define WT_TXN_ID_ALLOC_SPINS 1000
 
 /*
  * WT_PENDING_PREPARED_ITEM --

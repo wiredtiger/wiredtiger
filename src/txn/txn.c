@@ -299,7 +299,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t current_id, id, pinned_id, prev_oldest_id, snapshot_gen;
-    uint32_t i, n, session_cnt;
+    uint32_t i, n, session_cnt, spins;
+    uint8_t alloc_state;
     bool record_disagg;
 
     conn = S2C(session);
@@ -395,14 +396,19 @@ retry:
          *    this case, we ignore this transaction because it would
          *    not be visible to the current snapshot.
          */
-        while (s != txn_shared && (id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
-          (prev_oldest_id <= id) && (id < current_id)) {
+        for (spins = 0; s != txn_shared &&
+          (id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
+          (prev_oldest_id <= id) && (id < current_id);) {
             /*
              * If the transaction is still allocating its ID, then we spin here until it gets its
-             * valid ID.
+             * valid ID. If the allocation doesn't finish within a bounded number of checks, for
+             * example because the allocating thread isn't running, mark it to retry and ignore the
+             * transaction: the retried allocation gets an ID that is not older than the current ID
+             * we saw. The same holds if another snapshot has already marked it.
              */
             WT_ACQUIRE_BARRIER();
-            if (!__wt_atomic_load_uint8_v_relaxed(&s->is_allocating)) {
+            alloc_state = __wt_atomic_load_uint8_v_relaxed(&s->is_allocating);
+            if (alloc_state == WT_TXN_ID_ALLOC_DONE) {
                 /*
                  * There is still a chance that fetched ID is not valid after ID allocation, so we
                  * check again here. The read of transaction ID should be carefully ordered: we want
@@ -416,7 +422,11 @@ retry:
                         pinned_id = id;
                     break;
                 }
-            }
+            } else if (alloc_state == WT_TXN_ID_ALLOC_RETRY ||
+              (++spins > WT_TXN_ID_ALLOC_SPINS &&
+                __wt_atomic_cas_uint8_v(
+                  &s->is_allocating, WT_TXN_ID_ALLOCATING, WT_TXN_ID_ALLOC_RETRY)))
+                break;
             WT_PAUSE();
         }
     }
@@ -571,29 +581,15 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        /* Update the last running transaction ID. */
-        while ((id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
+        /*
+         * Update the last running transaction ID. Don't wait for a transaction that is allocating
+         * its ID: every ID it publishes while allocating is no larger than the ID it gets, so it is
+         * a safe bound for the oldest running ID.
+         */
+        if ((id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
           prev_oldest_id <= id && id < last_running) {
-            /*
-             * If the transaction is still allocating its ID, then we spin here until it gets its
-             * valid ID.
-             */
-            WT_ACQUIRE_BARRIER();
-            if (!__wt_atomic_load_uint8_v_relaxed(&s->is_allocating)) {
-                /*
-                 * There is still a chance that fetched ID is not valid after ID allocation, so we
-                 * check again here. The read of transaction ID should be carefully ordered: we want
-                 * to re-read ID from transaction state after this transaction completes ID
-                 * allocation.
-                 */
-                WT_ACQUIRE_BARRIER();
-                if (id == __wt_atomic_load_uint64_v_relaxed(&s->id)) {
-                    last_running = id;
-                    last_running_session = &WT_CONN_SESSIONS_GET(conn)[i];
-                    break;
-                }
-            }
-            WT_PAUSE();
+            last_running = id;
+            last_running_session = &WT_CONN_SESSIONS_GET(conn)[i];
         }
 
         /* Update the metadata pinned ID. */
