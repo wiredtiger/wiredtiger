@@ -594,25 +594,6 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __txn_disagg_prepared_durable_ts_check --
- *     Check that a prepared transaction's durable timestamp is after the last adopted checkpoint.
- */
-static WT_INLINE int
-__txn_disagg_prepared_durable_ts_check(
-  WT_SESSION_IMPL *session, WT_TXN *txn, wt_timestamp_t checkpoint_ts)
-{
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-
-    if (txn->time_point.durable_timestamp <= checkpoint_ts)
-        WT_RET_MSG(session, EINVAL,
-          "durable timestamp %s must be after the last checkpoint timestamp %s",
-          __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
-
-    return (0);
-}
-
-/*
  * __txn_disagg_write_ts_check --
  *     Check timestamp requirements for writes to disaggregated tables.
  */
@@ -651,7 +632,11 @@ __txn_disagg_write_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btr
           &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
         if (checkpoint_ts != WT_TS_NONE) {
             if (F_ISSET(txn, WT_TXN_PREPARE)) {
-                WT_RET(__txn_disagg_prepared_durable_ts_check(session, txn, checkpoint_ts));
+                if (txn->time_point.durable_timestamp <= checkpoint_ts)
+                    WT_RET_MSG(session, EINVAL,
+                      "durable timestamp %s must be after the last checkpoint timestamp %s",
+                      __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[0]),
+                      __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
             } else if (txn->time_point.commit_timestamp <= checkpoint_ts)
                 WT_RET_MSG(session, EINVAL,
                   "commit timestamp %s must be after the last checkpoint timestamp %s",
