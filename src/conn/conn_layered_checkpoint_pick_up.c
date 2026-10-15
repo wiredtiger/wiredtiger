@@ -2158,16 +2158,16 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
      * (startup, step-up) are never deferred.
      */
     if (!force &&
-      ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
-      __wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
-        WT_ERR(__disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn));
-        /* Wake the pickup server: the delivery may already be adoptable. */
-        __wt_disagg_deferred_pickup_signal(session, 0);
-        goto err;
-    }
-    /* A checkpoint adopted without being deferred has no deferral wait. */
-    if (!superseded_ok)
+      ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn)) {
+        if (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
+            WT_ERR(__disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn));
+            /* Wake the pickup server: the delivery may already be adoptable. */
+            __wt_disagg_deferred_pickup_signal(session, 0);
+            goto err;
+        }
+        /* Adopted at delivery without being deferred. */
         WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, 0);
+    }
 
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
