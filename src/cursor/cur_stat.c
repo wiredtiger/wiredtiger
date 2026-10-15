@@ -872,7 +872,7 @@ __curstat_init_stats(
 
 /*
  * __curstat_otel_init --
- *     Select the statistics of the cursor's OTel type, if one was requested.
+ *     Initialize a statistics cursor's OTel keys and related fields.
  */
 static int
 __curstat_otel_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
