@@ -1754,11 +1754,13 @@ __disagg_deferred_pickup_server(void *arg)
     for (;;) {
         /*
          * Sleep until signalled: a deferral arms the server and a pin release may unblock an
-         * adoption. While anything is queued, wake periodically as a backstop against a wakeup lost
-         * to a release racing a delivery; this is not an adoption deadline.
+         * adoption. The wait is always timed, as a backstop against a wakeup lost to a signal
+         * racing the server going to sleep, and shorter while a checkpoint is queued; this is not
+         * an adoption deadline.
          */
         __wt_cond_wait(session, disagg->deferred_pickup_cond,
-          __disagg_deferred_ckpt_queued(session) ? 10 * WT_MILLION : 0,
+          __disagg_deferred_ckpt_queued(session) ? WT_DISAGG_PICKUP_QUEUED_WAIT_USECS :
+                                                   WT_DISAGG_PICKUP_IDLE_WAIT_USECS,
           __disagg_deferred_pickup_run_chk);
 
         /*

@@ -242,6 +242,10 @@ struct __wt_disagg_pending_crypt_key {
 /* The backoff between retries of a blocked checkpoint adoption. */
 #define WT_DISAGG_RETRY_SLEEP_USECS (100 * WT_THOUSAND)
 
+/* The deferred pickup server's timed wake while a checkpoint is queued and while idle. */
+#define WT_DISAGG_PICKUP_QUEUED_WAIT_USECS WT_MILLION
+#define WT_DISAGG_PICKUP_IDLE_WAIT_USECS (2 * WT_MILLION)
+
 /*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
  *      A relationship between the checkpoint order number and the history timestamp.
