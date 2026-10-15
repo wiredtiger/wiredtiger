@@ -164,7 +164,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * them.
      */
     if (!WT_IS_HS(session->dhandle) && WT_TIME_AGGREGATE_HAS_STOP(&addr.ta)) {
-        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_skip_deleted);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_pages_skipped_already_deleted);
         goto err;
     }
 

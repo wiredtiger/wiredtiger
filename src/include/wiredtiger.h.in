@@ -7841,7 +7841,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cursor: range truncate fast-delete skipped, all entries already
  * deleted
  */
-#define	WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_SKIP_DELETED	1580
+#define	WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED	1580
 /*! data-handle: Layered connection data handles currently active */
 #define	WT_STAT_CONN_DH_CONN_HANDLE_LAYERED_COUNT	1581
 /*! data-handle: Table connection data handles currently active */
@@ -10242,7 +10242,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cursor: range truncate fast-delete skipped, all entries already
  * deleted
  */
-#define	WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_SKIP_DELETED	2311
+#define	WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED	2311
 /*! cursor: remove calls */
 #define	WT_STAT_DSRC_CURSOR_REMOVE			2312
 /*! cursor: remove key bytes removed */

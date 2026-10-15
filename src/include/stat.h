@@ -1003,7 +1003,7 @@ struct __wt_connection_stats {
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
     int64_t cursor_truncate_fast_delete_pages;
-    int64_t cursor_truncate_fast_delete_skip_deleted;
+    int64_t cursor_truncate_fast_delete_pages_skipped_already_deleted;
     int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_btree_count;
@@ -1840,7 +1840,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_restart;
     int64_t cursor_prev;
     int64_t cursor_truncate_fast_delete_pages;
-    int64_t cursor_truncate_fast_delete_skip_deleted;
+    int64_t cursor_truncate_fast_delete_pages_skipped_already_deleted;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;

@@ -830,7 +830,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_RESTART,
   WT_STAT_DSRC_CURSOR_PREV,
   WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES,
-  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_SKIP_DELETED,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED,
   WT_STAT_DSRC_CURSOR_REMOVE,
   WT_STAT_DSRC_CURSOR_REMOVE_BYTES,
   WT_STAT_DSRC_CURSOR_RESERVE,
@@ -1359,7 +1359,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
     stats->cursor_truncate_fast_delete_pages = 0;
-    stats->cursor_truncate_fast_delete_skip_deleted = 0;
+    stats->cursor_truncate_fast_delete_pages_skipped_already_deleted = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
     stats->cursor_reserve = 0;
@@ -1883,7 +1883,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_restart += from->cursor_restart;
     to->cursor_prev += from->cursor_prev;
     to->cursor_truncate_fast_delete_pages += from->cursor_truncate_fast_delete_pages;
-    to->cursor_truncate_fast_delete_skip_deleted += from->cursor_truncate_fast_delete_skip_deleted;
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      from->cursor_truncate_fast_delete_pages_skipped_already_deleted;
     to->cursor_remove += from->cursor_remove;
     to->cursor_remove_bytes += from->cursor_remove_bytes;
     to->cursor_reserve += from->cursor_reserve;
@@ -2466,8 +2467,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_prev += WT_STAT_DSRC_READ(from, cursor_prev);
     to->cursor_truncate_fast_delete_pages +=
       WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages);
-    to->cursor_truncate_fast_delete_skip_deleted +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_skip_deleted);
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
     to->cursor_remove += WT_STAT_DSRC_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_DSRC_READ(from, cursor_remove_bytes);
     to->cursor_reserve += WT_STAT_DSRC_READ(from, cursor_reserve);
@@ -4463,7 +4464,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CURSOR_OPEN_TIME_USER_USECS,
   WT_STAT_CONN_CURSOR_OPEN_TIME_INTERNAL_USECS,
   WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES,
-  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_SKIP_DELETED,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED,
   WT_STAT_CONN_DH_CONN_HANDLE_LAYERED_COUNT,
   WT_STAT_CONN_DH_CONN_HANDLE_TABLE_COUNT,
   WT_STAT_CONN_DH_CONN_HANDLE_BTREE_COUNT,
@@ -5610,7 +5611,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_open_time_user_usecs */
     /* not clearing cursor_open_time_internal_usecs */
     stats->cursor_truncate_fast_delete_pages = 0;
-    stats->cursor_truncate_fast_delete_skip_deleted = 0;
+    stats->cursor_truncate_fast_delete_pages_skipped_already_deleted = 0;
     /* not clearing dh_conn_handle_layered_count */
     /* not clearing dh_conn_handle_table_count */
     /* not clearing dh_conn_handle_btree_count */
@@ -6889,8 +6890,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
     to->cursor_truncate_fast_delete_pages +=
       WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_pages);
-    to->cursor_truncate_fast_delete_skip_deleted +=
-      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_skip_deleted);
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
     to->dh_conn_handle_layered_count += WT_STAT_CONN_READ(from, dh_conn_handle_layered_count);
     to->dh_conn_handle_table_count += WT_STAT_CONN_READ(from, dh_conn_handle_table_count);
     to->dh_conn_handle_btree_count += WT_STAT_CONN_READ(from, dh_conn_handle_btree_count);

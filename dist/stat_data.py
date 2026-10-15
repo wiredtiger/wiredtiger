@@ -1445,7 +1445,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_read_only_del_internal_page_skip', 'Total number of in-memory deleted internal pages of a read-only btree skipped during tree walk'),
     CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
     CursorStat('cursor_truncate_fast_delete_pages', 'range truncate fast-delete pages'),
-    CursorStat('cursor_truncate_fast_delete_skip_deleted', 'range truncate fast-delete skipped, all entries already deleted'),
+    CursorStat('cursor_truncate_fast_delete_pages_skipped_already_deleted', 'range truncate fast-delete skipped, all entries already deleted'),
 
     ##########################################
     # Cursor API error statistics
