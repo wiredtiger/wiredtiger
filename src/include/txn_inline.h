@@ -595,25 +595,19 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
 /*
  * __txn_disagg_commit_ts_check --
- *     Transactions committing layered content on a disaggregated connection must carry a commit
- *     timestamp.
+ *     Check commit timestamp requirements for layered content on a disaggregated connection.
  */
 static WT_INLINE int
 __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
 {
+    wt_timestamp_t checkpoint_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+
     /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return (0);
 
     if (!__wt_conn_is_disagg(session))
-        return (0);
-
-    /* Timestamp check is bypassed. */
-    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL) ||
-      F_ISSET(txn, WT_TXN_TS_NOT_SET))
-        return (0);
-
-    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         return (0);
 
     /* Metadata commits untimestamped by design and its transactions cannot be rolled back. */
@@ -624,7 +618,27 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
         return (0);
 
-    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+    if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+        /* These options permit an untimestamped write. */
+        if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL) ||
+          F_ISSET(txn, WT_TXN_TS_NOT_SET))
+            return (0);
+        WT_RET_MSG(
+          session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+    }
+
+    /* A follower's stable timestamp can lag the checkpoint it has adopted. */
+    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+        checkpoint_ts = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+        if (checkpoint_ts != WT_TS_NONE && txn->time_point.commit_timestamp <= checkpoint_ts)
+            WT_RET_MSG(session, EINVAL,
+              "commit timestamp %s must be after the last checkpoint timestamp %s",
+              __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[0]),
+              __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+    }
+
+    return (0);
 }
 
 /*
