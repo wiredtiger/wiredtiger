@@ -1405,6 +1405,7 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
      */
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->lsn = lsn;
+    entry->queued_time = __wt_clock(session);
     entry->meta = *meta_strp;
     *meta_strp = NULL;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
@@ -1427,6 +1428,10 @@ __disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopted_ls
 
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
     while ((entry = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL && entry->lsn <= adopted_lsn) {
+        /* An exact match is the checkpoint being adopted; older entries were superseded. */
+        if (entry->lsn == adopted_lsn)
+            WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait,
+              WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time));
         TAILQ_REMOVE(&disagg->deferred_ckpt_qh, entry, q);
         __wt_free(session, entry->meta);
         __wt_free(session, entry);
@@ -1461,6 +1466,86 @@ __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __disagg_deferred_adoptable --
+ *     Check whether the oldest deferred checkpoint has no blocking pin left. A release racing the
+ *     check can make it true for a wakeup that was not missed.
+ */
+static bool
+__disagg_deferred_adoptable(WT_SESSION_IMPL *session)
+{
+    WT_DISAGG_DEFERRED_CKPT *entry;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    uint64_t oldest_gen;
+    bool adoptable;
+
+    oldest_gen = __wt_gen_oldest(session, WT_GEN_DISAGG_CKPT);
+    adoptable = false;
+
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    if ((entry = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL)
+        adoptable =
+          entry->lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
+          oldest_gen > entry->lsn;
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+    return (adoptable);
+}
+
+/*
+ * __disagg_blocking_pin_callback --
+ *     Count the sessions whose snapshot pins a checkpoint generation at or below an LSN. The cookie
+ *     holds the LSN, then the count.
+ */
+static int
+__disagg_blocking_pin_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
+{
+    uint64_t *cookie, gen;
+
+    WT_UNUSED(session);
+    WT_UNUSED(exit_walkp);
+    cookie = (uint64_t *)cookiep;
+
+    gen = __wt_atomic_load_uint64_v_relaxed(&array_session->generations[WT_GEN_DISAGG_CKPT]);
+    if (gen != 0 && gen <= cookie[0])
+        ++cookie[1];
+    return (0);
+}
+
+/*
+ * __wti_disagg_deferred_stats_update --
+ *     Refresh the statistics describing checkpoints waiting for adoption and the sessions blocking
+ *     the oldest of them.
+ */
+void
+__wti_disagg_deferred_stats_update(WT_SESSION_IMPL *session)
+{
+    WT_DISAGG_DEFERRED_CKPT *entry;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    uint64_t blocking[2], queued, wait_ms;
+
+    blocking[0] = blocking[1] = 0;
+    queued = wait_ms = 0;
+
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
+        ++queued;
+    if ((entry = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL) {
+        blocking[0] = entry->lsn;
+        wait_ms = WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time);
+    }
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+
+    /* The oldest entry is blocked by a pin at or below its LSN. */
+    if (queued != 0)
+        WT_IGNORE_RET(
+          __wt_session_array_walk(session, __disagg_blocking_pin_callback, false, blocking));
+
+    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_queued, queued);
+    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_oldest_wait, wait_ms);
+    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_blocking_sessions, blocking[1]);
+}
+
+/*
  * __disagg_deferred_pickup_run_chk --
  *     Check to decide if the deferred pickup server should continue running.
  */
@@ -1481,7 +1566,9 @@ __disagg_deferred_pickup_server(void *arg)
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_SESSION_IMPL *session;
+    uint64_t usecs;
     int last_error;
+    bool signalled;
 
     session = arg;
     disagg = &S2C(session)->disaggregated_storage;
@@ -1493,9 +1580,18 @@ __disagg_deferred_pickup_server(void *arg)
          * adoption. While anything is queued, wake periodically as a backstop against a wakeup lost
          * to a release racing a delivery; this is not an adoption deadline.
          */
-        __wt_cond_wait(session, disagg->deferred_pickup_cond,
-          __disagg_deferred_ckpt_queued(session) ? 10 * WT_MILLION : 0,
-          __disagg_deferred_pickup_run_chk);
+        usecs = __disagg_deferred_ckpt_queued(session) ? 10 * WT_MILLION : 0;
+        __wt_cond_wait_signal(session, disagg->deferred_pickup_cond, usecs,
+          __disagg_deferred_pickup_run_chk, &signalled);
+
+        /* A timer wake that finds an adoptable checkpoint means the release signal did not land. */
+        if (signalled)
+            WT_STAT_CONN_INCR(session, disagg_pickup_server_wake_signal);
+        else if (usecs != 0 && __disagg_deferred_pickup_run_chk(session)) {
+            WT_STAT_CONN_INCR(session, disagg_pickup_server_wake_timer);
+            if (__disagg_deferred_adoptable(session))
+                WT_STAT_CONN_INCR(session, disagg_pickup_server_wake_timer_adoptable);
+        }
 
         /*
          * A conflict with a concurrent pickup (EBUSY) clears on its own, and the blockers that

@@ -77,6 +77,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     __wt_checkpoint_timer_stats(session);
     __wt_evict_stats_init(session);
     __wt_txn_stats_update(session);
+    __wti_disagg_deferred_stats_update(session);
 
     /* Update the load control statistics after the cache stats are updated. */
     __wti_conn_load_control_stats_update(session);
