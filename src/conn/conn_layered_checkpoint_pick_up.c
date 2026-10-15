@@ -1417,6 +1417,29 @@ err:
 }
 
 /*
+ * __disagg_deferred_wait_ms --
+ *     Return how long the checkpoint with the given LSN waited in the deferred queue, zero if it
+ *     was never deferred.
+ */
+static uint64_t
+__disagg_deferred_wait_ms(WT_SESSION_IMPL *session, uint64_t lsn)
+{
+    WT_DISAGG_DEFERRED_CKPT *entry;
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    uint64_t wait_ms;
+
+    wait_ms = 0;
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
+        if (entry->lsn == lsn) {
+            wait_ms = WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time);
+            break;
+        }
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+    return (wait_ms);
+}
+
+/*
  * __disagg_clear_deferred_checkpoint --
  *     Discard the deferred checkpoints covered by the given LSN.
  */
@@ -1428,10 +1451,6 @@ __disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopted_ls
 
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
     while ((entry = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL && entry->lsn <= adopted_lsn) {
-        /* An exact match is the checkpoint being adopted; older entries were superseded. */
-        if (entry->lsn == adopted_lsn)
-            WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait,
-              WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time));
         TAILQ_REMOVE(&disagg->deferred_ckpt_qh, entry, q);
         __wt_free(session, entry->meta);
         __wt_free(session, entry);
@@ -1786,6 +1805,8 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)ckpt_meta->metadata_lsn);
 
     /* The adoption satisfies any pending deferred pickup this checkpoint covers. */
+    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait,
+      __disagg_deferred_wait_ms(session, ckpt_meta->metadata_lsn));
     __disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
 
     /* Update the timestamps. */

@@ -100,6 +100,8 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
         blocking = stat.conn.disagg_checkpoint_defer_blocking_sessions
         oldest_wait = stat.conn.disagg_checkpoint_defer_oldest_wait
         adopt_wait = stat.conn.disagg_checkpoint_defer_adopt_wait
+        pinning = stat.conn.disagg_checkpoint_pinning_transactions
+        pins = stat.conn.disagg_checkpoint_pins
         pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
 
         self.session.create(self.uri, self.table_config)
@@ -119,8 +121,12 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(conn_follow, oldest_wait), 0)
 
         # Two snapshots predate the next checkpoint.
+        pins_before = self.get_stat(conn_follow, pins)
+        self.assertEqual(self.get_stat(conn_follow, pinning), 0)
         reader_a = self.begin_reader(conn_follow)
         reader_b = self.begin_reader(conn_follow)
+        self.assertEqual(self.get_stat(conn_follow, pinning), 2)
+        self.assertGreaterEqual(self.get_stat(conn_follow, pins), pins_before + 2)
 
         self.put(self.session, {'key': 'v2'}, 20)
         self.leader_checkpoint(20)
@@ -138,6 +144,7 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
         self.end_reader(reader_a)
         self.assertEqual(self.get_stat(conn_follow, queued), 1)
         self.assertEqual(self.get_stat(conn_follow, blocking), 1)
+        self.assertEqual(self.get_stat(conn_follow, pinning), 1)
 
         # Releasing the last blocker adopts the checkpoint long before the backstop timer.
         pickups_before = self.get_stat(conn_follow, pickups)
@@ -150,8 +157,16 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
 
         self.assertEqual(self.get_stat(conn_follow, queued), 0)
         self.assertEqual(self.get_stat(conn_follow, blocking), 0)
+        self.assertEqual(self.get_stat(conn_follow, pinning), 0)
         self.assertEqual(self.get_stat(conn_follow, oldest_wait), 0)
         self.assertGreaterEqual(self.get_stat(conn_follow, adopt_wait), 1000)
+
+        # A checkpoint adopted at once was never deferred, so the stat goes back to zero.
+        self.put(self.session, {'key': 'v3'}, 30)
+        self.leader_checkpoint(30)
+        self.put(session_follow, {'key': 'v3'}, 30)
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertEqual(self.get_stat(conn_follow, adopt_wait), 0)
 
         session_follow.close()
         conn_follow.close()

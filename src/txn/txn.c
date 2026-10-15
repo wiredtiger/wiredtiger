@@ -122,6 +122,7 @@ __txn_snapshot_leave_disagg(WT_SESSION_IMPL *session)
 
     if ((released_gen = __wt_session_gen(session, WT_GEN_DISAGG_CKPT)) != 0) {
         __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
+        WT_STAT_CONN_DECR(session, disagg_checkpoint_pinning_transactions);
         __wt_disagg_deferred_pickup_signal(session, released_gen);
     }
     if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
@@ -259,8 +260,11 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
      * with a delivery's generation advance: a delivery either observes the pin published here, or
      * the validation after the build observes the delivery and retries.
      */
-    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) && !session->txn->disagg_role_leader)
+    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) && !session->txn->disagg_role_leader) {
         __wt_session_gen_enter(session, WT_GEN_DISAGG_CKPT);
+        WT_STAT_CONN_INCR(session, disagg_checkpoint_pins);
+        WT_STAT_CONN_INCR(session, disagg_checkpoint_pinning_transactions);
+    }
 }
 
 /*

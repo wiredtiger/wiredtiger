@@ -1028,10 +1028,10 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_defer_queued;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
-    int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_checkpoint_meta_lsn;
+    int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_checkpoint_defer_oldest_wait;
@@ -1055,6 +1055,8 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_missing_stable_tables_created;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
+    int64_t disagg_checkpoint_pins;
+    int64_t disagg_checkpoint_pinning_transactions;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
