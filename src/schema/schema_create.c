@@ -167,6 +167,7 @@ __create_next_file_id(WT_SESSION_IMPL *session, uint32_t *fileidp)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
 
+    /* FIXME-WT-18741: Widen file IDs to 64 bits to accommodate more files. */
     const uint32_t max_file_id = UINT32_MAX >> WT_BTREE_ID_NAMESPACE_BITS;
     if (conn->next_file_id >= max_file_id)
         WT_RET_MSG(session, WT_ERROR, "out of file IDs");
