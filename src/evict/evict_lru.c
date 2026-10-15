@@ -682,7 +682,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_DECL_RET;
     WT_EVICT *evict;
     double dirty_target, dirty_trigger, target, trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, total_dirty, total_inmem,
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
       total_updates;
     uint32_t flags, hs_id;
 
@@ -774,6 +774,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         LF_SET(WT_EVICT_CACHE_DIRTY);
     }
 
+    bytes_updates = __wt_cache_bytes_updates(cache);
     if (__wti_evict_exceeded_updates_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_UPDATES | WT_EVICT_CACHE_UPDATES_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_updates_reached);
@@ -1841,15 +1842,8 @@ __evict_get_ref(
              * Racy but safe: a page enqueued concurrently is simply missed on this pass, which is
              * already true of the unlocked TAILQ_EMPTY hint on the hash chains below.
              */
-            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0) {
-#if LRU_FOR_READS
-				/*
-				 * Advance the LRU clock hand to the next bucket if this bucket is empty.
-				 */
-				__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j+1);
-#endif
+            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
                 continue;
-			}
 
             /*
              * Every bucket holds one queue per tree, in a hashtable. Walk each hash chain under
@@ -2058,17 +2052,20 @@ __evict_get_ref(
 
                         if (ref != NULL) {
 #if LRU_FOR_READS
-							/*
-							 * If we found something in this bucket, reset the LRU clock hand here
-							 * if the bucket has more items in it than the one we are about to
-							 * remove. The next thread should try and evict from this bucket.
-							 * This prevents us from advancing the LRU hand too rapidly. If another
-							 * thread had set the LRU hand to a lower bucket, leave it there. We
-							 * don't want to skip older buckets that have pages to evict.
-							 */
-							if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) > 1 &&
-								j < __wt_atomic_load_uint32_v_relaxed(&bucketset->bucket_last_considered))
-								__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+                            /*
+                             * Advance the clock hand to the bucket the victim came from, so the
+                             * next search resumes here instead of re-walking the buckets this one
+                             * stepped over. Nothing else writes this field, so without it the hand
+                             * would sit at zero and every search would start at the bottom of the
+                             * range.
+                             *
+                             * A relaxed store is enough. The hand is a hint, and searches racing
+                             * to publish slightly different positions only start each other a few
+                             * buckets early or late. Note the hand does not move while a bucket
+                             * still has evictable pages -- the scan keeps finding them at the same
+                             * index -- so a bucket drains before the sweep moves on, which is the
+                             * behaviour wanted.
+                             */
                             __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
                             goto done;
