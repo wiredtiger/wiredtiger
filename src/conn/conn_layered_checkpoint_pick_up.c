@@ -1483,58 +1483,23 @@ __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
 }
 
 /*
- * __disagg_blocking_pin_callback --
- *     Count the sessions whose snapshot pins a checkpoint generation at or below an LSN. The cookie
- *     holds the LSN, then the count.
- */
-static int
-__disagg_blocking_pin_callback(
-  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
-{
-    uint64_t *cookie, gen;
-
-    WT_UNUSED(session);
-    WT_UNUSED(exit_walkp);
-    cookie = (uint64_t *)cookiep;
-
-    gen = __wt_atomic_load_uint64_v_relaxed(&array_session->generations[WT_GEN_DISAGG_CKPT]);
-    if (gen != 0 && gen <= cookie[0])
-        ++cookie[1];
-    return (0);
-}
-
-/*
  * __wti_disagg_deferred_stats_update --
- *     Refresh the statistics describing checkpoints waiting for adoption and the sessions blocking
- *     the oldest of them.
+ *     Refresh the statistic for how long the latest deferred checkpoint has been waiting.
  */
 void
 __wti_disagg_deferred_stats_update(WT_SESSION_IMPL *session)
 {
     WT_DISAGG_DEFERRED_CKPT *entry;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    uint64_t blocking[2], queued, wait_ms;
+    uint64_t wait_ms;
 
-    blocking[0] = blocking[1] = 0;
-    queued = wait_ms = 0;
-
+    wait_ms = 0;
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
-    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
-        ++queued;
-    if ((entry = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL) {
-        blocking[0] = entry->lsn;
+    if ((entry = TAILQ_LAST(&disagg->deferred_ckpt_qh, __wt_disagg_deferred_ckpt_qh)) != NULL)
         wait_ms = WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time);
-    }
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
 
-    /* The oldest entry is blocked by a pin at or below its LSN. */
-    if (queued != 0)
-        WT_IGNORE_RET(
-          __wt_session_array_walk(session, __disagg_blocking_pin_callback, false, blocking));
-
-    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_queued, queued);
-    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_oldest_wait, wait_ms);
-    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_blocking_sessions, blocking[1]);
+    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_latest_wait, wait_ms);
 }
 
 /*

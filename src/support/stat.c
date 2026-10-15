@@ -3338,20 +3338,18 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoint metadata version of the most recently picked up checkpoint: 0 none",
   "disagg: checkpoint metadata version this binary writes",
   "disagg: checkpoint pick-ups deferred for active transaction snapshots",
-  "disagg: checkpoints delivered and awaiting adoption",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
+  "disagg: latest deferred checkpoint pick-up wait time so far (msecs)",
   "disagg: most recently adopted checkpoint metadata LSN",
   "disagg: most recently adopted checkpoint time spent deferred (msecs)",
   "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
-  "disagg: oldest deferred checkpoint pick-up wait time (msecs)",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: pick up checkpoint time at startup (msecs)",
   "disagg: role leader",
-  "disagg: sessions with a transaction snapshot blocking the oldest deferred checkpoint pick-up",
   "disagg: snapshots rebuilt after racing a checkpoint pick-up or role change",
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
@@ -3368,8 +3366,6 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up missing stable tables created",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
-  "disagg: transaction snapshots that pinned a checkpoint generation",
-  "disagg: transactions currently pinning a checkpoint generation",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -4488,20 +4484,18 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_CHECKPOINT_STORAGE_VERSION,
   WT_STAT_CONN_DISAGG_CHECKPOINT_BINARY_VERSION,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER,
-  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_QUEUED,
   WT_STAT_CONN_DISAGG_CONN_RECONFIG,
   WT_STAT_CONN_DISAGG_DATABASE_SIZE,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED,
   WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_LATEST_WAIT,
   WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED,
-  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_OLDEST_WAIT,
   WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME,
   WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP,
   WT_STAT_CONN_DISAGG_ROLE_LEADER,
-  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_BLOCKING_SESSIONS,
   WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD,
   WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING,
   WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS,
@@ -4518,8 +4512,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_TABLES_CREATED,
   WT_STAT_CONN_DISAGG_STEP_UP_TIME,
   WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES,
-  WT_STAT_CONN_DISAGG_CHECKPOINT_PINS,
-  WT_STAT_CONN_DISAGG_CHECKPOINT_PINNING_TRANSACTIONS,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
   WT_STAT_CONN_LAYERED_CURS_MODIFY,
   WT_STAT_CONN_LAYERED_CURS_NEXT,
@@ -5639,20 +5631,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_storage_version */
     /* not clearing disagg_checkpoint_binary_version */
     stats->disagg_checkpoint_defer = 0;
-    /* not clearing disagg_checkpoint_defer_queued */
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
     stats->disagg_ingest_stable_tombstone_stripped = 0;
+    /* not clearing disagg_checkpoint_defer_latest_wait */
     /* not clearing disagg_checkpoint_meta_lsn */
     stats->disagg_checkpoint_defer_adopt_wait = 0;
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
-    /* not clearing disagg_checkpoint_defer_oldest_wait */
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_pick_up_checkpoint_time_startup = 0;
     stats->disagg_role_leader = 0;
-    /* not clearing disagg_checkpoint_defer_blocking_sessions */
     stats->disagg_snapshot_rebuild = 0;
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
@@ -5669,8 +5659,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_up_missing_stable_tables_created = 0;
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
-    stats->disagg_checkpoint_pins = 0;
-    /* not clearing disagg_checkpoint_pinning_transactions */
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -6928,27 +6916,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_binary_version +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_binary_version);
     to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
-    to->disagg_checkpoint_defer_queued += WT_STAT_CONN_READ(from, disagg_checkpoint_defer_queued);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
+    to->disagg_checkpoint_defer_latest_wait +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_latest_wait);
     to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
-    to->disagg_checkpoint_defer_oldest_wait +=
-      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_oldest_wait);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_pick_up_checkpoint_time_startup +=
       WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
-    to->disagg_checkpoint_defer_blocking_sessions +=
-      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_blocking_sessions);
     to->disagg_snapshot_rebuild += WT_STAT_CONN_READ(from, disagg_snapshot_rebuild);
     to->disagg_stable_tombstone_encoding +=
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
@@ -6975,9 +6960,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_step_up_missing_stable_tables_created);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
-    to->disagg_checkpoint_pins += WT_STAT_CONN_READ(from, disagg_checkpoint_pins);
-    to->disagg_checkpoint_pinning_transactions +=
-      WT_STAT_CONN_READ(from, disagg_checkpoint_pinning_transactions);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
