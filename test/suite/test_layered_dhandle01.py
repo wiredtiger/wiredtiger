@@ -55,8 +55,8 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         return self.wiredtiger_open(
             'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
 
-    # Closed ingest handles stay listed. The flag bits shared by handles we know are
-    # open are what "open" looks like; a handle is still open when it has all of them.
+    # Closed ingest handles stay on the handle list. We sample debug handle flags and
+    # derive which bit pattern means "open" without hard-coding a generated WT_DHANDLE_* value.
     def ingest_flags(self, conn):
         self.cleanStdout()
         conn.debug_info('handles')
@@ -75,17 +75,26 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
                 name = None
         return flags
 
-    def open_bits(self, flags):
+    def open_ingest_flag_mask(self, flags):
+        # Every sampled ingest handle is open; bits set on all of them identify that state.
         self.assertGreater(len(flags), 0, 'no ingest handles to sample')
-        bits = 0xffff
+        mask = 0xffff
         for value in flags.values():
-            bits &= value
-        self.assertNotEqual(bits, 0, 'open ingest handles share no flag bits')
-        return bits
+            mask &= value
+        self.assertNotEqual(mask, 0, 'open ingest handles share no flag bits')
+        return mask
 
-    def still_open(self, flags, bits, skip=None):
-        return [name for name, value in flags.items()
-            if (skip is None or skip not in name) and value & bits == bits]
+    def open_ingest_count(self, flags, flag_mask, skip=None):
+        count = 0
+        for name, value in flags.items():
+            if skip is not None and skip in name:
+                continue
+            if value & flag_mask == flag_mask:
+                count += 1
+        return count
+
+    def ingest_is_open(self, flags, flag_mask, name):
+        return name in flags and flags[name] & flag_mask == flag_mask
 
     def assert_no_ingest_file(self, home, name):
         path = os.path.join(home, name) if home else name
@@ -141,20 +150,22 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.assert_no_ingest_file('follower', 'dh01_00000.wt_ingest')
 
         # Every table now has an open, dirty ingest btree on the follower.
-        open_bits = self.open_bits(self.ingest_flags(conn_follow))
+        open_mask = self.open_ingest_flag_mask(self.ingest_flags(conn_follow))
         self.assertGreaterEqual(
-            len(self.still_open(self.ingest_flags(conn_follow), open_bits)), ntables)
+            self.open_ingest_count(self.ingest_flags(conn_follow), open_mask), ntables)
 
         # Drive the global checkpoint timestamp past every table's
         # max_ingest_write_ts; sweep then discards the now-durable ingest btrees.
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: len(self.still_open(self.ingest_flags(conn_follow), open_bits, 'churn')) <= 5)
+            lambda: self.open_ingest_count(
+                self.ingest_flags(conn_follow), open_mask, 'churn') <= 5)
 
         # The idle ingest btrees must be reclaimed. The churn table can remain.
-        idle = self.still_open(self.ingest_flags(conn_follow), open_bits, 'churn')
-        self.assertLessEqual(len(idle), 5, 'follower ingest btrees were not reclaimed')
+        self.assertLessEqual(self.open_ingest_count(
+                self.ingest_flags(conn_follow), open_mask, 'churn'), 5,
+            'follower ingest btrees were not reclaimed')
 
         # No data was lost: every key reads back on the follower, served from the
         # stable component now that the ingest btrees are gone.
@@ -220,13 +231,15 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
 
         # Churn with checkpoints so sweep closes the idle ingest btree.
         ingest = 'file:dh01_trunc.wt_ingest'
-        open_bits = self.open_bits({ingest: self.ingest_flags(conn_follow)[ingest]})
+        open_mask = self.open_ingest_flag_mask({ingest: self.ingest_flags(conn_follow)[ingest]})
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: ingest not in self.still_open(self.ingest_flags(conn_follow), open_bits))
+            lambda: not self.ingest_is_open(
+                self.ingest_flags(conn_follow), open_mask, ingest))
 
-        self.assertNotIn(ingest, self.still_open(self.ingest_flags(conn_follow), open_bits),
+        self.assertFalse(self.ingest_is_open(
+                self.ingest_flags(conn_follow), open_mask, ingest),
             'follower ingest btree with a pending truncate was not reclaimed')
 
         # The truncate must still be reflected after the ingest btree is gone: the

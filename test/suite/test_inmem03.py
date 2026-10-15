@@ -33,12 +33,19 @@ from wiredtiger import stat
 class test_inmem03(wttest.WiredTigerTestCase):
     uri = 'file:test_inmem03.wt'
     table_config = 'key_format=i,value_format=S,in_memory=true,log=(enabled=false)'
+    disk_uri = 'file:test_inmem03_disk.wt'
+    disk_config = 'key_format=i,value_format=S,log=(enabled=false)'
 
     def data_filename(self):
         return 'test_inmem03.wt'
 
-    def block_size(self):
-        cstat = self.session.open_cursor('statistics:' + self.uri, None, 'statistics=(all)')
+    def disk_data_filename(self):
+        return 'test_inmem03_disk.wt'
+
+    def block_size(self, uri=None):
+        if uri is None:
+            uri = self.uri
+        cstat = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
         sz = cstat[stat.dsrc.block_size][2]
         cstat.close()
         return sz
@@ -56,6 +63,15 @@ class test_inmem03(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         self.assertEqual(cursor[1], 'abc')
         cursor.close()
+
+    def test_on_disk_block_size_after_checkpoint(self):
+        self.session.create(self.disk_uri, self.disk_config)
+        cursor = self.session.open_cursor(self.disk_uri)
+        cursor[1] = 'abc'
+        cursor.close()
+        self.session.checkpoint()
+        self.assertTrue(os.path.exists(self.disk_data_filename()))
+        self.assertGreater(self.block_size(self.disk_uri), 0)
 
     def test_reopen_no_data_file(self):
         self.session.create(self.uri, self.table_config)
