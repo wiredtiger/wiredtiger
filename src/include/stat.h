@@ -1029,7 +1029,6 @@ struct __wt_connection_stats {
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_ingest_stable_tombstone_stripped;
-    int64_t disagg_checkpoint_defer_latest_wait;
     int64_t disagg_checkpoint_meta_lsn;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_checkpoint_delivered_lsn;

@@ -1417,27 +1417,6 @@ err:
 }
 
 /*
- * __disagg_record_deferred_wait --
- *     Record how long the checkpoint with the given LSN waited in the deferred queue. A checkpoint
- *     that was adopted without being deferred leaves the statistic unchanged.
- */
-static void
-__disagg_record_deferred_wait(WT_SESSION_IMPL *session, uint64_t lsn)
-{
-    WT_DISAGG_DEFERRED_CKPT *entry;
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-
-    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
-    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q)
-        if (entry->lsn == lsn) {
-            WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait,
-              WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time));
-            break;
-        }
-    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
-}
-
-/*
  * __disagg_clear_deferred_checkpoint --
  *     Discard the deferred checkpoints covered by the given LSN.
  */
@@ -1480,26 +1459,6 @@ __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
     return (!TAILQ_EMPTY(&disagg->deferred_ckpt_qh));
-}
-
-/*
- * __wti_disagg_deferred_stats_update --
- *     Refresh the statistic for how long the latest deferred checkpoint has been waiting.
- */
-void
-__wti_disagg_deferred_stats_update(WT_SESSION_IMPL *session)
-{
-    WT_DISAGG_DEFERRED_CKPT *entry;
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    uint64_t wait_ms;
-
-    wait_ms = 0;
-    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
-    if ((entry = TAILQ_LAST(&disagg->deferred_ckpt_qh, __wt_disagg_deferred_ckpt_qh)) != NULL)
-        wait_ms = WT_CLOCKDIFF_MS(__wt_clock(session), entry->queued_time);
-    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
-
-    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_latest_wait, wait_ms);
 }
 
 /*
@@ -1663,7 +1622,8 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
  *     behind an adoption. Returns WT_NOTFOUND when no entry may be adopted.
  */
 static int
-__disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp)
+__disagg_deferred_copy(
+  WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp, uint64_t *wait_msp)
 {
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *selected;
@@ -1672,6 +1632,7 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
+    *wait_msp = 0;
 
     /*
      * The oldest pin decides the whole queue, so scan the sessions once, before taking the queue
@@ -1692,6 +1653,7 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
         ret = WT_NOTFOUND;
     else {
         *lsnp = selected->lsn;
+        *wait_msp = WT_CLOCKDIFF_MS(__wt_clock(session), selected->queued_time);
         /*
          * Copy the metadata: the adoption runs without this lock, and a concurrent adoption's
          * pruning may free the entry meanwhile.
@@ -1712,16 +1674,18 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 {
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    uint64_t deferred_lsn;
+    uint64_t deferred_lsn, wait_ms;
     char *meta_copy = NULL;
 
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
     /* Having nothing to adopt is the common case, not a failure. */
-    ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn);
+    ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn, &wait_ms);
     if (ret == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
+
+    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, (int64_t)wait_ms);
 
     ret = __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy));
 
@@ -1768,7 +1732,6 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)ckpt_meta->metadata_lsn);
 
     /* The adoption satisfies any pending deferred pickup this checkpoint covers. */
-    __disagg_record_deferred_wait(session, ckpt_meta->metadata_lsn);
     __disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
 
     /* Update the timestamps. */
@@ -2202,6 +2165,9 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
         __wt_disagg_deferred_pickup_signal(session, 0);
         goto err;
     }
+    /* A checkpoint adopted without being deferred has no deferral wait. */
+    if (!superseded_ok)
+        WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, 0);
 
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
