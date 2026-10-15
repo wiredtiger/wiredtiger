@@ -1093,7 +1093,9 @@ dsrc_stats = [
     BlockStat('block_magic', 'file magic number', 'max_aggregate,no_scale'),
     BlockStat('block_major', 'file major version number', 'max_aggregate,no_scale'),
     BlockStat('block_minor', 'minor version number', 'max_aggregate,no_scale'),
+    BlockStat('block_reuse_buckets', 'available extent list by-size buckets', 'no_scale'),
     BlockStat('block_reuse_bytes', 'file bytes available for reuse', 'no_scale,size'),
+    BlockStat('block_reuse_entries', 'available extent list entries', 'no_scale'),
     BlockStat('block_size', 'file size in bytes', 'no_scale,size'),
 
     ##########################################

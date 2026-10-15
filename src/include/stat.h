@@ -1549,6 +1549,8 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
     int64_t block_extension;
+    int64_t block_reuse_buckets;
+    int64_t block_reuse_entries;
     int64_t block_alloc;
     int64_t block_free;
     int64_t block_checkpoint_size;

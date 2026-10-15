@@ -19,6 +19,8 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
   "block-manager: allocations requiring file extension",
+  "block-manager: available extent list by-size buckets",
+  "block-manager: available extent list entries",
   "block-manager: blocks allocated",
   "block-manager: blocks freed",
   "block-manager: checkpoint size",
@@ -539,6 +541,8 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_DISAGG_BLOCK_HS_PUT,
   WT_STAT_DSRC_DISAGG_BLOCK_READ_AHEAD_FRONTIER,
   WT_STAT_DSRC_BLOCK_EXTENSION,
+  WT_STAT_DSRC_BLOCK_REUSE_BUCKETS,
+  WT_STAT_DSRC_BLOCK_REUSE_ENTRIES,
   WT_STAT_DSRC_BLOCK_ALLOC,
   WT_STAT_DSRC_BLOCK_FREE,
   WT_STAT_DSRC_BLOCK_CHECKPOINT_SIZE,
@@ -1072,6 +1076,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->disagg_block_hs_put = 0;
     stats->disagg_block_read_ahead_frontier = 0;
     stats->block_extension = 0;
+    stats->block_reuse_buckets = 0;
+    stats->block_reuse_entries = 0;
     stats->block_alloc = 0;
     stats->block_free = 0;
     stats->block_checkpoint_size = 0;
@@ -1561,6 +1567,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->disagg_block_hs_put += from->disagg_block_hs_put;
     to->disagg_block_read_ahead_frontier += from->disagg_block_read_ahead_frontier;
     to->block_extension += from->block_extension;
+    to->block_reuse_buckets += from->block_reuse_buckets;
+    to->block_reuse_entries += from->block_reuse_entries;
     to->block_alloc += from->block_alloc;
     to->block_free += from->block_free;
     to->block_checkpoint_size += from->block_checkpoint_size;
@@ -2102,6 +2110,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->disagg_block_read_ahead_frontier +=
       WT_STAT_DSRC_READ(from, disagg_block_read_ahead_frontier);
     to->block_extension += WT_STAT_DSRC_READ(from, block_extension);
+    to->block_reuse_buckets += WT_STAT_DSRC_READ(from, block_reuse_buckets);
+    to->block_reuse_entries += WT_STAT_DSRC_READ(from, block_reuse_entries);
     to->block_alloc += WT_STAT_DSRC_READ(from, block_alloc);
     to->block_free += WT_STAT_DSRC_READ(from, block_free);
     to->block_checkpoint_size += WT_STAT_DSRC_READ(from, block_checkpoint_size);

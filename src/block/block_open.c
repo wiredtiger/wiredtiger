@@ -425,6 +425,9 @@ err:
 void
 __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
 {
+    uint64_t bytes;
+    uint32_t buckets, entries;
+
     /*
      * Reading from the live system's structure normally requires locking, but it's an 8B statistics
      * read, there's no need.
@@ -434,9 +437,17 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
     WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
     WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
-    WT_STAT_WRITE(session, stats, block_reuse_bytes,
-      (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes)));
     WT_STAT_WRITE(session, stats, block_size, block->size);
+
+    __wt_spin_lock(session, &block->live_lock);
+    bytes = block->live.avail.bytes;
+    entries = block->live.avail.entries;
+    buckets = block->live.avail.size_buckets;
+    __wt_spin_unlock(session, &block->live_lock);
+
+    WT_STAT_WRITE(session, stats, block_reuse_bytes, (int64_t)bytes);
+    WT_STAT_WRITE(session, stats, block_reuse_entries, (int64_t)entries);
+    WT_STAT_WRITE(session, stats, block_reuse_buckets, (int64_t)buckets);
 }
 
 /*
