@@ -1002,6 +1002,10 @@ struct __wt_connection_stats {
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
+    int64_t cursor_truncate_fast_delete_fallback_in_memory;
+    int64_t cursor_truncate_fast_delete_fallback_pages;
+    int64_t cursor_truncate_internal_bytes_dirtied;
+    int64_t cursor_truncate_internal_pages_dirtied;
     int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_btree_count;
@@ -1406,6 +1410,8 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_fail;
     int64_t session_table_create_import_repair;
     int64_t session_table_create_import_success;
+    int64_t session_table_drop_deferred_applied;
+    int64_t session_table_drop_deferred;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
     int64_t session_table_publish_fail;
@@ -1837,6 +1843,10 @@ struct __wt_dsrc_stats {
     int64_t cursor_open_time_internal_usecs;
     int64_t cursor_restart;
     int64_t cursor_prev;
+    int64_t cursor_truncate_fast_delete_fallback_in_memory;
+    int64_t cursor_truncate_fast_delete_fallback_pages;
+    int64_t cursor_truncate_internal_bytes_dirtied;
+    int64_t cursor_truncate_internal_pages_dirtied;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;

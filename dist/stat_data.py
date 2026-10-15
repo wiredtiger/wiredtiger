@@ -971,6 +971,8 @@ conn_stats = [
     SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_deferred', 'table drop deferred operations pending', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_deferred_applied', 'table drop deferred operations applied', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_publish_fail', 'table publish failed calls', 'no_clear,no_scale'),
@@ -1442,6 +1444,10 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_read_only_del_internal_page_skip', 'Total number of in-memory deleted internal pages of a read-only btree skipped during tree walk'),
     CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
+    CursorStat('cursor_truncate_fast_delete_fallback_in_memory', 'range truncate fast-delete candidates in memory or busy'),
+    CursorStat('cursor_truncate_fast_delete_fallback_pages', 'range truncate fast-delete candidates rejected'),
+    CursorStat('cursor_truncate_internal_bytes_dirtied', 'range truncate internal page bytes newly dirtied', 'size'),
+    CursorStat('cursor_truncate_internal_pages_dirtied', 'range truncate internal pages newly dirtied'),
 
     ##########################################
     # Cursor API error statistics
