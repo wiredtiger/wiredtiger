@@ -1002,6 +1002,12 @@ struct __wt_connection_stats {
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
+    int64_t cursor_truncate_fast_delete_fallback_in_memory;
+    int64_t cursor_truncate_fast_delete_fallback_pages;
+    int64_t cursor_truncate_fast_delete_pages;
+    int64_t cursor_truncate_fast_delete_pages_skipped_already_deleted;
+    int64_t cursor_truncate_internal_bytes_dirtied;
+    int64_t cursor_truncate_internal_pages_dirtied;
     int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_btree_count;
@@ -1313,8 +1319,6 @@ struct __wt_connection_stats {
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
-    int64_t rec_page_delete_fast_skip_deleted;
-    int64_t rec_page_delete_fast;
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_shared_hs_internal;
@@ -1840,6 +1844,12 @@ struct __wt_dsrc_stats {
     int64_t cursor_open_time_internal_usecs;
     int64_t cursor_restart;
     int64_t cursor_prev;
+    int64_t cursor_truncate_fast_delete_fallback_in_memory;
+    int64_t cursor_truncate_fast_delete_fallback_pages;
+    int64_t cursor_truncate_fast_delete_pages;
+    int64_t cursor_truncate_fast_delete_pages_skipped_already_deleted;
+    int64_t cursor_truncate_internal_bytes_dirtied;
+    int64_t cursor_truncate_internal_pages_dirtied;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;
@@ -1910,8 +1920,6 @@ struct __wt_dsrc_stats {
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
     int64_t rec_dictionary;
-    int64_t rec_page_delete_fast_skip_deleted;
-    int64_t rec_page_delete_fast;
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_shared_hs_internal;
