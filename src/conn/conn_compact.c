@@ -356,10 +356,6 @@ __wt_background_compact_start(WT_SESSION_IMPL *session)
     return (0);
 
 err:
-    /*
-     * Only a newly allocated entry is ours to free: an entry that was already being tracked belongs
-     * to the list. The uri is NULL if the allocation that failed was the entry itself.
-     */
     if (new_stat) {
         if (compact_stat != NULL)
             __wt_free(session, compact_stat->uri);
