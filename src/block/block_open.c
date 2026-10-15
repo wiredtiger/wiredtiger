@@ -129,6 +129,21 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
 }
 
 /*
+ * __wt_block_first_fit_config --
+ *     Configure the bound on relaxed first-fit allocation searches.
+ */
+int
+__wt_block_first_fit_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "block_first_fit_bucket_cap", &cval));
+    __wt_atomic_store_uint64_relaxed(&S2C(session)->block_first_fit_bucket_cap, (uint64_t)cval.val);
+
+    return (0);
+}
+
+/*
  * __wt_block_open --
  *     Open a block handle.
  */

@@ -205,6 +205,8 @@ extern int __wt_block_disagg_manager_create(WT_SESSION_IMPL *session, const char
 extern int __wt_block_disagg_manager_open(WT_SESSION_IMPL *session, const char *uri,
   const char *cfg[], bool forced_salvage, bool readonly, WT_BM **bmp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_first_fit_config(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename,
@@ -1277,7 +1279,7 @@ extern int __wti_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, WT_ITEM *
 extern int __wti_blkcache_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region,
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp,
-  wt_off_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  wt_off_t size, wt_off_t relax_limit) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_checkpoint_final(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
@@ -1412,7 +1414,7 @@ extern int __wti_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_of
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
   wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
-  bool caller_locked) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool caller_locked, bool strict_first_fit) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_btcur_bounds_position(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next,
@@ -2015,6 +2017,8 @@ extern void __wti_txn_clear_durable_timestamp(WT_SESSION_IMPL *session);
 extern void __wti_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
 extern void __wti_txn_get_pinned_timestamp(
   WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags);
+extern wt_off_t __wti_block_compact_relax_limit(WT_SESSION_IMPL *session, WT_BLOCK *block)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE WT_BTREE *__wt_curhs_get_btree(WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE WT_CELL *__wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
@@ -2750,8 +2754,8 @@ extern bool __ut_block_bitflip_detect(void *data, size_t check_size, uint32_t ex
   size_t *bit_position) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_disagg_header_version_compatible(uint8_t compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size,
-  WT_EXT ***stack) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size,
+  wt_off_t limit, WT_EXT ***stack) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_off_match(WT_EXTLIST *el, wt_off_t off, wt_off_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int WT_CDECL __ut_txn_mod_compare(const void *a, const void *b)

@@ -69,6 +69,7 @@ else()
         block/unit/test_block_session_ext.cpp
         block/unit/test_block_session_size.cpp
         block/unit/test_extent_list.cpp
+        block/unit/test_extent_list_first_fit_relax.cpp
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp

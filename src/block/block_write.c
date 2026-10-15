@@ -202,7 +202,7 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
     WT_UNUSED(block_meta);
 
     WT_RET(__wti_block_write_off(
-      session, block, buf, &offset, &size, &checksum, data_checksum, checkpoint_io, false));
+      session, block, buf, &offset, &size, &checksum, data_checksum, checkpoint_io, false, false));
 
     endp = addr;
     WT_RET(__wt_block_addr_pack(block, &endp, block->objectid, offset, size, checksum));
@@ -217,7 +217,8 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
  */
 static int
 __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
-  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked)
+  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked,
+  bool strict_first_fit)
 {
     WT_BLOCK_HEADER *blk;
     WT_DECL_RET;
@@ -273,7 +274,14 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
         __wt_spin_lock(session, &block->live_lock);
         local_locked = true;
     }
-    ret = __wti_block_alloc(session, block, &offset, (wt_off_t)align_size);
+    /*
+     * Checkpoint root pages and extent lists always take the strictly lowest offset, which keeps
+     * checkpoint metadata as early in the file as possible and preserves the opportunity to
+     * truncate the tail. Everything else may stop the search early while compaction is relocating
+     * pages out of the end of the file; see __block_first_srch.
+     */
+    ret = __wti_block_alloc(session, block, &offset, (wt_off_t)align_size,
+      strict_first_fit ? 0 : __wti_block_compact_relax_limit(session, block));
     if (ret == 0)
         ret = __block_extend(session, block, fh, offset, align_size, &local_locked);
     if (local_locked)
@@ -379,10 +387,14 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 /*
  * __wti_block_write_off --
  *     Write a buffer into a block, returning the block's offset, size and checksum.
+ *
+ * Set "strict_first_fit" for checkpoint root pages and extent lists: those allocations must take
+ *     the lowest offset available so that checkpoint metadata stays at the front of the file.
  */
 int
 __wti_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
-  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked)
+  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked,
+  bool strict_first_fit)
 {
     WT_DECL_RET;
 
@@ -392,8 +404,8 @@ __wti_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, w
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    ret = __block_write_off(
-      session, block, buf, offsetp, sizep, checksump, data_checksum, checkpoint_io, caller_locked);
+    ret = __block_write_off(session, block, buf, offsetp, sizep, checksump, data_checksum,
+      checkpoint_io, caller_locked, strict_first_fit);
     __wt_page_header_byteswap(buf->mem);
     return (ret);
 }

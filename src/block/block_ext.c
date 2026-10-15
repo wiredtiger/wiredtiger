@@ -27,6 +27,7 @@ static int __block_ext_overlap(
   WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, WT_EXT **, WT_EXTLIST *, WT_EXT **);
 static int __block_extlist_dump_buckets(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
+static WT_INLINE void __block_size_srch(WT_SIZE **, wt_off_t, WT_SIZE ***);
 
 /*
  * __block_off_srch_last --
@@ -88,30 +89,84 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 
 /*
  * __block_first_srch --
- *     Search the skiplist for the first available slot.
+ *     Search an extent list for the lowest-offset extent that is at least the requested size.
+ *
+ * When "limit" is non-zero the search is allowed to stop early: once it has inspected the
+ *     configured number of buckets and holds a candidate that fits entirely before "limit", it
+ *     returns that candidate rather than the strictly lowest offset. Callers pass a limit only
+ *     while compaction is relocating pages out of the end of the file, and never for checkpoint
+ *     root pages or extent lists; see __wti_block_compact_relax_limit.
  */
 static WT_INLINE bool
-__block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__block_first_srch(
+  WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size, wt_off_t limit, WT_EXT ***stack)
 {
     WT_EXT *ext;
-    uint64_t time_start = __wt_clock(session);
+    WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
+    uint64_t buckets, cap, time_start, time_stop;
+    bool relaxed;
+
+    relaxed = false;
+    time_start = __wt_clock(session);
 
     /*
-     * Linear walk of the available chunks in offset order; take the first one that's large enough.
+     * The lowest-offset extent is the first-fit answer whenever it is large enough; check it first
+     * so the common case does not walk the size list.
      */
-    WT_EXT_FOREACH (ext, head)
-        if (ext->size >= size)
-            break;
+    ext = el->off[0];
+    if (ext == NULL || ext->size < size) {
+        /*
+         * Otherwise take the lowest offset among the size buckets that can satisfy the request.
+         * Each bucket holds extents of one exact size, sorted by offset, so a bucket's head is its
+         * lowest offset. This walks the distinct sizes rather than every extent.
+         */
+        __block_size_srch(el->sz, size, sstack);
+        if ((szp = *sstack[0]) == NULL) {
+            ext = NULL;
+            goto done;
+        }
 
-    uint64_t time_stop = __wt_clock(session);
-    uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
-    WT_STAT_CONN_SET(session, block_first_srch_walk_time, elapsed);
+        /*
+         * Bound the work done under the live lock when the caller allows it. Compaction only needs
+         * an extent in the region it is trying to empty, so stop once the best candidate so far is
+         * good enough. The result is then no longer guaranteed to be the lowest offset, so record
+         * how often this happens instead of letting it go unnoticed.
+         *
+         * A caller that passes no limit is not allowing this: zero the cap so that a configured
+         * value cannot relax a search that has to run to completion.
+         */
+        cap = limit == 0 ?
+          0 :
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->block_first_fit_bucket_cap);
+
+        ext = szp->off[0];
+        for (buckets = 1, szp = szp->next[0]; szp != NULL; ++buckets, szp = szp->next[0]) {
+            /*
+             * Check the cap before folding in another bucket, so that a cap of N inspects exactly N
+             * buckets. The candidate has to end before the limit as well as start before it, or
+             * part of the block would land inside the region being emptied; that is written as a
+             * subtraction to keep the sum of an offset and a size out of the comparison.
+             */
+            if (cap != 0 && buckets >= cap && ext->off < limit && size <= limit - ext->off) {
+                relaxed = true;
+                break;
+            }
+            if (szp->off[0]->off < ext->off)
+                ext = szp->off[0];
+        }
+    }
+
+done:
+    time_stop = __wt_clock(session);
+    WT_STAT_CONN_SET(session, block_first_srch_walk_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    if (relaxed)
+        WT_STAT_CONN_INCR(session, block_first_srch_bucket_cap_relaxed);
 
     if (ext == NULL)
         return (false);
 
     /* Build a stack for the offset we want. */
-    __block_off_srch(head, ext->off, stack, false);
+    __block_off_srch(el->off, ext->off, stack, false);
     return (true);
 }
 
@@ -539,9 +594,16 @@ __block_extend(
 /*
  * __wti_block_alloc --
  *     Alloc a chunk of space from the underlying file.
+ *
+ * A non-zero "relax_limit" lets a first-fit search stop early once it holds a candidate that fits
+ *     entirely before that offset; see __block_first_srch. It is the start of the region compaction
+ *     is emptying, so any write to a file with a compaction in progress may pass one. Checkpoint
+ *     root pages and extent lists always pass zero, keeping the strict lowest-offset guarantee for
+ *     checkpoint metadata.
  */
 int
-__wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
+__wti_block_alloc(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size, wt_off_t relax_limit)
 {
     WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
     WT_EXTLIST *el;
@@ -549,6 +611,11 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
 
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
+    /* Only compaction relaxes a search, and only up to a point at or before the end of the file. */
+    WT_ASSERT(session,
+      relax_limit == 0 ||
+        (block->compact_pct_tenths > 0 && relax_limit > 0 && relax_limit <= block->size));
 
     /* If a sync is running, no other sessions can allocate blocks. */
     WT_ASSERT(session, WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session));
@@ -565,7 +632,8 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
 
     /*
      * Allocation is either first-fit (lowest offset), or best-fit (best size). If it's first-fit,
-     * walk the offset list linearly until we find an entry that will work.
+     * take the lowest-offset entry that will work, searching the by-size list rather than walking
+     * the offset list so the cost does not grow with the number of extents.
      *
      * If it's best-fit by size, search the by-size skiplist for the size and take the first entry
      * on the by-size offset list. This means we prefer best-fit over lower offset, but within a
@@ -576,7 +644,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        if (!__block_first_srch(session, block->live.avail.off, size, estack))
+        if (!__block_first_srch(session, &block->live.avail, size, relax_limit, estack))
             goto append;
         ext = *estack[0];
     } else {
@@ -1329,7 +1397,7 @@ __wti_block_extlist_write(
 
     /* Write the extent list to disk. */
     WT_ERR(__wti_block_write_off(
-      session, block, tmp, &el->offset, &el->size, &el->checksum, true, true, true));
+      session, block, tmp, &el->offset, &el->size, &el->checksum, true, true, true, true));
     el->objectid = block->objectid;
 
     /*
@@ -1618,9 +1686,10 @@ __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 }
 
 bool
-__ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__ut_block_first_srch(
+  WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size, wt_off_t limit, WT_EXT ***stack)
 {
-    return (__block_first_srch(session, head, size, stack));
+    return (__block_first_srch(session, el, size, limit, stack));
 }
 
 void
