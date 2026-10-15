@@ -50,6 +50,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
+    sweep_timeout = 60
 
     def open_follower(self):
         return self.wiredtiger_open(
@@ -96,29 +97,50 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
     def ingest_is_open(self, flags, flag_mask, name):
         return name in flags and flags[name] & flag_mask == flag_mask
 
+    def wait_for_open_ingest_count(self, conn, minimum, skip=None):
+        deadline = time.time() + self.sweep_timeout
+        while time.time() < deadline:
+            flags = self.ingest_flags(conn)
+            if len(flags) == 0:
+                time.sleep(0.1)
+                continue
+            open_mask = self.open_ingest_flag_mask(flags)
+            if self.open_ingest_count(flags, open_mask, skip) >= minimum:
+                return open_mask
+            time.sleep(0.1)
+        self.fail('expected at least %d open ingest handles on the follower' % minimum)
+
     def assert_no_ingest_file(self, home, name):
         path = os.path.join(home, name) if home else name
         self.assertFalse(os.path.exists(path), path + ' should not exist')
 
-    # One checkpoint several logical seconds past the idle writes, then poll
-    # until sweep closes them. The scan interval cannot be shorter than a second.
+    # Advance the global checkpoint timestamp by writing to a churn table at
+    # successive whole-second timestamps and taking leader checkpoints the follower
+    # picks up, until the predicate holds or we run out of patience. The churn must
+    # push the checkpoint timestamp past each idle table's max_ingest_write_ts.
+    #
+    # We step the high 32 bits (the seconds field of a MongoDB <seconds:increment>
+    # timestamp) so the checkpoint timestamp crosses second boundaries. That matters
+    # because of the reduced-contention way that ingest btrees store timestamps that
+    # indicate when they can be closed.
     def churn_until(self, churn_uri, sfollow, conn_follow, predicate):
-        ts = (5 << 32) + 1
-        cl = self.session.open_cursor(churn_uri)
-        cf = sfollow.open_cursor(churn_uri)
-        with self.transaction(commit_timestamp=ts):
-            cl[1] = 'churn'
-        with self.transaction(session=sfollow, commit_timestamp=ts):
-            cf[1] = 'churn'
-        cl.close()
-        cf.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
-        deadline = time.time() + 8
-        while not predicate():
-            self.assertLess(time.time(), deadline, 'sweep did not reclaim the ingest btrees')
-            time.sleep(0.1)
+        for second in range(1, 41):
+            ts = (second << 32) + 1
+            cl = self.session.open_cursor(churn_uri)
+            cf = sfollow.open_cursor(churn_uri)
+            with self.transaction(commit_timestamp=ts):
+                cl[second] = 'churn'
+            with self.transaction(session=sfollow, commit_timestamp=ts):
+                cf[second] = 'churn'
+            cl.close()
+            cf.close()
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
+            self.session.checkpoint()
+            self.disagg_advance_checkpoint(conn_follow)
+            time.sleep(1)
+            if predicate():
+                return
+        self.fail('sweep did not reclaim the ingest btrees')
 
     def test_ingest_reclaimed(self):
         ntables = 60
@@ -150,9 +172,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.assert_no_ingest_file('follower', 'dh01_00000.wt_ingest')
 
         # Every table now has an open, dirty ingest btree on the follower.
-        open_mask = self.open_ingest_flag_mask(self.ingest_flags(conn_follow))
-        self.assertGreaterEqual(
-            self.open_ingest_count(self.ingest_flags(conn_follow), open_mask), ntables)
+        open_mask = self.wait_for_open_ingest_count(conn_follow, ntables)
 
         # Drive the global checkpoint timestamp past every table's
         # max_ingest_write_ts; sweep then discards the now-durable ingest btrees.
