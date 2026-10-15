@@ -159,14 +159,15 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(conn_follow, blocking), 0)
         self.assertEqual(self.get_stat(conn_follow, pinning), 0)
         self.assertEqual(self.get_stat(conn_follow, oldest_wait), 0)
-        self.assertGreaterEqual(self.get_stat(conn_follow, adopt_wait), 1000)
+        deferred_wait = self.get_stat(conn_follow, adopt_wait)
+        self.assertGreaterEqual(deferred_wait, 1000)
 
-        # A checkpoint adopted at once was never deferred, so the stat goes back to zero.
+        # A checkpoint adopted at once was never deferred, so the statistic is left alone.
         self.put(self.session, {'key': 'v3'}, 30)
         self.leader_checkpoint(30)
         self.put(session_follow, {'key': 'v3'}, 30)
         self.disagg_advance_checkpoint(conn_follow)
-        self.assertEqual(self.get_stat(conn_follow, adopt_wait), 0)
+        self.assertEqual(self.get_stat(conn_follow, adopt_wait), deferred_wait)
 
         session_follow.close()
         conn_follow.close()
