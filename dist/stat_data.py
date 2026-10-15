@@ -1444,6 +1444,8 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_read_only_del_internal_page_skip', 'Total number of in-memory deleted internal pages of a read-only btree skipped during tree walk'),
     CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
+    CursorStat('cursor_truncate_fast_delete_pages', 'range truncate fast-delete pages'),
+    CursorStat('cursor_truncate_fast_delete_skip_deleted', 'range truncate fast-delete skipped, all entries already deleted'),
 
     ##########################################
     # Cursor API error statistics
@@ -1552,8 +1554,6 @@ conn_dsrc_stats = [
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
-    RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
-    RecStat('rec_page_delete_fast_skip_deleted', 'fast-path page deletion skipped, all entries already deleted'),
     RecStat('rec_page_delta_eligible', 'pages eligible for delta generation'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
     RecStat('rec_page_delta_internal_key_deleted', 'internal page delta keys deleted'),
