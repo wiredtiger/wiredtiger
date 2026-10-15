@@ -1228,6 +1228,12 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
       layered_table->last_ckpt_inuse, ckpt_inuse);
 
     /*
+     * Prune the truncate list before the new prune timestamp is published, so garbage collection
+     * never runs ahead of the entries still masking ingest content.
+     */
+    __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
+
+    /*
      * The prune timestamp should be monotonically increasing. It is fine for the user to read the
      * obsolete value. Therefore, no synchronization is required.
      */
