@@ -619,6 +619,33 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
 #endif /* HAVE_DIAGNOSTIC */
 
 /*
+ * __disagg_check_stable_config --
+ *     Assert at startup that stable metadata records block_manager=disagg. This detects file
+ *     configuration stripped during earlier step-ups.
+ */
+static int
+__disagg_check_stable_config(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    const char *uri;
+    WT_RET(cursor->get_key(cursor, &uri));
+    if (!WT_SUFFIX_MATCH(uri, ".wt_stable") || WT_DISAGG_URI_IS_SYSTEM(uri))
+        return (0);
+
+    const char *value;
+    WT_RET(cursor->get_value(cursor, &value));
+
+    WT_CONFIG_ITEM cval;
+    WT_RET_MSG_CHK(session, __wt_config_getones(session, value, "block_manager", &cval),
+      "Missing or malformed block_manager in shared stable metadata for \"%s\"", uri);
+
+    WT_ASSERT_ALWAYS(session, WT_CONFIG_LIT_MATCH("disagg", cval),
+      "Shared stable metadata for \"%s\" has block_manager=\"%.*s\", expected \"disagg\"", uri,
+      (int)cval.len, cval.str);
+
+    return (0);
+}
+
+/*
  * __disagg_check_meta_identity --
  *     Compare the btree id of a file entry present in both the local and the shared metadata.
  */
@@ -1051,6 +1078,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 }
             }
         }
+
+        if (is_startup && sh_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_FILE])
+            WT_ERR(__disagg_check_stable_config(session, sh_cursors[WT_DISAGG_CURSOR_FILE]));
 
 #ifdef HAVE_DIAGNOSTIC
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
