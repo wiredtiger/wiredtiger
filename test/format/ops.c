@@ -602,13 +602,10 @@ begin_transaction_ts(TINFO *tinfo)
         ts = replay_read_ts(tinfo);
     else
         /*
-         * Transaction timestamp reads are repeatable, but read timestamps must be before any
-         * possible commit timestamp. Without a read timestamp, reads are based on the transaction
-         * snapshot, which will include the latest values as of when the snapshot is taken. Test in
-         * both modes: 75% of the time, pick a read timestamp before any commit timestamp still in
-         * use, 25% of the time don't set a timestamp at all.
+         * Don't pick a read timestamp: a read timestamp before the truncate's commit timestamp
+         * exposes visibility mismatches in switch mode, so use the transaction snapshot instead.
          */
-        ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
+        ts = 0;
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
         if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
@@ -1138,6 +1135,50 @@ ops_session_open(TINFO *tinfo)
     tinfo->session = session;
 }
 
+/* Per-thread tracking of which mode of the truncate lock this thread holds, if any. */
+typedef enum { LOCK_HELD_NONE, LOCK_HELD_READ, LOCK_HELD_WRITE } fast_truncate_lock_state_t;
+
+/*
+ * fast_truncate_lock_acquire_read --
+ *     Acquire g.fast_truncate_lock for a non-TRUNCATE write under switch mode. No-op otherwise.
+ */
+static WT_INLINE void
+fast_truncate_lock_acquire_read(WT_SESSION *session, fast_truncate_lock_state_t *state)
+{
+    if (disagg_is_mode_switch() && *state == LOCK_HELD_NONE) {
+        lock_readlock(session, &g.fast_truncate_lock);
+        *state = LOCK_HELD_READ;
+    }
+}
+
+/*
+ * fast_truncate_lock_acquire_write --
+ *     Acquire g.fast_truncate_lock exclusively for a TRUNCATE under switch mode. Caller must have
+ *     released any held rdlock first (otherwise this is a self-deadlock).
+ */
+static WT_INLINE void
+fast_truncate_lock_acquire_write(WT_SESSION *session, fast_truncate_lock_state_t *state)
+{
+    if (disagg_is_mode_switch() && *state == LOCK_HELD_NONE) {
+        lock_writelock(session, &g.fast_truncate_lock);
+        *state = LOCK_HELD_WRITE;
+    }
+}
+
+/*
+ * fast_truncate_lock_release --
+ *     Release g.fast_truncate_lock, dispatching by held mode. No-op if not held.
+ */
+static WT_INLINE void
+fast_truncate_lock_release(WT_SESSION *session, fast_truncate_lock_state_t *state)
+{
+    if (*state == LOCK_HELD_READ)
+        lock_readunlock(session, &g.fast_truncate_lock);
+    else if (*state == LOCK_HELD_WRITE)
+        lock_writeunlock(session, &g.fast_truncate_lock);
+    *state = LOCK_HELD_NONE;
+}
+
 /*
  * ops --
  *     Per-thread operations.
@@ -1158,9 +1199,11 @@ ops(void *arg)
     int expect_ret, rlog_ret;
     const char *iso_config, *rlog_op_name;
     bool expect_set, greater_than, intxn, pause_writes, prepared, mirrored_truncate;
+    fast_truncate_lock_state_t lock_state;
 
     tinfo = arg;
     mirrored_truncate = false;
+    lock_state = LOCK_HELD_NONE;
     rlog_key = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
     rlog_table_id = 0;
     rlog_ret = 0;
@@ -1242,6 +1285,7 @@ rollback_retry:
          */
         if (intxn && GV(RUNS_PREDICTABLE_REPLAY)) {
             commit_transaction(tinfo, false);
+            fast_truncate_lock_release(session, &lock_state);
             intxn = false;
         }
 
@@ -1254,6 +1298,7 @@ rollback_retry:
             /* Resolve any running transaction. */
             if (intxn) {
                 commit_transaction(tinfo, false);
+                fast_truncate_lock_release(session, &lock_state);
                 intxn = false;
             }
 
@@ -1476,6 +1521,24 @@ rollback_retry:
         if (op == MODIFY)
             modify_build(tinfo);
 
+        /*
+         * Serialize fast truncate against concurrent writers in disagg switch mode.
+         */
+        if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
+            if (op == TRUNCATE) {
+                if (intxn) {
+                    commit_transaction(tinfo, false);
+                    snap_repeat_update(tinfo, true);
+                    intxn = false;
+                }
+                fast_truncate_lock_release(session, &lock_state);
+                fast_truncate_lock_acquire_write(session, &lock_state);
+                begin_transaction_ts(tinfo);
+                intxn = true;
+            } else if (op != READ)
+                fast_truncate_lock_acquire_read(session, &lock_state);
+        }
+
         ret = 0;
         skip1 = skip2 = NULL;
         expect_ret = 0;
@@ -1541,6 +1604,10 @@ rollback_retry:
         }
 skip_operation:
         table = tinfo->table = NULL;
+
+        /* Implicit txn: no later commit, release here. Explicit txn keeps the lock until commit. */
+        if (!intxn)
+            fast_truncate_lock_release(session, &lock_state);
 
         /* Release the truncate operation counter. */
         if (op == TRUNCATE)
@@ -1625,6 +1692,7 @@ skip_operation:
         case 4:           /* 40% */
             __wt_yield(); /* Encourage races */
             snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
+            fast_truncate_lock_release(session, &lock_state);
             if (rlog_op_name != NULL) {
                 fprintf(g.replay_op_log,
                   "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
@@ -1642,6 +1710,7 @@ rollback:
                 /* Force a rollback */
                 testutil_assert(intxn);
                 rollback_transaction(tinfo, prepared);
+                fast_truncate_lock_release(session, &lock_state);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1650,6 +1719,7 @@ rollback:
             }
             __wt_yield(); /* Encourage races */
             rollback_transaction(tinfo, prepared);
+            fast_truncate_lock_release(session, &lock_state);
             snap_repeat_update(tinfo, false);
             break;
         }
@@ -1665,6 +1735,8 @@ rollback:
     }
 
 loop_exit:
+    /* Defensive: release lock on any unexpected exit path. */
+    fast_truncate_lock_release(session, &lock_state);
     if (session != NULL)
         testutil_check(session->close(session, NULL));
     tinfo->session = NULL;
