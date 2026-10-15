@@ -594,11 +594,11 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __txn_disagg_commit_ts_check --
- *     Check commit timestamp requirements for layered content on a disaggregated connection.
+ * __txn_disagg_write_ts_check --
+ *     Check timestamp requirements for writes to disaggregated tables.
  */
 static WT_INLINE int
-__txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
+__txn_disagg_write_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
 {
     wt_timestamp_t checkpoint_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -631,7 +631,7 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
         checkpoint_ts = __wt_atomic_load_uint64_acquire(
           &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
         if (checkpoint_ts != WT_TS_NONE) {
-            if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID)) {
+            if (F_ISSET(txn, WT_TXN_PREPARE)) {
                 if (txn->time_point.durable_timestamp <= checkpoint_ts)
                     WT_RET_MSG(session, EINVAL,
                       "durable timestamp %s must be after the last checkpoint timestamp %s",
@@ -679,7 +679,7 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
-    WT_RET(__txn_disagg_commit_ts_check(session, txn, btree));
+    WT_RET(__txn_disagg_write_ts_check(session, txn, btree));
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
