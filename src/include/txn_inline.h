@@ -627,7 +627,6 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
           session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
     }
 
-    /* A follower's stable timestamp can lag the checkpoint it has adopted. */
     if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         checkpoint_ts = __wt_atomic_load_uint64_acquire(
           &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
