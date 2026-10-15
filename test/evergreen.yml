@@ -2603,6 +2603,39 @@ tasks:
           # values 1014 bytes. Cache size is 32GB.
           test_args: "-c 10 -k 1000000 -i 3200 -S updates -g 32 -s 10 -v 1014 -V 1"
 
+  - name: cppsuite-disagg-truncate-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test-arm"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/disagg_truncate_perf_default.txt
+          test_name: disagg_truncate_perf
+
+  - name: cppsuite-disagg-truncate-perf-follower
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test-arm"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/disagg_truncate_perf_follower.txt
+          test_name: disagg_truncate_perf
+
+  - name: cppsuite-disagg-truncate-perf-switch
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test-arm"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/disagg_truncate_perf_switch.txt
+          test_name: disagg_truncate_perf
+
   # End of cppsuite test tasks.
   # Start of csuite test tasks
   - name: csuite-tests-fast
