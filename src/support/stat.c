@@ -337,6 +337,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: prev calls",
   "cursor: range truncate fast-delete candidates in memory or busy",
   "cursor: range truncate fast-delete candidates rejected",
+  "cursor: range truncate fast-delete pages",
+  "cursor: range truncate fast-delete skipped, all entries already deleted",
   "cursor: range truncate internal page bytes newly dirtied",
   "cursor: range truncate internal pages newly dirtied",
   "cursor: remove calls",
@@ -411,8 +413,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
   "reconciliation: dictionary matches",
-  "reconciliation: fast-path page deletion skipped, all entries already deleted",
-  "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full internal pages written instead of a page delta for the shared history "
@@ -835,6 +835,8 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_PREV,
   WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_IN_MEMORY,
   WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_PAGES,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED,
   WT_STAT_DSRC_CURSOR_TRUNCATE_INTERNAL_BYTES_DIRTIED,
   WT_STAT_DSRC_CURSOR_TRUNCATE_INTERNAL_PAGES_DIRTIED,
   WT_STAT_DSRC_CURSOR_REMOVE,
@@ -907,8 +909,6 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_REC_PAGE_MODS_GT500,
   WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS,
   WT_STAT_DSRC_REC_DICTIONARY,
-  WT_STAT_DSRC_REC_PAGE_DELETE_FAST_SKIP_DELETED,
-  WT_STAT_DSRC_REC_PAGE_DELETE_FAST,
   WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION,
   WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL,
   WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_SHARED_HS_INTERNAL,
@@ -1368,6 +1368,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_prev = 0;
     stats->cursor_truncate_fast_delete_fallback_in_memory = 0;
     stats->cursor_truncate_fast_delete_fallback_pages = 0;
+    stats->cursor_truncate_fast_delete_pages = 0;
+    stats->cursor_truncate_fast_delete_pages_skipped_already_deleted = 0;
     stats->cursor_truncate_internal_bytes_dirtied = 0;
     stats->cursor_truncate_internal_pages_dirtied = 0;
     stats->cursor_remove = 0;
@@ -1440,8 +1442,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
     stats->rec_dictionary = 0;
-    stats->rec_page_delete_fast_skip_deleted = 0;
-    stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_shared_hs_internal = 0;
@@ -1898,6 +1898,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cursor_truncate_fast_delete_fallback_in_memory;
     to->cursor_truncate_fast_delete_fallback_pages +=
       from->cursor_truncate_fast_delete_fallback_pages;
+    to->cursor_truncate_fast_delete_pages += from->cursor_truncate_fast_delete_pages;
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      from->cursor_truncate_fast_delete_pages_skipped_already_deleted;
     to->cursor_truncate_internal_bytes_dirtied += from->cursor_truncate_internal_bytes_dirtied;
     to->cursor_truncate_internal_pages_dirtied += from->cursor_truncate_internal_pages_dirtied;
     to->cursor_remove += from->cursor_remove;
@@ -1981,8 +1984,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_page_mods_gt500 += from->rec_page_mods_gt500;
     to->rec_hs_wrapup_next_prev_calls += from->rec_hs_wrapup_next_prev_calls;
     to->rec_dictionary += from->rec_dictionary;
-    to->rec_page_delete_fast_skip_deleted += from->rec_page_delete_fast_skip_deleted;
-    to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       from->rec_free_page_id_due_to_failed_replacement_reconciliation;
     to->rec_page_full_image_internal += from->rec_page_full_image_internal;
@@ -2486,6 +2487,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
     to->cursor_truncate_fast_delete_fallback_pages +=
       WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_pages);
+    to->cursor_truncate_fast_delete_pages +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages);
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
     to->cursor_truncate_internal_bytes_dirtied +=
       WT_STAT_DSRC_READ(from, cursor_truncate_internal_bytes_dirtied);
     to->cursor_truncate_internal_pages_dirtied +=
@@ -2586,9 +2591,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_DSRC_READ(from, rec_hs_wrapup_next_prev_calls);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
-    to->rec_page_delete_fast_skip_deleted +=
-      WT_STAT_DSRC_READ(from, rec_page_delete_fast_skip_deleted);
-    to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_DSRC_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
     to->rec_page_full_image_internal += WT_STAT_DSRC_READ(from, rec_page_full_image_internal);
@@ -3342,6 +3344,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: open cursor time internal (usecs)",
   "cursor: range truncate fast-delete candidates in memory or busy",
   "cursor: range truncate fast-delete candidates rejected",
+  "cursor: range truncate fast-delete pages",
+  "cursor: range truncate fast-delete skipped, all entries already deleted",
   "cursor: range truncate internal page bytes newly dirtied",
   "cursor: range truncate internal pages newly dirtied",
   "data-handle: Layered connection data handles currently active",
@@ -3658,8 +3662,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
-  "reconciliation: fast-path page deletion skipped, all entries already deleted",
-  "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full internal pages written instead of a page delta for the shared history "
@@ -4493,6 +4495,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CURSOR_OPEN_TIME_INTERNAL_USECS,
   WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_IN_MEMORY,
   WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_PAGES,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED,
   WT_STAT_CONN_CURSOR_TRUNCATE_INTERNAL_BYTES_DIRTIED,
   WT_STAT_CONN_CURSOR_TRUNCATE_INTERNAL_PAGES_DIRTIED,
   WT_STAT_CONN_DH_CONN_HANDLE_LAYERED_COUNT,
@@ -4796,8 +4800,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_REC_PAGE_MODS_LE500,
   WT_STAT_CONN_REC_PAGE_MODS_GT500,
   WT_STAT_CONN_REC_HS_WRAPUP_NEXT_PREV_CALLS,
-  WT_STAT_CONN_REC_PAGE_DELETE_FAST_SKIP_DELETED,
-  WT_STAT_CONN_REC_PAGE_DELETE_FAST,
   WT_STAT_CONN_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION,
   WT_STAT_CONN_REC_PAGE_FULL_IMAGE_INTERNAL,
   WT_STAT_CONN_REC_PAGE_FULL_IMAGE_SHARED_HS_INTERNAL,
@@ -5644,6 +5646,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_open_time_internal_usecs */
     stats->cursor_truncate_fast_delete_fallback_in_memory = 0;
     stats->cursor_truncate_fast_delete_fallback_pages = 0;
+    stats->cursor_truncate_fast_delete_pages = 0;
+    stats->cursor_truncate_fast_delete_pages_skipped_already_deleted = 0;
     stats->cursor_truncate_internal_bytes_dirtied = 0;
     stats->cursor_truncate_internal_pages_dirtied = 0;
     /* not clearing dh_conn_handle_layered_count */
@@ -5957,8 +5961,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
-    stats->rec_page_delete_fast_skip_deleted = 0;
-    stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_shared_hs_internal = 0;
@@ -6928,6 +6930,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
     to->cursor_truncate_fast_delete_fallback_pages +=
       WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_fallback_pages);
+    to->cursor_truncate_fast_delete_pages +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_pages);
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
     to->cursor_truncate_internal_bytes_dirtied +=
       WT_STAT_CONN_READ(from, cursor_truncate_internal_bytes_dirtied);
     to->cursor_truncate_internal_pages_dirtied +=
@@ -7363,9 +7369,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
-    to->rec_page_delete_fast_skip_deleted +=
-      WT_STAT_CONN_READ(from, rec_page_delete_fast_skip_deleted);
-    to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_CONN_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
     to->rec_page_full_image_internal += WT_STAT_CONN_READ(from, rec_page_full_image_internal);

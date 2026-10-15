@@ -185,7 +185,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * them.
      */
     if (!WT_IS_HS(session->dhandle) && WT_TIME_AGGREGATE_HAS_STOP(&addr.ta)) {
-        WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast_skip_deleted);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_pages_skipped_already_deleted);
         goto err;
     }
 
@@ -245,7 +245,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     }
 
     *skipp = true;
-    WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_pages);
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);

@@ -381,7 +381,7 @@ This point is not particularly important operationally but can create complicati
 writing tests.
 
 Range-truncate activity counters are available in connection and data-source statistics;
-\c rec_page_delete_fast counts the leaf pages that were fast-deleted.
+\c cursor_truncate_fast_delete_pages counts the leaf pages that were fast-deleted.
 The \c cursor_truncate_fast_delete_fallback_in_memory count is a subset of
 \c cursor_truncate_fast_delete_fallback_pages. Newly dirtied internal page bytes count the parent's
 memory footprint when a fast delete first dirties it, not the size of the deleted content; these

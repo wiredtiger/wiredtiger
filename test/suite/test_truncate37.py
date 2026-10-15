@@ -138,13 +138,14 @@ class test_truncate37(wttest.WiredTigerTestCase):
 
         in_memory = 'cursor_truncate_fast_delete_fallback_in_memory'
         pages = 'cursor_truncate_fast_delete_fallback_pages'
+        skipped = 'cursor_truncate_fast_delete_pages_skipped_already_deleted'
         before_pages = self.get_stat(self.uri, pages)
         before_in_memory = self.get_stat(self.uri, in_memory)
-        before_skipped = self.get_stat('', 'rec_page_delete_fast_skip_deleted')
+        before_skipped = self.get_stat('', skipped)
 
         self.truncate(self.uri, 100, 9900, 20)
 
-        self.assertGreater(self.get_stat('', 'rec_page_delete_fast_skip_deleted'), before_skipped)
+        self.assertGreater(self.get_stat('', skipped), before_skipped)
         self.assertGreater(
             self.get_stat(self.uri, pages) - before_pages,
             self.get_stat(self.uri, in_memory) - before_in_memory)
