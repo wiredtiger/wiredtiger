@@ -1028,9 +1028,6 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_defer_queued;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
-    int64_t disagg_pickup_server_wake_timer_adoptable;
-    int64_t disagg_pickup_server_wake_signal;
-    int64_t disagg_pickup_server_wake_timer;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_ingest_stable_tombstone_stripped;

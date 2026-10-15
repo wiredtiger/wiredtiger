@@ -101,9 +101,6 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
         oldest_wait = stat.conn.disagg_checkpoint_defer_oldest_wait
         adopt_wait = stat.conn.disagg_checkpoint_defer_adopt_wait
         pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
-        wake_signal = stat.conn.disagg_pickup_server_wake_signal
-        wake_timer = stat.conn.disagg_pickup_server_wake_timer
-        wake_timer_adoptable = stat.conn.disagg_pickup_server_wake_timer_adoptable
 
         self.session.create(self.uri, self.table_config)
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
@@ -155,11 +152,6 @@ class test_layered_follower23(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(conn_follow, blocking), 0)
         self.assertEqual(self.get_stat(conn_follow, oldest_wait), 0)
         self.assertGreaterEqual(self.get_stat(conn_follow, adopt_wait), 1000)
-
-        # A signal woke the server; the backstop timer never found work.
-        self.assertGreaterEqual(self.get_stat(conn_follow, wake_signal), 1)
-        self.assertEqual(self.get_stat(conn_follow, wake_timer), 0)
-        self.assertEqual(self.get_stat(conn_follow, wake_timer_adoptable), 0)
 
         session_follow.close()
         conn_follow.close()

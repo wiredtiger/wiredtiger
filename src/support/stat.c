@@ -3341,9 +3341,6 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoints delivered and awaiting adoption",
   "disagg: connection reconfiguration",
   "disagg: database size",
-  "disagg: deferred checkpoint pick-up server timer wakeups that found an adoptable checkpoint",
-  "disagg: deferred checkpoint pick-up server wakeups by a signal",
-  "disagg: deferred checkpoint pick-up server wakeups by the backstop timer",
   "disagg: deferred checkpoint pick-up wait before adoption most recent time (msecs)",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
@@ -4492,9 +4489,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_QUEUED,
   WT_STAT_CONN_DISAGG_CONN_RECONFIG,
   WT_STAT_CONN_DISAGG_DATABASE_SIZE,
-  WT_STAT_CONN_DISAGG_PICKUP_SERVER_WAKE_TIMER_ADOPTABLE,
-  WT_STAT_CONN_DISAGG_PICKUP_SERVER_WAKE_SIGNAL,
-  WT_STAT_CONN_DISAGG_PICKUP_SERVER_WAKE_TIMER,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED,
   WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED,
@@ -5644,9 +5638,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_defer_queued */
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
-    stats->disagg_pickup_server_wake_timer_adoptable = 0;
-    stats->disagg_pickup_server_wake_signal = 0;
-    stats->disagg_pickup_server_wake_timer = 0;
     stats->disagg_checkpoint_defer_adopt_wait = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
     stats->disagg_ingest_stable_tombstone_stripped = 0;
@@ -6934,11 +6925,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_defer_queued += WT_STAT_CONN_READ(from, disagg_checkpoint_defer_queued);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
-    to->disagg_pickup_server_wake_timer_adoptable +=
-      WT_STAT_CONN_READ(from, disagg_pickup_server_wake_timer_adoptable);
-    to->disagg_pickup_server_wake_signal +=
-      WT_STAT_CONN_READ(from, disagg_pickup_server_wake_signal);
-    to->disagg_pickup_server_wake_timer += WT_STAT_CONN_READ(from, disagg_pickup_server_wake_timer);
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_pick_up_file_meta_updated +=
