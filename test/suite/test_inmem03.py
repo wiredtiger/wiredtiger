@@ -57,6 +57,7 @@ class test_inmem03(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         cursor[1] = 'abc'
         cursor.close()
+        self.session.checkpoint()
         self.assertFalse(os.path.exists(self.data_filename()))
         self.assertEqual(self.block_size(), 0)
 
@@ -78,6 +79,7 @@ class test_inmem03(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         cursor[42] = 'volatile'
         cursor.close()
+        self.session.checkpoint()
 
         self.reopen_conn()
         self.assertFalse(os.path.exists(self.data_filename()))
