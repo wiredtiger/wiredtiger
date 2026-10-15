@@ -546,6 +546,9 @@ conn_stats = [
     ##########################################
     CheckpointStat('checkpoint_disagg_metadata_apply', 'metadata operations applied during disaggregated checkpoint', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_disagg_metadata_unstable', 'metadata operations skipped during disaggregated checkpoint because they were not stable', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_evict_drain', 'number of waits for in-progress evictions before syncing a tree'),
+    CheckpointStat('checkpoint_evict_drain_skipped', 'number of waits for in-progress evictions skipped because the tree had no eviction in progress'),
+    CheckpointStat('checkpoint_evict_drain_time', 'time waiting for in-progress evictions before syncing a tree (usecs)'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),

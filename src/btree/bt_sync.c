@@ -292,7 +292,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_PAGE_MODIFY *mod;
     WT_REF *prev, *walk;
     WT_TXN *txn;
-    uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
+    uint64_t drain_start, internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
     uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
     uint64_t saved_pinned_id, t, time_start, time_stop;
     uint32_t flags, rec_flags;
@@ -410,7 +410,24 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         session->syncing = true;
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
-        __wt_gen_next_drain(session, WT_GEN_EVICT);
+
+        /*
+         * Only evictions in this tree can conflict with the sync. Evictions that can run alongside
+         * it count themselves in the tree's eviction busy count, and __wt_evict executes a full
+         * barrier before checking the sync state. If the count is zero after the barrier below,
+         * every later eviction in this tree sees the sync and there is nothing to wait for;
+         * otherwise, wait for the evictions that may have checked the sync state before it changed.
+         */
+        WT_FULL_BARRIER();
+        if (__wt_atomic_load_uint32_v_acquire(&btree->evict_busy) == 0)
+            WT_STAT_CONN_INCR(session, checkpoint_evict_drain_skipped);
+        else {
+            drain_start = __wt_clock(session);
+            __wt_gen_next_drain(session, WT_GEN_EVICT);
+            WT_STAT_CONN_INCR(session, checkpoint_evict_drain);
+            WT_STAT_CONN_INCRV(session, checkpoint_evict_drain_time,
+              WT_CLOCKDIFF_US(__wt_clock(session), drain_start));
+        }
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
