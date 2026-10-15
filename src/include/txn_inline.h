@@ -630,11 +630,19 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
     if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         checkpoint_ts = __wt_atomic_load_uint64_acquire(
           &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-        if (checkpoint_ts != WT_TS_NONE && txn->time_point.commit_timestamp <= checkpoint_ts)
-            WT_RET_MSG(session, EINVAL,
-              "commit timestamp %s must be after the last checkpoint timestamp %s",
-              __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[0]),
-              __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+        if (checkpoint_ts != WT_TS_NONE) {
+            if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID)) {
+                if (txn->time_point.durable_timestamp <= checkpoint_ts)
+                    WT_RET_MSG(session, EINVAL,
+                      "durable timestamp %s must be after the last checkpoint timestamp %s",
+                      __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[0]),
+                      __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+            } else if (txn->time_point.commit_timestamp <= checkpoint_ts)
+                WT_RET_MSG(session, EINVAL,
+                  "commit timestamp %s must be after the last checkpoint timestamp %s",
+                  __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[0]),
+                  __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+        }
     }
 
     return (0);
