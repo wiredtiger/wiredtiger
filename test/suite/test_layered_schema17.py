@@ -110,7 +110,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.leader_checkpoint_at_epoch(21, 2)
         # The advance passes only checkpoint_meta, so strict mode must remain on (sticky).
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
@@ -129,7 +129,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session_follow.close()
 
         self.leader_checkpoint_at_epoch(30, 2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # uri2 survives locally and never reaches shared metadata.
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
@@ -151,7 +151,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # Checkpoint epoch 30 < CREATE epoch 40: the difference is explained.
         self.leader_checkpoint_at_epoch(30, 2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri2))
@@ -173,7 +173,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # Checkpoint epoch 30 < REMOVE epoch 40; the checkpoint still contains uri.
         self.leader_checkpoint_at_epoch(30, 2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
@@ -200,7 +200,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # uri2 is in shared metadata only and the follower never applied the schema
         # operation that created it, so nothing explains the difference. Expected to panic.
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
     def test_strict_shared_only_panics(self):
         """
@@ -229,7 +229,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.leader_checkpoint_at_epoch(40, 2)
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)  # Expected to panic.
 
     def test_strict_stale_create_panics(self):
         """
@@ -257,7 +257,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.leader_checkpoint_at_epoch(40, 2)
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)  # Expected to panic.
 
     def test_strict_stale_remove_panics(self):
         """
@@ -280,7 +280,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
             self.extensionsConfig() + ',create,' + self.conn_base_config +
             'disaggregated=(role="follower",lose_all_my_data=true,' +
             'strict_checkpoint_metadata=true)')
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)  # Expected to panic.
 
     def test_strict_at_open_panics(self):
         """
@@ -334,7 +334,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_lead = self.step_down_with_unpublished_table()
 
         self.conn.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
-        self.disagg_advance_checkpoint(self.conn, conn_lead)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_lead)
 
         # The unpublished table survives locally and stays out of shared metadata
         # until a checkpoint covers its CREATE.
@@ -353,7 +353,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.session.drop(self.uri2)
         self.conn.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
-        self.disagg_advance_checkpoint(self.conn, conn_lead)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_lead)
 
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri2, leader=True))
@@ -379,7 +379,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.publish(self.uri2, 30)
         self.leader_checkpoint_at_epoch(30, 2)
 
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri2))
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri2))
@@ -402,7 +402,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.leader_checkpoint_at_epoch(30, 2)
 
         conn_follow.reconfigure('disaggregated=(strict_checkpoint_metadata=false)')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri2))
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri2))

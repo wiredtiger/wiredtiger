@@ -304,7 +304,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         sess = self.follower_conn.open_session('')
         sess.create(self.uri, self.table_config)
         sess.close()
-        self.disagg_advance_checkpoint(self.follower_conn)
+        self.disagg_advance_checkpoint_with_oldest(self.follower_conn)
 
     def switch_and_restart_follower(self):
         self.disagg_switch_follower_and_leader(self.follower_conn, self.conn)
@@ -316,7 +316,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
 
         self.reopen_conn(directory=self.leader_dir,
                          config=self.follower_config())
-        self.disagg_advance_checkpoint(self.conn, self.follower_conn)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, self.follower_conn)
 
         # Swap self.conn and self.follower_conn. The old leader is now the follower and vice versa.
         self.session.close()

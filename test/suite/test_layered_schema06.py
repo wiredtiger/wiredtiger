@@ -186,7 +186,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
 
         self.create_follower()
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn_follow)
         # Check the follower
         self.check_metadata_ids(self.session_follow, expected_files)
 
@@ -204,7 +204,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
 
         self.create_follower()
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn_follow)
         # Check the follower
         self.check_metadata_ids(self.session_follow, expected_files)
 
@@ -222,7 +222,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
 
         # Open a follower and advance its view to pick up the shared metadata.
         self.create_follower()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn_follow)
 
         # Create the same tables on the follower. It should reuse the existing
         # .wt_stable (shared namespace) and allocate a new .wt_ingest in the

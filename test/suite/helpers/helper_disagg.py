@@ -225,12 +225,25 @@ class DisaggConfigMixin:
         (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
+    # A follower adopts a checkpoint only once its oldest timestamp has reached the checkpoint's, as
+    # a real node's does: raise it to the leader's, which is no earlier than any checkpoint's.
+    def disagg_set_follower_oldest(self, conn_follower, conn_leader=None):
+        leader = conn_leader if conn_leader is not None else self.conn
+        oldest = leader.query_timestamp('get=oldest_timestamp')
+        if int(oldest, 16) > int(conn_follower.query_timestamp('get=oldest_timestamp'), 16):
+            conn_follower.set_timestamp(f'oldest_timestamp={oldest}')
+
     # Deliver the newest checkpoint to the follower. Adopting it is asynchronous while transaction
     # snapshots that predate it are active, so a caller that needs the adoption observed must end
     # those snapshots and deliver again.
     def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
+
+    # Raise the follower's oldest timestamp to the leader's, then deliver the newest checkpoint.
+    def disagg_advance_checkpoint_with_oldest(self, conn_follower, conn_leader=None):
+        self.disagg_set_follower_oldest(conn_follower, conn_leader)
+        self.disagg_advance_checkpoint(conn_follower, conn_leader)
 
     # Wait until every checkpoint delivered to the follower has been adopted. A caller that asserts
     # on state the adoption produces needs this: a delivery that raced a snapshot's release is
@@ -260,6 +273,13 @@ class DisaggConfigMixin:
     def disagg_advance_checkpoint_and_wait(self, conn_follower, conn_leader=None, timeout=60):
         self.disagg_advance_checkpoint(conn_follower, conn_leader)
         self.disagg_wait_for_adoption(conn_follower, timeout)
+
+    # Raise the follower's oldest timestamp to the leader's, then deliver the newest checkpoint and
+    # wait until it is adopted.
+    def disagg_advance_checkpoint_with_oldest_and_wait(self, conn_follower, conn_leader=None,
+                                                       timeout=60):
+        self.disagg_set_follower_oldest(conn_follower, conn_leader)
+        self.disagg_advance_checkpoint_and_wait(conn_follower, conn_leader, timeout)
 
     # Switch the leader and the follower
     def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
@@ -294,6 +314,8 @@ class DisaggConfigMixin:
             # Step down to avoid shutdown checkpoint
             self.conn.reconfigure('disaggregated=(role="follower")')
             checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+            # The restarted node has no oldest timestamp, which it needs to adopt a checkpoint.
+            oldest = self.conn.query_timestamp('get=oldest_timestamp')
 
         # Close the current connection
         self.close_conn()
@@ -316,6 +338,8 @@ class DisaggConfigMixin:
 
         # Pick up the last checkpoint
         if pickup_checkpoint:
+            if int(oldest, 16) != 0:
+                self.conn.set_timestamp(f'oldest_timestamp={oldest}')
             self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
 
         # Step up as the leader
@@ -928,7 +952,7 @@ class DisaggSchemaEpochMixin:
             'follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower)
         self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
-        self.disagg_advance_checkpoint(conn)
+        self.disagg_advance_checkpoint_with_oldest(conn)
         session = conn.open_session('')
         return conn, session
 

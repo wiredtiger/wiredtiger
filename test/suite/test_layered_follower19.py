@@ -109,7 +109,7 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'old value'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # Leader: update the existing table and create a new one, then seal
         # both into a second checkpoint, so that adopting it must both update

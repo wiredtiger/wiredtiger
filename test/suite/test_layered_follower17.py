@@ -87,7 +87,7 @@ class test_layered_follower17(wttest.WiredTigerTestCase):
         self.put(session_follow, 'ingest_key', 'val', 10)
 
         # The follower picks up the leader's checkpoint, so the stable cursor becomes eligible.
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertEqual(self.opened(session_follow), 0)
         return conn_follow, session_follow
 

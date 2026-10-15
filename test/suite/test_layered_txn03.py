@@ -83,7 +83,7 @@ class test_layered_txn03(wttest.WiredTigerTestCase):
         for conn in (self.conn, self.conn_follow):
             conn.set_timestamp('stable_timestamp=' + self.timestamp_str(timestamps[-1]))
         self.session.checkpoint()
-        self.disagg_advance_checkpoint_and_wait(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(self.conn_follow)
 
     # Advance the oldest timestamp on both nodes; each connection tracks its own.
     def set_oldest(self, ts):
@@ -147,7 +147,7 @@ class test_layered_txn03(wttest.WiredTigerTestCase):
         # discard it and given the occasion to do so.
         self.set_oldest(20)
         self.session.checkpoint()
-        self.disagg_advance_checkpoint_and_wait(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(self.conn_follow)
 
         self.assertEqual(self.read_at('k', 20), 'v20')
         self.assertEqual(self.read_at('k', 30), 'v30')

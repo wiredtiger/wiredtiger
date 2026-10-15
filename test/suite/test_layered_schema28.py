@@ -89,7 +89,7 @@ class test_layered_schema28(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # first incarnation, while the follower's local state is already the second.
         self.set_stable_epoch(15)
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # The stale pickup must not resurrect the first incarnation's stable constituent.
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))

@@ -149,6 +149,8 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         self.insert_keys(self.session, 5, 10)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
+        # With an oldest timestamp set, the first pickup is deferred behind the open transaction.
+        conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
 

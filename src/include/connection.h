@@ -304,12 +304,22 @@ struct __wt_repair {
 
 /*
  * WT_DISAGG_DEFERRED_CKPT --
- *      A checkpoint whose adoption is deferred while transactional snapshots that predate it are
- *      active.
+ *      A checkpoint whose adoption is deferred while transactional snapshots that predate it, or
+ *      timestamped readers below its oldest timestamp, are active.
  */
 struct __wt_disagg_deferred_ckpt {
     uint64_t lsn; /* Checkpoint metadata LSN */
     char *meta;   /* Checkpoint metadata configuration */
+
+    /*
+     * The queue holds one reference and an adoption in progress another: pruning by a newer
+     * adoption or a role change can remove the entry while the adoption still reads it.
+     */
+    uint32_t holders;
+
+    /* Read from the checkpoint's shared metadata when it is queued. */
+    wt_timestamp_t oldest_timestamp; /* The checkpoint's oldest timestamp */
+    WT_ITEM metadata_buf; /* The shared metadata page, so adoption need not fetch it again */
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
@@ -344,6 +354,13 @@ struct __wt_disaggregated_storage {
      */
     WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
     TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
+
+    /*
+     * The newest oldest timestamp among the queued checkpoints that have one, or zero. A
+     * timestamped reader ending below it may unblock an adoption, so only such readers wake the
+     * pickup server.
+     */
+    wt_shared wt_timestamp_t deferred_ckpt_oldest_timestamp;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until

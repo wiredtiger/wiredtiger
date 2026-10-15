@@ -101,6 +101,7 @@ class test_layered_tombstone_version_gate(wttest.WiredTigerTestCase):
             'disaggregated=(role="follower")')
         with self.expectedStderrPattern('requires reader version'):
             with self.assertRaises(wiredtiger.WiredTigerError):
+                self.disagg_set_follower_oldest(conn_follow)
                 conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{gated}")')
 
         # The unmodified metadata still picks up, confirming the checkpoint itself is readable and

@@ -107,7 +107,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         conn_follow, session_follow = self.open_follower()
         self.put(session_follow, self.uri, {'key_updated': 'old value'}, 10)
         self.put(session_follow, self.aux_uri, {'anchor': 'anchor value'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         return conn_follow, session_follow
 
     def commit_post_snapshot_writes(self, conn_follow):
@@ -120,7 +120,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.put(session_replay, self.uri, writes, 20)
         session_replay.close()
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
     def check_new_data_visible(self, conn_follow):
         # Outside the racing transaction, the picked-up content must be there:
@@ -191,7 +191,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.put(session_replay, self.uri, {'key_inserted': 'new value'}, 20)
         session_replay.close()
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # The cursor that already returned pre-pickup results: a single cursor
         # must not mix results from before and after the pickup.
@@ -314,7 +314,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
             self.put(session_replay, self.uri, writes, ts)
             session_replay.close()
             self.leader_checkpoint(ts)
-            self.disagg_advance_checkpoint(conn_follow)
+            self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         cursor = session_follow.open_cursor(self.uri)
         state = self.search(cursor, 'key_a')
@@ -344,7 +344,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         # The follower starts after the checkpoint: nothing is replayed into
         # its ingest table, all its reads come from checkpoint content.
         conn_follow, session_follow = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         session_follow.begin_transaction()
         aux_cursor = session_follow.open_cursor(self.aux_uri)
@@ -411,7 +411,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.put_tables(session_replay, writes, 20)
         session_replay.close()
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # The first table hides the writer through the pre-pickup cursor. The pickup marks the
         # constituents outdated, so even a pre-pickup cursor re-binds its stable constituent on
@@ -477,7 +477,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.put(session_replay, late_uri, {'key_late': 'late value'}, 20)
         session_replay.close()
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         cursor = session_follow.open_cursor(late_uri)
         contents = [tuple(kv) for kv in cursor]
@@ -503,7 +503,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.leader_checkpoint(10)
 
         conn_follow, session_follow = self.open_follower()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         session_follow.begin_transaction()
         aux_cursor = session_follow.open_cursor(self.aux_uri)
@@ -527,7 +527,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         truncate_range(session_replay)
         session_replay.close()
         self.leader_checkpoint(20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         cursor = session_follow.open_cursor(self.uri)
         contents = [key for key, _ in cursor]
@@ -550,7 +550,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         conn_follow, session_follow = self.open_follower()
         self.put(session_follow, self.aux_uri, {'anchor': 'anchor value'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         session_follow.begin_transaction()
         aux_cursor = session_follow.open_cursor(self.aux_uri)
@@ -590,7 +590,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(20)}')
         self.session.checkpoint()
         try:
-            self.disagg_advance_checkpoint(conn_follow)
+            self.disagg_advance_checkpoint_with_oldest(conn_follow)
         except wiredtiger.WiredTigerError as e:
             # Refusing to adopt a checkpoint whose oldest timestamp is ahead
             # of an active reader is acceptable: the reader keeps its view.
@@ -773,7 +773,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         self.put(self.session, self.uri, {'key_final': 'final value'}, 30)
         self.leader_checkpoint(30)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # Ending the transaction releases the pin: the restarted server adopts.
         cursor.close()

@@ -86,7 +86,7 @@ class test_verify_disagg05(wttest.WiredTigerTestCase):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
                                            self.conn_config_follower)
         session_follow = conn_follow.open_session('')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # At this point the follower is consistent and verifies cleanly.
         self.verifyUntilSuccess(session_follow)
@@ -110,7 +110,7 @@ class test_verify_disagg05(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.session.checkpoint()
 
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # The leader verifies cleanly: its horizon makes the leftover history store
         # records globally visible, so its history store cursor skips them.

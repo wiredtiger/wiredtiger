@@ -91,7 +91,7 @@ class test_layered_cursor27(wttest.WiredTigerTestCase):
             return
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn_follow)
 
     # Call a bound cursor step method and return (ret, key, value).
     def step(self, op):

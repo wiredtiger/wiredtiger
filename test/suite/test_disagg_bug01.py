@@ -94,7 +94,7 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
-        self.disagg_advance_checkpoint_and_wait(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(conn_follow)
 
         # open and close a cursor on it so the checkpoint's stable dhandle is warm in the
         # connection's shared handle list. The reader thread below opens its own session with an
@@ -144,7 +144,7 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
         # Deliver and adopt checkpoint N+1 while the reader is suspended: the merge marks the
         # stable dhandle OUTDATED and the prune walk advances the ingest prune timestamp past
         # checkpoint N (the dhandle is idle: session_inuse == 0).
-        self.disagg_advance_checkpoint_and_wait(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(conn_follow)
         conn_follow.reconfigure('timing_stress_for_test=[]')
 
         # Force eviction of the follower's ingest pages so entries at or below the prune timestamp

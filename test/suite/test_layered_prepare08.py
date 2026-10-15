@@ -87,7 +87,7 @@ class test_layered_prepare08(wttest.WiredTigerTestCase):
         conn_f = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower)
-        self.disagg_advance_checkpoint(conn_f)
+        self.disagg_advance_checkpoint_with_oldest(conn_f)
 
         # --- Phase 3: write exactly one prepared key (key 2) into the follower ingest --
         # prepare_timestamp=15 falls within the read_timestamp=20 window, so a reader at

@@ -151,7 +151,7 @@ class test_layered_stepup05(wttest.WiredTigerTestCase):
         # Create a follower and advance it to ckpt1.
         conn_follow = self.wiredtiger_open('follower',self.extensionsConfig() + ',create,' + self.conn_config_follower)
         session_follow = conn_follow.open_session('')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # Open a cursor on the follower and prime the stable cursor by
         # iterating once, then reset it so it is ready for use after step-up.

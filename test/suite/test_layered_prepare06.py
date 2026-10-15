@@ -83,7 +83,7 @@ class test_layered_prepare06(wttest.WiredTigerTestCase):
             'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, 'key_format=i,value_format=S')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         return conn_follow, session_follow
 
     def walk_next_collect(self, cursor):
@@ -224,7 +224,7 @@ class test_layered_prepare06(wttest.WiredTigerTestCase):
         # Advance the checkpoint so the follower sees the latest leader data.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25))
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # next() must resume from key 3 and return only higher keys.
         session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(25))

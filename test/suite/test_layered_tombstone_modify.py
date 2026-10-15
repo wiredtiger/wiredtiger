@@ -258,7 +258,7 @@ class test_layered_tombstone_modify(wttest.WiredTigerTestCase):
             "stable_timestamp=" + self.timestamp_str(stable_ts)
         )
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.follow_conn, self.conn)
+        self.disagg_advance_checkpoint_with_oldest(self.follow_conn, self.conn)
 
     def test_modify_namespace_transitions_leader_stable(self):
         """Modify on the leader, where the values exist only in the stable table."""

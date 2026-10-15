@@ -365,7 +365,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         # A second node picks up that checkpoint and opens a snapshot reader on it.
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         fsession = conn_follow.open_session('')
         fcur = fsession.open_cursor(self.uri, None, None)
         fsession.begin_transaction(begin_config)
@@ -441,7 +441,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         # A second node picks the stepdown checkpoint up, to take over as leader below.
         conn_b = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        self.disagg_advance_checkpoint(conn_b, self.conn)
+        self.disagg_advance_checkpoint_with_oldest(conn_b, self.conn)
 
         # The step-down checkpoint holds the pre-cutoff content only.
         self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(self.uri), 30),
@@ -464,7 +464,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         session_b.close()
 
         # This node picks B's checkpoint up, replacing its stable tree with B's content.
-        self.disagg_advance_checkpoint_and_wait(self.conn, conn_b)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(self.conn, conn_b)
         self.assertEqual(self.read_kvs_at(self.stable_checkpoint_uri(self.uri), 30),
             {'a': 'stable', 'c': 'from-b'})
         self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 30),

@@ -85,7 +85,7 @@ class test_layered_schema11(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # Step 5: Follower picks up the new checkpoint. The table is in shared metadata but
         # absent locally; the REMOVE in the queue prevents recreation.
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
 
         # Step 6: Leader advances past the drop epoch (epoch 25) and checkpoints. The REMOVE(25)
@@ -132,7 +132,7 @@ class test_layered_schema11(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.leader_checkpoint(2)
 
         # Step 5: Follower picks up; uri must not be recreated, uri2 must still be present.
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri2))
 
@@ -184,7 +184,7 @@ class test_layered_schema11(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # Step 5: Follower picks up. The latest queue entry CREATE(40) sits above the
         # checkpoint's epoch, so the checkpoint's stable constituent belongs to the dropped
         # incarnation and must not be adopted under the recreated table.
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
 
         # Step 6: A checkpoint covering the drop applies the REMOVE(25); the first generation
@@ -273,7 +273,7 @@ class test_layered_schema11(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The leader checkpoints again; the table remains in shared metadata (the leader
         # never dropped it) and the queued REMOVE still prevents recreation on pickup.
         self.leader_checkpoint(2)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
 

@@ -73,6 +73,7 @@ class test_prepare_discover10(wttest.WiredTigerTestCase):
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         return conn_follow
 

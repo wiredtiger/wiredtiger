@@ -138,7 +138,7 @@ class test_layered_schema30(
         # Once the leader's epoch covers the table, the follower picks it up like any other.
         self.set_stable_epoch(20)
         self.leader_checkpoint(50)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assert_carried_epoch(conn_follow, 20)
         self.assertTrue(self.uri_stable_exists(conn_follow, gated))
         self.assertEqual(self.read_kvs_at(gated, 50, session_follow), {'k1': 'gated'})
@@ -194,7 +194,7 @@ class test_layered_schema30(
         self.leader_checkpoint(50, conn_follow, session_follow)
 
         # The epoch-mode node's live epoch keeps the pickup from pruning the create it still holds.
-        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_follow)
         self.assert_carried_epoch(self.conn, self.seed_epoch)
         self.assertTrue(self.uri_stable_exists(self.conn, during_epochless))
 
@@ -235,7 +235,7 @@ class test_layered_schema30(
 
         # More checkpoints from the epochless leader move neither the epoch nor the queue.
         self.leader_checkpoint(50)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assert_carried_epoch(conn_follow, self.seed_epoch)
 
         # The follower leads, and its step-up rebuilds the queued table.
@@ -254,7 +254,7 @@ class test_layered_schema30(
         self.assert_carried_epoch(conn_follow, 20)
 
         # The epochless node consumes the result.
-        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_follow)
         self.assertTrue(self.uri_stable_exists(self.conn, gated))
         self.assert_carried_epoch(self.conn, 20)
 
@@ -281,7 +281,7 @@ class test_layered_schema30(
         self.leader_checkpoint(30)
         self.assert_dropped(self.conn, dropped)
 
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assert_dropped(conn_follow, dropped)
 
         # The pickup leaves the dropped table's local metadata row behind, and an epochless step-up
@@ -306,7 +306,7 @@ class test_layered_schema30(
         kept = self.create_table('kept', {'k1': 'kept'}, commit_ts=30)
         dropped = self.create_table('dropped', {'k1': 'dropped'}, commit_ts=30)
         self.leader_checkpoint(40)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assertTrue(self.uri_stable_exists(conn_follow, kept))
         self.assertTrue(self.uri_stable_exists(conn_follow, dropped))
         self.assertEqual(self.read_kvs_at(dropped, 40, session_follow), {'k1': 'dropped'})
@@ -327,7 +327,7 @@ class test_layered_schema30(
         self.assert_table_state(conn_follow, kept, True, True, True)
 
         # Nor does handing the lead back resurrect it.
-        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn, conn_follow)
         self.step_down(conn_follow)
         self.step_up()
         self.leader_checkpoint(70)
@@ -352,7 +352,7 @@ class test_layered_schema30(
         # The epochless era adds a table of its own, published by the checkpoint alone.
         era_epochless = self.create_table('era_epochless', {'k1': 'era2'}, commit_ts=30)
         self.leader_checkpoint(40)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         self.assert_table_state(self.conn, era_epochless, True, True, True)
         self.assertEqual(self.read_kvs_at(era_on1, 40, session_follow), {'k1': 'era1'})
         self.assertEqual(self.read_kvs_at(era_epochless, 40, session_follow), {'k1': 'era2'})

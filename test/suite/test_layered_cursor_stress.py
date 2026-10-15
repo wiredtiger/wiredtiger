@@ -426,7 +426,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.oldest_ts = oldest
         self.state.last_advance_checkpoint_ts = self.state.ts
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(self.conn_follow)
 
     def force_evict(self, node):
         # Force-evict the follower's ingest leaf so checkpointed keys fall through to stable on later

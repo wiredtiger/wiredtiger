@@ -122,7 +122,7 @@ __txn_snapshot_leave_disagg(WT_SESSION_IMPL *session)
 
     if ((released_gen = __wt_session_gen(session, WT_GEN_DISAGG_CKPT)) != 0) {
         __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
-        __wt_disagg_deferred_pickup_signal(session, released_gen);
+        __wt_disagg_deferred_pickup_signal_snapshot(session, released_gen);
     }
     if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
         __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
@@ -666,7 +666,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
     /* Try to move the pinned timestamp forward. */
     if (strict)
-        __wt_txn_update_pinned_timestamp(session, false);
+        __wti_txn_update_pinned_timestamp(session, false);
 
     /*
      * For pure read-only workloads, or if the update isn't forced and the oldest ID isn't too far
@@ -2657,7 +2657,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         durable_oldest_lag = durable_timestamp - oldest_timestamp;
     WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_oldest, durable_oldest_lag);
 
-    __wti_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
+    __wt_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
     if (oldest_active_read_timestamp != WT_TS_NONE &&
       oldest_active_read_timestamp < oldest_timestamp)
         oldest_reader_lag = oldest_timestamp - oldest_active_read_timestamp;

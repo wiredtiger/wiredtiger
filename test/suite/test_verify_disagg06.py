@@ -132,7 +132,7 @@ class test_verify_disagg06(wttest.WiredTigerTestCase):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
                                            self.conn_config_follower)
         session_follow = conn_follow.open_session('')
-        self.disagg_advance_checkpoint_and_wait(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(conn_follow)
 
         # The leader verifies cleanly: its own rebuild of the leaf agrees with
         # the aggregate it just wrote.

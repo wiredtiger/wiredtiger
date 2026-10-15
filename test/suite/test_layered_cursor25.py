@@ -72,7 +72,7 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         conn_f = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower)
-        self.disagg_advance_checkpoint(conn_f)
+        self.disagg_advance_checkpoint_with_oldest(conn_f)
 
         # Start iterating on the follower and stop while positioned on the first key.
         session_r = conn_f.open_session()

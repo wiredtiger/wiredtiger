@@ -84,7 +84,7 @@ class test_layered_txn02(wttest.WiredTigerTestCase):
         cursor.close()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
-        self.disagg_advance_checkpoint_and_wait(self.conn_follow)
+        self.disagg_advance_checkpoint_with_oldest_and_wait(self.conn_follow)
 
     # Seed the items into the constituent(s) the scenario selects.
     def seed(self, items):

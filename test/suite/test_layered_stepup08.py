@@ -110,7 +110,7 @@ class test_layered_stepup08(wttest.WiredTigerTestCase):
 
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
         self.conn.close('debug=(skip_checkpoint=true)')
@@ -173,7 +173,7 @@ class test_layered_stepup08(wttest.WiredTigerTestCase):
 
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
         self.conn.close('debug=(skip_checkpoint=true)')
@@ -297,7 +297,7 @@ class test_layered_stepup08(wttest.WiredTigerTestCase):
 
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
         oplog.check(self, session_follow, 0, 300 * self.multiplier)
 
         self.conn.close('debug=(skip_checkpoint=true)')

@@ -268,7 +268,7 @@ class test_layered_schema29(
         self.leader_checkpoint(20)
         self.assertEqual(self.last_checkpoint_epoch(), self.epoch_before_off)
 
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint_with_oldest(conn_follow)
 
         # The queued create survived, so step-up still builds the stable constituent.
         self.step_up(conn_follow)
