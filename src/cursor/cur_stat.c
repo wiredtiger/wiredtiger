@@ -247,6 +247,10 @@ __curstat_otel_key_cmp(const void *keyp, const void *elemp)
 static int
 __curstat_otel_search(WT_CURSOR_STAT *cst)
 {
+    /* An empty subset has no keys array to search. */
+    if (cst->otel_count == 0)
+        return (WT_NOTFOUND);
+
     const int *found =
       bsearch(&cst->key, cst->otel_keys, cst->otel_count, sizeof(int), __curstat_otel_key_cmp);
     if (found == NULL)
