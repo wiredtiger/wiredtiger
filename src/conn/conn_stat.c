@@ -455,7 +455,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
      * connection completes recovery.
      */
     if (conn->stat_log.sources != NULL && F_ISSET(conn, WT_CONN_RECOVERY_COMPLETE))
-        WT_RET(__wt_conn_btree_apply(session, NULL, __statlog_apply, NULL, NULL));
+        WT_RET(__wt_conn_btree_apply(session, NULL, __statlog_apply, NULL, NULL, NULL));
 
     WT_RET(__statlog_print_footer(session));
 
