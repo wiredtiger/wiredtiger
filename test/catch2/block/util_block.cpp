@@ -126,8 +126,8 @@ setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &f
     session->setup_block_manager_file_operations();
 
     /*
-     * Manually set all the methods in WT_BM. The __wt_bm_open() function also initializes the
-     * block manager methods; we set them here so the test does not go through that constructor.
+     * Manually set all the methods in WT_BM. The __wt_bm_open() function also initializes the block
+     * manager methods; we set them here so the test does not go through that constructor.
      */
     memset(reinterpret_cast<void *>(bm), 0, sizeof(WT_BM));
     __wti_bm_method_set(bm, false);

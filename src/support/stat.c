@@ -2738,37 +2738,15 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks",
   "backup: total modified incremental blocks with compressed data",
   "backup: total modified incremental blocks without compressed data",
-  "block-cache: cached blocks updated",
-  "block-cache: cached bytes updated",
   "block-cache: cold collection pages not added to the disaggregated victim cache during eviction",
-  "block-cache: evicted blocks",
   "block-cache: failed page inserts into the disaggregated victim cache",
-  "block-cache: file size causing bypass",
-  "block-cache: lookups",
   "block-cache: maximum time spent adding a single page to the disaggregated victim cache, reset "
   "per checkpoint (usecs)",
-  "block-cache: number of blocks not evicted due to overhead",
-  "block-cache: number of bypasses because no-write-allocate setting was on",
-  "block-cache: number of bypasses due to overhead on put",
-  "block-cache: number of bypasses on get",
-  "block-cache: number of bypasses on put because file is too small",
-  "block-cache: number of eviction passes",
-  "block-cache: number of hits",
-  "block-cache: number of misses",
-  "block-cache: number of put bypasses on checkpoint I/O",
   "block-cache: pages added to the disaggregated victim cache",
   "block-cache: pages added to the disaggregated victim cache by application threads",
-  "block-cache: removed blocks",
   "block-cache: time application threads spent adding pages to the disaggregated victim cache "
   "(usecs)",
-  "block-cache: time sleeping to remove block (usecs)",
   "block-cache: time spent adding pages to the disaggregated victim cache (usecs)",
-  "block-cache: total blocks",
-  "block-cache: total blocks inserted on read path",
-  "block-cache: total blocks inserted on write path",
-  "block-cache: total bytes",
-  "block-cache: total bytes inserted on read path",
-  "block-cache: total bytes inserted on write path",
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
   "block-disagg: Disaggregated block manager get",
@@ -3951,35 +3929,13 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_BACKUP_BLOCKS,
   WT_STAT_CONN_BACKUP_BLOCKS_COMPRESSED,
   WT_STAT_CONN_BACKUP_BLOCKS_UNCOMPRESSED,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES_UPDATE,
   WT_STAT_CONN_BLOCK_CACHE_COLD_NOT_CACHED,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_EVICTED,
   WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE,
-  WT_STAT_CONN_BLOCK_CACHE_LOOKUPS,
   WT_STAT_CONN_BLOCK_CACHE_PUT_TIME_MAX,
-  WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT,
-  WT_STAT_CONN_BLOCK_CACHE_EVICTION_PASSES,
-  WT_STAT_CONN_BLOCK_CACHE_HITS,
-  WT_STAT_CONN_BLOCK_CACHE_MISSES,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT,
   WT_STAT_CONN_BLOCK_CACHE_PUTS,
   WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUTS,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED,
   WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUT_TIME,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED_BLOCKED,
   WT_STAT_CONN_BLOCK_CACHE_PUT_TIME,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_READ,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_WRITE,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES_INSERT_READ,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES_INSERT_WRITE,
   WT_STAT_CONN_DISAGG_BLOCK_HS_BYTE_READ,
   WT_STAT_CONN_DISAGG_BLOCK_HS_BYTE_WRITE,
   WT_STAT_CONN_DISAGG_BLOCK_GET,
@@ -5107,35 +5063,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->backup_blocks = 0;
     stats->backup_blocks_compressed = 0;
     stats->backup_blocks_uncompressed = 0;
-    stats->block_cache_blocks_update = 0;
-    stats->block_cache_bytes_update = 0;
     stats->block_cache_cold_not_cached = 0;
-    stats->block_cache_blocks_evicted = 0;
     stats->block_cache_put_failures = 0;
-    stats->block_cache_bypass_filesize = 0;
-    stats->block_cache_lookups = 0;
     /* not clearing block_cache_put_time_max */
-    stats->block_cache_not_evicted_overhead = 0;
-    stats->block_cache_bypass_writealloc = 0;
-    stats->block_cache_bypass_overhead_put = 0;
-    stats->block_cache_bypass_get = 0;
-    stats->block_cache_bypass_put = 0;
-    stats->block_cache_eviction_passes = 0;
-    stats->block_cache_hits = 0;
-    stats->block_cache_misses = 0;
-    stats->block_cache_bypass_chkpt = 0;
     stats->block_cache_puts = 0;
     stats->block_cache_app_thread_puts = 0;
-    stats->block_cache_blocks_removed = 0;
     stats->block_cache_app_thread_put_time = 0;
-    stats->block_cache_blocks_removed_blocked = 0;
     stats->block_cache_put_time = 0;
-    stats->block_cache_blocks = 0;
-    stats->block_cache_blocks_insert_read = 0;
-    stats->block_cache_blocks_insert_write = 0;
-    stats->block_cache_bytes = 0;
-    stats->block_cache_bytes_insert_read = 0;
-    stats->block_cache_bytes_insert_write = 0;
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
     stats->disagg_block_get = 0;
@@ -6242,37 +6176,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks += WT_STAT_CONN_READ(from, backup_blocks);
     to->backup_blocks_compressed += WT_STAT_CONN_READ(from, backup_blocks_compressed);
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
-    to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
-    to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
     to->block_cache_cold_not_cached += WT_STAT_CONN_READ(from, block_cache_cold_not_cached);
-    to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
     to->block_cache_put_failures += WT_STAT_CONN_READ(from, block_cache_put_failures);
-    to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
-    to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
     to->block_cache_put_time_max += WT_STAT_CONN_READ(from, block_cache_put_time_max);
-    to->block_cache_not_evicted_overhead +=
-      WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
-    to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
-    to->block_cache_bypass_overhead_put += WT_STAT_CONN_READ(from, block_cache_bypass_overhead_put);
-    to->block_cache_bypass_get += WT_STAT_CONN_READ(from, block_cache_bypass_get);
-    to->block_cache_bypass_put += WT_STAT_CONN_READ(from, block_cache_bypass_put);
-    to->block_cache_eviction_passes += WT_STAT_CONN_READ(from, block_cache_eviction_passes);
-    to->block_cache_hits += WT_STAT_CONN_READ(from, block_cache_hits);
-    to->block_cache_misses += WT_STAT_CONN_READ(from, block_cache_misses);
-    to->block_cache_bypass_chkpt += WT_STAT_CONN_READ(from, block_cache_bypass_chkpt);
     to->block_cache_puts += WT_STAT_CONN_READ(from, block_cache_puts);
     to->block_cache_app_thread_puts += WT_STAT_CONN_READ(from, block_cache_app_thread_puts);
-    to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
     to->block_cache_app_thread_put_time += WT_STAT_CONN_READ(from, block_cache_app_thread_put_time);
-    to->block_cache_blocks_removed_blocked +=
-      WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
     to->block_cache_put_time += WT_STAT_CONN_READ(from, block_cache_put_time);
-    to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
-    to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
-    to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
-    to->block_cache_bytes += WT_STAT_CONN_READ(from, block_cache_bytes);
-    to->block_cache_bytes_insert_read += WT_STAT_CONN_READ(from, block_cache_bytes_insert_read);
-    to->block_cache_bytes_insert_write += WT_STAT_CONN_READ(from, block_cache_bytes_insert_write);
     to->disagg_block_hs_byte_read += WT_STAT_CONN_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_CONN_READ(from, disagg_block_hs_byte_write);
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
