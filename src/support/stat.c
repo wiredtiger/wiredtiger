@@ -3864,6 +3864,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates",
   "transaction: step-down disaggregated schema epoch is currently set",
   "transaction: step-down timestamp is currently set",
+  "transaction: transaction ID allocations retried after a snapshot stopped waiting",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction global checkpoint timestamp",
@@ -4996,6 +4997,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_TXN_SET_TS_STABLE_UPD,
   WT_STAT_CONN_TXN_STEPDOWN_EPOCH_SET,
   WT_STAT_CONN_TXN_STEPDOWN_TS_SET,
+  WT_STAT_CONN_TXN_ID_ALLOC_RETRY,
   WT_STAT_CONN_TXN_BEGIN,
   WT_STAT_CONN_TXN_HS_CKPT_DURATION,
   WT_STAT_CONN_TXN_GLOBAL_CHECKPOINT_TIMESTAMP,
@@ -6164,6 +6166,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_upd = 0;
     /* not clearing txn_stepdown_epoch_set */
     /* not clearing txn_stepdown_ts_set */
+    stats->txn_id_alloc_retry = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_global_checkpoint_timestamp */
@@ -7628,6 +7631,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
     to->txn_stepdown_epoch_set += WT_STAT_CONN_READ(from, txn_stepdown_epoch_set);
     to->txn_stepdown_ts_set += WT_STAT_CONN_READ(from, txn_stepdown_ts_set);
+    to->txn_id_alloc_retry += WT_STAT_CONN_READ(from, txn_id_alloc_retry);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);
     to->txn_global_checkpoint_timestamp += WT_STAT_CONN_READ(from, txn_global_checkpoint_timestamp);

@@ -1507,6 +1507,7 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_stepdown_epoch_set;
     int64_t txn_stepdown_ts_set;
+    int64_t txn_id_alloc_retry;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_global_checkpoint_timestamp;
