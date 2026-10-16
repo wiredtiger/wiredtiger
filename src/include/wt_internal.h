@@ -99,6 +99,8 @@ struct __wt_block_disagg_header;
 typedef struct __wt_block_disagg_header WT_BLOCK_DISAGG_HEADER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
+struct __wt_block_inmem;
+typedef struct __wt_block_inmem WT_BLOCK_INMEM;
 struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
@@ -621,6 +623,7 @@ typedef uint64_t wt_timestamp_t;
 #include "api.h"
 #include "bitstring.h"
 #include "block.h"
+#include "block_inmem.h"
 #include "block_cache.h"
 #include "btmem.h"
 #include "cache_top.h" /* required by btree.h */
