@@ -229,26 +229,35 @@ __curstat_otel_prev(WT_CURSOR_STAT *cst)
 }
 
 /*
+ * __curstat_otel_key_cmp --
+ *     Compare two statistics keys.
+ */
+static int
+__curstat_otel_key_cmp(const void *keyp, const void *elemp)
+{
+    int elem, key;
+
+    key = *(const int *)keyp;
+    elem = *(const int *)elemp;
+    return (key < elem ? -1 : (key > elem ? 1 : 0));
+}
+
+/*
  * __curstat_otel_search --
  *     Position on the cursor's key if it is a statistic of the cursor's OTel type.
  */
 static int
 __curstat_otel_search(WT_CURSOR_STAT *cst)
 {
-    u_int hi, lo, mid;
+    const int *found;
 
-    for (lo = 0, hi = cst->otel_count; lo < hi;) {
-        mid = lo + (hi - lo) / 2;
-        if (cst->otel_keys[mid] == cst->key) {
-            cst->otel_idx = mid;
-            return (0);
-        }
-        if (cst->otel_keys[mid] < cst->key)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    return (WT_NOTFOUND);
+    found =
+      bsearch(&cst->key, cst->otel_keys, cst->otel_count, sizeof(int), __curstat_otel_key_cmp);
+    if (found == NULL)
+        return (WT_NOTFOUND);
+
+    cst->otel_idx = (u_int)(found - cst->otel_keys);
+    return (0);
 }
 
 /*
