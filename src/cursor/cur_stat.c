@@ -235,10 +235,8 @@ __curstat_otel_prev(WT_CURSOR_STAT *cst)
 static int
 __curstat_otel_key_cmp(const void *keyp, const void *elemp)
 {
-    int elem, key;
-
-    key = *(const int *)keyp;
-    elem = *(const int *)elemp;
+    int key = *(const int *)keyp;
+    int elem = *(const int *)elemp;
     return (key < elem ? -1 : (key > elem ? 1 : 0));
 }
 
@@ -249,9 +247,7 @@ __curstat_otel_key_cmp(const void *keyp, const void *elemp)
 static int
 __curstat_otel_search(WT_CURSOR_STAT *cst)
 {
-    const int *found;
-
-    found =
+    const int *found =
       bsearch(&cst->key, cst->otel_keys, cst->otel_count, sizeof(int), __curstat_otel_key_cmp);
     if (found == NULL)
         return (WT_NOTFOUND);
@@ -830,7 +826,7 @@ __curstat_session_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
 /*
  * __curstat_init_stats --
- *     Initialize a statistics cursor's statistics.
+ *     Initialize a statistics cursor's set of keys to expose.
  */
 static int
 __curstat_init_stats(
@@ -881,13 +877,11 @@ __curstat_init_stats(
 
 /*
  * __curstat_otel_init --
- *     Initialize a statistics cursor's OTel keys and related fields.
+ *     Initialize a statistics cursor's OTel set of keys to expose and related fields.
  */
 static int
 __curstat_otel_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
-    uint32_t otel_flag;
-
     cst->otel_keys = NULL;
     cst->otel_count = 0;
     cst->otel_idx = 0;
@@ -895,7 +889,7 @@ __curstat_otel_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     if (!WT_STAT_OTEL_SUBSET(cst))
         return (0);
 
-    otel_flag = F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS);
+    uint32_t otel_flag = F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS);
     switch (cst->stats_base) {
     case WT_CONNECTION_STATS_BASE:
         return (__wt_stat_connection_otel_keys(otel_flag, &cst->otel_keys, &cst->otel_count));
