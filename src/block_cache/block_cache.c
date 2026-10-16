@@ -812,14 +812,13 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
         return (__wt_block_inmem_manager_open(session, uri, cfg, forced_salvage, readonly, bmp));
 
     WT_RET(__wt_calloc_one(session, &bm));
+    __wti_bm_method_set(bm, false);
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         uri += strlen("file:");
-        __wti_bm_method_set(bm, false);
         WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
           false, allocsize, lr_fh_meta, &bm->block));
     } else {
-        __wti_bm_method_set(bm, false);
         /* Leftover tiered URIs must not map onto a file. */
         WT_ERR(__wt_object_unsupported(session, uri));
     }
