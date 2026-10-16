@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wti_blkcache_tiered_open --
+ * __wti_bm_tiered_open --
  *     Open a tiered object.
  */
 int
-__wti_blkcache_tiered_open(
+__wti_bm_tiered_open(
   WT_SESSION_IMPL *session, const char *uri, uint32_t objectid, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
@@ -108,13 +108,13 @@ err:
 }
 
 /*
- * __blkcache_find_open_handle --
+ * __bm_find_open_handle --
  *     If the block manager's handle array already has an entry for the given object, return it. If
  *     caller is going to read from the handle, increment the read count while we have the handle
  *     table locked.
  */
 static void
-__blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK **blockp)
+__bm_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK **blockp)
 {
     u_int i;
 
@@ -134,15 +134,15 @@ __blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK
             }
 
     if (reading && *blockp != NULL)
-        __wti_blkcache_get_read_handle(*blockp);
+        __wti_bm_get_read_handle(*blockp);
 }
 
 /*
- * __wt_blkcache_get_handle --
+ * __wt_bm_tiered_get_handle --
  *     Get a cached block handle for an object, creating it if it doesn't exist.
  */
 int
-__wt_blkcache_get_handle(
+__wt_bm_tiered_get_handle(
   WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK **blockp)
 {
     WT_BLOCK *new_handle;
@@ -155,14 +155,14 @@ __wt_blkcache_get_handle(
      * only reference objects in our name space.
      */
     __wt_readlock(session, &bm->handle_array_lock);
-    __blkcache_find_open_handle(bm, objectid, reading, blockp);
+    __bm_find_open_handle(bm, objectid, reading, blockp);
     __wt_readunlock(session, &bm->handle_array_lock);
 
     if (*blockp != NULL)
         return (0);
 
     /* Open a handle for the object. */
-    WT_RET(__wti_blkcache_tiered_open(session, NULL, objectid, &new_handle));
+    WT_RET(__wti_bm_tiered_open(session, NULL, objectid, &new_handle));
 
     /* We need a write lock to add a new entry to the handle array. */
     __wt_writelock(session, &bm->handle_array_lock);
@@ -171,7 +171,7 @@ __wt_blkcache_get_handle(
      * Check to see if the object was added while we opened it. If the object was added, we should
      * get back the same handle we already have.
      */
-    __blkcache_find_open_handle(bm, objectid, reading, blockp);
+    __bm_find_open_handle(bm, objectid, reading, blockp);
     WT_ASSERT(session, *blockp == NULL || *blockp == new_handle);
 
     if (*blockp == NULL) {
@@ -180,7 +180,7 @@ __wt_blkcache_get_handle(
           session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
 
         if (reading)
-            __wti_blkcache_get_read_handle(new_handle);
+            __wti_bm_get_read_handle(new_handle);
 
         bm->handle_array[bm->handle_array_next++] = new_handle;
         *blockp = new_handle;
@@ -197,21 +197,21 @@ err:
 }
 
 /*
- * __wti_blkcache_get_read_handle --
+ * __wti_bm_get_read_handle --
  *     Update block handle when a read operation begins.
  */
 void
-__wti_blkcache_get_read_handle(WT_BLOCK *block)
+__wti_bm_get_read_handle(WT_BLOCK *block)
 {
     __wt_atomic_add_uint32(&block->read_count, 1);
 }
 
 /*
- * __wt_blkcache_release_handle --
+ * __wt_bm_tiered_release_handle --
  *     Update block handle when a read operation completes.
  */
 void
-__wt_blkcache_release_handle(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *last_release)
+__wt_bm_tiered_release_handle(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *last_release)
 {
     WT_ASSERT(session, block->read_count > 0);
     *last_release = false;

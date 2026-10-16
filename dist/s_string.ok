@@ -1348,7 +1348,6 @@ lexicographically
 lf
 libdatasource
 libmagic
-libmemkind
 libpthread
 libpython
 libs
@@ -1424,7 +1423,6 @@ memcmp
 memcpy
 memdup
 meminfo
-memkind
 memmove
 memset
 memsize

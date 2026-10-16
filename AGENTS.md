@@ -42,11 +42,11 @@ cd dist && ./s_fast    # fast subset, only changed files
 
 ### Source layout (`src/`)
 
-- **Data path**: `btree/`, `cursor/`, `block/`, `reconcile/`
+- **Data path**: `btree/`, `cursor/`, `block/`, `block_mgr/`, `reconcile/`
 - **Transactions & durability**: `txn/`, `checkpoint/`, `log/`, `rollback_to_stable/`, `history/`
 - **Connection & session**: `conn/`, `session/`, `schema/`
 - **Memory**: `cache/`, `evict/`
-- **Storage extensions**: `block_cache/`, `block_disagg/`, `live_restore/`, `tiered/`
+- **Storage extensions**: `block_disagg/`, `live_restore/`, `tiered/`
 - **Platform**: `os_posix/`, `os_win/`, `os_common/`, `os_darwin/`, `os_linux/`
 - **Infrastructure**: `config/`, `support/`, `meta/`, `packing/`, `checksum/`
 - **Headers**: `include/` — `wiredtiger.h.in` is the public API template; `wt_internal.h` aggregates internal headers

@@ -580,46 +580,44 @@ layered_meta = format_meta + layered_config + log_runtime_config + connection_di
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
     Config('block_cache', '', r'''
-        block cache configuration options''',
-        type='category', subconfig=[
+        deprecated, ignored''',
+        type='category', undoc=True, subconfig=[
         Config('cache_on_checkpoint', 'true', r'''
-            cache blocks written by a checkpoint''',
-            type='boolean'),
+            deprecated, ignored''',
+            type='boolean', undoc=True),
         Config('cache_on_writes', 'true', r'''
-            cache blocks as they are written (other than checkpoint blocks)''',
-            type='boolean'),
+            deprecated, ignored''',
+            type='boolean', undoc=True),
         Config('enabled', 'false', r'''
-            enable block cache''',
-            type='boolean'),
+            deprecated, ignored''',
+            type='boolean', undoc=True),
         Config('blkcache_eviction_aggression', '1800', r'''
-            seconds an unused block remains in the cache before it is evicted''',
-            min='1', max='7200'),
+            deprecated, ignored''',
+            min='1', max='7200', undoc=True),
         Config('full_target', '95', r'''
-            the fraction of the block cache that must be full before eviction will remove
-            unused blocks''',
-            min='30', max='100'),
+            deprecated, ignored''',
+            min='30', max='100', undoc=True),
         Config('size', '0', r'''
-            maximum memory to allocate for the block cache''',
-            min='0', max='10TB'),
+            deprecated, ignored''',
+            min='0', max='10TB', undoc=True),
         Config('hashsize', '32768', r'''
-            number of buckets in the hashtable that keeps track of blocks''',
-            min='512', max='256K'),
+            deprecated, ignored''',
+            min='512', max='256K', undoc=True),
         Config('max_percent_overhead', '10', r'''
-            maximum tolerated overhead expressed as the number of blocks added and removed as
-            percent of blocks looked up; cache population and eviction will be suppressed if
-            the overhead exceeds the threshold''',
-            min='1', max='500'),
+            deprecated, ignored''',
+            min='1', max='500', undoc=True),
         Config('nvram_path', '', r'''
-            the absolute path to the file system mounted on the NVRAM device'''),
+            deprecated, ignored''',
+            undoc=True),
         Config('percent_file_in_dram', '50', r'''
-            bypass cache for a file if the set percentage of the file fits in system DRAM
-            (as specified by block_cache.system_ram)''',
-            min='0', max='100'),
+            deprecated, ignored''',
+            min='0', max='100', undoc=True),
         Config('system_ram', '0', r'''
-            the bytes of system DRAM available for caching filesystem blocks''',
-            min='0', max='1024GB'),
+            deprecated, ignored''',
+            min='0', max='1024GB', undoc=True),
         Config('type', '', r'''
-            cache location: DRAM or NVRAM'''),
+            deprecated, ignored''',
+            undoc=True),
         ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either

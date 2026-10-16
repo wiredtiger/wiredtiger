@@ -33,7 +33,7 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
 
     if (bm->is_multi_handle)
         /* Lookup the block handle */
-        WT_RET(__wt_blkcache_get_handle(session, bm, objectid, true, &block));
+        WT_RET(__wt_bm_tiered_get_handle(session, bm, objectid, true, &block));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -53,7 +53,7 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_ME
 err:
     if (bm->is_multi_handle) {
         last_release = false;
-        __wt_blkcache_release_handle(session, block, &last_release);
+        __wt_bm_tiered_release_handle(session, block, &last_release);
         if (last_release && __wt_block_eligible_for_sweep(bm, block))
             WT_TRET(__wt_bm_sweep_handles(session, bm));
     }
