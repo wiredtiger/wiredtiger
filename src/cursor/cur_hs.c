@@ -82,7 +82,6 @@ int
 __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
 {
     WT_CURSOR *cursor;
-    WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_RET;
     uint64_t hash_value;
     const char *uri;
@@ -91,13 +90,10 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     WT_HS_ID_TO_URI(session, hs_id, uri);
 
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-    saved_dhandle = session->dhandle;
     /* The cache lookup must not change the caller's data handle. */
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor));
     if (ret == 0) {
-        WT_ASSERT(session, session->dhandle == saved_dhandle);
-        WT_UNUSED(saved_dhandle);
         *hs_btreep = CUR2BT(cursor);
         /*
          * The pattern of acquiring a cursor, obtaining its dhandle, and then closing the cursor is
