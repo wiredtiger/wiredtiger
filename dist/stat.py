@@ -313,6 +313,7 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats, ui
 {
 \tswitch (otel_flag) {
 ''')
+    # FIXME-WT-18692: Support clearing only the otel_none statistics.
     for otel_type in OTEL_TYPES[:-1]:
         f.write('\tcase WT_STAT_' + otel_type.upper() + 'S:\n')
         for l in statlist:
