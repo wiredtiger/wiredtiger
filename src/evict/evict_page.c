@@ -270,7 +270,8 @@ __evict_page_victim_cache_eligible(
      * A stored image is never empty. An empty page only comes from a delta merge, which records a
      * non-zero delta count.
      *
-     * FIXME-WT-18918: free the old block instead of skip-writing the empty page.
+     * FIXME-WT-18918: free the old block instead of skip-writing the empty page. Once that lands
+     * nothing can produce this image, so turn this check into an assert.
      */
     if (disk_image->u.entries == 0 && page->disagg_info->block_meta.delta_count == 0)
         return (WTI_EVICT_VICTIM_NO_IMAGE);
