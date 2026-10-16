@@ -53,10 +53,8 @@ __wti_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 static int
 __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    const char *name;
-
-    name = bm->block->name;
-    WT_RET_MSG(session, ENOTSUP, "%s: write operation on read-only checkpoint handle", name);
+    WT_RET_MSG(
+      session, ENOTSUP, "%s: write operation on read-only checkpoint handle", bm->block->name);
 }
 
 /*
@@ -262,8 +260,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    if (bm->block != NULL)
-        ret = __wti_bm_close_block(session, bm->block);
+    ret = __wti_bm_close_block(session, bm->block);
 
     __wt_overwrite_and_free(session, bm);
     return (ret);
