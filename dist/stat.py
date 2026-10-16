@@ -306,11 +306,20 @@ __wt_stat_''' + name + '''_discard(
 }
 ''')
 
+    # Clear the statistics that have been exposed by the cursor.
     f.write('''
 void
-__wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats)
+__wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats, uint32_t otel_flag)
 {
+\tswitch (otel_flag) {
 ''')
+    for otel_type in OTEL_TYPES[:-1]:
+        f.write('\tcase WT_STAT_' + otel_type.upper() + 'S:\n')
+        for l in statlist:
+            if l.otel_type == otel_type and 'no_clear' not in l.flags:
+                f.write('\t\tstats->' + l.name + ' = 0;\n')
+        f.write('\t\treturn;\n')
+    f.write('\tdefault:\n\t\tbreak;\n\t}\n\n')
     for l in statlist:
         # no_clear: don't clear the value.
         if 'no_clear' in l.flags:
@@ -322,12 +331,12 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats)
     if name != 'session':
         f.write('''
 void
-__wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats)
+__wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats, uint32_t otel_flag)
 {
 \tu_int i;
 
 \tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i)
-\t\t__wt_stat_''' + name + '''_clear_single(stats[i]);
+\t\t__wt_stat_''' + name + '''_clear_single(stats[i], otel_flag);
 }
 ''')
 

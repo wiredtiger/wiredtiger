@@ -28,6 +28,7 @@
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios
+from helper import WiredTigerCursor, statistic_uri
 
 OTEL_TYPES = ['otel_counters', 'otel_gauges', 'otel_histograms']
 
@@ -157,3 +158,42 @@ class test_stat19_disjoint(wttest.WiredTigerTestCase):
             cursor.close()
             self.assertEqual(seen & keys, set())
             seen |= keys
+
+# Clearing through a cursor of one OTel type must not clear statistics of any other type.
+class test_stat19_clear(wttest.WiredTigerTestCase):
+    conn_config = 'statistics=(all)'
+    uri = 'table:test_stat19_clear'
+
+    scenarios = make_scenarios([('all', dict())])
+
+    def read(self, key):
+        with WiredTigerCursor(self.session, statistic_uri()) as stat_cur:
+            stat_cur.set_key(key)
+            self.assertEqual(stat_cur.search(), 0)
+            return stat_cur.get_value()[2]
+
+    def test_clear_only_otel_counters(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(100):
+            cursor[str(i)] = str(10)
+        while cursor.next() == 0:
+            pass
+        cursor.close()
+
+        counter_before_clear = self.read(wiredtiger.stat.conn.cursor_insert)
+        next_before_clear = self.read(wiredtiger.stat.conn.cursor_next)
+        # If the statistics are 0, they can't be tested for clearing correctly.
+        self.assertGreater(counter_before_clear, 0)
+        self.assertGreater(next_before_clear, 0)
+
+        with WiredTigerCursor(self.session, statistic_uri(), None,
+                              'statistics=(all,clear,otel_counters)') as clearing:
+            pass
+
+        after_clear_counter = self.read(wiredtiger.stat.conn.cursor_insert)
+        after_clear_next = self.read(wiredtiger.stat.conn.cursor_next)
+        # Only the counter type should be cleared.
+        self.assertEqual(after_clear_next, next_before_clear)
+        self.assertLess(after_clear_counter, counter_before_clear)
+        self.assertEqual(after_clear_counter, 0)

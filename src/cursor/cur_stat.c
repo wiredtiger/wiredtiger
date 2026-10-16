@@ -360,7 +360,7 @@ __curstat_reset(WT_CURSOR *cursor)
 
     /* Reset the session statistics to zero. */
     if (strcmp(cursor->uri, "statistics:session") == 0)
-        __wt_stat_session_clear_single(&session->stats);
+        __wt_stat_session_clear_single(&session->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
 
 err:
     API_END_RET(session, ret);
@@ -450,7 +450,7 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     __wt_stat_connection_init_single(&cst->u.conn_stats);
     __wt_stat_connection_aggregate(conn->stats, &cst->u.conn_stats);
     if (F_ISSET(cst, WT_STAT_CLEAR))
-        __wt_stat_connection_clear_all(conn->stats);
+        __wt_stat_connection_clear_all(conn->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
 
     cst->stats = (int64_t *)&cst->u.conn_stats;
     cst->stats_base = WT_CONNECTION_STATS_BASE;
@@ -473,7 +473,7 @@ __init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
         __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
         if (F_ISSET(cst, WT_STAT_CLEAR))
-            __wt_stat_dsrc_clear_all(dhandle->stats);
+            __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
     }
 
     return (ret);
@@ -776,7 +776,7 @@ __curstat_file_init(
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
         __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
         if (F_ISSET(cst, WT_STAT_CLEAR))
-            __wt_stat_dsrc_clear_all(dhandle->stats);
+            __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
         __wt_curstat_dsrc_final(cst);
     }
 
@@ -811,7 +811,7 @@ __curstat_session_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
      */
     memcpy(&cst->u.session_stats, &session->stats, sizeof(WT_SESSION_STATS));
     if (F_ISSET(cst, WT_STAT_CLEAR))
-        __wt_stat_session_clear_single(&session->stats);
+        __wt_stat_session_clear_single(&session->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
 
     cst->stats = (int64_t *)&cst->u.session_stats;
     cst->stats_base = WT_SESSION_STATS_BASE;
