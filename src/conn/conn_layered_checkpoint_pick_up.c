@@ -1712,9 +1712,9 @@ __wti_disagg_clear_deferred_checkpoint_all(WT_SESSION_IMPL *session)
 /*
  * __disagg_deferred_ckpt_queued --
  *     Check whether any checkpoint is waiting to be adopted. This is an unsafe check to avoid
- *     claiming the queue lock: only the pickup server asks, to choose how long to sleep, and an
- *     answer stale in either direction only delays a look at the queue. This is in its own function
- *     to suppress the TSan warning.
+ *     claiming the queue lock: it only chooses how long the pickup server sleeps and whether an
+ *     adoption attempt has anything to look at, and an answer stale in either direction only delays
+ *     a look at the queue. This is in its own function to suppress the TSan warning.
  */
 static WT_INLINE bool
 __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
@@ -1754,11 +1754,13 @@ __disagg_deferred_pickup_server(void *arg)
     for (;;) {
         /*
          * Sleep until signalled: a deferral arms the server and a pin release may unblock an
-         * adoption. While anything is queued, wake periodically as a backstop against a wakeup lost
-         * to a release racing a delivery; this is not an adoption deadline.
+         * adoption. The wait is always timed, as a backstop against a wakeup lost to a signal
+         * racing the server going to sleep, and shorter while a checkpoint is queued; this is not
+         * an adoption deadline.
          */
         __wt_cond_wait(session, disagg->deferred_pickup_cond,
-          __disagg_deferred_ckpt_queued(session) ? 10 * WT_MILLION : 0,
+          __disagg_deferred_ckpt_queued(session) ? WT_DISAGG_PICKUP_QUEUED_WAIT_USECS :
+                                                   WT_DISAGG_PICKUP_IDLE_WAIT_USECS,
           __disagg_deferred_pickup_run_chk);
 
         /*
@@ -1808,6 +1810,8 @@ __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_g
      * nothing is deferred.
      */
     if (released_gen != 0 && released_gen >= __wt_gen(session, WT_GEN_DISAGG_CKPT))
+        return;
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_PICKUP_SKIP_SIGNAL))
         return;
     if (disagg->deferred_pickup_cond != NULL)
         __wt_cond_signal(session, disagg->deferred_pickup_cond);
@@ -1939,7 +1943,11 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
-    /* Having nothing to adopt is the common case, not a failure. */
+    /* Nothing queued means nothing to adopt, even when forced: skip the scan and the queue lock. */
+    if (!__disagg_deferred_ckpt_queued(session))
+        return (0);
+
+    /* Having nothing adoptable is the common case, not a failure. */
     ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn);
     if (ret == WT_NOTFOUND)
         return (0);
