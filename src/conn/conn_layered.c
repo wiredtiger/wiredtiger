@@ -2019,6 +2019,8 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(
       &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+    if (step_down_ts != WT_TS_NONE)
+        WT_STAT_CONN_INCR(session, disagg_step_down_completed);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
 
