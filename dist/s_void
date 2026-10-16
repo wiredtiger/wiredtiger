@@ -138,11 +138,12 @@ func_ok()
         -e '/int __wti_block_disagg_verify_end$/d' \
         -e '/int __wti_block_disagg_verify_start$/d' \
         -e '/int __wti_block_disagg_write_size$/d' \
-        -e '/int __wti_block_inmem_checkpoint_start$/d' \
-        -e '/int __wti_block_inmem_checkpoint_unload$/d' \
-        -e '/int __wti_block_inmem_manager_size$/d' \
-        -e '/int __wti_block_inmem_sync$/d' \
-        -e '/int __wti_block_inmem_write_size$/d' \
+        -e '/int __bmi_checkpoint_resolve$/d' \
+        -e '/int __bmi_free$/d' \
+        -e '/int __bmi_size$/d' \
+        -e '/int __bmi_stat$/d' \
+        -e '/int __bmi_noop$/d' \
+        -e '/int __block_inmem_destroy$/d' \
         -e '/int __wti_cursor_noop$/d' \
         -e '/int __wti_posix_directory_list_free$/d' \
         -e '/int __wti_win_directory_list_free$/d' \
