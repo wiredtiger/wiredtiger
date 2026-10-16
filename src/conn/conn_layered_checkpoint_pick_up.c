@@ -1712,9 +1712,9 @@ __wti_disagg_clear_deferred_checkpoint_all(WT_SESSION_IMPL *session)
 /*
  * __disagg_deferred_ckpt_queued --
  *     Check whether any checkpoint is waiting to be adopted. This is an unsafe check to avoid
- *     claiming the queue lock: only the pickup server asks, to choose how long to sleep, and an
- *     answer stale in either direction only delays a look at the queue. This is in its own function
- *     to suppress the TSan warning.
+ *     claiming the queue lock: only the pickup server asks, to choose how long to sleep and to skip
+ *     scanning the sessions when idle, and an answer stale in either direction only delays a look
+ *     at the queue. This is in its own function to suppress the TSan warning.
  */
 static WT_INLINE bool
 __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
@@ -1811,6 +1811,8 @@ __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_g
      */
     if (released_gen != 0 && released_gen >= __wt_gen(session, WT_GEN_DISAGG_CKPT))
         return;
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_DISAGG_PICKUP_SKIP_SIGNAL))
+        return;
     if (disagg->deferred_pickup_cond != NULL)
         __wt_cond_signal(session, disagg->deferred_pickup_cond);
 }
@@ -1896,6 +1898,9 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
+
+    if (!force && !__disagg_deferred_ckpt_queued(session))
+        return (WT_NOTFOUND);
 
     /*
      * The oldest pin decides the whole queue, so scan the sessions once, before taking the queue
