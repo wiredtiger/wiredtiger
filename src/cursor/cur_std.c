@@ -705,29 +705,6 @@ err:
 }
 
 /*
- * __cursor_open_count_incr --
- *     Count a cursor joining the session's open list.
- */
-static WT_INLINE void
-__cursor_open_count_incr(WT_SESSION_IMPL *session)
-{
-    __wt_atomic_store_uint32_relaxed(&session->open_cursor_count,
-      __wt_atomic_load_uint32_relaxed(&session->open_cursor_count) + 1);
-}
-
-/*
- * __cursor_open_count_decr --
- *     Count a cursor leaving the session's open list.
- */
-static WT_INLINE void
-__cursor_open_count_decr(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&session->open_cursor_count) > 0);
-    __wt_atomic_store_uint32_relaxed(&session->open_cursor_count,
-      __wt_atomic_load_uint32_relaxed(&session->open_cursor_count) - 1);
-}
-
-/*
  * __wti_cursor_cache --
  *     Add this cursor to the cache.
  */
@@ -780,7 +757,7 @@ __wti_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     TAILQ_REMOVE(&session->cursors, cursor, q);
     TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
 
-    __cursor_open_count_decr(session);
+    (void)__wt_atomic_sub_uint32_relaxed(&session->open_cursor_count, 1);
     WT_STAT_CONN_INCR(session, cursor_cached_count);
     WT_STAT_DSRC_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
@@ -810,7 +787,7 @@ __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     __wt_cursor_dhandle_incr_use(session);
     WT_DHANDLE_RELEASE(dhandle);
 
-    __cursor_open_count_incr(session);
+    (void)__wt_atomic_add_uint32_relaxed(&session->open_cursor_count, 1);
     WT_STAT_CONN_DECR(session, cursor_cached_count);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
@@ -1171,7 +1148,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
     if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
         TAILQ_REMOVE(&session->cursors, cursor, q);
 
-        __cursor_open_count_decr(session);
+        (void)__wt_atomic_sub_uint32_relaxed(&session->open_cursor_count, 1);
         WT_STAT_DSRC_DECR(session, cursor_open_count);
     }
     __wt_buf_free(session, &cursor->key);
@@ -1570,7 +1547,7 @@ __wt_cursor_init(
 
     /* WT_CURSTD_OPEN */
     F_SET(cursor, WT_CURSTD_OPEN);
-    __cursor_open_count_incr(session);
+    (void)__wt_atomic_add_uint32_relaxed(&session->open_cursor_count, 1);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
     *cursorp = (cdump != NULL) ? cdump : cursor;
