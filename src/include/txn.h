@@ -99,16 +99,15 @@ typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
         WT_TXN_ISOLATION saved_iso = (s)->isolation;                                               \
         WT_TXN_ISOLATION saved_txn_iso = (s)->txn->isolation;                                      \
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(s);                                      \
-        WT_TXN_SHARED saved_txn_shared = *txn_shared;                                              \
         uint64_t txn_shared_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);               \
         uint64_t txn_shared_metadata_pinned =                                                      \
           __wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned);                         \
         uint64_t txn_shared_pinned_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id); \
-        uint64_t saved_txn_shared_id = __wt_atomic_load_uint64_v_relaxed(&saved_txn_shared.id);    \
+        uint64_t saved_txn_shared_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);         \
         uint64_t saved_txn_shared_metadata_pinned =                                                \
-          __wt_atomic_load_uint64_v_relaxed(&saved_txn_shared.metadata_pinned);                    \
+          __wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned);                         \
         uint64_t saved_txn_shared_pinned_id =                                                      \
-          __wt_atomic_load_uint64_v_relaxed(&saved_txn_shared.pinned_id);                          \
+          __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id);                               \
                                                                                                    \
         /* The following variables are only used inside an assert. */                              \
         WT_UNUSED(txn_shared_id);                                                                  \

@@ -2309,12 +2309,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      */
     if (publish)
         for (;;) {
-            WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, WT_TXN_ID_ALLOCATING);
-            WT_RELEASE_WRITE_WITH_BARRIER(
-              txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
+            __wt_atomic_store_uint8_v_release(&txn_shared->is_allocating, WT_TXN_ID_ALLOCATING);
+            __wt_atomic_store_uint64_v_release(
+              &txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
             id = __wt_atomic_fetch_add_uint64_v(&txn_global->current, 1);
             session->txn->time_point.id = id;
-            WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);
+            __wt_atomic_store_uint64_v_release(&txn_shared->id, id);
             if (__wt_atomic_cas_uint8_v(
                   &txn_shared->is_allocating, WT_TXN_ID_ALLOCATING, WT_TXN_ID_ALLOC_DONE))
                 break;
