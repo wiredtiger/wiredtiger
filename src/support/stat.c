@@ -1054,8 +1054,19 @@ __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 }
 
 void
-__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
+__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag)
 {
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    default:
+        break;
+    }
+
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
     stats->backup_blocks_compressed = 0;
@@ -1534,12 +1545,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 }
 
 void
-__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats)
+__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i)
-        __wt_stat_dsrc_clear_single(stats[i]);
+        __wt_stat_dsrc_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -5078,8 +5089,30 @@ __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handl
 }
 
 void
-__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
+__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats, uint32_t otel_flag)
 {
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        stats->cursor_insert = 0;
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        stats->perf_hist_fsread_latency_lt2 = 0;
+        stats->perf_hist_fsread_latency_lt5 = 0;
+        stats->perf_hist_fsread_latency_lt10 = 0;
+        stats->perf_hist_fsread_latency_lt50 = 0;
+        stats->perf_hist_fsread_latency_lt100 = 0;
+        stats->perf_hist_fsread_latency_lt250 = 0;
+        stats->perf_hist_fsread_latency_lt500 = 0;
+        stats->perf_hist_fsread_latency_lt1000 = 0;
+        stats->perf_hist_fsread_latency_gt1000 = 0;
+        stats->perf_hist_fsread_latency_total_msecs = 0;
+        return;
+    default:
+        break;
+    }
+
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
     stats->background_compact_fail = 0;
@@ -6193,12 +6226,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 }
 
 void
-__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats)
+__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i)
-        __wt_stat_connection_clear_single(stats[i]);
+        __wt_stat_connection_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -7735,8 +7768,19 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
 }
 
 void
-__wt_stat_session_clear_single(WT_SESSION_STATS *stats)
+__wt_stat_session_clear_single(WT_SESSION_STATS *stats, uint32_t otel_flag)
 {
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    default:
+        break;
+    }
+
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
