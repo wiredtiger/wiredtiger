@@ -1949,9 +1949,9 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
         return (0);
     WT_RET(ret);
 
-    WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, (int64_t)wait_ms);
-
     ret = __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy));
+    if (ret == 0)
+        WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, (int64_t)wait_ms);
 
     /*
      * A concurrent pickup may have adopted this checkpoint, or a newer one, between the copy above
@@ -2342,12 +2342,13 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     WT_SESSION_IMPL *internal_session;
     uint64_t metadata_checksum, pending_lsn;
     char *meta_str;
-    bool encoding, prev_adopted, prev_encoding;
+    bool adopted_on_delivery, encoding, prev_adopted, prev_encoding;
 
     WT_CLEAR(ckpt_meta);
     disagg = &S2C(session)->disaggregated_storage;
     meta_str = NULL;
     internal_session = NULL;
+    adopted_on_delivery = false;
     prev_encoding = F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
     prev_adopted = disagg->stable_tombstone_encoding_adopted;
 
@@ -2430,8 +2431,7 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
             __wt_disagg_deferred_pickup_signal(session, 0);
             goto err;
         }
-        /* Adopted at delivery without being deferred. */
-        WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, 0);
+        adopted_on_delivery = true;
     }
 
     WT_ERR(__wt_open_internal_session(
@@ -2445,6 +2445,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta.version);
     WT_STAT_CONN_SET(
       session, disagg_checkpoint_storage_compatible_version, ckpt_meta.compatible_version);
+    if (adopted_on_delivery)
+        WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, 0);
 
 err:
     /* A failed pickup must not leave the failed checkpoint's encoding mode adopted. */

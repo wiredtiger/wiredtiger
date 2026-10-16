@@ -3343,7 +3343,6 @@ static const char *const __stats_connection_desc[] = {
   "disagg: existing file metadata entries updated during checkpoint pick-up",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
   "disagg: most recently adopted checkpoint metadata LSN",
-  "disagg: most recently adopted checkpoint time spent deferred (msecs)",
   "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
@@ -3365,6 +3364,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up missing stable tables created",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
+  "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
+  "(msecs)",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -4490,7 +4491,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED,
   WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED,
   WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN,
-  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED,
   WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME,
@@ -4512,6 +4512,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_TABLES_CREATED,
   WT_STAT_CONN_DISAGG_STEP_UP_TIME,
   WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
   WT_STAT_CONN_LAYERED_CURS_MODIFY,
   WT_STAT_CONN_LAYERED_CURS_NEXT,
@@ -5638,7 +5639,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_pick_up_file_meta_updated = 0;
     stats->disagg_ingest_stable_tombstone_stripped = 0;
     /* not clearing disagg_checkpoint_meta_lsn */
-    /* not clearing disagg_checkpoint_defer_adopt_wait */
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
@@ -5660,6 +5660,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_up_missing_stable_tables_created = 0;
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
+    /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -6926,8 +6927,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
     to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
-    to->disagg_checkpoint_defer_adopt_wait +=
-      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
@@ -6961,6 +6960,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_step_up_missing_stable_tables_created);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
+    to->disagg_checkpoint_defer_adopt_wait +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);

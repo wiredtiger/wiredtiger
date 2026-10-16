@@ -644,7 +644,7 @@ conn_stats = [
         'checkpoint metadata version this binary writes', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_defer', 'checkpoint pick-ups deferred for active transaction snapshots'),
     DisaggStat('disagg_checkpoint_defer_adopt_wait',
-        'most recently adopted checkpoint time spent deferred (msecs)', 'no_clear,no_scale'),
+        'time the most recently adopted checkpoint spent deferred, zero if adopted on delivery (msecs)', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_delivered_lsn', 'most recently delivered checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_meta_lsn', 'most recently adopted checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_storage_compatible_version',

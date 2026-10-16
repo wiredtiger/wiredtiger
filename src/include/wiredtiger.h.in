@@ -7903,62 +7903,65 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED	1605
 /*! disagg: most recently adopted checkpoint metadata LSN */
 #define	WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN		1606
-/*! disagg: most recently adopted checkpoint time spent deferred (msecs) */
-#define	WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT	1607
 /*! disagg: most recently delivered checkpoint metadata LSN */
-#define	WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN	1608
+#define	WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN	1607
 /*! disagg: new file metadata entries inserted during checkpoint pick-up */
-#define	WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED	1609
+#define	WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED	1608
 /*! disagg: pick up checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME	1610
+#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME	1609
 /*! disagg: pick up checkpoint time at startup (msecs) */
-#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP	1611
+#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP	1610
 /*! disagg: role leader */
-#define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1612
+#define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1611
 /*!
  * disagg: snapshots rebuilt after racing a checkpoint pick-up or role
  * change
  */
-#define	WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD		1613
+#define	WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD		1612
 /*!
  * disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy
  * escaped, 2 unescaped
  */
-#define	WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING	1614
+#define	WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING	1613
 /*! disagg: step down in progress */
-#define	WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS	1615
+#define	WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS	1614
 /*! disagg: step down most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_DOWN_TIME		1616
+#define	WT_STAT_CONN_DISAGG_STEP_DOWN_TIME		1615
 /*! disagg: step up checkpoint restart most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_CHECKPOINT_RESTART_TIME	1617
+#define	WT_STAT_CONN_DISAGG_STEP_UP_CHECKPOINT_RESTART_TIME	1616
 /*! disagg: step up deferred checkpoint pickup retries before stepping up */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_DEFERRED_PICKUP_RETRIES	1618
+#define	WT_STAT_CONN_DISAGG_STEP_UP_DEFERRED_PICKUP_RETRIES	1617
 /*!
  * disagg: step up deferred checkpoint pickup retry most recent time
  * (msecs)
  */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_DEFERRED_PICKUP_RETRY_TIME	1619
+#define	WT_STAT_CONN_DISAGG_STEP_UP_DEFERRED_PICKUP_RETRY_TIME	1618
 /*! disagg: step up in progress */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS		1620
+#define	WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS		1619
 /*! disagg: step up ingest table clear truncates retried after a conflict */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY	1621
+#define	WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY	1620
 /*! disagg: step up ingest table drain bytes moved to stable tables */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES	1622
+#define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES	1621
 /*! disagg: step up ingest table drain most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME	1623
+#define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME	1622
 /*! disagg: step up ingest tables drained */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_TABLES_DRAINED	1624
+#define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_TABLES_DRAINED	1623
 /*! disagg: step up missing stable table create most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_CREATE_TIME	1625
+#define	WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_CREATE_TIME	1624
 /*! disagg: step up missing stable tables created */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_TABLES_CREATED	1626
+#define	WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_TABLES_CREATED	1625
 /*! disagg: step up most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_TIME		1627
+#define	WT_STAT_CONN_DISAGG_STEP_UP_TIME		1626
 /*!
  * disagg: tables created without a stable constituent while the step-
  * down timestamp is set
  */
-#define	WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES	1628
+#define	WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES	1627
+/*!
+ * disagg: time the most recently adopted checkpoint spent deferred, zero
+ * if adopted on delivery (msecs)
+ */
+#define	WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT	1628
 /*! layered: Layered table cursor insert operations */
 #define	WT_STAT_CONN_LAYERED_CURS_INSERT		1629
 /*! layered: Layered table cursor modify operations */
