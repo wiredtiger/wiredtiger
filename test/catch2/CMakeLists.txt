@@ -13,7 +13,9 @@ else()
         misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_session_flag.cpp
         misc_tests/test_checkpoint_skip.cpp
+        misc_tests/test_checkpoint_time.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
+        misc_tests/test_ckpt_snapshot_size.cpp
         misc_tests/test_config.cpp
         misc_tests/test_conn_api_name.cpp
         misc_tests/test_crc32.cpp
@@ -30,11 +32,13 @@ else()
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
+        misc_tests/test_file_id.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
         misc_tests/test_modify_tombstone_namespace.cpp
         misc_tests/test_page_delta_merge_empty_value.cpp
+        misc_tests/test_page_delta_merge_state_cleanup.cpp
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
