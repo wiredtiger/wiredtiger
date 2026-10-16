@@ -56,6 +56,10 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (WT_TIME_AGGREGATE_HAS_STOP(&ta))
         return (false);
 
+    /* Don't process pages carrying prepared data. */
+    if (ta.prepare)
+        return (false);
+
     /* Limit the activity to reduce the load. */
     if (__sync_obsolete_limit_reached(session))
         return (false);
@@ -144,17 +148,10 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         do_visibility_check = true;
     }
 
-    /*
-     * Skip a page carrying prepared data: those deletes are uncommitted and must be retained, but
-     * preparing removes the transaction id from the global table so they look globally visible.
-     */
-    if (newest_ta.prepare)
-        return (0);
-
     has_stop = WT_TIME_AGGREGATE_HAS_STOP(&newest_ta);
     if (do_visibility_check && has_stop)
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_ta_newest_visible_all(
+          session, &newest_ta, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
     if (obsolete) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -217,8 +214,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *vis
 
     *visible_allp = false;
     page_del = ref->page_del;
-    if (page_del == NULL ||
-      __wt_txn_visible_all(session, page_del->txnid, page_del->pg_del_durable_ts)) {
+    if (__wt_page_del_visible_all(session, page_del, true)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
         *visible_allp = true;
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -260,19 +256,14 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
      * pages that have overflow keys as part of fast delete flow. These overflow keys pages are
      * handled as an in-memory obsolete page flow.
      */
-    /*
-     * Skip a page carrying prepared data: those deletes are uncommitted and must be retained, but
-     * preparing removes the transaction id from the global table so they look globally visible.
-     */
-    if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO &&
-      !addr.ta.prepare) {
+    if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO) {
         /*
          * Max stop timestamp is possible only when the prepared update is written to the data
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_ta_newest_visible_all(
+          session, &newest_ta, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
     }
 
     __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,

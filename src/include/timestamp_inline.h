@@ -313,6 +313,8 @@
         (out_ta)->newest_stop_ts = WT_MAX((out_ta)->newest_stop_ts, (in_ta)->newest_stop_ts);    \
         (out_ta)->newest_stop_txn = WT_MAX((out_ta)->newest_stop_txn, (in_ta)->newest_stop_txn); \
         (out_ta)->oldest_stop_txn = WT_MIN((out_ta)->oldest_stop_txn, (in_ta)->oldest_stop_txn); \
+        if ((in_ta)->prepare != 0)                                                               \
+            (out_ta)->prepare = 1;                                                               \
     } while (0)
 
 /* Check if the stop time aggregate is set. */
