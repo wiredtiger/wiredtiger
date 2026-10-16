@@ -1778,7 +1778,8 @@ __disagg_deferred_pickup_server(void *arg)
 
             __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
-        if (ret != last_error) {
+        /* EBUSY reaches here only when a stop interrupts the spin above: not a failure. */
+        if (ret != EBUSY && ret != last_error) {
             last_error = ret;
             if (ret != 0)
                 __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
