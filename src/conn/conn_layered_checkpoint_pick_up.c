@@ -135,8 +135,8 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
          * nodes, so the same order must specify the same checkpoint address.
          */
         if (strcmp(checkpoint_addr, checkpoint_addr_new) != 0) {
-            /* FIXME-WT-17599: escalate the warning to an error. */
-            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+            *discardp = true;
+            WT_ERR_MSG(session, EINVAL,
               "Checkpoint order should be strictly increasing. "
               "Current checkpoint order: %" PRId64
               ", address: '%s'. "
@@ -145,7 +145,6 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
               "Current configuration: '%s'. New configuration: '%s'.",
               checkpoint_order, checkpoint_addr, checkpoint_order_new, checkpoint_addr_new,
               cfg_current, cfg_new);
-            *discardp = true;
         }
     } else
         /*
