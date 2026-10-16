@@ -1235,7 +1235,20 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
         __wt_tsan_suppress_store_uint64(&txn_shared->read_timestamp, read_ts);
 
     F_SET(txn, WT_TXN_SHARED_TS_READ);
-    __wt_readunlock(session, &txn_global->rwlock);
+
+    /*
+     * If we already have a snapshot, it may be too early to match the timestamp (including the one
+     * we just read, if rounding to oldest). Get a new one under the lock we already hold rather
+     * than acquiring it again, unless the snapshot is built for disaggregated storage, which can
+     * retry and takes the lock itself.
+     */
+    if (F_ISSET(txn, WT_TXN_RUNNING) && !__wt_conn_is_disagg(session))
+        __wti_txn_get_snapshot_and_unlock(session);
+    else {
+        __wt_readunlock(session, &txn_global->rwlock);
+        if (F_ISSET(txn, WT_TXN_RUNNING))
+            __wt_txn_get_snapshot(session);
+    }
 
     /*
      * This message is generated here to reduce the span of critical section.
@@ -1245,13 +1258,6 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
           "read timestamp %s : rounded to oldest timestamp %s",
           __wt_timestamp_to_string(read_ts, ts_string[0]),
           __wt_timestamp_to_string(oldest_ts, ts_string[1]));
-
-    /*
-     * If we already have a snapshot, it may be too early to match the timestamp (including the one
-     * we just read, if rounding to oldest). Get a new one.
-     */
-    if (F_ISSET(txn, WT_TXN_RUNNING))
-        __wt_txn_get_snapshot(session);
 
     return (0);
 }
