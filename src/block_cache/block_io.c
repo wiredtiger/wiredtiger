@@ -395,9 +395,12 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t in_size, size
         WT_RET(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
           "compressed block for which no compression configured"));
 
-    if (in_size <= WT_BLOCK_COMPRESS_SKIP || mem_sz <= WT_BLOCK_COMPRESS_SKIP)
-        WT_RET(__blkcache_read_corrupt(
-          session, WT_ERROR, addr, addr_size, "compressed block has an invalid size"));
+      if (mem_sz <= WT_BLOCK_COMPRESS_SKIP)
+          WT_RET(__blkcache_read_corrupt(
+            session, WT_ERROR, addr, addr_size, "compressed block has an invalid in-memory size"));
+      if (in_size <= WT_BLOCK_COMPRESS_SKIP)
+          WT_RET(__blkcache_read_corrupt(
+            session, WT_ERROR, addr, addr_size, "compressed block has an invalid on-disk size"));
 
     WT_RET(__wt_buf_initsize(session, out, mem_sz));
 
