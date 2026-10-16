@@ -200,6 +200,8 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
                 szp->next[i] = *sstack[i];
                 *sstack[i] = szp;
             }
+
+            ++el->size_buckets;
         }
 
         /*
@@ -377,6 +379,9 @@ __block_off_remove(
             for (i = 0; i < szp->depth; ++i)
                 *sstack[i] = szp->next[i];
             __wti_block_size_free(session, &szp);
+
+            WT_ASSERT(session, el->size_buckets > 0);
+            --el->size_buckets;
         }
     }
 #ifdef HAVE_DIAGNOSTIC
@@ -979,6 +984,9 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
+     *
+     * The by-size entry count tracks the contents of the by-size skiplist, so it has to be swapped
+     * along with it, otherwise one list's count ends up describing the other list's skiplist.
      */
     if (a->track_size == b->track_size && a->entries > b->entries) {
         tmp = *a;
@@ -987,6 +995,8 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
         __wt_atomic_store_uint64_relaxed(&b->bytes, tmp.bytes);
         a->entries = b->entries;
         b->entries = tmp.entries;
+        a->size_buckets = b->size_buckets;
+        b->size_buckets = tmp.size_buckets;
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             a->off[i] = b->off[i];
             b->off[i] = tmp.off[i];
