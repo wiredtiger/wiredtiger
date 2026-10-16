@@ -790,6 +790,18 @@ __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, 
 }
 
 /*
+ * __blkcache_file_in_memory --
+ *     Return whether file configuration requests an in-memory block manager (no WT_BLOCK).
+ */
+static bool
+__blkcache_file_in_memory(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+
+    return (__wt_config_gets(session, cfg, "in_memory", &cval) == 0 && cval.val != 0);
+}
+
+/*
  * __wt_blkcache_open --
  *     Open a file.
  */
@@ -809,13 +821,18 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
         return (__wt_block_disagg_manager_open(session, uri, cfg, forced_salvage, readonly, bmp));
 
     WT_RET(__wt_calloc_one(session, &bm));
-    __wti_bm_method_set(bm, false);
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         uri += strlen("file:");
-        WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
-          false, allocsize, lr_fh_meta, &bm->block));
+        if (__blkcache_file_in_memory(session, cfg))
+            __wti_bm_open_in_memory_file(session, bm);
+        else {
+            __wti_bm_method_set(bm, false);
+            WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage,
+              readonly, false, allocsize, lr_fh_meta, &bm->block));
+        }
     } else {
+        __wti_bm_method_set(bm, false);
         /* Leftover tiered URIs must not map onto a file. */
         WT_ERR(__wt_object_unsupported(session, uri));
     }

@@ -1970,6 +1970,7 @@ extern void __wti_block_extlist_dump_all(WT_SESSION_IMPL *session, WT_BLOCK *blo
 extern void __wti_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el);
 extern void __wti_block_size_free(WT_SESSION_IMPL *session, WT_SIZE **sz);
 extern void __wti_bm_method_set(WT_BM *bm, bool readonly);
+extern void __wti_bm_open_in_memory_file(WT_SESSION_IMPL *session, WT_BM *bm);
 extern void __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt);
 extern void __wti_cache_top_destroy(WT_SESSION_IMPL *session);
 extern void __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
