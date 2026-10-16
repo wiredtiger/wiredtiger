@@ -144,6 +144,13 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         do_visibility_check = true;
     }
 
+    /*
+     * Skip a page carrying prepared data: those deletes are uncommitted and must be retained, but
+     * preparing removes the transaction id from the global table so they look globally visible.
+     */
+    if (newest_ta.prepare)
+        return (0);
+
     has_stop = WT_TIME_AGGREGATE_HAS_STOP(&newest_ta);
     if (do_visibility_check && has_stop)
         obsolete = __wt_txn_visible_all(
@@ -253,7 +260,12 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
      * pages that have overflow keys as part of fast delete flow. These overflow keys pages are
      * handled as an in-memory obsolete page flow.
      */
-    if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO) {
+    /*
+     * Skip a page carrying prepared data: those deletes are uncommitted and must be retained, but
+     * preparing removes the transaction id from the global table so they look globally visible.
+     */
+    if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO &&
+      !addr.ta.prepare) {
         /*
          * Max stop timestamp is possible only when the prepared update is written to the data
          * store.
