@@ -32,7 +32,7 @@ __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers)
 
     TAILQ_FOREACH (cursor, &session->cursors, q) {
         /* Stop when there are no positioned cursors. */
-        if (session->ncursors == 0)
+        if (!free_buffers && session->ncursors == 0)
             break;
         WT_TRET(cursor->reset(cursor));
         /* Optionally, free the cursor buffers */
