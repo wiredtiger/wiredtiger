@@ -1712,9 +1712,9 @@ __wti_disagg_clear_deferred_checkpoint_all(WT_SESSION_IMPL *session)
 /*
  * __disagg_deferred_ckpt_queued --
  *     Check whether any checkpoint is waiting to be adopted. This is an unsafe check to avoid
- *     claiming the queue lock: only the pickup server asks, to choose how long to sleep and to skip
- *     scanning the sessions when idle, and an answer stale in either direction only delays a look
- *     at the queue. This is in its own function to suppress the TSan warning.
+ *     claiming the queue lock: it only chooses how long the pickup server sleeps and whether an
+ *     adoption attempt has anything to look at, and an answer stale in either direction only delays
+ *     a look at the queue. This is in its own function to suppress the TSan warning.
  */
 static WT_INLINE bool
 __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
@@ -1899,9 +1899,6 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
 
-    if (!force && !__disagg_deferred_ckpt_queued(session))
-        return (WT_NOTFOUND);
-
     /*
      * The oldest pin decides the whole queue, so scan the sessions once, before taking the queue
      * lock. A snapshot established after the scan pins a generation newer than every delivered
@@ -1946,7 +1943,11 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
-    /* Having nothing to adopt is the common case, not a failure. */
+    /* Nothing queued means nothing to adopt, even when forced: skip the scan and the queue lock. */
+    if (!__disagg_deferred_ckpt_queued(session))
+        return (0);
+
+    /* Having nothing adoptable is the common case, not a failure. */
     ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn);
     if (ret == WT_NOTFOUND)
         return (0);
