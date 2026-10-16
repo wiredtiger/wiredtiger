@@ -121,7 +121,7 @@ connection_page_delta_config_common = [
         When enabled, the \c delta_pct threshold is evaluated against the configured
         maximum page size for the page type rather than the size of the full page image
         just built, so a partially filled page gets the same delta byte budget as a full
-        one. A delta larger than the full page image is still never written''',
+        one''',
         type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation may write deltas for internal pages

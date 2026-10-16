@@ -2845,7 +2845,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                      * Discard the delta if it is larger than the configured percentage of the full
                      * image. Optionally measure against the configured maximum page size instead,
                      * so a page left partially filled by a split or deletes gets the same delta
-                     * byte budget as a full one; the full image remains a hard ceiling either way.
+                     * byte budget as a full one.
                      */
                     if (build_delta) {
                         WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)r->delta.data;
@@ -2858,8 +2858,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                         if (header->u.entries == 0) {
                             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_zero_entries);
                             skip_write = true;
-                        } else if (r->delta.size > chunk->image.size ||
-                          r->delta.size * 100 / delta_base_size > conn->page_delta.delta_pct) {
+                        } else if (r->delta.size * 100 / delta_base_size >
+                          conn->page_delta.delta_pct) {
                             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_size_threshold);
                             build_delta = false;
                         }
