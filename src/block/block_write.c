@@ -19,8 +19,9 @@ __wti_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
     WT_DECL_RET;
 
     if (block->in_memory) {
-        WT_ASSERT(
-          session, block->fh == NULL && block->size == 0 && block->extend_size == 0 && len == 0);
+        WT_ASSERT(session, block->fh == NULL && block->size == 0 && block->extend_size == 0);
+        if (len != 0)
+            WT_RET_MSG(session, EINVAL, "%s: no backing file", block->name);
         return (0);
     }
 
