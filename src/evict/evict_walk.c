@@ -341,10 +341,11 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
+    wt_timestamp_t create_epoch;
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, dhandle_list_locked, resume;
+    bool aggressive, covered, dhandle_list_locked, resume, try_publish;
 
     WT_TRACK_OP_INIT(session);
 
@@ -408,11 +409,13 @@ retry:
         btree = dhandle != NULL && WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
 
         /*
-         * Stop resuming once the walk has reached the end of the tree twice as the tree must have
-         * been fully traversed.
+         * Stop resuming and clear the walk point once the walk has reached the end of the tree
+         * twice as the tree must have been fully traversed.
          */
         if (resume && btree != NULL && btree->evict_walk_ends >= WTI_EVICT_WALK_MAX_ENDS) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_walk_complete);
+            WT_WITH_DHANDLE(session, dhandle, ret = __evict_clear_walk(session, true));
+            WT_ERR(ret);
             resume = false;
         }
         if (!resume) {
@@ -429,20 +432,36 @@ retry:
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
             continue;
 
-        /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
-        if (btree->evict_disabled > 0) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
+
+        /* Skip files that don't allow eviction. */
+        try_publish = false;
+        if (!__wt_btree_eviction_enabled(btree)) {
+            /*
+             * A disaggregated btree is held out of eviction until it is published. Compare the
+             * epochs, which takes no lock, and try publishing the btree below instead of skipping
+             * it here.
+             */
+            create_epoch = __wt_atomic_load_uint64_relaxed(&btree->create_schema_epoch);
+            covered = create_epoch != WT_SCHEMA_EPOCH_NONE &&
+              create_epoch <= __wt_get_stable_disaggregated_schema_epoch(session);
+
+            try_publish = covered && F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+              __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
+            if (!try_publish) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            }
         }
 
         /*
          * Skip stable checkpoint handles on followers unless we are looking for clean pages.
          * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
-         * with dedicated handling instead of matching the stable checkpoint URI.
+         * with dedicated handling instead of matching the shared checkpoint handles.
          */
-        if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        if (__wt_dhandle_shared_btree_kind(dhandle) == WT_SHARED_BTREE_CHECKPOINT &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -570,6 +589,21 @@ retry:
         dhandle_list_locked = false;
 
         /*
+         * Publish the btree so eviction can write its pages. The schema lock orders publication
+         * against the checkpoint, which selects the btrees to write under that same lock, and
+         * against the role transitions. The lock order puts the schema lock before the handle list
+         * lock, so this waits for the release above.
+         */
+        if (try_publish) {
+            WT_WITH_DHANDLE(session, dhandle,
+              WT_WITH_SCHEMA_LOCK_NOWAIT(
+                session, ret, __wt_disagg_btree_publish_for_eviction(session)));
+
+            /* A busy schema lock is not an error here: a later pass publishes the tree. */
+            WT_ERR_ERROR_OK(ret, EBUSY, false);
+        }
+
+        /*
          * Re-check the "no eviction" flag, used to enforce exclusive access when a handle is being
          * closed.
          *
@@ -579,8 +613,9 @@ retry:
          *
          * If a handle is being discarded, it will still be marked open, but won't have a root page.
          */
-        if (btree->evict_disabled == 0 && !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
-            if (btree->evict_disabled == 0 && btree->root.page != NULL) {
+        if (__wt_btree_eviction_enabled(btree) &&
+          !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
+            if (__wt_btree_eviction_enabled(btree) && btree->root.page != NULL) {
                 WT_WITH_DHANDLE(
                   session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
 
@@ -1155,6 +1190,9 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     modified = __wt_page_is_modified(page);
     *queuedp = false;
 
+    /* Eviction stays disabled on a btree awaiting publication, so the walk never reaches it. */
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH));
+
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_during_checkpoint);
@@ -1211,7 +1249,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     evict_clean =
-      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !__wt_btree_stays_in_memory(btree) && !modified;
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
     should_evict_page = evict_clean || evict_dirty || evict_updates;
@@ -1261,6 +1299,18 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF) && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
       __wti_evict_prune_ts_unmoved(session, page)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
+        return;
+    }
+
+    /*
+     * Under precise checkpoints, avoid repeatedly queuing a restored leaf page when neither the
+     * pinned stable timestamp nor the oldest transaction ID has advanced, even during aggressive
+     * eviction.
+     */
+    if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF) && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+      !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+      __wti_evict_restored_page_unchanged(session, page)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_restored_unchanged);
         return;
     }
 

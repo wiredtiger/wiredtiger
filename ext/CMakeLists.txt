@@ -25,9 +25,6 @@ if(WT_POSIX)
         add_subdirectory(page_log/palite)
     endif()
 
-    # Build the storage_sources extensions.
-    add_subdirectory(storage_sources/dir_store)
-
     # Build the test extensions.
     add_subdirectory(test/fail_fs)
 endif()
@@ -43,7 +40,6 @@ foreach(_ext
         wiredtiger_reverse_collator wiredtiger_reverse_int_collator
         wiredtiger_rotn wiredtiger_sodium
         wiredtiger_palite
-        wiredtiger_dir_store
         wiredtiger_fail_fs
         wiredtiger_key_provider)
     if(TARGET ${_ext})

@@ -437,7 +437,7 @@ retry:
      * constituent until a later step-up creates one, so it reports the same way a follower does.
      */
     if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) ||
-      F_ISSET(layered, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
+      __wt_atomic_load_bool_relaxed(&layered->step_down_created)) {
         /*
          * Neither case has the stable's pages resident in the local cache, so its non-walk stats
          * are ~0 - except the block size, which we read from the checkpoint metadata directly since
@@ -484,11 +484,10 @@ retry:
 
     /*
      * A reader races the role change across a step-up or step-down, so a leader can still find the
-     * stable constituent missing here.
-     *
-     * FIXME-WT-18359: Investigate whether this guard is reachable now that
-     * WT_LAYERED_TABLE_STEP_DOWN_CREATED routes tables without a stable constituent through the
-     * follower path above.
+     * stable constituent missing here. The role and the step-down mark are read above without a
+     * lock: step-down clears the mark before it publishes the follower role, and step-up publishes
+     * the leader role before it creates the stable tables a follower era left missing.
+
      */
     if (ret == ENOENT) {
         ret = 0;
@@ -661,6 +660,8 @@ err:
 static int
 __curstat_size(WT_SESSION_IMPL *session, const char *uri, bool *was_fastp, int64_t *sizep)
 {
+    bool checkpoint_view;
+
     WT_ASSERT(session, uri != NULL);
     WT_ASSERT(session, was_fastp != NULL);
     WT_ASSERT(session, sizep != NULL);
@@ -674,7 +675,10 @@ __curstat_size(WT_SESSION_IMPL *session, const char *uri, bool *was_fastp, int64
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
 
     /* Checkpoint-view URIs require the slow path. */
-    if (WT_URI_IS_STABLE_CHECKPOINT(uri))
+    checkpoint_view = false;
+    if (__wt_conn_is_disagg(session))
+        WT_RET(__wt_btree_name_is_shared_checkpoint(session, uri, &checkpoint_view));
+    if (checkpoint_view)
         return (0);
 
     return (__curstat_file_size(session, uri, was_fastp, sizep));
@@ -710,22 +714,6 @@ __curstat_file_init(
     WT_TRET(__wt_session_release_dhandle(session));
 
     return (ret);
-}
-
-/*
- * __curstat_tiered_init --
- *     Initialize the statistics for a tiered table.
- */
-static int
-__curstat_tiered_init(
-  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
-{
-    /*
-     * This is currently just a wrapper for the file initialization to get block manager level
-     * statistics. If or when we want to collect statistics on objects then this function will need
-     * to use schema operations to work down from the active object to other flushed objects.
-     */
-    return (__curstat_file_init(session, uri, cfg, cst));
 }
 
 /*
@@ -805,8 +793,6 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         WT_RET(__curstat_layered_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
         WT_RET(__wt_curstat_table_init(session, dsrc_uri, cfg, cst));
-    else if (WT_PREFIX_MATCH(dsrc_uri, "tiered:"))
-        WT_RET(__curstat_tiered_init(session, dsrc_uri, cfg, cst));
     else
         return (__wt_bad_object_type(session, uri));
 
@@ -932,6 +918,34 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         /* If the connection configures clear, so do we. */
         if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR))
             F_SET(cst, WT_STAT_CLEAR);
+
+        /*
+         * Parse the OTel-specific statistics type flags after inheriting the connection's
+         * configurations.
+         */
+        uint32_t otel_flags = 0;
+        if ((ret = __wt_config_subgets(session, &cval, "otel_none", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_NONE;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "otel_counters", &sval)) == 0 &&
+          sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_COUNTERS;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "otel_gauges", &sval)) == 0 && sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_GAUGES;
+        WT_ERR_NOTFOUND_OK(ret, false);
+        if ((ret = __wt_config_subgets(session, &cval, "otel_histograms", &sval)) == 0 &&
+          sval.val != 0)
+            otel_flags |= WT_STAT_OTEL_HISTOGRAMS;
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Clearing the lowest set bit leaves a nonzero result only if more than one was set. */
+        if ((otel_flags & (otel_flags - 1)) != 0)
+            WT_ERR_MSG(session, EINVAL,
+              "Only one of otel_none, otel_counters, otel_gauges, otel_histograms configuration "
+              "values should be "
+              "specified");
+        F_SET(cst, otel_flags);
     }
 
     /*

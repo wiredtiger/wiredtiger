@@ -127,13 +127,29 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 #define WT_BLOCK_HEADER_REF(dsk) ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_SIZE))
 
 /*
- * WT_PAGE_HEADER_BYTE --
- * WT_PAGE_HEADER_BYTE_SIZE --
- *	The first usable data byte on the block (past the combined headers).
+ * WT_PAGE_HEADER_WRITE_SIZE --
+ *	   The first usable data byte on the block (past the combined headers) when writing a new
+ * page.
  */
-#define WT_PAGE_HEADER_BYTE_SIZE(btree) ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header))
-#define WT_PAGE_HEADER_BYTE(btree, dsk) \
-    ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
+#define WT_PAGE_HEADER_WRITE_SIZE(btree) \
+    ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header_write_size))
+
+/*
+ * WT_PAGE_HEADER_READ_BYTE --
+ *	   The first usable data byte on the block (past the combined headers) when reading an
+ * existing page.
+ */
+#define WT_PAGE_HEADER_READ_BYTE(session, btree, dsk)  \
+    ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_SIZE + \
+      (btree)->bm->block_header_read_size((btree)->bm, session, dsk)))
+
+/*
+ * WT_PAGE_HEADER_WRITE_BYTE --
+ *	   The first usable data byte on the block (past the combined headers) when writing a new
+ * page.
+ */
+#define WT_PAGE_HEADER_WRITE_BYTE(btree, dsk) \
+    ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_WRITE_SIZE(btree)))
 
 /*
  * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.
@@ -259,7 +275,8 @@ struct __wt_save_upd {
     WT_UPDATE *onpage_tombstone;
     WT_UPDATE *free_upds; /* Updates to be freed */
     WT_TIME_WINDOW tw;
-    bool restore; /* Whether to restore this saved update chain */
+    bool restore;         /* Whether to restore this saved update chain */
+    bool count_for_split; /* Whether the saved update counts toward the split estimate */
 };
 
 /*
@@ -392,6 +409,14 @@ struct __wt_page_modify {
     wt_timestamp_t rec_max_timestamp;
 
     /*
+     * Write generation of the disaggregated backing block written by the last single-block
+     * reconciliation, needed because the page keeps its old disk image while it stays in memory.
+     * Zero means no such block was written and the disk image's write generation applies. Cleared
+     * when reconciliation deletes the page or splits it into multiple blocks.
+     */
+    uint64_t rec_write_gen;
+
+    /*
      * Track the pinned stable timestamp used for the most recent reconciliation. It's useful to
      * avoid duplicating work when precise checkpoints are enabled, so we don't re-reconcile pages
      * when no new content could be written.
@@ -520,7 +545,7 @@ struct __wt_page_modify {
 
     /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
-     * set until the page is reconciled successfully; this indicates that the page_del information
+     * set until a reconciliation writes a new image of the page; this indicates that the page_del
      * in the ref remains valid. The update list remains set (if set at all) until the transaction
      * that deleted the page is resolved. These transitions are independent; that is, the first
      * reconciliation can happen either before or after the delete transaction resolves.
@@ -887,9 +912,10 @@ struct __wt_page {
  *	Statistics to track how many deleted pages are skipped as part of the tree walk.
  */
 struct __wt_page_walk_skip_stats {
-    size_t total_del_internal_pages_skipped;
+    size_t total_ondisk_del_internal_pages_skipped;
     size_t total_del_leaf_pages_skipped;
     size_t total_inmem_del_pages_skipped;
+    size_t total_read_only_del_internal_pages_skipped;
     uint64_t total_skip_lock_contended;
 };
 
@@ -1314,10 +1340,12 @@ struct __wt_ref {
      * operation subsequently resolves. (The page can split, so there needs to be some way to find
      * all of the update structures.)
      *
-     * After instantiation, the page_del structure is kept until the instantiated page is next
-     * reconciled. This is because in some cases reconciliation of the parent internal page may need
-     * to write out a reference to the pre-instantiated on-disk page, at which point the page_del
-     * information is needed to build the correct reference.
+     * After instantiation, the page_del structure is kept until a reconciliation of the
+     * instantiated page writes a new image. This is because in some cases reconciliation of the
+     * parent internal page may need to write out a reference to the pre-instantiated on-disk page,
+     * at which point the page_del information is needed to build the correct reference. A
+     * reconciliation that skips the write leaves that on-disk page in place, so the structure
+     * survives it, as does an in-memory rewrite of the page that produced no new address.
      *
      * If the ref is in WT_REF_DELETED state, all actions besides checking whether page_del is NULL
      * require that the WT_REF be locked. There are two reasons for this: first, the page might be
@@ -1354,21 +1382,22 @@ struct __wt_ref {
      *    - If ref->page->modify is NULL, the page is ordinary.
      *    - If ref->page->modify->instantiated is false and ref->page->modify->inst_updates is NULL,
      *      the page is ordinary.
-     *    - If ref->page->modify->instantiated is true, the page is instantiated and has not yet
-     *      been reconciled. ref->page_del is either NULL (meaning the deletion is globally visible)
-     *      or contains information about the transaction that deleted the page. This information is
-     *      only meaningful either (a) in relation to the existing on-disk page rather than the in-
-     *      memory page (this can be needed to reconcile the parent internal page) or (b) if the
-     *      page is clean.
+     *    - If ref->page->modify->instantiated is true, the page is instantiated and no new image
+     *      of it has been written yet. ref->page_del is either NULL (meaning the deletion is
+     *      globally visible) or contains information about the transaction that deleted the
+     *      page. This information is only meaningful either (a) in relation to the existing
+     *      on-disk page rather than the in-memory page (this can be needed to reconcile the
+     *      parent internal page) or (b) if the page is clean.
      *    - If ref->page->modify->inst_updates is not NULL, the page is instantiated and the
      *      transaction that deleted it has not resolved yet. The update list is used during commit
      *      or rollback to find the updates created during instantiation.
      *
      * The last two points of group (2) are orthogonal; that is, after instantiation the
      * instantiated flag and page_del structure (on the one hand) and the update list (on the other)
-     * are used and discarded independently. The former persists only until the page is first
-     * successfully reconciled; the latter persists until the transaction resolves. These events may
-     * occur in either order.
+     * are used and discarded independently. The former persists until a reconciliation of the page
+     * writes a new image (a reconciliation that skips the write, keeping the existing block, leaves
+     * it in place); the latter persists until the transaction resolves. These events may occur in
+     * either order.
      *
      * As described above, in any state in group (1) an access to the page may require it be read
      * into memory, at which point it moves into group (2). Instantiation always sets the
@@ -1896,6 +1925,7 @@ struct __wt_verify_info {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_VRFY_DISK_CONTINUE_ON_FAILURE 0x1u
 #define WT_VRFY_DISK_EMPTY_PAGE_OK 0x2u
+#define WT_VRFY_DISK_FROM_DELTA 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

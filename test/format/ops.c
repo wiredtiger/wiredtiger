@@ -213,6 +213,7 @@ tinfo_teardown(void)
 
         __wt_buf_free(NULL, &tinfo->moda);
         __wt_buf_free(NULL, &tinfo->modb);
+        __wt_buf_free(NULL, &tinfo->mirror_value);
 
         snap_teardown(tinfo);
         key_gen_teardown(tinfo->key);
@@ -446,7 +447,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
          */
         if (stepdown_running) {
             bool stepdown_complete;
-            WT_ACQUIRE_READ_WITH_BARRIER(stepdown_complete, stepdown_args.done);
+            stepdown_complete = __wt_atomic_load_bool_v_acquire(&stepdown_args.done);
             if (stepdown_complete) {
                 stepdown_running = false;
                 fourths = DISAGG_SWITCH_FOLLOWER_OPS_SEC * 4;
@@ -510,22 +511,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
             replay_end_timed_run();
         if (fourths != -1)
             --fourths;
-        if (quit_fourths != -1 && --quit_fourths == 0) {
-            fprintf(stderr, "%s\n", "format run more than 15 minutes past the maximum time");
-            fprintf(stderr, "%s\n",
-              "format run dumping cache and transaction state, then aborting the process");
-
-            /*
-             * If the library is deadlocked, we might just join the mess, set a two-minute timer to
-             * limit our exposure.
-             */
-            set_alarm(120);
-
-            (void)conn->debug_info(conn, "txn");
-            (void)conn->debug_info(conn, "cache");
-
-            __wt_abort(NULL);
-        }
+        if (quit_fourths != -1 && --quit_fourths == 0)
+            abort_with_state_dump(conn, "format run more than 15 minutes past the maximum time");
     }
 
     /* Wait for the special-purpose threads. */
@@ -675,7 +662,7 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
  * next_timestamp --
  *     Allocate the next global timestamp under the step-down read lock. The write lock is held
  *     exclusively during step-down notification; threads blocked here unblock with values strictly
- *     above step_down_ts, routing their writes to ingest.
+ *     above step_down_ts, sending their writes to ingest (mirrored to both when configured).
  */
 uint64_t
 next_timestamp(WT_SESSION *session)
@@ -738,7 +725,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
      */
-    WT_RELEASE_WRITE_WITH_BARRIER(tinfo->commit_ts, ts);
+    __wt_atomic_store_uint64_release(&tinfo->commit_ts, ts);
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
@@ -848,11 +835,53 @@ typedef enum {
     } while (0)
 
 /*
+ * mirror_check --
+ *     Check the table that just ran against the rest of its mirror group, then make its result the
+ *     reference the remaining tables are checked against.
+ */
+static void
+mirror_check(TINFO *tinfo, iso_level_t iso_level, thread_op op, int *expect_retp, bool *expect_setp,
+  const char *reference)
+{
+    TABLE *table;
+
+    table = tinfo->table;
+
+    /*
+     * Mirrors must see the same key space: a remove or blind modify must find the key on every
+     * mirror or none, and a snapshot-isolation read must see the same value too. A read under a
+     * weaker isolation level, or with cursor bounds applied, is exempt -- both can legitimately
+     * disagree across mirrors with no divergence involved. Insert, truncate, and update need no
+     * such check: the first two can't reach here except successfully, and truncate has its own
+     * range-based mirror verification.
+     */
+    if (op != MODIFY && op != REMOVE &&
+      !(op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read))
+        return;
+
+    if (*expect_setp && tinfo->op_ret != *expect_retp)
+        testutil_die(0, "mirror mismatch: op %d on table %s returned %d, expected %d (%s)", (int)op,
+          table->uri, tinfo->op_ret, *expect_retp, reference);
+    if (*expect_setp && op == READ && tinfo->op_ret == 0 &&
+      (tinfo->value->size != tinfo->mirror_value.size ||
+        memcmp(tinfo->value->data, tinfo->mirror_value.data, tinfo->value->size) != 0))
+        testutil_die(
+          0, "mirror value mismatch: read on table %s differs (%s)", table->uri, reference);
+
+    /* This table's result is what the rest of the group is checked against. */
+    *expect_retp = tinfo->op_ret;
+    *expect_setp = true;
+    if (op == READ && tinfo->op_ret == 0)
+        testutil_check(
+          __wt_buf_set(NULL, &tinfo->mirror_value, tinfo->value->data, tinfo->value->size));
+}
+
+/*
  * table_op --
  *     Per-thread table operation.
  */
 static int
-table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
+table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pause_writes)
 {
     WT_DECL_RET;
     TABLE *table;
@@ -921,8 +950,8 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
          * unexpected. A row cannot be reserved with ignore prepare.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false &&
-          mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
+        if (!pause_writes && intxn && iso_level == ISOLATION_SNAPSHOT &&
+          tinfo->ignore_prepare == false && mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -977,8 +1006,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     case READ:
         ++tinfo->search;
 
+        tinfo->op_bound_read = false;
         if (!positioned && GV(OPS_BOUND_CURSOR) && mmrand(&tinfo->extra_rnd, 1, 2) == 1) {
             bound_set = true;
+            tinfo->op_bound_read = true;
             /*
              * FIXME-WT-9883: It is possible that the underlying cursor is still positioned even
              * though the positioned variable is false. Reset the position through reset for now.
@@ -1124,9 +1155,9 @@ ops(void *arg)
     uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd, snap_retries;
     u_int i, rlog_table_id, throttle_delay_max;
-    int rlog_ret;
+    int expect_ret, rlog_ret;
     const char *iso_config, *rlog_op_name;
-    bool greater_than, intxn, pause_writes, prepared, mirrored_truncate;
+    bool expect_set, greater_than, intxn, pause_writes, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1178,7 +1209,7 @@ ops(void *arg)
          * without a throttle, can monopolize the page log's reader-writer locks and starve the
          * step-down checkpoint's writes.
          */
-        WT_ACQUIRE_READ_WITH_BARRIER(pause_writes, g.stepdown_pause_writes);
+        pause_writes = __wt_atomic_load_bool_v_acquire(&g.stepdown_pause_writes);
         if (GV(OPS_THROTTLE) || pause_writes) {
             /* Sleep first to avoid burst when all threads start. */
             throttle_delay = mmrand(&tinfo->extra_rnd, 0, throttle_delay_max);
@@ -1258,11 +1289,11 @@ rollback_retry:
          * acknowledgment guarantees this thread has no unresolved writes and, because the operation
          * selection below sees the pause, that it will not write again until the pause is lifted.
          */
-        WT_ACQUIRE_READ_WITH_BARRIER(pause_writes, g.stepdown_pause_writes);
+        pause_writes = __wt_atomic_load_bool_v_acquire(&g.stepdown_pause_writes);
         if (!pause_writes)
-            WT_RELEASE_WRITE_WITH_BARRIER(tinfo->pause_ack, false);
+            __wt_atomic_store_bool_v_release(&tinfo->pause_ack, false);
         else if (!intxn)
-            WT_RELEASE_WRITE_WITH_BARRIER(tinfo->pause_ack, true);
+            __wt_atomic_store_bool_v_release(&tinfo->pause_ack, true);
 
         /*
          * If not in a transaction and in a timestamp world, start a transaction (which is always at
@@ -1345,7 +1376,7 @@ rollback_retry:
          */
         max_rows = TV(RUNS_ROWS);
         if (table->type != ROW && !table->mirror)
-            WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
+            max_rows = __wt_atomic_load_uint32_acquire(&table->rows_current);
         tinfo->keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
         if (TV(OPS_PARETO)) {
             tinfo->keyno = testutil_pareto(tinfo->keyno, (u_int)max_rows, TV(OPS_PARETO_SKEW));
@@ -1447,9 +1478,11 @@ rollback_retry:
 
         ret = 0;
         skip1 = skip2 = NULL;
+        expect_ret = 0;
+        expect_set = false;
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
-            ret = table_op(tinfo, intxn, iso_level, op);
+            ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 
             /*
@@ -1467,15 +1500,20 @@ rollback_retry:
                 goto skip_operation;
 
             skip1 = g.base_mirror;
+            expect_ret = tinfo->op_ret;
+            expect_set = true;
         }
         if (ret == 0 && table != skip1) {
             tinfo->table = table;
-            ret = table_op(tinfo, intxn, iso_level, op);
+            ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
             if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                 goto rollback;
             if (GV(RUNS_PREDICTABLE_REPLAY))
                 rlog_ret = tinfo->op_ret;
+
+            if (ret == 0)
+                mirror_check(tinfo, iso_level, op, &expect_ret, &expect_set, "the base mirror");
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1491,12 +1529,14 @@ rollback_retry:
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
-                    ret = table_op(tinfo, intxn, iso_level, op);
+                    ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
                     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
                     if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                         goto rollback;
                     if (ret == WT_ROLLBACK)
                         break;
+                    mirror_check(tinfo, iso_level, op, &expect_ret, &expect_set,
+                      "an earlier mirror in the same group");
                 }
         }
 skip_operation:
@@ -1674,6 +1714,8 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     switch (ret) {
     case 0:
         testutil_check(cursor->get_value(cursor, value));
+        /* Copy the value out: the cursor is reset before the caller is done with it. */
+        testutil_check(__wt_buf_set(NULL, value, value->data, value->size));
         break;
     case WT_NOTFOUND:
         break;
@@ -1717,7 +1759,7 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
 
     /* Set up the default key buffer. */
     key_gen_init(&key);
-    WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
+    max_rows = __wt_atomic_load_uint32_acquire(&table->rows_current);
 
     /*
      * Generate a random lower key and apply to the lower bound or upper bound depending on the
@@ -1811,7 +1853,7 @@ wts_read_scan(TABLE *table, void *args)
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */
-    WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
+    max_rows = __wt_atomic_load_uint32_acquire(&table->rows_current);
     for (keyno = 0; keyno < max_rows;) {
         if (++keyno > 50)
             keyno += mmrand(rnd, 1, WT_THOUSAND);
@@ -2230,7 +2272,7 @@ col_insert_resolve(TABLE *table, void *arg)
      * Process the existing records and advance the last row count until we can't go further.
      */
     do {
-        WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
+        max_rows = __wt_atomic_load_uint32_acquire(&table->rows_current);
         for (i = 0, p = cip->insert_list; i < WT_ELEMENTS(cip->insert_list); ++i, ++p) {
             /*
              * A thread may have allocated a record number that is now less than or equal to the

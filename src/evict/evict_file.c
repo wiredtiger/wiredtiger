@@ -40,7 +40,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
      */
-    WT_ASSERT(session, btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+    WT_ASSERT(session, !__wt_btree_eviction_enabled(btree) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.
@@ -121,7 +121,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) ||
                 __wt_page_can_evict(session, ref, NULL),
               "Page should be evictable during discard");
-            __wt_ref_out(session, ref);
+            __wt_ref_out_exclusive(session, ref);
             break;
         case WT_SYNC_CHECKPOINT:
         case WT_SYNC_WRITE_LEAVES:

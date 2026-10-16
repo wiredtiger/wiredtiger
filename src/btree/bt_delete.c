@@ -81,6 +81,22 @@
  */
 
 /*
+ * __delete_page_fallback_stat --
+ *     Count a leaf page that range truncate could not fast-delete.
+ */
+static WT_INLINE void
+__delete_page_fallback_stat(WT_SESSION_IMPL *session, WT_REF *ref, bool in_memory)
+{
+    /* Internal pages are never fast-deleted: the walk descends into them instead. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return;
+
+    WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_pages);
+    if (in_memory)
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_fallback_in_memory);
+}
+
+/*
  * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
@@ -103,6 +119,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
+            __delete_page_fallback_stat(session, ref, true);
             return (0);
         }
 
@@ -122,11 +139,15 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * Fast check to see if it's worth locking, then atomically switch the page's state to lock it.
      */
     previous_state = WT_REF_GET_STATE(ref);
-    if (previous_state != WT_REF_DISK)
+    if (previous_state != WT_REF_DISK) {
+        __delete_page_fallback_stat(session, ref, true);
         return (0);
+    }
 
-    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
+        __delete_page_fallback_stat(session, ref, true);
         return (0);
+    }
 
     /*
      * There should be no previous page-delete information: if the page was previously deleted and
@@ -156,11 +177,29 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
 
     /*
+     * A page whose entries all already carry a stop time gains nothing from a fast truncate: the
+     * page-delete information would only duplicate what the image says, and a reconciliation that
+     * legitimately skips writing such a page discards it while the parent still holds a
+     * fast-truncate proxy cell that depends on it. The history store is exempt: its pages routinely
+     * carry a stop on every entry, and rollback-to-stable's btree truncate depends on fast-deleting
+     * them.
+     */
+    if (!WT_IS_HS(session->dhandle) && WT_TIME_AGGREGATE_HAS_STOP(&addr.ta)) {
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_pages_skipped_already_deleted);
+        goto err;
+    }
+
+    /*
      * When performing a truncate operation with no associated timestamp, limit fast-truncate to
      * pages where all its data is globally visible. This is done to prevent data in the history
      * store (that should have been cleared) from appearing again. Technically we don't need to
      * check the newest stop durable timestamp, but for consistency, we check for the maximum of
      * both the start and stop timestamps.
+     *
+     * This check does not depend on whether the table currently requires timestamps: a table's
+     * timestamp policy can be relaxed after the fact without rewriting its existing content, which
+     * would otherwise let a fast truncate discard real, timestamped history-store entries as if
+     * they belonged to a table that had never used timestamps.
      */
     if (F_ISSET(session->txn, WT_TXN_TS_NOT_SET) &&
       !__wt_txn_visible_all(session, addr.ta.newest_txn,
@@ -206,7 +245,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     }
 
     *skipp = true;
-    WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_fast_delete_pages);
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
@@ -219,19 +258,25 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * it and let the transaction's cache-pressure check roll the truncate back if it has pinned too
      * much; the delete just performed unwinds normally on rollback.
      *
-     * Skipped for the history store, whose truncation is non-transactional: there would be no
-     * transaction to bound, and none to resolve and give back the bytes counted below.
+     * The transaction accounting is skipped for the history store, whose truncation is
+     * non-transactional: there would be no transaction to bound, and none to resolve and give back
+     * the bytes counted below.
      */
-    if (parent_was_clean && !WT_IS_HS(session->dhandle)) {
+    if (parent_was_clean) {
         footprint = __wt_atomic_load_size_relaxed(&parent->memory_footprint);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_truncate_internal_pages_dirtied);
+        WT_STAT_CONN_DSRC_INCRV(
+          session, cursor_truncate_internal_bytes_dirtied, (int64_t)footprint);
+        if (WT_IS_HS(session->dhandle))
+            return (0);
+
         session->txn->truncate_dirty_bytes += footprint;
 
         /*
          * These pages are dirty content the transaction has not resolved, tracked separately from
          * update content: a truncate creates no updates.
          */
-        WT_STAT_CONN_INCRV_ATOMIC(
-          session, cache_truncate_txn_uncommitted_bytes, (int64_t)footprint);
+        WT_STAT_CONN_INCRV(session, cache_truncate_txn_uncommitted_bytes, (int64_t)footprint);
         WT_STAT_SESSION_INCRV(session, txn_truncate_bytes_dirty, (int64_t)footprint);
         WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)footprint);
 
@@ -249,6 +294,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     return (ret);
 
 err:
+    if (ret == 0)
+        __delete_page_fallback_stat(session, ref, false);
     __wt_free(session, ref->page_del);
 
     /* Return the page to its previous state. */
@@ -357,8 +404,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
         }
         /*
          * Drop any page_deleted information remaining in the ref. Note that while this must have
-         * been an instantiated page, the information (and flag) is only kept until the page is
-         * reconciled for the first time after instantiation, so it might not be set now.
+         * been an instantiated page, the information (and flag) is only kept until a reconciliation
+         * after instantiation writes a new image of the page, so it might not be set now.
          */
         if (ref->page->modify->instantiated) {
             ref->page->modify->instantiated = false;
@@ -798,7 +845,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * We will leave the WT_PAGE_DELETED structure in the ref; all of its information has been
      * copied to the list of WT_UPDATE structures (if any), but we may still need it for internal
-     * page reconciliation until the instantiated page is itself successfully reconciled.
+     * page reconciliation until a reconciliation of the instantiated page writes a new image.
      */
 
 err:

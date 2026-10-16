@@ -38,7 +38,6 @@ from wtscenario import make_scenarios
 # with no user-visible changes. Cover the two instantiation paths: fast-truncated pages and pages
 # with prepared updates on disk.
 @wttest.skip_for_hook("disagg", "checkpoint skip behavior differs on disagg followers")
-@wttest.skip_for_hook("tiered", "flush_tier calls interfere with checkpoint skip accounting")
 class test_instantiate01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 
@@ -102,7 +101,7 @@ class test_instantiate01(wttest.WiredTigerTestCase):
         lo_cursor.close()
         hi_cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delete_fast), 0)
+        self.assertGreater(self.get_stat(stat.conn.cursor_truncate_fast_delete_pages), 0)
 
         # Persist the truncate and checkpoint until the tree is skipped as clean.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))

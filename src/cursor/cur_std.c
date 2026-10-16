@@ -758,7 +758,7 @@ __wti_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
 
     (void)__wt_atomic_sub_uint32_relaxed(&S2C(session)->open_cursor_count, 1);
-    WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
+    WT_STAT_CONN_INCR(session, cursor_cached_count);
     WT_STAT_DSRC_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
 
@@ -788,7 +788,7 @@ __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     WT_DHANDLE_RELEASE(dhandle);
 
     (void)__wt_atomic_add_uint32_relaxed(&S2C(session)->open_cursor_count, 1);
-    WT_STAT_CONN_DECR_ATOMIC(session, cursor_cached_count);
+    WT_STAT_CONN_DECR(session, cursor_cached_count);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
     bucket = cursor->uri_hash & (S2C(session)->hash_size - 1);
@@ -1488,6 +1488,26 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
 }
 
 /*
+ * __wt_cursor_lookup_str --
+ *     Search a cursor with string keys and values for a key, and return the value, or NULL if the
+ *     cursor has no such key. The value is valid until the cursor moves.
+ */
+int
+__wt_cursor_lookup_str(WT_CURSOR *cursor, const char *key, const char **valuep)
+{
+    WT_DECL_RET;
+
+    *valuep = NULL;
+
+    cursor->set_key(cursor, key);
+    WT_RET_NOTFOUND_OK(ret = cursor->search(cursor));
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    return (cursor->get_value(cursor, valuep));
+}
+
+/*
  * __wt_cursor_init --
  *     Default cursor initialization.
  */
@@ -1533,10 +1553,6 @@ __wt_cursor_init(
     if ((WT_STREQ(cursor->value_format, "u") || WT_STREQ(cursor->value_format, "S")) &&
       cursor->modify == __wti_cursor_modify_value_format_notsup)
         cursor->modify = __cursor_modify;
-
-    /* Tiered cursors are not yet candidates for caching. */
-    if (uri != NULL && WT_PREFIX_MATCH(uri, "tiered:"))
-        F_CLR(cursor, WT_CURSTD_CACHEABLE);
 
     /*
      * Cursors that are internal to some other cursor (such as file cursors inside a table cursor)

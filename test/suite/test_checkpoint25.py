@@ -38,7 +38,6 @@ from wtscenario import make_scenarios
 # This version uses timestamps.
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     format_values = [
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
@@ -149,7 +148,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Check stats to make sure we fast-deleted at least one page.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
+        fastdelete_pages = stat_cursor[stat.conn.cursor_truncate_fast_delete_pages][2]
         self.assertGreater(fastdelete_pages, 0)
 
         # Take a checkpoint.

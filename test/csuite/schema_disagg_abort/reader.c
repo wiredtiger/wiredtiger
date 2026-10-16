@@ -9,7 +9,7 @@
 /*
  * The reader stage: the single consumer of the node's event source - the self-pipe when this phase
  * generates, a live peer's otherwise. Queues events for the workers, runs the step-down work at the
- * marker, and ends the phase on the hand-over.
+ * step-down event, and ends the phase on the hand-over.
  */
 
 #include "schema_disagg_abort.h"
@@ -30,38 +30,43 @@ frontier_assert(WORKLOAD_STATE *state, uint64_t timestamp)
 
 /*
  * reader_step_down --
- *     The step-down work once the timestamp is set.
+ *     Set the step-down timestamp, reserving a timestamp at or below it for each of the term's
+ *     unpublished operations. The step-down workload publishes them, interleaved with its own
+ *     operations, which allocate above it.
  */
 static void
-reader_step_down(WORKLOAD_STATE *state, uint64_t ts)
+reader_step_down(WORKLOAD_STATE *state, uint32_t reserve_count)
 {
-    WT_CONNECTION *conn = state->conn;
-
-    /* Signal the timestamp and checkpoint threads to pause. */
-    __wt_atomic_store_uint64(&state->stepdown_ts, ts);
-    while (__wt_atomic_load_bool(&state->ts_busy))
-        __wt_sleep(0, WT_THOUSAND);
+    testutil_assert(__wt_atomic_load_uint64(&state->stepdown_ts) == 0);
+    testutil_assert(__wt_atomic_load_bool(&state->stepdown_ckpt_due) == false);
 
     /*
-     * FIXME-WT-18314: Reject step down timestamp without the epoch. The `-e` mode with role
-     * switches becomes illegal.
+     * Drain the workers before stepping-down. Write operations cannot straddle the step-down
+     * timestamp, and a schema operation applied after it would belong to the step-down.
      */
-    set_ts(state->cfg, conn, TS_STEPDOWN, ts);
-    workload_set_frontier(state, ts);
+    evq_drain_barrier(state);
+    const uint64_t final_ts = __wt_atomic_load_uint64(&state->current_ts);
+    frontier_assert(state, final_ts);
 
-    WT_SESSION *session;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->checkpoint(session, "use_timestamp=true"));
-    testutil_check(session->close(session, NULL));
+    const uint64_t stepdown_ts = final_ts + reserve_count;
+    __wt_atomic_store_uint64(&state->reserved_ts, final_ts);
+    workload_counter_advance(state, stepdown_ts);
 
-    /* Keep the step-down checkpoint's LSN; the next leader should adopt it. */
-    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS ckpt_args = {0};
-    testutil_assert(ckpt_latest(state, &ckpt_args));
-    free(ckpt_args.checkpoint_metadata.mem);
+    /*
+     * The timestamp thread caps stable at the step-down timestamp, and the checkpoint thread stops
+     * its periodic checkpoints.
+     */
+    __wt_atomic_store_uint64(&state->stepdown_ts, stepdown_ts);
 
-    __wt_atomic_store_uint64(&state->stepdown_ckpt_lsn, ckpt_args.checkpoint_lsn);
-    println("Node %" PRIu32 ": step-down checkpoint at %" PRIu64 " (lsn %" PRIu64 ")",
-      state->cfg->node_id, ts, ckpt_args.checkpoint_lsn);
+    /*
+     * FIXME-WT-18314: Once the ticket is fixed, the `-e` mode with role switches becomes illegal.
+     */
+    set_ts(state->cfg, state->conn, TS_STEPDOWN, stepdown_ts);
+    println("Node %" PRIu32 ": step-down at %" PRIu64 " with %" PRIu32 " pending publishes",
+      state->cfg->node_id, stepdown_ts, reserve_count);
+
+    /* Signal the checkpoint thread to run the step-down checkpoint once stable reaches it. */
+    __wt_atomic_store_bool(&state->stepdown_ckpt_due, true);
 }
 
 /*
@@ -79,7 +84,6 @@ thread_reader_run(void *arg)
     const int src_fd = state->generates ? cfg->self_pipe_read_fd : cfg->pipe_read_fd;
 
     SCHEMA_EVENT ev;
-    uint64_t final_ts;
     bool running = true;
     while (running && workload_active(state, STAGE_READER)) {
         if (!pipe_wait_readable(src_fd))
@@ -87,7 +91,7 @@ thread_reader_run(void *arg)
         if (!pipe_event_read(src_fd, &ev)) {
             /* EOF: the peer died. Keep the role; the node continues as a lone follower. */
             testutil_assert(!state->leads); /* The self-pipe's writer lives in this process. */
-            cfg->peer_alive = false;
+            __wt_atomic_store_bool(&cfg->peer_alive, false);
             println("Node %" PRIu32 ": peer died; continuing as a lone follower", cfg->node_id);
             running = false;
             continue;
@@ -103,14 +107,7 @@ thread_reader_run(void *arg)
             break;
         case EVENT_STEPDOWN:
             testutil_assert(state->leads && state->generates);
-            /*
-             * Drain the workers before stepping-down. Write operations cannot straddle the
-             * step-down timestamp.
-             */
-            evq_drain_barrier(state);
-            final_ts = __wt_atomic_load_uint64(&state->current_ts);
-            frontier_assert(state, final_ts);
-            reader_step_down(state, final_ts);
+            reader_step_down(state, ev.reserve_count);
             break;
         case EVENT_SWITCH:
             /* The final event of the term's stream. */
