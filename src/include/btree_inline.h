@@ -49,6 +49,17 @@ __wt_btree_dhandle_is_outdated_disagg(WT_DATA_HANDLE *dhandle, WT_BTREE *btree)
 }
 
 /*
+ * __wt_btree_eviction_enabled --
+ *     Return true if page eviction is enabled for the given tree.
+ */
+static WT_INLINE bool
+__wt_btree_eviction_enabled(WT_BTREE *btree)
+{
+    return (!F_ISSET(btree, WT_BTREE_NO_EVICT) &&
+      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0);
+}
+
+/*
  * __wt_btree_is_outdated_disagg --
  *     Return whether the current btree belongs to an outdated disaggregated generation.
  */
