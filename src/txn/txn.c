@@ -397,7 +397,7 @@ retry:
          *    not be visible to the current snapshot.
          */
         for (spins = 0; s != txn_shared &&
-          (id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
+          (id = __wt_atomic_load_uint64_v_acquire(&s->id)) != WT_TXN_NONE &&
           (prev_oldest_id <= id) && (id < current_id);) {
             /*
              * If the transaction is still allocating its ID, then we spin here until it gets its
@@ -406,8 +406,7 @@ retry:
              * transaction: the retried allocation gets an ID that is not older than the current ID
              * we saw. The same holds if another snapshot has already marked it.
              */
-            WT_ACQUIRE_BARRIER();
-            alloc_state = __wt_atomic_load_uint8_v_relaxed(&s->is_allocating);
+            alloc_state = __wt_atomic_load_uint8_v_acquire(&s->is_allocating);
             if (alloc_state == WT_TXN_ID_ALLOC_DONE) {
                 /*
                  * There is still a chance that fetched ID is not valid after ID allocation, so we
@@ -415,7 +414,6 @@ retry:
                  * to re-read ID from transaction state after this transaction completes ID
                  * allocation.
                  */
-                WT_ACQUIRE_BARRIER();
                 if (id == __wt_atomic_load_uint64_v_relaxed(&s->id)) {
                     txn->snapshot_data.snapshot[n++] = id;
                     if (id < pinned_id)

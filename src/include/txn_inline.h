@@ -2005,7 +2005,7 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 
     txn_shared = WT_SESSION_TXN_SHARED(session);
 #endif
-    WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, WT_TXN_NONE);
+    __wt_atomic_store_uint64_v_release(&txn_shared->id, WT_TXN_NONE);
 }
 
 /*
@@ -2311,7 +2311,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
         for (;;) {
             __wt_atomic_store_uint8_v_release(&txn_shared->is_allocating, WT_TXN_ID_ALLOCATING);
             __wt_atomic_store_uint64_v_release(
-              &txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
+              &txn_shared->id, __wt_atomic_load_uint64_v_relaxed(&txn_global->current));
             id = __wt_atomic_fetch_add_uint64_v(&txn_global->current, 1);
             session->txn->time_point.id = id;
             __wt_atomic_store_uint64_v_release(&txn_shared->id, id);
