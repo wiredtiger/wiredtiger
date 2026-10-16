@@ -380,7 +380,7 @@ err:
  *     allocated. The caller is responsible for freeing the output buffer.
  */
 static int
-__read_decompress(WT_SESSION_IMPL *session, const void *in, size_t in_size, size_t mem_sz,
+__read_decompress(WT_SESSION_IMPL *session, const void *in, size_t compressed_size, size_t mem_sz,
   WT_ITEM *out, const uint8_t *addr, size_t addr_size)
 {
     WT_BTREE *btree;
@@ -395,12 +395,12 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t in_size, size
         WT_RET(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
           "compressed block for which no compression configured"));
 
-      if (mem_sz <= WT_BLOCK_COMPRESS_SKIP)
-          WT_RET(__blkcache_read_corrupt(
-            session, WT_ERROR, addr, addr_size, "compressed block has an invalid in-memory size"));
-      if (in_size <= WT_BLOCK_COMPRESS_SKIP)
-          WT_RET(__blkcache_read_corrupt(
-            session, WT_ERROR, addr, addr_size, "compressed block has an invalid on-disk size"));
+    if (mem_sz <= WT_BLOCK_COMPRESS_SKIP)
+        WT_RET(__blkcache_read_corrupt(
+          session, WT_ERROR, addr, addr_size, "compressed block has an invalid in-memory size"));
+    if (compressed_size <= WT_BLOCK_COMPRESS_SKIP)
+        WT_RET(__blkcache_read_corrupt(
+          session, WT_ERROR, addr, addr_size, "compressed block has an invalid on-disk size"));
 
     WT_RET(__wt_buf_initsize(session, out, mem_sz));
 
@@ -411,7 +411,7 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t in_size, size
      */
     ret =
       compressor->decompress(compressor, &session->iface, (uint8_t *)in + WT_BLOCK_COMPRESS_SKIP,
-        in_size - WT_BLOCK_COMPRESS_SKIP, (uint8_t *)out->mem + WT_BLOCK_COMPRESS_SKIP,
+        compressed_size - WT_BLOCK_COMPRESS_SKIP, (uint8_t *)out->mem + WT_BLOCK_COMPRESS_SKIP,
         out->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len);
     if (result_len != mem_sz - WT_BLOCK_COMPRESS_SKIP)
         WT_TRET(WT_ERROR);
@@ -420,7 +420,7 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t in_size, size
         WT_ERR(
           __blkcache_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
-    compression_ratio = result_len / (in_size - WT_BLOCK_COMPRESS_SKIP);
+    compression_ratio = result_len / (compressed_size - WT_BLOCK_COMPRESS_SKIP);
     __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
 
     if (0) {
