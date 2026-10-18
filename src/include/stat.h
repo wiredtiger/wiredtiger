@@ -896,6 +896,10 @@ struct __wt_connection_stats {
     int64_t checkpoint_scrub_min;
     int64_t checkpoint_scrub_recent;
     int64_t checkpoint_scrub_total;
+    int64_t checkpoint_stepdown_time_max;
+    int64_t checkpoint_stepdown_time_min;
+    int64_t checkpoint_stepdown_time_recent;
+    int64_t checkpoint_stepdown_time_total;
     int64_t checkpoint_stop_stress_active;
     int64_t checkpoint_sync_rec_pct;
     int64_t checkpoint_tree_duration;
@@ -1047,6 +1051,8 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_down_attempted;
+    int64_t disagg_step_down_completed;
     int64_t disagg_step_up_checkpoint_restart_time;
     int64_t disagg_step_up_deferred_pickup_retries;
     int64_t disagg_step_up_deferred_pickup_retry_time;
@@ -1059,6 +1065,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_missing_stable_tables_created;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
+    int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
