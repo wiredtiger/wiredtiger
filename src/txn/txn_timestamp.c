@@ -620,7 +620,7 @@ set:
      * session cannot track lock ownership.
      */
     if (has_step_down)
-        __wt_spin_lock_track(session, &S2C(session)->schema_lock);
+        __wt_writelock(session, &S2C(session)->schema_lock);
     __wt_writelock(session, &txn_global->rwlock);
     /*
      * This method can be called from multiple threads, check that we are moving the global
@@ -707,7 +707,7 @@ set:
 
     __wt_writeunlock(session, &txn_global->rwlock);
     if (has_step_down)
-        __wt_spin_unlock(session, &S2C(session)->schema_lock);
+        __wt_writeunlock(session, &S2C(session)->schema_lock);
 
     /*
      * Emit the verbose messages after releasing the lock: the event handler runs on this thread and

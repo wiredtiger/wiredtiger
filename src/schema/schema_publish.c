@@ -22,7 +22,7 @@ __schema_publish_disagg_schema_epoch(
     char stable_epoch_string[WT_TS_INT_STRING_SIZE];
     bool locked;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT(session, __wt_rwlock_islocked(session, &S2C(session)->schema_lock));
 
     locked = false;
     txn_global = &S2C(session)->txn_global;
@@ -78,7 +78,7 @@ __wt_schema_publish(WT_SESSION_IMPL *session, const char *uri, const char *cfg[]
     WT_DECL_RET;
     wt_timestamp_t schema_epoch;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT(session, __wt_rwlock_islocked(session, &S2C(session)->schema_lock));
 
     WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 

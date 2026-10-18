@@ -1084,7 +1084,12 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                   WT_WITH_SCHEMA_LOCK(
                     session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
             } else
-                WT_WITH_SCHEMA_LOCK(
+                /*
+                 * Opening an existing handle for ordinary access only needs to exclude concurrent
+                 * drop/verify/create of the same URI, which take the schema lock exclusively. Take
+                 * it shared so independent opens of different handles do not serialize.
+                 */
+                WT_WITH_SCHEMA_READ_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
 
             return (ret);
