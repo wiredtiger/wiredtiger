@@ -85,9 +85,8 @@ __verify_lock_held(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, uint32_t flag)
 
 /*
  * __verify_rwlock_held --
- *     Read-write-lock variant of __verify_lock_held, for locks (such as the schema lock) that are
- *     read-write locks. Read-write locks do not track a single owner, so accept the lock being held
- *     together with the inherited flag.
+ *     Read-write lock variant of __verify_lock_held; accept the lock being held with the inherited
+ *     flag because read-write locks lack owner tracking.
  */
 static WT_INLINE bool
 __verify_rwlock_held(WT_SESSION_IMPL *session, WT_RWLOCK *lock, uint32_t flag)

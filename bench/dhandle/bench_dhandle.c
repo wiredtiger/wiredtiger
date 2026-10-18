@@ -91,7 +91,7 @@ typedef struct {
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),"
+  "create,cache_size=2GB,cache_cursors=false,statistics=(all),statistics_log=(json,on_close,wait=1),"
   "file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)";
 static const char table_config[] = "leaf_page_max=64KB,key_format=i,value_format=i";
 
