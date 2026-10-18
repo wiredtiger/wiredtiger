@@ -345,7 +345,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, covered, dhandle_list_locked, outdated_disagg, resume, try_publish;
+    bool aggressive, covered, dhandle_list_locked, resume, try_publish;
 
     WT_TRACK_OP_INIT(session);
 
@@ -434,18 +434,6 @@ retry:
 
         btree = dhandle->handle;
 
-        /*
-         * Pages on an outdated tree can never be written to or read back from shared storage, and
-         * only __evict_review discards them, which needs the walk to have queued them. Bypass the
-         * skips below so a dirty-only pass still reaches such a tree.
-         *
-         * Resident bytes rather than dirty bytes: a page reconciled in the previous generation is
-         * already clean yet still holds a reconciliation result, so it needs discarding here but
-         * contributes nothing to the dirty counters.
-         */
-        outdated_disagg = __wt_btree_dhandle_is_outdated_disagg(dhandle, btree) &&
-          __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem) != 0;
-
         /* Skip files that don't allow eviction. */
         try_publish = false;
         if (!__wt_btree_eviction_enabled(btree)) {
@@ -467,16 +455,23 @@ retry:
             }
         }
 
-        /* Skip read-only btrees if we are not looking for clean/updates pages. */
-        if (!outdated_disagg && F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
-          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+        /*
+         * Skip read-only btrees if we are not looking for clean/updates pages, unless they hold
+         * dirty content: a step-down leaves dirty pages on a read-only btree that only eviction can
+         * discard.
+         */
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) &&
+          __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
+              __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf) ==
+            0) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
         }
 
         /* Skip files that are checkpointing if we are only looking for dirty pages. */
-        if (!outdated_disagg && WT_BTREE_SYNCING(btree) &&
+        if (WT_BTREE_SYNCING(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
             __evict_disagg_btree_skip_count(session, btree);
@@ -492,8 +487,8 @@ retry:
          * are better than starving the cache.
          */
         aggressive = __wt_evict_aggressive(session);
-        if (!outdated_disagg && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) &&
-          !aggressive && __wt_btree_disagg_checkpointed(session, btree)) {
+        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) && !aggressive &&
+          __wt_btree_disagg_checkpointed(session, btree)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_disagg_trees_checkpointed);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -505,7 +500,7 @@ retry:
          * If the file is contributing heavily to our cache usage then ignore the "stickiness" of
          * its pages.
          */
-        if (!outdated_disagg && btree->evict_priority != 0 && !aggressive &&
+        if (btree->evict_priority != 0 && !aggressive &&
           !__evict_btree_dominating_cache(session, btree, WT_EVICT_CACHE_ALL)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_stick_in_cache);
             __evict_disagg_btree_skip_count(session, btree);
@@ -565,9 +560,6 @@ retry:
          *
          * A saturated walk period is excluded from that override because it means many consecutive
          * walks of this tree came up short, so the tree's size is not translating into candidates.
-         *
-         * An outdated tree is not exempted: unlike the skips above this is a back-off, not a
-         * permanent skip, so the tree is still walked periodically.
          */
         evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
         btree->evict_walk_dominating = false;
@@ -587,16 +579,13 @@ retry:
          * walking them serves no purpose. Such pages are not eligible for clean eviction, making
          * the operation unnecessary.
          */
-        if (!outdated_disagg && __wt_btree_stays_in_memory(btree) &&
+        if (__wt_btree_stays_in_memory(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
             continue;
         }
 
         btree->evict_walk_skips = 0;
-
-        if (outdated_disagg)
-            WT_STAT_CONN_INCR(session, eviction_server_walk_outdated_disagg_trees);
 
         __wti_evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
@@ -642,7 +631,7 @@ retry:
              * outdated tree requires that none are held. Release it so the pages just queued can
              * drain; the tree keeps its walk position for a later pass.
              */
-            if (outdated_disagg)
+            if (__wt_btree_dhandle_is_outdated_disagg(dhandle, btree))
                 __wti_evict_set_saved_walk_tree(session, NULL);
             /*
              * If there is a checkpoint thread gathering handles, which means it is holding the
@@ -821,9 +810,11 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
 
+    btree = S2BT(session);
     conn = S2C(session);
     txn = session->txn;
 
@@ -851,7 +842,6 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
     } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        WT_BTREE *btree = S2BT(session);
         wt_timestamp_t newest_commit_timestamp =
           __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp);
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
@@ -880,12 +870,11 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
      * only for disaggregated storage.
      *
-     * An outdated tree is exempt: it is read-only, so the modifications being waited for can never
-     * arrive.
+     * A read-only tree is exempt: the modifications being waited for can never arrive.
      */
 #define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
     0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
-    if (__wt_conn_is_disagg(session) && !__wt_btree_is_outdated_disagg(session) &&
+    if (__wt_conn_is_disagg(session) && !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
       __wt_atomic_load_uint32_relaxed(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0, pct_updates = 0.0;
         bool high_pressure = false;
@@ -1349,9 +1338,8 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * longer serves. A reader positioned elsewhere on this tree may still navigate back to it, so
      * any reader on the tree, not just one holding this page, must be treated as blocking eviction;
      * that tree-wide state is tracked by session_inuse rather than this page's own hazard pointer.
-     *
-     * One rather than zero because the saved walk tree is this handle here, so one reference is the
-     * walk's own. __wt_evict tests against zero, having released it by then.
+     * The walk itself holds one session_inuse reference on the tree it is currently visiting, so a
+     * genuine external reader shows up as a count greater than one.
      */
     if (__wt_btree_is_outdated_disagg(session) && !__wt_page_evict_clean(page) &&
       __wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 1) {
