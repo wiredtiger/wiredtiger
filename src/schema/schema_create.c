@@ -1565,7 +1565,7 @@ __wt_schema_create_internal(
      * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
      * acquired by us.
      */
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &S2C(session)->schema_lock));
+    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
 
     WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 

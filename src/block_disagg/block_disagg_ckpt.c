@@ -145,7 +145,7 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
      * related to the given shared table, e.g., the various file, colgroup, table, and layered
      * entries.
      */
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->schema_lock));
+    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &conn->schema_lock));
 
     if (failed)
         return (0);

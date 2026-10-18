@@ -541,3 +541,20 @@ __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
     return (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0);
 }
+
+/*
+ * __wt_rwlock_iswritelocked --
+ *     Return if a read/write lock is currently locked for writing. The lock has no owner tracking,
+ *     so this reports that some thread holds the lock in write mode, not that this session does: a
+ *     writer holds a ticket (current != next) with no active readers.
+ */
+bool
+__wt_rwlock_iswritelocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_RWLOCK old;
+
+    WT_UNUSED(session);
+
+    old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
+    return (old.u.s.current != old.u.s.next && old.u.s.readers_active == 0);
+}

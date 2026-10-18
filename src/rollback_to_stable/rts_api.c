@@ -116,7 +116,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     threads = conn->rts->threads_num;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->schema_lock));
+    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &conn->schema_lock));
 
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the

@@ -92,7 +92,7 @@ __verify_lock_held(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, uint32_t flag)
 static WT_INLINE bool
 __verify_rwlock_held(WT_SESSION_IMPL *session, WT_RWLOCK *lock, uint32_t flag)
 {
-    if (__wt_rwlock_islocked(session, lock))
+    if (__wt_rwlock_iswritelocked(session, lock))
         return (true);
     return (F_ISSET(session, WT_SESSION_INTERNAL) && FLD_ISSET(session->lock_flags, flag));
 }
