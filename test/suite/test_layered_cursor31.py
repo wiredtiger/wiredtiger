@@ -40,13 +40,10 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),'
     disagg_storages = gen_disagg_storages(disagg_only=True)
     table_types = [
-        ('layered', dict(prefix='layered:',
-            create_config='key_format=S,value_format=S', supported=True)),
-        ('table_layered', dict(prefix='table:',
+        ('layered', dict(
             create_config='key_format=S,value_format=S,block_manager=disagg,type=layered',
             supported=True)),
-        ('table_plain', dict(prefix='table:',
-            create_config='key_format=S,value_format=S', supported=False)),
+        ('plain', dict(create_config='key_format=S,value_format=S', supported=False)),
     ]
     scenarios = make_scenarios(disagg_storages, table_types)
 
@@ -55,7 +52,7 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
 
     def setUp(self):
         super().setUp()
-        self.uri = self.prefix + self.table_name
+        self.uri = 'table:' + self.table_name
         self.session.create(self.uri, self.create_config)
         self.commit_ts = 0
         self.write({'k1': 'v1'})
@@ -77,15 +74,14 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
 
     def test_open_cursor(self):
         self.session.open_cursor(self.uri, None, 'blind_remove=false').close()
-
-        # Dump cursors accept or reject the option the same way.
-        if not self.supported:
+        if self.supported:
+            self.session.open_cursor(self.uri, None, 'blind_remove=true,dump=print').close()
+        else:
             self.assert_enotsup(
                 lambda: self.session.open_cursor(self.uri, None, 'blind_remove=true'))
             self.assert_enotsup(
                 lambda: self.session.open_cursor(self.uri, None, 'blind_remove=true,dump=print'))
             return
-        self.session.open_cursor(self.uri, None, 'blind_remove=true,dump=print').close()
 
         # Operations other than remove behave as usual, and removing an existing key succeeds.
         cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
@@ -108,7 +104,7 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.reconfigure('blind_remove=false'), 0)
 
         if not self.supported:
-            # A failed reconfigure leaves the cursor unchanged, including its position.
+            # A failed reconfigure leaves the cursor unchanged.
             cursor.set_key('k1')
             self.assertEqual(cursor.search(), 0)
             self.assert_enotsup(lambda: cursor.reconfigure('blind_remove=true'))
@@ -123,19 +119,21 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_cursor_cache(self):
-        # Leave a closed cursor in the session's cursor cache.
+        # Open and close a cursor, leaving it in the session's cursor cache.
         self.session.open_cursor(self.uri).close()
-        reopens = self.get_stat(stat.conn.cursor_reopen)
 
+        # Open with the option on. This reuses the cached cursor, which takes the setting from
+        # this open, so a plain table rejects it. Either way, the cursor goes back into the cache.
+        cache_reuses = self.get_stat(stat.conn.cursor_reopen)
         if self.supported:
             self.session.open_cursor(self.uri, None, 'blind_remove=true').close()
         else:
             self.assert_enotsup(
                 lambda: self.session.open_cursor(self.uri, None, 'blind_remove=true'))
-        self.assertGreater(self.get_stat(stat.conn.cursor_reopen), reopens)
+        self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
 
-        # Reopening with the default configuration reuses the cached cursor, even after a
-        # rejected open, and does not keep the earlier setting.
-        reopens = self.get_stat(stat.conn.cursor_reopen)
+        # Open with the default configuration. This reuses the same cursor, which must not keep
+        # the earlier setting, or a plain table would reject this open too.
+        cache_reuses = self.get_stat(stat.conn.cursor_reopen)
         self.session.open_cursor(self.uri).close()
-        self.assertGreater(self.get_stat(stat.conn.cursor_reopen), reopens)
+        self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
