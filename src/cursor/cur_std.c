@@ -983,6 +983,11 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
         if (cval.val != 0)
             F_SET(cursor, WT_CURSTD_RAW);
 
+        /* WT_CURSTD_BLIND_REMOVE */
+        WT_RET(__wt_config_gets_def(session, cfg, "blind_remove", 0, &cval));
+        if (cval.val != 0)
+            F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
+
         /* WT_CURSTD_DEBUG_RESET_EVICT */
         WT_RET(__cursor_config_debug(cursor, cfg));
 
@@ -1096,7 +1101,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+            F_CLR(cursor,
+              WT_CURSTD_APPEND | WT_CURSTD_BLIND_REMOVE | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
@@ -1261,6 +1267,19 @@ __wti_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_SESSION_IMPL *session;
 
     CURSOR_API_CALL_CONF(cursor, session, ret, reconfigure, config, cfg, NULL);
+
+    /* Check blind_remove before the reset, so an unsupported cursor fails with no side effects. */
+    if ((ret = __wt_config_getones(session, config, "blind_remove", &cval)) == 0) {
+        if (cval.val == 0)
+            F_CLR(cursor, WT_CURSTD_BLIND_REMOVE);
+        else {
+            if (!WT_CURSOR_BLIND_REMOVE_SUPPORTED(cursor))
+                WT_ERR_MSG(session, ENOTSUP, "%s: blind_remove is only supported on layered tables",
+                  cursor->uri);
+            F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
+        }
+    } else
+        WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Reconfiguration resets the cursor. */
     WT_ERR(cursor->reset(cursor));
