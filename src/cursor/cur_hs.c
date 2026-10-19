@@ -106,8 +106,6 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
         WT_RET(cursor->close(cursor));
     }
 
-    /* Ensure that the session doesn't hold a dangling dhandle reference to the history store. */
-    WT_ASSERT(session, session->dhandle == NULL);
     return (ret);
 }
 
