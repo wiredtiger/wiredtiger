@@ -16,14 +16,14 @@
 #include <catch2/catch.hpp>
 
 #include "wt_internal.h"
-#include "../../wrappers/connection_wrapper.h"
+#include "../wrappers/connection_wrapper.h"
 
-TEST_CASE("curhs_get_cached: the lookup leaves the session dhandle unchanged",
-  "[curhs_get_cached][dhandle]")
+TEST_CASE("session->dhandle is unchanged after a cached history store lookup",
+  "[dhandle][dhandle_hs_lookup]")
 {
     constexpr auto uri = "file:cursor_test.wt";
 
-    connection_wrapper conn("WT_TEST.curhs_get_cached");
+    connection_wrapper conn("WT_TEST.dhandle_hs_lookup");
     auto *session = conn.create_session();
     REQUIRE(session->iface.create(&session->iface, uri, "key_format=i,value_format=i") == 0);
 

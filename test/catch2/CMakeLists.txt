@@ -20,6 +20,7 @@ else()
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
+        misc_tests/test_dhandle_hs_lookup.cpp
         misc_tests/test_disagg_block_header_size.cpp
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_block_read_checksum.cpp
@@ -78,7 +79,6 @@ else()
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
-        cursors/unit/test_curhs_get_cached.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
         cursors/unit/test_curstat_size.cpp
         cursors/unit/test_layered_op.cpp
