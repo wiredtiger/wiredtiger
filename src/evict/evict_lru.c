@@ -1736,8 +1736,14 @@ __evict_get_ref(
     /*
      * Application threads only evict clean leaf pages unless we are struggling: reconciling a dirty
      * page on an application thread adds latency to the operation.
+     *
+     * The exception is a connection with no eviction worker threads (threads_max=1): the server is
+     * then the only thread that could write dirty pages, and application threads waiting for it
+     * would stall behind a single writer. In that configuration application threads take dirty
+     * pages like any worker would.
      */
-    if (!F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && WT_EVICT_HAS_WORKERS(session) &&
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
       !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)) {
         eligible[0] = WT_EVICT_LEVEL_CLEAN_LEAF;
         n_eligible = 1;
@@ -3014,9 +3020,13 @@ __wti_evict_app_assist_worker(
      * The admitted subset must be STABLE for the life of this call: a thread admitted only
      * intermittently cannot sustain an eviction loop, because every refusal costs a 10ms condition
      * wait below. Selecting by session ID (rather than randomly) guarantees that.
+     *
+     * Don't limit participation when there are no eviction worker threads: application threads
+     * are the only help the eviction server has, and a refused thread would sleep 10ms per
+     * iteration while the single server thread does all the writing.
      */
     may_evict = true;
-    if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && WT_EVICT_HAS_WORKERS(session)) {
         uint32_t divisor, session_cnt;
 
         WT_READ_ONCE(session_cnt, conn->session_array.cnt);
