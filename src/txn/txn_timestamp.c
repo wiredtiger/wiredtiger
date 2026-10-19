@@ -1155,7 +1155,7 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         checkpoint_ts = __wt_atomic_load_uint64_acquire(
           &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-        if (checkpoint_ts != WT_TS_NONE && prepare_ts <= checkpoint_ts)
+        if (prepare_ts <= checkpoint_ts)
             WT_RET_MSG(session, EINVAL,
               "prepare timestamp %s must be after the last checkpoint timestamp %s",
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
