@@ -61,6 +61,7 @@ struct __wt_extlist {
 
     wt_shared uint64_t bytes; /* Byte count */
     uint32_t entries;         /* Entry count */
+    uint32_t size_buckets;    /* The number of entries on the by-size skiplist */
 
     uint32_t objectid; /* Written object ID */
     wt_off_t offset;   /* Written extent offset */
