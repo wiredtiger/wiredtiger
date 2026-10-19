@@ -18,8 +18,7 @@
 #include "wt_internal.h"
 #include "../wrappers/connection_wrapper.h"
 
-TEST_CASE("session->dhandle is unchanged after a cached history store lookup",
-  "[dhandle][dhandle_hs_lookup]")
+TEST_CASE("session->dhandle is unchanged after a cached history store lookup", "[dhandle]")
 {
     constexpr auto uri = "file:cursor_test.wt";
 
