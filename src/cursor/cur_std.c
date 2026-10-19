@@ -985,7 +985,7 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
 
         /* WT_CURSTD_BLIND_REMOVE */
         WT_RET(__wt_config_gets_def(session, cfg, "blind_remove", 0, &cval));
-        if (cval.val != 0)
+        if (cval.val)
             F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
 
         /* WT_CURSTD_DEBUG_RESET_EVICT */
