@@ -1338,6 +1338,17 @@ __layered_last_checkpoint_order(
 #ifdef HAVE_UNITTEST
 
 /*
+ * __ut_layered_assert_stable_btree_state --
+ *     Unit test wrapper for __layered_assert_stable_btree_state.
+ */
+void
+__ut_layered_assert_stable_btree_state(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
+{
+    __layered_assert_stable_btree_state(session, cbt, last_upd);
+}
+
+/*
  * __ut_layered_derive_layered_uri --
  *     Unit test wrapper for __layered_derive_layered_uri.
  */
