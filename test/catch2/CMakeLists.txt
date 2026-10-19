@@ -18,6 +18,7 @@ else()
         misc_tests/test_ckpt_snapshot_size.cpp
         misc_tests/test_config.cpp
         misc_tests/test_conn_api_name.cpp
+        misc_tests/test_conn_stat_open_cursor_count.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp

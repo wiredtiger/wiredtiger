@@ -167,8 +167,6 @@ struct __wt_session_impl {
     uint64_t last_cursor_sweep;      /* Last regular sweep for dead cursors */
     u_int sweep_warning_5min;        /* Whether the session was without sweep for 5 min. */
     u_int sweep_warning_60min;       /* Whether the session was without sweep for 60 min. */
-    /* Count of cursors in the open list, written by the session's thread, summed for statistics. */
-    wt_shared uint32_t open_cursor_count;
 
 #ifdef HAVE_DIAGNOSTIC
     bool cursor_open_timer_running; /* Flag used to track timer across nested calls. */
@@ -372,6 +370,14 @@ struct __wt_session_impl {
      * supposedly uses a specially crafted seed suitable for skiplists.
      */
     wt_shared WT_RAND_STATE rnd_skiplist;
+
+    /*
+     * Count of cursors in this session's open list, maintained by the owning thread but summed
+     * across sessions by the statistics walker. It lives outside the cleared region so the walker's
+     * relaxed load cannot race the non-atomic memset in __session_clear(); cursor teardown returns
+     * it to zero before the session closes.
+     */
+    wt_shared uint32_t open_cursor_count;
 
     /*
      * Hash tables are allocated lazily as sessions are used to keep the size of this structure from
