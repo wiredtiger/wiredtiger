@@ -521,8 +521,6 @@ struct __wt_cursor_version {
 
 #define WT_CURSOR_RECNO(cursor) WT_STREQ((cursor)->key_format, "r")
 
-#define WT_CURSOR_BLIND_REMOVE_SUPPORTED(cursor) WT_PREFIX_MATCH((cursor)->internal_uri, "layered:")
-
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
 
