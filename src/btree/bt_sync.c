@@ -413,8 +413,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         drain_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         WT_STAT_CONN_INCR(session, checkpoint_evict_drain);
-        WT_STAT_CONN_INCRV(
-          session, checkpoint_evict_drain_duration, WT_CLOCKDIFF_US(__wt_clock(session), drain_start));
+        if (drain_start != 0)
+            WT_STAT_CONN_INCRV(session, checkpoint_evict_drain_duration,
+              WT_CLOCKDIFF_US(__wt_clock(session), drain_start));
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
