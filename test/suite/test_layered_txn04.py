@@ -158,3 +158,43 @@ class test_layered_txn04(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCa
                                     cursor[self.key(self.nitems + 1)] = 'prepared'
                                 session_follow.prepare_transaction()
                         session_follow.rollback_transaction()
+
+    def test_follower_prepared_durable_must_follow_adopted_checkpoint(self):
+        self.setup_leader(keys=range_inclusive(1, self.nitems))
+        self.leader_checkpoint(10)
+
+        conn_follow, session_follow = self.open_follower()
+        with closing(conn_follow), closing(session_follow):
+            self.disagg_wait_for_adoption(conn_follow)
+
+            # Each case resolves its own prepared transaction, since a rejected timestamp leaves
+            # a prepared transaction that can only be rolled back.
+            durable_timestamps = (40, 50, 51)
+            sessions = [conn_follow.open_session() for _ in durable_timestamps]
+            cursors = [session.open_cursor(self.uri) for session in sessions]
+            for i, (session, cursor) in enumerate(zip(sessions, cursors)):
+                session.begin_transaction()
+                cursor[self.key(self.nitems + 1 + i)] = 'prepared'
+                session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
+
+            # The checkpoint moves past the prepared transactions before they resolve. A commit
+            # timestamp may stay behind the checkpoint, but a durable timestamp may not.
+            self.leader_checkpoint(50)
+            self.disagg_advance_checkpoint_and_wait(conn_follow)
+
+            for session, durable_ts in zip(sessions, durable_timestamps):
+                config = ('commit_timestamp=' + self.timestamp_str(40) +
+                          ',durable_timestamp=' + self.timestamp_str(durable_ts))
+                if durable_ts <= 50:
+                    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                        lambda: session.timestamp_transaction(config),
+                        '/durable timestamp .* must be after the last checkpoint timestamp .*/')
+                    session.rollback_transaction()
+                else:
+                    session.timestamp_transaction(config)
+                    session.commit_transaction()
+
+            for cursor in cursors:
+                cursor.close()
+            for session in sessions:
+                session.close()
