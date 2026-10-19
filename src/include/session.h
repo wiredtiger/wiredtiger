@@ -372,10 +372,9 @@ struct __wt_session_impl {
     wt_shared WT_RAND_STATE rnd_skiplist;
 
     /*
-     * Count of cursors in this session's open list, maintained by the owning thread but summed
-     * across sessions by the statistics walker. It lives outside the cleared region so the walker's
-     * relaxed load cannot race the non-atomic memset in __session_clear(); cursor teardown returns
-     * it to zero before the session closes.
+     * Count of cursors in this session's open list, written only by the owning thread and summed
+     * across sessions for statistics. It lives outside the cleared region so the summing load
+     * cannot race a closing session's non-atomic clear; cursor teardown returns it to zero first.
      */
     wt_shared uint32_t open_cursor_count;
 
