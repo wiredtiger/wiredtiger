@@ -30,12 +30,12 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_checkpoint41.py
+# test_layered_checkpoint19.py
 #    Checkpoints around a role change on a connection that picked up a checkpoint as a follower:
 #    a checkpoint taken immediately after step-up must continue the picked-up lineage, and a
 #    forced checkpoint must advance the global checkpoint on a leader but not on a follower.
 @disagg_test_class
-class test_checkpoint41(wttest.WiredTigerTestCase):
+class test_layered_checkpoint19(wttest.WiredTigerTestCase):
     test_name = __qualname__
     num_items = 100
 
