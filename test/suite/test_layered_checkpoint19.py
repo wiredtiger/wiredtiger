@@ -105,6 +105,8 @@ class test_layered_checkpoint19(wttest.WiredTigerTestCase):
         # A forced checkpoint on the follower checkpoints no shared table.
         before = self.complete_checkpoint_lsn(conn2)
         session2.checkpoint('force=true')
+        # The assert below is making sure that the forced checkpoint
+        # on the follower did not advance the checkpoint LSN.
         self.assertEqual(self.complete_checkpoint_lsn(conn2), before)
 
         # A forced checkpoint on the leader advances the global checkpoint.
