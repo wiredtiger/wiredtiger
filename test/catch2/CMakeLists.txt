@@ -71,9 +71,11 @@ else()
         block/unit/test_block_session_ext.cpp
         block/unit/test_block_session_size.cpp
         block/unit/test_extent_list.cpp
+        block/unit/test_extent_list_front_extent.cpp
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        block/unit/test_extent_list_merge_last.cpp
         btree/unit/test_btree_eviction_enabled.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_put.cpp
