@@ -2138,9 +2138,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *tmp, *upd;
-    wt_timestamp_t checkpoint_ts;
     u_int i, prepared_updates, prepared_updates_key_repeated;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
     prepared_updates = prepared_updates_key_repeated = 0;
@@ -2182,25 +2180,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         WT_RET_MSG(
           session, EINVAL, "commit timestamp must not be set before transaction is prepared");
-
-    /* Discovery restores checkpointed prepares without preparing a new transaction. */
-    if (__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
-        checkpoint_ts = __wt_atomic_load_uint64_acquire(
-          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-        if (checkpoint_ts != WT_TS_NONE)
-            for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-                if (WT_IS_ANY_METADATA(op->btree->dhandle) ||
-                  !F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
-                    continue;
-                if (txn->time_point.prepare_timestamp <= checkpoint_ts)
-                    WT_RET_MSG(session, EINVAL,
-                      "prepare timestamp %s must be after the last checkpoint timestamp %s",
-                      __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[0]),
-                      __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
-                break;
-            }
-    }
 
     /*
      * We are about to release the snapshot: copy values into any positioned cursors so they don't

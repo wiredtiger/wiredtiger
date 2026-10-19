@@ -1087,7 +1087,7 @@ static int
 __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 {
     WT_TXN *txn;
-    wt_timestamp_t oldest_ts, stable_ts;
+    wt_timestamp_t checkpoint_ts, oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
@@ -1150,6 +1150,17 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
+    if (__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
+      !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+        checkpoint_ts = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+        if (checkpoint_ts != WT_TS_NONE && prepare_ts <= checkpoint_ts)
+            WT_RET_MSG(session, EINVAL,
+              "prepare timestamp %s must be after the last checkpoint timestamp %s",
+              __wt_timestamp_to_string(prepare_ts, ts_string[0]),
+              __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+    }
+
     txn->time_point.prepare_timestamp = prepare_ts;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_PREPARE);
 

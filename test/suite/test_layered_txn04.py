@@ -133,18 +133,28 @@ class test_layered_txn04(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCa
             self.disagg_advance_checkpoint_and_wait(conn_follow)
 
             with closing(session_follow.open_cursor(self.uri)) as cursor:
-                for set_timestamp_first in (False, True):
+                for api, write_first in (('prepare', True), ('timestamp', True),
+                  ('timestamp', False), ('timestamp_uint', True), ('timestamp_uint', False)):
                     for prepare_ts in (20, 30, 31):
                         session_follow.begin_transaction()
-                        cursor[self.key(self.nitems + 1)] = 'prepared'
+                        if write_first:
+                            cursor[self.key(self.nitems + 1)] = 'prepared'
                         config = 'prepare_timestamp=' + self.timestamp_str(prepare_ts)
-                        if set_timestamp_first:
-                            session_follow.timestamp_transaction(config)
-                            config = None
+                        if api == 'prepare':
+                            set_timestamp = lambda: session_follow.prepare_transaction(config)
+                        elif api == 'timestamp':
+                            set_timestamp = lambda: session_follow.timestamp_transaction(config)
+                        else:
+                            set_timestamp = lambda: session_follow.timestamp_transaction_uint(
+                                wiredtiger.WT_TS_TXN_TYPE_PREPARE, prepare_ts)
                         if prepare_ts <= 30:
                             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                                lambda: session_follow.prepare_transaction(config),
+                                set_timestamp,
                                 '/prepare timestamp .* must be after the last checkpoint timestamp .*/')
                         else:
-                            session_follow.prepare_transaction(config)
+                            set_timestamp()
+                            if api != 'prepare':
+                                if not write_first:
+                                    cursor[self.key(self.nitems + 1)] = 'prepared'
+                                session_follow.prepare_transaction()
                         session_follow.rollback_transaction()
