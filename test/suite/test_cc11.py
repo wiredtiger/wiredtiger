@@ -86,5 +86,11 @@ class test_cc11(test_cc_base):
           self.get_stat(stat.conn.checkpoint_cleanup_pages_removed) - before, 0,
             'checkpoint cleanup reclaimed pages deleted by a prepared transaction')
 
+        # Rolling back must restore the committed records.
         prepare_session.rollback_transaction()
         prepare_session.close()
+
+        cursor = self.session.open_cursor(self.uri)
+        count = sum(1 for _ in cursor)
+        cursor.close()
+        self.assertEqual(count, self.nrows, 'the committed records were lost')
