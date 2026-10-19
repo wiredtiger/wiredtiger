@@ -493,11 +493,6 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
              * taken after a schema lock, which makes this sequence unsafe.
              */
             WT_RET_NOTFOUND_OK(ret = __wt_curhs_get_cached(session, hs_id, &hs_tree));
-            /*
-             * The session holds no reference to the history store data handle, so the lookup must
-             * not leave it as the session's handle.
-             */
-            WT_ASSERT(session, session->dhandle == NULL);
             if (ret == 0) {
                 total_inmem += __wt_atomic_load_uint64_relaxed(&hs_tree->bytes_inmem);
                 total_dirty += __wt_atomic_load_uint64_relaxed(&hs_tree->bytes_dirty_intl) +
