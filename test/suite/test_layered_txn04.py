@@ -33,7 +33,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
 from wtscenario import make_scenarios
 
-# Verify that follower writes obey commit timestamp requirements. The truncated range holds no key
+# Verify that follower writes obey timestamp requirements. The truncated range holds no key
 # the follower itself wrote, so the truncate-list entry is the only record of that operation.
 
 @disagg_test_class
@@ -121,3 +121,30 @@ class test_layered_txn04(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCa
                 start.close()
                 stop.close()
                 self.assert_commit_rejected_at_checkpoint(session_follow, commit_ts)
+
+    def test_follower_prepares_must_follow_adopted_checkpoint(self):
+        self.setup_leader(keys=range_inclusive(1, self.nitems))
+        self.leader_checkpoint(10)
+
+        conn_follow, session_follow = self.open_follower()
+        with closing(conn_follow), closing(session_follow):
+            self.disagg_wait_for_adoption(conn_follow)
+            self.leader_checkpoint(30)
+            self.disagg_advance_checkpoint_and_wait(conn_follow)
+
+            with closing(session_follow.open_cursor(self.uri)) as cursor:
+                for set_timestamp_first in (False, True):
+                    for prepare_ts in (20, 30, 31):
+                        session_follow.begin_transaction()
+                        cursor[self.key(self.nitems + 1)] = 'prepared'
+                        config = 'prepare_timestamp=' + self.timestamp_str(prepare_ts)
+                        if set_timestamp_first:
+                            session_follow.timestamp_transaction(config)
+                            config = None
+                        if prepare_ts <= 30:
+                            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                                lambda: session_follow.prepare_transaction(config),
+                                '/prepare timestamp .* must be after the last checkpoint timestamp .*/')
+                        else:
+                            session_follow.prepare_transaction(config)
+                        session_follow.rollback_transaction()
