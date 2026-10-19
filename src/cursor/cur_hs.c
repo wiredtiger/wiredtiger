@@ -86,6 +86,10 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     uint64_t hash_value;
     const char *uri;
 
+    /*
+     * The returned btree is used after its cursor closes, without a reference. Holding the eviction
+     * pass lock is what stops sweep from freeing it in the meantime.
+     */
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_pass_lock);
 
     uri = NULL;
