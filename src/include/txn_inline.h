@@ -1275,18 +1275,18 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
- * __wt_txn_ta_newest_visible_all --
- *     Is the newest point of the given aggregated time window visible to all (possible) readers? A
- *     prepared time point is not visible to any reader, so exclude it first: the aggregate's
- *     prepare flag is the only record that a time point belongs to an uncommitted prepared update.
+ * __wt_txn_ta_newest_stop_visible_all --
+ *     Is the newest stop point of the given aggregated time window visible to all (possible)
+ *     readers? A prepared time point is not visible to any reader, so exclude it first: the
+ *     aggregate's prepare flag is the only record that a stop point belongs to an uncommitted
+ *     prepared update.
  */
 static WT_INLINE bool
-__wt_txn_ta_newest_visible_all(
-  WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, uint64_t id, wt_timestamp_t timestamp)
+__wt_txn_ta_newest_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
     if (ta->prepare)
         return (false);
-    return (__wt_txn_visible_all(session, id, timestamp));
+    return (__wt_txn_visible_all(session, ta->newest_stop_txn, ta->newest_stop_durable_ts));
 }
 
 /*

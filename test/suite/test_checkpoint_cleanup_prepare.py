@@ -43,15 +43,16 @@ class test_checkpoint_cleanup_prepare(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=16MB,statistics=(all)'
     uri = 'table:checkpoint_cleanup_prepare'
     nrows = 3000
+    batch_size = 100
     value = 'x' * 8000
     commit_ts = 10
     prepare_ts = 100
     advance_ts = 200
 
-    def checkpoint(self, config=None):
+    def checkpoint(self, config=""):
         """Checkpoint on a fresh session: a session with a prepared transaction cannot."""
         session = self.conn.open_session()
-        session.checkpoint(config) if config else session.checkpoint()
+        session.checkpoint(config)
         session.close()
 
     def removed(self):
@@ -62,9 +63,10 @@ class test_checkpoint_cleanup_prepare(wttest.WiredTigerTestCase):
 
         # Load the records and checkpoint, so they are on disk.
         cursor = self.session.open_cursor(self.uri)
-        for i in range(self.nrows):
+        for start in range(0, self.nrows, self.batch_size):
             self.session.begin_transaction()
-            cursor[i] = self.value
+            for i in range(start, min(start + self.batch_size, self.nrows)):
+                cursor[i] = self.value
             self.session.commit_transaction(
                 'commit_timestamp=' + self.timestamp_str(self.commit_ts))
         cursor.close()
