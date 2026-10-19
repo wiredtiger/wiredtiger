@@ -20,59 +20,72 @@
 
 namespace {
 
-constexpr const char *k_home = "WT_TEST.curhs_get_cached";
-constexpr const char *k_file_uri = "file:cursor_test.wt";
+class curhs_get_cached_fixture {
+public:
+    curhs_get_cached_fixture() : _conn(home), _session(_conn.create_session())
+    {
+        auto *iface = &_session->iface;
+        REQUIRE(iface->create(iface, uri, "key_format=i,value_format=i") == 0);
 
-/*
- * lookup_cached_hs --
- *     Look up the history store btree through the session's cached cursor while holding the
- *     eviction pass lock, as eviction does.
- */
-void
-lookup_cached_hs(WT_SESSION_IMPL *session)
-{
-    WT_EVICT *evict = S2C(session)->evict;
-    WT_BTREE *hs_btree = nullptr;
+        // Cache a history store cursor in the session, as eviction threads do.
+        REQUIRE(_session->dhandle == nullptr);
+        REQUIRE(__wt_curhs_cache(_session) == 0);
+    }
 
-    __wt_spin_lock(session, &evict->evict_pass_lock);
-    int ret = __wt_curhs_get_cached(session, WT_HS_ID, &hs_btree);
-    __wt_spin_unlock(session, &evict->evict_pass_lock);
+    WT_SESSION_IMPL *
+    session() const
+    {
+        return _session;
+    }
 
-    REQUIRE(ret == 0);
-    REQUIRE(hs_btree != nullptr);
-}
+    // Look up the history store btree the way eviction does, holding the pass lock.
+    void
+    lookup_cached_hs() const
+    {
+        auto *pass_lock = &S2C(_session)->evict->evict_pass_lock;
+        WT_BTREE *hs_btree = nullptr;
+
+        __wt_spin_lock(_session, pass_lock);
+        const int ret = __wt_curhs_get_cached(_session, WT_HS_ID, &hs_btree);
+        __wt_spin_unlock(_session, pass_lock);
+
+        REQUIRE(ret == 0);
+        REQUIRE(hs_btree != nullptr);
+    }
+
+    static constexpr auto uri = "file:cursor_test.wt";
+
+private:
+    static constexpr auto home = "WT_TEST.curhs_get_cached";
+
+    connection_wrapper _conn;
+    WT_SESSION_IMPL *_session;
+};
 
 } // namespace
 
-TEST_CASE("curhs_get_cached: the lookup leaves the session dhandle unchanged",
+TEST_CASE_METHOD(curhs_get_cached_fixture,
+  "curhs_get_cached: the lookup leaves the session dhandle unchanged",
   "[curhs_get_cached][dhandle]")
 {
-    connection_wrapper conn(k_home, "create");
-    WT_SESSION_IMPL *session = conn.create_session();
-    REQUIRE(session != nullptr);
-    REQUIRE(session->iface.create(&session->iface, k_file_uri, "key_format=i,value_format=i") == 0);
-
-    // Cache a history store cursor in the session, as eviction threads do.
-    REQUIRE(session->dhandle == nullptr);
-    REQUIRE(__wt_curhs_cache(session) == 0);
+    auto *session_impl = session();
 
     SECTION("session without a dhandle")
     {
-        lookup_cached_hs(session);
-        CHECK(session->dhandle == nullptr);
+        lookup_cached_hs();
+        CHECK(session_impl->dhandle == nullptr);
     }
 
     SECTION("session holding another tree's dhandle")
     {
-        REQUIRE(__wt_session_get_dhandle(session, k_file_uri, nullptr, nullptr, 0) == 0);
-        WT_DATA_HANDLE *dhandle = session->dhandle;
+        REQUIRE(__wt_session_get_dhandle(session_impl, uri, nullptr, nullptr, 0) == 0);
+        auto *dhandle = session_impl->dhandle;
 
-        lookup_cached_hs(session);
-        CHECK(session->dhandle == dhandle);
+        lookup_cached_hs();
+        CHECK(session_impl->dhandle == dhandle);
 
         // Release the handle acquired above, even if the lookup replaced it on the session.
-        int ret;
-        WT_WITH_DHANDLE(session, dhandle, ret = __wt_session_release_dhandle(session));
-        REQUIRE(ret == 0);
+        session_impl->dhandle = dhandle;
+        REQUIRE(__wt_session_release_dhandle(session_impl) == 0);
     }
 }
