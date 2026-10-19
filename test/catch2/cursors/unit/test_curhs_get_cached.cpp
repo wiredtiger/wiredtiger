@@ -20,16 +20,20 @@
 
 namespace {
 
-constexpr auto home = "WT_TEST.curhs_get_cached";
-constexpr auto file_uri = "file:cursor_test.wt";
+constexpr const char *k_home = "WT_TEST.curhs_get_cached";
+constexpr const char *k_file_uri = "file:cursor_test.wt";
 
+/*
+ * lookup_cached_hs --
+ *     Look up the history store btree through the session's cached cursor while holding the
+ *     eviction pass lock, as eviction does.
+ */
 void
 lookup_cached_hs(WT_SESSION_IMPL *session)
 {
     WT_EVICT *evict = S2C(session)->evict;
     WT_BTREE *hs_btree = nullptr;
 
-    // Eviction performs this lookup while holding the pass lock.
     __wt_spin_lock(session, &evict->evict_pass_lock);
     int ret = __wt_curhs_get_cached(session, WT_HS_ID, &hs_btree);
     __wt_spin_unlock(session, &evict->evict_pass_lock);
@@ -43,10 +47,10 @@ lookup_cached_hs(WT_SESSION_IMPL *session)
 TEST_CASE("curhs_get_cached: the lookup leaves the session dhandle unchanged",
   "[curhs_get_cached][dhandle]")
 {
-    connection_wrapper conn(home, "create");
+    connection_wrapper conn(k_home, "create");
     WT_SESSION_IMPL *session = conn.create_session();
     REQUIRE(session != nullptr);
-    REQUIRE(session->iface.create(&session->iface, file_uri, "key_format=i,value_format=i") == 0);
+    REQUIRE(session->iface.create(&session->iface, k_file_uri, "key_format=i,value_format=i") == 0);
 
     // Cache a history store cursor in the session, as eviction threads do.
     REQUIRE(session->dhandle == nullptr);
@@ -60,7 +64,7 @@ TEST_CASE("curhs_get_cached: the lookup leaves the session dhandle unchanged",
 
     SECTION("session holding another tree's dhandle")
     {
-        REQUIRE(__wt_session_get_dhandle(session, file_uri, nullptr, nullptr, 0) == 0);
+        REQUIRE(__wt_session_get_dhandle(session, k_file_uri, nullptr, nullptr, 0) == 0);
         WT_DATA_HANDLE *dhandle = session->dhandle;
 
         lookup_cached_hs(session);
