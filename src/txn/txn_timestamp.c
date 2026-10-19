@@ -1150,7 +1150,8 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
-    if (__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
+
+    if (__wt_conn_is_disagg(session) &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         checkpoint_ts = __wt_atomic_load_uint64_acquire(
           &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
