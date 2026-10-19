@@ -102,9 +102,13 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     if (ret == 0) {
         *hs_btreep = CUR2BT(cursor);
         /*
-         * The caller reads this btree under the eviction pass lock. Step-down acquires that lock
-         * before marking the shared history store dhandle outdated, so the btree cannot be replaced
-         * during this read.
+         * The pattern of acquiring a cursor, obtaining its dhandle, and then closing the cursor is
+         * generally unsafe and can lead to undefined behavior. This is because the sweep server
+         * checks for references to dhandles, and closing the cursor may result in the dhandle being
+         * swept while still in use. The local history store dhandle is never swept, and the shared
+         * history store dhandle is only swept after a step-down marks it outdated. Even then this
+         * caller is safe: it reads the btree under the eviction pass lock, and sweep must close the
+         * btree before freeing it, which waits for that lock.
          */
         WT_RET(cursor->close(cursor));
     }
