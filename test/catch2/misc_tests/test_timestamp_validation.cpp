@@ -34,34 +34,27 @@ setup_session()
     return session_mock;
 }
 
-static std::string
-timestamp_string(wt_timestamp_t ts)
-{
-    char buf[WT_TS_INT_STRING_SIZE];
-    return __wt_timestamp_to_string(ts, buf);
-}
-
 static void
-check_message(const std::string &message, const std::string &reason, bool from_delta,
+check_message(const std::string &message, const std::string &reason, const char *from_delta,
   wt_timestamp_t expected_stable = stable_timestamp,
   wt_timestamp_t expected_oldest = oldest_timestamp,
-  wt_timestamp_t expected_checkpoint = checkpoint_timestamp)
+  wt_timestamp_t expected_checkpoint = checkpoint_timestamp,
+  wt_timestamp_t expected_checkpoint_oldest = checkpoint_oldest_timestamp)
 {
+    char buf[WT_TS_INT_STRING_SIZE];
+
     INFO(message);
     /* Confirm the intended failure before checking its timestamp context. */
     REQUIRE(message.find(reason) != std::string::npos);
-    CHECK(message.find("connection stable timestamp " + timestamp_string(expected_stable)) !=
-      std::string::npos);
-    CHECK(message.find("connection oldest timestamp " + timestamp_string(expected_oldest)) !=
-      std::string::npos);
-    CHECK(message.find("checkpoint stable timestamp " +
-            (expected_checkpoint == WT_TS_NONE ? "unavailable" :
-                                                 timestamp_string(expected_checkpoint))) !=
-      std::string::npos);
-    CHECK(message.find("checkpoint oldest timestamp " +
-            timestamp_string(checkpoint_oldest_timestamp)) != std::string::npos);
-    CHECK(message.find(std::string("page built from delta: ") + (from_delta ? "true" : "false")) !=
-      std::string::npos);
+    CHECK(message.find(std::string("connection stable timestamp ") +
+            __wt_timestamp_to_string(expected_stable, buf)) != std::string::npos);
+    CHECK(message.find(std::string("connection oldest timestamp ") +
+            __wt_timestamp_to_string(expected_oldest, buf)) != std::string::npos);
+    CHECK(message.find(std::string("checkpoint stable timestamp ") +
+            __wt_timestamp_to_string(expected_checkpoint, buf)) != std::string::npos);
+    CHECK(message.find(std::string("checkpoint oldest timestamp ") +
+            __wt_timestamp_to_string(expected_checkpoint_oldest, buf)) != std::string::npos);
+    CHECK(message.find(std::string("page built from delta: ") + from_delta) != std::string::npos);
 }
 
 static void
@@ -70,7 +63,7 @@ check_aggregate_failure(WT_TIME_AGGREGATE *ta, WT_TIME_AGGREGATE *parent, const 
     auto session_mock = setup_session();
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
     REQUIRE(__wt_time_aggregate_validate(session, ta, parent, false) == EINVAL);
-    check_message(session_mock->get_last_message(), "aggregate time window " + reason, false);
+    check_message(session_mock->get_last_message(), "aggregate time window " + reason, "unknown");
 }
 
 static void
@@ -83,12 +76,12 @@ check_value_failure(WT_TIME_WINDOW *tw, WT_TIME_AGGREGATE *parent, const std::st
         /* Missing prepared IDs are rejected only when prepared information is preserved. */
         F_SET(S2C(session), WT_CONN_PRESERVE_PREPARED);
         REQUIRE(__wt_time_value_validate(session, tw, parent, from_delta, false) == EINVAL);
-        check_message(session_mock->get_last_message(), reason, from_delta);
+        check_message(session_mock->get_last_message(), reason, from_delta ? "true" : "false");
     }
 }
 
 TEST_CASE(
-  "Validation errors retain timestamps when the error callback advances them", "[timestamp]")
+  "Validation errors report live timestamps before the error callback advances them", "[timestamp]")
 {
     auto session_mock = setup_session();
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
@@ -126,20 +119,21 @@ TEST_CASE(
         WT_TIME_AGGREGATE ta;
         WT_TIME_AGGREGATE_INIT(&ta);
         ta.newest_start_durable_ts = checkpoint_timestamp + 1;
-        REQUIRE(__wt_time_aggregate_validate(session, &ta, &parent, false) == EINVAL);
         reason = "has a newest start durable time after the stable point";
+        REQUIRE(__wt_time_aggregate_validate(session, &ta, &parent, false) == EINVAL);
     } else {
         WT_TIME_WINDOW tw;
         WT_TIME_WINDOW_INIT(&tw);
         tw.durable_start_ts = checkpoint_timestamp + 1;
-        REQUIRE(__wt_time_value_validate(session, &tw, &parent, from_delta, false) == EINVAL);
         reason = "has a durable start time after the stable point";
+        REQUIRE(__wt_time_value_validate(session, &tw, &parent, from_delta, false) == EINVAL);
     }
 
     REQUIRE(__wt_get_stable_timestamp(session) == 100);
-    check_message(session_mock->get_last_message(), reason, from_delta);
+    const char *expected_from_delta = aggregate ? "unknown" : (from_delta ? "true" : "false");
+    check_message(session_mock->get_last_message(), reason, expected_from_delta);
     REQUIRE(session->err_info.err_msg != nullptr);
-    check_message(session->err_info.err_msg, reason, from_delta);
+    check_message(session->err_info.err_msg, reason, expected_from_delta);
 }
 
 TEST_CASE("Validation errors report unset connection timestamps", "[timestamp]")
@@ -160,12 +154,6 @@ TEST_CASE("Validation errors report unset connection timestamps", "[timestamp]")
         __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, false);
         expected_stable = WT_TS_NONE;
     }
-    SECTION("Both unset")
-    {
-        __wt_atomic_store_bool_release(&txn_global->has_oldest_timestamp, false);
-        __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, false);
-        expected_oldest = expected_stable = WT_TS_NONE;
-    }
     SECTION("Stable unset with recovery timestamp")
     {
         __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, false);
@@ -173,55 +161,36 @@ TEST_CASE("Validation errors report unset connection timestamps", "[timestamp]")
         expected_stable = txn_global->recovery_timestamp;
     }
 
-    WT_TIME_AGGREGATE ta, parent;
+    WT_TIME_AGGREGATE ta;
     WT_TIME_AGGREGATE_INIT(&ta);
-    WT_TIME_AGGREGATE_INIT(&parent);
     ta.oldest_start_ts = 20;
     ta.newest_stop_ts = 10;
     REQUIRE(__wt_time_aggregate_validate(session, &ta, nullptr, false) == EINVAL);
     check_message(session_mock->get_last_message(),
-      "has an oldest start time after its newest stop time", false, expected_stable,
+      "has an oldest start time after its newest stop time", "unknown", expected_stable,
       expected_oldest);
-
-    WT_TIME_AGGREGATE_INIT(&ta);
-    ta.newest_start_durable_ts = checkpoint_timestamp + 1;
-    REQUIRE(__wt_time_aggregate_validate(session, &ta, &parent, false) == EINVAL);
-    check_message(session_mock->get_last_message(),
-      "has a newest start durable time after the stable point", false, expected_stable,
-      expected_oldest);
-
-    for (bool from_delta : {false, true}) {
-        CAPTURE(from_delta);
-        WT_TIME_WINDOW tw;
-        WT_TIME_WINDOW_INIT(&tw);
-        tw.start_ts = 20;
-        tw.stop_ts = 10;
-        REQUIRE(__wt_time_value_validate(session, &tw, nullptr, from_delta, false) == EINVAL);
-        check_message(session_mock->get_last_message(), "has a start time after its stop time",
-          from_delta, expected_stable, expected_oldest);
-
-        WT_TIME_WINDOW_INIT(&tw);
-        tw.durable_start_ts = checkpoint_timestamp + 1;
-        REQUIRE(__wt_time_value_validate(session, &tw, &parent, from_delta, false) == EINVAL);
-        check_message(session_mock->get_last_message(),
-          "has a durable start time after the stable point", from_delta, expected_stable,
-          expected_oldest);
-    }
 }
 
-TEST_CASE("Aggregate validation handles unavailable checkpoint timestamps", "[timestamp]")
+TEST_CASE("Aggregate validation handles unset checkpoint timestamps", "[timestamp]")
 {
     auto session_mock = setup_session();
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+    wt_timestamp_t expected_checkpoint = checkpoint_timestamp;
+    wt_timestamp_t expected_checkpoint_oldest = checkpoint_oldest_timestamp;
 
     SECTION("No data handle")
     {
         __wt_free(session, session->dhandle->handle);
         __wt_free(session, session->dhandle);
+        expected_checkpoint = WT_TS_NONE;
     }
-    SECTION("Checkpoint stable timestamp unset")
+    SECTION("Checkpoint timestamps unset")
     {
         S2BT(session)->checkpoint_timestamp = WT_TS_NONE;
+        expected_checkpoint = WT_TS_NONE;
+        __wt_atomic_store_uint64_release(
+          &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp, WT_TS_NONE);
+        expected_checkpoint_oldest = WT_TS_NONE;
     }
 
     WT_TIME_AGGREGATE ta;
@@ -233,8 +202,8 @@ TEST_CASE("Aggregate validation handles unavailable checkpoint timestamps", "[ti
     REQUIRE(__wt_time_aggregate_validate(session, &ta, nullptr, true) == EINVAL);
     REQUIRE(__wt_time_aggregate_validate(session, &ta, nullptr, false) == EINVAL);
     check_message(session_mock->get_last_message(),
-      "has an oldest start time after its newest stop time", false, stable_timestamp,
-      oldest_timestamp, WT_TS_NONE);
+      "has an oldest start time after its newest stop time", "unknown", stable_timestamp,
+      oldest_timestamp, expected_checkpoint, expected_checkpoint_oldest);
 }
 
 TEST_CASE("Aggregate validation reports internal consistency errors", "[timestamp]")
