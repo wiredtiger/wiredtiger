@@ -91,21 +91,18 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
 
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
     /*
-     * Reopening a cached cursor sets the session's dhandle like any cursor open. The caller holds
-     * no reference once the cursor closes, so keeping that dhandle leaves a dangling pointer after
-     * the sweep server frees it.
+     * A cache-hit reopen leaves the dhandle on the session, matching normal cursor-open behavior.
+     * This caller only borrows the cursor, so restore the caller's dhandle rather than retaining a
+     * pointer without a reference.
      */
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor));
     if (ret == 0) {
         *hs_btreep = CUR2BT(cursor);
         /*
-         * The pattern of acquiring a cursor, obtaining its dhandle, and then closing the cursor is
-         * generally unsafe and can lead to undefined behavior. This is because the sweep server
-         * checks for references to dhandles, and closing the cursor may result in the dhandle being
-         * swept while still in use. History store dhandles are an exception, as they are only swept
-         * after a step-down marks the shared history store dhandle outdated. Even then the caller
-         * reads the btree under the eviction pass lock, and closing the btree waits for that lock.
+         * The caller reads this btree under the eviction pass lock. Step-down acquires that lock
+         * before marking the shared history store dhandle outdated, so the btree cannot be replaced
+         * during this read.
          */
         WT_RET(cursor->close(cursor));
     }
