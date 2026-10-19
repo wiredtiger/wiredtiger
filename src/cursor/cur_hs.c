@@ -86,6 +86,8 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     uint64_t hash_value;
     const char *uri;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_pass_lock);
+
     uri = NULL;
     WT_HS_ID_TO_URI(session, hs_id, uri);
 
