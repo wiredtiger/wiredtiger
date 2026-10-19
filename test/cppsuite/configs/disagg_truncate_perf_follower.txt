@@ -1,11 +1,10 @@
 # Configuration for disagg_truncate_perf as a follower.
-# The oplog is loaded as a leader, then the run restarts in the follower role, appends to its
-# ingest table and trims, while picking up the checkpoints taken during the load.
-# The 768MB insert budget reaches the ingest table and fits in the 2GB cache. Checkpoint pickup
-# collects ingest data during the run.
+# The oplog is loaded as a leader, then the run restarts as a follower at the final checkpoint and
+# appends to its ingest table while trimming.
+# The 512MB insert budget reaches the ingest table and fits in the 2GB cache.
 cache_size_mb=2048,
-duration_seconds=10,
-insert_mb=768,
+duration_seconds=15,
+insert_mb=512,
 marker_size_mb=8,
 oplog_size_mb=256,
 role=follower,

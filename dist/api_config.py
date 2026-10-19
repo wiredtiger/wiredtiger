@@ -195,6 +195,8 @@ def getcompstr(c, keynumber):
     if len(choices) == 0:
         choices_ref = 'NULL'
     else:
+        choice_prefix = '__WT_TEST_CONFIG_CHOICE_' if test_config else '__WT_CONFIG_CHOICE_'
+        choice_storage = 'static ' if test_config else ''
         name = c.name
         suffix = 1
         while name in choices_names:
@@ -205,8 +207,8 @@ def getcompstr(c, keynumber):
         for raw_choice in choices:
             choice = gen_choice_name(raw_choice)
             if not choice in choices_values:
-                tfile.write('const char __WT_CONFIG_CHOICE_{}[] = "{}";\n'.format(
-                    choice, raw_choice))
+                tfile.write('{}const char {}{}[] = "{}";\n'.format(
+                    choice_storage, choice_prefix, choice, raw_choice))
                 choices_values.add(choice)
         choices_ref = 'confchk_' + name + '_choices'
         tfile.write('''
@@ -216,7 +218,7 @@ def getcompstr(c, keynumber):
         };
         ''' % {
             'name' : '\n'.join(ws.wrap('static const char *' + choices_ref)),
-            'values' : '\n\t'.join('__WT_CONFIG_CHOICE_' + gen_choice_name(raw_choice) + ',' \
+            'values' : '\n\t'.join(choice_prefix + gen_choice_name(raw_choice) + ',' \
                 for raw_choice in choices),
         })
 

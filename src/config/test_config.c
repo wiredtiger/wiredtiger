@@ -782,6 +782,14 @@ static const uint8_t confchk_cache_resize_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5, 6, 6, 6, 6, 7,
   7, 7, 7, 8, 8, 9, 9, 9, 10, 12, 13, 13, 14, 15, 15, 15, 15, 15, 15, 15, 15};
+static const char __WT_TEST_CONFIG_CHOICE_leader[] = "leader";
+static const char __WT_TEST_CONFIG_CHOICE_follower[] = "follower";
+static const char __WT_TEST_CONFIG_CHOICE_slow_follower[] = "slow_follower";
+static const char __WT_TEST_CONFIG_CHOICE_switch[] = "switch";
+
+static const char *confchk_role_choices[] = {__WT_TEST_CONFIG_CHOICE_leader,
+  __WT_TEST_CONFIG_CHOICE_follower, __WT_TEST_CONFIG_CHOICE_slow_follower,
+  __WT_TEST_CONFIG_CHOICE_switch, NULL};
 
 static const WT_CONFIG_CHECK confchk_disagg_truncate_perf[] = {
   {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
@@ -812,8 +820,10 @@ static const WT_CONFIG_CHECK confchk_disagg_truncate_perf[] = {
     INT64_MAX, NULL},
   {"reverse_collator", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 22,
     INT64_MIN, INT64_MAX, NULL},
-  {"role", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 51, INT64_MIN,
-    INT64_MAX, NULL},
+  {"role", "string", NULL,
+    "choices=[\"leader\",\"follower\",\"slow_follower\","
+    "\"switch\"]",
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 51, INT64_MIN, INT64_MAX, confchk_role_choices},
   {"statistics_config", "category", NULL, NULL, confchk_statistics_config_subconfigs, 2,
     confchk_statistics_config_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 23, INT64_MIN,
     INT64_MAX, NULL},
@@ -1439,7 +1449,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"disagg_truncate_perf",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
-    "enable_logging=false,in_memory=false,insert_mb=1024,"
+    "enable_logging=false,in_memory=false,insert_mb=512,"
     "marker_size_mb=8,metrics_monitor=(cache_hs_insert=(max=1,min=0,"
     "postrun=false,runtime=false,save=false),cc_pages_removed=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),enabled=true,"

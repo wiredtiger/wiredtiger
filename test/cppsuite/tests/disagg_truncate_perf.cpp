@@ -40,6 +40,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -47,17 +48,17 @@ using namespace test_harness;
 
 /*
  * This test measures truncation latency on layered:oplog while insert workers maintain a rolling
- * retention window. Each operation trims one expired marker. The role selects leader operation,
- * follower restart with checkpoint pickup, or in-place step-down. See the role config files for
- * workload settings.
+ * retention window. Each operation trims one expired marker. The role selects a leader run, a
+ * follower restart from the final leader checkpoint, the slow follower path, or an in-place
+ * step-down. See the role config files for workload settings.
  */
 class disagg_truncate_perf : public test {
 public:
     explicit disagg_truncate_perf(test_args &args) : test(args)
     {
         std::string connection_config =
-          "precise_checkpoint=true,statistics=(all),extensions=[../../ext/page_log/palite/"
-          "libwiredtiger_palite.so],disaggregated=(page_log=palite,role=leader)";
+          "precise_checkpoint=true,extensions=[../../ext/page_log/palite/libwiredtiger_palite.so],"
+          "disaggregated=(page_log=palite,role=leader)";
         if (!args.wt_open_config.empty())
             connection_config += "," + args.wt_open_config;
         args.wt_open_config = std::move(connection_config);
@@ -81,7 +82,7 @@ public:
         /* This baseline excludes loading and role changes from the measured counters. */
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
-        for (size_t i = 0; i < WT_ELEMENTS(PHASE_STATS); ++i)
+        for (size_t i = 0; i < PHASE_STATS.size(); ++i)
             _baseline_stats[i] = metrics_monitor::get_stat(stats, PHASE_STATS[i].field);
         _phase_start = std::chrono::steady_clock::now();
         logger::log_msg(LOG_INFO, "Starting the " + _role + " phase.");
@@ -126,12 +127,10 @@ public:
             if (truncate_result != 0)
                 ++_truncate_rollbacks;
         }
-        const auto elapsed = std::chrono::steady_clock::now() - _phase_start;
-        _phase_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
         _truncation_done.store(true);
     }
 
-    /* Own measured-phase timestamp updates and the selected role's checkpoint work. */
+    /* Advance timestamps until truncation completes and checkpoint only as leader. */
     void
     checkpoint_operation(thread_worker *tc) override final
     {
@@ -140,24 +139,25 @@ public:
         thread_manager timestamp_threads;
         timestamp_threads.add_thread(
           &disagg_truncate_perf::advance_timestamps, this, &stop_timestamp_updates);
-        if (_role == "follower")
-            pick_up_checkpoints(tc);
-        else {
-            /* Switch mode keeps timestamps moving without writing or adopting checkpoints. */
-            while (!_truncation_done.load()) {
-                if (!tc->running()) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                    continue;
-                }
-                tc->sleep();
-                if (_truncation_done.load())
-                    break;
-                if (tc->running() && _role == "leader")
-                    testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
+        while (!_truncation_done.load()) {
+            if (!tc->running()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                continue;
             }
+            tc->sleep();
+            if (_truncation_done.load())
+                break;
+            if (tc->running() && _role == "leader")
+                testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
         }
         stop_timestamp_updates.store(true);
         timestamp_threads.join();
+        scoped_session stats_session = connection_manager::instance().create_session();
+        scoped_cursor stats = stats_session.open_scoped_cursor(STATISTICS_URI);
+        for (size_t i = 0; i < PHASE_STATS.size(); ++i)
+            _phase_end_stats[i] = metrics_monitor::get_stat(stats, PHASE_STATS[i].field);
+        const auto elapsed = std::chrono::steady_clock::now() - _phase_start;
+        _phase_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     }
 
     /* Report per-role measurements after the framework has joined all workload threads. */
@@ -168,11 +168,22 @@ public:
         scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
         auto &writer = metrics_writer::instance();
         const std::string metric_prefix = _role + "_";
-        for (size_t i = 0; i < WT_ELEMENTS(PHASE_STATS); ++i) {
-            const int64_t current_value = metrics_monitor::get_stat(stats, PHASE_STATS[i].field);
-            const int64_t phase_delta = current_value - _baseline_stats[i];
+        int64_t eviction_attempts = 0;
+        int64_t eviction_failures = 0;
+        for (size_t i = 0; i < PHASE_STATS.size(); ++i) {
+            const int64_t phase_delta = _phase_end_stats[i] - _baseline_stats[i];
             writer.add_stat(metric_prefix + PHASE_STATS[i].name, phase_delta);
+            if (PHASE_STATS[i].field == WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT ||
+              PHASE_STATS[i].field == WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT)
+                eviction_attempts += phase_delta;
+            else if (PHASE_STATS[i].field == WT_STAT_CONN_EVICTION_SERVER_EVICT_FAIL ||
+              PHASE_STATS[i].field == WT_STAT_CONN_EVICTION_WORKER_EVICT_FAIL)
+                eviction_failures += phase_delta;
         }
+        const int64_t evictions = std::max<int64_t>(0, eviction_attempts - eviction_failures);
+        const double eviction_pages_per_second = _phase_duration_ms > 0 ?
+          static_cast<double>(evictions) * 1000.0 / _phase_duration_ms :
+          0.0;
         /* Setup performs no follower workload, so list counters need no baseline subtraction. */
         if (_role != "leader") {
             for (const auto &stat : FOLLOWER_STATS)
@@ -186,6 +197,9 @@ public:
         writer.add_stat(metric_prefix + "truncate_ops", _truncate_ops);
         writer.add_stat(metric_prefix + "truncate_rollbacks", _truncate_rollbacks);
         writer.add_stat(metric_prefix + "truncate_dirty_bytes_peak", _truncate_dirty_bytes_peak);
+        writer.add_stat(metric_prefix + "cache_truncate_txn_uncommitted_bytes_peak",
+          _cache_truncate_txn_uncommitted_bytes_peak);
+        writer.add_stat(metric_prefix + "eviction_pages_per_second", eviction_pages_per_second);
         logger::log_msg(LOG_INFO,
           "The " + _role + " phase completed " + std::to_string(_truncate_ops) + " truncates.");
     }
@@ -196,21 +210,28 @@ private:
     configure_workload()
     {
         _role = _config->get_string("role");
-        testutil_assert(_role == "leader" || _role == "follower" || _role == "switch");
+        testutil_assert(_role == "leader" || _role == "follower" || _role == "slow_follower" ||
+          _role == "switch");
 
         _value_size = _config->get_int("value_size");
         testutil_assert(_value_size > 0);
         _record_bytes = sizeof(int64_t) + static_cast<uint64_t>(_value_size);
 
-        _load_target_bytes = static_cast<uint64_t>(_config->get_int("oplog_size_mb")) * WT_MEGABYTE;
-        _retained_records = _load_target_bytes / _record_bytes;
-        _append_limit_bytes = static_cast<uint64_t>(_config->get_int("insert_mb")) * WT_MEGABYTE;
+        const int64_t oplog_size_mb = _config->get_int("oplog_size_mb");
+        const int64_t insert_mb = _config->get_int("insert_mb");
+        const int64_t marker_size_mb = _config->get_int("marker_size_mb");
+        testutil_assert(oplog_size_mb > 0 && insert_mb > 0 && marker_size_mb > 0);
 
-        const uint64_t marker_bytes =
-          static_cast<uint64_t>(_config->get_int("marker_size_mb")) * WT_MEGABYTE;
+        _load_target_bytes = static_cast<uint64_t>(oplog_size_mb) * WT_MEGABYTE;
+        _retained_records = _load_target_bytes / _record_bytes;
+        _append_limit_bytes = static_cast<uint64_t>(insert_mb) * WT_MEGABYTE;
+
+        const auto marker_bytes = static_cast<uint64_t>(marker_size_mb) * WT_MEGABYTE;
         _records_per_marker = marker_bytes / _record_bytes;
         testutil_assert(_records_per_marker != 0 && marker_bytes <= _load_target_bytes);
-        testutil_assert(_append_limit_bytes / marker_bytes >= 25);
+        /* Require enough markers for a useful p90 estimate. */
+        static constexpr uint64_t MIN_TRUNCATE_SAMPLES = 25;
+        testutil_assert(_append_limit_bytes / marker_bytes >= MIN_TRUNCATE_SAMPLES);
         testutil_assert(_config->get_int(DURATION_SECONDS) > 0);
 
         /* The framework cannot suspend its background components around the follower restart. */
@@ -227,10 +248,10 @@ private:
         _checkpoint_interval = std::chrono::milliseconds(checkpoint_config->get_throttle_ms());
 
         /* Enable the locally managed timestamps while the framework's background manager is off. */
-        static constexpr char timestamp_config[] =
+        static constexpr std::string_view timestamp_config =
           "enabled=true,oldest_lag=1,stable_lag=1,op_rate=1s";
-        WT_CONFIG_ITEM timestamp_options = {
-          timestamp_config, sizeof(timestamp_config) - 1, 0, WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT};
+        WT_CONFIG_ITEM timestamp_options = {timestamp_config.data(), timestamp_config.size(), 0,
+          WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT};
         _timestamps = std::make_unique<timestamp_manager>(new configuration(timestamp_options));
     }
 
@@ -254,17 +275,18 @@ private:
         thread_manager populate_threads;
         const int64_t populate_thread_count = populate_config->get_int(THREAD_COUNT);
         for (int64_t thread_id = 0; thread_id < populate_thread_count; ++thread_id) {
-            populate_workers.push_back(std::make_unique<thread_worker>(thread_id,
-              thread_type::INSERT, populate_config, connection_manager::instance().create_session(),
-              _timestamps.get(), op_tracker, db));
-            populate_threads.add_thread(&disagg_truncate_perf::append, this,
-              populate_workers.back().get(), _load_target_bytes);
+            auto session = connection_manager::instance().create_session();
+            auto worker = std::make_unique<thread_worker>(thread_id, thread_type::INSERT,
+              populate_config, std::move(session), _timestamps.get(), op_tracker, db);
+            populate_threads.add_thread(
+              &disagg_truncate_perf::append, this, worker.get(), _load_target_bytes);
+            populate_workers.push_back(std::move(worker));
         }
         populate_threads.add_thread(&disagg_truncate_perf::checkpoint_during_load, this);
         populate_threads.join();
         wait_for_stable_timestamp(_last_commit_ts.load());
         testutil_check(session->checkpoint(session.get(), nullptr));
-        if (_role == "follower")
+        if (_role == "follower" || _role == "slow_follower")
             capture_checkpoint(session.get());
 
         /* change_role() may close the connection as soon as this phase returns. */
@@ -288,7 +310,7 @@ private:
         }
     }
 
-    /* Save completed leader checkpoints for the follower to pick up after restart. */
+    /* Take periodic checkpoints while the leader is loading the oplog. */
     void
     checkpoint_during_load()
     {
@@ -296,8 +318,6 @@ private:
         while (_inserted_bytes.load() < _load_target_bytes) {
             std::this_thread::sleep_for(_checkpoint_interval);
             testutil_check(session->checkpoint(session.get(), nullptr));
-            if (_role == "follower")
-                capture_checkpoint(session.get());
         }
     }
 
@@ -306,14 +326,14 @@ private:
     {
         while (!stop_updates->load()) {
             {
-                std::lock_guard<std::mutex> timestamp_lock(_timestamp_api_mutex);
+                std::lock_guard timestamp_lock(_timestamp_api_mutex);
                 _timestamps->do_work();
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 
-    /* Copy completed leader-checkpoint metadata for pick_up_checkpoints() after restart. */
+    /* Save metadata for the completed leader checkpoint used when opening a follower. */
     void
     capture_checkpoint(WT_SESSION *session)
     {
@@ -323,7 +343,7 @@ private:
         WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args{};
         testutil_check(page_log->pl_get_complete_checkpoint(page_log, session, &args));
         page_log->terminate(page_log, nullptr);
-        _checkpoints.emplace_back(
+        _checkpoint_metadata.assign(
           static_cast<const char *>(args.checkpoint_metadata.data), args.checkpoint_metadata.size);
         free(args.checkpoint_metadata.mem);
     }
@@ -334,12 +354,16 @@ private:
     change_role()
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
-        if (_role == "follower") {
-            /* Copy the connection-owned home path before closing its handle. */
+        if (_role == "follower" || _role == "slow_follower") {
+            testutil_assert(!_checkpoint_metadata.empty());
             const std::string home = conn->get_home(conn);
-            const std::string follower_config =
+            std::string follower_config =
               "cache_size=" + std::to_string(_config->get_int(CACHE_SIZE_MB)) + "MB," +
-              _args.wt_open_config + ",disaggregated=(role=follower)";
+              _args.wt_open_config;
+            if (_role == "slow_follower")
+                follower_config += ",debug_mode=(disagg_slow_truncate_follower=true)";
+            follower_config +=
+              ",disaggregated=(role=follower,checkpoint_meta=\"" + _checkpoint_metadata + "\")";
             connection_manager::instance().close();
             connection_manager::instance().reopen(follower_config, home);
         } else if (_role == "switch") {
@@ -349,28 +373,6 @@ private:
             scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
             metrics_writer::instance().add_stat("switch_step_down_time",
               metrics_monitor::get_stat(stats, WT_STAT_CONN_DISAGG_STEP_DOWN_TIME));
-        }
-    }
-
-    /* Offer saved loading checkpoints during the restarted-follower measurement. */
-    void
-    pick_up_checkpoints(thread_worker *tc)
-    {
-        WT_CONNECTION *conn = connection_manager::instance().get_connection();
-        size_t checkpoint_index = 0;
-        /* Exhausting metadata must not stop timestamp progress while truncation is still running.
-         */
-        while (!_truncation_done.load()) {
-            if (checkpoint_index < _checkpoints.size()) {
-                const std::string pickup_config =
-                  "disaggregated=(checkpoint_meta=\"" + _checkpoints[checkpoint_index++] + "\")";
-                /* Connection APIs share the default session with timestamp updates. */
-                std::lock_guard<std::mutex> timestamp_lock(_timestamp_api_mutex);
-                const int ret = conn->reconfigure(conn, pickup_config.c_str());
-                /* Saved checkpoints older than the one adopted at startup are rejected. */
-                testutil_assert(ret == 0 || ret == EINVAL);
-            }
-            tc->sleep();
         }
     }
 
@@ -452,11 +454,14 @@ private:
         scoped_cursor txn_stats = tc->session.open_scoped_cursor("statistics:session");
         const int64_t cache_charge_bytes =
           metrics_monitor::get_stat(txn_stats, WT_STAT_SESSION_TXN_BYTES_DIRTY);
+        const int64_t fast_truncate_uncommitted_bytes = is_leader ?
+          metrics_monitor::get_stat(stats, WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES) :
+          0;
         if (!tc->commit())
             return (false);
 
         ++_truncate_ops;
-        if (!is_leader) {
+        if (_role == "follower" || _role == "switch") {
             const uint64_t entries_removed = static_cast<uint64_t>(metrics_monitor::get_stat(
               stats, WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED));
             const uint64_t outstanding_entries =
@@ -467,6 +472,10 @@ private:
         if (cache_charge_bytes > 0)
             _truncate_dirty_bytes_peak =
               std::max(_truncate_dirty_bytes_peak, static_cast<uint64_t>(cache_charge_bytes));
+        if (fast_truncate_uncommitted_bytes > 0)
+            _cache_truncate_txn_uncommitted_bytes_peak =
+              std::max(_cache_truncate_txn_uncommitted_bytes_peak,
+                static_cast<uint64_t>(fast_truncate_uncommitted_bytes));
         _truncated_key = marker_stop_key;
         return (true);
     }
@@ -475,15 +484,22 @@ private:
         const char *name;
         int field;
     };
-    static constexpr named_stat PHASE_STATS[] = {
-      {"page_delete_fast", WT_STAT_CONN_REC_PAGE_DELETE_FAST},
-      {"truncate_keys_deleted", WT_STAT_CONN_CURSOR_TRUNCATE_KEYS_DELETED},
-      {"truncate_dirty_cache_rollback", WT_STAT_CONN_TXN_TRUNCATE_DIRTY_CACHE_ROLLBACK}};
-    static constexpr named_stat FOLLOWER_STATS[] = {
-      {"truncate_list_search_calls", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_CALLS},
-      {"truncate_list_entries_walked", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED},
-      {"truncate_list_gc_runs", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_RUNS},
-      {"truncate_list_gc_entries_removed", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED}};
+    static constexpr std::array<named_stat, 8> PHASE_STATS = {
+      {{"page_delete_fast", WT_STAT_CONN_REC_PAGE_DELETE_FAST},
+        {"truncate_keys_deleted", WT_STAT_CONN_CURSOR_TRUNCATE_KEYS_DELETED},
+        {"truncate_dirty_cache_rollback", WT_STAT_CONN_TXN_TRUNCATE_DIRTY_CACHE_ROLLBACK},
+        {"cache_eviction_blocked_uncommitted_truncate",
+          WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE},
+        {"eviction_server_evict_attempt", WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT},
+        {"eviction_server_evict_fail", WT_STAT_CONN_EVICTION_SERVER_EVICT_FAIL},
+        {"eviction_worker_evict_attempt", WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT},
+        {"eviction_worker_evict_fail", WT_STAT_CONN_EVICTION_WORKER_EVICT_FAIL}}};
+    static constexpr std::array<named_stat, 4> FOLLOWER_STATS = {
+      {{"truncate_list_search_calls", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_CALLS},
+        {"truncate_list_entries_walked", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED},
+        {"truncate_list_gc_runs", WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_RUNS},
+        {"truncate_list_gc_entries_removed",
+          WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED}}};
 
     std::string _role;
     int64_t _value_size;
@@ -504,11 +520,13 @@ private:
     uint64_t _truncate_rollbacks{0};
     uint64_t _truncate_list_entries_peak{0};
     uint64_t _truncate_dirty_bytes_peak{0};
+    uint64_t _cache_truncate_txn_uncommitted_bytes_peak{0};
     int64_t _phase_duration_ms{0};
-    std::array<int64_t, WT_ELEMENTS(PHASE_STATS)> _baseline_stats{};
+    std::array<int64_t, PHASE_STATS.size()> _baseline_stats{};
+    std::array<int64_t, PHASE_STATS.size()> _phase_end_stats{};
     std::chrono::steady_clock::time_point _phase_start;
 
-    std::vector<std::string> _checkpoints;
+    std::string _checkpoint_metadata;
     std::chrono::milliseconds _checkpoint_interval;
     std::unique_ptr<timestamp_manager> _timestamps;
     std::mutex _timestamp_api_mutex;
