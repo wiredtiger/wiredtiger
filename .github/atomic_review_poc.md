@@ -43,5 +43,7 @@ node --test .github/scripts/atomic_review.test.js
 Tests simulate GitHub calls; they do not send notifications. The live demo
 publishes two branches and a PR between them, without changing repository settings.
 An Actions demo requires installing the workflow and script on the trusted
-base branch. The workflow executes only base-branch code, never PR code,
-because it has permission to request reviews (including on fork PRs).
+base branch. The workflow executes only base-branch code, never PR code.
+This branch-to-branch demo uses `pull_request` and supports same-repository
+PRs only. When installing on `develop`, use `pull_request_target` for fork
+PRs; retain the explicit base-commit checkout with that write-token event.
