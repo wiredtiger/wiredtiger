@@ -69,7 +69,7 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
 
     def assert_enotsup(self, expr):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, expr,
-            f'/{self.uri}: blind_remove is only supported on layered tables.*' +
+            f'/{self.table_name}.*: blind_remove is only supported on layered tables.*' +
             'Operation not supported/')
 
     def test_open_cursor(self):

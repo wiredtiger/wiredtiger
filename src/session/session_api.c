@@ -901,11 +901,6 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
       session, uri, NULL, dup_backup ? to_dup : NULL, cfg, hash_value, &cursor));
 
 done:
-    if (F_ISSET(cursor, WT_CURSTD_BLIND_REMOVE) &&
-      !WT_PREFIX_MATCH(cursor->internal_uri, "layered:"))
-        WT_ERR_MSG(
-          session, ENOTSUP, "%s: blind_remove is only supported on layered tables", cursor->uri);
-
     if (to_dup != NULL && !dup_backup)
         WT_ERR(__wt_cursor_dup_position(to_dup, cursor));
 
