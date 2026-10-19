@@ -79,26 +79,27 @@ class test_layered_eviction08(wttest.WiredTigerTestCase):
             ',oldest_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
 
-        # Everything so far is durable, so what is still dirty belongs elsewhere: the drain floor.
-        baseline = self.get_stat(stat.conn.cache_bytes_dirty)
-
         # Leave stable behind this write so it cannot be written out before the step-down.
         self.write_rows(self.value.upper(), ts + 1)
-        peak = self.get_stat(stat.conn.cache_bytes_dirty)
-        self.assertGreater(peak, baseline, 'the table holds nothing for the step-down to strand')
 
+        # A stranded page stays resident while anyone has its table open. Hold the table across the
+        # step-down so the stranded pages are counted before eviction can discard any of them.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor.set_key(1)
+        self.assertEqual(cursor.search(), 0)
         self.conn.reconfigure('disaggregated=(role="follower")')
+        stranded = self.get_stat(stat.conn.cache_pages_dirty_stable)
+        self.assertGreater(stranded, 0, 'the step-down stranded nothing')
 
-        # Content that cannot be re-read from shared storage is deliberately held resident while
-        # anyone still has the table open, so drop this session's handles before expecting a drain.
+        cursor.close()
         self.session.close()
         self.session = self.conn.open_session()
 
-        # The only user table here, so eviction ends its passes parked on it and has to drain it
-        # anyway. Eviction stops once under the dirty target, so the last of it stays.
-        drained = baseline + (peak - baseline) // 4
+        # A follower never dirties or writes a stable page, so the count only drops when eviction
+        # discards a stranded one. The only user table here, so eviction ends its passes parked on
+        # it and has to discard from it anyway.
         deadline = time.time() + 120
-        while self.get_stat(stat.conn.cache_bytes_dirty) > drained:
+        while self.get_stat(stat.conn.cache_pages_dirty_stable) >= stranded:
             self.assertLess(time.time(), deadline,
-                'the content stranded by the step-down was never discarded')
+                'no page stranded by the step-down was ever discarded')
             time.sleep(0.5)
