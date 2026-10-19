@@ -1029,6 +1029,10 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
+     *
+     * The cached end-of-list pointer describes the list it is attached to, so it has to be swapped
+     * with the skiplists: the append path dereferences it, and the caller frees the source list
+     * once the merge completes.
      */
     if (a->track_size == b->track_size && a->entries > b->entries) {
         tmp = *a;
@@ -1037,6 +1041,8 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
         __wt_atomic_store_uint64_relaxed(&b->bytes, tmp.bytes);
         a->entries = b->entries;
         b->entries = tmp.entries;
+        a->last = b->last;
+        b->last = tmp.last;
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             a->off[i] = b->off[i];
             b->off[i] = tmp.off[i];
