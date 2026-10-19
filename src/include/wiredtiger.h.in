@@ -7525,37 +7525,37 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1449
 /*! checkpoint: number of bytes reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES	1450
+/*!
+ * checkpoint: number of checkpoint tree syncs that drained the eviction
+ * generation
+ */
+#define	WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN		1451
 /*! checkpoint: number of checkpoints started by api */
-#define	WT_STAT_CONN_CHECKPOINTS_API			1451
+#define	WT_STAT_CONN_CHECKPOINTS_API			1452
 /*! checkpoint: number of checkpoints started by compaction */
-#define	WT_STAT_CONN_CHECKPOINTS_COMPACT		1452
+#define	WT_STAT_CONN_CHECKPOINTS_COMPACT		1453
 /*! checkpoint: number of files synced */
-#define	WT_STAT_CONN_CHECKPOINT_SYNC			1453
+#define	WT_STAT_CONN_CHECKPOINT_SYNC			1454
 /*! checkpoint: number of handles visited after writes complete */
-#define	WT_STAT_CONN_CHECKPOINT_PRESYNC			1454
+#define	WT_STAT_CONN_CHECKPOINT_PRESYNC			1455
 /*! checkpoint: number of history store pages reconciled */
-#define	WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED	1455
+#define	WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED	1456
 /*! checkpoint: number of internal pages visited */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL	1456
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL	1457
 /*! checkpoint: number of leaf pages visited */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF	1457
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF	1458
 /*! checkpoint: number of pages reconciled */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED	1458
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED	1459
 /*!
  * checkpoint: number of pages reconciled by checkpoint parallel worker
  * threads
  */
-#define	WT_STAT_CONN_CHECKPOINT_PARALLEL_PAGES_RECONCILED	1459
+#define	WT_STAT_CONN_CHECKPOINT_PARALLEL_PAGES_RECONCILED	1460
 /*!
  * checkpoint: number of pages whose reconciliation was skipped because
  * eviction already reconciled them under the checkpoint snapshot
  */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILIATION_SKIPPED_EVICT_SNAPSHOT	1460
-/*!
- * checkpoint: number of waits for in-progress evictions before syncing a
- * tree
- */
-#define	WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN		1461
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILIATION_SKIPPED_EVICT_SNAPSHOT	1461
 /*! checkpoint: prepare currently running */
 #define	WT_STAT_CONN_CHECKPOINT_PREP_RUNNING		1462
 /*! checkpoint: prepare max time (msecs) */
@@ -7595,22 +7595,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_SYNC_REC_PCT		1478
 /*! checkpoint: time spent on per-tree checkpoint work (usecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TREE_DURATION		1479
-/*!
- * checkpoint: time waiting for in-progress evictions before syncing a
- * tree (usecs)
- */
-#define	WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN_TIME	1480
 /*! checkpoint: total failed number of checkpoints */
-#define	WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED		1481
+#define	WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED		1480
 /*! checkpoint: total succeed number of checkpoints */
-#define	WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED		1482
+#define	WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED		1481
 /*! checkpoint: total time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1483
+#define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1482
 /*!
  * checkpoint: total time (msecs) writing pages to stable storage during
  * checkpoint reconciliation
  */
-#define	WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE	1484
+#define	WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE	1483
+/*!
+ * checkpoint: total time in the eviction drain before syncing a tree
+ * (usecs)
+ */
+#define	WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN_DURATION	1484
 /*! checkpoint: wait cycles while cache dirty level is decreasing */
 #define	WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY	1485
 /*! connection: auto adjusting condition resets */

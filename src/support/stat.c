@@ -3210,6 +3210,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
   "checkpoint: number of bytes reconciled",
+  "checkpoint: number of checkpoint tree syncs that drained the eviction generation",
   "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
   "checkpoint: number of files synced",
@@ -3221,7 +3222,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of pages reconciled by checkpoint parallel worker threads",
   "checkpoint: number of pages whose reconciliation was skipped because eviction already "
   "reconciled them under the checkpoint snapshot",
-  "checkpoint: number of waits for in-progress evictions before syncing a tree",
   "checkpoint: prepare currently running",
   "checkpoint: prepare max time (msecs)",
   "checkpoint: prepare min time (msecs)",
@@ -3240,11 +3240,11 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: stop timing stress active",
   "checkpoint: the percentage of checkpoint sync time spent in reconciliation across all threads",
   "checkpoint: time spent on per-tree checkpoint work (usecs)",
-  "checkpoint: time waiting for in-progress evictions before syncing a tree (usecs)",
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
   "checkpoint: total time (msecs)",
   "checkpoint: total time (msecs) writing pages to stable storage during checkpoint reconciliation",
+  "checkpoint: total time in the eviction drain before syncing a tree (usecs)",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
@@ -4376,6 +4376,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED,
   WT_STAT_CONN_CHECKPOINT_TIME_RECENT,
   WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES,
+  WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN,
   WT_STAT_CONN_CHECKPOINTS_API,
   WT_STAT_CONN_CHECKPOINTS_COMPACT,
   WT_STAT_CONN_CHECKPOINT_SYNC,
@@ -4386,7 +4387,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED,
   WT_STAT_CONN_CHECKPOINT_PARALLEL_PAGES_RECONCILED,
   WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILIATION_SKIPPED_EVICT_SNAPSHOT,
-  WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN,
   WT_STAT_CONN_CHECKPOINT_PREP_RUNNING,
   WT_STAT_CONN_CHECKPOINT_PREP_MAX,
   WT_STAT_CONN_CHECKPOINT_PREP_MIN,
@@ -4405,11 +4405,11 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINT_STOP_STRESS_ACTIVE,
   WT_STAT_CONN_CHECKPOINT_SYNC_REC_PCT,
   WT_STAT_CONN_CHECKPOINT_TREE_DURATION,
-  WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN_TIME,
   WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED,
   WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED,
   WT_STAT_CONN_CHECKPOINT_TIME_TOTAL,
   WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE,
+  WT_STAT_CONN_CHECKPOINT_EVICT_DRAIN_DURATION,
   WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY,
   WT_STAT_CONN_COND_AUTO_WAIT_RESET,
   WT_STAT_CONN_COND_AUTO_WAIT,
@@ -5535,6 +5535,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
     stats->checkpoint_pages_reconciled_bytes = 0;
+    stats->checkpoint_evict_drain = 0;
     stats->checkpoints_api = 0;
     stats->checkpoints_compact = 0;
     stats->checkpoint_sync = 0;
@@ -5545,7 +5546,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_pages_reconciled = 0;
     stats->checkpoint_parallel_pages_reconciled = 0;
     stats->checkpoint_pages_reconciliation_skipped_evict_snapshot = 0;
-    stats->checkpoint_evict_drain = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
@@ -5564,11 +5564,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_sync_rec_pct */
     stats->checkpoint_tree_duration = 0;
-    stats->checkpoint_evict_drain_time = 0;
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
     stats->checkpoint_rec_blkcache_write = 0;
+    stats->checkpoint_evict_drain_duration = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
@@ -6815,6 +6815,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_time_recent += WT_STAT_CONN_READ(from, checkpoint_time_recent);
     to->checkpoint_pages_reconciled_bytes +=
       WT_STAT_CONN_READ(from, checkpoint_pages_reconciled_bytes);
+    to->checkpoint_evict_drain += WT_STAT_CONN_READ(from, checkpoint_evict_drain);
     to->checkpoints_api += WT_STAT_CONN_READ(from, checkpoints_api);
     to->checkpoints_compact += WT_STAT_CONN_READ(from, checkpoints_compact);
     to->checkpoint_sync += WT_STAT_CONN_READ(from, checkpoint_sync);
@@ -6828,7 +6829,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, checkpoint_parallel_pages_reconciled);
     to->checkpoint_pages_reconciliation_skipped_evict_snapshot +=
       WT_STAT_CONN_READ(from, checkpoint_pages_reconciliation_skipped_evict_snapshot);
-    to->checkpoint_evict_drain += WT_STAT_CONN_READ(from, checkpoint_evict_drain);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_CONN_READ(from, checkpoint_prep_min);
@@ -6847,11 +6847,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_stop_stress_active += WT_STAT_CONN_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_sync_rec_pct += WT_STAT_CONN_READ(from, checkpoint_sync_rec_pct);
     to->checkpoint_tree_duration += WT_STAT_CONN_READ(from, checkpoint_tree_duration);
-    to->checkpoint_evict_drain_time += WT_STAT_CONN_READ(from, checkpoint_evict_drain_time);
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);
     to->checkpoint_rec_blkcache_write += WT_STAT_CONN_READ(from, checkpoint_rec_blkcache_write);
+    to->checkpoint_evict_drain_duration += WT_STAT_CONN_READ(from, checkpoint_evict_drain_duration);
     to->checkpoint_wait_reduce_dirty += WT_STAT_CONN_READ(from, checkpoint_wait_reduce_dirty);
     to->cond_auto_wait_reset += WT_STAT_CONN_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
