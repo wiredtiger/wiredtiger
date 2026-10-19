@@ -654,7 +654,7 @@ TEST_CASE("Layered empty skip-write image with no delta chain is refused by the 
   "[palite_victim_cache][layered_victim_cache_empty_skip_no_delta]")
 {
     std::string cfg = palite_conn_cfg("victim_cache_max_entries=10000");
-    cfg += ",cache_size=2GB,checkpoint_threads=1,";
+    cfg += ",cache_size=2GB,";
     const char *home = DB_HOME "_victim_cache_empty_no_delta";
     const char *uri = "layered:victim_cache_empty_no_delta";
     const std::string value(1024, 'A');
@@ -718,13 +718,8 @@ TEST_CASE("Layered empty skip-write image with no delta chain is refused by the 
     REQUIRE(page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID);
     const WT_PAGE_BLOCK_META meta_before = page->disagg_info->block_meta;
 
-    /* The btree's own page log handle, for the serve check after the put. */
-    WT_PAGE_LOG_HANDLE *plh;
     WT_SESSION_IMPL *cursor_session = CUR2S(cbt);
     int ret;
-    WT_WITH_BTREE(
-      cursor_session, CUR2BT(cbt), plh = ((WT_BLOCK_DISAGG *)CUR2BT(cbt)->bm->block)->plhandle);
-    REQUIRE(plh != nullptr);
 
     /* Detach the cursor from the page. */
     WT_WITH_BTREE(cursor_session, CUR2BT(cbt), ret = __wt_hazard_clear(cursor_session, ref));
@@ -757,9 +752,15 @@ TEST_CASE("Layered empty skip-write image with no delta chain is refused by the 
     int64_t skips_before = victim_cache_stat(session, WT_STAT_CONN_REC_SKIP_WRITE);
     int64_t puts_before = victim_cache_stat(session, WT_STAT_CONN_BLOCK_CACHE_PUTS);
 
+    /*
+     * Force the two-pass eviction: the first pass reconciles the page to the empty skip-write and
+     * restores the new keys, and the clear lets the next pass evict the page clean, which offers
+     * the retained image to the victim cache.
+     */
     WT_BTREE *btree = CUR2BT(cbt);
-    bool evicted = false;
-    for (int pass = 1; pass <= 8; ++pass) {
+    const int max_attempts = 8;
+    int pass;
+    for (pass = 1; pass <= max_attempts; ++pass) {
         REQUIRE(WT_REF_GET_STATE(ref) == WT_REF_MEM);
         ret = 0;
         bool locked;
@@ -770,13 +771,12 @@ TEST_CASE("Layered empty skip-write image with no delta chain is refused by the 
         });
         CAPTURE(pass, ret);
         REQUIRE(ret == 0);
-        if (WT_REF_GET_STATE(ref) != WT_REF_MEM) {
-            evicted = true;
+        if (WT_REF_GET_STATE(ref) != WT_REF_MEM)
             break;
-        }
         WT_WITH_BTREE(cursor_session, btree, __wt_page_modify_clear(cursor_session, ref->page));
     }
-    REQUIRE(evicted);
+    /* The loop ran out of passes without the page leaving memory otherwise. */
+    REQUIRE(pass <= max_attempts);
 
     /*
      * The skip-write still retains the empty image, but the gate keeps it out of the cache.
@@ -789,6 +789,12 @@ TEST_CASE("Layered empty skip-write image with no delta chain is refused by the 
     REQUIRE(victim_cache_stat(session, WT_STAT_CONN_REC_SKIP_WRITE) > skips_before);
     REQUIRE(victim_cache_stat(session, WT_STAT_CONN_BLOCK_CACHE_PUTS) == puts_before);
     REQUIRE(WT_REF_GET_STATE(ref) == WT_REF_DISK);
+
+    /* The btree's own page log handle, to look the block's identity up in the cache. */
+    WT_PAGE_LOG_HANDLE *plh;
+    WT_WITH_BTREE(
+      cursor_session, CUR2BT(cbt), plh = ((WT_BLOCK_DISAGG *)CUR2BT(cbt)->bm->block)->plhandle);
+    REQUIRE(plh != nullptr);
 
     /* The cache holds nothing for the block's identity. */
     WT_PAGE_LOG_PUT_ARGS has_args{};
