@@ -91,11 +91,9 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
         /*
          * Match the table as well as the name: a recreated table takes the name of the table it
          * replaced but addresses a new table, so it must not adopt a handle that outlived the drop.
-         *
-         * FIXME-WT-18453: the list holds both block types and nothing here tells them apart, so a
-         * plain block reads its own fields as a table ID.
          */
-        if (strcmp(filename, block->name) == 0 && ((WT_BLOCK_DISAGG *)block)->tableid == tableid) {
+        if (block->type == WT_BLOCK_TYPE_DISAGG && strcmp(filename, block->name) == 0 &&
+          ((WT_BLOCK_DISAGG *)block)->tableid == tableid) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
@@ -112,6 +110,7 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
      */
     WT_ERR(__wt_calloc_one(session, &block_disagg));
     block_disagg->ref = 1;
+    block_disagg->type = WT_BLOCK_TYPE_DISAGG;
     WT_CONN_BLOCK_INSERT(conn, (WT_BLOCK *)block_disagg, bucket);
 
     WT_ERR(__wt_strdup(session, filename, &block_disagg->name));

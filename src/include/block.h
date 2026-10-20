@@ -262,6 +262,15 @@ struct __wt_bm {
 };
 
 /*
+ * WT_BLOCK_TYPE --
+ *     Discriminates the block handle types that share the connection's block lists.
+ */
+typedef enum {
+    WT_BLOCK_TYPE_LOCAL = 0, /* A local file block handle. */
+    WT_BLOCK_TYPE_DISAGG = 1 /* A disaggregated block handle. */
+} WT_BLOCK_TYPE;
+
+/*
  * WT_BLOCK --
  *	Block manager file handle.
  */
@@ -279,6 +288,7 @@ struct __wt_block {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
+    uint32_t type;     /* Handle type, one of WT_BLOCK_TYPE */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -478,6 +488,7 @@ struct __wt_block_disagg {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
+    uint32_t type;     /* Handle type, one of WT_BLOCK_TYPE */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
