@@ -391,6 +391,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Discard metadata tracking. */
     __wt_meta_track_discard(session);
 
+    /* Remove any files a drop on this session left behind. */
+    __wt_drop_pending_apply(session);
+
     /*
      * Close the file where we tracked long operations. Do this before releasing resources, as we do
      * scratch buffer management when we flush optrack buffers to disk.
@@ -1137,7 +1140,11 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
         WT_ERR_NOTFOUND_OK(ret, false);
     }
 
-    ret = __wt_session_create(session, uri, config);
+    /* Import runs verify, which needs checkpoints blocked out. */
+    if (is_import)
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __wt_session_create(session, uri, config));
+    else
+        ret = __wt_session_create(session, uri, config);
 
 err:
     if (ret != 0)
@@ -1306,7 +1313,7 @@ __session_reset(WT_SESSION *wt_session)
 
     /* Reset the session statistics. */
     if (WT_STAT_ENABLED(session))
-        __wt_stat_session_clear_single(&session->stats);
+        __wt_stat_session_clear_single(&session->stats, 0);
 
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
@@ -1376,6 +1383,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
               WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
                 session, ret, ret = __wt_schema_drop(session, uri, cfg, true)));
     }
+    __wt_drop_pending_apply(session);
 
 err:
     if (ret != 0)
@@ -2686,6 +2694,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     TAILQ_INIT(&session_ret->cursors);
     TAILQ_INIT(&session_ret->dhandles);
+    TAILQ_INIT(&session_ret->drop_pending);
 
     /*
      * If we don't have them, allocate the cursor and dhandle hash arrays. Allocate the table hash

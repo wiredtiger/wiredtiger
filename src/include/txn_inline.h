@@ -594,24 +594,20 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __txn_disagg_commit_ts_check --
- *     Transactions committing layered content on a disaggregated connection must carry a commit
- *     timestamp.
+ * __txn_disagg_write_ts_check --
+ *     Check timestamp requirements for writes to disaggregated tables.
  */
 static WT_INLINE int
-__txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
+__txn_disagg_write_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
 {
+    wt_timestamp_t checkpoint_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+
     /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return (0);
 
     if (!__wt_conn_is_disagg(session))
-        return (0);
-
-    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL))
-        return (0);
-
-    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         return (0);
 
     /* Metadata commits untimestamped by design and its transactions cannot be rolled back. */
@@ -622,7 +618,34 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
         return (0);
 
-    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+    if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+        /* These options permit an untimestamped write. */
+        if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL) ||
+          F_ISSET(txn, WT_TXN_TS_NOT_SET))
+            return (0);
+        WT_RET_MSG(
+          session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+    }
+
+    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+        checkpoint_ts = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+        if (checkpoint_ts != WT_TS_NONE) {
+            if (F_ISSET(txn, WT_TXN_PREPARE)) {
+                if (txn->time_point.durable_timestamp <= checkpoint_ts)
+                    WT_RET_MSG(session, EINVAL,
+                      "durable timestamp %s must be after the last checkpoint timestamp %s",
+                      __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[0]),
+                      __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+            } else if (txn->time_point.commit_timestamp <= checkpoint_ts)
+                WT_RET_MSG(session, EINVAL,
+                  "commit timestamp %s must be after the last checkpoint timestamp %s",
+                  __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[0]),
+                  __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
+        }
+    }
+
+    return (0);
 }
 
 /*
@@ -656,7 +679,7 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
-    WT_RET(__txn_disagg_commit_ts_check(session, txn, btree));
+    WT_RET(__txn_disagg_write_ts_check(session, txn, btree));
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
@@ -1270,6 +1293,21 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
       __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
+}
+
+/*
+ * __wt_txn_ta_newest_stop_visible_all --
+ *     Is the newest stop point of the given aggregated time window visible to all (possible)
+ *     readers? A prepared time point is not visible to any reader, so exclude it first: the
+ *     aggregate's prepare flag is the only record that a stop point belongs to an uncommitted
+ *     prepared update.
+ */
+static WT_INLINE bool
+__wt_txn_ta_newest_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    if (ta->prepare)
+        return (false);
+    return (__wt_txn_visible_all(session, ta->newest_stop_txn, ta->newest_page_stop_durable_ts));
 }
 
 /*
@@ -2314,6 +2352,31 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 }
 
 /*
+ * __wt_txn_isolation_write_check --
+ *     Check whether the transaction's isolation level permits a write.
+ */
+static WT_INLINE int
+__wt_txn_isolation_write_check(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* A transaction that already holds an ID has passed this check. */
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
+        return (0);
+
+    /* Return an error if a read-committed or read-uncommitted transaction attempts a write. */
+    if (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED) {
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
+        WT_RET_MSG(session, ENOTSUP,
+          "write operations are not supported in read-committed or read-uncommitted transactions.");
+    }
+
+    return (0);
+}
+
+/*
  * __wt_txn_id_check --
  *     A transaction is going to do an update, allocate a transaction ID.
  */
@@ -2329,18 +2392,9 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         return (0);
 
-    /*
-     * Return error when the transactions with read committed or uncommitted isolation tries to
-     * perform any write operation. Don't return an error for any update on metadata because it uses
-     * special transaction visibility rules, search and updates on metadata happens in
-     * read-uncommitted and read-committed isolation.
-     */
-    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
-      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
-        WT_RET_MSG(session, ENOTSUP,
-          "write operations are not supported in read-committed or read-uncommitted transactions.");
-    }
+    /* Metadata uses special visibility rules, so it can be updated at these isolation levels. */
+    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle))
+        WT_RET(__wt_txn_isolation_write_check(session));
 
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
@@ -2539,8 +2593,10 @@ static WT_INLINE int
 __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
   wt_timestamp_t *prev_tsp, u_int modify_type)
 {
+    WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    bool tw_found;
 
     txn = session->txn;
 
@@ -2562,6 +2618,28 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
 
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
             return (WT_NOTFOUND);
+
+        /*
+         * Getting here means the update chain has nothing left: either the key was never modified
+         * at all, or the loop above walked the chain to its end and every update on it was aborted.
+         * Either way, the on-page cell is the only remaining evidence of whether there's anything
+         * to remove. No time window at all means no on-page value either: a row-store key with an
+         * insert list of its own has no on-page row (that's what distinguishes it from an overlaid
+         * on-page row, which updates through the row's own update slot instead), and a
+         * variable-length column-store record can be a deleted placeholder because that record
+         * number never held a value. A time window with an already-visible stop means the key was
+         * already removed. Either way, reject the tombstone instead of stacking it onto nothing.
+         */
+        if (upd == NULL) {
+            tw_found = (S2BT(session)->type != BTREE_ROW || cbt->ins == NULL) &&
+              __wt_read_cell_time_window(cbt, &tw);
+
+            if (!tw_found)
+                return (WT_NOTFOUND);
+
+            if (WT_TIME_WINDOW_HAS_STOP(&tw) && __wt_txn_tw_stop_visible(session, &tw))
+                return (WT_NOTFOUND);
+        }
     }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */

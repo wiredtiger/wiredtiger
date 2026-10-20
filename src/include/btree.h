@@ -189,12 +189,6 @@ struct __wt_btree {
     /* For an unpublished btree, the smallest durable timestamp of any update it holds. */
     wt_shared wt_timestamp_t min_unpublished_durable_ts;
 
-    /*
-     * The schema epoch that published the table's create, or WT_SCHEMA_EPOCH_NONE. Writers hold the
-     * schema lock; readers need not, so access it atomically.
-     */
-    wt_shared wt_timestamp_t create_schema_epoch;
-
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
@@ -230,8 +224,8 @@ struct __wt_btree {
 
     bool hs_entries; /* Has entries in the history store table */
 
-    WT_BM *bm;          /* Block manager reference */
-    u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
+    WT_BM *bm;                     /* Block manager reference */
+    u_int block_header_write_size; /* The size of a block header when writing a new page */
 
     uint64_t write_gen;      /* Write generation */
     uint64_t base_write_gen; /* Write generation on startup. */
@@ -419,6 +413,12 @@ struct __wt_btree {
 #define WT_BTREE_SKIP_CKPT 0x4u      /* Handle skipped checkpoint */
                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+
+    /*
+     * The schema epoch that published the table's create, or WT_SCHEMA_EPOCH_NONE. Writers hold the
+     * schema lock; readers need not, so access it atomically.
+     */
+    wt_shared wt_timestamp_t create_schema_epoch;
 };
 
 /* Flags that make a btree handle special (not for normal use). */

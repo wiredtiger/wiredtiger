@@ -38,6 +38,9 @@ class test_eviction05(wttest.WiredTigerTestCase):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
+    @wttest.skip_for_hook(
+        "disagg", "new tables cannot be evicted until their publication takes effect",
+        param="schema_epochs")
     def test_eviction_page_size_stats(self):
         uri = f'table:{self.test_name}'
 

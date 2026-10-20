@@ -337,7 +337,8 @@ __layered_fix_prepared_transaction_callback(
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
         op->btree = cookie->stable_btree;
-        WT_ASSERT(session, WT_URI_IS_STABLE(op->btree->dhandle->name));
+        WT_ASSERT(
+          session, __wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE);
 
         /*
          * Transfer the session_inuse reference from the ingest btree to the stable btree. The
@@ -699,6 +700,8 @@ __layered_copy_ingest_table(
                 upds = upd;
 
             prev_upd = upd;
+            __wt_atomic_add_uint64_relaxed(
+              &S2C(session)->layered_drain_data.drain_bytes, upd->size);
         }
     }
 
@@ -752,15 +755,22 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL, **sorted = NULL;
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
+    bool committed;
     size_t i = 0, ntruncates = 0;
 
     *sortedp = NULL;
     *ntruncatesp = 0;
 
     __wt_readlock(session, &truncate_list->lock);
-    TAILQ_FOREACH (t, &truncate_list->qh, q)
-        if (t->txn_id != WT_TXN_NONE)
-            ++ntruncates;
+    TAILQ_FOREACH (t, &truncate_list->qh, q) {
+        if (t->txn_id == WT_TXN_NONE)
+            continue;
+        committed = __wt_atomic_load_bool_acquire(&t->committed);
+        /* No conflicting transaction should reach the step-up drain. */
+        WT_ASSERT_ALWAYS(session, committed,
+          "an uncommitted follower truncate was found during the step-up drain");
+        ++ntruncates;
+    }
 
     /* Early exit if there are no committed truncates. */
     if (ntruncates == 0)
@@ -880,6 +890,8 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_ERR_MSG_CHK(session, __layered_reset_ingest_table_prune_timestamp(session, ingest_uri),
       "Failed to reset ingest table prune timestamp \"%s\"", ingest_uri);
 
+    __wt_atomic_add_uint64_relaxed(&conn->layered_drain_data.tables_drained, 1);
+
 err:
     /*
      * Balance the pin acquired when queueing. The work item has already been removed from the
@@ -989,17 +1001,20 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-
+    uint64_t time_start, time_stop;
     bool empty, group_created;
 
     conn = S2C(session);
     group_created = false;
+    time_start = __wt_clock(session);
 
     /* Initialize the work queue. */
     TAILQ_INIT(&conn->layered_drain_data.work_queue);
     WT_RET(__wt_spin_init(
       session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
 
+    conn->layered_drain_data.tables_drained = 0;
+    conn->layered_drain_data.drain_bytes = 0;
     __wt_atomic_store_bool(&conn->layered_drain_data.running, true);
 
     bool multithreaded = conn->layered_drain_data.thread_count > 1;
@@ -1049,6 +1064,19 @@ err:
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
+    time_stop = __wt_clock(session);
+
+    WT_STAT_CONN_SET(
+      session, disagg_step_up_ingest_drain_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_SET(
+      session, disagg_step_up_ingest_tables_drained, conn->layered_drain_data.tables_drained);
+    WT_STAT_CONN_SET(
+      session, disagg_step_up_ingest_drain_bytes, conn->layered_drain_data.drain_bytes);
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Step up drained %" PRIu64 " ingest tables (%" PRIu64
+      " bytes moved to stable tables) in %" PRIu64 " milliseconds",
+      conn->layered_drain_data.tables_drained, conn->layered_drain_data.drain_bytes,
+      WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }
 
