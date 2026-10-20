@@ -68,6 +68,61 @@ def check_otel_type(stat):
         raise Exception(f"ERROR: {stat.name} has invalid OTel type '{stat.otel_type}', " \
                 f"expected one of {', '.join(OTEL_TYPES)}")
 
+def check_otel_description(stat):
+    # TODO use a proper enum here, -1 is gross
+    if stat.otel_type is OTEL_TYPES[-1]:
+        return
+
+    # First test: no redundant sub-prefix.
+    parts = stat.desc.split(':')
+    # The test is "does the whitespace-stripped right-hand side start with the left hand side".
+    # Adding the space avoids some false positives like "log: logging..."
+    if parts[1].strip().startswith(parts[0] + ' '):
+        raise Exception(f'Invalid stat name "{stat.desc}": redundant prefix detected')
+
+    # Second test: uppercase. The regex is "space then uppercase then lowercase". This avoids stuff
+    # like "1MB", "VLCS", etc.
+    if re.search(r'\s[A-Z][a-z]', stat.desc):
+        raise Exception(f'Invalid OTel name "{stat.desc}": camel-case detected')
+
+    # Third test: no "total" suffix.
+    if stat.desc.endswith("total"):
+        # print(stat.desc)
+        raise Exception(f'Invalid OTel name "{stat.desc}": should not end with "total"')
+
+def check_otel_additions_removals(all_stats):
+    existing = []
+    with open('otel.txt', 'r') as f:
+        existing = f.read().splitlines()
+
+    current = []
+    for s in all_stats:
+        if s.otel_type is OTEL_TYPES[-1]:
+            continue
+        current.append(s.desc)
+
+    # Check if we removed or renamed anything.
+    removed = list(set(existing) - set(current))
+    if len(removed) > 0:
+        print('STATS WERE REMOVED OR RENAMED. This will likely break a Grafana chart somewhere:')
+        for desc in removed:
+            print(desc)
+        raise Exception('Stat removal or rename detected')
+
+    # Check we're not adding too many at once.
+    new = list(set(current) - set(existing))
+    if len(new) > 10:
+        print('Too many new stats:')
+        for desc in new:
+            print(desc)
+        raise Exception(f'Too many new stats (total {len(new)}). Consider the cost of adding these \
+            to Grafana.')
+
+    # Add missing stats.
+    with open('otel.txt', 'a') as f:
+        for desc in new:
+            f.write(desc + '\n')
+
 ##########################################
 # For each stat subclass check the names are sorted in alphabetical order.
 ##########################################
@@ -90,7 +145,9 @@ for stat_list in all_stat_list:
     for stat in stat_list:
         check_description_format(stat)
         check_otel_type(stat)
+        check_otel_description(stat)
     check_name_sorted(stat_list)
+check_otel_additions_removals(item for sublist in all_stat_list for item in sublist)
 
 conn_dsrc_stats.sort(key=attrgetter('desc'))
 conn_stats.sort(key=attrgetter('desc'))
