@@ -594,7 +594,7 @@ conn_stats = [
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_cached_count', 'cached cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_create', 'cursor create calls'),
-    CursorStat('cursor_insert', 'cursor insert calls'),
+    CursorStat('cursor_insert', 'insert calls', '', 'otel_counter'),
     CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),
     CursorStat('cursor_modify', 'cursor modify calls'),
