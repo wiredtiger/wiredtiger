@@ -35,7 +35,9 @@ from wiredtiger import stat
 # built or the configured maximum page size. A page that is well under its maximum
 # gets a much smaller delta byte budget under the former. Modify a slice of such a
 # page sized to clear the threshold only against the maximum page size, and check
-# that the delta is written only when the switch selects that denominator.
+# that the delta is written only when the switch selects that denominator. A larger
+# modification, whose delta would exceed half the image, is written as a full page
+# even under the maximum-page-size denominator.
 
 @disagg_test_class
 class test_layered_delta18(wttest.WiredTigerTestCase):
@@ -52,12 +54,17 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
         ('image_size', dict(use_target=False)),
         ('target_size', dict(use_target=True)),
     ]
-    scenarios = make_scenarios(disagg_storages, denominator)
+    modified = [
+        ('third', dict(nmodify=20, expect_delta=True)),
+        ('two_thirds', dict(nmodify=40, expect_delta=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, denominator, modified)
 
-    # All rows fit on one leaf page that is roughly a quarter of the configured maximum,
-    # so a delta covering a third of the rows is about 8% of the maximum page size but
-    # about 33% of the image: over the threshold against the image, under it against
-    # the target.
+    # All rows fit on one leaf page that is roughly a quarter of the configured maximum.
+    # Modifying a third of the rows gives a delta that is about 8% of the maximum page
+    # size but about 33% of the image, so it clears the threshold only against the
+    # target. Modifying two thirds gives a delta over half the image, which the target
+    # denominator must still reject.
     TABLE_CONFIG = (
         'key_format=S,value_format=S,'
         'allocation_size=4096,leaf_page_max=131072,'
@@ -65,7 +72,6 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
     )
     NKEYS = 60
     VALUE_SIZE = 500
-    NMODIFY = 20
 
     def conn_config(self):
         return (self.conn_base_config + self.conn_delta_config +
@@ -106,7 +112,7 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
         self.reopen_disagg_conn(self.conn_config())
 
         cursor = self.session.open_cursor(self.uri)
-        for i in range(self.NMODIFY):
+        for i in range(self.nmodify):
             self.session.begin_transaction()
             cursor[self.make_key(i)] = ('w' * self.VALUE_SIZE) + f'{i:04d}'
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
@@ -118,7 +124,7 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
 
         deltas = self.get_stat(stat.dsrc.rec_page_delta_leaf)
         rejected = self.get_stat(stat.dsrc.rec_page_delta_rejected_size_threshold)
-        if self.use_target:
+        if self.use_target and self.expect_delta:
             self.assertGreater(deltas, 0)
             self.assertEqual(rejected, 0)
         else:
