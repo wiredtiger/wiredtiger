@@ -79,14 +79,15 @@ __layered_check_stable_btree_state(
 
 /*
  * __layered_move_updates --
- *     Move the updates of a key to the stable table, counting the key if it is an orphan remove.
- *     Any unresolved prepared update on the stable table should now have been resolved.
+ *     Move the updates of a key to the stable table, skipping and counting an orphan remove. Any
+ *     unresolved prepared update on the stable table should now have been resolved.
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
   WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
+    WT_UPDATE *prev;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -99,11 +100,25 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * We only need to check on the first pass. An orphan tombstone is applied anyway: it has no
-     * effect, but it may point to a caller removing keys that never existed.
+     * We only need to check on the first pass. An orphan tombstone deletes nothing, and applying it
+     * would leave a tombstone with no value beneath it, which reconciliation cannot write, so skip
+     * it. Keep a prepared one: its transaction expects to find the update on the stable table when
+     * it resolves.
      */
-    if (from_ts == WT_TS_NONE && __layered_check_stable_btree_state(session, cbt, last_upd))
+    if (from_ts == WT_TS_NONE && __layered_check_stable_btree_state(session, cbt, last_upd)) {
         ++*orphan_countp;
+        if (last_upd->prepare_state != WT_PREPARE_INPROGRESS && last_upd->txnid != WT_TXN_ABORTED) {
+            if (upds == last_upd) {
+                __wt_free(session, upds);
+                goto err;
+            }
+            for (prev = upds; prev->next != last_upd; prev = prev->next)
+                ;
+            prev->next = NULL;
+            __wt_free(session, last_upd);
+            last_upd = prev;
+        }
+    }
 
     /*
      * If the oldest update being moved is an aborted prepared update and the stable btree has no
@@ -849,13 +864,12 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
 err:
     /*
-     * Report here so both drain paths are covered. Orphan removes found before a failure were
-     * already applied, so they are reported too.
+     * Report here so both drain paths are covered, including orphan removes found before a failure.
      */
     if (orphan_count > 0) {
         WT_STAT_CONN_INCRV(session, disagg_step_up_ingest_drain_orphan_remove, orphan_count);
         __wt_verbose_warning(session, WT_VERB_LAYERED,
-          "%s: step-up drain applied %" PRIu64 " removes of keys with no value in the stable table",
+          "%s: step-up drain skipped %" PRIu64 " removes of keys with no value in the stable table",
           (const char *)layered_uri_buf->data, orphan_count);
     }
 
