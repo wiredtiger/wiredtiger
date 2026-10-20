@@ -110,11 +110,11 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     }
 
     /*
-     * If the checkpoint has an on-disk root page, load it. Otherwise, size the file past the
-     * description information.
+     * If the checkpoint has an on-disk root page, load it. Otherwise, size the file for an empty
+     * object. In-memory block handles have no backing file.
      */
     if (addr == NULL || addr_size == 0)
-        ci->file_size = block->allocsize;
+        ci->file_size = block->in_memory ? 0 : block->allocsize;
     else {
         /* Crack the checkpoint cookie. */
         WT_ERR(__wti_block_ckpt_unpack(session, block, addr, addr_size, ci));
@@ -1229,7 +1229,7 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
      * and would trip the checkpoint-validate diagnostics.
      */
     fname = session->dhandle->name;
-    WT_ERR(__wt_btree_shared_base_name(session, &fname, NULL, &name_buf));
+    WT_ERR(__wt_dhandle_shared_base_name(session, &fname, NULL, &name_buf));
     WT_ERR(__wt_metadata_search(session, fname, &config));
     WT_ERR(__wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config));
     WT_CKPT_FOREACH (ckptbase, ckpt_iter) {

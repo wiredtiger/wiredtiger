@@ -577,6 +577,13 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+#ifdef HAVE_DIAGNOSTIC
+    /* A table's queued creates and removes alternate: it is never created or dropped twice. */
+    if (metadata_op != WT_SHARED_METADATA_UPDATE) {
+        WT_DISAGG_METADATA_OP *latest = __wt_disagg_table_latest_create_remove(session, table_name);
+        WT_ASSERT(session, latest == NULL || latest->metadata_op != metadata_op);
+    }
+#endif
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1278,7 +1285,7 @@ __wt_disagg_shared_metadata_queue_publish(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *tmp;
-    wt_timestamp_t prev_schema_epoch;
+    wt_timestamp_t last_ckpt_epoch, prev_schema_epoch;
     bool found;
 
     conn = S2C(session);
@@ -1286,6 +1293,13 @@ __wt_disagg_shared_metadata_queue_publish(
     found = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /*
+     * Checkpoint pickup records its epoch and prunes the queue under the schema lock, so this sees
+     * either both or neither.
+     */
+    last_ckpt_epoch =
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1303,6 +1317,12 @@ __wt_disagg_shared_metadata_queue_publish(
                   "schema epoch is set",
                   table_name);
             WT_ERR(__disagg_publish_check_step_down(session, table_name, schema_epoch));
+            /* The last checkpoint claims to cover every operation at or below its epoch. */
+            if (schema_epoch <= last_ckpt_epoch)
+                WT_ERR_MSG(session, EINVAL,
+                  "Cannot publish for table \"%s\" at schema epoch %" PRIu64
+                  " at or below the last checkpoint schema epoch %" PRIu64,
+                  table_name, schema_epoch, last_ckpt_epoch);
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
@@ -1352,8 +1372,8 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
-    WT_ERR(__wt_session_create(
-      internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S,log=(enabled=false)"));
+    WT_ERR(__wt_session_create(internal_session, WT_DISAGG_METADATA_URI,
+      "block_manager=disagg,key_format=S,value_format=S,log=(enabled=false)"));
 
     /*
      * A follower should never access the live shared metadata dhandle. However, session->create
@@ -1999,6 +2019,8 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(
       &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+    if (step_down_ts != WT_TS_NONE)
+        WT_STAT_CONN_INCR(session, disagg_step_down_completed);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
 

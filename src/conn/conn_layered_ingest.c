@@ -337,7 +337,8 @@ __layered_fix_prepared_transaction_callback(
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
         op->btree = cookie->stable_btree;
-        WT_ASSERT(session, WT_URI_IS_STABLE(op->btree->dhandle->name));
+        WT_ASSERT(
+          session, __wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE);
 
         /*
          * Transfer the session_inuse reference from the ingest btree to the stable btree. The
@@ -754,15 +755,22 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL, **sorted = NULL;
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
+    bool committed;
     size_t i = 0, ntruncates = 0;
 
     *sortedp = NULL;
     *ntruncatesp = 0;
 
     __wt_readlock(session, &truncate_list->lock);
-    TAILQ_FOREACH (t, &truncate_list->qh, q)
-        if (t->txn_id != WT_TXN_NONE)
-            ++ntruncates;
+    TAILQ_FOREACH (t, &truncate_list->qh, q) {
+        if (t->txn_id == WT_TXN_NONE)
+            continue;
+        committed = __wt_atomic_load_bool_acquire(&t->committed);
+        /* No conflicting transaction should reach the step-up drain. */
+        WT_ASSERT_ALWAYS(session, committed,
+          "an uncommitted follower truncate was found during the step-up drain");
+        ++ntruncates;
+    }
 
     /* Early exit if there are no committed truncates. */
     if (ntruncates == 0)

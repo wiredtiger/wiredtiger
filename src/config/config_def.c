@@ -649,7 +649,9 @@ const char __WT_CONFIG_CHOICE_checkpoint_stop[] = "checkpoint_stop";
 const char __WT_CONFIG_CHOICE_commit_transaction_slow[] = "commit_transaction_slow";
 const char __WT_CONFIG_CHOICE_compact_slow[] = "compact_slow";
 const char __WT_CONFIG_CHOICE_conn_close_stress_log_printf[] = "conn_close_stress_log_printf";
+const char __WT_CONFIG_CHOICE_disagg_pickup_skip_signal[] = "disagg_pickup_skip_signal";
 const char __WT_CONFIG_CHOICE_disagg_role_transition[] = "disagg_role_transition";
+const char __WT_CONFIG_CHOICE_drop_deferred_hold[] = "drop_deferred_hold";
 const char __WT_CONFIG_CHOICE_evict_reposition[] = "evict_reposition";
 const char __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply[] =
   "failpoint_disagg_checkpoint_apply";
@@ -692,7 +694,8 @@ static const char *confchk_timing_stress_for_test_choices[] = {
   __WT_CONFIG_CHOICE_checkpoint_evict_page, __WT_CONFIG_CHOICE_checkpoint_handle,
   __WT_CONFIG_CHOICE_checkpoint_slow, __WT_CONFIG_CHOICE_checkpoint_stop,
   __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
-  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_role_transition,
+  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_pickup_skip_signal,
+  __WT_CONFIG_CHOICE_disagg_role_transition, __WT_CONFIG_CHOICE_drop_deferred_hold,
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply,
   __WT_CONFIG_CHOICE_disagg_stable_dhandle_delay,
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
@@ -889,7 +892,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"checkpoint_evict_page\",\"checkpoint_handle\","
     "\"checkpoint_slow\",\"checkpoint_stop\","
     "\"commit_transaction_slow\",\"compact_slow\","
-    "\"conn_close_stress_log_printf\",\"disagg_role_transition\","
+    "\"conn_close_stress_log_printf\",\"disagg_pickup_skip_signal\","
+    "\"disagg_role_transition\",\"drop_deferred_hold\","
     "\"evict_reposition\",\"failpoint_disagg_checkpoint_apply\","
     "\"disagg_stable_dhandle_delay\","
     "\"failpoint_disagg_checkpoint_queue_drain\","
@@ -1662,11 +1666,17 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 1, 1, 2, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+const char __WT_CONFIG_CHOICE_otel_counters[] = "otel_counters";
+const char __WT_CONFIG_CHOICE_otel_gauges[] = "otel_gauges";
+const char __WT_CONFIG_CHOICE_otel_histograms[] = "otel_histograms";
+const char __WT_CONFIG_CHOICE_otel_none[] = "otel_none";
 const char __WT_CONFIG_CHOICE_size[] = "size";
 
 static const char *confchk_statistics2_choices[] = {__WT_CONFIG_CHOICE_all,
-  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_clear,
-  __WT_CONFIG_CHOICE_size, __WT_CONFIG_CHOICE_tree_walk, NULL};
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_fast,
+  __WT_CONFIG_CHOICE_otel_counters, __WT_CONFIG_CHOICE_otel_gauges,
+  __WT_CONFIG_CHOICE_otel_histograms, __WT_CONFIG_CHOICE_otel_none, __WT_CONFIG_CHOICE_size,
+  __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 76, INT64_MIN,
@@ -1708,8 +1718,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"skip_sort_check", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 151,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
-    "choices=[\"all\",\"cache_walk\",\"fast\",\"clear\","
-    "\"size\",\"tree_walk\"]",
+    "choices=[\"all\",\"cache_walk\",\"clear\",\"fast\","
+    "\"otel_counters\",\"otel_gauges\",\"otel_histograms\","
+    "\"otel_none\",\"size\",\"tree_walk\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 152, INT64_MIN, INT64_MAX,
     confchk_statistics2_choices},
   {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 153, INT64_MIN,
@@ -2592,7 +2603,8 @@ static const char *confchk_timing_stress_for_test2_choices[] = {
   __WT_CONFIG_CHOICE_checkpoint_evict_page, __WT_CONFIG_CHOICE_checkpoint_handle,
   __WT_CONFIG_CHOICE_checkpoint_slow, __WT_CONFIG_CHOICE_checkpoint_stop,
   __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
-  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_role_transition,
+  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_pickup_skip_signal,
+  __WT_CONFIG_CHOICE_disagg_role_transition, __WT_CONFIG_CHOICE_drop_deferred_hold,
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply,
   __WT_CONFIG_CHOICE_disagg_stable_dhandle_delay,
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
@@ -2832,7 +2844,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"checkpoint_evict_page\",\"checkpoint_handle\","
     "\"checkpoint_slow\",\"checkpoint_stop\","
     "\"commit_transaction_slow\",\"compact_slow\","
-    "\"conn_close_stress_log_printf\",\"disagg_role_transition\","
+    "\"conn_close_stress_log_printf\",\"disagg_pickup_skip_signal\","
+    "\"disagg_role_transition\",\"drop_deferred_hold\","
     "\"evict_reposition\",\"failpoint_disagg_checkpoint_apply\","
     "\"disagg_stable_dhandle_delay\","
     "\"failpoint_disagg_checkpoint_queue_drain\","
@@ -2909,7 +2922,8 @@ static const char *confchk_timing_stress_for_test3_choices[] = {
   __WT_CONFIG_CHOICE_checkpoint_evict_page, __WT_CONFIG_CHOICE_checkpoint_handle,
   __WT_CONFIG_CHOICE_checkpoint_slow, __WT_CONFIG_CHOICE_checkpoint_stop,
   __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
-  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_role_transition,
+  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_pickup_skip_signal,
+  __WT_CONFIG_CHOICE_disagg_role_transition, __WT_CONFIG_CHOICE_drop_deferred_hold,
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply,
   __WT_CONFIG_CHOICE_disagg_stable_dhandle_delay,
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
@@ -3130,7 +3144,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"checkpoint_evict_page\",\"checkpoint_handle\","
     "\"checkpoint_slow\",\"checkpoint_stop\","
     "\"commit_transaction_slow\",\"compact_slow\","
-    "\"conn_close_stress_log_printf\",\"disagg_role_transition\","
+    "\"conn_close_stress_log_printf\",\"disagg_pickup_skip_signal\","
+    "\"disagg_role_transition\",\"drop_deferred_hold\","
     "\"evict_reposition\",\"failpoint_disagg_checkpoint_apply\","
     "\"disagg_stable_dhandle_delay\","
     "\"failpoint_disagg_checkpoint_queue_drain\","
@@ -3210,7 +3225,8 @@ static const char *confchk_timing_stress_for_test4_choices[] = {
   __WT_CONFIG_CHOICE_checkpoint_evict_page, __WT_CONFIG_CHOICE_checkpoint_handle,
   __WT_CONFIG_CHOICE_checkpoint_slow, __WT_CONFIG_CHOICE_checkpoint_stop,
   __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
-  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_role_transition,
+  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_pickup_skip_signal,
+  __WT_CONFIG_CHOICE_disagg_role_transition, __WT_CONFIG_CHOICE_drop_deferred_hold,
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply,
   __WT_CONFIG_CHOICE_disagg_stable_dhandle_delay,
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
@@ -3421,7 +3437,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"checkpoint_evict_page\",\"checkpoint_handle\","
     "\"checkpoint_slow\",\"checkpoint_stop\","
     "\"commit_transaction_slow\",\"compact_slow\","
-    "\"conn_close_stress_log_printf\",\"disagg_role_transition\","
+    "\"conn_close_stress_log_printf\",\"disagg_pickup_skip_signal\","
+    "\"disagg_role_transition\",\"drop_deferred_hold\","
     "\"evict_reposition\",\"failpoint_disagg_checkpoint_apply\","
     "\"disagg_stable_dhandle_delay\","
     "\"failpoint_disagg_checkpoint_queue_drain\","
@@ -3497,7 +3514,8 @@ static const char *confchk_timing_stress_for_test5_choices[] = {
   __WT_CONFIG_CHOICE_checkpoint_evict_page, __WT_CONFIG_CHOICE_checkpoint_handle,
   __WT_CONFIG_CHOICE_checkpoint_slow, __WT_CONFIG_CHOICE_checkpoint_stop,
   __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
-  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_role_transition,
+  __WT_CONFIG_CHOICE_conn_close_stress_log_printf, __WT_CONFIG_CHOICE_disagg_pickup_skip_signal,
+  __WT_CONFIG_CHOICE_disagg_role_transition, __WT_CONFIG_CHOICE_drop_deferred_hold,
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_apply,
   __WT_CONFIG_CHOICE_disagg_stable_dhandle_delay,
   __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
@@ -3708,7 +3726,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"checkpoint_evict_page\",\"checkpoint_handle\","
     "\"checkpoint_slow\",\"checkpoint_stop\","
     "\"commit_transaction_slow\",\"compact_slow\","
-    "\"conn_close_stress_log_printf\",\"disagg_role_transition\","
+    "\"conn_close_stress_log_printf\",\"disagg_pickup_skip_signal\","
+    "\"disagg_role_transition\",\"drop_deferred_hold\","
     "\"evict_reposition\",\"failpoint_disagg_checkpoint_apply\","
     "\"disagg_stable_dhandle_delay\","
     "\"failpoint_disagg_checkpoint_queue_drain\","

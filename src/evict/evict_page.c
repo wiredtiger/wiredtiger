@@ -148,6 +148,8 @@ __evict_page_victim_cache_reason_str(WTI_EVICT_VICTIM_REASON reason)
         return ("page is a root page");
     case WTI_EVICT_VICTIM_COLD_TIER:
         return ("btree is on the cold storage tier");
+    case WTI_EVICT_VICTIM_ENCRYPTED:
+        return ("btree is encrypted");
     case WTI_EVICT_VICTIM_COUNT:
         break;
     }
@@ -180,6 +182,7 @@ __evict_page_victim_cache_reason_per_page(WTI_EVICT_VICTIM_REASON reason)
     case WTI_EVICT_VICTIM_NO_BLOCK_MANAGER:
     case WTI_EVICT_VICTIM_NO_PAGE_LOG:
     case WTI_EVICT_VICTIM_COLD_TIER:
+    case WTI_EVICT_VICTIM_ENCRYPTED:
     case WTI_EVICT_VICTIM_COUNT:
         return (false);
 
@@ -215,6 +218,14 @@ __evict_page_victim_cache_eligible(
     if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
         return (WTI_EVICT_VICTIM_CHECKPOINT_CURSOR);
 
+    /*
+     * The cached image is not encrypted, which the read path rejects for an encrypted btree.
+     *
+     * FIXME-WT-18832: Decide whether encrypted btrees should be cached, and who encrypts the image.
+     */
+    if (S2BT(session)->kencryptor != NULL)
+        return (WTI_EVICT_VICTIM_ENCRYPTED);
+
     WT_BM *bm = S2BT(session)->bm;
     if (bm == NULL)
         return (WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
@@ -247,6 +258,24 @@ __evict_page_victim_cache_eligible(
     if (disk_image == NULL)
         return (WTI_EVICT_VICTIM_NO_IMAGE);
 
+    /*
+     * The cache stores the image under the backing block's identity, so only cache an image that
+     * carries the backing block's write generation. Skipping a stale image only delays the put
+     * until the page is read back.
+     */
+    if (disk_image->write_gen != __wt_page_write_gen(page))
+        return (WTI_EVICT_VICTIM_NO_IMAGE);
+
+    /*
+     * A stored image is never empty. An empty page only comes from a delta merge, which records a
+     * non-zero delta count.
+     *
+     * FIXME-WT-18918: free the old block instead of skip-writing the empty page. Once that lands
+     * nothing can produce this image, so turn this check into an assert.
+     */
+    if (disk_image->u.entries == 0 && page->disagg_info->block_meta.delta_count == 0)
+        return (WTI_EVICT_VICTIM_NO_IMAGE);
+
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
         return (WTI_EVICT_VICTIM_INVALID_PAGE_ID);
 
@@ -260,7 +289,7 @@ __evict_page_victim_cache_eligible(
      * work below.
      */
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
-        WT_STAT_CONN_INCR(session, block_cache_cold_not_cached);
+        WT_STAT_CONN_INCR(session, disagg_victim_cache_cold_not_cached);
         return (WTI_EVICT_VICTIM_COLD_TIER);
     }
 
@@ -276,6 +305,9 @@ static void
 __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     const WT_PAGE_HEADER *disk_image;
+
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH));
+
     WTI_EVICT_VICTIM_REASON reason = __evict_page_victim_cache_eligible(session, ref, &disk_image);
     if (reason != WTI_EVICT_VICTIM_OK) {
         if (__evict_page_victim_cache_reason_per_page(reason))
@@ -289,6 +321,9 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
     WT_PAGE *page = ref->page;
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
+
+    /* Eligibility has already confirmed the image carries the backing block's write generation. */
+    WT_ASSERT(session, __wt_page_write_gen(page) == disk_image->write_gen);
 
     /* Time every attempt: compression and checksum are spent whether or not the put succeeds. */
     uint64_t time_start = __wt_clock(session);
@@ -409,17 +444,17 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_scr_free(session, &cache_buf);
 
     uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
-    WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);
+    WT_STAT_CONN_INCRV(session, disagg_victim_cache_put_time, elapsed);
     if (!F_ISSET(session, WT_SESSION_INTERNAL))
-        WT_STAT_CONN_INCRV(session, block_cache_app_thread_put_time, elapsed);
+        WT_STAT_CONN_INCRV(session, disagg_victim_cache_app_thread_put_time, elapsed);
     __wt_atomic_stats_max_uint64(&S2C(session)->evict->evict_max_victim_cache_put_us, elapsed);
 
     if (cached) {
-        WT_STAT_CONN_INCR(session, block_cache_puts);
+        WT_STAT_CONN_INCR(session, disagg_victim_cache_puts);
         if (!F_ISSET(session, WT_SESSION_INTERNAL))
-            WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
+            WT_STAT_CONN_INCR(session, disagg_victim_cache_app_thread_puts);
     } else
-        WT_STAT_CONN_INCR(session, block_cache_put_failures);
+        WT_STAT_CONN_INCR(session, disagg_victim_cache_put_failures);
 }
 
 /*
@@ -484,15 +519,20 @@ __evict_stats_update(WT_SESSION_IMPL *session, WT_EVICT_TIMELINE *timeline, uint
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
         __wt_atomic_stats_max_uint64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
-        if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
+
+        /*
+         * Reconciliation warns about itself when it takes more than a minute. Warn here when the
+         * eviction as a whole did, but its reconciliation didn't: the time went to the work around
+         * reconciliation, such as the in-memory split or the tree update after it, or was spread
+         * across both.
+         */
+        uint64_t rec_us = WT_CLOCKDIFF_US(
+          timeline->reconcile.reconcile_finish, timeline->reconcile.reconcile_start);
+        if (eviction_time > WT_MINUTE * WT_MILLION && rec_us <= WT_MINUTE * WT_MILLION)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
-              "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
-              "us. History store wrapup took %" PRIu64 "us.",
-              eviction_time,
-              WT_CLOCKDIFF_US(
-                timeline->reconcile.image_build_finish, timeline->reconcile.image_build_start),
-              WT_CLOCKDIFF_US(
-                timeline->reconcile.hs_wrapup_finish, timeline->reconcile.hs_wrapup_start));
+              "Eviction took more than 1 minute (%" PRIu64 "us) on %s. Reconciliation took %" PRIu64
+              "us, outside reconciliation took %" PRIu64 "us.",
+              eviction_time, S2BT(session)->dhandle->name, rec_us, eviction_time - rec_us);
     } else {
         /*
          * We are in the reentrant history store eviction inside a data store reconciliation. Add to
@@ -824,7 +864,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     if (!instantiated && !tree_dead && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !__wt_btree_stays_in_memory(S2BT(session)) && !closing)
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !closing)
         __evict_page_victim_cache(session, ref);
 
     /*
@@ -935,6 +975,11 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_ASSERT(session,
               ref->page->disagg_info == NULL || closing ||
                 __wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max));
+            /*
+             * An instantiated deleted page either writes a replacement image, clearing the
+             * instantiated flag, or is restored in memory and cannot reach this path.
+             */
+            WT_ASSERT(session, !ref->page->modify->instantiated);
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -1382,8 +1427,10 @@ typedef enum {
 static WT_INLINE bool
 __evict_ckpt_snapshot_required(WT_SESSION_IMPL *session)
 {
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH));
+
     return (F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
-      !__wt_btree_stays_in_memory(S2BT(session)));
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
 }
 
 /*
@@ -1671,8 +1718,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory btrees, and for btrees still awaiting publication. */
-    else if (__wt_btree_stays_in_memory(btree))
+    /* Always do update restore for in-memory btrees. */
+    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SAVE_IMAGE_ALWAYS);
     /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_ANY_METADATA(btree->dhandle)) {

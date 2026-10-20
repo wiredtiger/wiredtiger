@@ -73,9 +73,6 @@
  * form). Don't use when strict-suffix semantics are required. */
 #define WT_URI_IS_STABLE(uri) (strstr(uri, ".wt_stable") != NULL)
 
-/* Check whether a URI refers to the checkpoint-view form of a stable constituent. */
-#define WT_URI_IS_STABLE_CHECKPOINT(uri) (strstr(uri, ".wt_stable/") != NULL)
-
 /* Check whether a URI refers to the ingest constituent of a layered table. */
 #define WT_URI_IS_INGEST(uri) WT_SUFFIX_MATCH(uri, ".wt_ingest")
 
@@ -92,6 +89,10 @@
  * file.
  */
 #define WT_IS_HS(dh) F_ISSET(dh, WT_DHANDLE_HS)
+
+/* The shared history store is the history store instance used by disaggregated storage. */
+#define WT_IS_SHARED_HS(btree) \
+    (WT_IS_HS((btree)->dhandle) && F_ISSET((btree), WT_BTREE_DISAGGREGATED))
 
 #define WT_METAFILE_ID 0 /* Metadata file ID */
 
@@ -175,3 +176,13 @@ typedef struct __wt_disagg_metadata {
     int version;            /* Metadata version */
     int compatible_version; /* Minimum compatible reader version */
 } WT_DISAGG_METADATA;
+
+/*
+ * WT_DROP_PENDING --
+ *	A renamed file a committed drop removes once its locks are released.
+ */
+struct __wt_drop_pending {
+    char *name;
+
+    TAILQ_ENTRY(__wt_drop_pending) q;
+};
