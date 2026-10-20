@@ -306,6 +306,27 @@ __wt_stat_''' + name + '''_discard(
 }
 ''')
 
+    # Each OTel type has its own clearing function, so clearing everything and clearing one type
+    # share a single copy of every statistic.
+    clear_funcs = {}
+    for otel_type in OTEL_TYPES:
+        typed = [l for l in statlist if l.otel_type == otel_type]
+        if not typed:
+            continue
+        func = '__stat_' + name + '_clear_' + otel_type[len('otel_'):] + \
+            ('s' if otel_type != 'otel_none' else '')
+        clear_funcs[otel_type] = func
+        f.write('\nstatic void\n' + func + '(WT_' + name.upper() + '_STATS *stats)\n{\n')
+        if all('no_clear' in l.flags for l in typed):
+            f.write('\tWT_UNUSED(stats);\n\n')
+        for l in typed:
+            # no_clear: don't clear the value.
+            if 'no_clear' in l.flags:
+                f.write('\t/* not clearing ' + l.name + ' */\n')
+            else:
+                f.write('\tstats->' + l.name + ' = 0;\n')
+        f.write('}\n')
+
     # Clear the statistics that have been exposed by the cursor.
     f.write('''
 void
@@ -313,20 +334,15 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats, ui
 {
 \tswitch (otel_flag) {
 ''')
-    # FIXME-WT-18692: Support clearing only the otel_none statistics.
-    for otel_type in OTEL_TYPES[:-1]:
-        f.write('\tcase WT_STAT_' + otel_type.upper() + 'S:\n')
-        for l in statlist:
-            if l.otel_type == otel_type and 'no_clear' not in l.flags:
-                f.write('\t\tstats->' + l.name + ' = 0;\n')
+    for otel_type in OTEL_TYPES:
+        plural = 's' if otel_type != 'otel_none' else ''
+        f.write('\tcase WT_STAT_' + otel_type.upper() + plural.upper() + ':\n')
+        if otel_type in clear_funcs:
+            f.write('\t\t' + clear_funcs[otel_type] + '(stats);\n')
         f.write('\t\treturn;\n')
     f.write('\tdefault:\n\t\tbreak;\n\t}\n\n')
-    for l in statlist:
-        # no_clear: don't clear the value.
-        if 'no_clear' in l.flags:
-            f.write('\t\t/* not clearing ' + l.name + ' */\n')
-        else:
-            f.write('\tstats->' + l.name + ' = 0;\n')
+    for func in clear_funcs.values():
+        f.write('\t' + func + '(stats);\n')
     f.write('}\n')
 
     if name != 'session':
