@@ -27,6 +27,8 @@
 #       otel_gauge     Point-in-time value that can go up and down
 #       otel_histogram Distribution of recorded values
 #       otel_none      Not an OTel metric (the default if otel_type is omitted)
+#
+# An otel_counter cannot have the no_clear flag, as OTel counters must be given in increments.
 
 from operator import attrgetter
 import sys
