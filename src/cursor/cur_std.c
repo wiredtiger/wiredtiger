@@ -1528,10 +1528,12 @@ __wt_cursor_init(
 
     session = CUR2S(cursor);
 
+    bool owns_internal_uri = false;
     if (cursor->internal_uri == NULL) {
         /* Various cursor code assumes there is an internal URI, so there better be one to set. */
         WT_ASSERT(session, uri != NULL);
         WT_RET(__wt_strdup(session, uri, &cursor->internal_uri));
+        owns_internal_uri = true;
     }
 
     /* WT_CURSTD_OVERWRITE */
@@ -1579,10 +1581,8 @@ __wt_cursor_init(
     return (0);
 
 err:
-    if (ret != 0) {
+    if (owns_internal_uri)
         __wt_free(session, cursor->internal_uri);
-        cursor->internal_uri = NULL;
-    }
     return (ret);
 }
 
