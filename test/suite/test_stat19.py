@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from helper import WiredTigerCursor, statistic_uri
 
-OTEL_TYPES = ['otel_counters', 'otel_gauges', 'otel_histograms']
+OTEL_TYPES = ['otel_counters', 'otel_gauges', 'otel_histograms', 'otel_none']
 
 # Statistics cursors opened with an OTel type only expose statistics of that type.
 class test_stat19(wttest.WiredTigerTestCase):
@@ -38,9 +38,9 @@ class test_stat19(wttest.WiredTigerTestCase):
     table_uri = 'table:test_stat19'
 
     uri = [
-        ('connection', dict(uri='statistics:', has_typed_stats=True)),
-        ('session', dict(uri='statistics:session', has_typed_stats=False)),
-        ('table', dict(uri='statistics:table:test_stat19', has_typed_stats=False)),
+        ('connection', dict(uri='statistics:')),
+        ('session', dict(uri='statistics:session')),
+        ('table', dict(uri='statistics:table:test_stat19')),
     ]
     otel = [(t, dict(otel=t)) for t in OTEL_TYPES]
     scenarios = make_scenarios(uri, otel)
@@ -73,14 +73,6 @@ class test_stat19(wttest.WiredTigerTestCase):
         cursor.close()
         return keys
 
-    def test_subset_of_full(self):
-        keys = self.subset()
-        self.assertEqual(keys, sorted(set(keys)))
-        self.assertTrue(set(keys).issubset(set(self.full())))
-        if self.has_typed_stats:
-            self.assertGreater(len(keys), 0)
-            self.assertLess(len(keys), len(self.full()))
-
     def test_prev_reverses_next(self):
         cursor = self.open(self.otel_config())
         forward = self.walk(cursor, cursor.next)
@@ -108,14 +100,6 @@ class test_stat19(wttest.WiredTigerTestCase):
         for key in [-1, 0, min(full) - 1, max(full) + 1, max(full) + 100000]:
             cursor.set_key(key)
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        cursor.close()
-
-    def test_empty_subset(self):
-        if self.has_typed_stats:
-            self.skipTest('subset is not empty')
-        cursor = self.open(self.otel_config())
-        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     def test_step_past_end(self):
@@ -159,6 +143,13 @@ class test_stat19_disjoint(wttest.WiredTigerTestCase):
             self.assertEqual(seen & keys, set())
             seen |= keys
 
+        cursor = self.session.open_cursor(self.uri, None, 'statistics=(all)')
+        everything = set()
+        while cursor.next() == 0:
+            everything.add(cursor.get_key())
+        cursor.close()
+        self.assertEqual(seen, everything)
+
 # Clearing through a cursor of one OTel type must not clear statistics of any other type.
 class test_stat19_clear(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
@@ -197,3 +188,28 @@ class test_stat19_clear(wttest.WiredTigerTestCase):
         self.assertEqual(after_clear_next, next_before_clear)
         self.assertLess(after_clear_counter, counter_before_clear)
         self.assertEqual(after_clear_counter, 0)
+
+    def test_clear_only_otel_none(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(100):
+            cursor[str(i)] = str(10)
+        while cursor.next() == 0:
+            pass
+        cursor.close()
+
+        counter_before_clear = self.read(wiredtiger.stat.conn.cursor_insert)
+        next_before_clear = self.read(wiredtiger.stat.conn.cursor_next)
+        # If the statistics are 0, they can't be tested for clearing correctly.
+        self.assertGreater(counter_before_clear, 0)
+        self.assertGreater(next_before_clear, 0)
+
+        with WiredTigerCursor(self.session, statistic_uri(), None,
+                              'statistics=(all,clear,otel_none)') as clearing:
+            pass
+
+        after_clear_counter = self.read(wiredtiger.stat.conn.cursor_insert)
+        after_clear_next = self.read(wiredtiger.stat.conn.cursor_next)
+        # Only the statistics without an OTel type should be cleared.
+        self.assertEqual(after_clear_counter, counter_before_clear)
+        self.assertLess(after_clear_next, next_before_clear)
