@@ -2866,6 +2866,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up ingest table clear truncates retried after a conflict",
   "disagg: step up ingest table drain bytes moved to stable tables",
   "disagg: step up ingest table drain most recent time (msecs)",
+  "disagg: step up ingest table drain orphan removes encountered",
   "disagg: step up ingest tables drained",
   "disagg: step up missing stable table create most recent time (msecs)",
   "disagg: step up missing stable tables created",
@@ -4023,6 +4024,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_ingest_drain_bytes = 0;
     stats->disagg_step_up_ingest_drain_time = 0;
+    stats->disagg_step_up_ingest_drain_orphan_remove = 0;
     stats->disagg_step_up_ingest_tables_drained = 0;
     stats->disagg_step_up_missing_stable_create_time = 0;
     stats->disagg_step_up_missing_stable_tables_created = 0;
@@ -5321,6 +5323,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_bytes);
     to->disagg_step_up_ingest_drain_time +=
       WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_time);
+    to->disagg_step_up_ingest_drain_orphan_remove +=
+      WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_orphan_remove);
     to->disagg_step_up_ingest_tables_drained +=
       WT_STAT_CONN_READ(from, disagg_step_up_ingest_tables_drained);
     to->disagg_step_up_missing_stable_create_time +=

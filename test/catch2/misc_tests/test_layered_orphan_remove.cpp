@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -16,11 +16,11 @@ struct layered_orphan_remove_fixture {
     layered_orphan_remove_fixture() : mock(mock_session::build_test_mock_session())
     {
         session = mock->get_wt_session_impl();
-        session->event_handler->handle_error =
-          [](WT_EVENT_HANDLER *, WT_SESSION *, int, const char *message) {
-              (void)std::fprintf(stderr, "%s\n", message);
-              return (0);
-          };
+        session->event_handler->handle_error = [](WT_EVENT_HANDLER *, WT_SESSION *, int,
+                                                 const char *message) {
+            (void)std::fprintf(stderr, "%s\n", message);
+            return (0);
+        };
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) == 0);
         WT_CONNECTION_IMPL *conn = S2C(session);
         /* Let the tombstone's transaction ID pass the global visibility check. */
@@ -49,28 +49,29 @@ struct layered_orphan_remove_fixture {
 };
 
 TEST_CASE_METHOD(layered_orphan_remove_fixture,
-  "Ingest drain accepts a globally visible tombstone without a stable value",
+  "Ingest drain does not report a globally visible tombstone without a stable value",
   "[layered][layered_orphan_remove]")
 {
     /*
      * This delete is old enough for the cleanup exception: its previous value may have been
-     * removed, so the existing check already allows it to be missing.
+     * removed, so a missing value is expected and is not an orphan.
      */
     tombstone->upd_start_ts = tombstone->upd_durable_ts = 5;
     REQUIRE(__wt_txn_upd_visible_all(session, tombstone));
 
-    REQUIRE_NOTHROW(__ut_layered_assert_stable_btree_state(session, &stable_cursor, tombstone));
+    REQUIRE_FALSE(__ut_layered_check_stable_btree_state(session, &stable_cursor, tombstone));
 }
 
 TEST_CASE_METHOD(layered_orphan_remove_fixture,
-  "Ingest drain accepts a timestamped orphan tombstone", "[layered][layered_orphan_remove]")
+  "Ingest drain reports a timestamped orphan tombstone", "[layered][layered_orphan_remove]")
 {
     /*
-     * This delete is too new for the cleanup exception: the existing check expects a value and
-     * aborts, but blind remove must succeed even if the key never existed.
+     * This delete is too new for the cleanup exception, so nothing explains the missing value: the
+     * key may never have existed. Blind remove allows that, so the drain reports it as an orphan
+     * instead of aborting.
      */
     tombstone->upd_start_ts = tombstone->upd_durable_ts = 20;
     REQUIRE_FALSE(__wt_txn_upd_visible_all(session, tombstone));
 
-    REQUIRE_NOTHROW(__ut_layered_assert_stable_btree_state(session, &stable_cursor, tombstone));
+    REQUIRE(__ut_layered_check_stable_btree_state(session, &stable_cursor, tombstone));
 }

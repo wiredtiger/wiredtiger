@@ -12,13 +12,14 @@ static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
- * __layered_assert_stable_btree_state --
- *     Assert stable btree invariants before applying ingest updates for a key: (1) no unresolved
- *     preserved prepared update exists; and (2) if the ingest chain ends with a tombstone, a
- *     corresponding value exists to delete.
+ * __layered_check_stable_btree_state --
+ *     Check stable btree invariants before applying ingest updates for a key: assert no unresolved
+ *     preserved prepared update exists, and return whether the oldest ingest update is a tombstone
+ *     with no corresponding value to delete. A blind remove can legitimately produce such a
+ *     tombstone for a key that never existed.
  */
-static WT_INLINE void
-__layered_assert_stable_btree_state(
+static WT_INLINE bool
+__layered_check_stable_btree_state(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
     WT_UPDATE *upd;
@@ -26,7 +27,7 @@ __layered_assert_stable_btree_state(
 
     if (cbt->compare != 0) {
         if (last_upd->type != WT_UPDATE_TOMBSTONE)
-            return;
+            return (false);
         /* No on-page value to check; rely solely on visibility. */
         has_value = false;
     } else {
@@ -57,7 +58,7 @@ __layered_assert_stable_btree_state(
         }
 
         if (last_upd->type != WT_UPDATE_TOMBSTONE)
-            return;
+            return (false);
 
         if (upd != NULL)
             has_value = upd->type != WT_UPDATE_TOMBSTONE;
@@ -73,18 +74,17 @@ __layered_assert_stable_btree_state(
      * If a globally visible tombstone is observed at the end, the update it deletes may have been
      * removed during the obsolete check.
      */
-    WT_ASSERT_ALWAYS(session, has_value || __wt_txn_upd_visible_all(session, last_upd),
-      "No corresponding value exists on the stable table to delete");
+    return (!has_value && !__wt_txn_upd_visible_all(session, last_upd));
 }
 
 /*
  * __layered_move_updates --
- *     Move the updates of a key to the stable table. Any unresolved prepared update on the stable
- *     table should now have been resolved.
+ *     Move the updates of a key to the stable table, counting the key if it is an orphan remove.
+ *     Any unresolved prepared update on the stable table should now have been resolved.
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts)
+  WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
 
@@ -98,9 +98,12 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /* We only need to check on the first pass. */
-    if (from_ts == WT_TS_NONE)
-        __layered_assert_stable_btree_state(session, cbt, last_upd);
+    /*
+     * We only need to check on the first pass. An orphan tombstone is applied anyway: it has no
+     * effect, but it may point to a caller removing keys that never existed.
+     */
+    if (from_ts == WT_TS_NONE && __layered_check_stable_btree_state(session, cbt, last_upd))
+        ++*orphan_countp;
 
     /*
      * If the oldest update being moved is an aborted prepared update and the stable btree has no
@@ -438,11 +441,11 @@ err:
 /*
  * __layered_copy_ingest_table --
  *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts) to the corresponding
- *     stable table.
+ *     stable table, adding any orphan removes found to the caller's count.
  */
 static int
-__layered_copy_ingest_table(
-  WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts, wt_timestamp_t to_ts)
+__layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
+  wt_timestamp_t from_ts, wt_timestamp_t to_ts, uint64_t *orphan_countp)
 {
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
@@ -507,7 +510,8 @@ __layered_copy_ingest_table(
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                  ret = __layered_move_updates(
+                    session, cbt, key, upds, last_upd, from_ts, orphan_countp));
                 WT_ERR(ret);
                 upds = NULL;
             } else
@@ -526,7 +530,8 @@ __layered_copy_ingest_table(
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                  ret = __layered_move_updates(
+                    session, cbt, key, upds, last_upd, from_ts, orphan_countp));
                 WT_ERR(ret);
             }
 
@@ -806,6 +811,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_LAYERED_TABLE *layered_table = NULL;
     WT_TRUNCATE **sorted_truncates = NULL;
     wt_timestamp_t prev_ts = WT_TS_NONE;
+    uint64_t orphan_count = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
@@ -816,7 +822,8 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "No layered handle found for ingest table \"%s\", only performing ingest drain",
           ingest_uri);
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX));
+        WT_ERR(
+          __layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX, &orphan_count));
         ret = 0;
         goto err;
     }
@@ -833,13 +840,25 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     for (size_t i = 0; i < ntruncates; i++) {
         WT_TRUNCATE *t = sorted_truncates[i];
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
+        WT_ERR(
+          __layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts, &orphan_count));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
     }
-    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX));
+    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, &orphan_count));
 
 err:
+    /*
+     * Report here so both drain paths are covered. Orphan removes found before a failure were
+     * already applied, so they are reported too.
+     */
+    if (orphan_count > 0) {
+        WT_STAT_CONN_INCRV(session, disagg_step_up_ingest_drain_orphan_remove, orphan_count);
+        __wt_verbose_warning(session, WT_VERB_LAYERED,
+          "%s: step-up drain applied %" PRIu64 " removes of keys with no value in the stable table",
+          (const char *)layered_uri_buf->data, orphan_count);
+    }
+
     if (layered_table != NULL)
         __wt_layered_table_truncate_clear(session, layered_table);
 
@@ -1338,14 +1357,14 @@ __layered_last_checkpoint_order(
 #ifdef HAVE_UNITTEST
 
 /*
- * __ut_layered_assert_stable_btree_state --
- *     Unit test wrapper for __layered_assert_stable_btree_state.
+ * __ut_layered_check_stable_btree_state --
+ *     Unit test wrapper for __layered_check_stable_btree_state.
  */
-void
-__ut_layered_assert_stable_btree_state(
+bool
+__ut_layered_check_stable_btree_state(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
-    __layered_assert_stable_btree_state(session, cbt, last_upd);
+    return (__layered_check_stable_btree_state(session, cbt, last_upd));
 }
 
 /*
