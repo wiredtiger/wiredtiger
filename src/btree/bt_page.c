@@ -222,7 +222,14 @@ __page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT
   size_t delta_size, WTI_DELTA_LEAF_MERGE_STATE **sp)
 {
     WTI_DELTA_LEAF_MERGE_STATE *s = NULL;
+
     WT_RET(__wt_calloc_def(session, delta_size, &s));
+
+    /*
+     * Publish the array before initializing its entries: if a per-entry allocation fails part-way
+     * through the loop, the caller's cleanup must be able to reach the entries already initialized.
+     */
+    *sp = s;
 
     for (size_t i = 0; i < delta_size; i++) {
         WT_PAGE_HEADER *tmp = (WT_PAGE_HEADER *)deltas[i].data;
@@ -232,7 +239,6 @@ __page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT
         WT_RET(__wt_scr_alloc(session, 0, &s[i].current_key));
         WT_RET(__wt_calloc_one(session, &s[i].unpack));
     }
-    *sp = s;
 
     return (0);
 }
@@ -246,11 +252,21 @@ __page_free_delta_leaf_merge_state(
   WT_SESSION_IMPL *session, size_t delta_size, WTI_DELTA_LEAF_MERGE_STATE **sp)
 {
     WTI_DELTA_LEAF_MERGE_STATE *s = *sp;
+
+    /*
+     * Initialization can fail before the array is allocated, leaving it NULL with nothing to
+     * release. Entries the allocation did not initialize are zero-filled, so releasing them is a
+     * no-op.
+     */
+    if (s == NULL)
+        return;
+
     for (size_t i = 0; i < delta_size; i++) {
         __wt_scr_free(session, &s[i].current_key);
         __wt_free(session, s[i].unpack);
     }
     __wt_free(session, s);
+    *sp = NULL;
 }
 
 /*
@@ -1077,6 +1093,28 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     dsk = image;
     alloc_entries = 0;
+
+    /*
+     * Eviction trusts the reference's internal/leaf flag, taken from the parent's address cell.
+     * Reject a mismatch before parsing in the cell walks below.
+     */
+    if (ref != NULL && !__wt_ref_type_matches_page(ref, dsk->type)) {
+        F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+        if (!__wt_ref_type_mismatch_returns_error(session))
+            WT_RET_PANIC(session, WT_ERROR, "page type does not match reference type");
+        WT_RET_MSG(session, WT_ERROR, "page type does not match reference type");
+    }
+
+    /*
+     * The reference only distinguishes internal from leaf, so a cross-format page can slip past the
+     * check above and be misread through the wrong page union. Check the tree's format too.
+     */
+    if (!__wt_page_type_matches_btree(S2BT(session), dsk->type)) {
+        F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+        if (!__wt_ref_type_mismatch_returns_error(session))
+            WT_RET_PANIC(session, WT_ERROR, "page type does not belong in this tree");
+        WT_RET_MSG(session, WT_ERROR, "page type does not belong in this tree");
+    }
 
     /*
      * Figure out how many underlying objects the page references so we can allocate them along with
