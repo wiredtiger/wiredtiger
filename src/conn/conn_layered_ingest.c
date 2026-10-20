@@ -78,16 +78,29 @@ __layered_check_stable_btree_state(
 }
 
 /*
+ * __layered_upd_is_prepared --
+ *     Return whether an update being drained belongs to a prepared transaction, unresolved or
+ *     rolled back. Such an update must reach the stable table, because resolving the transaction
+ *     looks for it there.
+ */
+static WT_INLINE bool
+__layered_upd_is_prepared(WT_UPDATE *upd)
+{
+    return (upd->prepare_state == WT_PREPARE_INPROGRESS || upd->txnid == WT_TXN_ABORTED);
+}
+
+/*
  * __layered_move_updates --
  *     Move the updates of a key to the stable table, skipping and counting an orphan remove. Any
- *     unresolved prepared update on the stable table should now have been resolved.
+ *     unresolved prepared update on the stable table should now have been resolved. On success the
+ *     caller's update list is consumed and cleared; on error it still holds what remains to free.
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
+  WT_UPDATE **updsp, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
-    WT_UPDATE *prev;
+    WT_UPDATE *prev, *upd, **updp;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -100,19 +113,32 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
+     * Reconciliation cannot write consecutive tombstones, so keep only the oldest of a run: it is
+     * the one that ends the value's lifetime, and the newer ones delete nothing. The list is newest
+     * first and the oldest update is never removed here.
+     */
+    for (updp = updsp; (upd = *updp)->next != NULL;) {
+        if (upd->type == WT_UPDATE_TOMBSTONE && upd->next->type == WT_UPDATE_TOMBSTONE &&
+          !__layered_upd_is_prepared(upd) && !__layered_upd_is_prepared(upd->next)) {
+            *updp = upd->next;
+            __wt_free(session, upd);
+        } else
+            updp = &upd->next;
+    }
+
+    /*
      * We only need to check on the first pass. An orphan tombstone deletes nothing, and applying it
      * would leave a tombstone with no value beneath it, which reconciliation cannot write, so skip
-     * it. Keep a prepared one: its transaction expects to find the update on the stable table when
-     * it resolves.
+     * it.
      */
     if (from_ts == WT_TS_NONE && __layered_check_stable_btree_state(session, cbt, last_upd)) {
         ++*orphan_countp;
-        if (last_upd->prepare_state != WT_PREPARE_INPROGRESS && last_upd->txnid != WT_TXN_ABORTED) {
-            if (upds == last_upd) {
-                __wt_free(session, upds);
+        if (!__layered_upd_is_prepared(last_upd)) {
+            if (*updsp == last_upd) {
+                __wt_free(session, *updsp);
                 goto err;
             }
-            for (prev = upds; prev->next != last_upd; prev = prev->next)
+            for (prev = *updsp; prev->next != last_upd; prev = prev->next)
                 ;
             prev->next = NULL;
             __wt_free(session, last_upd);
@@ -135,8 +161,9 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
         last_upd->next = tombstone;
     }
 
-    /* Apply the modification. */
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
+    /* Apply the modification. The stable table owns the updates once it succeeds. */
+    WT_ERR(__wt_row_modify(cbt, key, NULL, updsp, WT_UPDATE_INVALID, false, false));
+    *updsp = NULL;
 
 err:
     WT_TRET(__wt_btcur_reset(cbt));
@@ -526,9 +553,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(
-                    session, cbt, key, upds, last_upd, from_ts, orphan_countp));
+                    session, cbt, key, &upds, last_upd, from_ts, orphan_countp));
                 WT_ERR(ret);
-                upds = NULL;
             } else
                 ret = 0;
             break;
@@ -546,7 +572,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(
-                    session, cbt, key, upds, last_upd, from_ts, orphan_countp));
+                    session, cbt, key, &upds, last_upd, from_ts, orphan_countp));
                 WT_ERR(ret);
             }
 
