@@ -182,12 +182,12 @@ class test_stat19_clear(wttest.WiredTigerTestCase):
                               'statistics=(all,clear,otel_counters)') as clearing:
             pass
 
-        after_clear_counter = self.read(wiredtiger.stat.conn.cursor_insert)
-        after_clear_next = self.read(wiredtiger.stat.conn.cursor_next)
+        counter_after_clear = self.read(wiredtiger.stat.conn.cursor_insert)
+        next_after_clear = self.read(wiredtiger.stat.conn.cursor_next)
         # Only the counter type should be cleared.
-        self.assertEqual(after_clear_next, next_before_clear)
-        self.assertLess(after_clear_counter, counter_before_clear)
-        self.assertEqual(after_clear_counter, 0)
+        self.assertEqual(next_after_clear, next_before_clear)
+        self.assertLess(counter_after_clear, counter_before_clear)
+        self.assertEqual(counter_after_clear, 0)
 
     def test_clear_only_otel_none(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -208,8 +208,8 @@ class test_stat19_clear(wttest.WiredTigerTestCase):
                               'statistics=(all,clear,otel_none)') as clearing:
             pass
 
-        after_clear_counter = self.read(wiredtiger.stat.conn.cursor_insert)
-        after_clear_next = self.read(wiredtiger.stat.conn.cursor_next)
+        counter_after_clear = self.read(wiredtiger.stat.conn.cursor_insert)
+        next_after_clear = self.read(wiredtiger.stat.conn.cursor_next)
         # Only the statistics without an OTel type should be cleared.
-        self.assertEqual(after_clear_counter, counter_before_clear)
-        self.assertLess(after_clear_next, next_before_clear)
+        self.assertEqual(counter_after_clear, counter_before_clear)
+        self.assertLess(next_after_clear, next_before_clear)
