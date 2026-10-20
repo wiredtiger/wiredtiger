@@ -29,7 +29,7 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
-#include "src/component/metrics_writer.h"
+#include "src/component/metrics_monitor.h"
 #include "src/main/test.h"
 #include "src/util/execution_timer.h"
 
@@ -160,19 +160,19 @@ public:
         _phase_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     }
 
-    /* Report per-role measurements after the framework has joined all workload threads. */
+    /* Log per-role measurements once all workload threads have joined. Only the truncate latency
+     * reaches the perf file. */
     void
     validate(bool, const std::string &, const std::string &, database &) override final
     {
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
-        auto &writer = metrics_writer::instance();
         const std::string metric_prefix = _role + "_";
         int64_t eviction_attempts = 0;
         int64_t eviction_failures = 0;
         for (size_t i = 0; i < PHASE_STATS.size(); ++i) {
             const int64_t phase_delta = _phase_end_stats[i] - _baseline_stats[i];
-            writer.add_stat(metric_prefix + PHASE_STATS[i].name, phase_delta);
+            log_stat(metric_prefix + PHASE_STATS[i].name, phase_delta);
             if (PHASE_STATS[i].field == WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT ||
               PHASE_STATS[i].field == WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT)
                 eviction_attempts += phase_delta;
@@ -187,19 +187,17 @@ public:
         /* Setup performs no follower workload, so list counters need no baseline subtraction. */
         if (_role != "leader") {
             for (const auto &stat : FOLLOWER_STATS)
-                writer.add_stat(
-                  metric_prefix + stat.name, metrics_monitor::get_stat(stats, stat.field));
-            writer.add_stat(
-              metric_prefix + "truncate_list_entries_peak", _truncate_list_entries_peak);
+                log_stat(metric_prefix + stat.name, metrics_monitor::get_stat(stats, stat.field));
+            log_stat(metric_prefix + "truncate_list_entries_peak", _truncate_list_entries_peak);
         }
-        writer.add_stat(metric_prefix + "duration_ms", _phase_duration_ms);
-        writer.add_stat(metric_prefix + "truncate_attempts", _truncate_ops + _truncate_rollbacks);
-        writer.add_stat(metric_prefix + "truncate_ops", _truncate_ops);
-        writer.add_stat(metric_prefix + "truncate_rollbacks", _truncate_rollbacks);
-        writer.add_stat(metric_prefix + "truncate_dirty_bytes_peak", _truncate_dirty_bytes_peak);
-        writer.add_stat(metric_prefix + "cache_truncate_txn_uncommitted_bytes_peak",
+        log_stat(metric_prefix + "duration_ms", _phase_duration_ms);
+        log_stat(metric_prefix + "truncate_attempts", _truncate_ops + _truncate_rollbacks);
+        log_stat(metric_prefix + "truncate_ops", _truncate_ops);
+        log_stat(metric_prefix + "truncate_rollbacks", _truncate_rollbacks);
+        log_stat(metric_prefix + "truncate_dirty_bytes_peak", _truncate_dirty_bytes_peak);
+        log_stat(metric_prefix + "cache_truncate_txn_uncommitted_bytes_peak",
           _cache_truncate_txn_uncommitted_bytes_peak);
-        writer.add_stat(metric_prefix + "eviction_pages_per_second", eviction_pages_per_second);
+        log_stat(metric_prefix + "eviction_pages_per_second", eviction_pages_per_second);
         logger::log_msg(LOG_INFO,
           "The " + _role + " phase completed " + std::to_string(_truncate_ops) + " truncates.");
     }
@@ -371,7 +369,7 @@ private:
             testutil_check(conn->reconfigure(conn, "disaggregated=(role=follower)"));
             scoped_session session = connection_manager::instance().create_session();
             scoped_cursor stats = session.open_scoped_cursor(STATISTICS_URI);
-            metrics_writer::instance().add_stat("switch_step_down_time",
+            log_stat("switch_step_down_time",
               metrics_monitor::get_stat(stats, WT_STAT_CONN_DISAGG_STEP_DOWN_TIME));
         }
     }
@@ -399,6 +397,13 @@ private:
         while (last_timestamp < timestamp &&
           !_last_commit_ts.compare_exchange_weak(last_timestamp, timestamp)) {
         }
+    }
+
+    template <typename T>
+    void
+    log_stat(const std::string &name, T value)
+    {
+        logger::log_msg(LOG_INFO, name + "=" + std::to_string(value));
     }
 
     /* Reuse the fixed-record append loop for loading and measurement, with separate byte budgets.
