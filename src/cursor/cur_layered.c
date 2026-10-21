@@ -2054,9 +2054,9 @@ __clayered_advance_unblocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSO
     int cmp;
 
     /*
-     * Without the iteration flag the alternate cannot be trusted, so position it from the current
-     * key. A prepared conflict on the alternate clears the flag, so a blocked alternate is always
-     * repositioned.
+     * Without the iteration flag the alternate is not positioned for this direction or read
+     * context, so position it from the current key. A prepared conflict on the alternate clears the
+     * flag, so a blocked alternate is always repositioned.
      */
     if (!F_ISSET(clayered, iter_flag))
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
@@ -2114,9 +2114,10 @@ __clayered_iterate_finish(
          * starts again.
          */
         WT_TRET(__clayered_reset_cursors(clayered, false));
-    else if (ret == 0)
+    else if (ret == 0) {
+        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
         F_SET(clayered, iter_flag);
-    else if (ret == WT_PREPARE_CONFLICT &&
+    } else if (ret == WT_PREPARE_CONFLICT &&
       __clayered_constituent_prepare_blocked(clayered->current_cursor)) {
         /*
          * A prepared conflict on the current cursor leaves the alternate where it is: record the
@@ -2135,74 +2136,6 @@ __clayered_iterate_finish(
         WT_ASSERT(CUR2S(clayered), ret != WT_NOTFOUND);
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     }
-    return (ret);
-}
-
-/*
- * __clayered_direction_reversed --
- *     Return whether the walk was last moving in the other direction.
- */
-static WT_INLINE bool
-__clayered_direction_reversed(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
-{
-    return (F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV) &&
-      !F_ISSET(clayered, iter_flag));
-}
-
-/*
- * __clayered_change_direction --
- *     Step the alternate once for a walk that changes direction.
- */
-static int
-__clayered_change_direction(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forward)
-{
-    WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_CURSOR *alternate, *current;
-    WT_DECL_RET;
-
-    current = clayered->current_cursor;
-    WT_ASSERT(CUR2S(clayered), current == op->stable || current == op->ingest);
-    alternate = current == op->stable ? op->ingest : op->stable;
-
-    /*
-     * When the walk is not blocked, the alternate rests on its first key at or past the current key
-     * in the old direction, or is exhausted. It has no keys in between, so one step the new way
-     * puts it past the current key, including past a key both cursors share.
-     *
-     * This runs on every change of direction, blocked or not. If the current cursor is blocked, the
-     * step can land on the key it last returned. That is expected: the blocked cursor resolves back
-     * onto that key, which is returned again as with a btree cursor, and ingest takes the tie.
-     */
-    WT_ASSERT(CUR2S(clayered),
-      F_ISSET(current, WT_CURSTD_KEY_INT) || __clayered_constituent_prepare_blocked(current));
-    WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(alternate));
-
-    WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, alternate, forward), false);
-
-    /*
-     * Unless the current cursor is blocked, the alternate must end strictly past the current key.
-     * One step is enough, except under read-uncommitted, where new keys can appear in between.
-     */
-    while (F_ISSET(current, WT_CURSTD_KEY_INT) && F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
-        int cmp;
-
-        WT_ERR(__clayered_cursor_compare(op, alternate, current, &cmp));
-        if (forward ? cmp > 0 : cmp < 0)
-            break;
-        WT_ASSERT(CUR2S(clayered), CUR2S(clayered)->txn->isolation == WT_ISO_READ_UNCOMMITTED);
-        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, alternate, forward), false);
-    }
-
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    F_SET(clayered, iter_flag);
-    return (0);
-
-err:
-    /*
-     * The alternate may be blocked on a prepared conflict or unpositioned: clear the flags to
-     * reposition it from the current key.
-     */
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     return (ret);
 }
 
@@ -2259,9 +2192,6 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
     if (op->ingest == NULL || op->stable == NULL)
         return (__clayered_constituent_iter_helper(
           op, op->ingest != NULL ? op->ingest : op->stable, forward));
-
-    if (__clayered_direction_reversed(op->clayered, iter_flag))
-        WT_RET(__clayered_change_direction(op, iter_flag, forward));
 
     /* When neither constituent is positioned, it is the start of the cursor walk. */
     fresh_start = !__clayered_any_constituent_positioned(op);
