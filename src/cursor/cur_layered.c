@@ -11,7 +11,9 @@
 
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
-static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
+static bool __clayered_can_update_stable(
+  WTI_CURSOR_LAYERED *, uint32_t, uint64_t, WTI_CLAYERED_ROLE);
+static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint64_t, WTI_CLAYERED_ROLE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
@@ -609,7 +611,11 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    WT_RET(__clayered_update_stable(clayered, flags, role));
+    const uint64_t conn_lsn = role != WTI_CLAYERED_ROLE_LEADER ?
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
+      WT_DISAGG_LSN_NONE;
+    if (__clayered_can_update_stable(clayered, flags, conn_lsn, role))
+        WT_RET(__clayered_update_stable(clayered, conn_lsn, role));
 
     /*
      * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
@@ -1034,19 +1040,6 @@ __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
 }
 
 /*
- * __clayered_defer_step_down --
- *     Return whether to keep the stable cursor from before a step-down. A stable cursor blocked on
- *     a prepared update holds the position the retry rechecks, and the live tree it reads is
- *     frozen, not discarded, by the step-down. It is reopened once the conflict resolves.
- */
-static WT_INLINE bool
-__clayered_defer_step_down(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
-{
-    return (clayered->last_role == WTI_CLAYERED_ROLE_LEADER && role == WTI_CLAYERED_ROLE_FOLLOWER &&
-      __clayered_constituent_prepare_blocked(clayered->stable_cursor));
-}
-
-/*
  * __clayered_constituent_needs_reset --
  *     Determine if a constituent has state a reset must clear: either an application-set external
  *     key with no page reference yet (WT_CURSTD_KEY_SET without a search having run), or a page
@@ -1059,35 +1052,52 @@ __clayered_constituent_needs_reset(const WT_CURSOR *c)
 }
 
 /*
- * __clayered_can_advance_stable --
- *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
+ * __clayered_can_update_stable --
+ *     Return whether the stable cursor should be opened for the first time, reopened on a role
+ *     change, or advanced to a newer checkpoint.
  */
 static bool
-__clayered_can_advance_stable(
-  WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bool iteration, WTI_CLAYERED_ROLE role)
+__clayered_can_update_stable(
+  WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint64_t conn_lsn, WTI_CLAYERED_ROLE role)
 {
-    WT_SESSION_IMPL *session;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TXN_SHARED *txn_shared;
 
-    session = CUR2S(clayered);
-
-    /* A leader does not require advancing a stable table. */
-    if (role == WTI_CLAYERED_ROLE_LEADER)
+    /*
+     * A stable cursor blocked on a prepared update holds the position the retry rechecks, so keep
+     * it until the conflict resolves, including across a step-down: the live tree it reads is
+     * frozen, not discarded.
+     */
+    if (__clayered_constituent_prepare_blocked(clayered->stable_cursor))
         return (false);
 
-    /* No need to advance if there is no newer checkpoint. */
-    if (clayered->stable_checkpoint_meta_lsn == conn_lsn)
+    /* Open stable the first time if needed, unless the constituent does not exist yet. */
+    if (clayered->stable_cursor == NULL)
+        return (!__wt_atomic_load_bool_relaxed(
+                  &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
+          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)));
+
+    /*
+     * Always reopen the stable table when stepping up or down. That should be fine, since in this
+     * case all the cursors should be unpositioned and no current transactions should be running.
+     */
+    if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE))
+        return (true);
+
+    /*
+     * Otherwise advance a follower to a newer checkpoint, so it can evict more from ingest. A
+     * leader does not require advancing a stable table, and there is nothing to do without a newer
+     * checkpoint.
+     */
+    if (role == WTI_CLAYERED_ROLE_LEADER || clayered->stable_checkpoint_meta_lsn == conn_lsn)
         return (false);
 
     /*
-     * Do not advance while either constituent is blocked on a prepare conflict. If stable is the
-     * blocked one, reopening it discards the position the retry has to return to. If ingest is the
-     * blocked one, stable's reopen has no ingest key to anchor its new position to and can land on
-     * an arbitrary key in the new checkpoint instead, skipping visible keys between the old and new
-     * positions.
+     * Do not advance while ingest is blocked on a prepare conflict: stable's reopen has no ingest
+     * key to anchor its new position to and can land on an arbitrary key in the new checkpoint
+     * instead, skipping visible keys between the old and new positions.
      */
-    if (__clayered_constituent_prepare_blocked(clayered->ingest_cursor) ||
-      __clayered_constituent_prepare_blocked(clayered->stable_cursor))
+    if (__clayered_constituent_prepare_blocked(clayered->ingest_cursor))
         return (false);
 
     /*
@@ -1099,34 +1109,26 @@ __clayered_can_advance_stable(
     txn_shared = WT_SESSION_TXN_SHARED(session);
     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
         return (true);
-    else {
-        /* if this is an iteration, we won't reopen the cursor, we're done. */
-        if (iteration)
-            return (false);
 
-        /*
-         * Don't advance while parked on the stable cursor: without a read timestamp, a newer
-         * snapshot may not see the parked key in the newer checkpoint, losing the position.
-         */
-        if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-          clayered->current_cursor == clayered->stable_cursor)
-            return (false);
+    /* Without a read timestamp, an iteration does not advance. */
+    if (LF_ISSET(CLAYERED_ENTER_ITERATION))
+        return (false);
 
-        /*
-         * There are other points when it is appropriate to update cursors. If we don't currently
-         * have a transactional snapshot, or if the snapshot has changed, we can update.
-         *
-         * Why shouldn't we update when in a transaction? We may have read some values, and we'd
-         * expect to see the same values if we read them again. Reading from a newer checkpoint
-         can
-         * violate that.
-         */
-        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-          (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
-            return (true);
-    }
+    /*
+     * Don't advance while parked on the stable cursor: without a read timestamp, a newer snapshot
+     * may not see the parked key in the newer checkpoint, losing the position.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->stable_cursor)
+        return (false);
 
-    return (false);
+    /*
+     * Advance if there is no transactional snapshot, or the snapshot has changed. Inside a
+     * transaction we may have read some values, and we'd expect to see the same values if we read
+     * them again: reading from a newer checkpoint can violate that.
+     */
+    return (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+      __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen);
 }
 
 /*
@@ -1244,8 +1246,8 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
     clayered->read_timestamp = read_timestamp;
     clayered->txn_mod_count = txn_mod_count;
 
-    /* A deferred step-down stays pending, so the next operation reopens the stable cursor. */
-    if (!__clayered_defer_step_down(clayered, role))
+    /* A blocked stable cursor is not updated, so a role change stays pending until it resolves. */
+    if (!__clayered_constituent_prepare_blocked(clayered->stable_cursor))
         clayered->last_role = role;
 }
 
@@ -1379,44 +1381,17 @@ __clayered_open_stable_first(
 
 /*
  * __clayered_update_stable --
- *     Manage the stable cursor lifecycle: open it for the first time, advance it to a newer
- *     checkpoint, or reopen it in a different mode after a role change.
+ *     Open the stable cursor for the first time, or reopen it on a role change or a newer
+ *     checkpoint.
  */
 static int
-__clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
+__clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, WTI_CLAYERED_ROLE role)
 {
-    WT_SESSION_IMPL *const session = CUR2S(clayered);
-    WT_CONNECTION_IMPL *const conn = S2C(session);
+    if (clayered->stable_cursor == NULL)
+        return (__clayered_open_stable_first(clayered, role, conn_lsn));
 
-    const uint64_t conn_lsn = role != WTI_CLAYERED_ROLE_LEADER ?
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
-      WT_DISAGG_LSN_NONE;
-
-    if (clayered->stable_cursor == NULL) {
-        /* Open stable the first time if needed, unless the constituent does not exist yet. */
-        if (!__wt_atomic_load_bool_relaxed(
-              &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
-          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
-            WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
-    } else if (!__clayered_defer_step_down(clayered, role) &&
-      (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
-        __clayered_can_advance_stable(
-          clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role))) {
-        /*
-         * Reopen the cursor.
-         *
-         * We should always reopen the stable table when stepping up or down. That should be fine,
-         * since in this case all the cursors should be unpositioned and no current transactions
-         * should be running. A step-down waits while the stable cursor is blocked on a prepared
-         * update, see __clayered_defer_step_down.
-         *
-         * The second case of reopening the stable table is when we want to open a new checkpoint on
-         * a follower to evict more entries from the ingest table.
-         */
-        WT_RET(__clayered_reopen_stable(session, clayered, role));
-        clayered->stable_checkpoint_meta_lsn = conn_lsn;
-    }
-
+    WT_RET(__clayered_reopen_stable(CUR2S(clayered), clayered, role));
+    clayered->stable_checkpoint_meta_lsn = conn_lsn;
     return (0);
 }
 
