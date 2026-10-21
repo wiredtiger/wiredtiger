@@ -2025,7 +2025,8 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
              * A mirrored remove deletes from the stable btree, unlike the tombstone value ingest
              * keeps, so the blocked cursor can find no key. The alternate is then still on its
              * first key past the last key returned in the old direction, and one step brings it
-             * back across.
+             * back across. This only happens in the step-down window, where reads must use snapshot
+             * isolation, so only the walk's own inserts can land in between.
              */
             if (F_ISSET(c_current, WT_CURSTD_KEY_INT))
                 WT_RET_NOTFOUND_OK(
