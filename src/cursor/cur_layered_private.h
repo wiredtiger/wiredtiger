@@ -9,18 +9,19 @@
 #pragma once
 
 /*
- * WTI_CLAYERED_ROLE --
- *	The leader/follower role resolved for a layered-table operation.
+ * WTI_CLAYERED_CURSOR_MODE --
+ *	How a layered cursor operation reads: directly on the stable constituent alone, or layered,
+ *	consulting ingest over stable.
  */
-typedef enum { WTI_CLAYERED_ROLE_FOLLOWER, WTI_CLAYERED_ROLE_LEADER } WTI_CLAYERED_ROLE;
+typedef enum { WTI_CLAYERED_CURSOR_DIRECT, WTI_CLAYERED_CURSOR_LAYERED } WTI_CLAYERED_CURSOR_MODE;
 
 /*
  * WTI_CLAYERED_STABLE_MODE --
- *	How a layered cursor's stable constituent is opened: directly on the leader's live table, or
- *	as a read-only view layered under ingest, as on a follower. It lags the node's role while a
- *	stable cursor blocked on a prepared update is kept across a step-down.
+ *	What a layered cursor's stable constituent is opened on: the leader's live table, or an
+ *	adopted checkpoint on a follower. It lags the node's role while a stable cursor blocked on a
+ *	prepared update is kept across a step-down, reading the live table the step-down froze.
  */
-typedef enum { WTI_CLAYERED_STABLE_DIRECT, WTI_CLAYERED_STABLE_LAYERED } WTI_CLAYERED_STABLE_MODE;
+typedef enum { WTI_CLAYERED_STABLE_LIVE, WTI_CLAYERED_STABLE_CHECKPOINT } WTI_CLAYERED_STABLE_MODE;
 
 /*
  * WTI_CLAYERED_WRITE_TARGET --
