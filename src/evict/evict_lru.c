@@ -682,7 +682,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_DECL_RET;
     WT_EVICT *evict;
     double dirty_target, dirty_trigger, target, trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, total_dirty, total_inmem,
       total_updates;
     uint32_t flags, hs_id;
 
@@ -774,7 +774,6 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         LF_SET(WT_EVICT_CACHE_DIRTY);
     }
 
-    bytes_updates = __wt_cache_bytes_updates(cache);
     if (__wti_evict_exceeded_updates_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_UPDATES | WT_EVICT_CACHE_UPDATES_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_updates_reached);
@@ -2684,18 +2683,6 @@ done:
      * A thread that changed the page while the ref was locked -- typically by dirtying it -- could
      * not enqueue it and left that to whoever holds the lock. Before the lock is released, compare
      * the level the page now belongs to with the level it sits in, and move it if they differ.
-     * This applies whether we took the lock or the caller did: a failed eviction re-enqueues its
-     * page through here while still holding the lock. Compare levels, not buckets: within a level
-     * the bucket is chosen at random, so a bucket comparison would move nearly every page twice.
-     * Once is enough; a second change in the same window is vanishingly unlikely.
-     */
-     *
-     * A thread that found the ref locked raised needs_requeue (see above). Consume it here, and
-     * re-check again whenever it was set: the flag may be raised after a re-check has already
-     * passed, so one re-check is not enough. Each pass either moves the page or releases the lock,
-     * and a pass is only repeated when another thread changed the page in the meantime, so this
-     * terminates as soon as the page stops changing under us. A flag raised after the lock is
-     * released is harmless: the next enqueue of the page, by anyone, consumes it.
      */
     if (!rechecked || __wt_atomic_cas_uint8(&page->evict_data.needs_requeue, 1, 0)) {
         rechecked = true;
