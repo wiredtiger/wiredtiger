@@ -12,13 +12,13 @@
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
 static bool __clayered_can_update_stable(
-  WTI_CURSOR_LAYERED *, uint32_t, uint64_t, WTI_CLAYERED_ROLE);
+  WTI_CURSOR_LAYERED *, uint32_t, uint64_t, WTI_CLAYERED_STABLE_MODE);
 static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint64_t, WTI_CLAYERED_ROLE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static void __clayered_update_state(WTI_CURSOR_LAYERED *, WTI_CLAYERED_ROLE);
+static void __clayered_update_state(WTI_CURSOR_LAYERED *, WTI_CLAYERED_STABLE_MODE);
 
 /* Operations passed to __clayered_put. */
 typedef enum {
@@ -369,6 +369,45 @@ __clayered_cursor_compare(WTI_CLAYERED_OP *op, WT_CURSOR *c1, WT_CURSOR *c2, int
 }
 
 /*
+ * __clayered_constituent_prepare_blocked --
+ *     Determine if a constituent is stopped on a prepare conflict: it holds a page reference while
+ *     its key has been cleared. Either constituent can be in this state: a transaction that
+ *     straddles a step-down, or one that writes with mirroring enabled while the step-down
+ *     timestamp is set, can leave a prepared update on the stable constituent, not just ingest.
+ */
+static WT_INLINE bool
+__clayered_constituent_prepare_blocked(const WT_CURSOR *c)
+{
+    return (c != NULL && !F_ISSET(c, WT_CURSTD_KEY_INT) && ((WT_CURSOR_BTREE *)c)->ref != NULL);
+}
+
+/*
+ * __clayered_stable_mode_for_role --
+ *     Return the mode a node in this role opens the stable constituent in.
+ */
+static WT_INLINE WTI_CLAYERED_STABLE_MODE
+__clayered_stable_mode_for_role(WTI_CLAYERED_ROLE role)
+{
+    return (
+      role == WTI_CLAYERED_ROLE_LEADER ? WTI_CLAYERED_STABLE_DIRECT : WTI_CLAYERED_STABLE_LAYERED);
+}
+
+/*
+ * __clayered_stable_mode --
+ *     Decide the mode an operation uses the stable constituent in. A stable cursor blocked on a
+ *     prepared update holds the position the retry rechecks, so it keeps its mode until the
+ *     conflict resolves, including across a step-down: the live tree it reads is frozen, not
+ *     discarded.
+ */
+static WT_INLINE WTI_CLAYERED_STABLE_MODE
+__clayered_stable_mode(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
+{
+    if (__clayered_constituent_prepare_blocked(clayered->stable_cursor))
+        return (clayered->last_stable_mode);
+    return (__clayered_stable_mode_for_role(role));
+}
+
+/*
  * __clayered_assert_stable_mode --
  *     Assert that the stable cursor's btree access mode matches the current node role.
  */
@@ -379,12 +418,12 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
         return;
 
     /*
-     * A follower's stable constituent is always read-only: either a checkpoint view, or a live tree
-     * frozen by a step-down. Only this direction holds; a leader can inherit a read-only stable
-     * tree across a role change, and the next operation reopens it for the new role.
+     * In layered mode the stable constituent is always read-only: either a checkpoint view, or a
+     * live tree frozen by a step-down. Only this direction holds; a cursor can inherit a read-only
+     * stable tree across a step-up, and the next operation reopens it for the new mode.
      */
     WT_ASSERT(CUR2S(clayered),
-      clayered->last_role == WTI_CLAYERED_ROLE_LEADER ||
+      clayered->last_stable_mode == WTI_CLAYERED_STABLE_DIRECT ||
         F_ISSET_ATOMIC_32(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
 }
 
@@ -436,8 +475,8 @@ __clayered_skip_stable(
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
 static WT_INLINE uint32_t
-__clayered_enter_flags(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
+__clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
+  WTI_CLAYERED_ROLE role, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
@@ -450,9 +489,10 @@ __clayered_enter_flags(
     if (__clayered_skip_stable(clayered, mode, role))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
-    if (role != clayered->last_role)
-        LF_SET(
-          role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
+    /* A change of stable mode since the last operation is a step-up or step-down. */
+    if (stable_mode != clayered->last_stable_mode)
+        LF_SET(stable_mode == WTI_CLAYERED_STABLE_DIRECT ? CLAYERED_ENTER_STEP_UP :
+                                                           CLAYERED_ENTER_STEP_DOWN);
 
     /*
      * A transaction that started with the step-down timestamp set mirrors leader writes to both
@@ -584,7 +624,8 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WTI_CLAYERED_ROLE role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
       WTI_CLAYERED_ROLE_LEADER :
       WTI_CLAYERED_ROLE_FOLLOWER;
-    uint32_t flags = __clayered_enter_flags(clayered, mode, role);
+    const WTI_CLAYERED_STABLE_MODE stable_mode = __clayered_stable_mode(clayered, role);
+    uint32_t flags = __clayered_enter_flags(clayered, mode, role, stable_mode);
 
     __clayered_assert_role_change(clayered, mode, role, flags);
 
@@ -611,10 +652,10 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    const uint64_t conn_lsn = role != WTI_CLAYERED_ROLE_LEADER ?
+    const uint64_t conn_lsn = stable_mode == WTI_CLAYERED_STABLE_LAYERED ?
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
       WT_DISAGG_LSN_NONE;
-    if (__clayered_can_update_stable(clayered, flags, conn_lsn, role))
+    if (__clayered_can_update_stable(clayered, flags, conn_lsn, stable_mode))
         WT_RET(__clayered_update_stable(clayered, conn_lsn, role));
 
     /*
@@ -625,7 +666,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      */
     __wt_txn_cursor_op(session);
 
-    __clayered_update_state(clayered, role);
+    __clayered_update_state(clayered, stable_mode);
     __clayered_assert_stable_mode(clayered);
 
     __clayered_op_init(clayered, op, flags, mode, role);
@@ -1027,19 +1068,6 @@ __clayered_open_stable(
 }
 
 /*
- * __clayered_constituent_prepare_blocked --
- *     Determine if a constituent is stopped on a prepare conflict: it holds a page reference while
- *     its key has been cleared. Either constituent can be in this state: a transaction that
- *     straddles a step-down, or one that writes with mirroring enabled while the step-down
- *     timestamp is set, can leave a prepared update on the stable constituent, not just ingest.
- */
-static WT_INLINE bool
-__clayered_constituent_prepare_blocked(const WT_CURSOR *c)
-{
-    return (c != NULL && !F_ISSET(c, WT_CURSTD_KEY_INT) && ((WT_CURSOR_BTREE *)c)->ref != NULL);
-}
-
-/*
  * __clayered_constituent_needs_reset --
  *     Determine if a constituent has state a reset must clear: either an application-set external
  *     key with no page reference yet (WT_CURSTD_KEY_SET without a search having run), or a page
@@ -1057,39 +1085,41 @@ __clayered_constituent_needs_reset(const WT_CURSOR *c)
  *     change, or advanced to a newer checkpoint.
  */
 static bool
-__clayered_can_update_stable(
-  WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint64_t conn_lsn, WTI_CLAYERED_ROLE role)
+__clayered_can_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint64_t conn_lsn,
+  WTI_CLAYERED_STABLE_MODE stable_mode)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TXN_SHARED *txn_shared;
 
     /*
-     * A stable cursor blocked on a prepared update holds the position the retry rechecks, so keep
-     * it until the conflict resolves, including across a step-down: the live tree it reads is
-     * frozen, not discarded.
+     * Only the leader's live table holds prepared updates, and a blocked stable cursor keeps the
+     * direct mode, so it is never reopened or advanced: see __clayered_stable_mode.
      */
-    if (__clayered_constituent_prepare_blocked(clayered->stable_cursor))
-        return (false);
+    WT_ASSERT(session,
+      stable_mode == WTI_CLAYERED_STABLE_DIRECT ||
+        !__clayered_constituent_prepare_blocked(clayered->stable_cursor));
 
     /* Open stable the first time if needed, unless the constituent does not exist yet. */
     if (clayered->stable_cursor == NULL)
         return (!__wt_atomic_load_bool_relaxed(
                   &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
-          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)));
+          (stable_mode == WTI_CLAYERED_STABLE_DIRECT || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)));
 
     /*
-     * Always reopen the stable table when stepping up or down. That should be fine, since in this
-     * case all the cursors should be unpositioned and no current transactions should be running.
+     * Always reopen the stable table when the stable mode changes on a step-up or step-down. That
+     * should be fine, since in this case all the cursors should be unpositioned and no current
+     * transactions should be running.
      */
     if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE))
         return (true);
 
     /*
-     * Otherwise advance a follower to a newer checkpoint, so it can evict more from ingest. A
-     * leader does not require advancing a stable table, and there is nothing to do without a newer
-     * checkpoint.
+     * Otherwise advance a layered stable cursor to a newer checkpoint, so the follower can evict
+     * more from ingest. A direct stable cursor reads the live table and has no checkpoint to
+     * advance, and there is nothing to do without a newer checkpoint.
      */
-    if (role == WTI_CLAYERED_ROLE_LEADER || clayered->stable_checkpoint_meta_lsn == conn_lsn)
+    if (stable_mode == WTI_CLAYERED_STABLE_DIRECT ||
+      clayered->stable_checkpoint_meta_lsn == conn_lsn)
         return (false);
 
     /*
@@ -1223,7 +1253,7 @@ err:
  *     Validate and update cursor state and refresh the transaction context.
  */
 static void
-__clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
+__clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     const WT_TXN_SHARED *const txn_shared = WT_SESSION_TXN_SHARED(session);
@@ -1246,9 +1276,7 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
     clayered->read_timestamp = read_timestamp;
     clayered->txn_mod_count = txn_mod_count;
 
-    /* A blocked stable cursor is not updated, so a role change stays pending until it resolves. */
-    if (!__clayered_constituent_prepare_blocked(clayered->stable_cursor))
-        clayered->last_role = role;
+    clayered->last_stable_mode = stable_mode;
 }
 
 /*
@@ -4485,6 +4513,12 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     WT_ERR(__wt_calloc_one(session, &clayered));
     clayered->dhandle = session->dhandle;
+
+    /* Start in the mode for the node's role, so the first operation sees no role change. */
+    clayered->last_stable_mode = __clayered_stable_mode_for_role(
+      __wt_atomic_load_bool_acquire(&S2C(session)->layered_table_manager.leader) ?
+        WTI_CLAYERED_ROLE_LEADER :
+        WTI_CLAYERED_ROLE_FOLLOWER);
 
     cursor = (WT_CURSOR *)clayered;
     *cursor = iface;

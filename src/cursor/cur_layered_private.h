@@ -15,6 +15,14 @@
 typedef enum { WTI_CLAYERED_ROLE_FOLLOWER, WTI_CLAYERED_ROLE_LEADER } WTI_CLAYERED_ROLE;
 
 /*
+ * WTI_CLAYERED_STABLE_MODE --
+ *	How a layered cursor's stable constituent is opened: directly on the leader's live table, or
+ *	as a read-only view layered under ingest, as on a follower. It lags the node's role while a
+ *	stable cursor blocked on a prepared update is kept across a step-down.
+ */
+typedef enum { WTI_CLAYERED_STABLE_DIRECT, WTI_CLAYERED_STABLE_LAYERED } WTI_CLAYERED_STABLE_MODE;
+
+/*
  * WTI_CLAYERED_WRITE_TARGET --
  *	The constituent or constituents receiving a layered-table write.
  */
@@ -41,11 +49,11 @@ struct __wti_cursor_layered {
     uint64_t next_random_seed;
     u_int next_random_sample_size;
 
-    uint64_t snapshot_gen;               /* Snapshot generation on last access */
-    uint64_t read_timestamp;             /* Read timestamp on last access */
-    uint32_t txn_mod_count;              /* Transaction modification count on last access */
-    uint64_t stable_checkpoint_meta_lsn; /* Checkpoint LSN stable cursor is on */
-    WTI_CLAYERED_ROLE last_role;         /* Last-observed leader/follower role (change-detection) */
+    uint64_t snapshot_gen;                     /* Snapshot generation on last access */
+    uint64_t read_timestamp;                   /* Read timestamp on last access */
+    uint32_t txn_mod_count;                    /* Transaction modification count on last access */
+    uint64_t stable_checkpoint_meta_lsn;       /* Checkpoint LSN stable cursor is on */
+    WTI_CLAYERED_STABLE_MODE last_stable_mode; /* Mode the stable cursor was last opened in */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_CLAYERED_ACTIVE 0x01u       /* Incremented the session count */
