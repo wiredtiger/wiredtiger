@@ -1089,7 +1089,7 @@ __clayered_can_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint6
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TXN_SHARED *txn_shared;
 
-    /* A blocked stable cursor keeps the live table, see __clayered_stable_mode. */
+    /* Only a live stable cursor can be blocked: a checkpoint holds no prepared updates. */
     WT_ASSERT(session,
       stable_mode == WTI_CLAYERED_STABLE_LIVE ||
         !__clayered_constituent_prepare_blocked(clayered->stable_cursor));
@@ -2054,9 +2054,9 @@ __clayered_advance_unblocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSO
     int cmp;
 
     /*
-     * Without `iter_flag` the alternate cannot be trusted, so position it from the current key. A
-     * prepared conflict on the alternate clears the flag (see __clayered_iterate_finish and
-     * __clayered_change_direction), so a blocked alternate is always repositioned.
+     * Without the iteration flag the alternate cannot be trusted, so position it from the current
+     * key. A prepared conflict on the alternate clears the flag, so a blocked alternate is always
+     * repositioned.
      */
     if (!F_ISSET(clayered, iter_flag))
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
