@@ -1229,6 +1229,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     /*
      * Prune the truncate list before the new prune timestamp is published, so garbage collection
      * never runs ahead of the entries still masking ingest content.
+     *
+     * FIXME-WT-18951: Enforce this ordering where ingest content is discarded, so correctness does
+     * not depend on which path advances the prune timestamp.
      */
     __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
 
