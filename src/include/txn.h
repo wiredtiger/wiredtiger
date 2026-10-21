@@ -552,8 +552,8 @@ struct __wt_txn {
  *   fixed; the callback prefers txnid when the candidate session has a transaction id and
  *   falls back to prepared_id otherwise.
  *
- *   With drop set, the callback instead drops the transaction's operations on the key that were
- *   already redirected to the stable btree, because the drain skipped their update.
+ *   When drop is true, the callback instead drops the transaction's operations on the key that
+ *   were already redirected to the stable btree, because the drain skipped their update.
  */
 struct __wt_fix_prepared_cookie {
     WT_BTREE *ingest_btree;
