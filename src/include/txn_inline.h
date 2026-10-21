@@ -600,9 +600,6 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 static WT_INLINE int
 __txn_disagg_write_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
 {
-    wt_timestamp_t checkpoint_ts;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-
     /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return (0);
@@ -625,24 +622,6 @@ __txn_disagg_write_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btr
             return (0);
         WT_RET_MSG(
           session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
-    }
-
-    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
-        checkpoint_ts = __wt_atomic_load_uint64_acquire(
-          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-        if (checkpoint_ts != WT_TS_NONE) {
-            if (F_ISSET(txn, WT_TXN_PREPARE)) {
-                if (txn->time_point.durable_timestamp <= checkpoint_ts)
-                    WT_RET_MSG(session, EINVAL,
-                      "durable timestamp %s must be after the last checkpoint timestamp %s",
-                      __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[0]),
-                      __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
-            } else if (txn->time_point.commit_timestamp <= checkpoint_ts)
-                WT_RET_MSG(session, EINVAL,
-                  "commit timestamp %s must be after the last checkpoint timestamp %s",
-                  __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[0]),
-                  __wt_timestamp_to_string(checkpoint_ts, ts_string[1]));
-        }
     }
 
     return (0);
@@ -1293,6 +1272,21 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
       __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
+}
+
+/*
+ * __wt_txn_ta_newest_stop_visible_all --
+ *     Is the newest stop point of the given aggregated time window visible to all (possible)
+ *     readers? A prepared time point is not visible to any reader, so exclude it first: the
+ *     aggregate's prepare flag is the only record that a stop point belongs to an uncommitted
+ *     prepared update.
+ */
+static WT_INLINE bool
+__wt_txn_ta_newest_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    if (ta->prepare)
+        return (false);
+    return (__wt_txn_visible_all(session, ta->newest_stop_txn, ta->newest_stop_durable_ts));
 }
 
 /*
