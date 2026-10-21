@@ -38,6 +38,9 @@ struct __wti_cursor_layered {
     WT_CURSOR *ingest_cursor;  /* The ingest table */
     WT_CURSOR *stable_cursor;  /* The stable table */
 
+    WT_ITEM anchor;      /* Key the current cursor last stepped away from */
+    bool anchor_forward; /* Direction of that step */
+
     uint64_t next_random_seed;
     u_int next_random_sample_size;
 
