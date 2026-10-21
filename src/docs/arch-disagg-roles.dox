@@ -24,7 +24,9 @@ steady-state roles:
 
 A follower accepts writes to apply changes replicated from the leader. It writes those changes
 to the local ingest table, and read operations merge the stable table and ingest table views.
-For a key visible in both tables, the ingest table content always takes precedence. Adopting a checkpoint makes
+For a key visible in both tables, the ingest table content always takes precedence.
+
+Followers eventually adopt new checkpoints produced by the leader. Adopting a checkpoint makes
 covered ingest table content eligible for removal once it is safe for readers. See
 @ref arch-disagg-layered-cursor for the merged view.
 
@@ -50,14 +52,15 @@ Reconfiguration performs the local storage-engine transition, not the election o
 of changes to another node. The application must prevent competing shared writers and satisfy
 the transition's transaction and checkpoint requirements.
 
-These transitions are asymmetric. Promotion incorporates recent local changes into the shared
-writer's state. Demotion switches to a checkpointed stable table view, retaining any later
+These transitions are asymmetric. Step-up incorporates recent local changes into the shared
+writer's state. Step-down switches to a checkpointed stable table view, retaining any later
 changes in the ingest table. Reconfiguration coordinates these changes with ongoing engine
 work; it does more than select a different destination for new writes.
 
 @section disagg-roles-effects Effects across WiredTiger
 
-The role applies to all shared state on the connection. The following responsibilities must change together:
+The role applies to all shared state on the connection. The following responsibilities must
+change together:
 
 | Area | Effect of the role |
 |------|--------------------|
@@ -65,57 +68,60 @@ The role applies to all shared state on the connection. The following responsibi
 | Shared metadata | The leader populates shared metadata with schema changes during checkpointing; followers adopt the published schema with the checkpoint. Local schema state is distinct from shared publication. |
 | Shared history store | The leader writes historical versions to shared storage. Followers read the history associated with their checkpoint. |
 | Key-provider metadata | The leader persists key-provider metadata with shared checkpoints; followers read the published metadata. |
-| Stable table views | Promotion switches from checkpoint views to live writable tables; demotion switches to read-only checkpoint views. |
+| Shared table views | Step-up switches from checkpoint views to live writable tables; step-down switches to read-only checkpoint views. |
 | Eviction | A leader can reconcile shared pages. A follower reclaims covered ingest table content without writing it back to shared storage. |
-| Background work | Checkpoint cleanup is leader-only work; the deferred checkpoint pickup server runs on followers. Promotion and demotion stop or restart these services. |
+| Background work | Checkpoint cleanup is leader-only work; the deferred checkpoint pickup server runs on followers. Step-up and step-down stop or restart these services. |
 
 The table above shows how a role transition coordinates different parts of WiredTiger. See
-@ref arch-disagg-layered for shared tables, @ref arch-hs for historical versions,
+@ref arch-disagg-layered for layered tables, @ref arch-hs for historical versions,
 @ref arch-disagg-key-provider for key metadata, and @ref arch-eviction for page reclamation.
 
 @section disagg-roles-transitions Role transitions
+
+There are two role transitions: step-up changes a follower into a leader, and step-down changes a leader into a follower. These transitions support events such as electing a new leader after the previous leader fails, scaling the cluster up or down, and other changes to the cluster.
 
 @htmlonly
 <img src="disagg-roles.svg" alt="The leader writes shared checkpoints; the follower applies local
 changes and adopts checkpoints. Step-up and step-down change these responsibilities." />
 @endhtmlonly
 
-@section disagg-roles-step-up Step-up
+@subsection disagg-roles-step-up Step-up
 
-A promoted follower already has a shared checkpoint view and recent changes in its ingest
-tables. Step-up adopts any pending checkpoint needed for promotion, creates missing stable
-tables, and incorporates the remaining ingest table changes into the stable tables. After
-successful reconfiguration, the connection can perform normal leader writes and produce shared
-checkpoints from that base.
+Before step-up, a follower already has a shared checkpoint view and recent changes in its
+ingest tables. Step-up adopts any pending checkpoints, creates missing stable tables, and
+incorporates the remaining ingest table changes into the stable tables. After successful
+reconfiguration, the connection can perform normal leader writes and produce shared checkpoints
+from that base.
 
-Promotion is not just permission to write the follower's existing view: checkpointed data and
-local changes must become a consistent live shared tree. Transactions and positioned cursors
+Step-up does more than allow writes to the follower's existing view: it combines checkpointed
+data and local changes into a consistent live shared tree. Transactions and positioned cursors
 must not span step-up. The application must finish transactions and reset or close positioned
-cursors before promotion; it can start new work after the transition completes.
+cursors before the step-up reconfiguration; it can start new work after the transition completes.
 
-@section disagg-roles-step-down Step-down
+@subsection disagg-roles-step-down Step-down
 
 Step-down transfers shared-write responsibility without restarting the old leader. There are
 two ways to prepare for the transition:
 
-- <b>Blocking step-down:</b> the application stops and finishes write transactions, advances the
-  stable timestamp to cover their changes, and takes the concluding checkpoint. Writes remain
-  stopped until it reconfigures the connection as a follower. No step-down timestamp is set;
+- <b>Blocking step-down:</b> the application stops starting new write transactions, finishes
+  existing write transactions, advances the stable timestamp to cover their changes, and takes
+  the concluding checkpoint. Writes remain stopped until it reconfigures the connection as a
+  follower. No step-down timestamp is set;
   the application must ensure that the checkpoint contains all changes being handed off.
-- <b>Asynchronous step-down:</b> the application sets a step-down timestamp to define the
-  concluding checkpoint's boundary. The connection remains a leader while retaining writes from
-  transactions beginning after notification in its ingest tables. Their commit timestamps must
-  be above the boundary. This allows writes to continue during checkpoint preparation and
-  handoff; writers that straddle notification may need to roll back and retry.
+- <b>Asynchronous step-down:</b> the application sets a step-down timestamp to define the boundary
+  for the concluding checkpoint. Until final reconfiguration, new write transactions write to
+  local ingest tables, allowing writes to continue during checkpoint preparation. Write
+  transactions already in progress when the timestamp is set, including those that span the
+  transition, are rolled back to prevent an inconsistent state.
 
 In both cases, the application coordinates checkpoint handoff and finishes all write
-transactions before reconfiguring the old leader as a follower. The demoting connection switches
-to follower operations, reading stable tables through read-only views of the concluding
-checkpoint and merging them with any newer changes in its local ingest tables.
+transactions before reconfiguring the old leader as a follower. The connection then reads
+stable tables through read-only views of the concluding checkpoint and merges them with any
+newer changes in its local ingest tables.
 
-Asynchronous preparation does not allow writers to run during or span final reconfiguration.
-Read transactions that span it must have a read timestamp; cursor operations racing the change
-can require rollback and retry. See WT_CONNECTION::set_timestamp for the cutoff API and
-@ref error_handling for rollback handling.
+Asynchronous step-down does not allow writers to run during or span final reconfiguration.
+Read transactions are allowed at all times but those without read timestamps are rolled back if they span reconfiguration.
+See WT_CONNECTION::set_timestamp for the step-down timestamp API and @ref error_handling for
+rollback handling.
 
 */
