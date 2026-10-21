@@ -1060,8 +1060,9 @@ connection_runtime_config = [
         'aggressive_stash_free', 'aggressive_sweep', 'backup_blkmod_delay', 'backup_rename',
         'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
-        'evict_reposition',
+        'compact_slow', 'conn_close_stress_log_printf', 'disagg_pickup_skip_signal',
+        'disagg_role_transition',
+        'drop_deferred_hold', 'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
         'disagg_stable_dhandle_delay',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
@@ -1119,6 +1120,7 @@ connection_runtime_config = [
             'recovery_progress',
             'rts',
             'salvage',
+            'schema_epoch',
             'shared_cache',
             'split',
             'sweep',
@@ -1836,10 +1838,10 @@ methods = {
             'this_id' configuration in an earlier backup. A source id is required to begin an
             incremental backup'''),
         Config('this_id', '', r'''
-            a string that identifies the current system state  as a future backup source for
-            an incremental backup via \c src_id. This identifier is required when opening an
-            incremental backup cursor and an error will be returned if one is not provided.
-            The identifiers can be any text string, but should be unique'''),
+            a string that identifies the current system state as a future backup source for
+            an incremental backup via \c src_id. Supplying it starts tracking a new source;
+            omitting it reads the changes since \c src_id without starting a new source. The
+            identifiers can be any text string, but should be unique'''),
         ]),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the object when the
@@ -1886,8 +1888,12 @@ methods = {
         the default configuration is the database configuration. The "clear" configuration
         resets statistics after gathering them, where appropriate (for example, a cache size
         statistic is not cleared, while the count of cursor insert operations will be cleared).
-        See @ref statistics for more information''',
-        type='list', choices=['all', 'cache_walk', 'fast', 'clear', 'size', 'tree_walk']),
+        At most one of the "otel_" options may also be configured to specify an OTel metric type.
+        "otel_none" specifies that only metrics without an OTel metric type are gathered. See @ref
+        statistics for more information''',
+        type='list',
+        choices=['all', 'cache_walk', 'clear', 'fast', 'otel_counters', 'otel_gauges',
+                 'otel_histograms', 'otel_none', 'size', 'tree_walk']),
     Config('target', '', r'''
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),

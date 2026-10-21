@@ -128,7 +128,9 @@ NUMA
 NoSQL
 OOP
 OPTYPE
+OTel
 Observability
+OpenTelemetry
 PALI
 PALite
 PMU
@@ -410,6 +412,7 @@ flamegraphs
 flcs
 fnv
 fontsize
+footbox
 forw
 fprofile
 fput
@@ -591,12 +594,14 @@ objectid
 objectsin
 ol
 oltp
+ondisk
 oob
 oop
 oplog
 optrack
 optype
 os
+otel
 outlier
 outliers
 ovfl

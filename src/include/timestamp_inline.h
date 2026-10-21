@@ -313,6 +313,12 @@
         (out_ta)->newest_stop_ts = WT_MAX((out_ta)->newest_stop_ts, (in_ta)->newest_stop_ts);    \
         (out_ta)->newest_stop_txn = WT_MAX((out_ta)->newest_stop_txn, (in_ta)->newest_stop_txn); \
         (out_ta)->oldest_stop_txn = WT_MIN((out_ta)->oldest_stop_txn, (in_ta)->oldest_stop_txn); \
+        /*                                                                                       \
+         * Carry the prepare flag: an obsolete visibility check reads the merged                 \
+         * aggregate, and the flag is the only record that a stop point is prepared.             \
+         */                                                                                      \
+        if ((in_ta)->prepare != 0)                                                               \
+            (out_ta)->prepare = 1;                                                               \
     } while (0)
 
 /* Check if the stop time aggregate is set. */
@@ -349,6 +355,31 @@ __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
     return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp) ?
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
         txn_global->recovery_timestamp);
+}
+
+/*
+ * __wt_ts_stable_violation --
+ *     Check that a start/stop timestamp pair is not greater than the global stable timestamp. This
+ *     check is done only when verify is configured with "stable_timestamp" (verify is called
+ *     post-RTS) so every record beyond the stable timestamp should have been rolled back already.
+ */
+static WT_INLINE bool
+__wt_ts_stable_violation(wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
+  wt_timestamp_t stable_timestamp, bool *startp, wt_timestamp_t *tsp)
+{
+    if (start_ts != WT_TS_NONE && start_ts > stable_timestamp) {
+        *startp = true;
+        *tsp = start_ts;
+        return (true);
+    }
+
+    if (stop_ts != WT_TS_MAX && stop_ts > stable_timestamp) {
+        *startp = false;
+        *tsp = stop_ts;
+        return (true);
+    }
+
+    return (false);
 }
 
 /*

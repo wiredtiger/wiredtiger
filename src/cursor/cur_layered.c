@@ -166,7 +166,9 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value, bool from_st
 
     if (__clayered_value_in_tombstone_namespace(value, false /* decode */)) {
         /* Encoding only ever appends the tombstone byte, so that is the byte being stripped. */
-        /* FIXME-WT-18154: assert the byte being stripped is the tombstone byte. */
+        WT_ASSERT_ALWAYS(session,
+          ((const uint8_t *)value->data)[value->size - 1] == *(const uint8_t *)__wt_tombstone.data,
+          "layered tombstone decode found a non-tombstone trailing byte");
         --value->size;
     }
 }
@@ -608,6 +610,14 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
+
+    /*
+     * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
+     * records the generation of no snapshot at all and a context change goes unnoticed. This must
+     * follow the stable open: the follower refuses to bind a snapshot that predates a checkpoint
+     * adoption.
+     */
+    __wt_txn_cursor_op(session);
 
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
@@ -1220,24 +1230,23 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
 
     const uint64_t snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
     const uint64_t read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
+    const uint32_t txn_mod_count = session->txn->mod_count;
 
     /*
-     * If the transaction context has changed since the last call (different read timestamp or a new
-     * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
-     * flags to force a re-search under the new context. A blocked alternate is not a problem here:
-     * clearing the flags routes the next call through a fresh search from the current key,
-     * regardless of the alternate's prior state.
-     *
-     * FIXME-WT-17960: a context change while the current cursor is stalled on a prepare conflict
-     * leaves the alternate parked under the old context with no anchor to re-search it from.
+     * If the transaction context has changed since the last call (different read timestamp, a new
+     * snapshot, or a write by this transaction through another cursor), the parked alternate
+     * cursor's cached position and value may be stale. Clear the iteration flags to force a
+     * re-search under the new context. While the current cursor is stalled on a prepare conflict
+     * the parked alternate position is kept and rechecked instead, see
+     * __clayered_advance_positioned.
      */
-    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp) {
-        WT_ASSERT(session, !__clayered_constituent_prepare_blocked(clayered->current_cursor));
+    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp ||
+      clayered->txn_mod_count != txn_mod_count)
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    }
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
+    clayered->txn_mod_count = txn_mod_count;
     clayered->last_role = role;
 }
 
@@ -1604,6 +1613,7 @@ __clayered_range_truncate_ingest(
 {
     WT_DECL_RET;
     WT_CURSOR *cursor = start;
+    uint64_t tombstones_written = 0;
     int cmp;
 
     /* Early return if stop key is strictly less than start key, nothing to truncate. */
@@ -1613,23 +1623,29 @@ __clayered_range_truncate_ingest(
 
     do {
         /* Check the current position relative to the truncate end. */
-        WT_RET(cursor->compare(cursor, stop, &cmp));
+        WT_ERR(cursor->compare(cursor, stop, &cmp));
 
         /* Avoid stacking consecutive tombstones on the update chain. */
         if (!__wt_clayered_deleted(&cursor->value)) {
             WT_ITEM key;
-            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
-            WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            WT_ERR(__wt_layered_table_truncate_detect_write_conflict(
               session, &layered->truncate_list, layered->collator, &key));
             cursor->set_value(cursor, &__wt_tombstone);
-            WT_RET(cursor->update(cursor));
+            WT_ERR(cursor->update(cursor));
+            ++tombstones_written;
         }
 
         ret = cursor->next(cursor);
     } while (cmp < 0 && ret == 0);
 
-    WT_RET_NOTFOUND_OK(ret);
-    return (0);
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+err:
+    /* Batch statistics updates to avoid atomic increments for each tombstone. */
+    WT_STAT_CONN_DSRC_INCRV(
+      session, layered_truncate_ingest_tombstones_written, tombstones_written);
+    return (ret);
 }
 
 /*
@@ -1653,6 +1669,12 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WTI_CURSOR_LAYERED *clayered_stop = (WTI_CURSOR_LAYERED *)trunc_info->stop;
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
     WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
+
+    /*
+     * Conflict detection can fail before truncate-list insertion checks isolation and allocates a
+     * transaction ID, so reject unsupported isolation levels first.
+     */
+    WT_RET(__wt_txn_isolation_write_check(trunc_info->session));
 
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
     WT_RET_NOTFOUND_OK(ret_start);
@@ -1729,7 +1751,8 @@ __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
 
     /* Only valid on stable tables during step up to leader, routed via WT_SESSION_INGEST_REPLAY. */
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_INGEST_REPLAY));
-    WT_ASSERT(session, WT_URI_IS_STABLE(trunc_info->start->internal_uri));
+    WT_ASSERT(session,
+      __wt_dhandle_shared_btree_kind(CUR2BT(trunc_info->start)->dhandle) == WT_SHARED_BTREE_LIVE);
     WT_ASSERT(session, __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /* Both boundary cursors must be fully positioned. */
@@ -1926,31 +1949,30 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
 
     /*
      * If the current cursor was blocked by a prepared conflict on a previous call, drive it again:
-     * this rechecks the key it is currently blocked on rather than stepping past it. Once the
-     * conflict resolves, the current cursor has a key, which is needed to position the alternate.
+     * this rechecks the key it is currently blocked on rather than stepping past it.
      */
     if (__clayered_constituent_prepare_blocked(c_current)) {
         /*
-         * The alternate is left untouched here: this branch only drives the current cursor again,
-         * so a conflict that persists across several calls leaves the alternate exactly where it
-         * was last positioned, however many calls ago that was. That position is still valid for
-         * the read context it was set under, but not necessarily positioned -- it may have
-         * legitimately run out of keys ahead of the current cursor -- so the assert below only
-         * confirms the context has not changed since then (the iteration flag is still set; a
-         * changed context clears it and routes through the alternate-positioning branch instead),
-         * not that the alternate carries a key.
+         * The alternate keeps its parked position: the blocked cursor carries no key to re-search
+         * it from, and the key it resolves to may lie past alternate keys that still have to be
+         * returned. The parked position may legitimately be exhausted. Writes by this transaction
+         * during the stall cannot reveal stable keys, only a truncate can hide the parked one, so
+         * when the alternate is stable recheck it against the truncate list regardless of the
+         * iteration flag.
+         *
+         * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before
+         * the parked position, and there is no anchor to re-search them from.
          */
-        WT_ASSERT(CUR2S(clayered),
-          F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV));
+        if (c_alternate == op->stable && F_ISSET(c_alternate, WT_CURSTD_KEY_INT))
+            WT_RET_NOTFOUND_OK(__clayered_reposition_truncate_iterate(op, c_alternate, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_current, forward));
         current_moved = true;
-    } else if (!F_ISSET(clayered, iter_flag)) {
+    } else if (!F_ISSET(clayered, iter_flag))
         /*
          * The current cursor is positioned but `iter_flag` is not set, so the alternate cannot be
          * trusted and must be positioned from the current key.
          */
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
-    }
 
     /*
      * A blocked alternate has no key, so it would otherwise drop out of the comparisons below and
@@ -2072,7 +2094,8 @@ __clayered_iterate_finish(
  *     WT_CURSTD_KEY_INT while leaving its page reference intact. A walk blocked this way is
  *     therefore detected through the reference rather than the key, and on the next call the
  *     blocked cursor is driven again so it rechecks the key it is currently blocked on before the
- *     alternate is positioned.
+ *     alternate is positioned. The alternate keeps its parked position across the stall; a stable
+ *     alternate is rechecked against truncates by this transaction.
  */
 static int
 __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
