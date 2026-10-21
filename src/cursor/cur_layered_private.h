@@ -53,6 +53,7 @@ struct __wti_cursor_layered {
     uint32_t txn_mod_count;                    /* Transaction modification count on last access */
     uint64_t stable_checkpoint_meta_lsn;       /* Checkpoint LSN stable cursor is on */
     WTI_CLAYERED_STABLE_MODE last_stable_mode; /* Mode the stable cursor was last opened in */
+    WT_ITEM blocked_key;                       /* Key the current cursor is blocked on */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_CLAYERED_ACTIVE 0x01u             /* Incremented the session count */

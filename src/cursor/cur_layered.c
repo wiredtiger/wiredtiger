@@ -1938,6 +1938,44 @@ err:
 }
 
 /*
+ * __clayered_position_alternate_reversed --
+ *     Reposition the alternate of a blocked walk that reversed. The walk stopped at the earlier, in
+ *     the old direction, of the blocked key and the alternate's key. Like a btree cursor stepping
+ *     back from its blocked position, restart the alternate strictly before that key.
+ */
+static int
+__clayered_position_alternate_reversed(WTI_CLAYERED_OP *op, WT_CURSOR *alternate, bool forward)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_DECL_ITEM(alternate_key);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    const WT_ITEM *stop = &clayered->blocked_key;
+    int cmp;
+
+    if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
+        WT_RET(__wt_compare(session, op->collator, &alternate->key, stop, &cmp));
+        if (forward ? cmp > 0 : cmp < 0) {
+            /* Copy the alternate's key: the search overwrites it. */
+            WT_RET(__wt_scr_alloc(session, 0, &alternate_key));
+            WT_ERR(__wt_buf_set(session, alternate_key, alternate->key.data, alternate->key.size));
+            stop = alternate_key;
+        }
+    }
+
+    WT_ERR(__clayered_position_alternate_at(op, stop, alternate, forward));
+    if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
+        WT_ERR(__wt_compare(session, op->collator, &alternate->key, stop, &cmp));
+        if (cmp == 0)
+            WT_ERR(__clayered_constituent_iter_helper(op, alternate, forward));
+    }
+
+err:
+    __wt_scr_free(session, &alternate_key);
+    return (ret);
+}
+
+/*
  * __clayered_any_constituent_positioned --
  *     Return whether either constituent is positioned, including one blocked on a prepared update.
  *     Both constituents must exist.
@@ -2015,24 +2053,13 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
      */
     if (!F_ISSET(clayered, iter_flag)) {
         if (F_ISSET(clayered,
-              forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT)) {
+              forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT))
             /*
-             * The walk reversed, so the blocked cursor resolves back onto the key it last returned,
-             * like a btree cursor: position the alternate from that key. The search can hit a
-             * prepared conflict, but the current cursor is then on a key already returned, so
-             * nothing is lost.
-             *
-             * Only a mirrored remove deletes from the stable btree, so only it can leave the
-             * blocked cursor no key before the blocked one. Mirroring writes every key in the
-             * step-down window to both constituents, and reads there must use snapshot isolation,
-             * so the alternate has none either: end the walk, as a btree cursor does.
+             * The walk reversed. This can hit a prepared conflict, but the current cursor is then
+             * on a key already returned, so nothing is lost.
              */
-            if (F_ISSET(c_current, WT_CURSTD_KEY_INT))
-                WT_RET_NOTFOUND_OK(
-                  __clayered_position_alternate(op, c_current, c_alternate, forward));
-            else
-                WT_RET(c_alternate->reset(c_alternate));
-        } else {
+            WT_RET_NOTFOUND_OK(__clayered_position_alternate_reversed(op, c_alternate, forward));
+        else {
             /* This only revisits keys this snapshot already read, so it cannot conflict. */
             ret = __clayered_position_alternate_resolved(op, c_current, c_alternate, forward);
             WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT);
@@ -2128,8 +2155,10 @@ __clayered_iterate_finish(
       __clayered_constituent_prepare_blocked(clayered->current_cursor)) {
         /*
          * A prepared conflict on the current cursor leaves the alternate where it is: record the
-         * direction it blocked in.
+         * key and direction it blocked in. The btree cursor still holds the blocked key.
          */
+        WT_RET(__wt_buf_set(CUR2S(clayered), &clayered->blocked_key,
+          clayered->current_cursor->key.data, clayered->current_cursor->key.size));
         if (iter_flag == WTI_CLAYERED_ITERATE_NEXT)
             F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT);
         else
@@ -3987,6 +4016,7 @@ __clayered_close_int(WT_CURSOR *cursor)
     clayered = (WTI_CURSOR_LAYERED *)cursor;
 
     WT_TRET(__clayered_close_cursors(clayered));
+    __wt_buf_free(session, &clayered->blocked_key);
 
     __wt_cursor_close(cursor);
 
