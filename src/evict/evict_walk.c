@@ -627,9 +627,10 @@ retry:
             __wt_spin_unlock(session, &evict->evict_walk_lock);
             WT_ERR(ret);
             /*
-             * The saved walk tree is itself a handle reference, and discarding a page on an
-             * outdated tree requires that none are held. Release it so the pages just queued can
-             * drain; the tree keeps its walk position for a later pass.
+             * The saved walk tree holds a session_inuse reference, and eviction won't discard a
+             * non-clean page from an outdated tree while any reference is held. Drop it now so the
+             * pages just queued can be discarded this pass; the tree keeps its walk position for a
+             * later pass.
              */
             if (__wt_btree_dhandle_is_outdated_disagg(dhandle, btree))
                 __wti_evict_set_saved_walk_tree(session, NULL);
@@ -870,7 +871,9 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
      * only for disaggregated storage.
      *
-     * A read-only tree is exempt: the modifications being waited for can never arrive.
+     * A read-only tree is exempt. The only read-only tree that reaches here with dirty pages is a
+     * live btree that a step-down made read-only: nothing can modify its pages again, and eviction
+     * is the only way those pages are discarded.
      */
 #define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
     0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
