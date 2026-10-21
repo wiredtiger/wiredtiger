@@ -1859,9 +1859,11 @@ __clayered_position_alternate(
 
 /*
  * __clayered_position_alternate_resolved --
- *     Position the alternate of a walk whose current cursor has just resolved a prepared conflict.
- *     Start from the earlier of the resolved key and the alternate's parked key. On a reversal the
- *     parked key belongs to the old direction, so use only the resolved key.
+ *     Reposition the alternate once the current cursor has resolved a prepared conflict. Restart
+ *     from the key the current cursor resolved onto, or from the key the alternate was parked on
+ *     during the stall, whichever is smaller for next or larger for prev. If they are equal, use
+ *     the resolved key: both cursors then share it, ingest returns it, and the next call steps both
+ *     past it.
  */
 static int
 __clayered_position_alternate_resolved(
@@ -1870,36 +1872,38 @@ __clayered_position_alternate_resolved(
     WT_DECL_ITEM(parked);
     WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
-    const WT_ITEM *key;
+    const WT_ITEM *reposition_key;
 
-    key = F_ISSET(current, WT_CURSTD_KEY_INT) ? &current->key : NULL;
+    /* The current cursor has no key if it ran off the end. */
+    reposition_key = F_ISSET(current, WT_CURSTD_KEY_INT) ? &current->key : NULL;
 
     /*
-     * On a reversal, ignore the parked key: it belongs to the old direction. The only exception is
-     * a current cursor that ran off the end, which needs the key it last returned to have gone; the
-     * walk may then return the parked key, past that key.
+     * The parked key is the alternate's first key past the last key returned, so restarting there
+     * skips nothing even if the current cursor resolved further on. After a reversal it lies on the
+     * wrong side of the last key returned, so ignore it, unless the current cursor ran off the end
+     * and it is the only key left.
      */
-    if (F_ISSET(alternate, WT_CURSTD_KEY_INT) && (!reversed || key == NULL)) {
-        bool parked_first = key == NULL;
-        if (!parked_first) {
+    if (F_ISSET(alternate, WT_CURSTD_KEY_INT) && (!reversed || reposition_key == NULL)) {
+        bool use_parked = reposition_key == NULL;
+        if (!use_parked) {
             int cmp;
 
-            WT_RET(__wt_compare(session, op->collator, &alternate->key, key, &cmp));
-            parked_first = forward ? cmp < 0 : cmp > 0;
+            WT_RET(__wt_compare(session, op->collator, &alternate->key, reposition_key, &cmp));
+            use_parked = forward ? cmp < 0 : cmp > 0;
         }
-        if (parked_first) {
-            /* Copy the parked key: the search below overwrites it. */
+        if (use_parked) {
+            /* Copy the parked key: the search overwrites it. */
             WT_RET(__wt_scr_alloc(session, 0, &parked));
             WT_ERR(__wt_buf_set(session, parked, alternate->key.data, alternate->key.size));
-            key = parked;
+            reposition_key = parked;
         }
     }
 
-    /* Both constituents are exhausted. */
-    if (key == NULL)
+    /* Neither cursor has a key: the walk is over. */
+    if (reposition_key == NULL)
         return (0);
 
-    ret = __clayered_position_alternate_at(op, key, alternate, forward);
+    ret = __clayered_position_alternate_at(op, reposition_key, alternate, forward);
 
 err:
     __wt_scr_free(session, &parked);
