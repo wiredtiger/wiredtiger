@@ -80,17 +80,6 @@ __layered_check_stable_btree_state(
 }
 
 /*
- * __layered_upd_is_prepared --
- *     Return whether an update being drained belongs to a prepared transaction, unresolved or
- *     rolled back.
- */
-static WT_INLINE bool
-__layered_upd_is_prepared(WT_UPDATE *upd)
-{
-    return (upd->prepare_state == WT_PREPARE_INPROGRESS || upd->txnid == WT_TXN_ABORTED);
-}
-
-/*
  * __layered_move_updates --
  *     Move the updates of a key to the stable table, skipping and counting an orphan remove. Any
  *     unresolved prepared update on the stable table should now have been resolved. On success the
@@ -116,12 +105,14 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     /*
      * Reconciliation cannot write consecutive tombstones. Updates are newest first, so for adjacent
      * non-prepared tombstones keep the older one: it ends the value's lifetime, and the newer one
-     * deletes nothing. The oldest update is never removed here.
+     * deletes nothing. The oldest update is never removed here. The drain marks both in-flight and
+     * rolled-back prepared updates as in progress.
      */
     updp = updsp;
     while ((upd = *updp) != NULL && (older = upd->next) != NULL) {
         if (upd->type != WT_UPDATE_TOMBSTONE || older->type != WT_UPDATE_TOMBSTONE ||
-          __layered_upd_is_prepared(upd) || __layered_upd_is_prepared(older)) {
+          upd->prepare_state == WT_PREPARE_INPROGRESS ||
+          older->prepare_state == WT_PREPARE_INPROGRESS) {
             updp = &upd->next;
             continue;
         }
@@ -144,9 +135,9 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
          * read. Unless a newer update of the same transaction still reaches the stable btree, it
          * must forget the key.
          */
-        if (last_upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        if (last_upd->prepare_state == WT_PREPARE_INPROGRESS && last_upd->txnid != WT_TXN_ABORTED) {
             for (upd = *updsp; upd != last_upd; upd = upd->next)
-                if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid != WT_TXN_ABORTED &&
                   upd->prepared_id == last_upd->prepared_id)
                     break;
             if (upd == last_upd)
