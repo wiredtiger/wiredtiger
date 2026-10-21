@@ -2000,8 +2000,8 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
      * If the walk has reversed, the blocked cursor resolves back onto the key it last returned,
      * like a btree cursor.
      */
-    const bool reversed = F_ISSET((WT_CURSOR_BTREE *)c_current,
-      forward ? WT_CBT_ITERATE_RETRY_PREV : WT_CBT_ITERATE_RETRY_NEXT);
+    const bool reversed = F_ISSET(
+      clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
 
     /* Step the blocked cursor again: this rechecks the blocked key. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_current, forward));
@@ -2087,6 +2087,20 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
 }
 
 /*
+ * __clayered_set_retry --
+ *     Record that the current cursor is blocked on a prepared update by a step in this direction.
+ */
+static WT_INLINE void
+__clayered_set_retry(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
+{
+    F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
+    if (iter_flag == WTI_CLAYERED_ITERATE_NEXT)
+        F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT);
+    else
+        F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_PREV);
+}
+
+/*
  * __clayered_iterate_finish --
  *     Post-move bookkeeping: maintain the iteration-direction flags, and restart a fresh walk that
  *     hit a prepared conflict on its first key.
@@ -2105,11 +2119,15 @@ __clayered_iterate_finish(
         F_SET(clayered, iter_flag);
     else if (ret == WT_PREPARE_CONFLICT) {
         /*
-         * A conflict on the current cursor leaves the alternate parked. Any other conflict leaves
-         * the alternate blocked or reset, so clear the flags to reposition it.
+         * A conflict on the current cursor leaves the alternate parked: record the direction it
+         * blocked in. Any other conflict leaves the alternate blocked or reset, so clear the flags
+         * to reposition it.
          */
-        if (!__clayered_constituent_prepare_blocked(clayered->current_cursor))
-            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+        if (__clayered_constituent_prepare_blocked(clayered->current_cursor)) {
+            __clayered_set_retry(clayered, iter_flag);
+            return (ret);
+        }
+        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     } else {
         /*
          * The constituent-stepping helpers map WT_NOTFOUND to 0 (WT_ERR_NOTFOUND_OK with keep ==
@@ -2118,6 +2136,9 @@ __clayered_iterate_finish(
         WT_ASSERT(CUR2S(clayered), ret != WT_NOTFOUND);
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     }
+
+    /* The current cursor is not blocked. */
+    F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
     return (ret);
 }
 
@@ -2236,9 +2257,16 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
      * directly and return without touching the iteration flags.
      */
     WT_ASSERT(CUR2S(op->clayered), op->stable != NULL || op->ingest != NULL);
-    if (op->ingest == NULL || op->stable == NULL)
-        return (__clayered_constituent_iter_helper(
-          op, op->ingest != NULL ? op->ingest : op->stable, forward));
+    if (op->ingest == NULL || op->stable == NULL) {
+        ret = __clayered_constituent_iter_helper(
+          op, op->ingest != NULL ? op->ingest : op->stable, forward);
+        /* Record a blocked constituent's direction, as for two constituents. */
+        if (ret == WT_PREPARE_CONFLICT)
+            __clayered_set_retry(op->clayered, iter_flag);
+        else
+            F_CLR(op->clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
+        return (ret);
+    }
 
     if (__clayered_direction_reversed(op->clayered, iter_flag))
         WT_RET(__clayered_change_direction(op, iter_flag, forward));
@@ -2387,7 +2415,9 @@ __clayered_reset_cursors(WTI_CURSOR_LAYERED *clayered, bool skip_ingest)
         WT_TRET(c->reset(c));
 
     clayered->current_cursor = NULL;
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    F_CLR(clayered,
+      WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV | WTI_CLAYERED_ITERATE_RETRY_NEXT |
+        WTI_CLAYERED_ITERATE_RETRY_PREV);
 
     return (ret);
 }
