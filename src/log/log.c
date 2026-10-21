@@ -2243,6 +2243,12 @@ advance:
               !WT_IS_ZERO_LSN(&prev_lsn) &&
               __wt_lsn_offset(&prev_lsn) != __wt_lsn_offset(&prev_eof)) {
                 WT_ASSERT(session, prev_eof.l.file == prev_lsn.l.file);
+                /*
+                 * The log ends at the last file we read. The read LSN was already advanced to the
+                 * start of this file, and leaving it there would have the caller truncate a file it
+                 * never scanned down to zero bytes.
+                 */
+                WT_ASSIGN_LSN(&rd_lsn, &prev_eof);
                 break;
             }
             /*
@@ -2253,6 +2259,8 @@ advance:
               WT_IS_ZERO_LSN(&prev_lsn)) {
                 __wt_verbose(session, WT_VERB_LOG,
                   "log_scan: Stopping, no system record detected in %s.", log_fh->name);
+                /* As above, the log ends at the last file we read, not at this one. */
+                WT_ASSIGN_LSN(&rd_lsn, &prev_eof);
                 break;
             }
             WT_ERR(__wt_filesize(session, log_fh, &log_size));
