@@ -151,22 +151,6 @@ __wt_cursor_localkey(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_btcur_prepare_conflict_key --
- *     Return the key a cursor iteration stopped on with a prepared conflict. Row-store iteration
- *     sets the key before checking visibility and keeps the page pinned on the conflict, so the key
- *     stays valid until the cursor next moves. It is never returned to the application.
- */
-static WT_INLINE void
-__wt_btcur_prepare_conflict_key(WT_CURSOR_BTREE *cbt, WT_ITEM *keyp)
-{
-    WT_ASSERT(CUR2S(cbt),
-      cbt->ref != NULL && F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT | WT_CBT_ITERATE_RETRY_PREV) &&
-        cbt->iface.key.size != 0);
-    keyp->data = cbt->iface.key.data;
-    keyp->size = cbt->iface.key.size;
-}
-
-/*
  * __cursor_localvalue --
  *     If the value points into the tree, get a local copy.
  */
