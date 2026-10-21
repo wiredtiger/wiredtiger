@@ -1741,13 +1741,13 @@ __evict_get_ref(
      * then the only thread that could write dirty pages, and application threads waiting for it
      * would stall behind a single writer. In that configuration application threads take dirty
      * pages like any worker would.
-     *
+     */
     if (!F_ISSET(session, WT_SESSION_INTERNAL) && WT_EVICT_HAS_WORKERS(session) &&
       F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
       !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)) {
         eligible[0] = WT_EVICT_LEVEL_CLEAN_LEAF;
         n_eligible = 1;
-		}*/
+    }
     __evict_stat_eligible_levels(session, eligible, n_eligible);
 
     /* Choose the starting level in proportion to how many pages each level holds. */
