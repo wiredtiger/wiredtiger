@@ -28,10 +28,10 @@
 #
 # test_layered_stepup16.py
 #   A prepared transaction on a follower removes a key with no value in the stable table, possibly
-#   inserting it again afterwards, and is still unresolved when the follower steps up. A remove
-#   that is the transaction's last change to the key is counted and reported. The transaction then
-#   commits or rolls back on the new leader, and reads stay correct through a checkpoint and a
-#   restart. The remove is written directly into the ingest table as the value a follower remove
+#   inserting it again afterwards. It rolls back before the follower steps up, or is still
+#   unresolved then and commits or rolls back on the new leader. The remove is counted and
+#   reported, except when an unresolved transaction inserted the key again, and reads stay correct
+#   through a checkpoint and a restart. The remove is written directly into the ingest table as the value a follower remove
 #   stores.
 
 import wiredtiger, wttest
@@ -57,8 +57,9 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         ('remove_insert', dict(insert=True)),
     ]
     resolutions = [
-        ('commit', dict(commit=True)),
-        ('rollback', dict(commit=False)),
+        ('commit', dict(commit=True, rollback_before_stepup=False)),
+        ('rollback', dict(commit=False, rollback_before_stepup=False)),
+        ('rollback_before_stepup', dict(commit=False, rollback_before_stepup=True)),
     ]
     scenarios = make_scenarios(disagg_storages, stable_states, operations, resolutions)
 
@@ -123,22 +124,24 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         c.close()
         prepared.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
             ',prepared_id=' + self.prepared_id_str(1))
+        if self.rollback_before_stepup:
+            prepared.rollback_transaction('rollback_timestamp=' + self.timestamp_str(25))
 
         before = self.orphan_stat()
         self.cleanStdout()
         self.conn.reconfigure('disaggregated=(role="leader")')
         output = self.readStdout()
         self.cleanStdout()
-        orphan = 0 if self.insert else 1
+        orphan = 0 if self.insert and not self.rollback_before_stepup else 1
         self.assertEqual(output.count(self.warning), orphan)
         self.assertEqual(self.orphan_stat() - before, orphan)
 
-        # Resolve the transaction on the new leader.
+        # Resolve the transaction on the new leader, unless it already rolled back.
         if self.commit:
             prepared.timestamp_transaction('commit_timestamp=' + self.timestamp_str(25) +
                 ',durable_timestamp=' + self.timestamp_str(26))
             prepared.commit_transaction()
-        else:
+        elif not self.rollback_before_stepup:
             prepared.rollback_transaction('rollback_timestamp=' + self.timestamp_str(25))
         prepared.close()
 

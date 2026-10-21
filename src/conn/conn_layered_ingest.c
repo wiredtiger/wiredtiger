@@ -101,7 +101,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
   WT_UPDATE **updsp, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
-    WT_UPDATE *prev, *upd, **updp;
+    WT_UPDATE *older, *prev, *upd, **updp;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -114,51 +114,55 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * Reconciliation cannot write consecutive tombstones, so keep only the oldest of a run: it is
-     * the one that ends the value's lifetime, and the newer ones delete nothing. The list is newest
-     * first and the oldest update is never removed here.
+     * Reconciliation cannot write consecutive tombstones. Updates are newest first, so for adjacent
+     * non-prepared tombstones keep the older one: it ends the value's lifetime, and the newer one
+     * deletes nothing. The oldest update is never removed here.
      */
-    for (updp = updsp; (upd = *updp)->next != NULL;) {
-        if (upd->type == WT_UPDATE_TOMBSTONE && upd->next->type == WT_UPDATE_TOMBSTONE &&
-          !__layered_upd_is_prepared(upd) && !__layered_upd_is_prepared(upd->next)) {
-            *updp = upd->next;
-            __wt_free(session, upd);
-        } else
+    updp = updsp;
+    while ((upd = *updp) != NULL && (older = upd->next) != NULL) {
+        if (upd->type != WT_UPDATE_TOMBSTONE || older->type != WT_UPDATE_TOMBSTONE ||
+          __layered_upd_is_prepared(upd) || __layered_upd_is_prepared(older)) {
             updp = &upd->next;
+            continue;
+        }
+
+        /* Unlink and free the newer tombstone, then check the same position again. */
+        *updp = older;
+        __wt_free(session, upd);
     }
 
     /*
      * We only need to check on the first pass. An orphan tombstone deletes nothing, and applying it
      * would leave a tombstone with no value beneath it, which reconciliation cannot write, so skip
-     * it. A rolled-back prepared one is still applied: the fallback below handles it.
+     * it.
      */
     if (from_ts == WT_TS_NONE && __layered_check_stable_btree_state(session, cbt, last_upd)) {
         ++*orphan_countp;
-        if (last_upd->txnid != WT_TXN_ABORTED) {
-            /*
-             * An in-flight prepared transaction was redirected to the stable btree when its update
-             * was read. Unless a newer update of the same transaction still reaches the stable
-             * btree, it must forget the key.
-             */
-            if (last_upd->prepare_state == WT_PREPARE_INPROGRESS) {
-                for (upd = *updsp; upd != last_upd; upd = upd->next)
-                    if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
-                      upd->prepared_id == last_upd->prepared_id)
-                        break;
-                if (upd == last_upd)
-                    WT_ERR(__layered_drop_prepared_transaction_ops(
-                      session, key, CUR2BT(cbt), last_upd->txnid, last_upd->prepared_id));
-            }
-            if (*updsp == last_upd) {
-                __wt_free(session, *updsp);
-                goto err;
-            }
-            for (prev = *updsp; prev->next != last_upd; prev = prev->next)
-                ;
-            prev->next = NULL;
-            __wt_free(session, last_upd);
-            last_upd = prev;
+
+        /*
+         * An in-flight prepared transaction was redirected to the stable btree when its update was
+         * read. Unless a newer update of the same transaction still reaches the stable btree, it
+         * must forget the key.
+         */
+        if (last_upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            for (upd = *updsp; upd != last_upd; upd = upd->next)
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
+                  upd->prepared_id == last_upd->prepared_id)
+                    break;
+            if (upd == last_upd)
+                WT_ERR(__layered_drop_prepared_transaction_ops(
+                  session, key, CUR2BT(cbt), last_upd->txnid, last_upd->prepared_id));
         }
+
+        if (*updsp == last_upd) {
+            __wt_free(session, *updsp);
+            goto err;
+        }
+        for (prev = *updsp; prev->next != last_upd; prev = prev->next)
+            ;
+        prev->next = NULL;
+        __wt_free(session, last_upd);
+        last_upd = prev;
     }
 
     /*
