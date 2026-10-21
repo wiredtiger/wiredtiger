@@ -239,6 +239,26 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(3), 'v'), (self.key(2), 'v'), (self.key(1), 'v')])
 
+    # The walk returns a key both constituents hold, then blocks stepping the other constituent past
+    # it. Reversing returns that key again, as a btree cursor does.
+    def test_reverse_after_alternate_block(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(1): 'v', self.key(2): 'v', self.key(3): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(2, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(1): 'v-ingest'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_returns(cursor, 1)
+        self.assert_conflict(cursor)
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'v-ingest')])
+
     # The walk reverses out of a stall onto the key it last returned, then turns back and blocks
     # again at once. Each reversal returns that key again, as a btree cursor does.
     def test_reverse_twice_around_block(self):
@@ -425,6 +445,44 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
 
         # Verification needs the step-down completed when writes are mirrored.
         self.complete_step_down(15)
+
+@disagg_test_class
+class test_layered_async_stepdown24_first_key(BlockedWalkMixin, wttest.WiredTigerTestCase):
+    first_key = [
+        ('stable_blocked', dict(ingest_blocked=False, insert=False)),
+        ('stable_blocked_insert', dict(ingest_blocked=False, insert=True)),
+        ('both_blocked', dict(ingest_blocked=True, insert=False)),
+    ]
+    scenarios = make_scenarios(
+        gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions, first_key)
+
+    # A new walk blocks on its first key, on stable or on both constituents, and retries. Like a
+    # btree cursor blocked there, reversing returns only keys before that key in the walk
+    # direction: none, or a key the walk's own transaction inserted there.
+    def test_reverse_from_first_key(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(3): 'v', self.key(4): 'v', self.key(5): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        prepares = [self.prepare(3, 12)]
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(6): 'v'}, 18)
+        if self.ingest_blocked:
+            prepares.append(self.prepare(2, 22))
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_conflict(cursor)
+        self.assert_conflict(cursor)
+        if self.insert:
+            writer = self.session.open_cursor(self.uri, None, None)
+            writer[self.key(1)] = 'new'
+            writer.close()
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        for session in prepares:
+            self.resolve(session)
+        self.assertEqual(actual, [(self.key(1), 'new')] if self.insert else [])
 
 if __name__ == '__main__':
     wttest.run()
