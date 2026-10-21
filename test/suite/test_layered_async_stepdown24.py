@@ -239,6 +239,31 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(3), 'v'), (self.key(2), 'v'), (self.key(1), 'v')])
 
+    # The walk's own transaction inserts a key past the blocked one, before the key the other
+    # constituent is on, then the walk reverses. As with a btree cursor, that key is not returned.
+    def test_reverse_after_insert_past_blocked(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(1): 'v', self.key(3): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(3, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(6): 'v'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_returns(cursor, 1)
+        self.assert_conflict(cursor)
+
+        writer = self.session.open_cursor(self.uri, None, None)
+        writer[self.key(4)] = 'new'
+        writer.close()
+
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'v')])
+
 @disagg_test_class
 class test_layered_async_stepdown24_reverse_conflict(BlockedWalkMixin, wttest.WiredTigerTestCase):
     # The walk is positioned by a search, which depends on the direction search_near prefers.

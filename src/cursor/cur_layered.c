@@ -2015,15 +2015,23 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
      */
     if (!F_ISSET(clayered, iter_flag)) {
         if (F_ISSET(clayered,
-              forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT))
+              forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT)) {
             /*
              * The walk reversed, so the blocked cursor resolves back onto the key it last returned,
-             * like a btree cursor. The alternate is still on its first key past that key in the old
-             * direction, so one step brings it back across. The step can hit a prepared conflict,
-             * but the current cursor is then on a key already returned, so nothing is lost.
+             * like a btree cursor: position the alternate from that key. The search can hit a
+             * prepared conflict, but the current cursor is then on a key already returned, so
+             * nothing is lost.
+             *
+             * Deletes leave a tombstone value, so the blocked cursor always resolves onto a key. If
+             * it does not, the alternate is still on its first key past the last key returned in
+             * the old direction, and one step brings it back across.
              */
-            WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
-        else {
+            if (F_ISSET(c_current, WT_CURSTD_KEY_INT))
+                WT_RET_NOTFOUND_OK(
+                  __clayered_position_alternate(op, c_current, c_alternate, forward));
+            else
+                WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
+        } else {
             /* This only revisits keys this snapshot already read, so it cannot conflict. */
             ret = __clayered_position_alternate_resolved(op, c_current, c_alternate, forward);
             WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT);
@@ -2033,9 +2041,9 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
     WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
 
     /*
-     * The current cursor is now on a key not yet returned, so step nothing else: a prepared
-     * conflict in a further step would make the next call skip that key. A tie on it returns
-     * ingest, and the next call steps both cursors past it.
+     * The current cursor is now on the key to return, so step nothing else: a prepared conflict in
+     * a further step would make the next call skip it. A tie on it returns ingest, and the next
+     * call steps both cursors past it.
      */
     return (0);
 }
