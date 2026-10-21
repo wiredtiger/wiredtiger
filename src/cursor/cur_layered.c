@@ -13,7 +13,7 @@ static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
 static bool __clayered_can_update_stable(
   WTI_CURSOR_LAYERED *, uint32_t, uint64_t, WTI_CLAYERED_STABLE_MODE);
-static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint64_t, bool);
+static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint64_t, WTI_CLAYERED_STABLE_MODE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
@@ -651,8 +651,11 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     const uint64_t conn_lsn = stable_mode == WTI_CLAYERED_STABLE_CHECKPOINT ?
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
       WT_DISAGG_LSN_NONE;
-    if (__clayered_can_update_stable(clayered, flags, conn_lsn, stable_mode))
-        WT_RET(__clayered_update_stable(clayered, conn_lsn, leader));
+    if (__clayered_can_update_stable(clayered, flags, conn_lsn, stable_mode)) {
+        /* Only a blocked stable cursor keeps a mode that differs from the node's role. */
+        WT_ASSERT(session, stable_mode == __clayered_stable_mode_for_role(leader));
+        WT_RET(__clayered_update_stable(clayered, conn_lsn, stable_mode));
+    }
 
     /*
      * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
@@ -1052,13 +1055,15 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
 
 /*
  * __clayered_open_stable --
- *     Open the stable cursor for the current role.
+ *     Open the stable cursor on the live table or on a checkpoint.
  */
 static int
-__clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, bool leader)
+__clayered_open_stable(
+  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
-    return (leader ? __clayered_open_stable_leader(clayered) :
-                     __clayered_open_stable_follower(clayered, checkpoint_expected));
+    return (stable_mode == WTI_CLAYERED_STABLE_LIVE ?
+        __clayered_open_stable_leader(clayered) :
+        __clayered_open_stable_follower(clayered, checkpoint_expected));
 }
 
 /*
@@ -1153,7 +1158,8 @@ __clayered_can_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint6
  *     in the right format on a role change.
  */
 static int
-__clayered_reopen_stable(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, bool leader)
+__clayered_reopen_stable(
+  WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
     WT_CURSOR *old_stable;
     WT_DECL_RET;
@@ -1173,7 +1179,7 @@ __clayered_reopen_stable(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered,
      * may advance because the snapshot changed, while the new snapshot still predates the newest
      * adoption.
      */
-    WT_ERR(__clayered_open_stable(clayered, true, leader));
+    WT_ERR(__clayered_open_stable(clayered, true, stable_mode));
 
     /*
      * Copy the old cursor's position to the new one. A blocked cursor is never reopened: it has no
@@ -1259,7 +1265,6 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_STABLE_MODE s
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
     clayered->txn_mod_count = txn_mod_count;
-
     clayered->last_stable_mode = stable_mode;
 }
 
@@ -1338,7 +1343,8 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
  *     cursor closed like a follower's missing checkpoint.
  */
 static bool
-__clayered_ignore_missing_stable(WT_SESSION_IMPL *session, bool leader, int ret)
+__clayered_ignore_missing_stable(
+  WT_SESSION_IMPL *session, WTI_CLAYERED_STABLE_MODE stable_mode, int ret)
 {
     /* Only a missing constituent can be ignored. */
     if (ret != ENOENT && ret != WT_NOTFOUND)
@@ -1355,7 +1361,8 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, bool leader, int ret)
      * attempt the open.
 
      */
-    return (leader && !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
+    return (stable_mode == WTI_CLAYERED_STABLE_LIVE &&
+      !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 }
 
 /*
@@ -1367,18 +1374,20 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, bool leader, int ret)
  *     checkpoint than the cursor holds.
  */
 static int
-__clayered_open_stable_first(WTI_CURSOR_LAYERED *clayered, bool leader, uint64_t conn_lsn)
+__clayered_open_stable_first(
+  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_STABLE_MODE stable_mode, uint64_t conn_lsn)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *const session = CUR2S(clayered);
 
-    if (clayered->stable_cursor != NULL || (!leader && conn_lsn == WT_DISAGG_LSN_NONE))
+    if (clayered->stable_cursor != NULL ||
+      (stable_mode == WTI_CLAYERED_STABLE_CHECKPOINT && conn_lsn == WT_DISAGG_LSN_NONE))
         return (0);
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    ret = __clayered_open_stable(clayered, false, leader);
+    ret = __clayered_open_stable(clayered, false, stable_mode);
     /* A leader can miss here legitimately: a table created after the step-down has no stable. */
-    if (__clayered_ignore_missing_stable(session, leader, ret))
+    if (__clayered_ignore_missing_stable(session, stable_mode, ret))
         ret = 0;
     WT_RET(ret);
 
@@ -1394,12 +1403,13 @@ __clayered_open_stable_first(WTI_CURSOR_LAYERED *clayered, bool leader, uint64_t
  *     checkpoint.
  */
 static int
-__clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bool leader)
+__clayered_update_stable(
+  WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
     if (clayered->stable_cursor == NULL)
-        return (__clayered_open_stable_first(clayered, leader, conn_lsn));
+        return (__clayered_open_stable_first(clayered, stable_mode, conn_lsn));
 
-    WT_RET(__clayered_reopen_stable(CUR2S(clayered), clayered, leader));
+    WT_RET(__clayered_reopen_stable(CUR2S(clayered), clayered, stable_mode));
     clayered->stable_checkpoint_meta_lsn = conn_lsn;
     return (0);
 }
@@ -2723,8 +2733,8 @@ __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
     if (__wt_atomic_load_bool_relaxed(&((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created))
         return (0);
 
-    /* Only a follower defers the stable open, so open it as a follower. */
-    WT_RET(__clayered_open_stable_first(clayered, false,
+    /* Only a follower defers the stable open, so open it on a checkpoint. */
+    WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_STABLE_CHECKPOINT,
       __wt_atomic_load_uint64_acquire(
         &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn)));
     op->stable = clayered->stable_cursor;
