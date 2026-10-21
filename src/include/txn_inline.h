@@ -594,26 +594,17 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __txn_disagg_commit_ts_check --
- *     Transactions committing layered content on a disaggregated connection must carry a commit
- *     timestamp.
+ * __txn_disagg_write_ts_check --
+ *     Check timestamp requirements for writes to disaggregated tables.
  */
 static WT_INLINE int
-__txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
+__txn_disagg_write_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *btree)
 {
     /* Internal threads, such as the drain worker, re-apply timestamps the original commit set. */
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return (0);
 
     if (!__wt_conn_is_disagg(session))
-        return (0);
-
-    /* Timestamp check is bypassed. */
-    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL) ||
-      F_ISSET(txn, WT_TXN_TS_NOT_SET))
-        return (0);
-
-    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         return (0);
 
     /* Metadata commits untimestamped by design and its transactions cannot be rolled back. */
@@ -624,7 +615,16 @@ __txn_disagg_commit_ts_check(WT_SESSION_IMPL *session, WT_TXN *txn, WT_BTREE *bt
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT | WT_BTREE_DISAGGREGATED))
         return (0);
 
-    WT_RET_MSG(session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+    if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+        /* These options permit an untimestamped write. */
+        if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL) ||
+          F_ISSET(txn, WT_TXN_TS_NOT_SET))
+            return (0);
+        WT_RET_MSG(
+          session, EINVAL, "commit timestamp is required for writes to disaggregated tables");
+    }
+
+    return (0);
 }
 
 /*
@@ -658,7 +658,7 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
-    WT_RET(__txn_disagg_commit_ts_check(session, txn, btree));
+    WT_RET(__txn_disagg_write_ts_check(session, txn, btree));
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
@@ -1272,6 +1272,21 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
       __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
+}
+
+/*
+ * __wt_txn_ta_newest_stop_visible_all --
+ *     Is the newest stop point of the given aggregated time window visible to all (possible)
+ *     readers? A prepared time point is not visible to any reader, so exclude it first: the
+ *     aggregate's prepare flag is the only record that a stop point belongs to an uncommitted
+ *     prepared update.
+ */
+static WT_INLINE bool
+__wt_txn_ta_newest_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    if (ta->prepare)
+        return (false);
+    return (__wt_txn_visible_all(session, ta->newest_stop_txn, ta->newest_stop_durable_ts));
 }
 
 /*
@@ -2316,6 +2331,31 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 }
 
 /*
+ * __wt_txn_isolation_write_check --
+ *     Check whether the transaction's isolation level permits a write.
+ */
+static WT_INLINE int
+__wt_txn_isolation_write_check(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* A transaction that already holds an ID has passed this check. */
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
+        return (0);
+
+    /* Return an error if a read-committed or read-uncommitted transaction attempts a write. */
+    if (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED) {
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
+        WT_RET_MSG(session, ENOTSUP,
+          "write operations are not supported in read-committed or read-uncommitted transactions.");
+    }
+
+    return (0);
+}
+
+/*
  * __wt_txn_id_check --
  *     A transaction is going to do an update, allocate a transaction ID.
  */
@@ -2331,18 +2371,9 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         return (0);
 
-    /*
-     * Return error when the transactions with read committed or uncommitted isolation tries to
-     * perform any write operation. Don't return an error for any update on metadata because it uses
-     * special transaction visibility rules, search and updates on metadata happens in
-     * read-uncommitted and read-committed isolation.
-     */
-    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
-      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
-        WT_RET_MSG(session, ENOTSUP,
-          "write operations are not supported in read-committed or read-uncommitted transactions.");
-    }
+    /* Metadata uses special visibility rules, so it can be updated at these isolation levels. */
+    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle))
+        WT_RET(__wt_txn_isolation_write_check(session));
 
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));

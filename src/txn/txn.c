@@ -482,14 +482,14 @@ __wt_txn_snapshot_save(WT_SESSION_IMPL *session)
 
     txn = session->txn;
 
-    WT_RET(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
+    WT_RET(__wt_calloc_one(session, &txn->backup_snapshot_data));
 
     txn->backup_snapshot_data->snap_max = txn->snapshot_data.snap_max;
     txn->backup_snapshot_data->snap_min = txn->snapshot_data.snap_min;
     txn->backup_snapshot_data->snapshot_count = txn->snapshot_data.snapshot_count;
 
-    WT_ERR(__wt_calloc_def(session, sizeof(uint64_t) * S2C(session)->session_array.size,
-      &txn->backup_snapshot_data->snapshot));
+    WT_ERR(__wt_calloc_def(
+      session, S2C(session)->session_array.size, &txn->backup_snapshot_data->snapshot));
 
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
@@ -1843,6 +1843,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            /* Apply the timestamp rules to a truncate recorded as a range. */
+            WT_ERR(__wt_txn_timestamp_usage_check(
+              session, op->btree, txn->time_point.commit_timestamp, WT_TS_NONE));
             __wti_mark_committed_truncate_table(session, op);
             break;
         }
@@ -1862,7 +1865,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
                 wrote_ingest = true;
                 WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
-            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+            } else if (__wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE) {
                 if (!mirroring) {
                     wrote_stable = true;
                     WT_ASSERT(session, txn->time_point.durable_timestamp <= step_down_ts);

@@ -1333,6 +1333,7 @@ keyids
 keylen
 keynum
 keyp
+keysp
 keystr
 keyv
 kp
@@ -2130,6 +2131,7 @@ wrlock
 wrlsn
 wtch
 wtdataset
+wtdrop
 wthooks
 wthread
 wti

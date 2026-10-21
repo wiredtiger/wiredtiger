@@ -436,7 +436,7 @@ retry:
 
         /* Skip files that don't allow eviction. */
         try_publish = false;
-        if (btree->evict_disabled > 0) {
+        if (!__wt_btree_eviction_enabled(btree)) {
             /*
              * A disaggregated btree is held out of eviction until it is published. Compare the
              * epochs, which takes no lock, and try publishing the btree below instead of skipping
@@ -458,9 +458,10 @@ retry:
         /*
          * Skip stable checkpoint handles on followers unless we are looking for clean pages.
          * FIXME-WT-18485: Restore a plain WT_BTREE_READONLY check and short-circuit outdated trees
-         * with dedicated handling instead of matching the stable checkpoint URI.
+         * with dedicated handling instead of matching the shared checkpoint handles.
          */
-        if (WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        if (__wt_dhandle_shared_btree_kind(dhandle) == WT_SHARED_BTREE_CHECKPOINT &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -612,8 +613,9 @@ retry:
          *
          * If a handle is being discarded, it will still be marked open, but won't have a root page.
          */
-        if (btree->evict_disabled == 0 && !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
-            if (btree->evict_disabled == 0 && btree->root.page != NULL) {
+        if (__wt_btree_eviction_enabled(btree) &&
+          !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
+            if (__wt_btree_eviction_enabled(btree) && btree->root.page != NULL) {
                 WT_WITH_DHANDLE(
                   session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
 
@@ -1188,6 +1190,9 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     modified = __wt_page_is_modified(page);
     *queuedp = false;
 
+    /* Eviction stays disabled on a btree awaiting publication, so the walk never reaches it. */
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH));
+
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_during_checkpoint);
@@ -1244,7 +1249,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     evict_clean =
-      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !__wt_btree_stays_in_memory(btree) && !modified;
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
     should_evict_page = evict_clean || evict_dirty || evict_updates;
