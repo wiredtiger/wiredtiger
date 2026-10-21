@@ -1949,30 +1949,30 @@ __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
 /*
  * __clayered_record_block --
  *     Make a constituent blocked on a prepared update the current cursor, and record the stopped
- *     key: the blocked key, or the other constituent's key if it comes before the blocked key in
- *     the walk direction (smaller for next, larger for prev). The other constituent's key is the
- *     one it is on or blocked on.
+ *     key: the blocked key, or the alternate's key if it comes before the blocked key in the walk
+ *     direction (smaller for next, larger for prev). The alternate's key is the one it is on or
+ *     blocked on.
  */
 static int
 __clayered_record_block(WTI_CLAYERED_OP *op, WT_CURSOR *blocked, bool forward)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_CURSOR *other = blocked == op->stable ? op->ingest : op->stable;
-    WT_ITEM other_blocked, stopped;
-    const WT_ITEM *other_key = NULL;
+    WT_CURSOR *alternate = blocked == op->stable ? op->ingest : op->stable;
+    WT_ITEM alternate_blocked, stopped;
+    const WT_ITEM *alternate_key = NULL;
     int cmp;
 
     __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)blocked, &stopped);
-    if (F_ISSET(other, WT_CURSTD_KEY_INT))
-        other_key = &other->key;
-    else if (__clayered_constituent_prepare_blocked(other)) {
-        __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)other, &other_blocked);
-        other_key = &other_blocked;
+    if (F_ISSET(alternate, WT_CURSTD_KEY_INT))
+        alternate_key = &alternate->key;
+    else if (__clayered_constituent_prepare_blocked(alternate)) {
+        __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)alternate, &alternate_blocked);
+        alternate_key = &alternate_blocked;
     }
-    if (other_key != NULL) {
-        WT_RET(__wt_compare(CUR2S(clayered), op->collator, other_key, &stopped, &cmp));
+    if (alternate_key != NULL) {
+        WT_RET(__wt_compare(CUR2S(clayered), op->collator, alternate_key, &stopped, &cmp));
         if (forward ? cmp < 0 : cmp > 0)
-            stopped = *other_key;
+            stopped = *alternate_key;
     }
 
     clayered->current_cursor = blocked;
@@ -1987,7 +1987,7 @@ __clayered_record_block(WTI_CLAYERED_OP *op, WT_CURSOR *blocked, bool forward)
 static int
 __clayered_position_both(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forward)
 {
-    WT_CURSOR *blocked, *other;
+    WT_CURSOR *alternate, *blocked;
 
     const int ingest_ret = __clayered_constituent_iter_helper(op, op->ingest, forward);
     if (ingest_ret != WT_PREPARE_CONFLICT)
@@ -1999,11 +1999,11 @@ __clayered_position_both(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forward)
     if (ingest_ret != WT_PREPARE_CONFLICT && stable_ret != WT_PREPARE_CONFLICT)
         return (0);
     blocked = ingest_ret == WT_PREPARE_CONFLICT ? op->ingest : op->stable;
-    other = blocked == op->ingest ? op->stable : op->ingest;
+    alternate = blocked == op->ingest ? op->stable : op->ingest;
     WT_RET(__clayered_record_block(op, blocked, forward));
 
-    /* Unless it is blocked too, the other constituent is on its first key: trust it. */
-    if (!__clayered_constituent_prepare_blocked(other))
+    /* Unless it is blocked too, the alternate is on its first key: trust it. */
+    if (!__clayered_constituent_prepare_blocked(alternate))
         F_SET(op->clayered, iter_flag);
     return (WT_PREPARE_CONFLICT);
 }
