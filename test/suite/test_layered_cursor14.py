@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import random, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -305,6 +305,55 @@ class test_layered_cursor14(wttest.WiredTigerTestCase):
         for _ in range(20):
             self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(501)])
             self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(500)])
+        cursor.close()
+
+    def test_direction_zigzag_overlapping(self):
+        """Random direction switches over shared, removed and one-sided keys match a model."""
+        stable = list(range(0, 150, 2))
+        ingest_only = list(range(51, 200, 2))
+        shared = list(range(50, 150, 10))
+        removed = list(range(56, 150, 14))
+
+        self.insert_stable(stable)
+        self.insert_ingest(ingest_only)
+        cursor = self.session_follow.open_cursor(self.uri)
+        for k in shared:
+            self.session_follow.begin_transaction()
+            cursor[self.fmt_key(k)] = 'ingest'
+            self.session_follow.commit_transaction(
+                f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+        cursor.close()
+        self.remove_ingest(removed)
+
+        # The model: every visible key in order, with the value the walk must return.
+        values = {k: self.fmt_val(k) for k in stable + ingest_only}
+        values.update({k: 'ingest' for k in shared})
+        for k in removed:
+            del values[k]
+        model = sorted(values)
+
+        seed = random.randrange(1 << 32)
+        rng = random.Random(seed)
+        cursor = self.open_cursor()
+        pos = None
+        forward = True
+        for step in range(3000):
+            if rng.random() < 0.35:
+                forward = not forward
+            if forward:
+                pos = 0 if pos is None else pos + 1
+                ret = cursor.next()
+            else:
+                pos = len(model) - 1 if pos is None else pos - 1
+                ret = cursor.prev()
+            msg = f'seed {seed} step {step} {"next" if forward else "prev"}'
+            if pos < 0 or pos >= len(model):
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND, msg)
+                pos = None
+                continue
+            self.assertEqual(ret, 0, msg)
+            self.assertEqual(cursor.get_key(), self.fmt_key(model[pos]), msg)
+            self.assertEqual(cursor.get_value(), values[model[pos]], msg)
         cursor.close()
 
     # =====================================================================
