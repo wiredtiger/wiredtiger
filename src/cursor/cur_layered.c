@@ -1866,7 +1866,7 @@ __clayered_position_alternate(
  */
 static int
 __clayered_position_alternate_resolved(
-  WTI_CLAYERED_OP *op, WT_CURSOR *current, WT_CURSOR *alternate, bool forward, bool reversed)
+  WTI_CLAYERED_OP *op, WT_CURSOR *current, WT_CURSOR *alternate, bool forward)
 {
     WT_DECL_ITEM(alternate_key);
     WT_DECL_RET;
@@ -1881,9 +1881,6 @@ __clayered_position_alternate_resolved(
     else if (current_key == NULL)
         /* The current cursor ran off the end, so the alternate's key is the only key left. */
         use_alternate_key = true;
-    else if (reversed)
-        /* The alternate's key lies on the wrong side of the last key returned. */
-        use_alternate_key = false;
     else {
         int cmp;
 
@@ -2009,10 +2006,6 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
      * The alternate does not move while the current cursor is blocked. If the direction or read
      * context changed, reposition it now.
      *
-     * Outside a reversal this cannot hit a prepared conflict: it only revisits keys this snapshot
-     * already read. On a reversal it can, but the current cursor is then on a key already returned,
-     * so nothing is lost.
-     *
      * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before
      * both the alternate's key and the current cursor's key, and the walk skips them.
      *
@@ -2021,16 +2014,21 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
      * assertion below.
      */
     if (!F_ISSET(clayered, iter_flag)) {
-        /*
-         * If the walk has reversed, the blocked cursor resolves back onto the key it last returned,
-         * like a btree cursor.
-         */
-        const bool reversed = F_ISSET(
-          clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
-
-        ret = __clayered_position_alternate_resolved(op, c_current, c_alternate, forward, reversed);
-        WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT || reversed);
-        WT_RET_NOTFOUND_OK(ret);
+        if (F_ISSET(clayered,
+              forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT))
+            /*
+             * The walk reversed, so the blocked cursor resolves back onto the key it last returned,
+             * like a btree cursor. The alternate is still on its first key past that key in the old
+             * direction, so one step brings it back across. The step can hit a prepared conflict,
+             * but the current cursor is then on a key already returned, so nothing is lost.
+             */
+            WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
+        else {
+            /* This only revisits keys this snapshot already read, so it cannot conflict. */
+            ret = __clayered_position_alternate_resolved(op, c_current, c_alternate, forward);
+            WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT);
+            WT_RET_NOTFOUND_OK(ret);
+        }
     }
     WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
 
