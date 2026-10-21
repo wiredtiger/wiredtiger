@@ -1988,7 +1988,9 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
     /* Step the blocked cursor again: this rechecks the blocked key. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_current, forward));
 
-    /* Reversing, the blocked cursor steps back from the blocked key, which can lie past the stop.
+    /*
+     * A reversed blocked cursor steps back from the blocked key, which can lie past where the walk
+     * stopped when the alternate's key came first.
      */
     if (reversed)
         WT_RET(__clayered_step_past(op, c_current, &clayered->stop_key, forward));
@@ -2145,10 +2147,11 @@ __clayered_iterate_finish(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool fresh_st
  * Prepared transactions need special handling. Either constituent can hit a prepared update. The
  *     conflict clears the constituent's key but keeps its page reference, so a blocked cursor is
  *     found by its reference. The next call steps the blocked cursor again, which rechecks the same
- *     key. A prepared conflict on the current cursor leaves the alternate and the iteration flags
- *     unchanged; if the walk changed direction or read context, the alternate is repositioned once
- *     the conflict resolves. A prepared conflict on the alternate clears the flags, so it is
- *     repositioned from the current key.
+ *     key. A prepared conflict on the current cursor records where the walk stopped and leaves the
+ *     alternate where it is; if the walk changed direction or read context, the alternate is
+ *     repositioned from where the walk stopped before the blocked cursor is stepped again. A
+ *     prepared conflict on the alternate clears the flags, so it is repositioned from the current
+ *     key.
  */
 static int
 __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
