@@ -2892,8 +2892,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
-  "cache: eviction server skips btrees that are read-only with no dirty content when not looking "
-  "for clean or update pages",
+  "cache: eviction server skips btrees that are read-only with no dirty content when looking only "
+  "for dirty pages",
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
