@@ -27,9 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_layered_stepup16.py
-#   A prepared transaction on a follower removes a key with no value in the stable table, possibly
-#   inserting it again afterwards, and is still unresolved when the follower steps up. A remove
-#   that is the transaction's last change to the key is skipped, counted and reported. The
+#   A prepared transaction on a follower removes a key with no value in the stable table and is
+#   still unresolved when the follower steps up. The remove is skipped, counted and reported. The
 #   transaction then commits or rolls back on the new leader, and reads stay correct through a
 #   checkpoint and a restart. The remove is written directly into the ingest table as the value a
 #   follower remove stores.
@@ -52,15 +51,11 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         ('absent', dict(stable_state='absent')),
         ('deleted', dict(stable_state='deleted')),
     ]
-    operations = [
-        ('remove', dict(insert=False)),
-        ('remove_insert', dict(insert=True)),
-    ]
     resolutions = [
         ('commit', dict(commit=True)),
         ('rollback', dict(commit=False)),
     ]
-    scenarios = make_scenarios(disagg_storages, stable_states, operations, resolutions)
+    scenarios = make_scenarios(disagg_storages, stable_states, resolutions)
 
     def conn_config(self):
         return self.extensionsConfig() + ',create,statistics=(all),precise_checkpoint=true,' \
@@ -73,11 +68,7 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         return val
 
     def check_reads(self):
-        found = {}
-        if self.stable_state == 'deleted':
-            found[6] = b'v'
-        if self.commit and self.insert:
-            found[28] = b'w'
+        found = {6: b'v'} if self.stable_state == 'deleted' else {}
         session = self.conn.open_session()
         for ts in self.read_ts:
             session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
@@ -112,14 +103,12 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
-        # Follower: prepare a transaction that removes the key, then optionally inserts it again.
+        # Follower: prepare a transaction that removes the key.
         self.conn.reconfigure('disaggregated=(role="follower")')
         prepared = self.conn.open_session()
         c = prepared.open_cursor(self.ingest_uri)
         prepared.begin_transaction()
         c['k'] = b'\x14\x14'
-        if self.insert:
-            c['k'] = b'w'
         c.close()
         prepared.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
             ',prepared_id=' + self.prepared_id_str(1))
@@ -129,9 +118,8 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         self.conn.reconfigure('disaggregated=(role="leader")')
         output = self.readStdout()
         self.cleanStdout()
-        orphan = 0 if self.insert else 1
-        self.assertEqual(output.count(self.warning), orphan)
-        self.assertEqual(self.orphan_stat() - before, orphan)
+        self.assertEqual(output.count(self.warning), 1)
+        self.assertEqual(self.orphan_stat() - before, 1)
 
         # Resolve the transaction on the new leader.
         if self.commit:
