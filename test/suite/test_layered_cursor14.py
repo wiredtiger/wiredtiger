@@ -343,7 +343,7 @@ class test_layered_cursor14(wttest.WiredTigerTestCase):
         self.assertEqual(actual, [self.fmt_key(k) for k in expected])
 
     def test_direction_switch_read_uncommitted_between(self):
-        """A key inserted between the current key and the parked ingest key is not returned."""
+        """A key inserted between the current key and the ingest cursor's key is not returned."""
         self.check_reverse_read_uncommitted(
             [10, 20, 30], [50], [10, 20, 30], 40, [20, 10], forward=True)
 

@@ -132,9 +132,10 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredTigerTestCase):
     # Writes the walk's own transaction makes through another cursor while the walk is blocked on
     # stable, by rank: 2 sits between the last returned key and the blocked one, 4 between the
-    # blocked key and the next ingest key, and 5 is the next ingest key itself. In the parked
-    # scenarios ingest also holds rank 2, so the walk is blocked before returning it. As with a
-    # plain table, a key written behind the blocked position is not returned.
+    # blocked key and the next ingest key, and 5 is the next ingest key itself. In the
+    # alternate_key scenarios ingest also holds rank 2, so the walk is blocked before returning it,
+    # with ingest already on rank 2. As with a plain table, a key written behind the blocked
+    # position is not returned.
     stall_writes = [
         ('insert_before_blocked', dict(ingest=[5], op='insert', rank=2,
             expected=[(3, 'v'), (5, 'v')])),
@@ -143,9 +144,9 @@ class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredT
         ('remove_next_ingest', dict(ingest=[5], op='remove', rank=5, expected=[(3, 'v')])),
         ('update_next_ingest', dict(ingest=[5], op='insert', rank=5,
             expected=[(3, 'v'), (5, 'new')])),
-        ('remove_parked_before_blocked', dict(ingest=[2, 5], op='remove', rank=2,
+        ('remove_alternate_key_before_blocked', dict(ingest=[2, 5], op='remove', rank=2,
             expected=[(3, 'v'), (5, 'v')])),
-        ('update_parked_before_blocked', dict(ingest=[2, 5], op='insert', rank=2,
+        ('update_alternate_key_before_blocked', dict(ingest=[2, 5], op='insert', rank=2,
             expected=[(2, 'new'), (3, 'v'), (5, 'v')])),
     ]
 
@@ -213,7 +214,7 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
             [(self.key(3), 'v-ingest'), (self.key(2), 'v'), (self.key(1), 'v')])
 
     # The walk's own transaction writes while the walk is blocked, then the walk reverses: it still
-    # returns the last returned key again first, not the key the other constituent was parked on.
+    # returns the last returned key again first, not the key the other constituent is on.
     def test_reverse_after_context_change(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')

@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 # A key present in both constituents must read as the ingest version, which is the newer one.
 # That still holds when the walk reaches the key by resuming from a prepared conflict rather than
 # by stepping onto it directly: resuming advances the blocked constituent onto the key the other
-# one is already parked on, and the walk must not let the resume decide which version wins.
+# one is already on, and the walk must not let the resume decide which version wins.
 @disagg_test_class
 class test_layered_async_stepdown21(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \

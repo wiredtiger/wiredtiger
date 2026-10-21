@@ -69,7 +69,7 @@ class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(cursor.get_key(), second_key)
 
         # A write in the step-down window lands on ingest, matching the key the walk's current
-        # (stable) cursor is already parked on. A later read context is needed to see it.
+        # (stable) cursor is already on. A later read context is needed to see it.
         self.set_step_down_ts(20)
         writer = self.conn.open_session()
         wcursor = writer.open_cursor(self.uri, None, None)
