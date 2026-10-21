@@ -1529,7 +1529,7 @@ __clayered_reposition_truncate_iterate(WTI_CLAYERED_OP *op, WT_CURSOR *stable, b
         stable->set_key(stable, forward ? &stop_key : &start_key);
         /*
          * Only a leader in the step-down window reads prepared updates on stable, and its truncate
-         * list is empty. A conflict here would lose the stable position.
+         * list is empty. A prepared conflict here would lose the stable position.
          */
         ret = stable->search_near(stable, &cmp);
         WT_ASSERT(session, ret != WT_PREPARE_CONFLICT);
@@ -2009,15 +2009,16 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
      * The alternate does not move while the current cursor is blocked. If the direction or read
      * context changed, reposition it now.
      *
-     * Outside a reversal this cannot conflict: it only revisits keys this snapshot already read. On
-     * a reversal it can, but the current cursor is then on a key already returned, so nothing is
-     * lost.
+     * Outside a reversal this cannot hit a prepared conflict: it only revisits keys this snapshot
+     * already read. On a reversal it can, but the current cursor is then on a key already returned,
+     * so nothing is lost.
      *
      * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before
      * both the alternate's key and the current cursor's key, and the walk skips them.
      *
      * FIXME-WT-18422: once a prepared update can be resolved after a step-down, the ingest cursor
-     * the step-down opens is first positioned here and can conflict, breaking the assertion below.
+     * the step-down opens is first positioned here and can hit a prepared conflict, breaking the
+     * assertion below.
      */
     if (!F_ISSET(clayered, iter_flag)) {
         /*
@@ -2034,9 +2035,9 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
     WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
 
     /*
-     * The current cursor is now on a key not yet returned, so step nothing else: a conflict in a
-     * further step would make the next call skip that key. A tie on it returns ingest, and the next
-     * call steps both cursors past it.
+     * The current cursor is now on a key not yet returned, so step nothing else: a prepared
+     * conflict in a further step would make the next call skip that key. A tie on it returns
+     * ingest, and the next call steps both cursors past it.
      */
     return (0);
 }
@@ -2054,7 +2055,8 @@ __clayered_advance_unblocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSO
 
     /*
      * Without `iter_flag` the alternate cannot be trusted, so position it from the current key. A
-     * conflict on the alternate clears the flag, so a blocked alternate is always repositioned.
+     * prepared conflict on the alternate clears the flag (see __clayered_iterate_finish and
+     * __clayered_change_direction), so a blocked alternate is always repositioned.
      */
     if (!F_ISSET(clayered, iter_flag))
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
@@ -2108,8 +2110,8 @@ __clayered_iterate_finish(
 
     if (ret == WT_PREPARE_CONFLICT && fresh_start)
         /*
-         * A conflict on the first key of a new walk: reset both cursors so the next call starts
-         * again.
+         * A prepared conflict on the first key of a new walk: reset both cursors so the next call
+         * starts again.
          */
         WT_TRET(__clayered_reset_cursors(clayered, false));
     else if (ret == 0)
@@ -2117,8 +2119,8 @@ __clayered_iterate_finish(
     else if (ret == WT_PREPARE_CONFLICT &&
       __clayered_constituent_prepare_blocked(clayered->current_cursor)) {
         /*
-         * A conflict on the current cursor leaves the alternate where it is: record the direction
-         * it blocked in.
+         * A prepared conflict on the current cursor leaves the alternate where it is: record the
+         * direction it blocked in.
          */
         if (iter_flag == WTI_CLAYERED_ITERATE_NEXT)
             F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT);
@@ -2126,8 +2128,8 @@ __clayered_iterate_finish(
             F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_PREV);
     } else {
         /*
-         * Any other error, including a conflict on the alternate, can leave the alternate blocked
-         * or reset: clear the flags to reposition it. The constituent-stepping helpers map
+         * Any other error, including a prepared conflict on the alternate, can leave the alternate
+         * blocked or reset: clear the flags to reposition it. The constituent-stepping helpers map
          * WT_NOTFOUND to 0, so an error reaching here is never WT_NOTFOUND.
          */
         WT_ASSERT(CUR2S(clayered), ret != WT_NOTFOUND);
@@ -2196,7 +2198,10 @@ __clayered_change_direction(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forwar
     return (0);
 
 err:
-    /* The alternate is not positioned for this direction: reposition it from the current key. */
+    /*
+     * The alternate may be blocked on a prepared conflict or unpositioned: clear the flags to
+     * reposition it from the current key.
+     */
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     return (ret);
 }
@@ -2231,10 +2236,10 @@ err:
  * Prepared transactions need special handling. Either constituent can hit a prepared update. The
  *     conflict clears the constituent's key but keeps its page reference, so a blocked cursor is
  *     found by its reference. The next call steps the blocked cursor again, which rechecks the same
- *     key. A conflict on the current cursor leaves the alternate and the iteration flags unchanged;
- *     if the walk changed direction or read context, the alternate is repositioned once the
- *     conflict resolves. A conflict on the alternate clears the flags, so it is repositioned from
- *     the current key.
+ *     key. A prepared conflict on the current cursor leaves the alternate and the iteration flags
+ *     unchanged; if the walk changed direction or read context, the alternate is repositioned once
+ *     the conflict resolves. A prepared conflict on the alternate clears the flags, so it is
+ *     repositioned from the current key.
  */
 static int
 __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
