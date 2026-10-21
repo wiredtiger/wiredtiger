@@ -6691,8 +6691,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: eviction server skipped the root pages */
 #define	WT_STAT_CONN_EVICTION_ROOT_PAGES_SKIPPED	1159
 /*!
- * cache: eviction server skips btrees that are read-only with no dirty
- * content when looking only for dirty pages
+ * cache: eviction server skips btrees that are read-only when looking
+ * only for dirty or update pages and the btree holds none
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY	1160
 /*!

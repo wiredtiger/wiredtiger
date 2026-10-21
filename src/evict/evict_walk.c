@@ -456,18 +456,24 @@ retry:
         }
 
         /*
-         * Skip read-only btrees if we are not looking for clean/updates pages, unless they hold
-         * dirty content: a step-down leaves dirty pages on a read-only btree that only eviction can
-         * discard.
+         * Skip a read-only btree on a pass that isn't looking for clean pages if it holds none of
+         * the content the pass is looking for. Most read-only btrees are read-only from open and
+         * never dirty, but can hold updates when a fast-truncated page is instantiated. A step-down
+         * can make a live btree read-only while it still holds dirty pages and updates that only
+         * eviction can discard.
          */
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
-          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) &&
-          __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
-              __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf) ==
-            0) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+            uint64_t bytes_dirty = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
+              __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf);
+            uint64_t bytes_updates = __wt_atomic_load_uint64_relaxed(&btree->bytes_updates);
+
+            /* Skip a read-only tree unless it holds the content being looked for. */
+            if ((!F_ISSET(evict, WT_EVICT_CACHE_DIRTY) || bytes_dirty == 0) &&
+              (!F_ISSET(evict, WT_EVICT_CACHE_UPDATES) || bytes_updates == 0)) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            }
         }
 
         /* Skip files that are checkpointing if we are only looking for dirty pages. */
