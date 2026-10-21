@@ -53,6 +53,17 @@ __wt_ref_is_root(WT_REF *ref)
 static WT_INLINE void
 __ref_set_state(WT_REF *ref, WT_REF_STATE state)
 {
+    /*
+     * Leaving the locked state releases the lock: clear the owner first. Several release paths set
+     * the state directly rather than through WT_REF_UNLOCK (for example __evict_exclusive_clear and
+     * the WT_REF_SET_STATE(ref, previous_state) idiom in the read paths), and __ref_cas_state
+     * stores the owner only after its CAS has published the locked state. If the owner were left
+     * behind here, a thread observing the ref in that window could match a stale owner and conclude
+     * it holds a lock that belongs to someone else. With the owner always zero while the ref is
+     * unlocked, the window exposes nothing.
+     */
+    if (state != WT_REF_LOCKED && __wt_atomic_load_uint8_v_acquire(&ref->__state) == WT_REF_LOCKED)
+        __atomic_store_n(&ref->owner, 0, __ATOMIC_SEQ_CST);
     WT_RELEASE_WRITE_WITH_BARRIER(ref->__state, state);
 }
 

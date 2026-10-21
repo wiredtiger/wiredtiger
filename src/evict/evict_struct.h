@@ -132,6 +132,12 @@ struct __wt_evict_page_data {
     uint64_t evict_pass_gen;   /* Eviction pass generation */
     bool evict_skip;           /* Skip this page once for eviction */
     bool destroying;           /* Sticky flag set once when the page is being destroyed */
+    /*
+     * Set by a thread that wanted to enqueue the page but found its ref locked by another thread.
+     * The lock holder consumes the flag before releasing the lock and re-evaluates the page's
+     * bucketset, so a classification change made while the ref was locked is not lost.
+     */
+    uint8_t needs_requeue;
     uint16_t evict_page_attempts; /* Tried to evict page but failed */
 };
 

@@ -2227,22 +2227,38 @@ err:
          */
         ref->addr = split_ref[0]->addr;
 
+        /*
+         * The original page's back pointer was moved to the replacement WT_REF as well. Restore it
+         * before the replacement is freed, otherwise the page keeps a dangling ref and the next
+         * enqueue through page->ref reads freed memory.
+         */
+        __wt_ref_assign_page(ref, page);
+
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
         __wt_free(session, split_ref[0]);
+    }
+    if (right != NULL) {
+        /*
+         * We marked the new page dirty, and making its WT_REF visible queued it for eviction; we're
+         * going to discard it. Take it out of the eviction data structures through its WT_REF while
+         * that WT_REF still exists, which also marks the page as being destroyed so that marking it
+         * clean below cannot re-enqueue it. Then detach the page from the WT_REF, mark it clean to
+         * fix up the cache statistics, and discard it.
+         */
+        if (split_ref[1] != NULL) {
+            WT_ASSERT(session, split_ref[1]->page == right);
+            __wt_evict_remove(session, split_ref[1], true);
+            split_ref[1]->page = NULL;
+        }
+        right->ref = NULL;
+        __wt_page_modify_clear(session, right);
+        __wt_page_out(session, &right);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
         __wt_free(session, split_ref[1]);
-    }
-    if (right != NULL) {
-        /*
-         * We marked the new page dirty; we're going to discard it, but first mark it clean and fix
-         * up the cache statistics.
-         */
-        __wt_page_modify_clear(session, right);
-        __wt_page_out(session, &right);
     }
     return (ret);
 }
@@ -2321,9 +2337,12 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 
     /*
      * The reference is about to be discarded. Remove the page from eviction data structures now,
-     * because we will lose this reference. The page will be freed later.
+     * because we will lose this reference. The page will be freed later, with a bare __wt_page_out,
+     * so mark it as being destroyed here: the sticky flag is what prevents a concurrent or
+     * re-entrant enqueue from putting the page back into a bucket in the meantime. If the split
+     * fails the page lives on, and the flag is cleared again on the error path.
      */
-    __wt_evict_remove(session, ref, false);
+    __wt_evict_remove(session, ref, true);
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
@@ -2350,9 +2369,18 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 err:
         for (i = 0; i < new_entries; ++i)
             __split_multi_inmem_fail(session, page, &mod->mod_multi[i], ref_new[i]);
+
+        /*
+         * The page is not being destroyed after all: clear the flag set when it was dequeued above,
+         * otherwise the dirtying below would not re-enqueue it and the page could never be evicted.
+         * We hold the ref locked, so nobody else is looking at the flag.
+         */
+        page->evict_data.destroying = false;
+
         /*
          * Mark the page dirty to ensure it is reconciled again as we free the split disk images if
-         * we fail to instantiate any of them into memory.
+         * we fail to instantiate any of them into memory. This also puts the page back into the
+         * eviction data structures.
          */
         __wt_page_modify_set(session, page);
     }

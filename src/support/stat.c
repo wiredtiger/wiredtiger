@@ -1967,6 +1967,7 @@ static const char *const __stats_connection_desc[] = {
   "the tree",
   "cache: enqueue moved a page whose level changed while the ref was locked",
   "cache: enqueue skipped because another thread held the ref lock",
+  "cache: enqueue skipped because the page is being destroyed",
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by eviction worker threads",
   "cache: eviction  skips internal pages as it has an active child",
@@ -2054,6 +2055,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction skips a page it cannot evict from bucketset won't need clean leaf",
   "cache: eviction skips a page it cannot evict from bucketset won't need dirty leaf",
   "cache: eviction skips a page it cannot evict from bucketset won't need internal",
+  "cache: eviction skips a page that cannot be evicted and is in the wrong bucketset",
   "cache: eviction skips a page, because it cannot be evicted",
   "cache: eviction skips a page, because we could not evict it before",
   "cache: eviction skips dirty pages during a running checkpoint",
@@ -3087,6 +3089,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing eviction_dirty_leaf_checkpoint */
     stats->eviction_enqueue_reclassified = 0;
     stats->eviction_enqueue_skipped_locked = 0;
+    stats->eviction_enqueue_skipped_destroying = 0;
     stats->eviction_worker_evict_attempt = 0;
     stats->eviction_worker_evict_fail = 0;
     stats->eviction_skip_intl_page_with_active_child = 0;
@@ -3163,6 +3166,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_skip_page_cannot_evict_wont_need_clean_leaf = 0;
     stats->eviction_skip_page_cannot_evict_wont_need_dirty_leaf = 0;
     stats->eviction_skip_page_cannot_evict_wont_need_internal = 0;
+    stats->eviction_skip_page_cannot_evict_misplaced = 0;
     stats->eviction_skip_page_cannot_evict = 0;
     stats->eviction_skip_page_again = 0;
     stats->eviction_skip_dirty_pages_during_checkpoint = 0;
@@ -4196,6 +4200,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_dirty_leaf_checkpoint += WT_STAT_CONN_READ(from, eviction_dirty_leaf_checkpoint);
     to->eviction_enqueue_reclassified += WT_STAT_CONN_READ(from, eviction_enqueue_reclassified);
     to->eviction_enqueue_skipped_locked += WT_STAT_CONN_READ(from, eviction_enqueue_skipped_locked);
+    to->eviction_enqueue_skipped_destroying +=
+      WT_STAT_CONN_READ(from, eviction_enqueue_skipped_destroying);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
     to->eviction_skip_intl_page_with_active_child +=
@@ -4327,6 +4333,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_skip_page_cannot_evict_wont_need_dirty_leaf);
     to->eviction_skip_page_cannot_evict_wont_need_internal +=
       WT_STAT_CONN_READ(from, eviction_skip_page_cannot_evict_wont_need_internal);
+    to->eviction_skip_page_cannot_evict_misplaced +=
+      WT_STAT_CONN_READ(from, eviction_skip_page_cannot_evict_misplaced);
     to->eviction_skip_page_cannot_evict += WT_STAT_CONN_READ(from, eviction_skip_page_cannot_evict);
     to->eviction_skip_page_again += WT_STAT_CONN_READ(from, eviction_skip_page_again);
     to->eviction_skip_dirty_pages_during_checkpoint +=

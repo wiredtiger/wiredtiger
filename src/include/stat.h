@@ -581,6 +581,7 @@ struct __wt_connection_stats {
     int64_t eviction_dirty_leaf_checkpoint;
     int64_t eviction_enqueue_reclassified;
     int64_t eviction_enqueue_skipped_locked;
+    int64_t eviction_enqueue_skipped_destroying;
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_worker_evict_fail;
     int64_t eviction_skip_intl_page_with_active_child;
@@ -657,6 +658,7 @@ struct __wt_connection_stats {
     int64_t eviction_skip_page_cannot_evict_wont_need_clean_leaf;
     int64_t eviction_skip_page_cannot_evict_wont_need_dirty_leaf;
     int64_t eviction_skip_page_cannot_evict_wont_need_internal;
+    int64_t eviction_skip_page_cannot_evict_misplaced;
     int64_t eviction_skip_page_cannot_evict;
     int64_t eviction_skip_page_again;
     int64_t eviction_skip_dirty_pages_during_checkpoint;

@@ -2492,11 +2492,23 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     bucket = NULL;
     rechecked = false;
     page = ref->page;
+retry:
     previous_state = WT_REF_GET_STATE(ref);
 
     /* A ref whose page has already been detached (see __wt_page_out) has nothing to enqueue. */
     if (page == NULL)
         return;
+
+    /*
+     * A page that is being destroyed never goes back into the eviction data structures, whoever is
+     * asking and whatever state the ref is in. The flag is set by __wt_evict_remove when the caller
+     * is about to discard the page and by __wt_page_out, and it is sticky except on a split's error
+     * path, which clears it while holding the ref locked before re-dirtying the page.
+     */
+    if (page->evict_data.destroying) {
+        WT_STAT_CONN_INCR(session, eviction_enqueue_skipped_destroying);
+        return;
+    }
 
     /*
      * If the page isn't valid there is no need to put it into eviction data structures. We can get
@@ -2513,9 +2525,17 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     else if (previous_state == WT_REF_LOCKED) {
         /*
          * Page is locked by another thread, which is enqueueing, evicting, splitting or deleting
-         * it. Whoever holds the lock either discards the page or enqueues it with its current
-         * classification when releasing the lock, so there is nothing for us to do.
+         * it. Whoever holds the lock either discards the page or enqueues it when releasing the
+         * lock. The holder's re-check of the page's classification can race with the change that
+         * brought us here (typically the page being dirtied), so hand the work off explicitly:
+         * raise the flag the holder consumes before it unlocks. If the holder had already released
+         * the lock before it could see the flag, nobody will act on it, so retry and do the
+         * enqueue ourselves.
          */
+        __wt_atomic_store_uint8(&page->evict_data.needs_requeue, 1);
+        WT_FULL_BARRIER();
+        if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED)
+            goto retry;
         WT_STAT_CONN_INCR(session, eviction_enqueue_skipped_locked);
         return;
     } else /* We must lock */ {
@@ -2669,7 +2689,15 @@ done:
      * the bucket is chosen at random, so a bucket comparison would move nearly every page twice.
      * Once is enough; a second change in the same window is vanishingly unlikely.
      */
-    if (!rechecked) {
+     *
+     * A thread that found the ref locked raised needs_requeue (see above). Consume it here, and
+     * re-check again whenever it was set: the flag may be raised after a re-check has already
+     * passed, so one re-check is not enough. Each pass either moves the page or releases the lock,
+     * and a pass is only repeated when another thread changed the page in the meantime, so this
+     * terminates as soon as the page stops changing under us. A flag raised after the lock is
+     * released is harmless: the next enqueue of the page, by anyone, consumes it.
+     */
+    if (!rechecked || __wt_atomic_cas_uint8(&page->evict_data.needs_requeue, 1, 0)) {
         rechecked = true;
         if (WT_EVICT_PAGE_CLEARED(page) ||
           page->evict_data.bucket->bucketset->level !=
@@ -2950,6 +2978,15 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int level)
     if (!__wt_page_can_evict(session, ref, NULL)) {
         WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict);
         __evict_stat_skip_cannot_evict(session, level);
+        /*
+         * Diagnostic: a page that cannot be evicted and whose classification no longer matches the
+         * bucketset it sits in. A dirty page in a clean-leaf bucketset of a tree being
+         * checkpointed is the typical case; it will be re-examined on every scan until something
+         * re-enqueues it.
+         */
+        if (!WT_EVICT_PAGE_CLEARED(page) &&
+          page->evict_data.bucket->bucketset->level != __evict_target_bucketset_level(session, page))
+            WT_STAT_CONN_INCR(session, eviction_skip_page_cannot_evict_misplaced);
         return (true);
     }
 
