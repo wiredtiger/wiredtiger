@@ -72,6 +72,12 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
             f'/{self.table_name}.*: blind_remove is only supported on layered tables.*' +
             'Operation not supported/')
 
+    def remove_missing_key(self, cursor):
+        with self.transaction(rollback=True):
+            cursor.set_key('missing')
+            ret = cursor.remove()
+        return ret
+
     def test_open_cursor(self):
         self.session.open_cursor(self.uri, None, 'blind_remove=false').close()
         if self.supported:
@@ -122,18 +128,23 @@ class test_layered_cursor31(wttest.WiredTigerTestCase):
         # Open and close a cursor, leaving it in the session's cursor cache.
         self.session.open_cursor(self.uri).close()
 
-        # Open with the option on. This reuses the cached cursor, which takes the setting from
-        # this open, so a plain table rejects it. Either way, the cursor goes back into the cache.
+        # Open with the option on, reusing the cached cursor. A layered cursor takes the option from
+        # this open. A plain table rejects it, and the cursor still goes back into the cache.
         cache_reuses = self.get_stat(stat.conn.cursor_reopen)
         if self.supported:
-            self.session.open_cursor(self.uri, None, 'blind_remove=true').close()
+            cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
+            self.assertEqual(self.remove_missing_key(cursor), 0)
+            cursor.close()
         else:
             self.assert_enotsup(
                 lambda: self.session.open_cursor(self.uri, None, 'blind_remove=true'))
         self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
 
-        # Open with the default configuration. This reuses the same cursor, which must not keep
-        # the earlier setting, or a plain table would reject this open too.
+        # Open with the default configuration, reusing the same cursor. A layered cursor must not
+        # keep the earlier option, so removing a missing key fails.
         cache_reuses = self.get_stat(stat.conn.cursor_reopen)
-        self.session.open_cursor(self.uri).close()
+        cursor = self.session.open_cursor(self.uri)
         self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
+        if self.supported:
+            self.assertEqual(self.remove_missing_key(cursor), wiredtiger.WT_NOTFOUND)
+        cursor.close()
