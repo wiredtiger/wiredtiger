@@ -775,7 +775,9 @@ err:
             if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED && newpage)
                 __wt_cursor_key_order_reset(cbt);
             ret = __wti_cursor_key_order_check(session, cbt, false);
-        }
+        } else
+            /* Still record the key, so the next return is checked against it. */
+            ret = __wt_cursor_key_order_init(cbt);
 
         if (need_walk) {
             /*

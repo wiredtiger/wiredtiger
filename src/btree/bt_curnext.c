@@ -868,7 +868,9 @@ err:
                 __wt_cursor_key_order_reset(cbt);
             }
             ret = __wti_cursor_key_order_check(session, cbt, true);
-        }
+        } else
+            /* Still record the key, so the next return is checked against it. */
+            ret = __wt_cursor_key_order_init(cbt);
 
         if (need_walk) {
             /*

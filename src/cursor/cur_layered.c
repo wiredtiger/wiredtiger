@@ -1858,58 +1858,6 @@ __clayered_position_alternate(
 }
 
 /*
- * __clayered_position_alternate_resolved --
- *     Reposition the alternate once the current cursor has resolved a prepared conflict. Restart
- *     from the current cursor's key or the alternate's own key, whichever is smaller for next or
- *     larger for prev. If they are equal, use the current cursor's key: both cursors then share it,
- *     ingest returns it, and the next call steps both past it.
- */
-static int
-__clayered_position_alternate_resolved(
-  WTI_CLAYERED_OP *op, WT_CURSOR *current, WT_CURSOR *alternate, bool forward)
-{
-    WT_DECL_ITEM(alternate_key);
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session = CUR2S(op->clayered);
-    bool use_alternate_key;
-
-    const WT_ITEM *current_key = F_ISSET(current, WT_CURSTD_KEY_INT) ? &current->key : NULL;
-
-    if (!F_ISSET(alternate, WT_CURSTD_KEY_INT))
-        /* The alternate ran off the end. */
-        use_alternate_key = false;
-    else if (current_key == NULL)
-        /* The current cursor ran off the end, so the alternate's key is the only key left. */
-        use_alternate_key = true;
-    else {
-        int cmp;
-
-        /*
-         * The alternate's key is its first key past the last key returned, so restarting there
-         * skips nothing even if the current cursor resolved further on.
-         */
-        WT_RET(__wt_compare(session, op->collator, &alternate->key, current_key, &cmp));
-        use_alternate_key = forward ? cmp < 0 : cmp > 0;
-    }
-
-    if (!use_alternate_key) {
-        /* Neither cursor has a key: the walk is over. */
-        if (current_key == NULL)
-            return (0);
-        return (__clayered_position_alternate_at(op, current_key, alternate, forward));
-    }
-
-    /* Copy the alternate's key: the search overwrites it. */
-    WT_RET(__wt_scr_alloc(session, 0, &alternate_key));
-    WT_ERR(__wt_buf_set(session, alternate_key, alternate->key.data, alternate->key.size));
-    ret = __clayered_position_alternate_at(op, alternate_key, alternate, forward);
-
-err:
-    __wt_scr_free(session, &alternate_key);
-    return (ret);
-}
-
-/*
  * __clayered_constituent_iter --
  *     Move the cursor forward or backward.
  */
@@ -1938,24 +1886,27 @@ err:
 }
 
 /*
- * __clayered_position_alternate_reversed --
- *     Reposition the alternate of a blocked walk that reversed. The walk stopped at the earlier, in
- *     the old direction, of the blocked key and the alternate's key. Like a btree cursor stepping
- *     back from its blocked position, restart the alternate strictly before that key.
+ * __clayered_reposition_blocked --
+ *     Reposition a blocked walk whose direction or read context changed. The walk stopped at the
+ *     earlier, in the direction it was moving, of the blocked key and the alternate's key. Like a
+ *     btree cursor blocked there, continuing restarts the alternate at that key, and reversing
+ *     restarts both constituents strictly before it.
  */
 static int
-__clayered_position_alternate_reversed(WTI_CLAYERED_OP *op, WT_CURSOR *alternate, bool forward)
+__clayered_reposition_blocked(
+  WTI_CLAYERED_OP *op, WT_CURSOR *current, WT_CURSOR *alternate, bool forward, bool reversed)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_DECL_ITEM(alternate_key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(clayered);
     const WT_ITEM *stop = &clayered->blocked_key;
+    const bool stopped_forward = reversed ? !forward : forward;
     int cmp;
 
     if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
         WT_RET(__wt_compare(session, op->collator, &alternate->key, stop, &cmp));
-        if (forward ? cmp > 0 : cmp < 0) {
+        if (stopped_forward ? cmp < 0 : cmp > 0) {
             /* Copy the alternate's key: the search overwrites it. */
             WT_RET(__wt_scr_alloc(session, 0, &alternate_key));
             WT_ERR(__wt_buf_set(session, alternate_key, alternate->key.data, alternate->key.size));
@@ -1963,11 +1914,22 @@ __clayered_position_alternate_reversed(WTI_CLAYERED_OP *op, WT_CURSOR *alternate
         }
     }
 
-    WT_ERR(__clayered_position_alternate_at(op, stop, alternate, forward));
-    if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
-        WT_ERR(__wt_compare(session, op->collator, &alternate->key, stop, &cmp));
-        if (cmp == 0)
-            WT_ERR(__clayered_constituent_iter_helper(op, alternate, forward));
+    WT_ERR_NOTFOUND_OK(__clayered_position_alternate_at(op, stop, alternate, forward), false);
+
+    /*
+     * The current cursor stepped back from the blocked key, which can lie past the stop key: keep
+     * stepping both constituents until they are strictly before it.
+     */
+    if (reversed) {
+        WT_CURSOR *const constituents[] = {alternate, current};
+        for (size_t i = 0; i < WT_ELEMENTS(constituents); ++i)
+            while (F_ISSET(constituents[i], WT_CURSTD_KEY_INT)) {
+                WT_ERR(__wt_compare(session, op->collator, &constituents[i]->key, stop, &cmp));
+                if (forward ? cmp > 0 : cmp < 0)
+                    break;
+                WT_ERR_NOTFOUND_OK(
+                  __clayered_constituent_iter_helper(op, constituents[i], forward), false);
+            }
     }
 
 err:
@@ -2042,29 +2004,24 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
 
     /*
      * The alternate does not move while the current cursor is blocked. If the direction or read
-     * context changed, reposition it now.
+     * context changed, reposition the walk now. Continuing only revisits keys this snapshot already
+     * read, so it cannot hit a prepared conflict. Reversing can, but the current cursor is then on
+     * a key already returned, so nothing is lost.
      *
      * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before
-     * both the alternate's key and the current cursor's key, and the walk skips them.
+     * the point where the walk stopped, and the walk skips them.
      *
      * FIXME-WT-18422: once a prepared update can be resolved after a step-down, the ingest cursor
      * the step-down opens is first positioned here and can hit a prepared conflict, breaking the
      * assertion below.
      */
     if (!F_ISSET(clayered, iter_flag)) {
-        if (F_ISSET(clayered,
-              forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT))
-            /*
-             * The walk reversed. This can hit a prepared conflict, but the current cursor is then
-             * on a key already returned, so nothing is lost.
-             */
-            WT_RET_NOTFOUND_OK(__clayered_position_alternate_reversed(op, c_alternate, forward));
-        else {
-            /* This only revisits keys this snapshot already read, so it cannot conflict. */
-            ret = __clayered_position_alternate_resolved(op, c_current, c_alternate, forward);
-            WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT);
-            WT_RET_NOTFOUND_OK(ret);
-        }
+        const bool reversed = F_ISSET(
+          clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
+
+        ret = __clayered_reposition_blocked(op, c_current, c_alternate, forward, reversed);
+        WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT || reversed);
+        WT_RET(ret);
     }
     WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
 
@@ -2155,10 +2112,11 @@ __clayered_iterate_finish(
       __clayered_constituent_prepare_blocked(clayered->current_cursor)) {
         /*
          * A prepared conflict on the current cursor leaves the alternate where it is: record the
-         * key and direction it blocked in. The btree cursor still holds the blocked key.
+         * key and direction it blocked in.
          */
-        WT_RET(__wt_buf_set(CUR2S(clayered), &clayered->blocked_key,
-          clayered->current_cursor->key.data, clayered->current_cursor->key.size));
+        WT_ITEM blocked;
+        __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)clayered->current_cursor, &blocked);
+        WT_RET(__wt_buf_set(CUR2S(clayered), &clayered->blocked_key, blocked.data, blocked.size));
         if (iter_flag == WTI_CLAYERED_ITERATE_NEXT)
             F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT);
         else
