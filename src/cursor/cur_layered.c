@@ -2082,7 +2082,12 @@ __clayered_iterate_finish(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool fresh_st
          * blocked key, or the alternate's key if it comes before the blocked key in the walk
          * direction (smaller for next, larger for prev). The alternate has not moved yet. Both hold
          * until the walk unblocks, whatever conflicts the retries hit.
+         *
+         * Unless the flag for this direction is set, this call repositioned the alternate for this
+         * direction, so a flag for the other direction is stale: clear it.
          */
+        if (!F_ISSET(clayered, iter_flag))
+            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
         if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV)) {
             WT_CURSOR *alternate = current == op->stable ? op->ingest : op->stable;
             WT_ITEM stopped;

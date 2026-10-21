@@ -239,6 +239,30 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(3), 'v'), (self.key(2), 'v'), (self.key(1), 'v')])
 
+    # The walk reverses out of a stall onto the key it last returned, then turns back and blocks
+    # again at once. Each reversal returns that key again, as a btree cursor does.
+    def test_reverse_twice_around_block(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(1): 'v', self.key(2): 'v', self.key(3): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(1, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(4): 'v'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        for rank in (4, 3, 2):
+            self.assertEqual(self.step_back(cursor), 0)
+            self.assertEqual(cursor.get_key(), self.key(rank))
+        for _ in range(2):
+            self.assert_conflict(cursor, back=True)
+            self.assert_returns(cursor, 2)
+        actual = self.rest_of_walk(cursor)
+        self.session.rollback_transaction()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [(self.key(3), 'v'), (self.key(4), 'v')])
+
     # The walk's own transaction inserts a key between the last key returned and the blocked one,
     # on the other constituent, then the walk reverses. As with a btree cursor stepping back from
     # the blocked key, that key is returned first.
