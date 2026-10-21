@@ -122,22 +122,29 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredTigerTestCase):
     # Writes the walk's own transaction makes through another cursor while the walk is blocked on
     # stable, by rank: 2 sits between the last returned key and the blocked one, 4 between the
-    # blocked key and the next ingest key, and 5 is the next ingest key itself.
+    # blocked key and the next ingest key, and 5 is the next ingest key itself. In the parked
+    # scenarios ingest also holds rank 2, so the walk is blocked before returning it. As with a
+    # plain table, a key written behind the blocked position is not returned.
     stall_writes = [
-        ('insert_before_blocked', dict(op='insert', rank=2,
-            expected=[(2, 'new'), (3, 'v'), (5, 'v')])),
-        ('insert_after_blocked', dict(op='insert', rank=4,
+        ('insert_before_blocked', dict(ingest=[5], op='insert', rank=2,
+            expected=[(3, 'v'), (5, 'v')])),
+        ('insert_after_blocked', dict(ingest=[5], op='insert', rank=4,
             expected=[(3, 'v'), (4, 'new'), (5, 'v')])),
-        ('remove_next_ingest', dict(op='remove', rank=5, expected=[(3, 'v')])),
-        ('update_next_ingest', dict(op='insert', rank=5, expected=[(3, 'v'), (5, 'new')])),
+        ('remove_next_ingest', dict(ingest=[5], op='remove', rank=5, expected=[(3, 'v')])),
+        ('update_next_ingest', dict(ingest=[5], op='insert', rank=5,
+            expected=[(3, 'v'), (5, 'new')])),
+        ('remove_parked_before_blocked', dict(ingest=[2, 5], op='remove', rank=2,
+            expected=[(3, 'v'), (5, 'v')])),
+        ('update_parked_before_blocked', dict(ingest=[2, 5], op='insert', rank=2,
+            expected=[(2, 'new'), (3, 'v'), (5, 'v')])),
     ]
 
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True),
         BlockedWalkMixin.directions, stall_writes)
 
-    # Stable blocks on rank 3 right after the walk returns rank 1, while ingest's next key is rank
-    # 5. The walk's own write must be visible once the block resolves, including when the walk is
-    # retried, and blocks again, between the write and the resolution.
+    # Stable blocks on rank 3 right after the walk returns rank 1, before the walk returns any
+    # ingest key. The walk's own write must be visible once the block resolves, including when the
+    # walk is retried, and blocks again, between the write and the resolution.
     def test_write_while_stable_blocked(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -145,7 +152,7 @@ class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredT
         self.set_global_ts(1, 10)
         stable_prepare = self.prepare(3, 12)
         self.set_step_down_ts(15)
-        self.write_at(self.uri, {self.key(5): 'v'}, 18)
+        self.write_at(self.uri, {self.key(r): 'v' for r in self.ingest}, 18)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
