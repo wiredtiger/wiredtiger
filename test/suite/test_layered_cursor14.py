@@ -307,6 +307,71 @@ class test_layered_cursor14(wttest.WiredTigerTestCase):
             self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(500)])
         cursor.close()
 
+    def check_reverse_read_uncommitted(self, stable, ingest, walked, inserted, expected, forward,
+                                       commit=True):
+        """
+        Walk in one direction under read-uncommitted, have another session insert a key into
+        ingest, committed or not, then reverse: the walk must continue from the last key it
+        returned.
+        """
+        self.insert_stable(stable)
+        self.insert_ingest(ingest)
+
+        cursor = self.open_cursor()
+        self.session_follow.begin_transaction('isolation=read-uncommitted')
+        step, back = (cursor.next, cursor.prev) if forward else (cursor.prev, cursor.next)
+        for k in walked:
+            self.assertEqual(step(), 0)
+            self.assertEqual(cursor.get_key(), self.fmt_key(k))
+
+        writer_session = self.conn_follow.open_session('')
+        if commit:
+            self.insert_on(writer_session, [inserted])
+        else:
+            writer = writer_session.open_cursor(self.uri)
+            writer_session.begin_transaction()
+            writer[self.fmt_key(inserted)] = self.fmt_val(inserted)
+
+        actual = []
+        while back() == 0:
+            actual.append(cursor.get_key())
+        self.session_follow.rollback_transaction()
+        cursor.close()
+        if not commit:
+            writer_session.rollback_transaction()
+        writer_session.close()
+        self.assertEqual(actual, [self.fmt_key(k) for k in expected])
+
+    def test_direction_switch_read_uncommitted_between(self):
+        """A key inserted between the current key and the parked ingest key is not returned."""
+        self.check_reverse_read_uncommitted(
+            [10, 20, 30], [50], [10, 20, 30], 40, [20, 10], forward=True)
+
+    def test_direction_switch_read_uncommitted_between_prev(self):
+        """As above, walking backward and then forward."""
+        self.check_reverse_read_uncommitted(
+            [30, 40, 50], [10], [50, 40, 30], 20, [40, 50], forward=False)
+
+    def test_direction_switch_read_uncommitted_between_uncommitted(self):
+        """As above, with the inserted key left uncommitted."""
+        self.check_reverse_read_uncommitted(
+            [10, 20, 30], [50], [10, 20, 30], 40, [20, 10], forward=True, commit=False)
+
+    def test_direction_switch_read_uncommitted_between_uncommitted_prev(self):
+        """As above, walking backward and then forward."""
+        self.check_reverse_read_uncommitted(
+            [30, 40, 50], [10], [50, 40, 30], 20, [40, 50], forward=False, commit=False)
+
+    def test_direction_switch_read_uncommitted_same(self):
+        """A key inserted into ingest on the current key is not returned again."""
+        self.check_reverse_read_uncommitted(
+            [10, 20, 30], [50], [10, 20, 30], 30, [20, 10], forward=True)
+
+    def test_direction_switch_read_uncommitted_same_prev(self):
+        """As above, walking backward and then forward."""
+        self.check_reverse_read_uncommitted(
+            [30, 40, 50], [10], [50, 40, 30], 30, [40, 50], forward=False)
+
     def test_direction_zigzag_overlapping(self):
         """Random direction switches over shared, removed and one-sided keys match a model."""
         stable = list(range(0, 150, 2))

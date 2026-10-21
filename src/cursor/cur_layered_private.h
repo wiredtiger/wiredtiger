@@ -10,16 +10,14 @@
 
 /*
  * WTI_CLAYERED_CURSOR_MODE --
- *	How a layered cursor operation reads: directly on the stable constituent alone, or layered,
- *	consulting ingest over stable.
+ *	Whether an operation reads stable alone (direct) or ingest over stable (layered).
  */
 typedef enum { WTI_CLAYERED_CURSOR_DIRECT, WTI_CLAYERED_CURSOR_LAYERED } WTI_CLAYERED_CURSOR_MODE;
 
 /*
  * WTI_CLAYERED_STABLE_MODE --
- *	What a layered cursor's stable constituent is opened on: the leader's live table, or an
- *	adopted checkpoint on a follower. It lags the node's role while a stable cursor blocked on a
- *	prepared update is kept across a step-down, reading the live table the step-down froze.
+ *	What the stable cursor is opened on: the leader's live table or a follower's checkpoint. A
+ *	stable cursor blocked on a prepared update keeps the live table across a step-down.
  */
 typedef enum { WTI_CLAYERED_STABLE_LIVE, WTI_CLAYERED_STABLE_CHECKPOINT } WTI_CLAYERED_STABLE_MODE;
 

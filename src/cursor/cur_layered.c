@@ -370,10 +370,8 @@ __clayered_cursor_compare(WTI_CLAYERED_OP *op, WT_CURSOR *c1, WT_CURSOR *c2, int
 
 /*
  * __clayered_constituent_prepare_blocked --
- *     Determine if a constituent is stopped on a prepare conflict: it holds a page reference while
- *     its key has been cleared. Either constituent can be in this state: a transaction that
- *     straddles a step-down, or one that writes with mirroring enabled while the step-down
- *     timestamp is set, can leave a prepared update on the stable constituent, not just ingest.
+ *     Return whether a constituent is blocked on a prepared update: it has a page reference but no
+ *     key. Either constituent can be blocked.
  */
 static WT_INLINE bool
 __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
@@ -383,12 +381,9 @@ __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
 
 /*
  * __clayered_cursor_mode --
- *     Decide how an operation reads: layered on a follower, and on a leader for a transaction that
- *     started with the step-down timestamp set, whose reads behave like a follower's over the
- *     still-live stable table. A table created inside the step-down window has no stable
- *     constituent at all, so its cursors are layered whenever the transaction began; that covers a
- *     transaction from before the timestamp was set, which would otherwise read stable alone and
- *     find nothing to open.
+ *     Decide whether an operation reads layered or direct. It is layered on a follower, in a
+ *     transaction that started with the step-down timestamp set, and for a table created in the
+ *     step-down window, which has no stable constituent.
  */
 static WT_INLINE WTI_CLAYERED_CURSOR_MODE
 __clayered_cursor_mode(WTI_CURSOR_LAYERED *clayered, bool leader)
@@ -402,7 +397,7 @@ __clayered_cursor_mode(WTI_CURSOR_LAYERED *clayered, bool leader)
 
 /*
  * __clayered_stable_mode_for_role --
- *     Return the mode a node in this role opens the stable constituent in.
+ *     Return the stable mode for the node's role.
  */
 static WT_INLINE WTI_CLAYERED_STABLE_MODE
 __clayered_stable_mode_for_role(bool leader)
@@ -412,10 +407,8 @@ __clayered_stable_mode_for_role(bool leader)
 
 /*
  * __clayered_stable_mode --
- *     Decide the mode an operation uses the stable constituent in. A stable cursor blocked on a
- *     prepared update holds the position the retry rechecks, so it keeps its mode until the
- *     conflict resolves, including across a step-down: the live tree it reads is frozen, not
- *     discarded.
+ *     Decide the stable mode for an operation. A stable cursor blocked on a prepared update keeps
+ *     its mode, so it is not reopened, even across a step-down.
  */
 static WT_INLINE WTI_CLAYERED_STABLE_MODE
 __clayered_stable_mode(WTI_CURSOR_LAYERED *clayered, bool leader)
@@ -436,9 +429,8 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
         return;
 
     /*
-     * A stable constituent opened on a checkpoint is always read-only. Only this direction holds: a
-     * live stable tree is frozen read-only by a step-down while a blocked cursor keeps it, and a
-     * cursor can inherit a read-only stable tree across a step-up until it is reopened.
+     * A stable cursor opened on a checkpoint is always read-only. A live stable tree kept across a
+     * step-down is read-only too, so the check only runs one way.
      */
     WT_ASSERT(CUR2S(clayered),
       clayered->last_stable_mode == WTI_CLAYERED_STABLE_LIVE ||
@@ -511,8 +503,7 @@ __clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, 
                                                          CLAYERED_ENTER_STEP_DOWN);
 
     /*
-     * A layered operation consults ingest. largest_key always does, regardless of role or
-     * transaction: it ignores visibility by contract.
+     * Layered operations read ingest. largest_key always does: it ignores visibility.
      */
     if (cursor_mode == WTI_CLAYERED_CURSOR_LAYERED || mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
@@ -1071,9 +1062,8 @@ __clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, b
 
 /*
  * __clayered_constituent_needs_reset --
- *     Determine if a constituent has state a reset must clear: either an application-set external
- *     key with no page reference yet (WT_CURSTD_KEY_SET without a search having run), or a page
- *     reference from a prior position, including one left by a prepare conflict.
+ *     Return whether a constituent needs a reset: it has a key set, or a page reference from an
+ *     earlier position, including one left by a prepared conflict.
  */
 static WT_INLINE bool
 __clayered_constituent_needs_reset(const WT_CURSOR *c)
@@ -1083,8 +1073,8 @@ __clayered_constituent_needs_reset(const WT_CURSOR *c)
 
 /*
  * __clayered_can_update_stable --
- *     Return whether the stable cursor should be opened for the first time, reopened on a role
- *     change, or advanced to a newer checkpoint.
+ *     Return whether to open the stable cursor, reopen it after a role change, or advance it to a
+ *     newer checkpoint.
  */
 static bool
 __clayered_can_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint64_t conn_lsn,
@@ -1093,10 +1083,7 @@ __clayered_can_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint6
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TXN_SHARED *txn_shared;
 
-    /*
-     * Only the leader's live table holds prepared updates, and a blocked stable cursor keeps the
-     * live table, so it is never reopened or advanced: see __clayered_stable_mode.
-     */
+    /* A blocked stable cursor keeps the live table, see __clayered_stable_mode. */
     WT_ASSERT(session,
       stable_mode == WTI_CLAYERED_STABLE_LIVE ||
         !__clayered_constituent_prepare_blocked(clayered->stable_cursor));
@@ -1108,25 +1095,22 @@ __clayered_can_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, uint6
           (stable_mode == WTI_CLAYERED_STABLE_LIVE || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)));
 
     /*
-     * Always reopen the stable table when the stable mode changes on a step-up or step-down. That
-     * should be fine, since in this case all the cursors should be unpositioned and no current
-     * transactions should be running.
+     * Reopen stable when its mode changes on a step-up or step-down. A positioned stable cursor
+     * carries its position to the new one.
      */
     if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE))
         return (true);
 
     /*
-     * Otherwise advance a stable cursor opened on a checkpoint to a newer one, so the follower can
-     * evict more from ingest. A stable cursor on the live table has no checkpoint to advance, and
-     * there is nothing to do without a newer checkpoint.
+     * Otherwise move a checkpoint stable cursor to a newer checkpoint, so the follower can evict
+     * more from ingest. Skip this for the live table, or if there is no newer checkpoint.
      */
     if (stable_mode == WTI_CLAYERED_STABLE_LIVE || clayered->stable_checkpoint_meta_lsn == conn_lsn)
         return (false);
 
     /*
-     * Do not advance while ingest is blocked on a prepare conflict: stable's reopen has no ingest
-     * key to anchor its new position to and can land on an arbitrary key in the new checkpoint
-     * instead, skipping visible keys between the old and new positions.
+     * Don't advance while ingest is blocked: with no ingest key to reposition from, the reopened
+     * stable cursor could skip keys.
      */
     if (__clayered_constituent_prepare_blocked(clayered->ingest_cursor))
         return (false);
@@ -1191,9 +1175,8 @@ __clayered_reopen_stable(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered,
     WT_ERR(__clayered_open_stable(clayered, true, leader));
 
     /*
-     * If the old cursor has a position, copy it to the newly opened cursor. A cursor blocked on a
-     * prepare conflict has no key to search with, so its position cannot transfer: both the
-     * checkpoint advance and a step-down wait for the conflict to resolve before reopening.
+     * Copy the old cursor's position to the new one. A blocked cursor is never reopened: it has no
+     * key to copy.
      */
     WT_ASSERT(session, !__clayered_constituent_prepare_blocked(old_stable));
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
@@ -1534,9 +1517,8 @@ __clayered_reposition_truncate_iterate(WTI_CLAYERED_OP *op, WT_CURSOR *stable, b
 
         stable->set_key(stable, forward ? &stop_key : &start_key);
         /*
-         * Stable only holds prepared updates on a leader inside the step-down window, where the
-         * truncate list is empty. A conflict here would reset the stable position rather than leave
-         * it blocked for a retry.
+         * Only a leader in the step-down window reads prepared updates on stable, and its truncate
+         * list is empty. A conflict here would lose the stable position.
          */
         ret = stable->search_near(stable, &cmp);
         WT_ASSERT(session, ret != WT_PREPARE_CONFLICT);
@@ -1866,10 +1848,9 @@ __clayered_position_alternate(
 
 /*
  * __clayered_position_alternate_resolved --
- *     Position the alternate cursor of a walk whose current cursor has just resolved a prepared
- *     conflict, on its first key at or past the earlier of the resolved key and the parked key. On
- *     a reversal the parked key was positioned for the other direction, so only the resolved key is
- *     used.
+ *     Position the alternate of a walk whose current cursor has just resolved a prepared conflict.
+ *     Start from the earlier of the resolved key and the alternate's parked key. On a reversal the
+ *     parked key belongs to the old direction, so use only the resolved key.
  */
 static int
 __clayered_position_alternate_resolved(
@@ -1880,12 +1861,14 @@ __clayered_position_alternate_resolved(
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     const WT_ITEM *key;
 
-    /*
-     * Searching from the resolved key alone would skip the parked key if it comes first. Copy it
-     * before the search below replaces it.
-     */
     key = F_ISSET(current, WT_CURSTD_KEY_INT) ? &current->key : NULL;
-    if (F_ISSET(alternate, WT_CURSTD_KEY_INT) && !(reversed && key != NULL)) {
+
+    /*
+     * On a reversal, ignore the parked key: it belongs to the old direction. The only exception is
+     * a current cursor that ran off the end, which needs the key it last returned to have gone; the
+     * walk may then return the parked key, past that key.
+     */
+    if (F_ISSET(alternate, WT_CURSTD_KEY_INT) && (!reversed || key == NULL)) {
         bool parked_first = key == NULL;
         if (!parked_first) {
             int cmp;
@@ -1894,6 +1877,7 @@ __clayered_position_alternate_resolved(
             parked_first = forward ? cmp < 0 : cmp > 0;
         }
         if (parked_first) {
+            /* Copy the parked key: the search below overwrites it. */
             WT_RET(__wt_scr_alloc(session, 0, &parked));
             WT_ERR(__wt_buf_set(session, parked, alternate->key.data, alternate->key.size));
             key = parked;
@@ -1941,9 +1925,8 @@ err:
 
 /*
  * __clayered_any_constituent_positioned --
- *     Return whether either constituent is positioned. Checking the page reference alone also
- *     catches a constituent blocked by a prepared conflict, since WT_CURSTD_KEY_INT is never set
- *     without it. Both constituents must exist.
+ *     Return whether either constituent is positioned, including one blocked on a prepared update.
+ *     Both constituents must exist.
  */
 static WT_INLINE bool
 __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
@@ -1978,12 +1961,8 @@ __clayered_select_current(WTI_CLAYERED_OP *op, WT_CURSOR **currentp, WT_CURSOR *
     WT_CURSOR *c_current;
 
     /*
-     * This is only reached when at least one constituent is positioned, and every path that clears
-     * the current cursor also drops both constituents' positions (or removes the ingest constituent
-     * from consideration entirely), so the current cursor from the last call is always still known
-     * here. It normally carries an internal key, but the previous call's own advance step can have
-     * just blocked it on a prepared conflict, in which case it still has a page reference but no
-     * key.
+     * The current cursor is always known here: every path that clears it also clears both
+     * constituents. It has a key, unless the previous call left it blocked on a prepared update.
      */
     WT_ASSERT(session, clayered->current_cursor != NULL);
     c_current = clayered->current_cursor;
@@ -2016,13 +1995,13 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
     __clayered_select_current(op, &c_current, &c_alternate);
 
     /*
-     * If the current cursor was blocked by a prepared conflict on a previous call, drive it again:
-     * this rechecks the key it is currently blocked on rather than stepping past it.
+     * If the current cursor is blocked on a prepared update, step it again: this rechecks the
+     * blocked key.
      */
     if (__clayered_constituent_prepare_blocked(c_current)) {
         /*
-         * A walk reversed out of the stall resolves back onto the key it last returned, as a btree
-         * cursor does when reversed at a prepared update.
+         * If the walk has reversed, the blocked cursor resolves back onto the key it last returned,
+         * like a btree cursor.
          */
         const bool reversed = F_ISSET((WT_CURSOR_BTREE *)c_current,
           forward ? WT_CBT_ITERATE_RETRY_PREV : WT_CBT_ITERATE_RETRY_NEXT);
@@ -2031,15 +2010,12 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
         current_moved = true;
 
         /*
-         * The alternate keeps its parked position while the current cursor is blocked. If the
-         * direction or read context changed since, reposition it now that the current cursor has
-         * resolved.
+         * The alternate stays parked while the current cursor is blocked. If the direction or read
+         * context changed, reposition it now.
          *
-         * Outside a reversal the repositioning cannot itself conflict, which would leave the
-         * current cursor on a key never returned: it only revisits keys this snapshot already read.
-         * Prepared updates are only read in the step-down window, where reads run in one explicit
-         * transaction, and a follower's stable checkpoint holds none. A reversal does revisit keys
-         * the walk had not read, but leaves the current cursor on a key already returned.
+         * Outside a reversal this cannot conflict: it only revisits keys this snapshot already
+         * read. On a reversal it can, but the current cursor is then on a key already returned, so
+         * nothing is lost.
          *
          * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before
          * both the parked and the resolved key, and the walk skips them.
@@ -2061,9 +2037,9 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
     WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
 
     /*
-     * Once the current cursor has moved it sits on a key not yet returned, and any further step
-     * that conflicts would leave it there for the next call to step past. A tie on that key needs
-     * no handling now: it returns ingest, and the next call steps both cursors past it.
+     * Once the current cursor has moved, it is on a key not yet returned. Stop here: a conflict in
+     * a further step would make the next call skip that key. A tie on it returns ingest, and the
+     * next call steps both cursors past it.
      */
     if (current_moved)
         return (0);
@@ -2099,17 +2075,16 @@ __clayered_iterate_finish(
 {
     if (ret == WT_PREPARE_CONFLICT && fresh_start)
         /*
-         * Prepare conflict on the very first key of a fresh walk, leaving one constituent blocked
-         * and the other not yet stepped, or stepped without a matching position. Reset both so the
-         * next call restarts cleanly.
+         * A conflict on the first key of a new walk: reset both cursors so the next call starts
+         * again.
          */
         WT_TRET(__clayered_reset_cursors(clayered, false));
     else if (ret == 0)
         F_SET(clayered, iter_flag);
     else if (ret == WT_PREPARE_CONFLICT) {
         /*
-         * A conflict on the current cursor leaves the alternate where it was parked. Any other
-         * conflict leaves the alternate blocked or reset, so reposition it from the current key.
+         * A conflict on the current cursor leaves the alternate parked. Any other conflict leaves
+         * the alternate blocked or reset, so clear the flags to reposition it.
          */
         if (!__clayered_constituent_prepare_blocked(clayered->current_cursor))
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
@@ -2137,7 +2112,7 @@ __clayered_direction_reversed(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
 /*
  * __clayered_change_direction --
- *     Prepare the alternate cursor for a walk that reverses direction.
+ *     Step the alternate once for a walk that changes direction.
  */
 static int
 __clayered_change_direction(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forward)
@@ -2151,20 +2126,34 @@ __clayered_change_direction(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forwar
     alternate = current == op->stable ? op->ingest : op->stable;
 
     /*
-     * The walk left the alternate on its first key at or past the current key in the old direction,
-     * or exhausted, with none of its keys in between. A single step the new way therefore positions
-     * it, including past a key it shares with the current cursor.
+     * When the walk is not blocked, the alternate rests on its first key at or past the current key
+     * in the old direction, or is exhausted. It has no keys in between, so one step the new way
+     * puts it past the current key, including past a key both cursors share.
      *
-     * If the current cursor is blocked, it resolves back onto the key it last returned, as a btree
-     * cursor does when reversed at a prepared update, and that key is returned again. The alternate
-     * was stepped past that key before the block if it shares it, so the single step brings it back
-     * to it and ingest still takes the tie.
+     * This runs on every change of direction, blocked or not. If the current cursor is blocked, the
+     * step can land on the key it last returned. That is expected: the blocked cursor resolves back
+     * onto that key, which is returned again as with a btree cursor, and ingest takes the tie.
      */
     WT_ASSERT(CUR2S(clayered),
       F_ISSET(current, WT_CURSTD_KEY_INT) || __clayered_constituent_prepare_blocked(current));
     WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(alternate));
 
     WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, alternate, forward), false);
+
+    /*
+     * Unless the current cursor is blocked, the alternate must end strictly past the current key.
+     * One step is enough, except under read-uncommitted, where new keys can appear in between.
+     */
+    while (F_ISSET(current, WT_CURSTD_KEY_INT) && F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
+        int cmp;
+
+        WT_ERR(__clayered_cursor_compare(op, alternate, current, &cmp));
+        if (forward ? cmp > 0 : cmp < 0)
+            break;
+        WT_ASSERT(CUR2S(clayered), CUR2S(clayered)->txn->isolation == WT_ISO_READ_UNCOMMITTED);
+        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, alternate, forward), false);
+    }
+
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     F_SET(clayered, iter_flag);
     return (0);
@@ -2202,17 +2191,13 @@ err:
  *     advanced to the next position. Otherwise, only `current_cursor` should be advanced.
  *     `__clayered_get_current` will determine which constituent cursor to return from.
  *
- * Prepared transactions need special handling. Either constituent can raise a prepared conflict:
- *     the ingest cursor sees prepared updates written on this node, and the stable cursor sees
- *     those left by a transaction that straddles a step-down, or one that writes with mirroring
- *     enabled while the step-down timestamp is set. A prepared conflict clears the constituent's
- *     WT_CURSTD_KEY_INT while leaving its page reference intact. A walk blocked this way is
- *     therefore detected through the reference rather than the key, and on the next call the
- *     blocked cursor is driven again so it rechecks the key it is currently blocked on. A conflict
- *     on the current cursor leaves the alternate parked and the iteration flags alone; if the walk
- *     changes direction or read context meanwhile, the alternate is repositioned once the conflict
- *     resolves. A conflict on the alternate clears the flags, so it is repositioned from the
- *     current key.
+ * Prepared transactions need special handling. Either constituent can hit a prepared update. The
+ *     conflict clears the constituent's key but keeps its page reference, so a blocked cursor is
+ *     found by its reference. The next call steps the blocked cursor again, which rechecks the same
+ *     key. A conflict on the current cursor leaves the alternate parked and the iteration flags
+ *     unchanged; if the walk changed direction or read context, the alternate is repositioned once
+ *     the conflict resolves. A conflict on the alternate clears the flags, so it is repositioned
+ *     from the current key.
  */
 static int
 __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
