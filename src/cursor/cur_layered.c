@@ -382,8 +382,9 @@ __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
 /*
  * __clayered_cursor_mode --
  *     Decide whether an operation reads layered or direct. It is layered on a follower, in a
- *     transaction that started with the step-down timestamp set, and for a table created in the
- *     step-down window, which has no stable constituent.
+ *     transaction that started with the step-down timestamp set, and on a table that was itself
+ *     created while the step-down timestamp was set: such a table has no stable constituent, so
+ *     every cursor on it reads ingest.
  */
 static WT_INLINE WTI_CLAYERED_CURSOR_MODE
 __clayered_cursor_mode(WTI_CURSOR_LAYERED *clayered, bool leader)
