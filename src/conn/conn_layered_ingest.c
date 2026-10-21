@@ -417,7 +417,8 @@ __layered_fix_prepared_transaction_callback(
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
         op->btree = cookie->stable_btree;
-        WT_ASSERT(session, WT_URI_IS_STABLE(op->btree->dhandle->name));
+        WT_ASSERT(
+          session, __wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE);
 
         /*
          * Transfer the session_inuse reference from the ingest btree to the stable btree. The
@@ -1344,6 +1345,15 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
       " and checkpoint in use from %" PRId64 " to %" PRId64,
       layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
       layered_table->last_ckpt_inuse, ckpt_inuse);
+
+    /*
+     * Prune the truncate list before the new prune timestamp is published, so garbage collection
+     * never runs ahead of the entries still masking ingest content.
+     *
+     * FIXME-WT-18951: Enforce this ordering where ingest content is discarded, so correctness does
+     * not depend on which path advances the prune timestamp.
+     */
+    __wt_layered_table_truncate_prune(session, layered_table, prune_timestamp);
 
     /*
      * The prune timestamp should be monotonically increasing. It is fine for the user to read the
