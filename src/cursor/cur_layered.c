@@ -3835,7 +3835,8 @@ __clayered_close_int(WT_CURSOR *cursor)
 
     dead = F_ISSET(cursor, WT_CURSTD_DEAD);
     session = CUR2S(cursor);
-    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
+    WT_ASSERT_ALWAYS(session,
+      session->dhandle == NULL || session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
       "Valid layered dhandle is required to close a cursor");
     clayered = (WTI_CURSOR_LAYERED *)cursor;
 
@@ -4391,10 +4392,11 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     if (0) {
 err:
         /* Our caller expects to release the data handles if we fail. */
-        clayered->dhandle = NULL;
         __wt_cursor_dhandle_decr_use(session);
-        if (clayered != NULL)
+        if (clayered != NULL) {
+            clayered->dhandle = NULL;
             WT_TRET(__clayered_close(cursor));
+        }
         WT_TRET(__wt_session_release_dhandle(session));
 
         *cursorp = NULL;
