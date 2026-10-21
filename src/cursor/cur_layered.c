@@ -2022,9 +2022,10 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
              * prepared conflict, but the current cursor is then on a key already returned, so
              * nothing is lost.
              *
-             * Deletes leave a tombstone value, so the blocked cursor always resolves onto a key. If
-             * it does not, the alternate is still on its first key past the last key returned in
-             * the old direction, and one step brings it back across.
+             * A mirrored remove deletes from the stable btree, unlike the tombstone value ingest
+             * keeps, so the blocked cursor can find no key. The alternate is then still on its
+             * first key past the last key returned in the old direction, and one step brings it
+             * back across.
              */
             if (F_ISSET(c_current, WT_CURSTD_KEY_INT))
                 WT_RET_NOTFOUND_OK(

@@ -332,5 +332,42 @@ class test_layered_async_stepdown24_reverse_step_down(BlockedWalkMixin,
             self.assertEqual(stable_prepare.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
         stable_prepare.close()
 
+@disagg_test_class
+class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.WiredTigerTestCase):
+    conn_config = BlockedWalkMixin.conn_config.replace(
+        'disaggregated=(', 'disaggregated=(stepdown_write_mirroring=true,')
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
+
+    # With write mirroring, the walk's own transaction removes the last key returned from stable
+    # while the walk is blocked there, leaving nothing before it. Reversing must not return the
+    # key the other constituent is on.
+    def test_reverse_after_last_key_removed(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(2): 'v', self.key(4): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(4, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(6): 'v'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_returns(cursor, 2)
+        self.assert_conflict(cursor)
+
+        writer = self.session.open_cursor(self.uri, None, None)
+        writer.set_key(self.key(2))
+        self.assertEqual(writer.remove(), 0)
+        writer.close()
+
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        cursor.close()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [])
+
+        # Verification needs the step-down completed when writes are mirrored.
+        self.complete_step_down(15)
+
 if __name__ == '__main__':
     wttest.run()
