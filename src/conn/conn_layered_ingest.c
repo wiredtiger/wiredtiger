@@ -87,10 +87,10 @@ __layered_check_stable_btree_state(
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE **updsp, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
+  WT_UPDATE **updates_ptr, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
-    WT_UPDATE *older, *prev, *upd, **updp;
+    WT_UPDATE *newer_update, *older_update, *prev, *upd, **next_ptr;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -105,18 +105,19 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     /*
      * Keep the oldest of any consecutive non-prepared tombstones.
      */
-    updp = updsp;
-    while ((upd = *updp) != NULL && (older = upd->next) != NULL) {
-        if (upd->type != WT_UPDATE_TOMBSTONE || older->type != WT_UPDATE_TOMBSTONE ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS ||
-          older->prepare_state == WT_PREPARE_INPROGRESS) {
-            updp = &upd->next;
+    next_ptr = updates_ptr;
+    while ((newer_update = *next_ptr) != NULL && (older_update = newer_update->next) != NULL) {
+        if (newer_update->type != WT_UPDATE_TOMBSTONE ||
+          older_update->type != WT_UPDATE_TOMBSTONE ||
+          newer_update->prepare_state == WT_PREPARE_INPROGRESS ||
+          older_update->prepare_state == WT_PREPARE_INPROGRESS) {
+            next_ptr = &newer_update->next;
             continue;
         }
 
         /* Free the newer tombstone, then check the same position again. */
-        *updp = older;
-        __wt_free(session, upd);
+        *next_ptr = older_update;
+        __wt_free(session, newer_update);
     }
 
     /*
@@ -133,7 +134,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
          * must forget the key.
          */
         if (last_upd->prepare_state == WT_PREPARE_INPROGRESS && last_upd->txnid != WT_TXN_ABORTED) {
-            for (upd = *updsp; upd != last_upd; upd = upd->next)
+            for (upd = *updates_ptr; upd != last_upd; upd = upd->next)
                 if (upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid != WT_TXN_ABORTED &&
                   upd->prepared_id == last_upd->prepared_id)
                     break;
@@ -142,11 +143,11 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
                   session, key, CUR2BT(cbt), last_upd->txnid, last_upd->prepared_id));
         }
 
-        if (*updsp == last_upd) {
-            __wt_free(session, *updsp);
+        if (*updates_ptr == last_upd) {
+            __wt_free(session, *updates_ptr);
             goto err;
         }
-        for (prev = *updsp; prev->next != last_upd; prev = prev->next)
+        for (prev = *updates_ptr; prev->next != last_upd; prev = prev->next)
             ;
         prev->next = NULL;
         __wt_free(session, last_upd);
@@ -169,8 +170,8 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     }
 
     /* Apply the modification. The stable table owns the updates once it succeeds. */
-    WT_ERR(__wt_row_modify(cbt, key, NULL, updsp, WT_UPDATE_INVALID, false, false));
-    *updsp = NULL;
+    WT_ERR(__wt_row_modify(cbt, key, NULL, updates_ptr, WT_UPDATE_INVALID, false, false));
+    *updates_ptr = NULL;
 
 err:
     WT_TRET(__wt_btcur_reset(cbt));
