@@ -806,8 +806,8 @@ static const WT_CONFIG_CHECK confchk_disagg_truncate_perf[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"in_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 6, INT64_MIN,
     INT64_MAX, NULL},
-  {"insert_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 1, INT64_MAX,
-    NULL},
+  {"load_checkpoint_interval_ms", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
+    48, 1, INT64_MAX, NULL},
   {"marker_size_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 49, 1,
     INT64_MAX, NULL},
   {"metrics_monitor", "category", NULL, NULL, confchk_metrics_monitor_subconfigs, 6,
@@ -832,6 +832,8 @@ static const WT_CONFIG_CHECK confchk_disagg_truncate_perf[] = {
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4,
     confchk_timestamp_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 26, INT64_MIN,
     INT64_MAX, NULL},
+  {"trim_mb", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 52, 1, INT64_MAX,
+    NULL},
   {"validate", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 29, INT64_MIN,
     INT64_MAX, NULL},
   {"value_size", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 38, 1, INT64_MAX,
@@ -845,7 +847,7 @@ static const uint8_t confchk_disagg_truncate_perf_jump[WT_CONFIG_JUMP_TABLE_SIZE
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5, 6, 6,
-  6, 6, 8, 8, 8, 8, 10, 10, 12, 12, 12, 14, 16, 17, 17, 19, 20, 20, 20, 20, 20, 20, 20, 20};
+  6, 6, 7, 7, 7, 8, 10, 10, 12, 12, 12, 14, 16, 18, 18, 20, 21, 21, 21, 21, 21, 21, 21, 21};
 
 static const WT_CONFIG_CHECK confchk_hs_cleanup[] = {
   {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
@@ -1449,19 +1451,20 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"disagg_truncate_perf",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
-    "enable_logging=false,in_memory=false,insert_mb=512,"
-    "marker_size_mb=8,metrics_monitor=(cache_hs_insert=(max=1,min=0,"
-    "postrun=false,runtime=false,save=false),cc_pages_removed=(max=1,"
-    "min=0,postrun=false,runtime=false,save=false),enabled=true,"
-    "op_rate=1s,stat_cache_size=(max=1,min=0,postrun=false,"
-    "runtime=false,save=false),stat_db_size=(max=1,min=0,"
-    "postrun=false,runtime=false,save=false)),"
-    "operation_tracker=(enabled=true,op_rate=1s,"
-    "tracking_key_format=QSQ,tracking_value_format=iS),"
+    "enable_logging=false,in_memory=false,"
+    "load_checkpoint_interval_ms=2000,marker_size_mb=8,"
+    "metrics_monitor=(cache_hs_insert=(max=1,min=0,postrun=false,"
+    "runtime=false,save=false),cc_pages_removed=(max=1,min=0,"
+    "postrun=false,runtime=false,save=false),enabled=true,op_rate=1s,"
+    "stat_cache_size=(max=1,min=0,postrun=false,runtime=false,"
+    "save=false),stat_db_size=(max=1,min=0,postrun=false,"
+    "runtime=false,save=false)),operation_tracker=(enabled=true,"
+    "op_rate=1s,tracking_key_format=QSQ,tracking_value_format=iS),"
     "oplog_size_mb=256,reverse_collator=false,role=leader,"
     "statistics_config=(enable_logging=true,type=all),"
     "sweep_interval=10,timestamp_manager=(enabled=true,oldest_lag=1,"
-    "op_rate=1s,stable_lag=1),validate=true,value_size=1000,"
+    "op_rate=1s,stable_lag=1),trim_mb=512,validate=true,"
+    "value_size=1000,"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
     ",op_rate=1s,thread_count=0),checkpoint_config=(op_rate=60s,"
     "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
@@ -1475,7 +1478,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
     "thread_count=0),update_config=(key_size=5,op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
-    confchk_disagg_truncate_perf, 20, confchk_disagg_truncate_perf_jump, 10, WT_CONF_SIZING_NONE,
+    confchk_disagg_truncate_perf, 21, confchk_disagg_truncate_perf_jump, 10, WT_CONF_SIZING_NONE,
     false},
   {"hs_cleanup",
     "background_compact_debug_mode=false,cache_max_wait_ms=0,"

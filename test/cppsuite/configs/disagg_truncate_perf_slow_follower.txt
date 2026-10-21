@@ -2,7 +2,7 @@
 # The workload matches the fast follower config so the two truncate paths can be compared.
 cache_size_mb=2048,
 duration_seconds=15,
-insert_mb=512,
+trim_mb=512,
 marker_size_mb=8,
 oplog_size_mb=256,
 role=slow_follower,
@@ -12,6 +12,6 @@ operation_tracker=(enabled=false),
 timestamp_manager=(enabled=false),
 workload_manager=(
     populate_config=(thread_count=4),
-    insert_config=(thread_count=4),
+    insert_config=(thread_count=0),
     custom_config=(thread_count=1),
-    checkpoint_config=(thread_count=1,op_rate=2s))
+    checkpoint_config=(thread_count=0))

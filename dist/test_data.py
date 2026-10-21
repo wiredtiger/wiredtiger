@@ -281,15 +281,17 @@ methods = {
         How long the insertions will occur for.''')]),
     'cache_resize' : Method(test_config),
     'disagg_truncate_perf' : Method(test_config + [
-        Config('insert_mb', 512, r'''
-            The maximum data the measured phase appends to the oplog''', min=1),
+        Config('load_checkpoint_interval_ms', 2000, r'''
+            How often the load advances the stable timestamp and checkpoints''', min=1),
         Config('marker_size_mb', 8, r'''
             The size of an oplog marker, the unit a single truncate removes''', min=1),
         Config('oplog_size_mb', 256, r'''
-            How much data the oplog keeps before truncation starts''', min=1),
+            How much data the oplog retains after trimming''', min=1),
         Config('role', 'leader', r'''
             What the run measures: leader, fast follower, slow follower, or in-place switch''',
             choices=['leader', 'follower', 'slow_follower', 'switch']),
+        Config('trim_mb', 512, r'''
+            How much data beyond the retained window is loaded and then trimmed''', min=1),
         Config('value_size', 1000, r'''
             The size of an oplog record''', min=1),
     ]),
