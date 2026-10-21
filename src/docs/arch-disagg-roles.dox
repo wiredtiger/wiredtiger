@@ -76,16 +76,14 @@ The table above shows how a role transition coordinates different parts of Wired
 @ref arch-disagg-layered for layered tables, @ref arch-hs for historical versions,
 @ref arch-disagg-key-provider for key metadata, and @ref arch-eviction for page reclamation.
 
-@section disagg-roles-transitions Role transitions
-
-There are two role transitions: step-up changes a follower into a leader, and step-down changes a leader into a follower. These transitions support events such as electing a new leader after the previous leader fails, scaling the cluster up or down, and other changes to the cluster.
+@section disagg-roles-transitions Role transitions diagram
 
 @htmlonly
 <img src="disagg-roles.svg" alt="The leader writes shared checkpoints; the follower applies local
 changes and adopts checkpoints. Step-up and step-down change these responsibilities." />
 @endhtmlonly
 
-@subsection disagg-roles-step-up Step-up
+@section disagg-roles-step-up Step-up
 
 Before step-up, a follower already has a shared checkpoint view and recent changes in its
 ingest tables. Step-up adopts any pending checkpoints, creates missing stable tables, and
@@ -98,7 +96,7 @@ data and local changes into a consistent live shared tree. Transactions and posi
 must not span step-up. The application must finish transactions and reset or close positioned
 cursors before the step-up reconfiguration; it can start new work after the transition completes.
 
-@subsection disagg-roles-step-down Step-down
+@section disagg-roles-step-down Step-down
 
 Step-down transfers shared-write responsibility without restarting the old leader. There are
 two ways to prepare for the transition:
