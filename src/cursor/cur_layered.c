@@ -1886,55 +1886,21 @@ err:
 }
 
 /*
- * __clayered_reposition_blocked --
- *     Reposition a blocked walk whose direction or read context changed. The walk stopped at the
- *     earlier, in the direction it was moving, of the blocked key and the alternate's key. Like a
- *     btree cursor blocked there, continuing restarts the alternate at that key, and reversing
- *     restarts both constituents strictly before it.
+ * __clayered_step_past --
+ *     Step a constituent until it is strictly past a key in the walk direction, or exhausted.
  */
 static int
-__clayered_reposition_blocked(
-  WTI_CLAYERED_OP *op, WT_CURSOR *current, WT_CURSOR *alternate, bool forward, bool reversed)
+__clayered_step_past(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, const WT_ITEM *key, bool forward)
 {
-    WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_DECL_ITEM(alternate_key);
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-    const WT_ITEM *stop = &clayered->blocked_key;
-    const bool stopped_forward = reversed ? !forward : forward;
     int cmp;
 
-    if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
-        WT_RET(__wt_compare(session, op->collator, &alternate->key, stop, &cmp));
-        if (stopped_forward ? cmp < 0 : cmp > 0) {
-            /* Copy the alternate's key: the search overwrites it. */
-            WT_RET(__wt_scr_alloc(session, 0, &alternate_key));
-            WT_ERR(__wt_buf_set(session, alternate_key, alternate->key.data, alternate->key.size));
-            stop = alternate_key;
-        }
+    while (F_ISSET(constituent, WT_CURSTD_KEY_INT)) {
+        WT_RET(__wt_compare(CUR2S(op->clayered), op->collator, &constituent->key, key, &cmp));
+        if (forward ? cmp > 0 : cmp < 0)
+            break;
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, constituent, forward));
     }
-
-    WT_ERR_NOTFOUND_OK(__clayered_position_alternate_at(op, stop, alternate, forward), false);
-
-    /*
-     * The current cursor stepped back from the blocked key, which can lie past the stop key: keep
-     * stepping both constituents until they are strictly before it.
-     */
-    if (reversed) {
-        WT_CURSOR *const constituents[] = {alternate, current};
-        for (size_t i = 0; i < WT_ELEMENTS(constituents); ++i)
-            while (F_ISSET(constituents[i], WT_CURSTD_KEY_INT)) {
-                WT_ERR(__wt_compare(session, op->collator, &constituents[i]->key, stop, &cmp));
-                if (forward ? cmp > 0 : cmp < 0)
-                    break;
-                WT_ERR_NOTFOUND_OK(
-                  __clayered_constituent_iter_helper(op, constituents[i], forward), false);
-            }
-    }
-
-err:
-    __wt_scr_free(session, &alternate_key);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1997,33 +1963,35 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
   uint32_t iter_flag, bool forward)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_DECL_RET;
+    const bool reversed = F_ISSET(
+      clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
+
+    WT_ASSERT(CUR2S(clayered), !reversed || !F_ISSET(clayered, iter_flag));
+
+    /*
+     * The alternate does not move while the current cursor is blocked. If the direction or read
+     * context changed, reposition it from where the walk stopped, like a btree cursor blocked
+     * there: at that key to continue, strictly before it to reverse. Do this before stepping the
+     * blocked cursor, so a prepared conflict leaves the walk blocked and loses no key.
+     *
+     * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before the
+     * point where the walk stopped, and the walk skips them.
+     */
+    if (!F_ISSET(clayered, iter_flag)) {
+        WT_RET_NOTFOUND_OK(
+          __clayered_position_alternate_at(op, &clayered->stop_key, c_alternate, forward));
+        if (reversed)
+            WT_RET(__clayered_step_past(op, c_alternate, &clayered->stop_key, forward));
+    }
+    WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
 
     /* Step the blocked cursor again: this rechecks the blocked key. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_current, forward));
 
-    /*
-     * The alternate does not move while the current cursor is blocked. If the direction or read
-     * context changed, reposition the walk now. Continuing only revisits keys this snapshot already
-     * read, so it cannot hit a prepared conflict. Reversing can, but the current cursor is then on
-     * a key already returned, so nothing is lost.
-     *
-     * FIXME-WT-17960: a read timestamp change during the stall can reveal alternate keys before
-     * the point where the walk stopped, and the walk skips them.
-     *
-     * FIXME-WT-18422: once a prepared update can be resolved after a step-down, the ingest cursor
-     * the step-down opens is first positioned here and can hit a prepared conflict, breaking the
-     * assertion below.
+    /* Reversing, the blocked cursor steps back from the blocked key, which can lie past the stop.
      */
-    if (!F_ISSET(clayered, iter_flag)) {
-        const bool reversed = F_ISSET(
-          clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
-
-        ret = __clayered_reposition_blocked(op, c_current, c_alternate, forward, reversed);
-        WT_ASSERT(CUR2S(clayered), ret != WT_PREPARE_CONFLICT || reversed);
-        WT_RET(ret);
-    }
-    WT_ASSERT(CUR2S(clayered), !__clayered_constituent_prepare_blocked(c_alternate));
+    if (reversed)
+        WT_RET(__clayered_step_past(op, c_current, &clayered->stop_key, forward));
 
     /*
      * The current cursor is now on the key to return, so step nothing else: a prepared conflict in
@@ -2094,10 +2062,10 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
  *     hit a prepared conflict on its first key.
  */
 static WT_INLINE int
-__clayered_iterate_finish(
-  WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool fresh_start, int ret)
+__clayered_iterate_finish(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool fresh_start, int ret)
 {
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_CURSOR *current = clayered->current_cursor;
 
     if (ret == WT_PREPARE_CONFLICT && fresh_start)
         /*
@@ -2105,30 +2073,44 @@ __clayered_iterate_finish(
          * starts again.
          */
         WT_TRET(__clayered_reset_cursors(clayered, false));
-    else if (ret == 0) {
-        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-        F_SET(clayered, iter_flag);
-    } else if (ret == WT_PREPARE_CONFLICT &&
-      __clayered_constituent_prepare_blocked(clayered->current_cursor)) {
+    else if (ret == WT_PREPARE_CONFLICT && __clayered_constituent_prepare_blocked(current)) {
         /*
-         * A prepared conflict on the current cursor leaves the alternate where it is: record the
-         * key and direction it blocked in.
+         * When the current cursor first blocks, record the direction and where the walk stopped:
+         * the earlier of the blocked key and the alternate's key, which has not moved. Both hold
+         * until the walk unblocks, whatever conflicts the retries hit.
          */
-        WT_ITEM blocked;
-        __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)clayered->current_cursor, &blocked);
-        WT_RET(__wt_buf_set(CUR2S(clayered), &clayered->blocked_key, blocked.data, blocked.size));
-        if (iter_flag == WTI_CLAYERED_ITERATE_NEXT)
-            F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT);
-        else
-            F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_PREV);
+        if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV)) {
+            WT_CURSOR *alternate = current == op->stable ? op->ingest : op->stable;
+            WT_ITEM stop;
+            int cmp;
+
+            __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)current, &stop);
+            if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
+                WT_RET(__wt_compare(CUR2S(clayered), op->collator, &alternate->key, &stop, &cmp));
+                if (iter_flag == WTI_CLAYERED_ITERATE_NEXT ? cmp < 0 : cmp > 0)
+                    stop = alternate->key;
+            }
+            WT_RET(__wt_buf_set(CUR2S(clayered), &clayered->stop_key, stop.data, stop.size));
+            if (iter_flag == WTI_CLAYERED_ITERATE_NEXT)
+                F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT);
+            else
+                F_SET(clayered, WTI_CLAYERED_ITERATE_RETRY_PREV);
+        }
     } else {
-        /*
-         * Any other error, including a prepared conflict on the alternate, can leave the alternate
-         * blocked or reset: clear the flags to reposition it. The constituent-stepping helpers map
-         * WT_NOTFOUND to 0, so an error reaching here is never WT_NOTFOUND.
-         */
-        WT_ASSERT(CUR2S(clayered), ret != WT_NOTFOUND);
-        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+        F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
+        if (ret == 0) {
+            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+            F_SET(clayered, iter_flag);
+        } else {
+            /*
+             * Any other error, including a prepared conflict on the alternate, can leave the
+             * alternate blocked or reset: clear the flags to reposition it. The
+             * constituent-stepping helpers map WT_NOTFOUND to 0, so an error reaching here is never
+             * WT_NOTFOUND.
+             */
+            WT_ASSERT(CUR2S(clayered), ret != WT_NOTFOUND);
+            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+        }
     }
     return (ret);
 }
@@ -2194,7 +2176,7 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
     else
         ret = __clayered_advance_positioned(op, iter_flag, forward);
 
-    return (__clayered_iterate_finish(op->clayered, iter_flag, fresh_start, ret));
+    return (__clayered_iterate_finish(op, iter_flag, fresh_start, ret));
 }
 
 /*
@@ -3974,7 +3956,7 @@ __clayered_close_int(WT_CURSOR *cursor)
     clayered = (WTI_CURSOR_LAYERED *)cursor;
 
     WT_TRET(__clayered_close_cursors(clayered));
-    __wt_buf_free(session, &clayered->blocked_key);
+    __wt_buf_free(session, &clayered->stop_key);
 
     __wt_cursor_close(cursor);
 

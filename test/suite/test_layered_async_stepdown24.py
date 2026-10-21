@@ -296,9 +296,9 @@ class test_layered_async_stepdown24_reverse_conflict(BlockedWalkMixin, wttest.Wi
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions[:1])
 
     # A walk positioned by a search passes a prepared ingest key it never read. It blocks on a
-    # stable prepared update, then reverses into that ingest key: both constituents are now blocked.
-    # The walk keeps reporting the conflict until the ingest key resolves, then continues below the
-    # key it last returned, which the interrupted reversal does not return a second time.
+    # stable prepared update, then reverses into that ingest key. The walk keeps reporting the
+    # conflict until the ingest key resolves, then, like a btree cursor reversing out of a stall,
+    # returns the key it last returned again and continues below it.
     def test_reverse_into_second_conflict(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -320,7 +320,7 @@ class test_layered_async_stepdown24_reverse_conflict(BlockedWalkMixin, wttest.Wi
         actual = self.walk_back(cursor)
         self.session.rollback_transaction()
         self.resolve(stable_prepare)
-        self.assertEqual(actual, [(self.key(1), 'v')])
+        self.assertEqual(actual, [(self.key(3), 'v'), (self.key(1), 'v')])
 
 @disagg_test_class
 class test_layered_async_stepdown24_reverse_step_down(BlockedWalkMixin,

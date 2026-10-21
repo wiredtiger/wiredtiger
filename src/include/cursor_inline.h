@@ -153,8 +153,8 @@ __wt_cursor_localkey(WT_CURSOR *cursor)
 /*
  * __wt_btcur_prepare_conflict_key --
  *     Return the key a cursor iteration stopped on with a prepared conflict. Row-store iteration
- * sets the key before checking visibility and keeps the page pinned on the conflict, so the key
- * stays valid until the cursor next moves. It is never returned to the application.
+ *     sets the key before checking visibility and keeps the page pinned on the conflict, so the key
+ *     stays valid until the cursor next moves. It is never returned to the application.
  */
 static WT_INLINE void
 __wt_btcur_prepare_conflict_key(WT_CURSOR_BTREE *cbt, WT_ITEM *keyp)
