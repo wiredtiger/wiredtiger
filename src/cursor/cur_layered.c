@@ -1034,6 +1034,19 @@ __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
 }
 
 /*
+ * __clayered_defer_step_down --
+ *     Return whether to keep the stable cursor from before a step-down. A stable cursor blocked on
+ *     a prepared update holds the position the retry rechecks, and the live tree it reads is
+ *     frozen, not discarded, by the step-down. It is reopened once the conflict resolves.
+ */
+static WT_INLINE bool
+__clayered_defer_step_down(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
+{
+    return (clayered->last_role == WTI_CLAYERED_ROLE_LEADER && role == WTI_CLAYERED_ROLE_FOLLOWER &&
+      __clayered_constituent_prepare_blocked(clayered->stable_cursor));
+}
+
+/*
  * __clayered_constituent_needs_reset --
  *     Determine if a constituent has state a reset must clear: either an application-set external
  *     key with no page reference yet (WT_CURSTD_KEY_SET without a search having run), or a page
@@ -1147,13 +1160,10 @@ __clayered_reopen_stable(
 
     /*
      * If the old cursor has a position, copy it to the newly opened cursor. A cursor blocked on a
-     * prepare conflict has no key to search with, so its position cannot transfer. Dropping it here
-     * is safe: the iface key is cleared on any error return, including a prepare conflict, so by
-     * the time a role change can happen the layered cursor already reports itself as unpositioned,
-     * which is all the role-change invariants require. The checkpoint advance is different: it can
-     * run while the iface cursor is still positioned on this same blocked constituent, so it
-     * declines to reopen in that state instead of losing the position.
+     * prepare conflict has no key to search with, so its position cannot transfer: both the
+     * checkpoint advance and a step-down wait for the conflict to resolve before reopening.
      */
+    WT_ASSERT(session, !__clayered_constituent_prepare_blocked(old_stable));
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
         WT_ERR_NOTFOUND_OK(__wt_cursor_dup_position(old_stable, clayered->stable_cursor), true);
         /*
@@ -1169,18 +1179,6 @@ __clayered_reopen_stable(
          * the correct location.
          */
         if (ret == WT_NOTFOUND)
-            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    } else if (__clayered_constituent_prepare_blocked(old_stable)) {
-        /*
-         * The dropped position leaves nothing for a later step to resume from. If the blocked
-         * cursor was current, the alternate may still be genuinely positioned; leaving it that way
-         * would have the next call reuse the now-unpositioned new stable cursor as current while
-         * treating the alternate as trustworthy, which it no longer is once the walk restarts here.
-         * Reset both so the walk restarts from scratch instead of resuming from a mismatched pair.
-         */
-        if (clayered->current_cursor == old_stable)
-            WT_ERR(__clayered_reset_cursors(clayered, false));
-        else
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
@@ -1245,7 +1243,10 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
     clayered->txn_mod_count = txn_mod_count;
-    clayered->last_role = role;
+
+    /* A deferred step-down stays pending, so the next operation reopens the stable cursor. */
+    if (!__clayered_defer_step_down(clayered, role))
+        clayered->last_role = role;
 }
 
 /*
@@ -1397,14 +1398,17 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
               &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
           (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
-    } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
-      __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
+    } else if (!__clayered_defer_step_down(clayered, role) &&
+      (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
+        __clayered_can_advance_stable(
+          clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role))) {
         /*
          * Reopen the cursor.
          *
          * We should always reopen the stable table when stepping up or down. That should be fine,
          * since in this case all the cursors should be unpositioned and no current transactions
-         * should be running.
+         * should be running. A step-down waits while the stable cursor is blocked on a prepared
+         * update, see __clayered_defer_step_down.
          *
          * The second case of reopening the stable table is when we want to open a new checkpoint on
          * a follower to evict more entries from the ingest table.

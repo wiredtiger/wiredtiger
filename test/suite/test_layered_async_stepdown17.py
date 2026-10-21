@@ -32,11 +32,9 @@ from helper_layered_stepdown import LayeredStepdownMixin
 
 # A walk blocked on the stable constituent's own prepared conflict survives into a role change:
 # the reader is left mid-walk (not reset) while the leader steps down to follower. Only write
-# cursors are required to be unpositioned across a step-down. The reopened stable cursor loses the
-# blocked position, while the ingest constituent -- the walk's alternate -- can still be genuinely
-# positioned. The walk must recover from that mismatch on the next call rather than reuse the stale
-# pairing: the step-down checkpoint never carries a prepared, uncommitted update, so the restarted
-# walk finds nothing blocking key0020 and returns every key in one pass.
+# cursors are required to be unpositioned across a step-down. The walk keeps its blocked position
+# and waits on the prepared update across the step-down rather than restarting; once the update is
+# resolved it resumes where it stopped, returning every key exactly once.
 @disagg_test_class
 class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
@@ -110,29 +108,39 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
             seen.append(cursor.get_key())
 
         # A role change now runs while the reader is still mid-walk, blocked on the stable-side
-        # conflict.
+        # conflict. The walk keeps waiting on the prepared update across it.
         self.complete_step_down(15)
+        self.assertRaisesException(wiredtiger.WiredTigerError, cursor.next,
+            '/conflict with a prepared update/')
 
-        # Resume the walk. The role change discarded the blocked position, so the walk restarts
-        # from the first key rather than resuming where it left off.
-        seen = []
-        while cursor.next() == 0:
-            seen.append(cursor.get_key())
-        self.session.rollback_transaction()
-        cursor.close()
-
-        self.assertEqual(seen, keys)
-
-        # The role change also raced the still-open raw file cursor this rollback uses to resolve
-        # the prepared update: reopening the now-follower stable table can refuse with the same
-        # disaggregated conflict a layered cursor would convert to a rollback (FIXME-WT-18357), and
-        # the application is expected to retry. Resolving a straddling prepared transaction on the
-        # follower is not otherwise supported today (FIXME-WT-18422), so accept either outcome
-        # rather than requiring the race.
+        # Resolving a straddling prepared transaction on the follower is not supported today
+        # (FIXME-WT-18422): the rollback can be refused with a disaggregated conflict. Until the
+        # update is resolved the walk keeps reporting the conflict; once it is, the walk resumes
+        # where it stopped and returns every key exactly once.
         try:
             prepare_session.rollback_transaction()
+            resolved = True
         except wiredtiger.WiredTigerError:
             self.assertEqual(prepare_session.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
+            resolved = False
+        if resolved:
+            while cursor.next() == 0:
+                seen.append(cursor.get_key())
+            self.assertEqual(seen, keys)
+        else:
+            self.assertRaisesException(wiredtiger.WiredTigerError, cursor.next,
+                '/conflict with a prepared update/')
+
+            # Resetting the walk releases the blocked position, so the next call completes the
+            # step-down: the stable is reopened on the follower's checkpoint, which never carries a
+            # prepared update, and a fresh walk returns every key.
+            cursor.reset()
+            restarted = []
+            while cursor.next() == 0:
+                restarted.append(cursor.get_key())
+            self.assertEqual(restarted, keys)
+        self.session.rollback_transaction()
+        cursor.close()
         prepare_cursor.close()
         prepare_session.close()
 
