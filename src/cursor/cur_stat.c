@@ -1069,13 +1069,6 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
               "values should be "
               "specified");
         F_SET(cst, otel_flags);
-
-        /*
-         * OTel counters report increments, so they are always cleared. This is set after the clear
-         * and size compatibility check on purpose: size can fall through to the normal gather.
-         */
-        if (FLD_ISSET(otel_flags, WT_STAT_OTEL_COUNTERS))
-            F_SET(cst, WT_STAT_CLEAR);
     }
 
     /*

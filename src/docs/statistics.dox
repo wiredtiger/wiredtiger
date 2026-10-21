@@ -135,10 +135,6 @@ exposes. When \c clear is configured together with \c otel_counters, \c otel_gau
 statistics of every other type keep their values. Without one of these values, \c clear
 clears all statistics.
 
-Configuring \c otel_counters implies \c clear, because OTel counters report increments
-rather than cumulative totals: each cursor returns the change since the previous one. No
-\c otel_counters statistic is exempt from clearing.
-
 As with other statistics configuration values, the ::wiredtiger_open function
 sets the default for all statistics cursors, which the configuration passed to
 WT_SESSION::open_cursor then extends.

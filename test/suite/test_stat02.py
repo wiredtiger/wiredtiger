@@ -189,63 +189,6 @@ class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
                 lambda: self.session.open_cursor(
                 'statistics:' + self.uri, None, config), msg)
 
-# Test that otel_counters clears the statistics it exposes without "clear" being configured.
-class test_stat_cursor_otel_counters_clear(wttest.WiredTigerTestCase):
-    test_name = __qualname__
-    uri = f'table:{test_name}'
-
-    clear = [
-        ('implicit', dict(clear='')),
-        ('explicit', dict(clear=',clear')),
-    ]
-
-    scenarios = make_scenarios(clear)
-    conn_config = 'statistics=(all)'
-
-    def test_stat_cursor_otel_counters_clear(self):
-        SimpleDataSet(self, self.uri, 100).populate()
-        config = 'statistics=(all,otel_counters' + self.clear + ')'
-
-        cursor = self.session.open_cursor('statistics:', None, config)
-        self.assertGreater(cursor[stat.conn.cursor_insert][2], 0)
-        cursor.close()
-
-        cursor = self.session.open_cursor('statistics:', None, config)
-        self.assertEqual(cursor[stat.conn.cursor_insert][2], 0)
-        cursor.close()
-
-# Test that only otel_counters implies clear, and that size doesn't prevent it.
-class test_stat_cursor_otel_counters_clear_scope(wttest.WiredTigerTestCase):
-    test_name = __qualname__
-    uri = f'table:{test_name}'
-    conn_config = 'statistics=(all)'
-
-    # Cursors of other OTel types don't clear the counters.
-    def test_stat_cursor_otel_counters_clear_other_types(self):
-        SimpleDataSet(self, self.uri, 100).populate()
-        for config in ['statistics=(all,otel_none)', 'statistics=(all,otel_gauges)']:
-            cursor = self.session.open_cursor('statistics:', None, config)
-            cursor.close()
-        cursor = self.session.open_cursor('statistics:', None, 'statistics=(all,otel_counters)')
-        self.assertGreater(cursor[stat.conn.cursor_insert][2], 0)
-        cursor.close()
-
-    # A connection cursor ignores size and gathers the counters, so they must still be cleared.
-    def test_stat_cursor_otel_counters_clear_size(self):
-        SimpleDataSet(self, self.uri, 100).populate()
-        config = 'statistics=(size,otel_counters)'
-
-        cursor = self.session.open_cursor('statistics:', None, config)
-        self.assertGreater(cursor[stat.conn.cursor_insert][2], 0)
-        cursor.close()
-
-        cursor = self.session.open_cursor('statistics:', None, config)
-        self.assertEqual(cursor[stat.conn.cursor_insert][2], 0)
-        cursor.close()
-
-        # The data-source size fast path still opens.
-        self.session.open_cursor('statistics:' + self.uri, None, config).close()
-
 # Test the OTel type configuration options are accepted individually.
 class test_stat_cursor_otel_config(wttest.WiredTigerTestCase):
     test_name = __qualname__
