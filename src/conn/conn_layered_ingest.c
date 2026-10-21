@@ -947,7 +947,8 @@ err:
     if (orphan_count > 0) {
         WT_STAT_CONN_INCRV(session, disagg_step_up_ingest_drain_orphan_remove, orphan_count);
         __wt_verbose_warning(session, WT_VERB_LAYERED,
-          "%s: step-up drain skipped %" PRIu64 " removes of keys with no value in the stable table",
+          "%s: step-up drain skipped %" PRIu64
+          " remove(s) of keys with no value in the stable table",
           (const char *)layered_uri_buf->data, orphan_count);
     }
 

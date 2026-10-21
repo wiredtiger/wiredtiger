@@ -43,7 +43,7 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
     table = __qualname__
     uri = f'layered:{table}'
     ingest_uri = f'file:{table}.wt_ingest'
-    warning = f'layered:{table}: step-up drain skipped 1 removes of keys with no value in the ' \
+    warning = f'layered:{table}: step-up drain skipped 1 remove(s) of keys with no value in the ' \
         'stable table'
     read_ts = (6, 9, 15, 22, 28)
 

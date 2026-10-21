@@ -149,7 +149,7 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
         orphans = 0 if self.stable_state == 'present' else 1 + len(self.extra_keys)
-        warning = f'{self.uri}: step-up drain skipped {orphans} removes of keys with no value in ' \
+        warning = f'{self.uri}: step-up drain skipped {orphans} remove(s) of keys with no value in ' \
             'the stable table'
         before = self.orphan_stat()
         self.cleanStdout()
