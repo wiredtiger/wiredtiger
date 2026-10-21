@@ -28,11 +28,11 @@
 #
 # test_layered_stepup15.py
 #   A follower removes a key, possibly more than once, and then steps up. The key may be missing
-#   from the stable table, already deleted there, or live, and newer changes may follow the
-#   removes, and other keys missing from the stable table may be removed too. Removes of a key with
-#   no value in the stable table are counted and reported with one warning per table, reads at every timestamp stay correct, and the node keeps running through a
-#   checkpoint and a restart. The removes are written directly into the ingest table as the value
-#   a follower remove stores.
+#   from the stable table, already deleted there, or live; a newer insert may follow the removes,
+#   and other keys missing from the stable table may be removed too. Removes of keys with no value
+#   in the stable table are skipped, counted and reported with one warning per table, reads at
+#   every timestamp stay correct, and the node keeps running through a checkpoint and a restart.
+#   The removes are written directly into the ingest table as the value a follower remove stores.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -137,7 +137,8 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
         if self.insert_ts:
             self.session.begin_transaction()
             c['k'] = b'w'
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.insert_ts))
+            self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(self.insert_ts))
         c.close()
         c = self.session.open_cursor(self.live_ingest_uri)
         self.session.begin_transaction()
@@ -149,8 +150,8 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
         orphans = 0 if self.stable_state == 'present' else 1 + len(self.extra_keys)
-        warning = f'{self.uri}: step-up drain skipped {orphans} remove(s) of keys with no value in ' \
-            'the stable table'
+        warning = f'{self.uri}: step-up drain skipped {orphans} remove(s) of keys with no ' \
+            'value in the stable table'
         before = self.orphan_stat()
         self.cleanStdout()
         self.conn.reconfigure('disaggregated=(role="leader")')

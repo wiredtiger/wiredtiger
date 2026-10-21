@@ -29,10 +29,10 @@
 # test_layered_stepup16.py
 #   A prepared transaction on a follower removes a key with no value in the stable table, possibly
 #   inserting it again afterwards, and is still unresolved when the follower steps up. A remove
-#   that is the transaction's last change to the key is counted and reported. The transaction then
-#   commits or rolls back on the new leader, and reads stay correct through a checkpoint and a
-#   restart. The remove is written directly into the ingest table as the value a follower remove
-#   stores.
+#   that is the transaction's last change to the key is skipped, counted and reported. The
+#   transaction then commits or rolls back on the new leader, and reads stay correct through a
+#   checkpoint and a restart. The remove is written directly into the ingest table as the value a
+#   follower remove stores.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

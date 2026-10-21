@@ -18,7 +18,7 @@ static int __layered_last_checkpoint_order(
  *     Check stable btree invariants before applying ingest updates for a key: assert no unresolved
  *     preserved prepared update exists, and return whether the oldest ingest update is a tombstone
  *     with no corresponding value to delete. A blind remove can legitimately produce such a
- *     tombstone for a key that never existed.
+ *     tombstone for a key that is missing from the stable table or already deleted there.
  */
 static WT_INLINE bool
 __layered_check_stable_btree_state(
@@ -103,10 +103,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * Reconciliation cannot write consecutive tombstones. Updates are newest first, so for adjacent
-     * non-prepared tombstones keep the older one: it ends the value's lifetime, and the newer one
-     * deletes nothing. The oldest update is never removed here. The drain marks both in-flight and
-     * rolled-back prepared updates as in progress.
+     * Keep the oldest of any consecutive non-prepared tombstones.
      */
     updp = updsp;
     while ((upd = *updp) != NULL && (older = upd->next) != NULL) {
@@ -117,7 +114,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
             continue;
         }
 
-        /* Unlink and free the newer tombstone, then check the same position again. */
+        /* Free the newer tombstone, then check the same position again. */
         *updp = older;
         __wt_free(session, upd);
     }
@@ -1457,17 +1454,6 @@ __layered_last_checkpoint_order(
 }
 
 #ifdef HAVE_UNITTEST
-
-/*
- * __ut_layered_check_stable_btree_state --
- *     Unit test wrapper for __layered_check_stable_btree_state.
- */
-bool
-__ut_layered_check_stable_btree_state(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
-{
-    return (__layered_check_stable_btree_state(session, cbt, last_upd));
-}
 
 /*
  * __ut_layered_derive_layered_uri --
