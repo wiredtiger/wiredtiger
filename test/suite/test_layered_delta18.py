@@ -36,8 +36,9 @@ from wiredtiger import stat
 # gets a much smaller delta byte budget under the former. Modify a slice of such a
 # page sized to clear the threshold only against the maximum page size, and check
 # that the delta is written only when the switch selects that denominator. A larger
-# modification, whose delta would exceed half the image, is written as a full page
-# even under the maximum-page-size denominator.
+# modification, whose delta would approach the image, is written as a full page even
+# under the maximum-page-size denominator until delta_pct is large enough that the
+# guard stops applying.
 
 @disagg_test_class
 class test_layered_delta18(wttest.WiredTigerTestCase):
@@ -47,7 +48,7 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
 
     conn_base_config = 'cache_size=32MB,statistics=(all),'
     conn_delta_config = 'disaggregated=(role="leader"),' \
-        'page_delta=(leaf_page_delta=true,internal_page_delta=false,delta_pct=20),'
+        'page_delta=(leaf_page_delta=true,internal_page_delta=false),'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     denominator = [
@@ -55,16 +56,19 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
         ('target_size', dict(use_target=True)),
     ]
     modified = [
-        ('third', dict(nmodify=20, expect_delta=True)),
-        ('two_thirds', dict(nmodify=40, expect_delta=False)),
+        ('third', dict(nmodify=20)),
+        ('two_thirds', dict(nmodify=40)),
     ]
-    scenarios = make_scenarios(disagg_storages, denominator, modified)
+    delta_pcts = [
+        ('pct20', dict(delta_pct=20)),
+        ('pct50', dict(delta_pct=50)),
+    ]
+    scenarios = make_scenarios(disagg_storages, denominator, modified, delta_pcts)
 
-    # All rows fit on one leaf page that is roughly a quarter of the configured maximum.
-    # Modifying a third of the rows gives a delta that is about 8% of the maximum page
-    # size but about 33% of the image, so it clears the threshold only against the
-    # target. Modifying two thirds gives a delta over half the image, which the target
-    # denominator must still reject.
+    # All rows fit on one leaf page that is roughly a quarter of the configured maximum,
+    # so a modification produces a delta that is a much larger fraction of the image than
+    # of the maximum page size. Modifying a third of the rows gives a delta around 33% of
+    # the image, two thirds around 66%.
     TABLE_CONFIG = (
         'key_format=S,value_format=S,'
         'allocation_size=4096,leaf_page_max=131072,'
@@ -72,10 +76,12 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
     )
     NKEYS = 60
     VALUE_SIZE = 500
+    DELTA_PCT_OF_IMAGE = {20: 33, 40: 66}
 
     def conn_config(self):
         return (self.conn_base_config + self.conn_delta_config +
-            f'page_delta=(delta_pct_of_target_page_size={str(self.use_target).lower()}),')
+            f'page_delta=(delta_pct={self.delta_pct},'
+            f'delta_pct_of_target_page_size={str(self.use_target).lower()}),')
 
     def make_key(self, i):
         return f'key{i:04d}'
@@ -124,7 +130,12 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
 
         deltas = self.get_stat(stat.dsrc.rec_page_delta_leaf)
         rejected = self.get_stat(stat.dsrc.rec_page_delta_rejected_size_threshold)
-        if self.use_target and self.expect_delta:
+        # The size limit is delta_pct of the image with the image denominator. With the
+        # target denominator it is delta_pct of the target, but a delta approaching the
+        # image is still rejected, at twice delta_pct of the image, and since the image is
+        # well under the target here that is the effective limit.
+        limit = 2 * self.delta_pct if self.use_target else self.delta_pct
+        if self.DELTA_PCT_OF_IMAGE[self.nmodify] < limit:
             self.assertGreater(deltas, 0)
             self.assertEqual(rejected, 0)
         else:
