@@ -2022,17 +2022,16 @@ __clayered_advance_blocked(WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR 
              * prepared conflict, but the current cursor is then on a key already returned, so
              * nothing is lost.
              *
-             * A mirrored remove deletes from the stable btree, unlike the tombstone value ingest
-             * keeps, so the blocked cursor can find no key. The alternate is then still on its
-             * first key past the last key returned in the old direction, and one step brings it
-             * back across. This only happens in the step-down window, where reads must use snapshot
-             * isolation, so only the walk's own inserts can land in between.
+             * Only a mirrored remove deletes from the stable btree, so only it can leave the
+             * blocked cursor no key before the blocked one. Mirroring writes every key in the
+             * step-down window to both constituents, and reads there must use snapshot isolation,
+             * so the alternate has none either: end the walk, as a btree cursor does.
              */
             if (F_ISSET(c_current, WT_CURSTD_KEY_INT))
                 WT_RET_NOTFOUND_OK(
                   __clayered_position_alternate(op, c_current, c_alternate, forward));
             else
-                WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_alternate, forward));
+                WT_RET(c_alternate->reset(c_alternate));
         } else {
             /* This only revisits keys this snapshot already read, so it cannot conflict. */
             ret = __clayered_position_alternate_resolved(op, c_current, c_alternate, forward);

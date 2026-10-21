@@ -336,11 +336,16 @@ class test_layered_async_stepdown24_reverse_step_down(BlockedWalkMixin,
 class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.WiredTigerTestCase):
     conn_config = BlockedWalkMixin.conn_config.replace(
         'disaggregated=(', 'disaggregated=(stepdown_write_mirroring=true,')
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
+    inserts = [
+        ('no_insert', dict(insert_past_blocked=False)),
+        ('insert_past_blocked', dict(insert_past_blocked=True)),
+    ]
+    scenarios = make_scenarios(
+        gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions, inserts)
 
     # With write mirroring, the walk's own transaction removes the last key returned from stable
-    # while the walk is blocked there, leaving nothing before it. Reversing must not return the
-    # key the other constituent is on.
+    # while the walk is blocked there, leaving nothing before it, and may insert a key past the
+    # blocked one. Reversing returns nothing.
     def test_reverse_after_last_key_removed(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -358,6 +363,8 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
         writer = self.session.open_cursor(self.uri, None, None)
         writer.set_key(self.key(2))
         self.assertEqual(writer.remove(), 0)
+        if self.insert_past_blocked:
+            writer[self.key(5)] = 'new'
         writer.close()
 
         actual = self.walk_back(cursor)
