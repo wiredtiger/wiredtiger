@@ -111,7 +111,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 
     /*
      * If the checkpoint has an on-disk root page, load it. Otherwise, size the file for an empty
-     * object. In-memory block handles have no backing file.
+     * object. In-memory block handles don't have a backing file thus size is zero.
      */
     if (addr == NULL || addr_size == 0)
         ci->file_size = block->in_memory ? 0 : block->allocsize;
