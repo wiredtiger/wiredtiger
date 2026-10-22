@@ -874,6 +874,10 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt.ckpt_api.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.ckpt_api, msec);
 
+    /* A checkpoint taken while the step-down timestamp is set is the step-down checkpoint. */
+    if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+        __checkpoint_timer_stats_set(&conn->ckpt.stepdown, msec);
+
     /* Compute timer statistics for the scrub. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.scrub.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.scrub, msec);
@@ -1017,7 +1021,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
 
     btree = S2BT(session);
-    btree->modified = true;
+    __wt_atomic_store_bool_relaxed(&btree->modified, true);
 
     /* Revert the in-memory root page accounting as we have failed during checkpointing. */
     __wt_block_disagg_checkpoint_rollback(session);
@@ -2685,8 +2689,9 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session, bool is_checkpoint, bool 
     is_drop = drop != NULL && drop->len != 0;
 
     /* The handle gather cannot call the block manager and checks the timer instead. */
-    WT_ASSERT(
-      session, btree->modified || btree->clean_ckpt_timer == 0 || !bm->can_truncate(bm, session));
+    WT_ASSERT(session,
+      __wt_atomic_load_bool_relaxed(&btree->modified) || btree->clean_ckpt_timer == 0 ||
+        !bm->can_truncate(bm, session));
 
     /*
      * This is a complicated test to determine if we can avoid the expensive call of getting the
@@ -2885,7 +2890,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR_ATOMIC_32(btree, WT_BTREE_SKIP_CKPT);
-    if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
+    if (!__wt_atomic_load_bool_relaxed(&btree->modified) && !force &&
+      !bm->can_truncate(bm, session)) {
         u_int count = 0;
 
         if (__checkpoint_skip_ckptlist(ckptbase, &count)) {
@@ -3237,7 +3243,13 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * modified flag. The "unless reconciliation skips updates" problem is handled in the
      * reconciliation code: if reconciliation skips updates, it sets the modified flag itself.
      */
-    __wt_tsan_suppress_store_bool(&btree->modified, false);
+    __wt_atomic_store_bool_relaxed(&btree->modified, false);
+
+    /*
+     * Order the modified clear ahead of the reads of page dirty state, which needs a full barrier.
+     * Threads dirtying a page order it the other way by re-checking the tree's flag after dirtying
+     * the page.
+     */
     WT_FULL_BARRIER();
 
     /* Tell logging that a file checkpoint is starting. */
@@ -3376,7 +3388,7 @@ err:
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.
      */
     if (ret != 0) {
-        btree->modified = true;
+        __wt_atomic_store_bool_relaxed(&btree->modified, true);
         conn->modified = true;
     }
 
@@ -3584,7 +3596,7 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_RET(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
-        if (S2BT(session)->modified)
+        if (__wt_atomic_load_bool_relaxed(&S2BT(session)->modified))
             ret = __wt_checkpoint_file(session, cfg);
         WT_TRET(__wt_session_release_dhandle(session));
         WT_RET(ret);
@@ -3698,7 +3710,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    bool bulk, metadata, need_tracking;
+    bool bulk, metadata, modified, need_tracking;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &session->dhandle->close_lock);
 
@@ -3714,14 +3726,15 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /* Closing an unmodified file. */
-    if (!btree->modified && !bulk)
+    modified = __wt_atomic_load_bool_relaxed(&btree->modified);
+    if (!modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
      * Don't flush data from modified trees independent of system-wide checkpoint. Flushing trees
      * can lead to files that are inconsistent on disk after a crash.
      */
-    if (btree->modified && !bulk && !metadata) {
+    if (modified && !bulk && !metadata) {
         ret = __wt_set_return(session, EBUSY);
         WT_RET_SUB(
           session, ret, WT_DIRTY_DATA, "the table has dirty data and cannot be closed yet");

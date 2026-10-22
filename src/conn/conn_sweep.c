@@ -167,7 +167,7 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
      * Sweep only closes clean trees, with one exception: an ingest btree whose entire contents are
      * known to be durable in the stable table.
      */
-    if (btree != NULL && btree->modified) {
+    if (btree != NULL && __wt_atomic_load_bool_relaxed(&btree->modified)) {
         /*
          * We check that there are no cursors open that can be adding new content, and we hold the
          * dhandle write lock, which blocks new opens. Open transaction modifications also bump the
@@ -272,7 +272,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
-            if (__wt_conn_is_disagg(session) && WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
+            if (__wt_conn_is_disagg(session) &&
+              __wt_dhandle_shared_btree_kind(dhandle) == WT_SHARED_BTREE_CHECKPOINT) {
                 if (tod == 0) {
                     __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
                     continue;
