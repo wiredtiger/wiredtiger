@@ -978,11 +978,7 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
             return (0);
     }
 
-    /*
-     * If the cache tolerance is configured, don't involve a tolerant session in eviction. The
-     * tolerance covers the dirty and updates triggers only, so it doesn't apply once the cache is
-     * over the eviction trigger.
-     */
+    /* Cache tolerance covers the dirty and updates triggers, not the eviction trigger. */
     uint8_t cache_tolerance = __wt_atomic_load_uint8_relaxed(
       &conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
     if (cache_tolerance != 0 && !__wt_evict_clean_needed(session, NULL) &&

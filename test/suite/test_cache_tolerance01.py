@@ -42,7 +42,7 @@ class test_cache_tolerance01(wttest.WiredTigerTestCase):
     uri = f"file:{__qualname__}"
     probe_uri = f"file:{__qualname__}_probe"
 
-    # With a dirty trigger of 20%, a tolerance of 100 keeps every reader out of eviction up to 24%.
+    # A tolerance of 100 keeps all readers out of eviction between 20% and 24% dirty.
     dirty_pct_goal = 22
 
     scenarios = make_scenarios([
@@ -69,8 +69,8 @@ class test_cache_tolerance01(wttest.WiredTigerTestCase):
         with wttest.open_cursor(self.session, self.probe_uri) as cursor:
             cursor[1] = "probe"
 
-        # Hold the dirty content above the dirty trigger in a transaction that is never committed,
-        # from a session that is not pulled into eviction.
+        # An uncommitted transaction keeps the dirty content above the dirty trigger. The writer
+        # ignores the cache size so it is not pulled into eviction.
         with closing(self.conn.open_session("ignore_cache_size=true")) as pin:
             pin.begin_transaction()
             with wttest.open_cursor(pin, self.uri) as cursor:
@@ -81,8 +81,8 @@ class test_cache_tolerance01(wttest.WiredTigerTestCase):
                         cursor[key] = "a" * 1000
             self.assertLess(self.dirty_pct(pin), self.dirty_pct_goal + 1)
 
-            # A reader pulled into eviction gives up after the cache wait limit and gets a rollback
-            # from its transaction. Read-committed isolation keeps the dirty trigger in force.
+            # A reader pulled into eviction times out and its transaction rolls back.
+            # Read-committed isolation makes the dirty trigger apply to the reader.
             ops = self.get_stat(stat.conn.application_cache_ops, session=pin)
             with (
                 closing(self.conn.open_session("cache_max_wait_ms=500")) as probe,
