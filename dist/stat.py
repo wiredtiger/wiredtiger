@@ -399,7 +399,6 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats, ui
 \tswitch (otel_flag) {
 ''')
     for otel_type in OtelType:
-        plural = 's' if otel_type != 'otel_none' else ''
         f.write('\tcase WT_STAT_OTEL_' + otel_type.suffix.upper() + ':\n')
         if otel_type in clear_funcs:
             f.write('\t\t' + clear_funcs[otel_type] + '(stats);\n')
