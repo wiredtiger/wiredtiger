@@ -648,9 +648,9 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * Any checkpoint call cleared the tree's modified flag before writing pages, so we must
          * explicitly reset it. The requirement is the flag be set before a subsequent checkpoint
          * reads it, and as the current checkpoint is waiting on this reconciliation to complete,
-         * there's no risk of that happening; a release store is sufficient.
+         * there's no risk of that happening.
          */
-        __wt_atomic_store_bool_release(&btree->modified, true);
+        __wt_atomic_store_bool_relaxed(&btree->modified, true);
         if (!S2C(session)->modified)
             S2C(session)->modified = true;
 

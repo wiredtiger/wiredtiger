@@ -597,7 +597,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * only compared to decide whether to mark the tree dirty. No state published alongside the
          * timestamp is consumed here.
          */
-        if (!__wt_atomic_load_bool_acquire(&btree->modified) &&
+        if (!__wt_atomic_load_bool_relaxed(&btree->modified) &&
           !F_ISSET(conn, WT_CONN_RECOVERING) &&
           !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT) &&
           (btree->rec_max_txn >= txn->snapshot_data.snap_min ||

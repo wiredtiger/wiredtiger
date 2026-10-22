@@ -1284,12 +1284,10 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
     /*
      * Test before setting the dirty flag, it's a hot cache line.
      *
-     * The tree's modified flag is cleared by the checkpoint thread: set it and insert a full
-     * barrier before dirtying the page. The barrier pairs with the one after the checkpoint's
-     * clear: a release store would not order the flag ahead of the later page-dirty store. (I don't
-     * think it's a problem if the tree is marked dirty with all the pages clean, it might result in
-     * an extra checkpoint that doesn't do any work but it shouldn't cause problems; regardless,
-     * let's play it safe.)
+     * The tree's modified flag is cleared by the checkpoint thread: set it and insert a barrier
+     * before dirtying the page. (I don't think it's a problem if the tree is marked dirty with all
+     * the pages clean, it might result in an extra checkpoint that doesn't do any work but it
+     * shouldn't cause problems; regardless, let's play it safe.)
      */
     if (!__wt_atomic_load_bool_relaxed(&btree->modified)) {
         /* Assert we never dirty a checkpoint handle. */

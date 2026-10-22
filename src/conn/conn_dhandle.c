@@ -922,7 +922,7 @@ __conn_dhandle_close_locked(
         if (!__wt_atomic_load_bool_relaxed(&btree->modified)) {
             WT_ERR(__wt_evict_file_exclusive_on(session));
             evict_off = true;
-            if (!__wt_atomic_load_bool_acquire(&btree->modified))
+            if (!__wt_atomic_load_bool_relaxed(&btree->modified))
                 mark_dead = true;
         }
     }

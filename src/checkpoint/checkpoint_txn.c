@@ -916,7 +916,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
 
     btree = S2BT(session);
-    __wt_atomic_store_bool_release(&btree->modified, true);
+    __wt_atomic_store_bool_relaxed(&btree->modified, true);
 
     /* Revert the in-memory root page accounting as we have failed during checkpointing. */
     __wt_block_disagg_checkpoint_rollback(session);
@@ -2592,7 +2592,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session, bool is_checkpoint, bool 
      * we want to periodically check if we need to delete old checkpoints that may have been in use
      * by an open cursor.
      */
-    if (!__wt_atomic_load_bool_acquire(&btree->modified) && !force && is_checkpoint && is_wt_ckpt &&
+    if (!__wt_atomic_load_bool_relaxed(&btree->modified) && !force && is_checkpoint && is_wt_ckpt &&
       !is_drop && !bm->can_truncate(btree->bm, session)) {
         /* In the common case of the timer set forever, don't even check the time. */
         skip_ckpt = true;
@@ -2791,7 +2791,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR_ATOMIC_32(btree, WT_BTREE_SKIP_CKPT);
-    if (!__wt_atomic_load_bool_acquire(&btree->modified) && !force &&
+    if (!__wt_atomic_load_bool_relaxed(&btree->modified) && !force &&
       !bm->can_truncate(bm, session)) {
         u_int count = 0;
 
@@ -3147,8 +3147,9 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     __wt_atomic_store_bool_relaxed(&btree->modified, false);
 
     /*
-     * A full barrier, not a release store: the clear must be ordered ahead of the subsequent reads
-     * of page dirty state. It pairs with the barrier in __wt_tree_modify_set.
+     * Order the clear ahead of the reads of page dirty state, which needs a full barrier. Threads
+     * dirtying a page order it the other way by re-checking the tree's flag after dirtying the
+     * page, see __wt_page_modify_set.
      */
     WT_FULL_BARRIER();
 
@@ -3288,7 +3289,7 @@ err:
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.
      */
     if (ret != 0) {
-        __wt_atomic_store_bool_release(&btree->modified, true);
+        __wt_atomic_store_bool_relaxed(&btree->modified, true);
         conn->modified = true;
     }
 
@@ -3496,7 +3497,7 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_RET(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
-        if (__wt_atomic_load_bool_acquire(&S2BT(session)->modified))
+        if (__wt_atomic_load_bool_relaxed(&S2BT(session)->modified))
             ret = __wt_checkpoint_file(session, cfg);
         WT_TRET(__wt_session_release_dhandle(session));
         WT_RET(ret);
@@ -3626,7 +3627,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /* Closing an unmodified file. */
-    modified = __wt_atomic_load_bool_acquire(&btree->modified);
+    modified = __wt_atomic_load_bool_relaxed(&btree->modified);
     if (!modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
