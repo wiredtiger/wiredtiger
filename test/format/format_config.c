@@ -37,6 +37,7 @@ static void config_checksum(TABLE *);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_disagg_key_provider(void);
+static void config_disagg_frontier_lag(void);
 static void config_disagg_storage(void);
 static void config_disagg_victim_cache(void);
 static void config_encryption(void);
@@ -521,6 +522,9 @@ config_run(void)
 
     /* The budget is scaled from the cache size, so this follows config_cache(). */
     config_disagg_victim_cache();
+
+    /* The frontier is published through the page log, so this follows config_disagg_storage(). */
+    config_disagg_frontier_lag();
 
     /* Adjust run length if needed. */
     config_run_length();
@@ -1408,6 +1412,41 @@ config_statistics(void)
         /* 10% of the time use sources if all. */
         if (strcmp(GVS(STATISTICS_MODE), "all") == 0 && mmrand(&g.extra_rnd, 1, 10) == 1)
             config_single(NULL, "statistics_log.sources=file:", false);
+    }
+}
+
+/*
+ * config_disagg_frontier_lag --
+ *     Materialization frontier lag configuration.
+ */
+static void
+config_disagg_frontier_lag(void)
+{
+    char buf[64];
+
+    /*
+     * The frontier is published through the page log, and only a leader publishes one; a run with
+     * neither has no frontier to lag.
+     */
+    if (!g.disagg_storage_config) {
+        if (config_explicit(NULL, "disagg.frontier_lag"))
+            WARN("%s", "turning off disagg.frontier_lag, the run has no page log");
+        config_off(NULL, "disagg.frontier_lag");
+    } else if (strcmp(GVS(DISAGG_MODE), "follower") == 0) {
+        if (config_explicit(NULL, "disagg.frontier_lag"))
+            WARN("%s", "turning off disagg.frontier_lag, a follower publishes no frontier");
+        config_off(NULL, "disagg.frontier_lag");
+    }
+
+    if (!GV(DISAGG_FRONTIER_LAG)) {
+        config_off(NULL, "disagg.frontier_lag.max");
+        return;
+    }
+
+    if (!config_explicit(NULL, "disagg.frontier_lag.max")) {
+        testutil_snprintf(
+          buf, sizeof(buf), "disagg.frontier_lag.max=%u", (u_int)FRONTIER_LAG_MAX_DEFAULT);
+        config_single(NULL, buf, false);
     }
 }
 

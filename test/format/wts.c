@@ -992,6 +992,40 @@ stats_victim_cache_print(WT_SESSION *session, FILE *fp)
 }
 
 /*
+ * stats_materialization_frontier_print --
+ *     Print the materialization frontier statistics.
+ */
+static void
+stats_materialization_frontier_print(WT_SESSION *session, FILE *fp)
+{
+    WT_CURSOR *cursor;
+    int64_t blocked;
+
+    testutil_assert(fprintf(fp, "\n\n====== Materialization frontier:\n") >= 0);
+
+    if (!GV(DISAGG_FRONTIER_LAG)) {
+        testutil_assert(fprintf(fp, "disabled\n") >= 0);
+        return;
+    }
+
+    wt_wrap_open_cursor(session, "statistics:", NULL, &cursor);
+    blocked = stats_conn_value(cursor, WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MATERIALIZATION);
+    testutil_check(cursor->close(cursor));
+
+    testutil_assert(fprintf(fp,
+                      "maximum lag=%" PRIu32 " LSNs\n"
+                      "evictions blocked by the frontier=%" PRId64 "\n",
+                      GV(DISAGG_FRONTIER_LAG_MAX), blocked) >= 0);
+
+    if (GV(QUIET))
+        return;
+
+    printf("--- materialization frontier: max lag %" PRIu32 " LSNs, %" PRId64
+           " evictions blocked ---\n",
+      GV(DISAGG_FRONTIER_LAG_MAX), blocked);
+}
+
+/*
  * wts_stats --
  *     Dump the run's statistics.
  */
@@ -1015,8 +1049,10 @@ wts_stats(void)
     wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
-    if (g.disagg_storage_config)
+    if (g.disagg_storage_config) {
         stats_victim_cache_print(session, fp);
+        stats_materialization_frontier_print(session, fp);
+    }
 
     args.fp = fp;
     args.session = session;

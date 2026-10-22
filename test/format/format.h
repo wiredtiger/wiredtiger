@@ -344,6 +344,9 @@ typedef struct {
 #define KEY_LEN_CONFIG_MIN 13
 #define PREFIX_LEN_CONFIG_MIN 15
 #define PREFIX_LEN_CONFIG_MAX 80
+
+/* Default maximum materialization frontier lag, in LSNs. */
+#define FRONTIER_LAG_MAX_DEFAULT 10000
     uint32_t prefix_len_max;
 
     volatile bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
@@ -517,6 +520,8 @@ void disagg_async_stepdown(wt_thread_t *, wt_thread_t *);
 WT_THREAD_RET disagg_stepdown_thread(void *);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
+WT_THREAD_RET disagg_frontier(void *);
+void disagg_publish_frontier(WT_SESSION *);
 void disagg_setup_multi_node(void);
 void disagg_switch_roles(void);
 void disagg_teardown_multi_node(void);
