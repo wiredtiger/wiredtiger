@@ -33,6 +33,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     WTI_EVICT_ENTRY *evict_entry;
     WTI_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
     WT_REF_STATE previous_state;
+    uint64_t urgent_wait;
     uint32_t candidates;
     bool is_app, server_only, urgent_ok;
 
@@ -176,6 +177,13 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
          * Increment the busy count in the btree handle to prevent it from being closed under us.
          */
         (void)__wt_atomic_add_uint32_v(&evict_entry->btree->evict_busy, 1);
+
+        if (queue == urgent_queue) {
+            urgent_wait = WT_CLOCKDIFF_US(__wt_clock(session), evict_entry->queued_time);
+            WT_STAT_CONN_INCRV(session, eviction_urgent_wait_time, urgent_wait);
+            WT_STAT_CONN_INCR(session, eviction_urgent_pages_taken);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_urgent_wait_us, urgent_wait);
+        }
 
         *btreep = evict_entry->btree;
         *refp = evict_entry->ref;
@@ -540,6 +548,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     evict_entry = urgent_queue->evict_queue + urgent_queue->evict_candidates;
     if (evict_entry < urgent_queue->evict_queue + evict->evict_slots &&
       __wti_evict_push_candidate(session, urgent_queue, evict_entry, ref)) {
+        evict_entry->queued_time = __wt_clock(session);
         ++urgent_queue->evict_candidates;
         queued = true;
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT);

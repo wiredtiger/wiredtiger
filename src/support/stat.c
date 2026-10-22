@@ -3058,6 +3058,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: maximum milliseconds spent at a single eviction per checkpoint",
   "cache: maximum number of times a page tried to be added to eviction queue but fail",
   "cache: maximum number of times a page tried to be evicted",
+  "cache: maximum time a page waited on the urgent eviction queue (usecs)",
   "cache: maximum updates page size seen at eviction per checkpoint",
   "cache: modified page evict attempts by application threads",
   "cache: modified page evict failures by application threads",
@@ -3114,6 +3115,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages selected for eviction unable to be evicted because of race between checkpoint and "
   "updates without timestamps",
   "cache: pages selected for eviction unable to be evicted belonging to ingest btrees",
+  "cache: pages taken from the urgent eviction queue",
   "cache: pages walked for eviction",
   "cache: pages with a clean re-instantiation image retained by checkpoint scrub",
   "cache: pages with an unresolved multiblock split flagged by checkpoint to be evicted soon",
@@ -3148,6 +3150,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: the number of times reverse modify inserted to history store",
   "cache: time eviction worker threads spend waiting for locks (usecs)",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
+  "cache: total time pages waited on the urgent eviction queue (usecs)",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to internal pages in the cache from the ingest btrees",
   "cache: tracked bytes belonging to internal pages in the cache from the stable btrees",
@@ -4229,6 +4232,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS_PER_CHECKPOINT,
   WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_QUEUE_PAGE,
   WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_EVICT_PAGE,
+  WT_STAT_CONN_EVICTION_URGENT_WAIT_TIME_MAX,
   WT_STAT_CONN_EVICTION_MAXIMUM_UPDATES_PAGE_SIZE_PER_CHECKPOINT,
   WT_STAT_CONN_EVICTION_APP_DIRTY_ATTEMPT,
   WT_STAT_CONN_EVICTION_APP_DIRTY_FAIL,
@@ -4281,6 +4285,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_FAIL_IN_RECONCILIATION,
   WT_STAT_CONN_EVICTION_FAIL_CHECKPOINT_NO_TS,
   WT_STAT_CONN_EVICTION_FAIL_INGEST,
+  WT_STAT_CONN_EVICTION_URGENT_PAGES_TAKEN,
   WT_STAT_CONN_EVICTION_WALK,
   WT_STAT_CONN_CACHE_SCRUB_IMAGE_PAGES,
   WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED,
@@ -4314,6 +4319,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CACHE_HS_INSERT_REVERSE_MODIFY,
   WT_STAT_CONN_EVICTION_WORKER_LOCK_WAIT_TIME,
   WT_STAT_CONN_EVICTION_REENTRY_HS_EVICTION_MILLISECONDS,
+  WT_STAT_CONN_EVICTION_URGENT_WAIT_TIME,
   WT_STAT_CONN_CACHE_BYTES_INTERNAL,
   WT_STAT_CONN_CACHE_BYTES_INTERNAL_INGEST,
   WT_STAT_CONN_CACHE_BYTES_INTERNAL_STABLE,
@@ -5414,6 +5420,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing eviction_maximum_milliseconds_per_checkpoint */
     /* not clearing eviction_maximum_attempts_to_queue_page */
     /* not clearing eviction_maximum_attempts_to_evict_page */
+    /* not clearing eviction_urgent_wait_time_max */
     /* not clearing eviction_maximum_updates_page_size_per_checkpoint */
     stats->eviction_app_dirty_attempt = 0;
     stats->eviction_app_dirty_fail = 0;
@@ -5466,6 +5473,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_fail_in_reconciliation = 0;
     stats->eviction_fail_checkpoint_no_ts = 0;
     stats->eviction_fail_ingest = 0;
+    stats->eviction_urgent_pages_taken = 0;
     stats->eviction_walk = 0;
     /* not clearing cache_scrub_image_pages */
     stats->cache_eviction_multiblock_checkpoint_flagged = 0;
@@ -5499,6 +5507,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cache_hs_insert_reverse_modify = 0;
     stats->eviction_worker_lock_wait_time = 0;
     /* not clearing eviction_reentry_hs_eviction_milliseconds */
+    stats->eviction_urgent_wait_time = 0;
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_internal_ingest */
     /* not clearing cache_bytes_internal_stable */
@@ -6662,6 +6671,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_queue_page);
     to->eviction_maximum_attempts_to_evict_page +=
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_evict_page);
+    to->eviction_urgent_wait_time_max += WT_STAT_CONN_READ(from, eviction_urgent_wait_time_max);
     to->eviction_maximum_updates_page_size_per_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_maximum_updates_page_size_per_checkpoint);
     to->eviction_app_dirty_attempt += WT_STAT_CONN_READ(from, eviction_app_dirty_attempt);
@@ -6730,6 +6740,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_fail_in_reconciliation += WT_STAT_CONN_READ(from, eviction_fail_in_reconciliation);
     to->eviction_fail_checkpoint_no_ts += WT_STAT_CONN_READ(from, eviction_fail_checkpoint_no_ts);
     to->eviction_fail_ingest += WT_STAT_CONN_READ(from, eviction_fail_ingest);
+    to->eviction_urgent_pages_taken += WT_STAT_CONN_READ(from, eviction_urgent_pages_taken);
     to->eviction_walk += WT_STAT_CONN_READ(from, eviction_walk);
     to->cache_scrub_image_pages += WT_STAT_CONN_READ(from, cache_scrub_image_pages);
     to->cache_eviction_multiblock_checkpoint_flagged +=
@@ -6774,6 +6785,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_worker_lock_wait_time += WT_STAT_CONN_READ(from, eviction_worker_lock_wait_time);
     to->eviction_reentry_hs_eviction_milliseconds +=
       WT_STAT_CONN_READ(from, eviction_reentry_hs_eviction_milliseconds);
+    to->eviction_urgent_wait_time += WT_STAT_CONN_READ(from, eviction_urgent_wait_time);
     to->cache_bytes_internal += WT_STAT_CONN_READ(from, cache_bytes_internal);
     to->cache_bytes_internal_ingest += WT_STAT_CONN_READ(from, cache_bytes_internal_ingest);
     to->cache_bytes_internal_stable += WT_STAT_CONN_READ(from, cache_bytes_internal_stable);
