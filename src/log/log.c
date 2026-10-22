@@ -2861,10 +2861,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
         WT_ASSIGN_LSN(&last_lsn, &log->log_close_lsn);
 
     /*
-     * Wait until all current outstanding writes have been written to the file system. Every slot
-     * below the last LSN is already closed, and the thread that releases a slot writes it.
-     * Releasing a slot does not signal the wrlsn thread, so process written slots here to advance
-     * the write LSN.
+     * Wait until all current outstanding writes have been written to the file system.
      */
     while (__wt_log_cmp(&last_lsn, &lsn) > 0) {
         WT_RET(WT_SESSION_CHECK_PANIC(session));
