@@ -1460,6 +1460,15 @@ config_disagg_frontier_lag(void)
         config_single(NULL, "file_manager.close_idle_time=1", false);
     if (!config_explicit(NULL, "file_manager.close_scan_interval"))
         config_single(NULL, "file_manager.close_scan_interval=1", false);
+
+    /*
+     * The obsolete time-window and checkpoint cleanup paths dirty pages without consulting the
+     * frontier, so they only interact with it if they run while the frontier is behind.
+     */
+    if (!config_explicit(NULL, "obsolete_cleanup.method"))
+        config_single(NULL, "obsolete_cleanup.method=reclaim_space", false);
+    if (!config_explicit(NULL, "obsolete_cleanup.wait"))
+        config_single(NULL, "obsolete_cleanup.wait=1", false);
 }
 
 /*
