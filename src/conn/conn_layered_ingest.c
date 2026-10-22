@@ -33,10 +33,9 @@ __layered_check_stable_btree_state(
         /* No on-page value to check; rely solely on visibility. */
         has_value = false;
     } else {
-        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
-          "The stable btree should not contain inserts prior to draining");
-
-        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         else
             upd = NULL;
@@ -64,6 +63,8 @@ __layered_check_stable_btree_state(
 
         if (upd != NULL)
             has_value = upd->type != WT_UPDATE_TOMBSTONE;
+        else if (cbt->ins != NULL)
+            has_value = false;
         else {
             WT_TIME_WINDOW tw;
             bool tw_found = __wt_read_cell_time_window(cbt, &tw);
@@ -87,10 +88,11 @@ __layered_check_stable_btree_state(
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE **updates_ptr, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
+  WT_UPDATE **updates_ptr, WT_UPDATE *last_upd, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
     WT_UPDATE *newer_update, *older_update, *prev, *upd, **next_ptr;
+    bool orphan_counted = false;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -121,12 +123,13 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     }
 
     /*
-     * We only need to check on the first pass. An orphan tombstone deletes nothing, and applying it
-     * would leave a tombstone with no value beneath it, which reconciliation cannot write, so skip
-     * it.
+     * Skip orphan tombstones: reconciliation cannot write them without an underlying value.
      */
-    if (from_ts == WT_TS_NONE && __layered_check_stable_btree_state(session, cbt, last_upd)) {
-        ++*orphan_countp;
+    while (__layered_check_stable_btree_state(session, cbt, last_upd)) {
+        if (!orphan_counted) {
+            ++*orphan_countp;
+            orphan_counted = true;
+        }
 
         /*
          * An in-flight prepared transaction was redirected to the stable btree when its update was
@@ -455,6 +458,7 @@ static int
 __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BTREE *ingest_btree,
   WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
 {
+    WT_DECL_RET;
     WT_FIX_PREPARED_COOKIE cookie;
 
     cookie.key = key;
@@ -464,8 +468,12 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
     cookie.prepared_id = prepared_id;
     cookie.drop = false;
 
-    return (
-      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
+    /* Different tables can belong to the same prepared transaction and drain concurrently. */
+    __wt_spin_lock(session, &S2C(session)->layered_drain_data.prepared_lock);
+    ret =
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie);
+    __wt_spin_unlock(session, &S2C(session)->layered_drain_data.prepared_lock);
+    return (ret);
 }
 
 /*
@@ -479,6 +487,7 @@ static int
 __layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
   WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
 {
+    WT_DECL_RET;
     WT_FIX_PREPARED_COOKIE cookie;
 
     cookie.key = key;
@@ -488,8 +497,11 @@ __layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
     cookie.prepared_id = prepared_id;
     cookie.drop = true;
 
-    return (
-      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
+    __wt_spin_lock(session, &S2C(session)->layered_drain_data.prepared_lock);
+    ret =
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie);
+    __wt_spin_unlock(session, &S2C(session)->layered_drain_data.prepared_lock);
+    return (ret);
 }
 
 /*
@@ -602,8 +614,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, key, &upds, last_upd, from_ts, orphan_countp));
+                  ret = __layered_move_updates(session, cbt, key, &upds, last_upd, orphan_countp));
                 WT_ERR(ret);
             } else
                 ret = 0;
@@ -621,8 +632,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, key, &upds, last_upd, from_ts, orphan_countp));
+                  ret = __layered_move_updates(session, cbt, key, &upds, last_upd, orphan_countp));
                 WT_ERR(ret);
             }
 
@@ -1121,6 +1131,11 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     TAILQ_INIT(&conn->layered_drain_data.work_queue);
     WT_RET(__wt_spin_init(
       session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
+    if ((ret = __wt_spin_init(
+           session, &conn->layered_drain_data.prepared_lock, "layered drain prepared lock")) != 0) {
+        __wt_spin_destroy(session, &conn->layered_drain_data.queue_lock);
+        return (ret);
+    }
 
     conn->layered_drain_data.tables_drained = 0;
     conn->layered_drain_data.drain_bytes = 0;
@@ -1173,6 +1188,7 @@ err:
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
+    __wt_spin_destroy(session, &conn->layered_drain_data.prepared_lock);
     time_stop = __wt_clock(session);
 
     WT_STAT_CONN_SET(

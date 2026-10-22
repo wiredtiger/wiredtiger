@@ -51,6 +51,14 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     stable_states = [
         ('absent', dict(stable_state='absent', remove_ts=[20], insert_ts=None, found_at=[])),
+        ('rollback_then_remove', dict(stable_state='absent', remove_ts=[20], insert_ts=None,
+            found_at=[], rollback_before_remove=True)),
+        ('rollback_insert_remove', dict(stable_state='absent', remove_ts=[20], insert_ts=None,
+            found_at=[15], rollback_before_remove=True, insert_after_rollback=True)),
+        ('absent_after_truncate', dict(stable_state='absent', remove_ts=[20], insert_ts=None,
+            found_at=[], truncate_before_remove=True)),
+        ('insert_before_truncate', dict(stable_state='absent', remove_ts=[20], insert_ts=None,
+            found_at=[15], truncate_before_remove=True, insert_before_truncate=True)),
         ('absent_multiple', dict(stable_state='absent', remove_ts=[20], insert_ts=None, found_at=[],
             extra_keys=['missing1', 'missing2', 'missing3'])),
         ('absent_stacked',
@@ -66,7 +74,10 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages, stable_states)
 
     def conn_config(self):
-        return self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="leader")'
+        config = self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="leader")'
+        if getattr(self, 'rollback_before_remove', False):
+            config += ',preserve_prepared=true,precise_checkpoint=true'
+        return config
 
     def orphan_stat(self):
         c = self.session.open_cursor('statistics:')
@@ -108,6 +119,9 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         c['other'] = b'v'
+        if getattr(self, 'truncate_before_remove', False):
+            c['a'] = b'v'
+            c['b'] = b'v'
         if self.stable_state != 'absent':
             c['k'] = b'v'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
@@ -127,6 +141,38 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
 
         # Follower: write each remove into the ingest tables.
         self.conn.reconfigure('disaggregated=(role="follower")')
+        if getattr(self, 'rollback_before_remove', False):
+            prepared = self.conn.open_session()
+            c = prepared.open_cursor(self.ingest_uri)
+            prepared.begin_transaction()
+            c['k'] = b'\x14\x14'
+            c.close()
+            prepared.prepare_transaction('prepare_timestamp=' + self.timestamp_str(12) +
+                ',prepared_id=' + self.prepared_id_str(1))
+            prepared.rollback_transaction('rollback_timestamp=' + self.timestamp_str(13))
+            prepared.close()
+            if getattr(self, 'insert_after_rollback', False):
+                c = self.session.open_cursor(self.ingest_uri)
+                self.session.begin_transaction()
+                c['k'] = b'v'
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(14))
+                c.close()
+        if getattr(self, 'truncate_before_remove', False):
+            if getattr(self, 'insert_before_truncate', False):
+                c = self.session.open_cursor(self.ingest_uri)
+                self.session.begin_transaction()
+                c['k'] = b'v'
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(12))
+                c.close()
+            start = self.session.open_cursor(self.uri)
+            stop = self.session.open_cursor(self.uri)
+            start.set_key('a')
+            stop.set_key('b')
+            self.session.begin_transaction()
+            self.session.truncate(None, start, stop, None)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
+            start.close()
+            stop.close()
         c = self.session.open_cursor(self.ingest_uri)
         for ts in self.remove_ts:
             self.session.begin_transaction()
@@ -149,7 +195,8 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
         # Let checkpoints include the removes while readers can still read before them.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
-        orphans = 0 if self.stable_state == 'present' else 1 + len(self.extra_keys)
+        orphans = 0 if self.stable_state == 'present' or getattr(
+            self, 'insert_before_truncate', False) else 1 + len(self.extra_keys)
         warning = f'{self.uri}: step-up drain skipped {orphans} remove(s) of keys with no ' \
             'value in the stable table'
         before = self.orphan_stat()

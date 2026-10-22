@@ -27,11 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_layered_stepup16.py
-#   A prepared transaction on a follower removes a key with no value in the stable table and is
-#   still unresolved when the follower steps up. The remove is skipped, counted and reported. The
-#   transaction then commits or rolls back on the new leader, and reads stay correct through a
-#   checkpoint and a restart. The remove is written directly into the ingest table as the value a
-#   follower remove stores.
+#   A prepared transaction on a follower removes keys with no value in one or several stable
+#   tables and inserts an unrelated key. It is still unresolved when the follower steps up. The
+#   removes are skipped, counted and reported, and the transaction then commits or rolls back on
+#   the new leader. Reads stay correct through a checkpoint and a restart. The removes are written
+#   directly into the ingest tables as the value a follower remove stores.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -55,7 +55,11 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         ('commit', dict(commit=True)),
         ('rollback', dict(commit=False)),
     ]
-    scenarios = make_scenarios(disagg_storages, stable_states, resolutions)
+    table_counts = [
+        ('one_table', dict(table_count=1)),
+        ('many_tables', dict(table_count=16)),
+    ]
+    scenarios = make_scenarios(disagg_storages, stable_states, resolutions, table_counts)
 
     def conn_config(self):
         return self.extensionsConfig() + ',create,statistics=(all),precise_checkpoint=true,' \
@@ -82,9 +86,23 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
             c.close()
             session.rollback_transaction()
         session.close()
+        for uri in self.extra_uris:
+            c = self.session.open_cursor(uri)
+            c.set_key('k')
+            self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
+            c.close()
+        c = self.session.open_cursor(self.uri)
+        c.set_key('kept')
+        self.assertEqual(c.search(), 0 if self.commit else wiredtiger.WT_NOTFOUND)
+        if self.commit:
+            self.assertEqual(c.get_value(), b'kept')
+        c.close()
 
     def test_stepup_prepared_remove(self):
+        self.extra_uris = [f'{self.uri}_{i}' for i in range(1, self.table_count)]
         self.session.create(self.uri, 'key_format=S,value_format=u')
+        for uri in self.extra_uris:
+            self.session.create(uri, 'key_format=S,value_format=u')
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
 
         # Leader: write the stable state of the key.
@@ -109,7 +127,12 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         c = prepared.open_cursor(self.ingest_uri)
         prepared.begin_transaction()
         c['k'] = b'\x14\x14'
+        c['kept'] = b'kept'
         c.close()
+        for i in range(1, self.table_count):
+            c = prepared.open_cursor(f'file:{self.table}_{i}.wt_ingest')
+            c['k'] = b'\x14\x14'
+            c.close()
         prepared.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
             ',prepared_id=' + self.prepared_id_str(1))
 
@@ -119,7 +142,11 @@ class test_layered_stepup16(wttest.WiredTigerTestCase):
         output = self.readStdout()
         self.cleanStdout()
         self.assertEqual(output.count(self.warning), 1)
-        self.assertEqual(self.orphan_stat() - before, 1)
+        self.assertEqual(output.count('step-up drain skipped'), self.table_count)
+        self.assertEqual(self.orphan_stat() - before, self.table_count)
+        for uri in self.extra_uris:
+            self.assertEqual(output.count(f'{uri}: step-up drain skipped 1 remove(s) of keys '
+                'with no value in the stable table'), 1)
 
         # Resolve the transaction on the new leader.
         if self.commit:
