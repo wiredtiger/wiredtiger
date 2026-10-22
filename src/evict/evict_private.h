@@ -48,9 +48,10 @@
  *	Encapsulation of an eviction candidate.
  */
 struct __wti_evict_entry {
-    WT_BTREE *btree; /* Enclosing btree object */
-    WT_REF *ref;     /* Page to flush/evict */
-    uint64_t score;  /* Relative eviction priority */
+    WT_BTREE *btree;      /* Enclosing btree object */
+    WT_REF *ref;          /* Page to flush/evict */
+    uint64_t score;       /* Relative eviction priority */
+    uint64_t queued_time; /* Urgent queue only: clock when queued */
 };
 
 #define WTI_EVICT_QUEUE_MAX 3    /* Two ordinary queues plus urgent */

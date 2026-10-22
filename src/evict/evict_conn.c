@@ -533,6 +533,8 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_evict_page,
       __wt_atomic_load_uint16_relaxed(&evict->evict_max_evict_page_attempts));
 
+    WT_STATP_CONN_SET(session, stats, eviction_urgent_wait_time_max,
+      __wt_atomic_load_uint64_relaxed(&evict->evict_max_urgent_wait_us));
     WT_STATP_CONN_SET(session, stats, eviction_worker_lock_wait_time,
       __wt_atomic_load_uint64_relaxed(&evict->evict_lock_wait_time));
 

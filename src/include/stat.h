@@ -709,6 +709,7 @@ struct __wt_connection_stats {
     int64_t eviction_maximum_milliseconds_per_checkpoint;
     int64_t eviction_maximum_attempts_to_queue_page;
     int64_t eviction_maximum_attempts_to_evict_page;
+    int64_t eviction_urgent_wait_time_max;
     int64_t eviction_maximum_updates_page_size_per_checkpoint;
     int64_t eviction_app_dirty_attempt;
     int64_t eviction_app_dirty_fail;
@@ -762,6 +763,7 @@ struct __wt_connection_stats {
     int64_t eviction_fail_in_reconciliation;
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t eviction_fail_ingest;
+    int64_t eviction_urgent_pages_taken;
     int64_t eviction_walk;
     int64_t cache_scrub_image_pages;
     int64_t cache_eviction_multiblock_checkpoint_flagged;
@@ -795,6 +797,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_insert_reverse_modify;
     int64_t eviction_worker_lock_wait_time;
     int64_t eviction_reentry_hs_eviction_milliseconds;
+    int64_t eviction_urgent_wait_time;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_internal_ingest;
     int64_t cache_bytes_internal_stable;
