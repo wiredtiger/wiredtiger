@@ -1920,7 +1920,9 @@ __clayered_step_past(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, const WT_ITEM 
  * __clayered_step_back_past --
  *     Move a constituent of a reversed walk strictly past the stopped key in the new direction.
  *     Like a btree cursor, step it back from where it is, or from where it is blocked, so keys
- *     beyond its position are never read. Only a constituent with no position is searched for.
+ *     beyond its position are never read. A positioned constituent first reads its key again: the
+ *     value it holds can predate a change of read context. Only a constituent with no position is
+ *     searched for.
  */
 static int
 __clayered_step_back_past(
@@ -1928,8 +1930,12 @@ __clayered_step_back_past(
 {
     if (__clayered_constituent_prepare_blocked(constituent))
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, constituent, forward));
-    else if (!F_ISSET(constituent, WT_CURSTD_KEY_INT))
-        WT_RET_NOTFOUND_OK(__clayered_position_alternate_at(op, stopped, constituent, forward));
+    else {
+        if (F_ISSET(constituent, WT_CURSTD_KEY_INT))
+            WT_RET_NOTFOUND_OK(constituent->search(constituent));
+        if (!F_ISSET(constituent, WT_CURSTD_KEY_INT))
+            WT_RET_NOTFOUND_OK(__clayered_position_alternate_at(op, stopped, constituent, forward));
+    }
     return (__clayered_step_past(op, constituent, stopped, forward));
 }
 
@@ -1951,7 +1957,7 @@ __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
  *     Make a constituent blocked on a prepared update the current cursor, and record the stopped
  *     key: the blocked key, or the alternate's key if it comes before the blocked key in the walk
  *     direction (smaller for next, larger for prev). The alternate's key is the one it is on or
- *     blocked on.
+ *     blocked on, unless it is deleted.
  */
 static int
 __clayered_record_block(WTI_CLAYERED_OP *op, WT_CURSOR *blocked, bool forward)
@@ -1963,9 +1969,11 @@ __clayered_record_block(WTI_CLAYERED_OP *op, WT_CURSOR *blocked, bool forward)
     int cmp;
 
     __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)blocked, &stopped);
-    if (F_ISSET(alternate, WT_CURSTD_KEY_INT))
-        alternate_key = &alternate->key;
-    else if (__clayered_constituent_prepare_blocked(alternate)) {
+    if (F_ISSET(alternate, WT_CURSTD_KEY_INT)) {
+        /* A key the walk would skip as deleted is not where it stopped. */
+        if (alternate != op->ingest || !__wt_clayered_deleted(&alternate->value))
+            alternate_key = &alternate->key;
+    } else if (__clayered_constituent_prepare_blocked(alternate)) {
         __wt_btcur_prepare_conflict_key((WT_CURSOR_BTREE *)alternate, &alternate_blocked);
         alternate_key = &alternate_blocked;
     }

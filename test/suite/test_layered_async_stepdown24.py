@@ -447,6 +447,70 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
         self.complete_step_down(15)
 
 @disagg_test_class
+class test_layered_async_stepdown24_mirrored_writes(
+        BlockedWalkMixin, wttest.WiredTigerTestCase):
+    conn_config = BlockedWalkMixin.conn_config.replace(
+        'disaggregated=(', 'disaggregated=(stepdown_write_mirroring=true,')
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
+
+    def write_own(self, rank, value):
+        writer = self.session.open_cursor(self.uri, None, None)
+        if value is None:
+            writer.set_key(self.key(rank))
+            self.assertEqual(writer.remove(), 0)
+        else:
+            writer[self.key(rank)] = value
+        writer.close()
+
+    def finish(self, stable_prepare):
+        self.session.rollback_transaction()
+        self.resolve(stable_prepare)
+        # Verification needs the step-down completed when writes are mirrored.
+        self.complete_step_down(15)
+
+    # The walk returns a key both constituents hold, updates it, then blocks stepping the other
+    # constituent past it. Reversing returns the key again with the new value.
+    def test_reverse_after_updating_last_key(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(2): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(2, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(1): 'v'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_returns(cursor, 1)
+        self.write_own(1, 'new')
+        self.assert_conflict(cursor)
+        actual = self.walk_back(cursor)
+        cursor.close()
+        self.finish(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'new')])
+
+    # The walk's own transaction removes a key, a new walk blocks past it, and the transaction
+    # inserts the key again. Reversing returns it: a deleted key is not where the walk stopped.
+    def test_reverse_onto_reinserted_key(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(2): 'v', self.key(3): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(2, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(1): 'v'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.write_own(1, None)
+        self.assert_conflict(cursor)
+        self.write_own(1, 'new')
+        actual = self.walk_back(cursor)
+        cursor.close()
+        self.finish(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'new')])
+
+@disagg_test_class
 class test_layered_async_stepdown24_first_key(BlockedWalkMixin, wttest.WiredTigerTestCase):
     first_key = [
         ('stable_blocked', dict(ingest_blocked=False, insert=False)),
