@@ -3147,9 +3147,9 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     __wt_atomic_store_bool_relaxed(&btree->modified, false);
 
     /*
-     * Order the clear ahead of the reads of page dirty state, which needs a full barrier. Threads
-     * dirtying a page order it the other way by re-checking the tree's flag after dirtying the
-     * page, see __wt_page_modify_set.
+     * Order the modified clear ahead of the reads of page dirty state, which needs a full barrier.
+     * Threads dirtying a page order it the other way by re-checking the tree's flag after dirtying
+     * the page.
      */
     WT_FULL_BARRIER();
 
