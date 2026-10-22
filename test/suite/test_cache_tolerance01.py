@@ -64,7 +64,8 @@ class test_cache_tolerance01(wttest.WiredTigerTestCase):
         return 100.0 * stats[stat.conn.cache_bytes_dirty_leaf] / stats[stat.conn.cache_bytes_max]
 
     def test_cache_tolerance(self):
-        self.session.create(self.uri, "key_format=i,value_format=S")
+        # Eviction must not change the dirty content while the test measures it.
+        self.session.create(self.uri, "key_format=i,value_format=S,cache_resident=true")
         self.session.create(self.probe_uri, "key_format=i,value_format=S")
         with wttest.open_cursor(self.session, self.probe_uri) as cursor:
             cursor[1] = "probe"
