@@ -341,8 +341,9 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
             'epoch 30',
                 f'Queued shared metadata operations for table "{self.test_name}" (2 total, 1 parked): '
                 'CREATE@20 parked no_stable_metadata; REMOVE@30',
-            'Shared metadata queue: creates=0, removes=1, unpublished=0, updates=0; stable '
-            'schema epoch=20, last checkpoint schema epoch=10, step-down schema epoch=0, leader')
+            'Shared metadata queue (excl. parked): creates=0, removes=1, unpublished=0, updates=0; '
+            'stable schema epoch=20, last checkpoint schema epoch=10, step-down schema epoch=0, '
+            'leader')
 
     def subprocess_create_unpublished_drop(self):
         """Subprocess body for the unpublished-drop panic test; expected to panic/abort."""
