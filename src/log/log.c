@@ -571,6 +571,10 @@ __wt_log_get_backup_files(
      * their final write. The caller can copy the files as soon as this function returns, so wait
      * for every record allocated to the sealed file to reach it. The new active slot's release LSN
      * is the end of that file.
+     *
+     * The slot lock keeps the pointer and its release LSN consistent: no other thread can switch or
+     * reuse the slot while we read them. Other readers access the pointer without the lock, so keep
+     * using the atomic access.
      */
     WTI_WITH_SLOT_LOCK(session, log, {
         slot = __wt_atomic_load_ptr_relaxed(&log->active_slot);
