@@ -466,4 +466,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"wiredtiger.leak_memory", "leak memory on wiredtiger shutdown", C_BOOL, 0, 0, 0,
     V_GLOBAL_WIREDTIGER_LEAK_MEMORY},
 
+  {"disagg.frontier_lag", "publish a materialization frontier that trails the workload", C_BOOL, 30,
+    0, 0, V_GLOBAL_DISAGG_FRONTIER_LAG},
+
+  {"disagg.frontier_lag.max", "maximum materialization frontier lag, in LSNs", C_IGNORE, 0, 0,
+    10000, V_GLOBAL_DISAGG_FRONTIER_LAG_MAX},
+
   {NULL, NULL, 0x0, 0, 0, 0, 0}};
