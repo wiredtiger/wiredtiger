@@ -1,9 +1,9 @@
 /*! @arch_page arch-disagg-roles Disaggregated Storage Roles and Role Changes
 
 Disaggregated storage allows multiple WiredTiger nodes to read shared data while a single node
-writes it. A connection's role determines its access to shared storage, the view it reads, and
-the work it performs on behalf of the cluster. Changing that role affects the whole storage
-engine, not only individual tables or cursors.
+persists it to shared storage. A connection's role determines its access to shared storage, the
+view it reads, and the work it performs on behalf of the cluster. Changing that role affects
+the whole storage engine, not only individual tables or cursors.
 
 @section disagg-roles-steady-state Leader and follower
 
@@ -107,19 +107,20 @@ two ways to prepare for the transition:
   follower. No step-down timestamp is set;
   the application must ensure that the checkpoint contains all changes being handed off.
 - <b>Asynchronous step-down:</b> the application sets a step-down timestamp to define the boundary
-  for the concluding checkpoint. Until final reconfiguration, new write transactions write to
-  local ingest tables, allowing writes to continue during checkpoint preparation. Write
-  transactions already in progress when the timestamp is set, including those that span the
-  transition, are rolled back to prevent an inconsistent state.
+  for the concluding checkpoint. Once the step-down timestamp is set, new write transactions
+  write to local ingest tables, allowing writes to continue during checkpoint preparation.
+  Write transactions already in progress when the timestamp is set, including those that span
+  the transition, are rolled back to prevent an inconsistent state.
 
 In both cases, the application coordinates checkpoint handoff and finishes all write
 transactions before reconfiguring the old leader as a follower. The connection then reads
 stable tables through read-only views of the concluding checkpoint and merges them with any
 newer changes in its local ingest tables.
 
-Asynchronous step-down does not allow writers to run during or span final reconfiguration.
-Read transactions are allowed at all times but those without read timestamps are rolled back if they span reconfiguration.
-See WT_CONNECTION::set_timestamp for the step-down timestamp API and @ref error_handling for
+Asynchronous step-down does not allow writers to run during or span the step-down reconfiguration.
+Read transactions are allowed at all times, but those without read timestamps are rolled back
+if they span reconfiguration. See
+WT_CONNECTION::set_timestamp for the step-down timestamp API and @ref error_handling for
 rollback handling.
 
 */
