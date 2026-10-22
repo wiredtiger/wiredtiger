@@ -602,10 +602,13 @@ begin_transaction_ts(TINFO *tinfo)
         ts = replay_read_ts(tinfo);
     else
         /*
-         * Don't pick a read timestamp: a read timestamp before the truncate's commit timestamp
-         * exposes visibility mismatches in switch mode, so use the transaction snapshot instead.
+         * Transaction timestamp reads are repeatable, but read timestamps must be before any
+         * possible commit timestamp. Without a read timestamp, reads are based on the transaction
+         * snapshot, which will include the latest values as of when the snapshot is taken. Test in
+         * both modes: 75% of the time, pick a read timestamp before any commit timestamp still in
+         * use, 25% of the time don't set a timestamp at all.
          */
-        ts = 0;
+        ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
         if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
