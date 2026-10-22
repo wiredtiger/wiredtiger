@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_layered_stepup15.py
-#   A follower removes a key, possibly more than once, and then steps up. The key may be missing
-#   from the stable table, already deleted there, or live; a newer insert may follow the removes,
+#   A follower removes a key and then steps up. The key may be missing from the stable table,
+#   already deleted there, or live; a newer insert may follow the removes,
 #   and other keys missing from the stable table may be removed too. Removes of keys with no value
 #   in the stable table are skipped, counted and reported with one warning per table, reads at
 #   every timestamp stay correct, and the node keeps running through a checkpoint and a restart.
@@ -61,15 +61,11 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
             found_at=[15], truncate_before_remove=True, insert_before_truncate=True)),
         ('absent_multiple', dict(stable_state='absent', remove_ts=[20], insert_ts=None, found_at=[],
             extra_keys=['missing1', 'missing2', 'missing3'])),
-        ('absent_stacked',
-            dict(stable_state='absent', remove_ts=[20, 25], insert_ts=None, found_at=[])),
         ('absent_then_insert',
             dict(stable_state='absent', remove_ts=[20], insert_ts=25, found_at=[28])),
         ('deleted', dict(stable_state='deleted', remove_ts=[20], insert_ts=None, found_at=[6])),
         ('present',
             dict(stable_state='present', remove_ts=[20], insert_ts=None, found_at=[6, 9, 15])),
-        ('present_stacked',
-            dict(stable_state='present', remove_ts=[20, 25], insert_ts=None, found_at=[6, 9, 15])),
     ]
     scenarios = make_scenarios(disagg_storages, stable_states)
 

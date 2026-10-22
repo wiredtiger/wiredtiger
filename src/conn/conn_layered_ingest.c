@@ -91,7 +91,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
   WT_UPDATE **updates_ptr, WT_UPDATE *last_upd, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
-    WT_UPDATE *newer_update, *older_update, *prev, *upd, **next_ptr;
+    WT_UPDATE *prev, *upd;
     bool orphan_counted = false;
 
     /*
@@ -103,24 +103,6 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     /* Search the page. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
-
-    /*
-     * Keep the oldest of any consecutive non-prepared tombstones.
-     */
-    next_ptr = updates_ptr;
-    while ((newer_update = *next_ptr) != NULL && (older_update = newer_update->next) != NULL) {
-        if (newer_update->type != WT_UPDATE_TOMBSTONE ||
-          older_update->type != WT_UPDATE_TOMBSTONE ||
-          newer_update->prepare_state == WT_PREPARE_INPROGRESS ||
-          older_update->prepare_state == WT_PREPARE_INPROGRESS) {
-            next_ptr = &newer_update->next;
-            continue;
-        }
-
-        /* Free the newer tombstone, then check the same position again. */
-        *next_ptr = older_update;
-        __wt_free(session, newer_update);
-    }
 
     /*
      * Skip orphan tombstones: reconciliation cannot write them without an underlying value.
