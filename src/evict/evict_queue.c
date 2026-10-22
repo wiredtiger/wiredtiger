@@ -165,6 +165,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
     uint32_t candidates, entries;
+    int waiters;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
@@ -317,10 +318,15 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
     }
     queue->evict_current = queue->evict_queue;
+    candidates = queue->evict_candidates;
     __wt_spin_unlock(session, &queue->evict_lock);
 
-    /* Signal any application or helper threads that may be waiting to help with eviction. */
-    __wt_cond_signal(session, conn->evict_config.threads.wait_cond);
+    /*
+     * Wake no more threads than there are candidates for; the rest would find the queue drained.
+     */
+    waiters = __wt_atomic_load_int32_relaxed(&conn->evict_config.threads.wait_cond->waiters);
+    WT_STAT_CONN_INCRV(session, eviction_refill_waiters, WT_MAX(waiters, 0));
+    __evict_wake_waiters(session, candidates);
 
 err:
     WT_TRACK_OP_END(session);

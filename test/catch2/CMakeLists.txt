@@ -16,6 +16,7 @@ else()
         misc_tests/test_checkpoint_time.cpp
         misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_ckpt_snapshot_size.cpp
+        misc_tests/test_cond_signal_n.cpp
         misc_tests/test_config.cpp
         misc_tests/test_conn_api_name.cpp
         misc_tests/test_crc32.cpp

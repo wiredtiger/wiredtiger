@@ -550,10 +550,14 @@ done:
     __wt_spin_unlock(session, &evict->evict_queue_lock);
     if (queued) {
         WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent);
-        if (WT_EVICT_HAS_WORKERS(session))
-            __wt_cond_signal(session, S2C(session)->evict_config.threads.wait_cond);
-        else
+        if (!WT_EVICT_HAS_WORKERS(session))
             __wt_evict_server_wake(session);
+        else if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD))
+            /* Any thread that wakes can take an urgent page. */
+            __evict_wake_waiters(session, 1);
+        else
+            /* Only workers can take it, and one signal may wake an application thread instead. */
+            __wt_cond_signal(session, S2C(session)->evict_config.threads.wait_cond);
     }
 
     return (queued);
