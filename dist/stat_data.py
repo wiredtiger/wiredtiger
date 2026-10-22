@@ -27,6 +27,8 @@
 #       otel_gauge     Point-in-time value that can go up and down
 #       otel_histogram Distribution of recorded values
 #       otel_none      Not an OTel metric (the default if otel_type is omitted)
+#
+# An otel_counter cannot have the no_clear flag, as OTel counters must be given in increments.
 
 from operator import attrgetter
 import sys
@@ -243,12 +245,6 @@ conn_stats = [
     ##########################################
     # Block cache statistics
     ##########################################
-    # FIXME-WT-18764: seven of the stats below describe the disaggregated victim cache, not the
-    # block cache: app_thread_put_time, app_thread_puts, cold_not_cached, put_failures, put_time,
-    # put_time_max and puts. Eviction increments them on the page log cache path. That ticket moves
-    # them to the disagg group as disagg_victim_cache_*.
-    BlockCacheStat('block_cache_app_thread_put_time', 'time application threads spent adding pages to the disaggregated victim cache (usecs)'),
-    BlockCacheStat('block_cache_app_thread_puts', 'pages added to the disaggregated victim cache by application threads'),
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
     BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
@@ -266,16 +262,11 @@ conn_stats = [
     BlockCacheStat('block_cache_bytes_insert_read', 'total bytes inserted on read path'),
     BlockCacheStat('block_cache_bytes_insert_write', 'total bytes inserted on write path'),
     BlockCacheStat('block_cache_bytes_update', 'cached bytes updated'),
-    BlockCacheStat('block_cache_cold_not_cached', 'cold collection pages not added to the disaggregated victim cache during eviction'),
     BlockCacheStat('block_cache_eviction_passes', 'number of eviction passes'),
     BlockCacheStat('block_cache_hits', 'number of hits'),
     BlockCacheStat('block_cache_lookups', 'lookups'),
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
-    BlockCacheStat('block_cache_put_failures', 'failed page inserts into the disaggregated victim cache'),
-    BlockCacheStat('block_cache_put_time', 'time spent adding pages to the disaggregated victim cache (usecs)'),
-    BlockCacheStat('block_cache_put_time_max', 'maximum time spent adding a single page to the disaggregated victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
-    BlockCacheStat('block_cache_puts', 'pages added to the disaggregated victim cache'),
 
     ##########################################
     # Block manager statistics
@@ -471,7 +462,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_stale_disagg_pages', 'eviction server skips pages on an outdated disaggregated read-only btree that a reader still has open'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
-    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips checkpointed stable btrees on followers when not looking for clean pages'),
+    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips btrees that are read-only when looking only for dirty or update pages and the btree holds none'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_trees_walk_complete', 'eviction server skips resuming trees whose walk already traversed the whole tree'),
@@ -580,6 +571,10 @@ conn_stats = [
     CheckpointStat('checkpoint_scrub_total', 'scrub total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_skipped', 'checkpoints skipped because database was clean'),
     CheckpointStat('checkpoint_state', 'progress state', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stepdown_time_max', 'step down checkpoint max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stepdown_time_min', 'step down checkpoint min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stepdown_time_recent', 'step down checkpoint most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stepdown_time_total', 'step down checkpoint total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_stop_stress_active', 'stop timing stress active', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_sync', 'number of files synced'),
     CheckpointStat('checkpoint_sync_rec_pct', 'the percentage of checkpoint sync time spent in reconciliation across all threads', 'no_clear,no_scale'),
@@ -643,6 +638,8 @@ conn_stats = [
     DisaggStat('disagg_checkpoint_binary_version',
         'checkpoint metadata version this binary writes', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_defer', 'checkpoint pick-ups deferred for active transaction snapshots'),
+    DisaggStat('disagg_checkpoint_defer_adopt_wait',
+        'time the most recently adopted checkpoint spent deferred, zero if adopted on delivery (msecs)', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_delivered_lsn', 'most recently delivered checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_meta_lsn', 'most recently adopted checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_storage_compatible_version',
@@ -664,6 +661,8 @@ conn_stats = [
     DisaggStat('disagg_stable_tombstone_encoding',
         'stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped',
         'no_clear,no_scale'),
+    DisaggStat('disagg_step_down_attempted', 'step downs attempted'),
+    DisaggStat('disagg_step_down_completed', 'step downs completed'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_down_window_creates', 'tables created without a stable constituent while the step-down timestamp is set'),
@@ -678,6 +677,13 @@ conn_stats = [
     DisaggStat('disagg_step_up_missing_stable_create_time', 'step up missing stable table create most recent time (msecs)'),
     DisaggStat('disagg_step_up_missing_stable_tables_created', 'step up missing stable tables created'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
+    DisaggStat('disagg_victim_cache_app_thread_put_time', 'time application threads spent adding pages to the victim cache (usecs)'),
+    DisaggStat('disagg_victim_cache_app_thread_puts', 'pages added to the victim cache by application threads'),
+    DisaggStat('disagg_victim_cache_cold_not_cached', 'cold collection pages not added to the victim cache during eviction'),
+    DisaggStat('disagg_victim_cache_put_failures', 'failed page inserts into the victim cache'),
+    DisaggStat('disagg_victim_cache_put_time', 'time spent adding pages to the victim cache (usecs)'),
+    DisaggStat('disagg_victim_cache_put_time_max', 'maximum time spent adding a single page to the victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
+    DisaggStat('disagg_victim_cache_puts', 'pages added to the victim cache'),
 
     ##########################################
     # Dhandle statistics
@@ -972,6 +978,8 @@ conn_stats = [
     SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_deferred', 'table drop deferred operations pending', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_deferred_applied', 'table drop deferred operations applied', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_publish_fail', 'table publish failed calls', 'no_clear,no_scale'),
@@ -1443,6 +1451,12 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_read_only_del_internal_page_skip', 'Total number of in-memory deleted internal pages of a read-only btree skipped during tree walk'),
     CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
+    CursorStat('cursor_truncate_fast_delete_fallback_in_memory', 'range truncate fast-delete candidates in memory or busy'),
+    CursorStat('cursor_truncate_fast_delete_fallback_pages', 'range truncate fast-delete candidates rejected'),
+    CursorStat('cursor_truncate_fast_delete_pages', 'range truncate fast-delete pages'),
+    CursorStat('cursor_truncate_fast_delete_pages_skipped_already_deleted', 'range truncate fast-delete skipped, all entries already deleted'),
+    CursorStat('cursor_truncate_internal_bytes_dirtied', 'range truncate internal page bytes newly dirtied', 'size'),
+    CursorStat('cursor_truncate_internal_pages_dirtied', 'range truncate internal pages newly dirtied'),
 
     ##########################################
     # Cursor API error statistics
@@ -1551,8 +1565,6 @@ conn_dsrc_stats = [
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
-    RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
-    RecStat('rec_page_delete_fast_skip_deleted', 'fast-path page deletion skipped, all entries already deleted'),
     RecStat('rec_page_delta_eligible', 'pages eligible for delta generation'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
     RecStat('rec_page_delta_internal_key_deleted', 'internal page delta keys deleted'),

@@ -444,3 +444,12 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt18959_log_scan_truncate
+    SOURCES wt18959_log_scan_truncate/main.c
+    DIR_NAME wt18959_log_scan_truncate
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt18959_log_scan_truncate/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt18959_log_scan_truncate>
+    DEPENDS "WT_POSIX"
+)

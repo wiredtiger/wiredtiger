@@ -482,14 +482,14 @@ __wt_txn_snapshot_save(WT_SESSION_IMPL *session)
 
     txn = session->txn;
 
-    WT_RET(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
+    WT_RET(__wt_calloc_one(session, &txn->backup_snapshot_data));
 
     txn->backup_snapshot_data->snap_max = txn->snapshot_data.snap_max;
     txn->backup_snapshot_data->snap_min = txn->snapshot_data.snap_min;
     txn->backup_snapshot_data->snapshot_count = txn->snapshot_data.snapshot_count;
 
-    WT_ERR(__wt_calloc_def(session, sizeof(uint64_t) * S2C(session)->session_array.size,
-      &txn->backup_snapshot_data->snapshot));
+    WT_ERR(__wt_calloc_def(
+      session, S2C(session)->session_array.size, &txn->backup_snapshot_data->snapshot));
 
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
@@ -2272,9 +2272,17 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
+            /* FIXME-WT-17277: allow once a prepared fast truncate can be written to disk. */
+            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
+              "a prepared transaction cannot include a fast truncate when preserve_prepared is "
+              "configured");
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
+              "a prepared transaction cannot include a truncate entry when preserve_prepared is "
+              "configured");
+            break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
@@ -2297,6 +2305,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         __txn_remove_from_global_table(session);
+
+    /* New snapshots now see the prepared updates, so cached snapshots have to be refreshed. */
+    __wt_gen_next(session, WT_GEN_HAS_SNAPSHOT, NULL);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
