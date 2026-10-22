@@ -999,7 +999,7 @@ static void
 stats_materialization_frontier_print(WT_SESSION *session, FILE *fp)
 {
     WT_CURSOR *cursor;
-    int64_t blocked, race;
+    int64_t ahead, blocked, race;
 
     testutil_assert(fprintf(fp, "\n\n====== Materialization frontier:\n") >= 0);
 
@@ -1009,6 +1009,7 @@ stats_materialization_frontier_print(WT_SESSION *session, FILE *fp)
     }
 
     wt_wrap_open_cursor(session, "statistics:", NULL, &cursor);
+    ahead = stats_conn_value(cursor, WT_STAT_CONN_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN);
     blocked = stats_conn_value(cursor, WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MATERIALIZATION);
     race = stats_conn_value(cursor, WT_STAT_CONN_CACHE_CAS_BTREE_MAX_LSN_RACE);
     testutil_check(cursor->close(cursor));
@@ -1016,15 +1017,17 @@ stats_materialization_frontier_print(WT_SESSION *session, FILE *fp)
     testutil_assert(fprintf(fp,
                       "maximum lag=%" PRIu32 " LSNs\n"
                       "evictions blocked by the frontier=%" PRId64 "\n"
+                      "pages evicted ahead of the frontier=%" PRId64 "\n"
                       "btree max LSN CAS races=%" PRId64 "\n",
-                      GV(DISAGG_FRONTIER_LAG_MAX), blocked, race) >= 0);
+                      GV(DISAGG_FRONTIER_LAG_MAX), blocked, ahead, race) >= 0);
 
     if (GV(QUIET))
         return;
 
     printf("--- materialization frontier: max lag %" PRIu32 " LSNs, %" PRId64
-           " evictions blocked, %" PRId64 " btree max LSN CAS races ---\n",
-      GV(DISAGG_FRONTIER_LAG_MAX), blocked, race);
+           " evictions blocked, %" PRId64 " evicted ahead, %" PRId64
+           " btree max LSN CAS races ---\n",
+      GV(DISAGG_FRONTIER_LAG_MAX), blocked, ahead, race);
 }
 
 /*
