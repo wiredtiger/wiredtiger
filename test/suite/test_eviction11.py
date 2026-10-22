@@ -61,7 +61,8 @@ class test_eviction11(wttest.WiredTigerTestCase):
 
         self.assertGreater(taken, 0)
         self.assertLessEqual(taken, queued)
-        self.assertGreater(longest, 0)
+        # The maximum resets at each checkpoint and waits are truncated to whole microseconds, so
+        # only the relationship between the statistics is stable.
         self.assertLessEqual(longest, total)
 
 
