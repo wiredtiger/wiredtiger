@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 # The blind_remove cursor configuration is accepted by WT_SESSION::open_cursor and
 # WT_CURSOR::reconfigure on layered tables, and fails with ENOTSUP on any other table.
 @disagg_test_class
-class test_layered_cursor31(wttest.WiredTigerTestCase):
+class test_layered_cursor32(wttest.WiredTigerTestCase):
     table_name = __qualname__
 
     conn_base_config = ',create,statistics=(all),'
