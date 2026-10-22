@@ -1092,7 +1092,7 @@ __disagg_shared_metadata_queue_log_state(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_DISAGG_METADATA_OP *op;
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-    uint64_t create = 0, remove = 0, unpublished = 0, update = 0;
+    uint64_t creates = 0, removes = 0, unpublished = 0, updates = 0;
     char last_ckpt_string[WT_TS_INT_STRING_SIZE], stable_string[WT_TS_INT_STRING_SIZE],
       step_down_string[WT_TS_INT_STRING_SIZE];
 
@@ -1103,13 +1103,13 @@ __disagg_shared_metadata_queue_log_state(WT_SESSION_IMPL *session)
         case WT_SHARED_METADATA_NONE:
             break;
         case WT_SHARED_METADATA_UPDATE:
-            ++update;
+            ++updates;
             break;
         case WT_SHARED_METADATA_CREATE:
-            ++create;
+            ++creates;
             break;
         case WT_SHARED_METADATA_REMOVE:
-            ++remove;
+            ++removes;
             break;
         }
 
@@ -1119,11 +1119,11 @@ __disagg_shared_metadata_queue_log_state(WT_SESSION_IMPL *session)
     }
 
     __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_ERROR,
-      "Shared metadata queue: creates=%" PRIu64 ", removes=%" PRIu64 ", unpublished=%" PRIu64
-      ", updates=%" PRIu64
+      "Shared metadata queue (excl. parked): creates=%" PRIu64 ", removes=%" PRIu64
+      ", unpublished=%" PRIu64 ", updates=%" PRIu64
       "; stable schema epoch=%s, last checkpoint schema epoch=%s, step-down schema epoch=%s, "
       "%s",
-      create, remove, unpublished, update,
+      creates, removes, unpublished, updates,
       __disagg_schema_epoch_to_string(
         __wt_get_stable_disaggregated_schema_epoch(session), stable_string, sizeof(stable_string)),
       __disagg_schema_epoch_to_string(
