@@ -302,8 +302,11 @@ struct __wt_import_list {
     WT_WITH_LOCK_WAIT(session, &S2C(session)->metadata_lock, WT_SESSION_LOCKED_METADATA, op)
 
 /*
- * WT_WITH_SCHEMA_LOCK, WT_WITH_SCHEMA_LOCK_NOWAIT --
+ * WT_WITH_SCHEMA_LOCK, WT_WITH_SCHEMA_READ_LOCK, WT_WITH_SCHEMA_LOCK_NOWAIT --
  *	Acquire the schema lock, perform an operation, drop the lock.
+ *	WT_WITH_SCHEMA_READ_LOCK takes the lock for read, the others for write.
+ *	If the session already holds the lock in either mode, the operation runs
+ *	without locking again.
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
  */

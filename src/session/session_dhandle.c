@@ -1085,9 +1085,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                     session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
             } else
                 /*
-                 * Opening an existing handle for ordinary access only needs to exclude concurrent
-                 * drop/verify/create of the same URI, which take the schema lock exclusively. Take
-                 * it shared so independent opens of different handles do not serialize.
+                 * Operations that need exclusive access to a tree, such as drop and verify, take
+                 * the schema lock for write. A read lock is enough to exclude them and lets threads
+                 * open different handles in parallel. Opens of the same handle are serialized by
+                 * the handle's exclusive lock.
                  */
                 WT_WITH_SCHEMA_READ_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));

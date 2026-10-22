@@ -544,8 +544,8 @@ __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 /*
  * __wt_rwlock_iswritelocked --
- *     Return whether the read/write lock is held in write mode. With no owner tracking this reports
- *     any writer, not necessarily the current session.
+ *     Return if a read/write lock is currently locked for writing. The lock does not record its
+ *     owner, so the writer can be any session.
  */
 bool
 __wt_rwlock_iswritelocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)

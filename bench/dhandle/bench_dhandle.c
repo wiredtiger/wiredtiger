@@ -91,8 +91,8 @@ typedef struct {
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
-  "create,cache_size=2GB,cache_cursors=false,statistics=(all),statistics_log=(json,on_close,wait=1),"
-  "file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)";
+  "create,cache_size=2GB,cache_cursors=false,statistics=(all),statistics_log=(json,on_close,wait=1)"
+  ",file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)";
 static const char table_config[] = "leaf_page_max=64KB,key_format=i,value_format=i";
 
 extern char *__wt_optarg;
@@ -242,8 +242,8 @@ bench_dhandle(SHARED *shared)
 
 /*
  * report_lock_stats --
- *     Print cumulative connection lock-wait statistics so schema_lock contention is observable
- *     directly, independent of throughput. Wait times are microseconds; counts are acquisitions.
+ *     Print cumulative connection lock statistics: schema lock read and write acquisitions, and
+ *     schema, table and dhandle lock wait times in microseconds.
  */
 static void
 report_lock_stats(WT_SESSION *session)

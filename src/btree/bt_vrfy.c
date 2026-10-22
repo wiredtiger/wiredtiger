@@ -82,19 +82,6 @@ __verify_lock_held(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, uint32_t flag)
     return (F_ISSET(session, WT_SESSION_INTERNAL) && FLD_ISSET(session->lock_flags, flag) &&
       __wt_spin_locked(session, lock));
 }
-
-/*
- * __verify_rwlock_held --
- *     Read-write lock variant of __verify_lock_held; accept the lock being held with the inherited
- *     flag because read-write locks lack owner tracking.
- */
-static WT_INLINE bool
-__verify_rwlock_held(WT_SESSION_IMPL *session, WT_RWLOCK *lock, uint32_t flag)
-{
-    if (__wt_rwlock_iswritelocked(session, lock))
-        return (true);
-    return (F_ISSET(session, WT_SESSION_INTERNAL) && FLD_ISSET(session->lock_flags, flag));
-}
 #endif
 
 /*
@@ -617,8 +604,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session,
       __verify_lock_held(session, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT));
-    WT_ASSERT(
-      session, __verify_rwlock_held(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
 
     btree = S2BT(session);
     bm = btree->bm;
