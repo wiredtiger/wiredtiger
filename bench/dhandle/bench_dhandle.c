@@ -56,7 +56,6 @@ typedef struct {
         int seconds_until_full;
         int table_in_use_percent;
         int tables_per_work_item;
-        int rows_per_table;
     } config;
 
     WT_CONNECTION *conn;
@@ -91,8 +90,7 @@ typedef struct {
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
-  "create,cache_size=2GB,cache_cursors=false,statistics=(all),statistics_log=(json,on_close,wait=1)"
-  ",file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)";
+  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config[] = "leaf_page_max=64KB,key_format=i,value_format=i";
 
 extern char *__wt_optarg;
@@ -100,7 +98,6 @@ extern char *__wt_optarg;
 /* Forward declarations. */
 static void bench_dhandle(SHARED *);
 static void bench_dhandle_run(SHARED *);
-static void report_lock_stats(WT_SESSION *);
 static void *checkpointer(void *);
 static void *creator(void *);
 static void *queuer(void *);
@@ -123,7 +120,7 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-p] [-c create_pct] [ -f full_seconds ] [ -i rows_per_table ] [ -n table_count ]\n"
+      "    [-p] [-c create_pct] [ -f full_seconds ] [ -n table_count ]\n"
       "    [ -r run_time ] [-h home] [-T threads] [ -u in_use_percent ] [ -w tables_per_work_item "
       "]\n",
       progname);
@@ -132,7 +129,6 @@ usage(void)
       "\t-c percentage of time doing create calls\n"
       "\t-f seconds until reaching the table count (this is a goal, the performance may not allow "
       "it)\n"
-      "\t-i rows inserted per table at creation (larger btree => costlier reopen)\n"
       "\t-n table count\n"
       "\t-p preserve home directory\n"
       "\t-r total run time\n"
@@ -159,14 +155,10 @@ main(int argc, char *argv[])
     (void)testutil_set_progname(argv);
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &shared.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:i:n:r:u:w:" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:n:r:u:w:" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             shared.config.creation_time_percent = atoi(__wt_optarg);
-            break;
-
-        case 'i':
-            shared.config.rows_per_table = atoi(__wt_optarg);
             break;
 
         case 'f':
@@ -211,8 +203,6 @@ main(int argc, char *argv[])
         shared.config.table_in_use_percent = 75;
     if (shared.config.tables_per_work_item == 0)
         shared.config.tables_per_work_item = 10;
-    if (shared.config.rows_per_table == 0)
-        shared.config.rows_per_table = 1;
 
     bench_dhandle(&shared);
 
@@ -241,40 +231,6 @@ bench_dhandle(SHARED *shared)
 }
 
 /*
- * report_lock_stats --
- *     Print cumulative connection lock statistics: schema lock read and write acquisitions, and
- *     schema, table and dhandle lock wait times in microseconds.
- */
-static void
-report_lock_stats(WT_SESSION *session)
-{
-    WT_CURSOR *cursor;
-    uint64_t value;
-    size_t k;
-    const char *desc, *pval;
-    static const struct {
-        int id;
-        const char *label;
-    } ids[] = {{WT_STAT_CONN_LOCK_SCHEMA_READ_COUNT, "schema_read_acq"},
-      {WT_STAT_CONN_LOCK_SCHEMA_WRITE_COUNT, "schema_write_acq"},
-      {WT_STAT_CONN_LOCK_SCHEMA_WAIT_APPLICATION, "schema_wait_app_us"},
-      {WT_STAT_CONN_LOCK_SCHEMA_WAIT_INTERNAL, "schema_wait_int_us"},
-      {WT_STAT_CONN_LOCK_TABLE_WAIT_APPLICATION, "table_wait_app_us"},
-      {WT_STAT_CONN_LOCK_DHANDLE_WAIT_APPLICATION, "dhandle_wait_app_us"}};
-
-    testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
-    printf("  locks (cumulative):");
-    for (k = 0; k < sizeof(ids) / sizeof(ids[0]); ++k) {
-        cursor->set_key(cursor, ids[k].id);
-        testutil_check(cursor->search(cursor));
-        testutil_check(cursor->get_value(cursor, &desc, &pval, &value));
-        printf(" %s=%" PRIu64, ids[k].label, value);
-    }
-    printf("\n");
-    testutil_check(cursor->close(cursor));
-}
-
-/*
  * bench_dhandle_run --
  *     Run the benchmark.
  */
@@ -291,7 +247,6 @@ bench_dhandle_run(SHARED *shared)
     BENCH_TIMER t_minute_checkpoint, t_minute_create, t_minute_drop, t_minute_first_insert,
       t_minute_read, t_minute_update;
     void *(*thread_func)(void *);
-    WT_SESSION *stat_session;
 
     /* extra threads for create, queue, checkpoint */
     args = dcalloc(shared->opts.nthreads + 3, sizeof(THREAD_ARGS));
@@ -324,8 +279,6 @@ bench_dhandle_run(SHARED *shared)
       shared->config.tables_per_work_item);
 
     pthread_rwlock_init(&shared->work_queue_lock, NULL);
-
-    testutil_check(shared->conn->open_session(shared->conn, NULL, NULL, &stat_session));
 
     for (i = 0; i < shared->opts.nthreads + 3; ++i) {
         args[i].threadnum = (int)i;
@@ -403,8 +356,6 @@ bench_dhandle_run(SHARED *shared)
             printf("(no reads or updates)");
         printf("\n");
 
-        report_lock_stats(stat_session);
-
         if (now >= last_minute + 60) {
             printed = false;
             printf("\n**** PREVIOUS MINUTE AGGREGATED ****\n");
@@ -437,9 +388,6 @@ bench_dhandle_run(SHARED *shared)
 
     for (i = 0; i < shared->opts.nthreads + 3; ++i)
         testutil_check(pthread_join(tid[i], &ignored));
-
-    report_lock_stats(stat_session);
-    testutil_check(stat_session->close(stat_session, NULL));
 }
 
 /*
@@ -523,11 +471,9 @@ creator(void *void_args)
 
             BENCH_TIME_CUMULATIVE(&args->t_first_insert, session, {
                 testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
-                for (int row = 0; row < shared->config.rows_per_table; ++row) {
-                    cursor->set_key(cursor, row);
-                    cursor->set_value(cursor, table_num);
-                    cursor->insert(cursor);
-                }
+                cursor->set_key(cursor, 0);
+                cursor->set_value(cursor, table_num);
+                cursor->insert(cursor);
                 testutil_check(cursor->close(cursor));
             });
 

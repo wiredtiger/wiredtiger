@@ -53,7 +53,7 @@ bench_timer_stop(BENCH_TIMER *timer, WT_SESSION *session)
     __wt_epoch((WT_SESSION_IMPL *)session, &start);
     /* Will overflow sometime > 2100 AD */
     nsec = (uint64_t)(start.tv_sec * WT_BILLION + start.tv_nsec);
-    assert(nsec >= timer->start_nsec);
+    assert(nsec > timer->start_nsec);
     timer->total_nsec += (nsec - timer->start_nsec);
     timer->count++;
 }
