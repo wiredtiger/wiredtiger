@@ -1448,6 +1448,18 @@ config_disagg_frontier_lag(void)
           buf, sizeof(buf), "disagg.frontier_lag.max=%u", (u_int)FRONTIER_LAG_MAX_DEFAULT);
         config_single(NULL, buf, false);
     }
+
+    /*
+     * A lagging frontier makes a cache discard refuse with EBUSY, so the handle-close and sweep
+     * paths that mishandle that refusal have to run during the run rather than only at connection
+     * close.
+     */
+    if (!config_explicit(NULL, "file_manager.close_handle_minimum"))
+        config_single(NULL, "file_manager.close_handle_minimum=0", false);
+    if (!config_explicit(NULL, "file_manager.close_idle_time"))
+        config_single(NULL, "file_manager.close_idle_time=1", false);
+    if (!config_explicit(NULL, "file_manager.close_scan_interval"))
+        config_single(NULL, "file_manager.close_scan_interval=1", false);
 }
 
 /*
