@@ -2491,7 +2491,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     bucket = NULL;
     rechecked = false;
     page = ref->page;
-retry:
     previous_state = WT_REF_GET_STATE(ref);
 
     /* A ref whose page has already been detached (see __wt_page_out) has nothing to enqueue. */
@@ -2524,17 +2523,9 @@ retry:
     else if (previous_state == WT_REF_LOCKED) {
         /*
          * Page is locked by another thread, which is enqueueing, evicting, splitting or deleting
-         * it. Whoever holds the lock either discards the page or enqueues it when releasing the
-         * lock. The holder's re-check of the page's classification can race with the change that
-         * brought us here (typically the page being dirtied), so hand the work off explicitly:
-         * raise the flag the holder consumes before it unlocks. If the holder had already released
-         * the lock before it could see the flag, nobody will act on it, so retry and do the
-         * enqueue ourselves.
+         * it. Whoever holds the lock either discards the page or enqueues it with its current
+         * classification when releasing the lock, so there is nothing for us to do.
          */
-        __wt_atomic_store_uint8(&page->evict_data.needs_requeue, 1);
-        WT_FULL_BARRIER();
-        if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED)
-            goto retry;
         WT_STAT_CONN_INCR(session, eviction_enqueue_skipped_locked);
         return;
     } else /* We must lock */ {
@@ -2684,7 +2675,7 @@ done:
      * not enqueue it and left that to whoever holds the lock. Before the lock is released, compare
      * the level the page now belongs to with the level it sits in, and move it if they differ.
      */
-    if (!rechecked || __wt_atomic_cas_uint8(&page->evict_data.needs_requeue, 1, 0)) {
+	if (!rechecked) {
         rechecked = true;
         if (WT_EVICT_PAGE_CLEARED(page) ||
           page->evict_data.bucket->bucketset->level !=
