@@ -36,7 +36,6 @@ import wiredtiger
 import wttest
 from suite_subprocess import suite_subprocess
 
-@wttest.skip_for_hook("disagg", "layered tables do not fast-truncate the btree pages directly")
 class test_prepare52(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'precise_checkpoint=true,preserve_prepared=true,statistics=(all)'
     uri = 'table:test_prepare52'

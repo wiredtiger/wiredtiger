@@ -2272,7 +2272,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            /* FIXME-WT-15565: allow once a prepared fast truncate can be written to disk. */
+            /* FIXME-WT-17277: allow once a prepared fast truncate can be written to disk. */
             WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
               "a prepared transaction cannot include a fast truncate when preserve_prepared is "
               "configured");
