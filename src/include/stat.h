@@ -648,6 +648,7 @@ struct __wt_connection_stats {
     int64_t eviction_skip_empty_subqueue;
     int64_t eviction_skip_intl_page_non_aggressive;
     int64_t eviction_skip_few_updates_no_pressure;
+    int64_t eviction_skip_page_snapshot_not_visible;
     int64_t eviction_skip_page_dirty_not_aggressive;
     int64_t eviction_skip_page_cannot_evict_clean_internal;
     int64_t eviction_skip_page_cannot_evict_clean_leaf;

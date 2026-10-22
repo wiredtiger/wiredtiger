@@ -2045,6 +2045,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction skips a dirty candidate, because it has few updates and we are not under "
   "pressure",
+  "cache: eviction skips a dirty page whose latest update is not visible to the evicting snapshot",
   "cache: eviction skips a dirty page, when we are not aggressive",
   "cache: eviction skips a page it cannot evict from bucketset clean internal",
   "cache: eviction skips a page it cannot evict from bucketset clean leaf",
@@ -3157,6 +3158,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_skip_empty_subqueue = 0;
     stats->eviction_skip_intl_page_non_aggressive = 0;
     stats->eviction_skip_few_updates_no_pressure = 0;
+    stats->eviction_skip_page_snapshot_not_visible = 0;
     stats->eviction_skip_page_dirty_not_aggressive = 0;
     stats->eviction_skip_page_cannot_evict_clean_internal = 0;
     stats->eviction_skip_page_cannot_evict_clean_leaf = 0;
@@ -4314,6 +4316,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_skip_intl_page_non_aggressive);
     to->eviction_skip_few_updates_no_pressure +=
       WT_STAT_CONN_READ(from, eviction_skip_few_updates_no_pressure);
+    to->eviction_skip_page_snapshot_not_visible +=
+      WT_STAT_CONN_READ(from, eviction_skip_page_snapshot_not_visible);
     to->eviction_skip_page_dirty_not_aggressive +=
       WT_STAT_CONN_READ(from, eviction_skip_page_dirty_not_aggressive);
     to->eviction_skip_page_cannot_evict_clean_internal +=

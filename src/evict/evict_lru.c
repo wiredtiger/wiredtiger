@@ -1361,11 +1361,25 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
     /*
      * If we are under cache pressure, allow evicting pages with newly committed updates to free
      * space. Otherwise, avoid doing that as it may thrash the cache.
+     *
+     * The snapshot test is only meaningful for a session whose snapshot was taken for this purpose:
+     * eviction threads bump their snapshot when they start selecting pages under cache pressure
+     * (see __evict_get_ref), so for them "not visible" means "updated by a transaction that is in
+     * flight right now", and everything committed before this moment is eligible. That is what
+     * makes the test permissive. An application thread arrives here inside its own transaction,
+     * with a snapshot taken when that transaction began; measured against that snapshot nearly
+     * every recently updated page is invisible, and the same test would reject the whole dirty
+     * set. Application threads therefore use the last-running test below, as they effectively do
+     * when the eviction server selects their candidates for them.
      */
-    if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
+    if (F_ISSET(session, WT_SESSION_INTERNAL) &&
+      F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
       F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
-        if (!__txn_visible_id(session, __wt_atomic_load_uint64_relaxed(&page->modify->update_txn)))
+        if (!__txn_visible_id(
+              session, __wt_atomic_load_uint64_relaxed(&page->modify->update_txn))) {
+            WT_STAT_CONN_INCR(session, eviction_skip_page_snapshot_not_visible);
             return (true);
+        }
     } else if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) >=
       __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running)) {
         WT_STAT_CONN_INCR(session, eviction_skip_page_last_running);
