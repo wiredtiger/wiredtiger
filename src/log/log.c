@@ -2307,6 +2307,17 @@ advance:
               !WT_IS_ZERO_LSN(&prev_lsn) &&
               __wt_lsn_offset(&prev_lsn) != __wt_lsn_offset(&prev_eof)) {
                 WT_ASSERT(session, prev_eof.l.file == prev_lsn.l.file);
+                __wt_verbose_notice(session, WT_VERB_LOG,
+                  "Log scan: log %" PRIu32 " ends at offset %" PRIu32 " but log %" PRIu32
+                  " continues from offset %" PRIu32 ", stopping recovery",
+                  prev_eof.l.file, __wt_lsn_offset(&prev_eof), rd_lsn.l.file,
+                  __wt_lsn_offset(&prev_lsn));
+                /*
+                 * The log ends at the last file we read. The read LSN was already advanced to the
+                 * start of this file, and leaving it there would have the caller truncate a file it
+                 * never scanned down to zero bytes.
+                 */
+                WT_ASSIGN_LSN(&rd_lsn, &prev_eof);
                 break;
             }
             /*
@@ -2317,6 +2328,8 @@ advance:
               WT_IS_ZERO_LSN(&prev_lsn)) {
                 __wt_verbose(session, WT_VERB_LOG,
                   "log_scan: Stopping, no system record detected in %s.", log_fh->name);
+                /* As above, the log ends at the last file we read, not at this one. */
+                WT_ASSIGN_LSN(&rd_lsn, &prev_eof);
                 break;
             }
             WT_ERR(__wt_filesize(session, log_fh, &log_size));
@@ -2496,6 +2509,8 @@ advance:
 
     /* Truncate if we're in recovery. */
     if (LF_ISSET(WT_LOGSCAN_RECOVER) && __wt_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
+        /* The read LSN is the end of the last log file scanned, never the start of one. */
+        WT_ASSERT(session, __wt_lsn_offset(&rd_lsn) != 0);
         __wt_verbose(session, WT_VERB_LOG,
           "End of recovery truncate end of log %" PRIu32 "/%" PRIu32, rd_lsn.l.file,
           __wt_lsn_offset(&rd_lsn));
