@@ -2520,17 +2520,63 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (previous_state == WT_REF_LOCKED && WT_REF_OWNER(ref) == session)
         must_unlock_ref = false;
-    else if (previous_state == WT_REF_LOCKED) {
-        /*
-         * Page is locked by another thread, which is enqueueing, evicting, splitting or deleting
-         * it. Whoever holds the lock either discards the page or enqueues it with its current
-         * classification when releasing the lock, so there is nothing for us to do.
-         */
-        WT_STAT_CONN_INCR(session, eviction_enqueue_skipped_locked);
-        return;
-    } else /* We must lock */ {
+    else {
+        if (previous_state == WT_REF_LOCKED) {
+            /*
+             * Page is locked by another thread, which is enqueueing, evicting, splitting or
+             * deleting it. Whether we can leave the page to that thread depends on what kind of
+             * change brought us here.
+             *
+             * If the page's classification is unchanged -- it still belongs to the bucketset it
+             * sits in and we only wanted to refresh its position within that level -- there is
+             * nothing worth waiting for: the position is a hint, and the next touch will update
+             * it. Return.
+             *
+             * If the classification has changed (typically the page was just dirtied, so a
+             * clean-leaf bucketset no longer describes it), the move must happen, and the lock
+             * holder cannot be relied on to make it: a scan that locks a page to examine it
+             * releases it without re-evaluating anything, and an enqueue that holds the lock may
+             * already have passed its final re-check. Wait for the lock and perform the move
+             * ourselves.
+             *
+             * The comparison is made without the lock, so it is racy, and that is acceptable: the
+             * page itself cannot go away under us (every caller holds a hazard pointer or the
+             * lock), bucket pointers address a static array and are never freed, and a wrong
+             * answer in either direction is recovered. If we wrongly conclude the level is
+             * unchanged, the holder's own re-check or the next touch of the page moves it; if we
+             * wrongly conclude it changed, we wait once and then find the page already in place.
+             *
+             * The wait is bounded: nobody holds a ref lock while waiting for a thread that may be
+             * here. Eviction locks the ref, checks for hazard pointers (every thread that reaches
+             * this code holds one) and releases on failure; a scan releases after examining the
+             * page; a concurrent enqueue releases after placing it. A page being read in from disk
+             * is locked for the read, but then there is no in-memory page for anyone to enqueue.
+             */
+            bucket = __wt_atomic_load_ptr_relaxed(&page->evict_data.bucket);
+            if (bucket != NULL &&
+              bucket->bucketset->level == __evict_target_bucketset_level(session, page)) {
+                WT_STAT_CONN_INCR(session, eviction_enqueue_skipped_locked);
+                return;
+            }
+            WT_STAT_CONN_INCR(session, eviction_enqueue_waited_locked);
+            bucket = NULL;
+        }
+
+        /* Lock the ref, waiting for the other thread to release it if there is one. */
         WT_REF_LOCK(session, ref, &previous_state);
         must_unlock_ref = true;
+
+        /*
+         * WT_REF_LOCK locks whatever state it finds, and the state may have changed since we read
+         * it above: the thread that held the lock, or one that slipped in between our read and our
+         * lock, may have split or discarded the page. Then the ref is no longer the page's and
+         * there is nothing to enqueue: put the state back and leave, as the not-in-memory check
+         * above would have done.
+         */
+        if (previous_state != WT_REF_MEM) {
+            WT_REF_UNLOCK(ref, previous_state);
+            return;
+        }
     }
 
     if (page->evict_data.dhandle == NULL)
@@ -2674,8 +2720,11 @@ done:
      * A thread that changed the page while the ref was locked -- typically by dirtying it -- could
      * not enqueue it and left that to whoever holds the lock. Before the lock is released, compare
      * the level the page now belongs to with the level it sits in, and move it if they differ.
+     * Once is enough: a thread whose change arrives after this re-check sees the ref locked and,
+     * because the page's level no longer matches, waits for the lock and makes the move itself
+     * (see the locked case above).
      */
-	if (!rechecked) {
+    if (!rechecked) {
         rechecked = true;
         if (WT_EVICT_PAGE_CLEARED(page) ||
           page->evict_data.bucket->bucketset->level !=

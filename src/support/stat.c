@@ -1968,6 +1968,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: enqueue moved a page whose level changed while the ref was locked",
   "cache: enqueue skipped because another thread held the ref lock",
   "cache: enqueue skipped because the page is being destroyed",
+  "cache: enqueue waited for another thread to release the ref lock because the page changed level",
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by eviction worker threads",
   "cache: eviction  skips internal pages as it has an active child",
@@ -3090,6 +3091,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_enqueue_reclassified = 0;
     stats->eviction_enqueue_skipped_locked = 0;
     stats->eviction_enqueue_skipped_destroying = 0;
+    stats->eviction_enqueue_waited_locked = 0;
     stats->eviction_worker_evict_attempt = 0;
     stats->eviction_worker_evict_fail = 0;
     stats->eviction_skip_intl_page_with_active_child = 0;
@@ -4202,6 +4204,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_enqueue_skipped_locked += WT_STAT_CONN_READ(from, eviction_enqueue_skipped_locked);
     to->eviction_enqueue_skipped_destroying +=
       WT_STAT_CONN_READ(from, eviction_enqueue_skipped_destroying);
+    to->eviction_enqueue_waited_locked += WT_STAT_CONN_READ(from, eviction_enqueue_waited_locked);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
     to->eviction_skip_intl_page_with_active_child +=

@@ -411,6 +411,7 @@ conn_stats = [
     EvictStat('eviction_enqueue_reclassified', 'enqueue moved a page whose level changed while the ref was locked'),
     EvictStat('eviction_enqueue_skipped_destroying', 'enqueue skipped because the page is being destroyed'),
     EvictStat('eviction_enqueue_skipped_locked', 'enqueue skipped because another thread held the ref lock'),
+    EvictStat('eviction_enqueue_waited_locked', 'enqueue waited for another thread to release the ref lock because the page changed level'),
     EvictStat('eviction_enqueued_page', 'number of calls to enqueue a page'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),

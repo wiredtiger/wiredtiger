@@ -582,6 +582,7 @@ struct __wt_connection_stats {
     int64_t eviction_enqueue_reclassified;
     int64_t eviction_enqueue_skipped_locked;
     int64_t eviction_enqueue_skipped_destroying;
+    int64_t eviction_enqueue_waited_locked;
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_worker_evict_fail;
     int64_t eviction_skip_intl_page_with_active_child;
