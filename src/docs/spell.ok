@@ -725,6 +725,7 @@ stderr
 stdin
 stdout
 str
+straddler
 strerror
 strftime
 strget

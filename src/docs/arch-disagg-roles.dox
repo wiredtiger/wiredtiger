@@ -75,10 +75,7 @@ The table above shows how a role transition coordinates different parts of Wired
 
 @section disagg-roles-transitions Role transitions
 
-@htmlonly
-<img src="disagg-roles.svg" alt="The leader writes shared checkpoints; the follower applies local
-changes and adopts checkpoints. Step-up and step-down change these responsibilities." />
-@endhtmlonly
+@image html disagg-roles.svg
 
 @section disagg-roles-step-up Step-up
 
@@ -93,29 +90,7 @@ local changes must become a consistent live shared tree. Transactions and positi
 must not span step-up. The application must finish transactions and reset or close positioned
 cursors before promotion; it can start new work after the transition completes.
 
-@section disagg-roles-step-down Step-down
-
-Step-down transfers shared-write responsibility without restarting the old leader. There are
-two ways to prepare for the transition:
-
-- <b>Blocking step-down:</b> the application stops and finishes write transactions, advances the
-  stable timestamp to cover their changes, and takes the concluding checkpoint. Writes remain
-  stopped until it reconfigures the connection as a follower. No step-down timestamp is set;
-  the application must ensure that the checkpoint contains all changes being handed off.
-- <b>Asynchronous step-down:</b> the application sets a step-down timestamp to define the
-  concluding checkpoint's boundary. The connection remains a leader while retaining writes from
-  transactions beginning after notification in its ingest tables. Their commit timestamps must
-  be above the boundary. This allows writes to continue during checkpoint preparation and
-  handoff; writers that straddle notification may need to roll back and retry.
-
-In both cases, the application coordinates checkpoint handoff and finishes all write
-transactions before reconfiguring the old leader as a follower. The demoting connection switches
-to follower operations, reading stable tables through read-only views of the concluding
-checkpoint and merging them with any newer changes in its local ingest tables.
-
-Asynchronous preparation does not allow writers to run during or span final reconfiguration.
-Read transactions that span it must have a read timestamp; cursor operations racing the change
-can require rollback and retry. See WT_CONNECTION::set_timestamp for the cutoff API and
-@ref error_handling for rollback handling.
+@anchor disagg-roles-step-down
+@subpage arch-disagg-step-down
 
 */
