@@ -178,6 +178,10 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot)
 /*
  * __log_wait_for_lsn --
  *     Wait for the log write LSN to reach the given LSN.
+ *
+ * This loop mirrors __log_wait_for_earlier_slot(): keep the wake-up strategy in sync. It waits for
+ *     write_lsn to reach at least the target, not exactly a slot's release LSN, because the target
+ *     was captured under the slot lock and write_lsn may already have moved past it.
  */
 static void
 __log_wait_for_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn)
