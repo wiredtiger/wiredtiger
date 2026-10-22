@@ -2298,6 +2298,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         __txn_remove_from_global_table(session);
 
+    /* New snapshots now see the prepared updates, so cached snapshots have to be refreshed. */
+    __wt_gen_next(session, WT_GEN_HAS_SNAPSHOT, NULL);
+
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
      * page within each file are done at the same time.
