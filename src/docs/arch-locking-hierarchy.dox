@@ -37,35 +37,44 @@ NOTE: Some functions expect \c log_slot_lock to be acquired, then they temporari
 @section arch-locking-hierarchy-checkpoint-schema Checkpoint and Schema locks
 
 <table class=lock-hierarchy>
-@row{\c checkpoint_lock, &rarr;, \c schema_lock, &rarr;, WRITE \c table_lock}
+@row{\c checkpoint_lock, &rarr;, WRITE \c schema_lock, &rarr;, WRITE \c table_lock}
 </table>
 
 <table class=lock-hierarchy>
-@row{\c checkpoint_lock, &rarr;, \c schema_lock, &rarr;, READ \c table_lock}
+@row{\c checkpoint_lock, &rarr;, WRITE \c schema_lock, &rarr;, READ \c table_lock}
 </table>
 
 <table class=lock-hierarchy>
-@row{\c checkpoint_lock, &rarr;, \c schema_lock, &rarr;, \c api_lock}
+@row{\c checkpoint_lock, &rarr;, WRITE \c schema_lock, &rarr;, \c api_lock}
 </table>
 
 <table class=lock-hierarchy>
-@row{\c checkpoint_lock, &rarr;, \c schema_lock, &rarr;, \c metadata_lock, &rarr;, READ \c table_lock}
+@row{\c checkpoint_lock, &rarr;, WRITE \c schema_lock, &rarr;, \c metadata_lock, &rarr;, READ \c table_lock}
 </table>
 
 <table class=lock-hierarchy>
-@row{\c checkpoint_lock, &rarr;, \c schema_lock, &rarr;, \c turtle_lock}
+@row{\c checkpoint_lock, &rarr;, WRITE \c schema_lock, &rarr;, \c turtle_lock}
 </table>
 
 <table class=lock-hierarchy>
-@row{\c checkpoint_lock, &rarr;, \c schema_lock, &rarr;, WRITE \c dhandle_lock}
+@row{\c checkpoint_lock, &rarr;, WRITE \c schema_lock, &rarr;, WRITE \c dhandle_lock}
+</table>
+
+<table class=lock-hierarchy>
+@row{READ \c schema_lock, &rarr;, WRITE \c dhandle_lock}
 </table>
 
 <table class=lock-hierarchy>
 @row{\c checkpoint_lock, &rarr;, \c turtle_lock}
 </table>
 
-NOTE: Checkpoint and schema locks are mostly used via \c WT_WITH_*_LOCK and the functions
-are covered with \c WT_ASSERT_SPINLOCK_OWNED statements which make the code easier to read.
+NOTE: Checkpoint and schema locks are mostly used via \c WT_WITH_*_LOCK. Functions that require
+the checkpoint lock are covered with \c WT_ASSERT_SPINLOCK_OWNED statements, functions that require
+the schema lock assert that it is held for write. The asserts make the code easier to read.
+
+NOTE: Opening a data handle takes the schema lock for read. Schema operations, checkpoints, opening a
+handle for bulk load, salvage or verify, and opening a shared checkpoint in disaggregated storage
+take it for write.
 
 @section arch-locking-hierarchy-checkpoint-misc Miscellaneous locks
 
