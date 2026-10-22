@@ -337,7 +337,7 @@ __checkpoint_clean_tree_skippable(WT_SESSION_IMPL *session, WT_BTREE *btree, boo
      * marked modified before any of its updates commit. A tree that is clean here has no updates
      * this checkpoint can see.
      */
-    if (__wt_atomic_load_bool_acquire(&btree->modified))
+    if (__wt_atomic_load_bool_relaxed(&btree->modified))
         return (false);
 
     /* In the common case of the timer set forever, don't even check the time. */
