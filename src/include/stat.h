@@ -1014,8 +1014,8 @@ struct __wt_connection_stats {
     int64_t dh_sweep_ref;
     int64_t dh_sweep_dead_close;
     int64_t dh_sweep_remove;
-    int64_t dh_sweep_ingest_close;
     int64_t dh_sweep_expired_close;
+    int64_t dh_sweep_ingest_close;
     int64_t dh_sweep_tod;
     int64_t dh_sweeps;
     int64_t dh_sweep_skip_ckpt;

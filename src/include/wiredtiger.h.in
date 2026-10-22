@@ -7855,13 +7855,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DH_SWEEP_DEAD_CLOSE		1589
 /*! data-handle: connection sweep dhandles removed from hash list */
 #define	WT_STAT_CONN_DH_SWEEP_REMOVE			1590
-/*!
- * data-handle: connection sweep dirty ingest dhandles closed as
- * redundant
- */
-#define	WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE		1591
 /*! data-handle: connection sweep expired dhandles closed */
-#define	WT_STAT_CONN_DH_SWEEP_EXPIRED_CLOSE		1592
+#define	WT_STAT_CONN_DH_SWEEP_EXPIRED_CLOSE		1591
+/*!
+ * data-handle: connection sweep ingest dhandles closed after checkpoint
+ * coverage
+ */
+#define	WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE		1592
 /*! data-handle: connection sweep time-of-death sets */
 #define	WT_STAT_CONN_DH_SWEEP_TOD			1593
 /*! data-handle: connection sweeps */
