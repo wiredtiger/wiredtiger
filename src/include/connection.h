@@ -1161,7 +1161,6 @@ struct __wt_connection_impl {
     /* Data pertaining to disaggregated storage step up. */
     struct __wt_layered_drain_data {
         WT_THREAD_GROUP threads;
-        WT_SPINLOCK prepared_lock;
         WT_SPINLOCK queue_lock;
         TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
         bool running;

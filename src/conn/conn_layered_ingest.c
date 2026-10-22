@@ -369,10 +369,11 @@ __layered_fix_prepared_transaction_callback(
     for (size_t i = 0; i < txn->mod_count; i++) {
         WT_TXN_OP *op = &txn->mod[i];
 
-        if (op->type == WT_TXN_OP_NONE)
+        /* Other drain workers may redirect or free operations belonging to different tables. */
+        if (__wt_atomic_load_ptr_acquire(&op->btree) != btree)
             continue;
 
-        if (op->btree != btree)
+        if (op->type == WT_TXN_OP_NONE)
             continue;
 
         int cmp;
@@ -396,7 +397,7 @@ __layered_fix_prepared_transaction_callback(
              */
             __wt_txn_op_free(session, op);
 #ifdef HAVE_DIAGNOSTIC
-            --txn->prepare_count;
+            (void)__wt_atomic_sub_uint32_relaxed(&txn->prepare_count, 1);
 #endif
             patched = true;
             continue;
@@ -408,7 +409,7 @@ __layered_fix_prepared_transaction_callback(
          */
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
-        op->btree = cookie->stable_btree;
+        __wt_atomic_store_ptr_release(&op->btree, cookie->stable_btree);
         WT_ASSERT(
           session, __wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE);
 
@@ -458,7 +459,6 @@ static int
 __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BTREE *ingest_btree,
   WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
 {
-    WT_DECL_RET;
     WT_FIX_PREPARED_COOKIE cookie;
 
     cookie.key = key;
@@ -468,12 +468,8 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
     cookie.prepared_id = prepared_id;
     cookie.drop = false;
 
-    /* Different tables can belong to the same prepared transaction and drain concurrently. */
-    __wt_spin_lock(session, &S2C(session)->layered_drain_data.prepared_lock);
-    ret =
-      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie);
-    __wt_spin_unlock(session, &S2C(session)->layered_drain_data.prepared_lock);
-    return (ret);
+    return (
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
 }
 
 /*
@@ -487,7 +483,6 @@ static int
 __layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
   WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
 {
-    WT_DECL_RET;
     WT_FIX_PREPARED_COOKIE cookie;
 
     cookie.key = key;
@@ -497,11 +492,8 @@ __layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
     cookie.prepared_id = prepared_id;
     cookie.drop = true;
 
-    __wt_spin_lock(session, &S2C(session)->layered_drain_data.prepared_lock);
-    ret =
-      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie);
-    __wt_spin_unlock(session, &S2C(session)->layered_drain_data.prepared_lock);
-    return (ret);
+    return (
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
 }
 
 /*
@@ -1131,11 +1123,6 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     TAILQ_INIT(&conn->layered_drain_data.work_queue);
     WT_RET(__wt_spin_init(
       session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
-    if ((ret = __wt_spin_init(
-           session, &conn->layered_drain_data.prepared_lock, "layered drain prepared lock")) != 0) {
-        __wt_spin_destroy(session, &conn->layered_drain_data.queue_lock);
-        return (ret);
-    }
 
     conn->layered_drain_data.tables_drained = 0;
     conn->layered_drain_data.drain_bytes = 0;
@@ -1188,7 +1175,6 @@ err:
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    __wt_spin_destroy(session, &conn->layered_drain_data.prepared_lock);
     time_stop = __wt_clock(session);
 
     WT_STAT_CONN_SET(
