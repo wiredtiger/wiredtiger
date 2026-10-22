@@ -1,9 +1,9 @@
 /*! @arch_page arch-disagg-roles Disaggregated Storage Roles and Role Changes
 
 Disaggregated storage allows multiple WiredTiger nodes to read shared data while a single node
-writes it. A connection's role determines its access to shared storage, the view it reads, and
-the work it performs on behalf of the cluster. Changing that role affects the whole storage
-engine, not only individual tables or cursors.
+persists it to shared storage. A connection's role determines its access to shared storage, the
+view it reads, and the work it performs on behalf of the cluster. Changing that role affects
+the whole storage engine, not only individual tables or cursors.
 
 @section disagg-roles-steady-state Leader and follower
 
@@ -24,7 +24,9 @@ steady-state roles:
 
 A follower accepts writes to apply changes replicated from the leader. It writes those changes
 to the local ingest table, and read operations merge the stable table and ingest table views.
-For a key visible in both tables, the ingest table content always takes precedence. Adopting a checkpoint makes
+For a key visible in both tables, the ingest table content always takes precedence.
+
+Followers eventually adopt new checkpoints produced by the leader. Adopting a checkpoint makes
 covered ingest table content eligible for removal once it is safe for readers. See
 @ref arch-disagg-layered-cursor for the merged view.
 
@@ -50,14 +52,15 @@ Reconfiguration performs the local storage-engine transition, not the election o
 of changes to another node. The application must prevent competing shared writers and satisfy
 the transition's transaction and checkpoint requirements.
 
-These transitions are asymmetric. Promotion incorporates recent local changes into the shared
-writer's state. Demotion switches to a checkpointed stable table view, retaining any later
+These transitions are asymmetric. Step-up incorporates recent local changes into the shared
+writer's state. Step-down switches to a checkpointed stable table view, retaining any later
 changes in the ingest table. Reconfiguration coordinates these changes with ongoing engine
 work; it does more than select a different destination for new writes.
 
 @section disagg-roles-effects Effects across WiredTiger
 
-The role applies to all shared state on the connection. The following responsibilities must change together:
+The role applies to all shared state on the connection. The following responsibilities must
+change together:
 
 | Area | Effect of the role |
 |------|--------------------|
@@ -65,30 +68,30 @@ The role applies to all shared state on the connection. The following responsibi
 | Shared metadata | The leader populates shared metadata with schema changes during checkpointing; followers adopt the published schema with the checkpoint. Local schema state is distinct from shared publication. |
 | Shared history store | The leader writes historical versions to shared storage. Followers read the history associated with their checkpoint. |
 | Key-provider metadata | The leader persists key-provider metadata with shared checkpoints; followers read the published metadata. |
-| Stable table views | Promotion switches from checkpoint views to live writable tables; demotion switches to read-only checkpoint views. |
+| Shared table views | Step-up switches from checkpoint views to live writable tables; step-down switches to read-only checkpoint views. |
 | Eviction | A leader can reconcile shared pages. A follower reclaims covered ingest table content without writing it back to shared storage. |
-| Background work | Checkpoint cleanup is leader-only work; the deferred checkpoint pickup server runs on followers. Promotion and demotion stop or restart these services. |
+| Background work | Checkpoint cleanup is leader-only work; the deferred checkpoint pickup server runs on followers. Step-up and step-down stop or restart these services. |
 
 The table above shows how a role transition coordinates different parts of WiredTiger. See
-@ref arch-disagg-layered for shared tables, @ref arch-hs for historical versions,
+@ref arch-disagg-layered for layered tables, @ref arch-hs for historical versions,
 @ref arch-disagg-key-provider for key metadata, and @ref arch-eviction for page reclamation.
 
-@section disagg-roles-transitions Role transitions
+@section disagg-roles-transitions Role transitions diagram
 
 @image html disagg-roles.svg
 
 @section disagg-roles-step-up Step-up
 
-A promoted follower already has a shared checkpoint view and recent changes in its ingest
-tables. Step-up adopts any pending checkpoint needed for promotion, creates missing stable
-tables, and incorporates the remaining ingest table changes into the stable tables. After
-successful reconfiguration, the connection can perform normal leader writes and produce shared
-checkpoints from that base.
+Before step-up, a follower already has a shared checkpoint view and recent changes in its
+ingest tables. Step-up adopts any pending checkpoints, creates missing stable tables, and
+incorporates the remaining ingest table changes into the stable tables. After successful
+reconfiguration, the connection can perform normal leader writes and produce shared checkpoints
+from that base.
 
-Promotion is not just permission to write the follower's existing view: checkpointed data and
-local changes must become a consistent live shared tree. Transactions and positioned cursors
+Step-up does more than allow writes to the follower's existing view: it combines checkpointed
+data and local changes into a consistent live shared tree. Transactions and positioned cursors
 must not span step-up. The application must finish transactions and reset or close positioned
-cursors before promotion; it can start new work after the transition completes.
+cursors before the step-up reconfiguration; it can start new work after the transition completes.
 
 @anchor disagg-roles-step-down
 @subpage arch-disagg-step-down
