@@ -350,6 +350,7 @@ typedef struct {
     uint32_t prefix_len_max;
 
     volatile bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    uint64_t frontier_lsn;       /* Highest materialization frontier published by this run. */
     pid_t follower_pid;          /* For multi-node disagg follower process */
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */

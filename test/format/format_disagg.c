@@ -295,11 +295,18 @@ disagg_publish_frontier(WT_SESSION *session)
     target = last_lsn > lag ? last_lsn - lag : last_lsn;
 
     /*
-     * The setter refuses to move the frontier backwards, so a lag that lands below the published
-     * value is skipped rather than fatal.
+     * A role change must not move the frontier backwards. The published value is remembered across
+     * step-down and step-up rather than reset, so a node that steps back up never republishes a
+     * frontier below one it already published, and a lag that lands below it is skipped rather than
+     * fatal.
      */
+    if (target <= g.frontier_lsn)
+        return;
+
     ret = conn->set_context_uint(conn, WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, target);
     testutil_assert(ret == 0 || ret == EINVAL);
+    if (ret == 0)
+        g.frontier_lsn = target;
 }
 
 /*
