@@ -31,13 +31,11 @@
 # is durable in the stable table.
 #
 # A follower never checkpoints its ingest btrees, so an ingest btree, once
-# written to, stays dirty forever. The sweep server now understands that ingest
-# btrees with content can be closed if their most recent durable change is older
-# than the latest checkpoint (making all content in the ingest redundant relative
-# to the matching stable table).
+# written to, stays dirty forever. Sweep can still close it once the follower
+# picks up a checkpoint covering its newest durable change.
 
 import os, time
-import wttest
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
@@ -52,98 +50,40 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
     sweep_timeout = 60
 
+    # Enough passes for sweep to set a time of death and wait out the idle time.
+    sweep_passes = 5
+
     def open_follower(self):
         return self.wiredtiger_open(
             'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
 
-    # Closed ingest handles stay on the handle list. We sample debug handle flags and
-    # derive which bit pattern means "open" without hard-coding a generated WT_DHANDLE_* value.
-    def ingest_flags(self, conn):
-        self.cleanStdout()
-        conn.debug_info('handles')
-        dump = self.readStdout(maxchars=2000000)
-        self.cleanStdout()
-        flags = {}
-        name = None
-        for line in dump.splitlines():
-            stripped = line.strip()
-            if stripped.startswith('Name: '):
-                name = stripped[len('Name: '):]
-                if not name.endswith('.wt_ingest'):
-                    name = None
-            elif stripped.startswith('Flags:') and name is not None:
-                flags[name] = int(stripped.split()[-1], 16)
-                name = None
-        return flags
+    def get_stat(self, session, stat):
+        c = session.open_cursor('statistics:')
+        value = c[stat][2]
+        c.close()
+        return value
 
-    def open_ingest_flag_mask(self, flags):
-        # Every sampled ingest handle is open; bits set on all of them identify that state.
-        self.assertGreater(len(flags), 0, 'no ingest handles to sample')
-        mask = 0xffff
-        for value in flags.values():
-            mask &= value
-        self.assertNotEqual(mask, 0, 'open ingest handles share no flag bits')
-        return mask
-
-    def open_ingest_count(self, flags, flag_mask, skip=None):
-        count = 0
-        for name, value in flags.items():
-            if skip is not None and skip in name:
-                continue
-            if value & flag_mask == flag_mask:
-                count += 1
-        return count
-
-    def ingest_is_open(self, flags, flag_mask, name):
-        return name in flags and flags[name] & flag_mask == flag_mask
-
-    def wait_for_open_ingest_count(self, conn, minimum, skip=None):
+    def wait_for_stat(self, session, stat, minimum, msg):
         deadline = time.time() + self.sweep_timeout
-        while time.time() < deadline:
-            flags = self.ingest_flags(conn)
-            if len(flags) == 0:
-                time.sleep(0.1)
-                continue
-            open_mask = self.open_ingest_flag_mask(flags)
-            if self.open_ingest_count(flags, open_mask, skip) >= minimum:
-                return open_mask
+        while self.get_stat(session, stat) < minimum:
+            if time.time() > deadline:
+                self.fail(f'{msg} within {self.sweep_timeout}s')
             time.sleep(0.1)
-        self.fail('expected at least %d open ingest handles on the follower' % minimum)
+
+    # Sweep must not close an ingest btree the follower's latest checkpoint does not cover.
+    def assert_no_ingest_reclaim(self, session):
+        sweeps = self.get_stat(session, wiredtiger.stat.conn.dh_sweeps)
+        self.wait_for_stat(session, wiredtiger.stat.conn.dh_sweeps, sweeps + self.sweep_passes,
+            'sweep server did not run')
+        self.assertEqual(self.get_stat(session, wiredtiger.stat.conn.dh_sweep_ingest_close), 0,
+            'sweep closed an ingest btree that is not yet durable')
 
     def assert_no_ingest_file(self, home, name):
         path = os.path.join(home, name) if home else name
         self.assertFalse(os.path.exists(path), path + ' should not exist')
 
-    # Advance the global checkpoint timestamp by writing to a churn table at
-    # successive whole-second timestamps and taking leader checkpoints the follower
-    # picks up, until the predicate holds or we run out of patience. The churn must
-    # push the checkpoint timestamp past each idle table's max_ingest_write_ts.
-    #
-    # We step the high 32 bits (the seconds field of a MongoDB <seconds:increment>
-    # timestamp) so the checkpoint timestamp crosses second boundaries. That matters
-    # because of the reduced-contention way that ingest btrees store timestamps that
-    # indicate when they can be closed.
-    def churn_until(self, churn_uri, sfollow, conn_follow, predicate):
-        for second in range(1, 41):
-            ts = (second << 32) + 1
-            cl = self.session.open_cursor(churn_uri)
-            cf = sfollow.open_cursor(churn_uri)
-            with self.transaction(commit_timestamp=ts):
-                cl[second] = 'churn'
-            with self.transaction(session=sfollow, commit_timestamp=ts):
-                cf[second] = 'churn'
-            cl.close()
-            cf.close()
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
-            self.session.checkpoint()
-            self.disagg_advance_checkpoint(conn_follow)
-            time.sleep(1)
-            if predicate():
-                return
-        self.fail('sweep did not reclaim the ingest btrees')
-
     def test_ingest_reclaimed(self):
-        ntables = 60
+        ntables = 5
         conn_follow = self.open_follower()
         sfollow = conn_follow.open_session('')
         oplog = Oplog()
@@ -165,26 +105,16 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(
             f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
 
         # Create does not leave a file behind. The metadata entry is the object.
         self.assert_no_ingest_file('', 'dh01_00000.wt_ingest')
         self.assert_no_ingest_file('follower', 'dh01_00000.wt_ingest')
 
-        # Every table now has an open, dirty ingest btree on the follower.
-        open_mask = self.wait_for_open_ingest_count(conn_follow, ntables)
+        self.assert_no_ingest_reclaim(sfollow)
 
-        # Drive the global checkpoint timestamp past every table's
-        # max_ingest_write_ts; sweep then discards the now-durable ingest btrees.
-        self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
-        sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
-        self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: self.open_ingest_count(
-                self.ingest_flags(conn_follow), open_mask, 'churn') <= 5)
-
-        # The idle ingest btrees must be reclaimed. The churn table can remain.
-        self.assertLessEqual(self.open_ingest_count(
-                self.ingest_flags(conn_follow), open_mask, 'churn'), 5,
+        # After pickup every ingest btree is redundant.
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
+        self.wait_for_stat(sfollow, wiredtiger.stat.conn.dh_sweep_ingest_close, ntables,
             'follower ingest btrees were not reclaimed')
 
         # No data was lost: every key reads back on the follower, served from the
@@ -230,11 +160,8 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         write_and_truncate(self.session)
         write_and_truncate(sfollow)
 
-        # Make the leader's data and truncate durable, and let the follower pick it
-        # up so its own ingest copy becomes redundant.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(nrows + 1)}')
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
 
         expected = nrows - (hi - lo + 1)   # surviving rows [0,100) and (700,1000)
 
@@ -249,17 +176,11 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.assert_no_ingest_file('', 'dh01_trunc.wt_ingest')
         self.assert_no_ingest_file('follower', 'dh01_trunc.wt_ingest')
 
-        # Churn with checkpoints so sweep closes the idle ingest btree.
-        ingest = 'file:dh01_trunc.wt_ingest'
-        open_mask = self.open_ingest_flag_mask({ingest: self.ingest_flags(conn_follow)[ingest]})
-        self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
-        sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
-        self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            lambda: not self.ingest_is_open(
-                self.ingest_flags(conn_follow), open_mask, ingest))
+        self.assert_no_ingest_reclaim(sfollow)
 
-        self.assertFalse(self.ingest_is_open(
-                self.ingest_flags(conn_follow), open_mask, ingest),
+        # After pickup the follower's ingest btree is redundant.
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
+        self.wait_for_stat(sfollow, wiredtiger.stat.conn.dh_sweep_ingest_close, 1,
             'follower ingest btree with a pending truncate was not reclaimed')
 
         # The truncate must still be reflected after the ingest btree is gone: the
