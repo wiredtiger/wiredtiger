@@ -807,7 +807,8 @@ __wti_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *re
     WT_DECL_RET;
 
     *released = false;
-    if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) || !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+    if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) || !F_ISSET(cursor, WT_CURSTD_OPEN) ||
+      !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
         return (0);
 
     WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED));
@@ -1109,13 +1110,13 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
             }
 
             cdump = NULL;
-            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, NULL, &cdump));
+            WT_ERR(__cursor_reuse_or_init(session, cursor, cfg, &readonly, NULL, &cdump));
             /* Since owner == NULL */
             WT_ASSERT(session, cdump == NULL);
 
             if (cbt) {
                 if (have_config) {
-                    WT_RET(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
+                    WT_ERR(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
                     if (cval.val != 0)
                         F_SET(cbt, WT_CBT_READ_ONCE);
                 }
@@ -1132,6 +1133,11 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         }
     }
     return (WT_NOTFOUND);
+
+err:
+    /* Close the reopened cursor, returning it to the cache. */
+    WT_TRET(cursor->close(cursor));
+    return (ret);
 }
 
 /*
@@ -1523,10 +1529,12 @@ __wt_cursor_init(
 
     session = CUR2S(cursor);
 
+    bool owns_internal_uri = false;
     if (cursor->internal_uri == NULL) {
         /* Various cursor code assumes there is an internal URI, so there better be one to set. */
         WT_ASSERT(session, uri != NULL);
         WT_RET(__wt_strdup(session, uri, &cursor->internal_uri));
+        owns_internal_uri = true;
     }
 
     /* WT_CURSTD_OVERWRITE */
@@ -1574,10 +1582,8 @@ __wt_cursor_init(
     return (0);
 
 err:
-    if (ret != 0) {
+    if (owns_internal_uri)
         __wt_free(session, cursor->internal_uri);
-        cursor->internal_uri = NULL;
-    }
     return (ret);
 }
 
