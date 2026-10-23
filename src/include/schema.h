@@ -302,6 +302,17 @@ struct __wt_import_list {
     WT_WITH_LOCK_WAIT(session, &S2C(session)->metadata_lock, WT_SESSION_LOCKED_METADATA, op)
 
 /*
+ * WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED --
+ *	Assert that the session holds the schema lock for write. The lock does not
+ *	record its owner, so check the session's lock flag, which an internal
+ *	session inherits from the session that holds the lock.
+ */
+#define WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session)                  \
+    WT_ASSERT(session,                                              \
+      FLD_ISSET((session)->lock_flags, WT_SESSION_LOCKED_SCHEMA) && \
+        __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock))
+
+/*
  * WT_WITH_SCHEMA_LOCK, WT_WITH_SCHEMA_READ_LOCK, WT_WITH_SCHEMA_LOCK_NOWAIT --
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	WT_WITH_SCHEMA_READ_LOCK takes the lock for read, the others for write.

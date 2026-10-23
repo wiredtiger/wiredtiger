@@ -1583,7 +1583,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
-    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     __wt_timer_start(session, &apply_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -1635,7 +1635,7 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &conn->schema_lock));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     if (conn->next_file_id < metadata->largest_file_id)
         conn->next_file_id = metadata->largest_file_id;
@@ -2040,7 +2040,7 @@ __disagg_merge_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 {
     WT_DECL_RET;
 
-    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     WT_RET(__wt_meta_track_on(session));
@@ -2070,7 +2070,7 @@ static int
 __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   const WT_DISAGG_METADATA *metadata, bool is_startup)
 {
-    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     WT_RET(__disagg_merge_checkpoint_meta(session, ckpt_meta, metadata, is_startup));
 
