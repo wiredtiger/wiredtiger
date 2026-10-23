@@ -3097,6 +3097,22 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 }
 
 /*
+ * __wt_btcur_prepare_conflict_key --
+ *     Return the key a cursor iteration stopped on with a prepared conflict. Row-store iteration
+ *     sets the key before checking visibility and keeps the page pinned on the conflict, so the key
+ *     stays valid until the cursor next moves. It is never returned to the application.
+ */
+static WT_INLINE void
+__wt_btcur_prepare_conflict_key(WT_CURSOR_BTREE *cbt, WT_ITEM *keyp)
+{
+    WT_ASSERT(CUR2S(cbt),
+      cbt->ref != NULL && F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT | WT_CBT_ITERATE_RETRY_PREV) &&
+        cbt->iface.key.size != 0);
+    keyp->data = cbt->iface.key.data;
+    keyp->size = cbt->iface.key.size;
+}
+
+/*
  * __wt_btcur_bounds_early_exit --
  *     Performs bound comparison to check if the key is within bounds, if not, increment the
  *     appropriate stat, early exit, and return WT_NOTFOUND.

@@ -84,7 +84,6 @@ def write_allowed(txn):
 # The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
 # WORKLOAD_PROFILES and are what the suite actually runs.
 # FIXME-WT-18563: there is no modify op; add one, including modify on a just-removed slot.
-# FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
 @dataclass(frozen=True)
 class TxnModeWeights:
@@ -120,6 +119,14 @@ class BulkRemoveWeights:
     truncate: float = 0
 
 @dataclass(frozen=True)
+class PrepareWeights:
+    # scen_prepare writes up to max_keys keys in a separate session and prepares them; the prepared
+    # transaction stays open across later ops until scen_prepare_resolve commits or rolls it back.
+    max_keys: int = 4
+    commit: float = 70
+    rollback: float = 30
+
+@dataclass(frozen=True)
 class Weights:
     # Relative weights: an op's probability is its weight / the sum of the legal weights at the step.
     # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
@@ -140,11 +147,14 @@ class Weights:
     advance_checkpoint: float = 6
     evict: float = 6
     txn_begin: float = 8
+    prepare: float = 1
+    prepare_resolve: float = 4
     bulk_insert_frac: float = 0.1 # fraction of the pool each scen_bulk_insert batch covers
     txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
     remove_key: RemoveKeyWeights = field(default_factory=RemoveKeyWeights)
     bulk_remove_mode: BulkRemoveWeights = field(default_factory=BulkRemoveWeights)
+    prepare_mode: PrepareWeights = field(default_factory=PrepareWeights)
 
 @dataclass(frozen=True)
 class Op:
@@ -154,6 +164,7 @@ class Op:
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
     no_txn: bool = True           # legal with no open txn (autocommit)
     in_txn: bool = True           # legal inside an open txn
+    prepared: object = None       # True/False: legal only with/without an outstanding prepare
 
 class EventTrace:
     # Append-only, flushed-per-line record of every chosen event for a seed.
@@ -162,6 +173,10 @@ class EventTrace:
         self._f = open(path, 'w')
         self._n = 0
         self._f.write('# %s\n' % header)
+        self._f.flush()
+
+    def note(self, text):
+        self._f.write('    %s\n' % text)
         self._f.flush()
 
     def log(self, event):
@@ -187,16 +202,25 @@ class Node:
         # remove cursor pair is no longer needed.
         self.dsc_remove_c = session.open_cursor(dsc_uri, None, 'overwrite=false')
         self.asc_remove_c = session.open_cursor(asc_uri, None, 'overwrite=false')
+        # A separate session holds the prepared transaction, as if from another thread.
+        self.prep_session = conn.open_session()
 
     def reset_all(self):
         self.dsc_c.reset()
         self.asc_c.reset()
+
+    def release_snapshot(self):
+        # Outside a snapshot txn a positioned cursor pins the session's snapshot; reset every cursor
+        # so the layered and reference cursors both see another session's prepare or resolution.
+        for c in (self.dsc_c, self.asc_c, self.dsc_remove_c, self.asc_remove_c):
+            c.reset()
 
     def close(self):
         self.dsc_c.close()
         self.asc_c.close()
         self.dsc_remove_c.close()
         self.asc_remove_c.close()
+        self.prep_session.close()
 
 class State:
     # The model the generator reasons about, never the reference -- it only drives op generation.
@@ -214,6 +238,12 @@ class State:
         self.n_full_scan = 0     # full-table cross-checks run (scen_full_scan guard)
         self.n_bulk_insert = 0   # bulk-insert batches applied (scen_bulk_insert guard)
         self.n_bulk_remove = 0   # bulk-remove/truncate batches applied (scen_bulk_remove guard)
+        self.n_prepare = 0       # prepared transactions created (scen_prepare guard)
+        self.prepared_id = 0     # monotonic prepared_id
+        self.n_prepare_conflict = 0  # reads where both cursors hit a prepare conflict
+        self.n_extra_conflict = 0    # reads where only the layered cursor hit a prepare conflict
+        self.extra_conflicts = {}    # extra conflicts per op
+        self.cur_op = None           # the op being run
         # Chain-length + fill/empty instrumentation (connection-global, across all seeds).
         self.chain_total = 0     # sum of completed positioned-run lengths
         self.chain_count = 0     # number of completed positioned runs
@@ -234,6 +264,9 @@ class State:
         self.txn_wrote = False         # the open txn has performed at least one write
         self.txn_read_ts = None        # the as-of timestamp when txn is READ_TIMESTAMP, else None
         self.py_table_snapshot = None  # py_table as of begin, restored on rollback
+        self.txn_keys = set()          # keys written by the open txn
+        self.prepared = None           # outstanding prepared writes: {key: value or None (remove)}
+        self.fuzzy = set()             # keys whose visible state py_table may not reflect
 
 # A diverse, comprehensive set of workload profiles, each a balanced (no single-op-dominated) mix
 # tilted toward one merge sub-area. Each runs quick (tens of seconds) over a few seeds; together they
@@ -320,8 +353,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.scen_bulk_insert, weights.bulk_insert, is_write=True),
             Op(self.scen_bulk_remove, weights.bulk_remove, is_write=True),
             Op(self.scen_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
-            Op(self.scen_evict,     weights.evict,      in_txn=False),
+            # A prepared update pins the follower's ingest page, so evict between prepares.
+            Op(self.scen_evict,     weights.evict,      in_txn=False, prepared=False),
             Op(self.op_txn_begin,   weights.txn_begin),
+            Op(self.scen_prepare,   weights.prepare,    prepared=False),
+            Op(self.scen_prepare_resolve, weights.prepare_resolve, prepared=True),
         ]
 
     def make_nodes(self, tag):
@@ -343,13 +379,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.wseq += 1
         return 'v%d.%d' % (key, self.state.wseq)
 
-    def _txn_scope(self, nodes, do_node):
+    def _txn_scope(self, nodes, do_node, keys):
         # The txn wrapper shared by writes: run do_node(n) per node inside the open txn (joining it),
         # else wrap each node's work in its own timestamped txn (layered = ordered write timestamps).
         if self.state.txn is not Txn.NO:
             for n in nodes:
                 do_node(n)
             self.state.txn_wrote = True
+            self.state.txn_keys.update(keys)
         else:
             self.state.ts += 1
             for n in nodes:
@@ -357,7 +394,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 do_node(n)
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
 
-    def _write_txn(self, nodes, do, label):
+    def _write_txn(self, nodes, do, label, key):
         notfound = False
         def step(n):
             nonlocal notfound
@@ -366,10 +403,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                              % (label, ret_dsc, ret_asc, self.trace.path))
             if ret_dsc == wiredtiger.WT_NOTFOUND:
                 notfound = True
-        self._txn_scope(nodes, step)
+        self._txn_scope(nodes, step, [key])
         return notfound
 
-    def _remove_txn(self, nodes, do, label):
+    def _remove_txn(self, nodes, do, label, key):
         notfound = False
 
         def step(n):
@@ -381,13 +418,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             if ret_dsc == wiredtiger.WT_NOTFOUND:
                 notfound = True
 
-        self._txn_scope(nodes, step)
+        self._txn_scope(nodes, step, [key])
         return notfound
 
     def _positional(self, nodes, do, label):
         # Positional update/remove off the cursor's held position; clear cur_pos if the write missed.
         # Returns True if the write hit (so the caller can update the model only on success).
-        notfound = self._write_txn(nodes, do, label)
+        notfound = self._write_txn(nodes, do, label, self.state.cur_pos)
         if notfound:
             self.state.cur_pos = None
         self.state.n_positional += 1
@@ -415,6 +452,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.txn_wrote = False
         self.state.txn_read_ts = None
         self.state.py_table_snapshot = None
+        self.state.txn_keys = set()
+        self.state.fuzzy = set(self.state.prepared or ())
 
     def advance_checkpoint(self):
         # Fold the leader's stable into the follower via a new checkpoint.
@@ -437,7 +476,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         try:
             for key in list(self.state.py_table):
                 evict_cursor.set_key(key)
-                if evict_cursor.search() == 0:
+                if self._call(evict_cursor.search) == 0:
                     evict_cursor.reset()
         finally:
             evict_cursor.close()
@@ -448,18 +487,48 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # The per-op check: run do(cursor) on the layered then reference cursor of both nodes and
         # compare (ret, key, value), then track cur_pos for a later positional write.
         def op_result(cursor):
-            ret = do(cursor)
-            if ret == wiredtiger.WT_NOTFOUND:
+            ret = self._call(lambda: do(cursor))
+            if ret != 0:
                 return (ret, None, None)
             return (0, cursor.get_key(), cursor.get_value())
 
+        cur_pos = None
         for n in nodes:
             ret_dsc = op_result(n.dsc_c)
             ret_asc = op_result(n.asc_c)
+            trace.note('%s dsc=%r asc=%r' % (self.role(n), ret_dsc, ret_asc))
             if ret_dsc != ret_asc:
+                if self._extra_conflict(nodes, ret_dsc[0], ret_asc[0], trace):
+                    return
                 self.report_mismatch(n, ret_dsc, ret_asc, trace, 'read result differs')
             ret, key, _ = ret_dsc
-            self.state.cur_pos = key if ret == 0 else None
+            if ret == wiredtiger.WT_PREPARE_CONFLICT:
+                self.state.n_prepare_conflict += 1
+            cur_pos = key if ret == 0 else None
+        self.state.cur_pos = cur_pos
+
+    def _call(self, fn):
+        # Run a cursor call, mapping a prepare conflict to its error code.
+        try:
+            return fn()
+        except wiredtiger.WiredTigerError as e:
+            if wiredtiger.wiredtiger_strerror(wiredtiger.WT_PREPARE_CONFLICT) not in str(e):
+                raise
+            return wiredtiger.WT_PREPARE_CONFLICT
+
+    def _extra_conflict(self, nodes, ret_dsc, ret_asc, trace):
+        # The layered cursor may conflict where the plain cursor doesn't; count it and reset every
+        # cursor, since the two cursors are no longer on the same key.
+        if ret_dsc != wiredtiger.WT_PREPARE_CONFLICT or ret_asc == wiredtiger.WT_PREPARE_CONFLICT:
+            return False
+        self.state.n_extra_conflict += 1
+        op = self.state.cur_op
+        self.state.extra_conflicts[op] = self.state.extra_conflicts.get(op, 0) + 1
+        trace.log('extra_conflict (reset)')
+        for n in nodes:
+            n.reset_all()
+        self.state.cur_pos = None
+        return True
 
     def _search_near_ceiling(self, cursor, key, exact_expected):
         # Canonicalize search_near to the CEILING (smallest key >= key); if it lands below key, step to
@@ -475,13 +544,26 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.assertEqual(cmp, 0, 'search_near missed an existing key %r (cmp=%d, trace %s)'
                              % (key, cmp, self.trace.path))
             return 0
-        return cursor.next() if cmp < 0 else 0
+        if cmp >= 0:
+            return 0
+        # The ceiling step makes the call sequences differ, so a conflict here leaves the two cursors
+        # in different states: unposition the cursor as a failed search_near would.
+        ret = self._call(cursor.next)
+        if ret == wiredtiger.WT_PREPARE_CONFLICT:
+            cursor.reset()
+            raise wiredtiger.WiredTigerError(
+                wiredtiger.wiredtiger_strerror(wiredtiger.WT_PREPARE_CONFLICT))
+        return ret
+
+    def role(self, node):
+        return 'leader' if node.conn == self.conn else 'follower'
 
     def report_mismatch(self, node, ret_dsc, ret_asc, trace, reason):
         # The failing op is the last line written to the trace file.
-        role = 'leader' if node.conn == self.conn else 'follower'
+        role = self.role(node)
         self.fail('\n'.join([
-            'layered-vs-reference mismatch on %s node: %s' % (role, reason),
+            'layered-vs-reference mismatch on %s node: %s (txn %s, prepared %r)'
+                % (role, reason, self.state.txn.value, self.state.prepared),
             'layered:   %r' % (ret_dsc,),
             'reference: %r' % (ret_asc,),
             'trace file: %s' % trace.path]))
@@ -498,25 +580,33 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- verification ----------------------------------------------------
 
     def _scan_cursor(self, cursor):
+        # Returns the scanned rows and the code that ended the scan.
         cursor.reset()
         out = []
-        while cursor.next() != wiredtiger.WT_NOTFOUND:
+        while (ret := self._call(cursor.next)) == 0:
             out.append((cursor.get_key(), cursor.get_value()))
-        return out
+        return out, ret
 
     def full_scan(self, nodes, trace):
         # Whole-table cross-check: each node's layered scan == its reference, and leader == follower.
         per_node = []
         for n in nodes:
-            dsc = self._scan_cursor(n.dsc_c)
-            asc = self._scan_cursor(n.asc_c)
-            if dsc != asc:
-                self.fail('full-scan layered != reference (trace %s)\nlayered=%r\nref=%r'
-                          % (trace.path, dsc, asc))
-            per_node.append(dsc)
+            dsc, ret_dsc = self._scan_cursor(n.dsc_c)
+            asc, ret_asc = self._scan_cursor(n.asc_c)
+            if (ret_dsc == wiredtiger.WT_PREPARE_CONFLICT and len(dsc) < len(asc) and
+              self._extra_conflict(nodes, ret_dsc, 0, trace)):
+                # The layered scan stopped early: check the prefix it returned.
+                asc = asc[:len(dsc)]
+                ret_asc = ret_dsc
+            if (dsc, ret_dsc) != (asc, ret_asc):
+                self.fail('full-scan layered != reference on %s (trace %s, txn %s, prepared %r)\n'
+                          'layered=%r %r\nref=%r %r'
+                          % (self.role(n), trace.path, self.state.txn.value, self.state.prepared,
+                             ret_dsc, dsc, ret_asc, asc))
+            per_node.append((dsc, ret_dsc))
 
         # full_scan also cross-checks the leader and follower layered views against each other.
-        if per_node[0] != per_node[1]:
+        if all(r == wiredtiger.WT_NOTFOUND for _, r in per_node) and per_node[0] != per_node[1]:
             self.fail('leader layered scan != follower layered scan (trace %s)' % trace.path)
 
     # --- operations -------------------------------------------------------
@@ -540,7 +630,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         key = self.pick_key(rnd, self.weights.search_key)
         # A present key must be found exactly -- but only when the read sees latest. In an as-of-past
         # txn py_table (latest) may include keys not visible at read_ts, so don't expect an exact match.
-        exact = key in self.state.py_table and self.state.txn_read_ts is None
+        exact = (key in self.state.py_table and self.state.txn_read_ts is None and
+                 key not in self.state.fuzzy)
         trace.log('search_near %r' % key)
         self._read(nodes, trace, lambda c: self._search_near_ceiling(c, key, exact))
 
@@ -550,11 +641,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             n.reset_all()
         self.state.cur_pos = None
 
+    def _writable(self, key):
+        # Avoid write conflicts with the prepared transaction or with a commit the open txn can't see.
+        return key not in self.state.fuzzy
+
     def op_put(self, nodes, rnd, trace):
         key = rnd.choice(self.pool)
+        if not self._writable(key):
+            return
         trace.log('put %r' % key)
         value = self.new_value(key)
-        self._write_txn(nodes, lambda c: (c.set_key(key), c.set_value(value), c.insert())[-1], 'put')
+        self._write_txn(nodes, lambda c: (c.set_key(key), c.set_value(value), c.insert())[-1], 'put',
+                        key)
         self.state.py_table[key] = value
         self.state.cur_pos = None
 
@@ -562,18 +660,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Existing keys exercise the blind overwrite=true path; missing keys use overwrite=false
         # because they cannot satisfy the blind-remove caller contract.
         key = self.pick_key(rnd, self.weights.remove_key)
+        if not self._writable(key):
+            return
         trace.log('remove %r' % key)
         remove = lambda c: (c.set_key(key), c.remove())[-1]
         if key in self.state.py_table:
-            self._write_txn(nodes, remove, 'remove')
+            self._write_txn(nodes, remove, 'remove', key)
             self.state.py_table.pop(key, None)
             self.state.cur_pos = None
         else:
-            self._remove_txn(nodes, remove, 'remove_missing')
+            self._remove_txn(nodes, remove, 'remove_missing', key)
 
     def op_pos_update(self, nodes, rnd, trace):
         # Positional write: keeps the cursor on cur_pos.
         key = self.state.cur_pos
+        if not self._writable(key):
+            return
         trace.log('pos_update %r' % key)
         value = self.new_value(key)
         if self._positional(nodes, lambda c: (c.set_value(value), c.update())[-1], 'pos_update'):
@@ -583,10 +685,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # The long-lived position can be stale, so it cannot satisfy the blind-remove guarantee.
         # Use the stable-aware remove cursors; the shared cursors stay positioned on the removed key.
         key = self.state.cur_pos
-        if key not in self.state.py_table:
+        if key not in self.state.py_table or not self._writable(key):
             return
         trace.log('pos_remove %r' % key)
-        self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'pos_remove')
+        self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'pos_remove', key)
         self.state.py_table.pop(key, None)
 
     def op_txn_begin(self, nodes, rnd, trace):
@@ -676,7 +778,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # cursors the chain uses (so the insert resets the cursor we operate on). Deliberately NOT
         # checkpointed, so the new entries stay in the follower ingest.
         batch = [(k, self.new_value(k))
-                 for k in rnd.sample(self.pool, max(1, round(len(self.pool) * self.weights.bulk_insert_frac)))]
+                 for k in rnd.sample(self.pool, max(1, round(len(self.pool) * self.weights.bulk_insert_frac)))
+                 if self._writable(k)]
+        if not batch:
+            return
         trace.log('bulk_insert %r' % ([k for k, _ in batch],))
 
         def do_node(node):
@@ -685,7 +790,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 ra = (node.asc_c.set_key(k), node.asc_c.set_value(v), node.asc_c.insert())[-1]
                 self.assertEqual(rd, ra, 'bulk_insert result differs at key=%r layered=%r reference=%r'
                                  ' (trace %s)' % (k, rd, ra, self.trace.path))
-        self._txn_scope(nodes, do_node)
+        self._txn_scope(nodes, do_node, [k for k, _ in batch])
         for k, v in batch:
             self.state.py_table[k] = v
         self.state.cur_pos = None   # insert leaves the cursor unpositioned
@@ -699,7 +804,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 ra = (node.asc_c.set_key(k), node.asc_c.remove())[-1]
                 self.assertEqual(rd, ra, 'bulk_remove result differs at key=%r layered=%r reference=%r'
                                  ' (trace %s)' % (k, rd, ra, self.trace.path))
-        self._txn_scope(nodes, do_node)
+        self._txn_scope(nodes, do_node, victims)
 
     def _truncate_range(self, nodes, lo, hi):
         # Range truncate [lo, hi] on the layered + reference tables via dedicated bound cursors.
@@ -710,13 +815,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 lo_c.set_key(lo); hi_c.set_key(hi)
                 node.session.truncate(None, lo_c, hi_c, None)
                 lo_c.close(); hi_c.close()
-        self._txn_scope(nodes, do_node)
+        self._txn_scope(nodes, do_node, [k for k in self.state.py_table if lo <= k <= hi])
 
     def scen_bulk_remove(self, nodes, rnd, trace):
         # Delete a large fraction (40/80/100%) of the file at once -- a big-delete merge on the
         # follower -- by per-key remove or one range truncate, through the chain cursors.
 
-        live = sorted(self.state.py_table)
+        live = sorted(k for k in self.state.py_table if self._writable(k))
         if not live:
             return # Nothing to remove
 
@@ -742,6 +847,85 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
         self.state.n_bulk_remove += 1
 
+    def scen_prepare(self, nodes, rnd, trace):
+        # Prepare a few writes in a separate session on each node. Skip keys the open txn wrote, which
+        # would be a write conflict.
+        pw = self.weights.prepare_mode
+        cands = [k for k in self.pool if k not in self.state.txn_keys and k not in self.state.fuzzy]
+        if not cands:
+            return
+        keys = sorted(rnd.sample(cands, rnd.randint(1, min(pw.max_keys, len(cands)))))
+        writes = {}
+        for k in keys:
+            if k in self.state.py_table and rnd.random() < 0.5:
+                writes[k] = None
+            else:
+                writes[k] = self.new_value(k)
+        self.state.ts += 1
+        self.state.prepared_id += 1
+        trace.log('prepare %r ts=%d' % (writes, self.state.ts))
+        cfg = 'prepare_timestamp=%s,prepared_id=%s' % (
+            self.timestamp_str(self.state.ts), self.prepared_id_str(self.state.prepared_id))
+        for n in nodes:
+            n.prep_session.begin_transaction()
+            # Close the cursors so an idle layered cursor doesn't pin an old checkpoint.
+            for uri in (n.dsc_uri, n.asc_uri):
+                c = n.prep_session.open_cursor(uri)
+                for k, v in writes.items():
+                    c.set_key(k)
+                    if v is None:
+                        self.assertEqual(c.remove(), 0)
+                    else:
+                        c.set_value(v)
+                        self.assertEqual(c.insert(), 0)
+                c.close()
+            n.prep_session.prepare_transaction(cfg)
+        self.state.prepared = writes
+        self.state.fuzzy.update(writes)
+        self.state.n_prepare += 1
+        self._release_snapshots(nodes)
+
+    def _release_snapshots(self, nodes):
+        if self.state.txn in (Txn.SNAPSHOT, Txn.READ_TIMESTAMP):
+            return
+        for n in nodes:
+            n.release_snapshot()
+        self.state.cur_pos = None
+
+    def resolve_prepare(self, nodes, commit, trace=None):
+        writes = self.state.prepared
+        if writes is None:
+            return
+        if trace:
+            trace.log('prepare_%s' % ('commit' if commit else 'rollback'))
+        if commit:
+            self.state.ts += 1
+            ts = self.timestamp_str(self.state.ts)
+            cfg = 'commit_timestamp=%s,durable_timestamp=%s' % (ts, ts)
+        for n in nodes:
+            if commit:
+                n.prep_session.commit_transaction(cfg)
+            else:
+                n.prep_session.rollback_transaction()
+        if commit:
+            for table in (self.state.py_table, self.state.py_table_snapshot):
+                if table is None:
+                    continue
+                for k, v in writes.items():
+                    if v is None:
+                        table.pop(k, None)
+                    else:
+                        table[k] = v
+        self.state.prepared = None
+        if self.state.txn is Txn.NO:
+            self.state.fuzzy = set()
+        self._release_snapshots(nodes)
+
+    def scen_prepare_resolve(self, nodes, rnd, trace):
+        pw = self.weights.prepare_mode
+        commit = rnd.choices((True, False), weights=(pw.commit, pw.rollback))[0]
+        self.resolve_prepare(nodes, commit, trace)
+
     # --- operation generation -------------------------------------------
 
     def _legal(self, op):
@@ -749,6 +933,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
         txn = self.state.txn
         if op.needs_position and self.state.cur_pos is None:
+            return False
+        if op.prepared is not None and op.prepared != (self.state.prepared is not None):
             return False
         if txn is Txn.NO:
             return op.no_txn
@@ -763,6 +949,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # tracing, and state update.
         cands = [op for op in self.ops if self._legal(op)]
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
+        self.state.cur_op = op.fn.__name__
         op.fn(nodes, rnd, trace)
         self.record_metrics(op)
 
@@ -825,6 +1012,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         s = self.state
         self.pr('DIAGNOSTIC: max_n=%d pool=%d n_advance=%d n_evict=%d n_bulk_insert=%d n_bulk_remove=%d n_full_scan=%d'
                 % (s.max_n, len(self.pool), s.n_advance, s.n_evict, s.n_bulk_insert, s.n_bulk_remove, s.n_full_scan))
+        self.pr('DIAGNOSTIC: n_prepare=%d n_prepare_conflict=%d n_extra_conflict=%d by_op=%r'
+                % (s.n_prepare, s.n_prepare_conflict, s.n_extra_conflict, s.extra_conflicts))
         dist = ' '.join('%s=%.1f%%' % (k.replace('op_', '').replace('scen_', ''), 100 * m['shares'][k])
                         for k in sorted(m['shares'], key=m['shares'].get, reverse=True))
         self.pr('DIAGNOSTIC: diversity | %s' % dist)
@@ -862,6 +1051,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertGreater(s.n_full_scan, 0, 'no full_scan ops were exercised')
         self.assertGreater(s.n_bulk_insert, 0, 'no bulk_insert scenarios were exercised')
         self.assertGreater(s.n_bulk_remove, 0, 'no bulk_remove scenarios were exercised')
+        self.assertGreater(s.n_prepare, 0, 'no prepared transactions were exercised')
 
     def open_trace(self, seed, tag):
         path = os.path.join(os.getcwd(), 'stress_trace_%s_%d.txt' % (tag, seed))
@@ -878,6 +1068,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         try:
             for _ in range(n_ops):
                 self.run_op(nodes, rnd, trace)
+            self.resolve_prepare(nodes, True, trace)
             if self.state.txn is not Txn.NO:
                 self.commit_txn(nodes) # close any txn left open before verifying
             # Scan the tables as a final verification.
@@ -889,7 +1080,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.log_metrics()         # running aggregate over all seeds so far
         finally:
             # A txn left open by a mid-sequence failure rolls back when the connection closes at
-            # teardown (these are never prepared), so no explicit rollback here.
+            # teardown. A prepared txn must be resolved first.
+            if self.state.prepared is not None:
+                self.resolve_prepare(nodes, False)
             for n in nodes:
                 n.close()
             trace.close()

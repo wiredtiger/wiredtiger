@@ -9,10 +9,17 @@
 #pragma once
 
 /*
- * WTI_CLAYERED_ROLE --
- *	The leader/follower role resolved for a layered-table operation.
+ * WTI_CLAYERED_CURSOR_MODE --
+ *	Whether an operation reads stable alone (direct) or ingest over stable (layered).
  */
-typedef enum { WTI_CLAYERED_ROLE_FOLLOWER, WTI_CLAYERED_ROLE_LEADER } WTI_CLAYERED_ROLE;
+typedef enum { WTI_CLAYERED_CURSOR_DIRECT, WTI_CLAYERED_CURSOR_LAYERED } WTI_CLAYERED_CURSOR_MODE;
+
+/*
+ * WTI_CLAYERED_STABLE_MODE --
+ *	What the stable cursor is opened on: the leader's live table or a follower's checkpoint. A
+ *	stable cursor blocked on a prepared update keeps the live table across a step-down.
+ */
+typedef enum { WTI_CLAYERED_STABLE_LIVE, WTI_CLAYERED_STABLE_CHECKPOINT } WTI_CLAYERED_STABLE_MODE;
 
 /*
  * WTI_CLAYERED_WRITE_TARGET --
@@ -41,19 +48,22 @@ struct __wti_cursor_layered {
     uint64_t next_random_seed;
     u_int next_random_sample_size;
 
-    uint64_t snapshot_gen;               /* Snapshot generation on last access */
-    uint64_t read_timestamp;             /* Read timestamp on last access */
-    uint32_t txn_mod_count;              /* Transaction modification count on last access */
-    uint64_t stable_checkpoint_meta_lsn; /* Checkpoint LSN stable cursor is on */
-    WTI_CLAYERED_ROLE last_role;         /* Last-observed leader/follower role (change-detection) */
+    uint64_t snapshot_gen;                     /* Snapshot generation on last access */
+    uint64_t read_timestamp;                   /* Read timestamp on last access */
+    uint32_t txn_mod_count;                    /* Transaction modification count on last access */
+    uint64_t stable_checkpoint_meta_lsn;       /* Checkpoint LSN stable cursor is on */
+    WTI_CLAYERED_STABLE_MODE last_stable_mode; /* Mode the stable cursor was last opened in */
+    WT_ITEM stopped_key;                       /* Key a blocked walk stopped at */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_CLAYERED_ACTIVE 0x01u       /* Incremented the session count */
-#define WTI_CLAYERED_ITERATE_NEXT 0x02u /* Forward iteration */
-#define WTI_CLAYERED_ITERATE_PREV 0x04u /* Backward iteration */
-#define WTI_CLAYERED_RANDOM 0x08u       /* Random cursor operations only */
-#define WTI_CLAYERED_SIZE_STAT 0x10u    /* Accumulate the size summary on the active btree */
-                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WTI_CLAYERED_ACTIVE 0x01u             /* Incremented the session count */
+#define WTI_CLAYERED_ITERATE_NEXT 0x02u       /* Forward iteration */
+#define WTI_CLAYERED_ITERATE_PREV 0x04u       /* Backward iteration */
+#define WTI_CLAYERED_ITERATE_RETRY_NEXT 0x08u /* Current cursor blocked by next */
+#define WTI_CLAYERED_ITERATE_RETRY_PREV 0x10u /* Current cursor blocked by prev */
+#define WTI_CLAYERED_RANDOM 0x20u             /* Random cursor operations only */
+#define WTI_CLAYERED_SIZE_STAT 0x40u          /* Accumulate the size summary on the active btree */
+                                              /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
