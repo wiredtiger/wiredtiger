@@ -557,7 +557,6 @@ __wt_log_get_backup_files(
      * the backup.
      */
     F_SET(log, WTI_LOG_FORCE_NEWFILE);
-    WT_RET(__wti_log_force_write(session, true, NULL));
     /*
      * If another thread switched the active slot first, the force write does nothing and the log
      * has not moved on: retry until it has. The sealed file must not accept records once the list
