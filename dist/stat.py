@@ -4,6 +4,7 @@
 # initialize and refresh code.
 
 from collections import defaultdict
+from enum import Enum
 import re
 import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
@@ -61,12 +62,75 @@ def remove_suffix_digits(str):
 # Check the OTel type of a statistic.
 # At most one valid otel_ flag may be set; no flag means otel_none.
 ##########################################
-OTEL_TYPES = ('otel_counter', 'otel_gauge', 'otel_histogram', 'otel_none')
+class OtelType(str, Enum):
+    COUNTER = 'otel_counter'
+    GAUGE = 'otel_gauge'
+    HISTOGRAM = 'otel_histogram'
+    NONE = 'otel_none'
+
+    @property
+    def suffix(self):
+        name = self.value[len('otel_'):]
+        return name if self is OtelType.NONE else name + 's'
 
 def check_otel_type(stat):
-    if stat.otel_type not in OTEL_TYPES:
+    if stat.otel_type not in [t.value for t in OtelType]:
         raise Exception(f"ERROR: {stat.name} has invalid OTel type '{stat.otel_type}', " \
-                f"expected one of {', '.join(OTEL_TYPES)}")
+                f"expected one of {', '.join(t.value for t in OtelType)}")
+
+def check_otel_description(stat):
+    if stat.otel_type == OtelType.NONE:
+        return
+
+    # First test: no redundant sub-prefix.
+    parts = stat.desc.split(':')
+    # The test is "does the whitespace-stripped right-hand side start with the left hand side".
+    # Adding the space avoids some false positives like "log: logging..."
+    if parts[1].strip().startswith(parts[0] + ' '):
+        raise Exception(f'Invalid stat name "{stat.desc}": redundant prefix detected')
+
+    # Second test: uppercase. The regex is "space then uppercase then lowercase". This avoids stuff
+    # like "1MB", "VLCS", etc.
+    if re.search(r'\s[A-Z][a-z]', stat.desc):
+        raise Exception(f'Invalid OTel name "{stat.desc}": camel-case detected')
+
+    # Third test: no "total" suffix.
+    if stat.desc.endswith("total"):
+        # print(stat.desc)
+        raise Exception(f'Invalid OTel name "{stat.desc}": should not end with "total"')
+
+def check_otel_additions_removals(all_stats):
+    existing = []
+    with open('otel.txt', 'r') as f:
+        existing = f.read().splitlines()
+
+    current = []
+    for s in all_stats:
+        if s.otel_type == OtelType.NONE:
+            continue
+        current.append(s.desc)
+
+    # Check if we removed or renamed anything.
+    removed = list(set(existing) - set(current))
+    if len(removed) > 0:
+        print('STATS WERE REMOVED OR RENAMED. This will likely break a Grafana chart somewhere:')
+        for desc in removed:
+            print(desc)
+        raise Exception('Stat removal or rename detected')
+
+    # Check we're not adding too many at once.
+    new = list(set(current) - set(existing))
+    if len(new) > 10:
+        print('Too many new stats:')
+        for desc in new:
+            print(desc)
+        raise Exception(f'Too many new stats (total {len(new)}). Consider the cost of adding these \
+            to Grafana.')
+
+    # Append new stats.
+    with open('otel.txt', 'a') as f:
+        for desc in new:
+            f.write(desc + '\n')
 
 ##########################################
 # Check an OTel counter is not exempt from clearing. A cursor configured with otel_counters always
@@ -99,8 +163,10 @@ for stat_list in all_stat_list:
     for stat in stat_list:
         check_description_format(stat)
         check_otel_type(stat)
+        check_otel_description(stat)
         check_otel_counter_clears(stat)
     check_name_sorted(stat_list)
+check_otel_additions_removals(item for sublist in all_stat_list for item in sublist)
 
 conn_dsrc_stats.sort(key=attrgetter('desc'))
 conn_stats.sort(key=attrgetter('desc'))
@@ -247,11 +313,11 @@ __wt_stat_''' + name + '''_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
     # statistics without visiting the others.
     var = '__stats_' + name + '_otel_'
     prefix = 'WT_STAT_' + (capname if capname else name.upper()) + '_'
-    for otel_type in OTEL_TYPES:
+    for otel_type in OtelType:
         keys = [prefix + l.name.upper() for l in statlist if l.otel_type == otel_type]
         if not keys:
             continue
-        array = var + otel_type[len('otel_'):] + ('s' if otel_type != 'otel_none' else '')
+        array = var + otel_type.suffix
         f.write('\nstatic const int ' + array + '[] = {\n')
         for key in keys:
             f.write('\t' + key + ',\n')
@@ -263,10 +329,9 @@ __wt_stat_''' + name + '''_otel_keys(uint32_t otel_flag, const int **keysp, u_in
 {
 \tswitch (otel_flag) {
 ''')
-    for otel_type in OTEL_TYPES:
-        plural = 's' if otel_type != 'otel_none' else ''
-        flag = 'WT_STAT_' + otel_type.upper() + plural.upper()
-        array = var + otel_type[len('otel_'):] + plural
+    for otel_type in OtelType:
+        flag = 'WT_STAT_OTEL_' + otel_type.suffix.upper()
+        array = var + otel_type.suffix
         f.write('\tcase ' + flag + ':\n')
         if any(l.otel_type == otel_type for l in statlist):
             f.write('\t\t*keysp = ' + array + ';\n')
@@ -319,12 +384,11 @@ __wt_stat_''' + name + '''_discard(
     # Each OTel type has its own clearing function, so clearing everything and clearing one type
     # share a single copy of every statistic.
     clear_funcs = {}
-    for otel_type in OTEL_TYPES:
+    for otel_type in OtelType:
         typed = [l for l in statlist if l.otel_type == otel_type]
         if not typed:
             continue
-        func = '__stat_' + name + '_clear_' + otel_type[len('otel_'):] + \
-            ('s' if otel_type != 'otel_none' else '')
+        func = '__stat_' + name + '_clear_' + otel_type.suffix
         clear_funcs[otel_type] = func
         f.write('\nstatic void\n' + func + '(WT_' + name.upper() + '_STATS *stats)\n{\n')
         if all('no_clear' in l.flags for l in typed):
@@ -344,9 +408,8 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats, ui
 {
 \tswitch (otel_flag) {
 ''')
-    for otel_type in OTEL_TYPES:
-        plural = 's' if otel_type != 'otel_none' else ''
-        f.write('\tcase WT_STAT_' + otel_type.upper() + plural.upper() + ':\n')
+    for otel_type in OtelType:
+        f.write('\tcase WT_STAT_OTEL_' + otel_type.suffix.upper() + ':\n')
         if otel_type in clear_funcs:
             f.write('\t\t' + clear_funcs[otel_type] + '(stats);\n')
         f.write('\t\treturn;\n')
