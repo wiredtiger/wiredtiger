@@ -62,6 +62,22 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
             config += ',in_memory=true'
         return config
 
+    def conn_extensions(self, extlist):
+        extlist.extension('collators', 'reverse')
+
+    # Key formats whose boundaries must unpack and compare in the format's own order, each with
+    # a key generator. Multi-column keys are lists, as the cursor returns them.
+    key_formats = [
+        ('q', lambda i: (i - 10000) * 1000003),
+        ('Q', lambda i: i * 7919),
+        ('i', lambda i: (i - 10000) * 3),
+        ('S', lambda i: 'key%08d' % i),
+        ('u', lambda i: b'key%08d' % i),
+        ('qS', lambda i: [(i // 7 - 1400) * 1000003, 'k%08d' % i]),
+        ('Sq', lambda i: ['k%04d' % (i // 7), i]),
+        ('qu', lambda i: [i // 7 - 1400, b'k%08d' % i]),
+    ]
+
     # Raw keys: boundary keys returned in key-only mode are prefixes of record keys, which only a
     # raw format unpacks intact.
     def key(self, i):
@@ -287,6 +303,56 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
             self.assertIn(c.search_near(), (-1, 0, 1))
             self.check_record(c, keys)
         c.close()
+
+    def test_key_only_formats(self):
+        self.require_disk()
+        tables = [('table:%s_fmt_%s' % (self.name, fmt), fmt, keyfn, '')
+            for fmt, keyfn in self.key_formats]
+        tables.append(('table:%s_fmt_rev' % self.name, 'q', self.key_formats[0][1],
+            ',collator=reverse'))
+        for uri, fmt, keyfn, collator in tables:
+            self.session.create(uri, 'key_format=%s,value_format=S%s,leaf_page_max=4KB,'
+                'internal_page_max=4KB' % (fmt, collator))
+            c = self.session.open_cursor(uri)
+            for i in range(self.nrows):
+                key = keyfn(i)
+                c.set_key(*key) if isinstance(key, list) else c.set_key(key)
+                c.set_value('v' * 80)
+                self.assertEqual(c.insert(), 0)
+            c.close()
+        self.reopen_conn()
+
+        for uri, fmt, keyfn, collator in tables:
+            c = self.session.open_cursor(uri)
+            for pos in self.sample_positions():
+                self.position(c, pos, FIRST)
+                first = c.get_key()
+                before = c.get_key() if c.prev() == 0 else None
+
+                self.position(c, pos, KEY_ONLY)
+                if before is None:
+                    # The leftmost page's boundary is the empty sentinel whatever the format. It
+                    # sorts first only without a collator; the reverse collator puts it last.
+                    if fmt in ('S', 'u'):
+                        self.assertEqual(c.get_key(), '' if fmt == 'S' else b'')
+                    if not collator:
+                        self.assertGreater(c.search_near(), 0)
+                        self.assertEqual(c.get_key(), first)
+                    continue
+
+                # The boundary unpacks in the table's format and separates the page from the
+                # records before it.
+                boundary = c.get_key()
+                if collator:
+                    # Separators are not shortened under a collator: the page's first key.
+                    self.assertEqual(boundary, first)
+                else:
+                    self.assertLessEqual(boundary, first)
+                    if before is not None:
+                        self.assertLess(before, boundary)
+                self.assertGreaterEqual(c.search_near(), 0)
+                self.assertEqual(c.get_key(), first)
+            c.close()
 
     def test_key_only_reads_no_leaf_pages(self):
         self.require_disk()

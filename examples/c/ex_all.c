@@ -480,32 +480,20 @@ cursor_position(WT_CURSOR *cursor)
     /*! [Partition an object into evenly spaced samples] */
 
     /*! [Find page boundary keys without reading leaf pages] */
-    {
-        WT_CURSOR *raw;
-        WT_ITEM boundary;
-        char *copy;
+    /*
+     * Boundary keys are complete keys of the table's key format that separate consecutive pages;
+     * they need not be the key of any record. Searching from one reaches the first visible record
+     * of its page.
+     */
+    for (i = 1; i < n; ++i) {
+        memset(&position, 0, sizeof(position));
+        position.pos = (double)i / n;
+        position.flags = WT_POSITION_KEY_ONLY;
+        error_check(cursor->set_position(cursor, &position));
 
-        /*
-         * Boundary keys are separators, not necessarily records, and may not unpack for typed key
-         * formats other than strings: read them through a raw cursor and keep the bytes. Searching
-         * from one reaches the first visible record of its page.
-         */
-        error_check(cursor->session->open_cursor(cursor->session, cursor->uri, NULL, "raw", &raw));
-        for (i = 1; i < n; ++i) {
-            memset(&position, 0, sizeof(position));
-            position.pos = (double)i / n;
-            position.flags = WT_POSITION_KEY_ONLY;
-            error_check(raw->set_position(raw, &position));
+        error_check(cursor->get_key(cursor, &key)); /* The boundary of range i. */
 
-            error_check(raw->get_key(raw, &boundary));
-            copy = malloc(boundary.size + 1);
-            testutil_assert(copy != NULL);
-            memcpy(copy, boundary.data, boundary.size); /* The boundary of range i. */
-            free(copy);
-
-            error_check(raw->search_near(raw, &exact));
-        }
-        error_check(raw->close(raw));
+        error_check(cursor->search_near(cursor, &exact));
     }
     /*! [Find page boundary keys without reading leaf pages] */
 

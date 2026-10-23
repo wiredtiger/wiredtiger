@@ -108,23 +108,22 @@ ending at it can be truncated without reading the pages inside.
 
 Boundary keys need care:
 
-- They are usually not the key of any record. Reconciliation shortens
-  separators to the shortest prefix that still separates the two pages.
-  A string-format (\c S) boundary is a valid, shorter string and is
-  returned as such by WT_CURSOR::get_key; a boundary of another typed
-  format such as \c q, \c Q or \c i may not unpack. Read those through a
-  cursor opened in @ref cursor_raw "raw mode" and treat them as opaque
-  byte strings that sort correctly against packed keys.
-  WT_CURSOR::search_near from the key works regardless of format and
+- They are complete keys in the object's key format that need not be the
+  key of any record. Reconciliation shortens separators to the shortest
+  prefix that still separates the two pages; the shortened prefix is
+  completed into the smallest key of the format that starts with it, so
+  WT_CURSOR::get_key unpacks a boundary of any format, a string boundary
+  is typically a shorter string and an integer boundary a smaller number
+  than the first key of the page. WT_CURSOR::search_near from the key
   reaches the first visible record of the page.
 - The leftmost page of the object has the empty key as its boundary. The
   empty key is a sentinel meaning the start of the object: it is not
   usable as a search key or as a cursor bound, and on an object with a
-  custom collator it does not necessarily sort first. Non-empty
-  boundaries are prefixes of real keys and compare correctly under any
-  collator. An empty object, or one with no internal pages, such as one
-  that has never been checkpointed and still fits in a single in-memory
-  page, yields the empty key for every position.
+  custom collator it does not necessarily sort first. On an object with a
+  custom collator non-empty boundaries are returned as stored, which is
+  the first key of the page. An empty object, or one with no internal
+  pages, such as one that has never been checkpointed and still fits in a
+  single in-memory page, yields the empty key for every position.
 - The anchor and direction flags have no effect in this mode, and
   WT_POSITION::pages_skipped is always zero, because the state of the
   leaf pages does not matter.

@@ -56,8 +56,8 @@ NRECORDS = 50000
 URI = 'table:position_demo'
 
 # Small pages give the tree several levels with tens of thousands of records.
-# String keys make key-only boundaries readable: they are prefixes of record
-# keys and unpack as shorter strings.
+# String keys make key-only boundaries readable: boundaries are complete keys
+# of the table's format, typically shorter strings than any record key.
 TABLE_CONFIG = 'key_format=S,value_format=S,leaf_page_max=4KB,internal_page_max=4KB'
 
 # Statistics show that cache-only positioning performs no disk reads.
@@ -168,7 +168,7 @@ def split_into_ranges(session, k):
     reading the pages inside.
     '''
     print('\n3. Splitting the table into %d ranges with key-only boundaries' % k)
-    print('   Boundary keys are separators, usually shorter than any record key. The')
+    print('   Boundary keys are complete keys of the format, usually not record keys. The')
     print('   leftmost boundary is the empty string, a sentinel for the start of the object')
     print('   that cannot be used as a search key or a bound, so range 0 has no lower bound.')
 
