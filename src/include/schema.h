@@ -305,12 +305,12 @@ struct __wt_import_list {
  * WT_WITH_SCHEMA_LOCK, WT_WITH_SCHEMA_READ_LOCK, WT_WITH_SCHEMA_LOCK_NOWAIT --
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	WT_WITH_SCHEMA_READ_LOCK takes the lock for read, the others for write.
- *	If the session already holds the lock in either mode, the operation runs
- *	without locking again.
+ *	If the session already holds the lock, the operation runs without locking
+ *	again; the write variants check that the lock is not held for read.
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
  */
-#define WT_WITH_SCHEMA_LOCK(session, op)                                  \
+#define WT_WITH_SCHEMA_RWLOCK(session, lock_func, unlock_func, op)        \
     do {                                                                  \
         WT_ASSERT(session,                                                \
           FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||     \
@@ -320,30 +320,22 @@ struct __wt_import_list {
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {   \
             op;                                                           \
         } else {                                                          \
-            __wt_writelock(session, &S2C(session)->schema_lock);          \
+            lock_func(session, &S2C(session)->schema_lock);               \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA);       \
             op;                                                           \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA);       \
-            __wt_writeunlock(session, &S2C(session)->schema_lock);        \
+            unlock_func(session, &S2C(session)->schema_lock);             \
         }                                                                 \
     } while (0)
-#define WT_WITH_SCHEMA_READ_LOCK(session, op)                             \
-    do {                                                                  \
-        WT_ASSERT(session,                                                \
-          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||     \
-            !FLD_ISSET(session->lock_flags,                               \
-              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK | \
-                WT_SESSION_LOCKED_TABLE));                                \
-        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {   \
-            op;                                                           \
-        } else {                                                          \
-            __wt_readlock(session, &S2C(session)->schema_lock);           \
-            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA);       \
-            op;                                                           \
-            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA);       \
-            __wt_readunlock(session, &S2C(session)->schema_lock);         \
-        }                                                                 \
+#define WT_WITH_SCHEMA_LOCK(session, op)                                      \
+    do {                                                                      \
+        WT_ASSERT(session,                                                    \
+          !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||        \
+            __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));  \
+        WT_WITH_SCHEMA_RWLOCK(session, __wt_writelock, __wt_writeunlock, op); \
     } while (0)
+#define WT_WITH_SCHEMA_READ_LOCK(session, op) \
+    WT_WITH_SCHEMA_RWLOCK(session, __wt_readlock, __wt_readunlock, op)
 #define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                                         \
     do {                                                                                     \
         WT_ASSERT(session,                                                                   \
@@ -351,6 +343,9 @@ struct __wt_import_list {
             !FLD_ISSET(session->lock_flags,                                                  \
               WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                    \
                 WT_SESSION_LOCKED_TABLE));                                                   \
+        WT_ASSERT(session,                                                                   \
+          !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||                       \
+            __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));                 \
         int __schema_lock_ret = 0;                                                           \
         (ret) = 0;                                                                           \
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {                      \
