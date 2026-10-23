@@ -763,40 +763,41 @@ struct __wt_cursor {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CURSTD_APPEND        0x000000001ull
-#define WT_CURSTD_BOUND_LOWER    0x000000002ull       /* Lower bound. */
-#define WT_CURSTD_BOUND_LOWER_INCLUSIVE 0x000000004ull /* Inclusive lower bound. */
-#define WT_CURSTD_BOUND_UPPER           0x000000008ull /* Upper bound. */
-#define WT_CURSTD_BOUND_UPPER_INCLUSIVE 0x000000010ull /* Inclusive upper bound. */
-#define WT_CURSTD_BULK          0x000000020ull
-#define WT_CURSTD_CACHEABLE     0x000000040ull
-#define WT_CURSTD_CACHED        0x000000080ull
-#define WT_CURSTD_CACHED_WITH_MEM 0x000000100ull /* A cached cursor with allocated memory. */
-#define WT_CURSTD_CONSTITUENT_DEAD 0x000000200ull
-#define WT_CURSTD_DEAD          0x000000400ull
-#define WT_CURSTD_DEBUG_COPY_KEY    0x000000800ull
-#define WT_CURSTD_DEBUG_COPY_VALUE  0x000001000ull
-#define WT_CURSTD_DEBUG_RESET_EVICT 0x000002000ull
-#define WT_CURSTD_DUMP_HEX      0x000004000ull
-#define WT_CURSTD_DUMP_JSON     0x000008000ull
-#define WT_CURSTD_DUMP_PRETTY       0x000010000ull
-#define WT_CURSTD_DUMP_PRINT        0x000020000ull
-#define WT_CURSTD_DUP_NO_VALUE          0x000040000ull
-#define WT_CURSTD_EVICT_REPOSITION     0x000080000ull
-#define WT_CURSTD_HS_READ_ACROSS_BTREE 0x000100000ull
-#define WT_CURSTD_HS_READ_ALL       0x000200000ull
-#define WT_CURSTD_HS_READ_COMMITTED 0x000400000ull
-#define WT_CURSTD_IGNORE_TOMBSTONE  0x000800000ull
-#define WT_CURSTD_KEY_EXT       0x001000000ull /* Key points out of tree. */
-#define WT_CURSTD_KEY_INT       0x002000000ull /* Key points into tree. */
-#define WT_CURSTD_KEY_ONLY      0x004000000ull
-#define WT_CURSTD_META_INUSE        0x008000000ull
-#define WT_CURSTD_OPEN          0x010000000ull
-#define WT_CURSTD_OVERWRITE     0x020000000ull
-#define WT_CURSTD_RAW           0x040000000ull
-#define WT_CURSTD_RAW_SEARCH        0x080000000ull
-#define WT_CURSTD_VALUE_EXT     0x100000000ull /* Value points out of tree. */
-#define WT_CURSTD_VALUE_INT     0x200000000ull /* Value points into tree. */
-#define WT_CURSTD_VERSION_CURSOR    0x400000000ull /* Version cursor. */
+#define WT_CURSTD_BLIND_REMOVE  0x000000002ull /* Remove succeeds whether or not the key exists. */
+#define WT_CURSTD_BOUND_LOWER    0x000000004ull       /* Lower bound. */
+#define WT_CURSTD_BOUND_LOWER_INCLUSIVE 0x000000008ull /* Inclusive lower bound. */
+#define WT_CURSTD_BOUND_UPPER           0x000000010ull /* Upper bound. */
+#define WT_CURSTD_BOUND_UPPER_INCLUSIVE 0x000000020ull /* Inclusive upper bound. */
+#define WT_CURSTD_BULK          0x000000040ull
+#define WT_CURSTD_CACHEABLE     0x000000080ull
+#define WT_CURSTD_CACHED        0x000000100ull
+#define WT_CURSTD_CACHED_WITH_MEM 0x000000200ull /* A cached cursor with allocated memory. */
+#define WT_CURSTD_CONSTITUENT_DEAD 0x000000400ull
+#define WT_CURSTD_DEAD          0x000000800ull
+#define WT_CURSTD_DEBUG_COPY_KEY    0x000001000ull
+#define WT_CURSTD_DEBUG_COPY_VALUE  0x000002000ull
+#define WT_CURSTD_DEBUG_RESET_EVICT 0x000004000ull
+#define WT_CURSTD_DUMP_HEX      0x000008000ull
+#define WT_CURSTD_DUMP_JSON     0x000010000ull
+#define WT_CURSTD_DUMP_PRETTY       0x000020000ull
+#define WT_CURSTD_DUMP_PRINT        0x000040000ull
+#define WT_CURSTD_DUP_NO_VALUE          0x000080000ull
+#define WT_CURSTD_EVICT_REPOSITION     0x000100000ull
+#define WT_CURSTD_HS_READ_ACROSS_BTREE 0x000200000ull
+#define WT_CURSTD_HS_READ_ALL       0x000400000ull
+#define WT_CURSTD_HS_READ_COMMITTED 0x000800000ull
+#define WT_CURSTD_IGNORE_TOMBSTONE  0x001000000ull
+#define WT_CURSTD_KEY_EXT       0x002000000ull /* Key points out of tree. */
+#define WT_CURSTD_KEY_INT       0x004000000ull /* Key points into tree. */
+#define WT_CURSTD_KEY_ONLY      0x008000000ull
+#define WT_CURSTD_META_INUSE        0x010000000ull
+#define WT_CURSTD_OPEN          0x020000000ull
+#define WT_CURSTD_OVERWRITE     0x040000000ull
+#define WT_CURSTD_RAW           0x080000000ull
+#define WT_CURSTD_RAW_SEARCH        0x100000000ull
+#define WT_CURSTD_VALUE_EXT     0x200000000ull /* Value points out of tree. */
+#define WT_CURSTD_VALUE_INT     0x400000000ull /* Value points into tree. */
+#define WT_CURSTD_VERSION_CURSOR    0x800000000ull /* Version cursor. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
 #define WT_CURSTD_KEY_SET   (WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define WT_CURSTD_VALUE_SET (WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -1382,6 +1383,13 @@ struct __wt_session {
 
     /*!
      * Drop (delete) a table.
+     *
+     * An interrupted drop operation or a failure while removing its underlying files can leave
+     * files on disk that are no longer referenced by WiredTiger metadata, even when \c remove_files
+     * is \c true. A successful return does not guarantee that all underlying files were removed.
+     * WiredTiger does not guarantee automatic cleanup of these files, including after a restart.
+     * Applications are responsible for identifying and safely removing such orphaned files, which
+     * may continue to occupy disk space and retain dropped data.
      *
      * Although the drop operation is non-transactional, if it fails, it will force the current
      * transaction to roll back to avoid potential disruption to the data written by the
@@ -2541,9 +2549,9 @@ struct __wt_connection {
      * "history_store_activity"\, \c "layered"\, \c "live_restore"\, \c "live_restore_progress"\, \c
      * "log"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "page_delta"\, \c
      * "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\,
-     * \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "sweep"\, \c "temporary"\, \c
-     * "thread_group"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
-     * default \c [].}
+     * \c "salvage"\, \c "schema_epoch"\, \c "shared_cache"\, \c "split"\, \c "sweep"\, \c
+     * "temporary"\, \c "thread_group"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c
+     * "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -3604,9 +3612,9 @@ struct __wt_connection {
  * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "layered"\,
  * \c "live_restore"\, \c "live_restore_progress"\, \c "log"\, \c "metadata"\, \c "mutex"\, \c
  * "out_of_order"\, \c "overflow"\, \c "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\,
- * \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c
- * "split"\, \c "sweep"\, \c "temporary"\, \c "thread_group"\, \c "timestamp"\, \c "transaction"\,
- * \c "verify"\, \c "version"\, \c "write"; default \c [].}
+ * \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "schema_epoch"\, \c
+ * "shared_cache"\, \c "split"\, \c "sweep"\, \c "temporary"\, \c "thread_group"\, \c "timestamp"\,
+ * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}
@@ -6662,8 +6670,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: eviction server skipped the root pages */
 #define	WT_STAT_CONN_EVICTION_ROOT_PAGES_SKIPPED	1152
 /*!
- * cache: eviction server skips checkpointed stable btrees on followers
- * when not looking for clean pages
+ * cache: eviction server skips btrees that are read-only when looking
+ * only for dirty or update pages and the btree holds none
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY	1153
 /*!
@@ -7713,111 +7721,111 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_GET_KEY_ERROR		1528
 /*! cursor: cursor get value calls that return an error */
 #define	WT_STAT_CONN_CURSOR_GET_VALUE_ERROR		1529
-/*! cursor: cursor insert calls, OTel type: otel_counter */
-#define	WT_STAT_CONN_CURSOR_INSERT			1530
 /*! cursor: cursor insert calls that return an error */
-#define	WT_STAT_CONN_CURSOR_INSERT_ERROR		1531
+#define	WT_STAT_CONN_CURSOR_INSERT_ERROR		1530
 /*! cursor: cursor insert key and value bytes */
-#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1532
+#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1531
 /*! cursor: cursor largest key calls that return an error */
-#define	WT_STAT_CONN_CURSOR_LARGEST_KEY_ERROR		1533
+#define	WT_STAT_CONN_CURSOR_LARGEST_KEY_ERROR		1532
 /*! cursor: cursor modify calls */
-#define	WT_STAT_CONN_CURSOR_MODIFY			1534
+#define	WT_STAT_CONN_CURSOR_MODIFY			1533
 /*! cursor: cursor modify calls that return an error */
-#define	WT_STAT_CONN_CURSOR_MODIFY_ERROR		1535
+#define	WT_STAT_CONN_CURSOR_MODIFY_ERROR		1534
 /*! cursor: cursor modify key and value bytes affected */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1536
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1535
 /*! cursor: cursor modify value bytes modified */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1537
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1536
 /*! cursor: cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT			1538
+#define	WT_STAT_CONN_CURSOR_NEXT			1537
 /*! cursor: cursor next calls that return an error */
-#define	WT_STAT_CONN_CURSOR_NEXT_ERROR			1539
+#define	WT_STAT_CONN_CURSOR_NEXT_ERROR			1538
 /*!
  * cursor: cursor next calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE		1540
+#define	WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE		1539
 /*!
  * cursor: cursor next calls that skip greater than 1 and fewer than 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1541
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1540
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1542
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1541
 /*! cursor: cursor next random calls that return an error */
-#define	WT_STAT_CONN_CURSOR_NEXT_RANDOM_ERROR		1543
+#define	WT_STAT_CONN_CURSOR_NEXT_RANDOM_ERROR		1542
 /*! cursor: cursor operation restarted */
-#define	WT_STAT_CONN_CURSOR_RESTART			1544
+#define	WT_STAT_CONN_CURSOR_RESTART			1543
 /*! cursor: cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV			1545
+#define	WT_STAT_CONN_CURSOR_PREV			1544
 /*! cursor: cursor prev calls that return an error */
-#define	WT_STAT_CONN_CURSOR_PREV_ERROR			1546
+#define	WT_STAT_CONN_CURSOR_PREV_ERROR			1545
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1547
+#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1546
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1548
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1547
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1549
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1548
 /*! cursor: cursor reconfigure calls that return an error */
-#define	WT_STAT_CONN_CURSOR_RECONFIGURE_ERROR		1550
+#define	WT_STAT_CONN_CURSOR_RECONFIGURE_ERROR		1549
 /*! cursor: cursor remove calls */
-#define	WT_STAT_CONN_CURSOR_REMOVE			1551
+#define	WT_STAT_CONN_CURSOR_REMOVE			1550
 /*! cursor: cursor remove calls that return an error */
-#define	WT_STAT_CONN_CURSOR_REMOVE_ERROR		1552
+#define	WT_STAT_CONN_CURSOR_REMOVE_ERROR		1551
 /*! cursor: cursor remove key bytes removed */
-#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1553
+#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1552
 /*! cursor: cursor reopen calls that return an error */
-#define	WT_STAT_CONN_CURSOR_REOPEN_ERROR		1554
+#define	WT_STAT_CONN_CURSOR_REOPEN_ERROR		1553
 /*! cursor: cursor reserve calls */
-#define	WT_STAT_CONN_CURSOR_RESERVE			1555
+#define	WT_STAT_CONN_CURSOR_RESERVE			1554
 /*! cursor: cursor reserve calls that return an error */
-#define	WT_STAT_CONN_CURSOR_RESERVE_ERROR		1556
+#define	WT_STAT_CONN_CURSOR_RESERVE_ERROR		1555
 /*! cursor: cursor reset calls */
-#define	WT_STAT_CONN_CURSOR_RESET			1557
+#define	WT_STAT_CONN_CURSOR_RESET			1556
 /*! cursor: cursor reset calls that return an error */
-#define	WT_STAT_CONN_CURSOR_RESET_ERROR			1558
+#define	WT_STAT_CONN_CURSOR_RESET_ERROR			1557
 /*! cursor: cursor search calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH			1559
+#define	WT_STAT_CONN_CURSOR_SEARCH			1558
 /*! cursor: cursor search calls that return an error */
-#define	WT_STAT_CONN_CURSOR_SEARCH_ERROR		1560
+#define	WT_STAT_CONN_CURSOR_SEARCH_ERROR		1559
 /*! cursor: cursor search history store calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH_HS			1561
+#define	WT_STAT_CONN_CURSOR_SEARCH_HS			1560
 /*! cursor: cursor search near calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR			1562
+#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR			1561
 /*! cursor: cursor search near calls that return an error */
-#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_ERROR		1563
+#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_ERROR		1562
 /*! cursor: cursor sweep buckets */
-#define	WT_STAT_CONN_CURSOR_SWEEP_BUCKETS		1564
+#define	WT_STAT_CONN_CURSOR_SWEEP_BUCKETS		1563
 /*! cursor: cursor sweep cursors closed */
-#define	WT_STAT_CONN_CURSOR_SWEEP_CLOSED		1565
+#define	WT_STAT_CONN_CURSOR_SWEEP_CLOSED		1564
 /*! cursor: cursor sweep cursors examined */
-#define	WT_STAT_CONN_CURSOR_SWEEP_EXAMINED		1566
+#define	WT_STAT_CONN_CURSOR_SWEEP_EXAMINED		1565
 /*! cursor: cursor sweeps */
-#define	WT_STAT_CONN_CURSOR_SWEEP			1567
+#define	WT_STAT_CONN_CURSOR_SWEEP			1566
 /*! cursor: cursor truncate calls */
-#define	WT_STAT_CONN_CURSOR_TRUNCATE			1568
+#define	WT_STAT_CONN_CURSOR_TRUNCATE			1567
 /*! cursor: cursor truncates performed on individual keys */
-#define	WT_STAT_CONN_CURSOR_TRUNCATE_KEYS_DELETED	1569
+#define	WT_STAT_CONN_CURSOR_TRUNCATE_KEYS_DELETED	1568
 /*! cursor: cursor update calls */
-#define	WT_STAT_CONN_CURSOR_UPDATE			1570
+#define	WT_STAT_CONN_CURSOR_UPDATE			1569
 /*! cursor: cursor update calls that return an error */
-#define	WT_STAT_CONN_CURSOR_UPDATE_ERROR		1571
+#define	WT_STAT_CONN_CURSOR_UPDATE_ERROR		1570
 /*! cursor: cursor update key and value bytes */
-#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES		1572
+#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES		1571
 /*! cursor: cursor update value size change */
-#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED	1573
+#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED	1572
 /*! cursor: cursors reused from cache */
-#define	WT_STAT_CONN_CURSOR_REOPEN			1574
+#define	WT_STAT_CONN_CURSOR_REOPEN			1573
+/*! cursor: insert calls, OTel type: otel_counter */
+#define	WT_STAT_CONN_CURSOR_INSERT			1574
 /*! cursor: open cursor count */
 #define	WT_STAT_CONN_CURSOR_OPEN_COUNT			1575
 /*! cursor: open cursor time application (usecs) */
@@ -10877,6 +10885,7 @@ typedef enum {
     WT_VERB_RECOVERY_PROGRESS,    /*!< Recovery progress messages. */
     WT_VERB_RTS,                  /*!< RTS messages. */
     WT_VERB_SALVAGE,              /*!< Salvage messages. */
+    WT_VERB_SCHEMA_EPOCH,         /*!< Schema epoch and shared metadata queue messages. */
     WT_VERB_SHARED_CACHE,
     WT_VERB_SPLIT,
     WT_VERB_SWEEP,

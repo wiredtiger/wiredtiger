@@ -173,7 +173,7 @@ disaggregated_config_common = [
 ]
 # Disaggregated options accepted only at wiredtiger_open, never at reconfigure.
 connection_disaggregated_config_open = [
-    Config('stepdown_write_mirroring', 'false', r'''
+    Config('stepdown_write_mirroring', 'true', r'''
         mirror writes to both the stable and ingest constituents during the step-down
         window to enable early cross-constituents write conflicts detection''',
         type='boolean', undoc=True),
@@ -1120,6 +1120,7 @@ connection_runtime_config = [
             'recovery_progress',
             'rts',
             'salvage',
+            'schema_epoch',
             'shared_cache',
             'split',
             'sweep',
@@ -1593,6 +1594,10 @@ cursor_runtime_config = [
         append written values as new records, giving each a new record number key; valid only for
         cursors with record number keys''',
         type='boolean'),
+    Config('blind_remove', 'false', r'''
+        configures WT_CURSOR::remove to succeed whether or not a record with the key exists. Only
+        layered tables support this option''',
+        type='boolean', undoc=True),
     Config('overwrite', 'true', r'''
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY

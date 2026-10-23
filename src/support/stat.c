@@ -1053,8 +1053,8 @@ __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
     __wt_free(session, handle->stat_array);
 }
 
-void
-__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
+static void
+__stat_dsrc_clear_none(WT_DSRC_STATS *stats)
 {
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
@@ -1534,12 +1534,32 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 }
 
 void
-__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats)
+__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_dsrc_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_dsrc_clear_none(stats);
+}
+
+void
+__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i)
-        __wt_stat_dsrc_clear_single(stats[i]);
+        __wt_stat_dsrc_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -2883,8 +2903,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
-  "cache: eviction server skips checkpointed stable btrees on followers when not looking for clean "
-  "pages",
+  "cache: eviction server skips btrees that are read-only when looking only for dirty or update "
+  "pages and the btree holds none",
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
@@ -3291,7 +3311,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
-  "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert key and value bytes",
   "cursor: cursor largest key calls that return an error",
@@ -3336,6 +3355,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
   "cursor: cursors reused from cache",
+  "cursor: insert calls",
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
   "cursor: open cursor time internal (usecs)",
@@ -5080,8 +5100,37 @@ __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handl
     __wt_free(session, handle->stat_array);
 }
 
-void
-__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
+static void
+__stat_connection_clear_counters(WT_CONNECTION_STATS *stats)
+{
+    stats->cursor_insert = 0;
+}
+
+static void
+__stat_connection_clear_gauges(WT_CONNECTION_STATS *stats)
+{
+    WT_UNUSED(stats);
+
+    /* not clearing cache_pages_inuse */
+}
+
+static void
+__stat_connection_clear_histograms(WT_CONNECTION_STATS *stats)
+{
+    stats->perf_hist_fsread_latency_lt2 = 0;
+    stats->perf_hist_fsread_latency_lt5 = 0;
+    stats->perf_hist_fsread_latency_lt10 = 0;
+    stats->perf_hist_fsread_latency_lt50 = 0;
+    stats->perf_hist_fsread_latency_lt100 = 0;
+    stats->perf_hist_fsread_latency_lt250 = 0;
+    stats->perf_hist_fsread_latency_lt500 = 0;
+    stats->perf_hist_fsread_latency_lt1000 = 0;
+    stats->perf_hist_fsread_latency_gt1000 = 0;
+    stats->perf_hist_fsread_latency_total_msecs = 0;
+}
+
+static void
+__stat_connection_clear_none(WT_CONNECTION_STATS *stats)
 {
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
@@ -5393,7 +5442,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_hs = 0;
     stats->eviction_pages_remaining_in_queue = 0;
     /* not clearing eviction_consider_prefetch */
-    /* not clearing cache_pages_inuse */
     /* not clearing cache_pages_inuse_ingest */
     /* not clearing cache_pages_inuse_stable */
     /* not clearing cache_truncate_txn_uncommitted_bytes */
@@ -5613,7 +5661,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_equals_error = 0;
     stats->cursor_get_key_error = 0;
     stats->cursor_get_value_error = 0;
-    stats->cursor_insert = 0;
     stats->cursor_insert_error = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_largest_key_error = 0;
@@ -5902,16 +5949,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_disaggbmwrite_latency_lt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_gt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_total_usecs = 0;
-    stats->perf_hist_fsread_latency_lt2 = 0;
-    stats->perf_hist_fsread_latency_lt5 = 0;
-    stats->perf_hist_fsread_latency_lt10 = 0;
-    stats->perf_hist_fsread_latency_lt50 = 0;
-    stats->perf_hist_fsread_latency_lt100 = 0;
-    stats->perf_hist_fsread_latency_lt250 = 0;
-    stats->perf_hist_fsread_latency_lt500 = 0;
-    stats->perf_hist_fsread_latency_lt1000 = 0;
-    stats->perf_hist_fsread_latency_gt1000 = 0;
-    stats->perf_hist_fsread_latency_total_msecs = 0;
     stats->perf_hist_fswrite_latency_lt2 = 0;
     stats->perf_hist_fswrite_latency_lt5 = 0;
     stats->perf_hist_fswrite_latency_lt10 = 0;
@@ -6198,12 +6235,38 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 }
 
 void
-__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats)
+__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        __stat_connection_clear_counters(stats);
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        __stat_connection_clear_gauges(stats);
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        __stat_connection_clear_histograms(stats);
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_connection_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_connection_clear_counters(stats);
+    __stat_connection_clear_gauges(stats);
+    __stat_connection_clear_histograms(stats);
+    __stat_connection_clear_none(stats);
+}
+
+void
+__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i)
-        __wt_stat_connection_clear_single(stats[i]);
+        __wt_stat_connection_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -6904,7 +6967,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_equals_error += WT_STAT_CONN_READ(from, cursor_equals_error);
     to->cursor_get_key_error += WT_STAT_CONN_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
-    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
     to->cursor_insert_bytes += WT_STAT_CONN_READ(from, cursor_insert_bytes);
     to->cursor_largest_key_error += WT_STAT_CONN_READ(from, cursor_largest_key_error);
@@ -6949,6 +7011,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
+    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
@@ -7746,8 +7809,8 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
     memset(stats, 0, sizeof(*stats));
 }
 
-void
-__wt_stat_session_clear_single(WT_SESSION_STATS *stats)
+static void
+__stat_session_clear_none(WT_SESSION_STATS *stats)
 {
     stats->bytes_read = 0;
     stats->bytes_write = 0;
@@ -7762,4 +7825,24 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->cache_time = 0;
     stats->cache_time_interruptible = 0;
     stats->cache_time_mandatory = 0;
+}
+
+void
+__wt_stat_session_clear_single(WT_SESSION_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_session_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_session_clear_none(stats);
 }
