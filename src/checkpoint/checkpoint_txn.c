@@ -140,7 +140,8 @@ __wt_checkpoint_update_generation(WT_SESSION_IMPL *session, WT_BTREE *btree)
  *     Apply a preliminary operation to all files involved in a checkpoint.
  */
 static int
-__checkpoint_apply_operation(WT_SESSION_IMPL *session, int (*op)(WT_SESSION_IMPL *, const char *[]))
+__checkpoint_apply_operation(WT_SESSION_IMPL *session, int (*op)(WT_SESSION_IMPL *, const char *[]),
+  int (*skip_func)(WT_SESSION_IMPL *, WT_DATA_HANDLE *, bool *))
 {
     WTI_CHECKPOINT_DB_CONFIG *ckpt_cfg;
 
@@ -163,7 +164,7 @@ __checkpoint_apply_operation(WT_SESSION_IMPL *session, int (*op)(WT_SESSION_IMPL
             WT_RET(__wt_meta_apply_all(session, op, NULL, ckpt_cfg->cfg));
         } else {
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_APPLY_BTREE);
-            WT_RET(__wt_conn_btree_apply(session, NULL, op, NULL, ckpt_cfg->cfg));
+            WT_RET(__wt_conn_btree_apply(session, NULL, op, NULL, skip_func, ckpt_cfg->cfg));
         }
     }
 
@@ -308,6 +309,109 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __checkpoint_tree_not_gathered --
+ *     Return if the handle gather leaves the tree out. In-memory and read-only trees are not
+ *     checkpointed, and the history store is checkpointed later, on its own.
+ */
+static WT_INLINE bool
+__checkpoint_tree_not_gathered(WT_BTREE *btree)
+{
+    return (F_ISSET(btree, WT_BTREE_IN_MEMORY) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
+      WT_IS_HS(btree->dhandle));
+}
+
+/*
+ * __checkpoint_clean_tree_skippable --
+ *     Return if this checkpoint can skip a clean tree. The checkpoint fast path and the handle
+ *     gather share this test so that they skip the same trees.
+ */
+static WT_INLINE bool
+__checkpoint_clean_tree_skippable(WT_SESSION_IMPL *session, WT_BTREE *btree, bool handle_locked)
+{
+    WT_BM *bm;
+    uint64_t now, timer;
+
+    /*
+     * Writers also hold the handle lock shared, so the lock does not protect this read. The read is
+     * safe because the checkpoint snapshot is taken before the handles are gathered, and a tree is
+     * marked modified before any of its updates commit. A tree that is clean here has no updates
+     * this checkpoint can see.
+     */
+    if (__wt_atomic_load_bool_relaxed(&btree->modified))
+        return (false);
+
+    /* In the common case of the timer set forever, don't even check the time. */
+    timer = btree->clean_ckpt_timer;
+    if (timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
+        __wt_seconds(session, &now);
+        if (now > timer)
+            return (false);
+    }
+
+    /*
+     * The block manager can only be used with the handle locked. Without the lock, the timer check
+     * above replaces this test. The timer is only set after can_truncate returns false, and a clean
+     * tree gains no space to truncate.
+     */
+    if (handle_locked) {
+        bm = btree->bm;
+        if (bm->can_truncate(bm, session))
+            return (false);
+    }
+
+    return (true);
+}
+
+/*
+ * __checkpoint_gather_skip --
+ *     Skip a tree that has nothing to write in this checkpoint without locking its handle.
+ */
+static int
+__checkpoint_gather_skip(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool *skipp)
+{
+    WT_BTREE *btree;
+
+    *skipp = false;
+
+    /* Disaggregated storage has per-tree checks that need the handle. */
+    if (__wt_conn_is_disagg(session))
+        return (0);
+
+    /*
+     * Sweep can close the handle while this function reads it. The walk holds a reference on the
+     * handle, so sweep does not free the btree. Sweep only closes clean trees and does not reopen a
+     * closed handle, and the usual path skips a closed handle too. Other closes and reopens need
+     * the schema lock, which checkpoint holds, or exclusive access, and the usual path skips an
+     * exclusive handle.
+     */
+    btree = dhandle->handle;
+
+    /* Leave handles in exclusive use, such as bulk load, salvage and verify, to the usual path. */
+    if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) || F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+        return (0);
+
+    /* The usual path may publish this tree. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return (0);
+
+    if (__checkpoint_tree_not_gathered(btree)) {
+        *skipp = true;
+        return (0);
+    }
+
+    if (!__checkpoint_clean_tree_skippable(session, btree, false))
+        return (0);
+
+    /* Maintain parity with the normal checkpoint fast path for skipped trees. */
+    __checkpoint_prepare_progress(session, false);
+    F_SET_ATOMIC_32(btree, WT_BTREE_SKIP_CKPT);
+    WT_WITH_DHANDLE(session, dhandle, __wt_checkpoint_update_generation(session, btree));
+    ++S2C(session)->ckpt.handle_stats.skip;
+    *skipp = true;
+    return (0);
+}
+
+/*
  * __wt_checkpoint_get_handles --
  *     Get a list of handles to flush. The checkpoint configuration is read from the session, not
  *     from the configuration strings.
@@ -347,9 +451,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
 
-    /* Skip the history store file as it is checkpointed manually later. */
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
-      F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) || WT_IS_HS(btree->dhandle))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return (0);
+
+    if (__checkpoint_tree_not_gathered(btree))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
@@ -1197,13 +1302,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp)
     /*
      * Get a list of handles we want to sync; for named checkpoints this may pull closed objects
      * into the session cache.
-     *
-     * First, gather all handles, then start the checkpoint transaction, then release any clean
-     * handles.
      */
     WT_ASSERT(session, session->ckpt.handle_next == 0);
-    WT_WITH_TABLE_READ_LOCK(
-      session, ret = __checkpoint_apply_operation(session, __wt_checkpoint_get_handles));
+    WT_WITH_TABLE_READ_LOCK(session,
+      ret = __checkpoint_apply_operation(
+        session, __wt_checkpoint_get_handles, ckpt_cfg->force ? NULL : __checkpoint_gather_skip));
 
     __wt_epoch(session, &conn->ckpt.prepare.timer_end);
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
@@ -1730,7 +1833,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is. On
      * failure, reset the checkpoint state before returning.
      */
-    if ((ret = __checkpoint_apply_operation(session, NULL)) != 0) {
+    if ((ret = __checkpoint_apply_operation(session, NULL, NULL)) != 0) {
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
         return (ret);
     }
@@ -2540,7 +2643,6 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session, bool is_checkpoint, bool 
     WT_DECL_RET;
     WT_ITEM *drop_list;
     size_t ckpt_bytes_allocated, name_len;
-    uint64_t now;
     uint64_t time_diff, time_start, time_stop;
     const char *name;
     bool is_drop, is_wt_ckpt, seen_ckpt_add, skip_ckpt;
@@ -2586,27 +2688,24 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session, bool is_checkpoint, bool 
      */
     is_drop = drop != NULL && drop->len != 0;
 
+    /* The handle gather cannot call the block manager and checks the timer instead. */
+    WT_ASSERT(session,
+      __wt_atomic_load_bool_relaxed(&btree->modified) || btree->clean_ckpt_timer == 0 ||
+        !bm->can_truncate(bm, session));
+
     /*
      * This is a complicated test to determine if we can avoid the expensive call of getting the
      * list of checkpoints for this file. We want to avoid that for clean files. But on clean files
      * we want to periodically check if we need to delete old checkpoints that may have been in use
      * by an open cursor.
      */
-    if (!__wt_atomic_load_bool_relaxed(&btree->modified) && !force && is_checkpoint && is_wt_ckpt &&
-      !is_drop && !bm->can_truncate(btree->bm, session)) {
-        /* In the common case of the timer set forever, don't even check the time. */
-        skip_ckpt = true;
-        if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
-            __wt_seconds(session, &now);
-            if (now > btree->clean_ckpt_timer)
-                skip_ckpt = false;
-        }
+    skip_ckpt = !force && is_checkpoint && is_wt_ckpt && !is_drop &&
+      __checkpoint_clean_tree_skippable(session, btree, true);
 
-        /* Skip the clean btree. */
-        if (skip_ckpt) {
-            F_SET_ATOMIC_32(btree, WT_BTREE_SKIP_CKPT);
-            goto skip;
-        }
+    /* Skip the clean btree. */
+    if (skip_ckpt) {
+        F_SET_ATOMIC_32(btree, WT_BTREE_SKIP_CKPT);
+        goto skip;
     }
 
     /*
