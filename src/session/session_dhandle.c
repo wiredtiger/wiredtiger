@@ -1083,8 +1083,22 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                 WT_WITH_CHECKPOINT_LOCK(session,
                   WT_WITH_SCHEMA_LOCK(
                     session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
-            } else
+            } else if (LF_ISSET(WT_BTREE_SPECIAL_FLAGS))
+                /*
+                 * Open handles with special flags under the write lock. A bulk cursor keeps its
+                 * handle exclusive and needs the write lock to close it, and a thread holding the
+                 * read lock may wait for that handle.
+                 */
                 WT_WITH_SCHEMA_LOCK(
+                  session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+            else
+                /*
+                 * Operations that need exclusive access to a tree, such as drop and verify, take
+                 * the schema lock for write. A read lock is enough to exclude them and lets threads
+                 * open different handles in parallel. Opens of the same handle are serialized by
+                 * the handle's exclusive lock.
+                 */
+                WT_WITH_SCHEMA_READ_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
 
             return (ret);

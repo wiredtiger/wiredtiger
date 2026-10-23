@@ -1564,13 +1564,10 @@ __wt_schema_create_internal(
     WT_SESSION_IMPL *int_session;
 
     /*
-     * We should be calling this function with the schema lock, but we cannot verify it here because
-     * we can re-enter this function with the internal session. If we get here using the internal
-     * session, we cannot check whether we own the lock, as it would be locked by the outer session.
-     * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
-     * acquired by us.
+     * The schema lock must be held for write, possibly by the outer session when this runs on an
+     * internal session. The lock does not record its owner, so only the write mode is checked.
      */
-    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+    WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
 
     WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 
