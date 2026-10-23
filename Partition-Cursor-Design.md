@@ -335,7 +335,10 @@ untruncated, so the boundary is the first key of the page.
 
 The empty key returned for the leftmost boundary is a sentinel meaning "start of object". It
 is not a key: `set_key` and `bound` reject empty keys, and on an object with a custom collator
-it does not necessarily sort first, so callers must not search from it or bound on it. An
+it does not necessarily sort first, so callers must not search from it or bound on it. The
+cursor's key item has size zero in every format; `get_key` returns an empty string or item for
+`S` and `u` formats and `EINVAL` for any other packed format, so callers detect the sentinel by
+the zero size rather than by unpacking it. An
 object that fits in a single page, including one never checkpointed, yields the empty key for
 every position.
 
