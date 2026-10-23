@@ -588,7 +588,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
  *     Begin a timestamped transaction.
  */
 static void
-begin_transaction_ts(TINFO *tinfo)
+begin_transaction_ts(TINFO *tinfo, bool allow_ignore_prepare)
 {
     WT_DECL_RET;
     WT_SESSION *session;
@@ -611,7 +611,7 @@ begin_transaction_ts(TINFO *tinfo)
         ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
-        if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
+        if (allow_ignore_prepare && GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
             config = "ignore_prepare=true";
             tinfo->ignore_prepare = true;
         } else {
@@ -1353,7 +1353,7 @@ rollback_retry:
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
-            begin_transaction_ts(tinfo);
+            begin_transaction_ts(tinfo, true);
             intxn = true;
         }
         if (!intxn) {
@@ -1530,13 +1530,21 @@ rollback_retry:
         if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
             if (op == TRUNCATE) {
                 if (intxn) {
-                    commit_transaction(tinfo, false);
-                    snap_repeat_update(tinfo, true);
+                    ret = snap_repeat_txn(tinfo);
+                    testutil_assertfmt(ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL,
+                      "operation failed: %d", ret);
+                    if (ret == 0) {
+                        bool committed = commit_transaction(tinfo, false);
+                        snap_repeat_update(tinfo, committed);
+                    } else {
+                        rollback_transaction(tinfo, false);
+                        snap_repeat_update(tinfo, false);
+                    }
                     intxn = false;
                 }
                 fast_truncate_lock_release(session, &lock_state);
                 fast_truncate_lock_acquire_write(session, &lock_state);
-                begin_transaction_ts(tinfo);
+                begin_transaction_ts(tinfo, false);
                 intxn = true;
             } else if (op != READ)
                 fast_truncate_lock_acquire_read(session, &lock_state);
@@ -1641,8 +1649,14 @@ skip_operation:
              */
             if (rnd == 5 && ntries != 0)
                 rnd = 4; /* Choose to do a commit this time. */
-        } else if (!intxn || (rnd = mmrand(&tinfo->data_rnd, 1, 10)) > 5)
-            continue;
+        } else {
+            if (!intxn)
+                continue;
+            rnd = mmrand(&tinfo->data_rnd, 1, 10);
+            /* Keep serialized truncates separate from subsequent CRUD writes. */
+            if (rnd > 5 && lock_state != LOCK_HELD_WRITE)
+                continue;
+        }
 
         /*
          * Ending a transaction. If configured for snapshot isolation, redo the reads and confirm
@@ -1685,14 +1699,10 @@ skip_operation:
         }
 
         /*
-         * If we're in a transaction, commit 40% of the time and rollback 10% of the time (we
-         * already continued to add operations to the transaction the remaining half of the time).
+         * Ordinary transactions continue 50%, commit 40% and roll back 10% of the time.
+         * Serialized truncate transactions instead commit 90% and roll back 10% of the time.
          */
-        switch (rnd) {
-        case 1:
-        case 2:
-        case 3:
-        case 4:           /* 40% */
+        if (rnd != 5) {
             __wt_yield(); /* Encourage races */
             snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
             fast_truncate_lock_release(session, &lock_state);
@@ -1704,8 +1714,7 @@ skip_operation:
                   rlog_ret);
                 rlog_op_name = NULL;
             }
-            break;
-        case 5: /* 10% */
+        } else {
 rollback:
             if (GV(RUNS_PREDICTABLE_REPLAY)) {
                 if (tinfo->quit)
@@ -1724,7 +1733,6 @@ rollback:
             rollback_transaction(tinfo, prepared);
             fast_truncate_lock_release(session, &lock_state);
             snap_repeat_update(tinfo, false);
-            break;
         }
 
         /*
