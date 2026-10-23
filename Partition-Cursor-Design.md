@@ -75,8 +75,9 @@ keys have three properties that matter here:
   instantiated when the page is read, so reading a separator never requires an overflow
   block read.
 
-A separator is exactly what a truncate marker needs: a boundary that aligns with a page edge so
-fast truncation applies. Reaching a real record from it is one `search_near`.
+A separator is exactly what a range boundary needs: it aligns with a page edge so fast
+truncation applies. Key-only mode completes the truncated prefix into a full key of the
+object's format (section 4.2). Reaching a real record from it is one `search_near`.
 
 ### 2.3 Server consumer today
 
@@ -200,11 +201,10 @@ p.flags = WT_POSITION_KEY_ONLY;
 for (i = 1; i < n_markers; ++i) {
     p.pos = (double)i / n_markers;
     WT_ERR(cursor->set_position(cursor, &p));
-    WT_ERR(cursor->get_key(cursor, &key));  /* Boundary key for marker i, as a WT_ITEM. */
+    WT_ERR(cursor->get_key(cursor, &key));  /* Boundary key for marker i, in the table's format. */
     /* Copy the key out; the cursor is not positioned and holds no page. Key-only mode
      * always yields a boundary, the empty key for the leftmost one, so there is no
-     * WT_NOTFOUND to handle here. The cursor was opened with raw=true because boundaries
-     * are raw separator bytes, see 4.2. */
+     * WT_NOTFOUND to handle here. A boundary need not exist in the table, see 4.2. */
 }
 ```
 
@@ -325,19 +325,19 @@ With `KEY_ONLY` the call never touches a leaf page:
    no closest-leaf walk. The call never returns `WT_NOTFOUND` outside cache-only mode: an
    empty or single-page tree yields the empty key, which is a valid boundary.
 
-Boundary keys are raw separator bytes. Because leaf separators are suffix-truncated, a
-boundary is usually not a complete packed key: on a typed key format such as `q` or `Q`,
-`get_key` may fail to unpack it. Callers read it through a cursor opened with `raw=true`
-(`get_raw_key_value` requires the value to be set and so cannot read a key-only result), and
-use it as a byte-string bound.
+Boundary keys are complete keys of the object's key format. Reconciliation suffix-truncates
+leaf separators to the shortest byte prefix that still separates two pages (only when no
+collator is configured); key-only mode completes that prefix into the smallest canonical key
+of the format that starts with it, so `get_key` unpacks a boundary of any format and the result
+is still greater than every key on the preceding page and no greater than the first key on its
+own page. A boundary need not exist in the object. With a custom collator separators are stored
+untruncated, so the boundary is the first key of the page.
 
 The empty key returned for the leftmost boundary is a sentinel meaning "start of object". It
 is not a key: `set_key` and `bound` reject empty keys, and on an object with a custom collator
-it does not necessarily sort first, so callers must not search from it or bound on it. All
-non-empty boundaries are prefixes of real keys and compare correctly under any collator. An
+it does not necessarily sort first, so callers must not search from it or bound on it. An
 object that fits in a single page, including one never checkpointed, yields the empty key for
-every position. `search_near` from the key works because tree
-comparison is bytewise, and the empty key sorts before every record.
+every position.
 
 The anchor and `PREV` have no effect in this mode. `CACHE_ONLY` applies to the internal pages:
 if an internal page on the path is not in memory the call returns `WT_NOTFOUND`.
@@ -538,8 +538,9 @@ Raised in review and deliberately left as they are:
   cache-only variant of `search` for the other column groups. The limits are documented
   instead; a true no-I/O guarantee would be a separate feature.
 - **Reject key-only mode on objects with a custom collator.** Only the empty sentinel
-  misbehaves under a collator; every non-empty boundary is a real key prefix and compares
-  correctly. The sentinel is documented as unusable for search and bounds.
+  misbehaves under a collator; with a collator separators are stored untruncated, so every
+  non-empty boundary is the first key of its page. The sentinel is documented as unusable for
+  search and bounds.
 - **Return `WT_NOTFOUND` for the leftmost key-only boundary** instead of the empty key. It
   would break the single-page and empty-object behaviour the truncate-marker loop relies on.
 - **Make insert-list `get_position` independent of arrival direction.** A record on an insert
