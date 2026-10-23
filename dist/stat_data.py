@@ -27,6 +27,8 @@
 #       otel_gauge     Point-in-time value that can go up and down
 #       otel_histogram Distribution of recorded values
 #       otel_none      Not an OTel metric (the default if otel_type is omitted)
+#
+# An otel_counter cannot have the no_clear flag, as OTel counters must be given in increments.
 
 from operator import attrgetter
 import sys
@@ -243,12 +245,6 @@ conn_stats = [
     ##########################################
     # Block cache statistics
     ##########################################
-    # FIXME-WT-18764: seven of the stats below describe the disaggregated victim cache, not the
-    # block cache: app_thread_put_time, app_thread_puts, cold_not_cached, put_failures, put_time,
-    # put_time_max and puts. Eviction increments them on the page log cache path. That ticket moves
-    # them to the disagg group as disagg_victim_cache_*.
-    BlockCacheStat('block_cache_app_thread_put_time', 'time application threads spent adding pages to the disaggregated victim cache (usecs)'),
-    BlockCacheStat('block_cache_app_thread_puts', 'pages added to the disaggregated victim cache by application threads'),
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
     BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
@@ -266,16 +262,11 @@ conn_stats = [
     BlockCacheStat('block_cache_bytes_insert_read', 'total bytes inserted on read path'),
     BlockCacheStat('block_cache_bytes_insert_write', 'total bytes inserted on write path'),
     BlockCacheStat('block_cache_bytes_update', 'cached bytes updated'),
-    BlockCacheStat('block_cache_cold_not_cached', 'cold collection pages not added to the disaggregated victim cache during eviction'),
     BlockCacheStat('block_cache_eviction_passes', 'number of eviction passes'),
     BlockCacheStat('block_cache_hits', 'number of hits'),
     BlockCacheStat('block_cache_lookups', 'lookups'),
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
-    BlockCacheStat('block_cache_put_failures', 'failed page inserts into the disaggregated victim cache'),
-    BlockCacheStat('block_cache_put_time', 'time spent adding pages to the disaggregated victim cache (usecs)'),
-    BlockCacheStat('block_cache_put_time_max', 'maximum time spent adding a single page to the disaggregated victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
-    BlockCacheStat('block_cache_puts', 'pages added to the disaggregated victim cache'),
 
     ##########################################
     # Block manager statistics
@@ -471,7 +462,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_stale_disagg_pages', 'eviction server skips pages on an outdated disaggregated read-only btree that a reader still has open'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
-    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips checkpointed stable btrees on followers when not looking for clean pages'),
+    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips btrees that are read-only when looking only for dirty or update pages and the btree holds none'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_trees_walk_complete', 'eviction server skips resuming trees whose walk already traversed the whole tree'),
@@ -605,7 +596,7 @@ conn_stats = [
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_cached_count', 'cached cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_create', 'cursor create calls'),
-    CursorStat('cursor_insert', 'cursor insert calls', '', 'otel_counter'),
+    CursorStat('cursor_insert', 'insert calls', '', 'otel_counter'),
     CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),
     CursorStat('cursor_modify', 'cursor modify calls'),
@@ -686,6 +677,13 @@ conn_stats = [
     DisaggStat('disagg_step_up_missing_stable_create_time', 'step up missing stable table create most recent time (msecs)'),
     DisaggStat('disagg_step_up_missing_stable_tables_created', 'step up missing stable tables created'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
+    DisaggStat('disagg_victim_cache_app_thread_put_time', 'time application threads spent adding pages to the victim cache (usecs)'),
+    DisaggStat('disagg_victim_cache_app_thread_puts', 'pages added to the victim cache by application threads'),
+    DisaggStat('disagg_victim_cache_cold_not_cached', 'cold collection pages not added to the victim cache during eviction'),
+    DisaggStat('disagg_victim_cache_put_failures', 'failed page inserts into the victim cache'),
+    DisaggStat('disagg_victim_cache_put_time', 'time spent adding pages to the victim cache (usecs)'),
+    DisaggStat('disagg_victim_cache_put_time_max', 'maximum time spent adding a single page to the victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
+    DisaggStat('disagg_victim_cache_puts', 'pages added to the victim cache'),
 
     ##########################################
     # Dhandle statistics
@@ -702,6 +700,7 @@ conn_stats = [
     # dh_sweep_dead_close formerly called dh_sweep_close.
     DhandleStat('dh_sweep_dead_close', 'connection sweep dead dhandles closed'),
     DhandleStat('dh_sweep_expired_close', 'connection sweep expired dhandles closed'),
+    DhandleStat('dh_sweep_ingest_close', 'connection sweep ingest dhandles closed after checkpoint coverage'),
     # Note dh_sweep_total_close = dh_sweep_dead_close + dh_sweep_expired_close
     DhandleStat('dh_sweep_ref', 'connection sweep candidate became referenced'),
     DhandleStat('dh_sweep_remove', 'connection sweep dhandles removed from hash list'),

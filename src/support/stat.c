@@ -1053,8 +1053,8 @@ __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
     __wt_free(session, handle->stat_array);
 }
 
-void
-__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
+static void
+__stat_dsrc_clear_none(WT_DSRC_STATS *stats)
 {
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
@@ -1534,12 +1534,32 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 }
 
 void
-__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats)
+__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_dsrc_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_dsrc_clear_none(stats);
+}
+
+void
+__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i)
-        __wt_stat_dsrc_clear_single(stats[i]);
+        __wt_stat_dsrc_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -2740,13 +2760,9 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks without compressed data",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
-  "block-cache: cold collection pages not added to the disaggregated victim cache during eviction",
   "block-cache: evicted blocks",
-  "block-cache: failed page inserts into the disaggregated victim cache",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
-  "block-cache: maximum time spent adding a single page to the disaggregated victim cache, reset "
-  "per checkpoint (usecs)",
   "block-cache: number of blocks not evicted due to overhead",
   "block-cache: number of bypasses because no-write-allocate setting was on",
   "block-cache: number of bypasses due to overhead on put",
@@ -2756,13 +2772,8 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of hits",
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
-  "block-cache: pages added to the disaggregated victim cache",
-  "block-cache: pages added to the disaggregated victim cache by application threads",
   "block-cache: removed blocks",
-  "block-cache: time application threads spent adding pages to the disaggregated victim cache "
-  "(usecs)",
   "block-cache: time sleeping to remove block (usecs)",
-  "block-cache: time spent adding pages to the disaggregated victim cache (usecs)",
   "block-cache: total blocks",
   "block-cache: total blocks inserted on read path",
   "block-cache: total blocks inserted on write path",
@@ -2892,8 +2903,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
-  "cache: eviction server skips checkpointed stable btrees on followers when not looking for clean "
-  "pages",
+  "cache: eviction server skips btrees that are read-only when looking only for dirty or update "
+  "pages and the btree holds none",
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
@@ -3298,7 +3309,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
-  "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert key and value bytes",
   "cursor: cursor largest key calls that return an error",
@@ -3343,6 +3353,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
   "cursor: cursors reused from cache",
+  "cursor: insert calls",
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
   "cursor: open cursor time internal (usecs)",
@@ -3362,6 +3373,7 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweep dead dhandles closed",
   "data-handle: connection sweep dhandles removed from hash list",
   "data-handle: connection sweep expired dhandles closed",
+  "data-handle: connection sweep ingest dhandles closed after checkpoint coverage",
   "data-handle: connection sweep time-of-death sets",
   "data-handle: connection sweeps",
   "data-handle: connection sweeps skipped due to checkpoint gathering handles",
@@ -3376,13 +3388,19 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoint metadata version of the most recently picked up checkpoint: 0 none",
   "disagg: checkpoint metadata version this binary writes",
   "disagg: checkpoint pick-ups deferred for active transaction snapshots",
+  "disagg: cold collection pages not added to the victim cache during eviction",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: failed page inserts into the victim cache",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
+  "disagg: maximum time spent adding a single page to the victim cache, reset per checkpoint "
+  "(usecs)",
   "disagg: most recently adopted checkpoint metadata LSN",
   "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
+  "disagg: pages added to the victim cache",
+  "disagg: pages added to the victim cache by application threads",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: pick up checkpoint time at startup (msecs)",
   "disagg: role leader",
@@ -3404,6 +3422,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up missing stable tables created",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
+  "disagg: time application threads spent adding pages to the victim cache (usecs)",
+  "disagg: time spent adding pages to the victim cache (usecs)",
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "layered: Layered table cursor insert operations",
@@ -3954,12 +3974,9 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_BACKUP_BLOCKS_UNCOMPRESSED,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE,
   WT_STAT_CONN_BLOCK_CACHE_BYTES_UPDATE,
-  WT_STAT_CONN_BLOCK_CACHE_COLD_NOT_CACHED,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS_EVICTED,
-  WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES,
   WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE,
   WT_STAT_CONN_BLOCK_CACHE_LOOKUPS,
-  WT_STAT_CONN_BLOCK_CACHE_PUT_TIME_MAX,
   WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD,
   WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC,
   WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT,
@@ -3969,12 +3986,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_BLOCK_CACHE_HITS,
   WT_STAT_CONN_BLOCK_CACHE_MISSES,
   WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT,
-  WT_STAT_CONN_BLOCK_CACHE_PUTS,
-  WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUTS,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED,
-  WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUT_TIME,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED_BLOCKED,
-  WT_STAT_CONN_BLOCK_CACHE_PUT_TIME,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_READ,
   WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_WRITE,
@@ -4522,6 +4535,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DH_SWEEP_DEAD_CLOSE,
   WT_STAT_CONN_DH_SWEEP_REMOVE,
   WT_STAT_CONN_DH_SWEEP_EXPIRED_CLOSE,
+  WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE,
   WT_STAT_CONN_DH_SWEEP_TOD,
   WT_STAT_CONN_DH_SWEEPS,
   WT_STAT_CONN_DH_SWEEP_SKIP_CKPT,
@@ -4535,13 +4549,18 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_CHECKPOINT_STORAGE_VERSION,
   WT_STAT_CONN_DISAGG_CHECKPOINT_BINARY_VERSION,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_COLD_NOT_CACHED,
   WT_STAT_CONN_DISAGG_CONN_RECONFIG,
   WT_STAT_CONN_DISAGG_DATABASE_SIZE,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_FAILURES,
   WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME_MAX,
   WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUTS,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUTS,
   WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME,
   WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP,
   WT_STAT_CONN_DISAGG_ROLE_LEADER,
@@ -4563,6 +4582,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_TABLES_CREATED,
   WT_STAT_CONN_DISAGG_STEP_UP_TIME,
   WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUT_TIME,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
   WT_STAT_CONN_LAYERED_CURS_MODIFY,
@@ -5079,8 +5100,37 @@ __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handl
     __wt_free(session, handle->stat_array);
 }
 
-void
-__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
+static void
+__stat_connection_clear_counters(WT_CONNECTION_STATS *stats)
+{
+    stats->cursor_insert = 0;
+}
+
+static void
+__stat_connection_clear_gauges(WT_CONNECTION_STATS *stats)
+{
+    WT_UNUSED(stats);
+
+    /* not clearing cache_pages_inuse */
+}
+
+static void
+__stat_connection_clear_histograms(WT_CONNECTION_STATS *stats)
+{
+    stats->perf_hist_fsread_latency_lt2 = 0;
+    stats->perf_hist_fsread_latency_lt5 = 0;
+    stats->perf_hist_fsread_latency_lt10 = 0;
+    stats->perf_hist_fsread_latency_lt50 = 0;
+    stats->perf_hist_fsread_latency_lt100 = 0;
+    stats->perf_hist_fsread_latency_lt250 = 0;
+    stats->perf_hist_fsread_latency_lt500 = 0;
+    stats->perf_hist_fsread_latency_lt1000 = 0;
+    stats->perf_hist_fsread_latency_gt1000 = 0;
+    stats->perf_hist_fsread_latency_total_msecs = 0;
+}
+
+static void
+__stat_connection_clear_none(WT_CONNECTION_STATS *stats)
 {
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
@@ -5111,12 +5161,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->backup_blocks_uncompressed = 0;
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
-    stats->block_cache_cold_not_cached = 0;
     stats->block_cache_blocks_evicted = 0;
-    stats->block_cache_put_failures = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
-    /* not clearing block_cache_put_time_max */
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_overhead_put = 0;
@@ -5126,12 +5173,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_hits = 0;
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
-    stats->block_cache_puts = 0;
-    stats->block_cache_app_thread_puts = 0;
     stats->block_cache_blocks_removed = 0;
-    stats->block_cache_app_thread_put_time = 0;
     stats->block_cache_blocks_removed_blocked = 0;
-    stats->block_cache_put_time = 0;
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
@@ -5399,7 +5442,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_hs = 0;
     stats->eviction_pages_remaining_in_queue = 0;
     /* not clearing eviction_consider_prefetch */
-    /* not clearing cache_pages_inuse */
     /* not clearing cache_pages_inuse_ingest */
     /* not clearing cache_pages_inuse_stable */
     /* not clearing cache_truncate_txn_uncommitted_bytes */
@@ -5617,7 +5659,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_equals_error = 0;
     stats->cursor_get_key_error = 0;
     stats->cursor_get_value_error = 0;
-    stats->cursor_insert = 0;
     stats->cursor_insert_error = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_largest_key_error = 0;
@@ -5681,6 +5722,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweep_dead_close = 0;
     stats->dh_sweep_remove = 0;
     stats->dh_sweep_expired_close = 0;
+    stats->dh_sweep_ingest_close = 0;
     stats->dh_sweep_tod = 0;
     stats->dh_sweeps = 0;
     stats->dh_sweep_skip_ckpt = 0;
@@ -5694,13 +5736,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_storage_version */
     /* not clearing disagg_checkpoint_binary_version */
     stats->disagg_checkpoint_defer = 0;
+    stats->disagg_victim_cache_cold_not_cached = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
+    stats->disagg_victim_cache_put_failures = 0;
     stats->disagg_ingest_stable_tombstone_stripped = 0;
+    /* not clearing disagg_victim_cache_put_time_max */
     /* not clearing disagg_checkpoint_meta_lsn */
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
+    stats->disagg_victim_cache_puts = 0;
+    stats->disagg_victim_cache_app_thread_puts = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_pick_up_checkpoint_time_startup = 0;
     stats->disagg_role_leader = 0;
@@ -5722,6 +5769,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_up_missing_stable_tables_created = 0;
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
+    stats->disagg_victim_cache_app_thread_put_time = 0;
+    stats->disagg_victim_cache_put_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
@@ -5900,16 +5949,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_disaggbmwrite_latency_lt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_gt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_total_usecs = 0;
-    stats->perf_hist_fsread_latency_lt2 = 0;
-    stats->perf_hist_fsread_latency_lt5 = 0;
-    stats->perf_hist_fsread_latency_lt10 = 0;
-    stats->perf_hist_fsread_latency_lt50 = 0;
-    stats->perf_hist_fsread_latency_lt100 = 0;
-    stats->perf_hist_fsread_latency_lt250 = 0;
-    stats->perf_hist_fsread_latency_lt500 = 0;
-    stats->perf_hist_fsread_latency_lt1000 = 0;
-    stats->perf_hist_fsread_latency_gt1000 = 0;
-    stats->perf_hist_fsread_latency_total_msecs = 0;
     stats->perf_hist_fswrite_latency_lt2 = 0;
     stats->perf_hist_fswrite_latency_lt5 = 0;
     stats->perf_hist_fswrite_latency_lt10 = 0;
@@ -6196,12 +6235,38 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 }
 
 void
-__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats)
+__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        __stat_connection_clear_counters(stats);
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        __stat_connection_clear_gauges(stats);
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        __stat_connection_clear_histograms(stats);
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_connection_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_connection_clear_counters(stats);
+    __stat_connection_clear_gauges(stats);
+    __stat_connection_clear_histograms(stats);
+    __stat_connection_clear_none(stats);
+}
+
+void
+__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i)
-        __wt_stat_connection_clear_single(stats[i]);
+        __wt_stat_connection_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -6247,12 +6312,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
     to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
-    to->block_cache_cold_not_cached += WT_STAT_CONN_READ(from, block_cache_cold_not_cached);
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
-    to->block_cache_put_failures += WT_STAT_CONN_READ(from, block_cache_put_failures);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
-    to->block_cache_put_time_max += WT_STAT_CONN_READ(from, block_cache_put_time_max);
     to->block_cache_not_evicted_overhead +=
       WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
@@ -6263,13 +6325,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_hits += WT_STAT_CONN_READ(from, block_cache_hits);
     to->block_cache_misses += WT_STAT_CONN_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_CONN_READ(from, block_cache_bypass_chkpt);
-    to->block_cache_puts += WT_STAT_CONN_READ(from, block_cache_puts);
-    to->block_cache_app_thread_puts += WT_STAT_CONN_READ(from, block_cache_app_thread_puts);
     to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
-    to->block_cache_app_thread_put_time += WT_STAT_CONN_READ(from, block_cache_app_thread_put_time);
     to->block_cache_blocks_removed_blocked +=
       WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
-    to->block_cache_put_time += WT_STAT_CONN_READ(from, block_cache_put_time);
     to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
@@ -6907,7 +6965,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_equals_error += WT_STAT_CONN_READ(from, cursor_equals_error);
     to->cursor_get_key_error += WT_STAT_CONN_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
-    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
     to->cursor_insert_bytes += WT_STAT_CONN_READ(from, cursor_insert_bytes);
     to->cursor_largest_key_error += WT_STAT_CONN_READ(from, cursor_largest_key_error);
@@ -6952,6 +7009,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
+    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
@@ -6977,6 +7035,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweep_dead_close += WT_STAT_CONN_READ(from, dh_sweep_dead_close);
     to->dh_sweep_remove += WT_STAT_CONN_READ(from, dh_sweep_remove);
     to->dh_sweep_expired_close += WT_STAT_CONN_READ(from, dh_sweep_expired_close);
+    to->dh_sweep_ingest_close += WT_STAT_CONN_READ(from, dh_sweep_ingest_close);
     to->dh_sweep_tod += WT_STAT_CONN_READ(from, dh_sweep_tod);
     to->dh_sweeps += WT_STAT_CONN_READ(from, dh_sweeps);
     to->dh_sweep_skip_ckpt += WT_STAT_CONN_READ(from, dh_sweep_skip_ckpt);
@@ -6997,16 +7056,25 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_binary_version +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_binary_version);
     to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
+    to->disagg_victim_cache_cold_not_cached +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_cold_not_cached);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_victim_cache_put_failures +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_put_failures);
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
+    to->disagg_victim_cache_put_time_max +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_put_time_max);
     to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
     to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
+    to->disagg_victim_cache_puts += WT_STAT_CONN_READ(from, disagg_victim_cache_puts);
+    to->disagg_victim_cache_app_thread_puts +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_app_thread_puts);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_pick_up_checkpoint_time_startup +=
       WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
@@ -7039,6 +7107,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_step_up_missing_stable_tables_created);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
+    to->disagg_victim_cache_app_thread_put_time +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_app_thread_put_time);
+    to->disagg_victim_cache_put_time += WT_STAT_CONN_READ(from, disagg_victim_cache_put_time);
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
@@ -7738,8 +7809,8 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
     memset(stats, 0, sizeof(*stats));
 }
 
-void
-__wt_stat_session_clear_single(WT_SESSION_STATS *stats)
+static void
+__stat_session_clear_none(WT_SESSION_STATS *stats)
 {
     stats->bytes_read = 0;
     stats->bytes_write = 0;
@@ -7754,4 +7825,24 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->cache_time = 0;
     stats->cache_time_interruptible = 0;
     stats->cache_time_mandatory = 0;
+}
+
+void
+__wt_stat_session_clear_single(WT_SESSION_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_session_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_session_clear_none(stats);
 }
