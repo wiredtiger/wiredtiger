@@ -43,7 +43,7 @@ The table above describes steady state; the rules can differ during role transit
 @section disagg-roles-coordination Coordinating a role change
 
 The application decides which node owns shared writes and coordinates elections, replication,
-and the handoff between nodes. It asks each connection to adopt the appropriate role through
+and the handoff between nodes. It asks each connection to assume the appropriate role through
 WT_CONNECTION::reconfigure with <code>disaggregated=(role=leader)</code> or
 <code>disaggregated=(role=follower)</code>.
 
@@ -67,14 +67,14 @@ change together:
 | Shared checkpoints | The leader writes the shared checkpoint; followers adopt it as a new base for reads. |
 | Shared metadata | The leader populates shared metadata with schema changes during checkpointing; followers adopt the published schema with the checkpoint. Local schema state is distinct from shared publication. |
 | Shared history store | The leader writes historical versions to shared storage. Followers read the history associated with their checkpoint. |
-| Key-provider metadata | The leader persists key-provider metadata with shared checkpoints; followers read the published metadata. |
+| Encryption key-provider metadata | The leader persists encryption key-provider metadata with shared checkpoints; followers read the published metadata. |
 | Shared table views | Step-up switches from checkpoint views to live writable tables; step-down switches to read-only checkpoint views. |
 | Eviction | A leader can reconcile shared pages. A follower reclaims covered ingest table content without writing it back to shared storage. |
 | Background work | Checkpoint cleanup is leader-only work; the deferred checkpoint pickup server runs on followers. Step-up and step-down stop or restart these services. |
 
 The table above shows how a role transition coordinates different parts of WiredTiger. See
 @ref arch-disagg-layered for layered tables, @ref arch-hs for historical versions,
-@ref arch-disagg-key-provider for key metadata, and @ref arch-eviction for page reclamation.
+@ref arch-disagg-key-provider for encryption key metadata, and @ref arch-eviction for page reclamation.
 
 @section disagg-roles-transitions Role transitions diagram
 

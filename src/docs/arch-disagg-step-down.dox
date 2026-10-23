@@ -151,11 +151,11 @@ Step-down supports two write modes for handling this situation:
 - <b>Mirrored writes:</b> with <code>disaggregated=(stepdown_write_mirroring=true)</code>, write
   transactions beginning after the step-down timestamp is set write to both constituents of
   existing layered tables. The stable table is written first, so earlier and later writers meet
-   on the same btree and use its normal conflict detection. Both copies belong to one transaction;
-   a conflict requires rollback and retry, not committing only one copy.
+  on the same btree and use its normal conflict detection. Both copies belong to one transaction;
+  a conflict requires rollback and retry, not committing only one copy.
 
 The mirroring option is set at connection open, cannot be changed through reconfiguration,
-and defaults to false. Mirroring adds stable table writes and reconciliation work, but retains
+and defaults to true. Mirroring adds stable table writes and reconciliation work, but retains
 the ingest table copy needed after the step-down reconfiguration. Stable table versions above
 N remain excluded from the concluding checkpoint. Tables created after the step-down timestamp
 is set have no stable table and remain ingest-only in either mode.
