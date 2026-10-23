@@ -29,13 +29,45 @@
 import time
 from test_cc01 import test_cc_base
 from wiredtiger import stat
+import wttest
 
-# Checkpoint cleanup must not reclaim a page whose records were deleted by a transaction that
-# is only prepared: those deletions are not committed, so the page's committed records are
-# still needed. Preparing a transaction removes its id from the global transaction table, which
-# makes the prepared stop point look globally visible to the cleanup's visibility test.
+
+# Verify checkpoint cleanup processes timestamped live pages after their timestamps become old.
+@wttest.skip_for_hook("disagg", "Checkpoint cleanup timestamp test requires standalone tables")
 class test_cc11(test_cc_base):
+    conn_config = 'statistics=(all),checkpoint_cleanup=(wait=1,file_wait_ms=0)'
 
+    def test_timestamped_insert_cleanup(self):
+        uri = 'table:cc11'
+        nrows = 10000
+        create_params = 'key_format=i,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512'
+
+        self.session.create(uri, create_params)
+        self.populate(uri, 0, nrows, 'value', 10)
+        self.session.checkpoint()
+
+        # Cleanup only considers handles that are open after the restart.
+        self.reopen_conn()
+        self.conn.set_timestamp('oldest_timestamp=11')
+        keep_open = self.session.open_cursor(uri)
+
+        pages_before = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_obsolete_tw)
+        visited_before = self.get_stat(stat.conn.checkpoint_cleanup_pages_visited)
+        self.wait_for_cc_to_run()
+        pages_after = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_obsolete_tw)
+        visited_after = self.get_stat(stat.conn.checkpoint_cleanup_pages_visited)
+        handles_processed = self.get_stat(stat.conn.checkpoint_cleanup_handle_processed)
+
+        self.assertGreater(handles_processed, 0)
+        self.assertGreater(visited_after, visited_before)
+        self.assertGreater(pages_after, pages_before)
+        keep_open.close()
+
+
+if __name__ == '__main__':
+    test_cc11.run()
+
+class test_cc11_prepared(test_cc_base):
     conn_config = 'cache_size=16MB,statistics=(all)'
     uri = 'table:cc11'
     nrows = 1000

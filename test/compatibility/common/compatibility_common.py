@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, shutil, sys
+import os, platform, re, shutil, sys
 from compatibility_config import BRANCHES, BRANCHES_DIR
 
 # Remember the top-level test directory and the top-level project directory.
@@ -120,8 +120,9 @@ def prepare_branch(branch, config):
         preset_dst = os.path.join(path, 'CMakePresets.json')
         shutil.copy(os.path.join(DIST_TOP_DIR, 'CMakePresets.json'), preset_dst)
 
-        # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
-        if branch.startswith('mongodb-') and \
+        if platform.system() == 'Darwin':
+            preset = 'default'
+        elif branch.startswith('mongodb-') and \
                 int(branch.split('-')[1].split('.')[0]) <= 7:
             preset = 'linux-v4-gcc'
         else:

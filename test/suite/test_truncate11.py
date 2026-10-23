@@ -100,10 +100,14 @@ class test_truncate11(wttest.WiredTigerTestCase):
             # Commit the transaction.
             self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(150))
             self.session.commit_transaction()
+            c1.close()
+            c2.close()
 
         finally:
             done.set()
             ckpt.join()
+
+        self.verifyUntilSuccess(uri=uri, config=None)
 
         read_deleted = self.get_stat(stat.conn.cache_read_deleted)
         self.assertLess(read_deleted, 10)

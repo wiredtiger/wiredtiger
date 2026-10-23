@@ -69,4 +69,3 @@ class test_encrypt07(test_salvage01.test_salvage01):
     # overrides test_salvage.damage.
     #def damage(self, tablename):
     #    self.damage_inner(tablename, self.rot13(self.unique).encode())
-

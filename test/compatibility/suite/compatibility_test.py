@@ -118,7 +118,7 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     return True
                 if callable(v):
                     return True
-                if module.startswith('unittest') or module == 'io':
+                if module.startswith('unittest') or module in ('io', '_io'):
                     return True
                 if k == 'captureout' or k == 'captureerr':
                     return True
