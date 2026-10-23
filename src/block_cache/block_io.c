@@ -231,19 +231,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
-        WT_STAT_CONN_DSRC_INCR(session, cache_read);
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
-        else
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
-        if (WT_SESSION_IS_CHECKPOINT(session))
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
             WT_STAT_DSRC_INCR(session, compress_read);
-        WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
-        WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
-        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
-        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
     }
 
     /*
@@ -547,20 +536,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
-        WT_STAT_CONN_DSRC_INCR(session, cache_read);
-        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
-        else
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
-        if (WT_SESSION_IS_CHECKPOINT(session))
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
             WT_STAT_DSRC_INCR(session, compress_read);
-
-        WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
-        WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
-        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
-        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
     }
 
     /* Decrypt. */
