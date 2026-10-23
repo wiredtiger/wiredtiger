@@ -1845,6 +1845,47 @@ err:
 }
 
 /*
+ * __session_verify_int --
+ *     Verify a single object, or run database-wide checks when no URI is given.
+ */
+static int
+__session_verify_int(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    bool verify_unique_id;
+
+    WT_RET(__wt_config_gets(session, cfg, "verify_unique_id", &cval));
+    verify_unique_id = cval.val != 0;
+
+    /*
+     * A NULL URI selects database-wide verification rather than any particular object. The unique
+     * btree ID check is the only database-wide check today; verifying every table in the database
+     * may be added here in the future.
+     *
+     * This is the intended entry point for database-wide checks: a caller sweeps tables with
+     * per-object verifies, then makes one NULL-URI call per sweep instead of paying for the
+     * metadata scan on every table.
+     */
+    if (uri == NULL) {
+        if (verify_unique_id)
+            WT_RET(__wt_verify_metadata_consistency(session));
+        return (0);
+    }
+
+    WT_RET(__wt_schema_worker(
+      session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+
+    /*
+     * The unique btree ID check called with an URI, may be removed depending on final decision of
+     * the validate owners.
+     */
+    if (verify_unique_id)
+        WT_RET(__wt_verify_metadata_consistency(session));
+
+    return (0);
+}
+
+/*
  * __session_verify --
  *     WT_SESSION->verify method.
  */
@@ -1859,10 +1900,8 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
-    WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_LOCK(session,
-        ret = __wt_schema_worker(
-          session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+    WT_WITH_CHECKPOINT_LOCK(
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __session_verify_int(session, uri, cfg)));
     WT_ERR(ret);
 err:
     if (ret != 0)
