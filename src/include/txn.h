@@ -99,16 +99,15 @@ typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
         WT_TXN_ISOLATION saved_iso = (s)->isolation;                                               \
         WT_TXN_ISOLATION saved_txn_iso = (s)->txn->isolation;                                      \
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(s);                                      \
-        WT_TXN_SHARED saved_txn_shared = *txn_shared;                                              \
         uint64_t txn_shared_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);               \
         uint64_t txn_shared_metadata_pinned =                                                      \
           __wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned);                         \
         uint64_t txn_shared_pinned_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id); \
-        uint64_t saved_txn_shared_id = __wt_atomic_load_uint64_v_relaxed(&saved_txn_shared.id);    \
+        uint64_t saved_txn_shared_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);         \
         uint64_t saved_txn_shared_metadata_pinned =                                                \
-          __wt_atomic_load_uint64_v_relaxed(&saved_txn_shared.metadata_pinned);                    \
+          __wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned);                         \
         uint64_t saved_txn_shared_pinned_id =                                                      \
-          __wt_atomic_load_uint64_v_relaxed(&saved_txn_shared.pinned_id);                          \
+          __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id);                               \
                                                                                                    \
         /* The following variables are only used inside an assert. */                              \
         WT_UNUSED(txn_shared_id);                                                                  \
@@ -152,9 +151,24 @@ struct __wt_txn_shared {
      */
     wt_shared wt_timestamp_t read_timestamp;
 
+    /*
+     * The state of the transaction ID allocation: WT_TXN_ID_ALLOCATING while the published ID may
+     * not be final, WT_TXN_ID_ALLOC_RETRY once a snapshot has stopped waiting for the allocation
+     * and the ID must be allocated again, otherwise WT_TXN_ID_ALLOC_DONE.
+     */
     wt_shared volatile uint8_t is_allocating;
     WT_CACHE_LINE_PAD_END
 };
+
+#define WT_TXN_ID_ALLOC_DONE 0
+#define WT_TXN_ID_ALLOCATING 1
+#define WT_TXN_ID_ALLOC_RETRY 2
+
+/*
+ * The number of times a snapshot checks a transaction that is allocating its ID before it stops
+ * waiting and makes the allocation retry.
+ */
+#define WT_TXN_ID_ALLOC_SPINS 1000
 
 /*
  * WT_PENDING_PREPARED_ITEM --
