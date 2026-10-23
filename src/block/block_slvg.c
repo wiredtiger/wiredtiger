@@ -69,7 +69,6 @@ __wt_block_salvage_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 int
 __wt_block_salvage_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    /* Salvage is ended even when it failed to start, and an in-memory block never starts one. */
     if (block->in_memory)
         return (0);
 
