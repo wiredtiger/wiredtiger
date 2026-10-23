@@ -872,6 +872,56 @@ fmt_get_key(WT_CURSOR *cursor, FMT_ID id, FMT_KEY *key)
 }
 
 /*
+ * check_sentinel_key --
+ *     The empty sentinel reads back as an empty string or item for the formats that can express it,
+ *     and get_key fails for every other format rather than unpacking nothing.
+ */
+static void
+check_sentinel_key(WT_CURSOR *cursor, FMT_ID id)
+{
+    WT_ITEM item;
+    uint64_t u;
+    int64_t q;
+    int32_t i32;
+    const char *str;
+
+    testutil_assert(cursor->key.size == 0);
+    switch (id) {
+    case FMT_S:
+        testutil_check(cursor->get_key(cursor, &str));
+        testutil_assert(str[0] == '\0');
+        break;
+    case FMT_u:
+        testutil_check(cursor->get_key(cursor, &item));
+        testutil_assert(item.size == 0);
+        break;
+    case FMT_q:
+        testutil_assert(cursor->get_key(cursor, &q) == EINVAL);
+        break;
+    case FMT_Q:
+        testutil_assert(cursor->get_key(cursor, &u) == EINVAL);
+        break;
+    case FMT_i:
+        testutil_assert(cursor->get_key(cursor, &i32) == EINVAL);
+        break;
+    case FMT_qS:
+        testutil_assert(cursor->get_key(cursor, &q, &str) == EINVAL);
+        break;
+    case FMT_Sq:
+        testutil_assert(cursor->get_key(cursor, &str, &q) == EINVAL);
+        break;
+    case FMT_qu:
+        testutil_assert(cursor->get_key(cursor, &q, &item) == EINVAL);
+        break;
+    case FMT_10uq:
+        testutil_assert(cursor->get_key(cursor, &item, &q) == EINVAL);
+        break;
+    case FMT_COUNT:
+        testutil_assert(false);
+    }
+}
+
+/*
  * fmt_cmp --
  *     Compare two unpacked keys the way their format orders them.
  */
@@ -993,6 +1043,7 @@ test_cursor_position_formats(const char *home, const char *build_dir)
                 testutil_assertfmt(!have_before,
                   "format %s position %f: empty boundary but a record precedes the page",
                   fmt_strings[id], pos);
+                check_sentinel_key(cursor, (FMT_ID)id);
                 continue;
             }
 

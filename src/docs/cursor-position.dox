@@ -119,7 +119,10 @@ Boundary keys need care:
 - The leftmost page of the object has the empty key as its boundary. The
   empty key is a sentinel meaning the start of the object: it is not
   usable as a search key or as a cursor bound, and on an object with a
-  custom collator it does not necessarily sort first. On an object with a
+  custom collator it does not necessarily sort first. The cursor's key
+  item has size zero in every format; WT_CURSOR::get_key returns an empty
+  string or item for the \c S and \c u formats and EINVAL for any other
+  packed format, which has no fields to unpack. On an object with a
   custom collator non-empty boundaries are returned as stored, which is
   the first key of the page. An empty object, or one with no internal
   pages, such as one that has never been checkpointed and still fits in a

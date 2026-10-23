@@ -1104,7 +1104,12 @@ typedef int int_void;
         elif self.is_column:
             return [self._get_recno(),]
         else:
-            return unpack(self.key_format, self._get_key())
+            key = self._get_key()
+            # The empty key marks the start of an object; it has no fields to unpack.
+            if len(key) == 0 and self.key_format not in ('u', 'S'):
+                raise WiredTigerError("the cursor's key is empty and has no %s fields" %
+                    self.key_format)
+            return unpack(self.key_format, key)
 
     def get_value(self):
         '''get_value(self) -> object
