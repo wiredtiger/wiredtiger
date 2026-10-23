@@ -410,7 +410,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         session->syncing = true;
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
-        __wt_gen_next_drain(session, WT_GEN_EVICT);
+
+        /*
+         * Wait for evictions only if this tree has one in progress. The full barrier makes sure
+         * that an eviction this check misses sees the sync state.
+         */
+        WT_FULL_BARRIER();
+        if (__wt_atomic_load_uint32_v_acquire(&btree->evict_busy) > 0)
+            __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
