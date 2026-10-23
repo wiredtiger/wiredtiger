@@ -292,7 +292,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_PAGE_MODIFY *mod;
     WT_REF *prev, *walk;
     WT_TXN *txn;
-    uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
+    uint64_t drain_start, internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
     uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
     uint64_t saved_pinned_id, t, time_start, time_stop;
     uint32_t flags, rec_flags;
@@ -410,7 +410,16 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         session->syncing = true;
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_EVICT_DRAIN);
+        drain_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
+        WT_STAT_CONN_INCR(session, checkpoint_evict_drain);
+        if (drain_start != 0)
+            WT_STAT_CONN_INCRV(session, checkpoint_evict_drain_duration,
+              WT_CLOCKDIFF_US(__wt_clock(session), drain_start));
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_SYNC_FILE);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
