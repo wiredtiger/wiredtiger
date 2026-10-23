@@ -1137,48 +1137,81 @@ ops_session_open(TINFO *tinfo)
     tinfo->session = session;
 }
 
-/* Per-thread tracking of which mode of the truncate lock this thread holds, if any. */
-typedef enum { LOCK_HELD_NONE, LOCK_HELD_READ, LOCK_HELD_WRITE } fast_truncate_lock_state_t;
+typedef struct {
+    RWLOCK *locks[V_MAX_TABLES_CONFIG + 1];
+    u_int count;
+    bool exclusive;
+} fast_truncate_lock_state_t;
+
+/*
+ * fast_truncate_lock_for_table --
+ *     Get the lock for a table or its mirror group.
+ */
+static RWLOCK *
+fast_truncate_lock_for_table(TABLE *table)
+{
+    TABLE *lock_table = table->mirror ? g.base_mirror : table;
+    return (&lock_table->fast_truncate_lock);
+}
 
 /*
  * fast_truncate_lock_acquire_read --
- *     Acquire g.fast_truncate_lock for a non-TRUNCATE write under switch mode. No-op otherwise.
+ *     Acquire shared protection for a table's writes until transaction resolution.
  */
-static WT_INLINE void
-fast_truncate_lock_acquire_read(WT_SESSION *session, fast_truncate_lock_state_t *state)
+static WT_INLINE int
+fast_truncate_lock_acquire_read(
+  WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
 {
-    if (disagg_is_mode_switch() && *state == LOCK_HELD_NONE) {
-        lock_readlock(session, &g.fast_truncate_lock);
-        *state = LOCK_HELD_READ;
+    RWLOCK *lock = fast_truncate_lock_for_table(table);
+    testutil_assert(!state->exclusive);
+    for (u_int i = 0; i < state->count; ++i)
+        if (state->locks[i] == lock)
+            return (0);
+
+    if (state->count == 0)
+        lock_readlock(session, lock);
+    else {
+        /* Waiting with other locks held can deadlock behind queued truncates. */
+        int ret = lock_try_readlock(session, lock);
+        if (ret == EBUSY)
+            return (WT_ROLLBACK);
+        testutil_check(ret);
     }
+    testutil_assert(state->count < WT_ELEMENTS(state->locks));
+    state->locks[state->count++] = lock;
+    return (0);
 }
 
 /*
  * fast_truncate_lock_acquire_write --
- *     Acquire g.fast_truncate_lock exclusively for a TRUNCATE under switch mode. Caller must have
- *     released any held rdlock first (otherwise this is a self-deadlock).
+ *     Acquire exclusive protection for a table or mirror group after releasing shared locks.
  */
 static WT_INLINE void
-fast_truncate_lock_acquire_write(WT_SESSION *session, fast_truncate_lock_state_t *state)
+fast_truncate_lock_acquire_write(
+  WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
 {
-    if (disagg_is_mode_switch() && *state == LOCK_HELD_NONE) {
-        lock_writelock(session, &g.fast_truncate_lock);
-        *state = LOCK_HELD_WRITE;
-    }
+    testutil_assert(state->count == 0);
+    RWLOCK *lock = fast_truncate_lock_for_table(table);
+    lock_writelock(session, lock);
+    state->locks[state->count++] = lock;
+    state->exclusive = true;
 }
 
 /*
  * fast_truncate_lock_release --
- *     Release g.fast_truncate_lock, dispatching by held mode. No-op if not held.
+ *     Release the transaction's truncate/write protection.
  */
 static WT_INLINE void
 fast_truncate_lock_release(WT_SESSION *session, fast_truncate_lock_state_t *state)
 {
-    if (*state == LOCK_HELD_READ)
-        lock_readunlock(session, &g.fast_truncate_lock);
-    else if (*state == LOCK_HELD_WRITE)
-        lock_writeunlock(session, &g.fast_truncate_lock);
-    *state = LOCK_HELD_NONE;
+    while (state->count != 0) {
+        RWLOCK *lock = state->locks[--state->count];
+        if (state->exclusive)
+            lock_writeunlock(session, lock);
+        else
+            lock_readunlock(session, lock);
+    }
+    state->exclusive = false;
 }
 
 /*
@@ -1205,7 +1238,7 @@ ops(void *arg)
 
     tinfo = arg;
     mirrored_truncate = false;
-    lock_state = LOCK_HELD_NONE;
+    memset(&lock_state, 0, sizeof(lock_state));
     rlog_key = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
     rlog_table_id = 0;
     rlog_ret = 0;
@@ -1546,12 +1579,15 @@ rollback_retry:
                     intxn = false;
                 }
                 fast_truncate_lock_release(session, &lock_state);
-                fast_truncate_lock_acquire_write(session, &lock_state);
+                fast_truncate_lock_acquire_write(session, table, &lock_state);
                 uint64_t read_ts = transaction_read_timestamp(tinfo);
                 begin_transaction_ts(tinfo, read_ts, false);
                 intxn = true;
-            } else if (op != READ)
-                fast_truncate_lock_acquire_read(session, &lock_state);
+            } else if (op != READ) {
+                ret = fast_truncate_lock_acquire_read(session, table, &lock_state);
+                if (ret != 0)
+                    goto rollback;
+            }
         }
 
         ret = 0;
@@ -1658,7 +1694,7 @@ skip_operation:
                 continue;
             rnd = mmrand(&tinfo->data_rnd, 1, 10);
             /* Keep serialized truncates separate from subsequent CRUD writes. */
-            if (rnd > 5 && lock_state != LOCK_HELD_WRITE)
+            if (rnd > 5 && !lock_state.exclusive)
                 continue;
         }
 

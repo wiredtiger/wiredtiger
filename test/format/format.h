@@ -178,7 +178,9 @@ typedef struct {
     table_type type;       /* table type */
     char track_prefix[32]; /* table track message prefix */
 
-    bool mirror; /* Table is in a mirrored group */
+    /* Mirror tables share the base table's truncate/write lock. */
+    bool mirror;               /* Table is in a mirrored group */
+    RWLOCK fast_truncate_lock; /* Truncate/write coordination */
 
     uint32_t max_intl_page; /* page size configurations converted to bytes */
     uint32_t max_leaf_page;
@@ -279,11 +281,6 @@ typedef struct {
 
     RWLOCK backup_lock; /* Backup running */
 
-    /*
-     * Serializes fast truncate against other writers in disagg switch mode. Truncate takes the
-     * write lock, other writers take the read lock, readers bypass.
-     */
-    RWLOCK fast_truncate_lock;
     uint64_t backup_id; /* Block incremental id */
     bool backup_incr;   /* Incremental backup */
     bool backup_verify; /* Verifying backup */
