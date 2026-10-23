@@ -335,6 +335,10 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
                     # sorts first only without a collator; the reverse collator puts it last.
                     if fmt in ('S', 'u'):
                         self.assertEqual(c.get_key(), '' if fmt == 'S' else b'')
+                    else:
+                        # Other packed formats have no fields in an empty key.
+                        self.assertRaisesRegex(wiredtiger.WiredTigerError, 'key is empty',
+                            c.get_key)
                     if not collator:
                         self.assertGreater(c.search_near(), 0)
                         self.assertEqual(c.get_key(), first)

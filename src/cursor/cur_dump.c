@@ -78,6 +78,9 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
                 fmt = "u";
             else
                 fmt = cursor->key_format;
+            /* The empty key marks the start of an object; it has no fields to unpack. */
+            if (size == 0 && !WT_STREQ(fmt, "u") && !WT_STREQ(fmt, "S"))
+                WT_ERR_MSG(session, EINVAL, "the cursor's key is empty and has no %s fields", fmt);
         }
         va_start(ap, cursor);
         ret = __wt_json_alloc_unpack(session, buffer, size, fmt, json, true, ap);
@@ -90,7 +93,8 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
         } else {
             WT_ERR(child->get_key(child, &item));
 
-            if (F_ISSET(cursor, WT_CURSTD_DUMP_PRETTY)) {
+            /* An empty key has no fields to print, show it as the empty raw item it is. */
+            if (F_ISSET(cursor, WT_CURSTD_DUMP_PRETTY) && item.size != 0) {
                 WT_IGNORE_RET(__wt_buf_set_printable_format(session, item.data, item.size,
                   cursor->key_format, F_ISSET(cursor, WT_CURSTD_DUMP_HEX), &cursor->key));
             } else

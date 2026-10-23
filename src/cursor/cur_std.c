@@ -446,8 +446,12 @@ __wti_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
             key->size = cursor->key.size;
         } else if (WT_STREQ(fmt, "S"))
             *va_arg(ap, const char **) = cursor->key.data;
-        else
+        else {
+            /* The empty key marks the start of an object; it has no fields to unpack. */
+            if (cursor->key.size == 0)
+                WT_ERR_MSG(session, EINVAL, "the cursor's key is empty and has no %s fields", fmt);
             ret = __wt_struct_unpackv(session, cursor->key.data, cursor->key.size, fmt, ap);
+        }
     }
 
 err:
