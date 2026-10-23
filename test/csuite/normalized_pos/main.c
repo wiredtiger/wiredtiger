@@ -21,6 +21,37 @@ static int verbose = 0;
 /* Exact comparison of two positions without tripping the float-equality warning. */
 #define DOUBLE_EQ(a, b) (!((a) < (b)) && !((a) > (b)))
 
+/* Key formats exercised in key-only mode. */
+typedef enum {
+    FMT_q,
+    FMT_Q,
+    FMT_i,
+    FMT_S,
+    FMT_u,
+    FMT_qS,
+    FMT_Sq,
+    FMT_qu,
+    FMT_10uq,
+    FMT_COUNT
+} FMT_ID;
+static const char *const fmt_strings[FMT_COUNT] = {
+  "q", "Q", "i", "S", "u", "qS", "Sq", "qu", "10uq"};
+static const int NUM_FMT_KEYS = 20000;
+
+/* An unpacked key: up to two fields, each tagged with its format character. */
+typedef struct {
+    char type;
+    int64_t i;
+    uint64_t u;
+    char s[32];
+    uint8_t raw[32];
+    size_t rawsize;
+} FMT_FIELD;
+typedef struct {
+    FMT_FIELD f[2];
+    int nfields;
+} FMT_KEY;
+
 /*
  * usage --
  *     Print a usage message.
@@ -228,6 +259,21 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
 
     testutil_check(cursor->close(cursor));
     testutil_check(session->close(session, ""));
+}
+
+/*
+ * position_flags --
+ *     Position the cursor at the given position with the given flags.
+ */
+static int
+position_flags(WT_CURSOR *cursor, double pos, uint32_t flags)
+{
+    WT_POSITION p;
+
+    memset(&p, 0, sizeof(p));
+    p.pos = pos;
+    p.flags = flags;
+    return (cursor->set_position(cursor, &p));
 }
 
 /*
@@ -553,8 +599,9 @@ test_cursor_position(WT_CONNECTION *conn, bool in_mem)
     testutil_check(other->set_position(other, &p));
     testutil_assert(other->key.size > 0);
     testutil_check(other->get_key(other, &str_boundary));
-    testutil_assertfmt(strlen(str_boundary) == other->key.size,
-      "key-only boundary \"%s\" is not terminated at its %" WT_SIZET_FMT " bytes", str_boundary,
+    /* A completed boundary is a packed string: its NUL terminator is part of the key. */
+    testutil_assertfmt(strlen(str_boundary) + 1 == other->key.size,
+      "key-only boundary \"%s\" is not a packed string of %" WT_SIZET_FMT " bytes", str_boundary,
       other->key.size);
     p.pos = 0.;
     testutil_check(other->set_position(other, &p));
@@ -688,6 +735,489 @@ test_cursor_position_skipped(const char *home)
 }
 
 /*
+ * fmt_insert --
+ *     Insert record i into a table of the given key format.
+ */
+static void
+fmt_insert(WT_CURSOR *cursor, FMT_ID id, int i)
+{
+    WT_ITEM item;
+    int64_t q;
+    char str[32], value[80];
+
+    q = (int64_t)(i - NUM_FMT_KEYS / 2) * 1000003;
+    switch (id) {
+    case FMT_q:
+        cursor->set_key(cursor, q);
+        break;
+    case FMT_Q:
+        cursor->set_key(cursor, (uint64_t)i * 7919);
+        break;
+    case FMT_i:
+        cursor->set_key(cursor, (int32_t)((i - NUM_FMT_KEYS / 2) * 3));
+        break;
+    case FMT_S:
+        testutil_snprintf(str, sizeof(str), "key%08d", i);
+        cursor->set_key(cursor, str);
+        break;
+    case FMT_u:
+        testutil_snprintf(str, sizeof(str), "key%08d", i);
+        item.data = str;
+        item.size = strlen(str);
+        cursor->set_key(cursor, &item);
+        break;
+    case FMT_qS:
+        testutil_snprintf(str, sizeof(str), "k%08d", i);
+        cursor->set_key(cursor, (int64_t)(i / 7 - NUM_FMT_KEYS / 14) * 1000003, str);
+        break;
+    case FMT_Sq:
+        testutil_snprintf(str, sizeof(str), "k%04d", i / 7);
+        cursor->set_key(cursor, str, (int64_t)i);
+        break;
+    case FMT_qu:
+        testutil_snprintf(str, sizeof(str), "k%08d", i);
+        item.data = str;
+        item.size = strlen(str);
+        cursor->set_key(cursor, (int64_t)(i / 7 - NUM_FMT_KEYS / 14), &item);
+        break;
+    case FMT_10uq:
+        testutil_snprintf(str, sizeof(str), "k%04d", i / 7);
+        item.data = str;
+        item.size = strlen(str);
+        cursor->set_key(cursor, &item, (int64_t)i);
+        break;
+    case FMT_COUNT:
+        testutil_assert(false);
+    }
+    memset(value, 'v', sizeof(value));
+    value[sizeof(value) - 1] = '\0';
+    cursor->set_value(cursor, value);
+    testutil_check(cursor->insert(cursor));
+}
+
+/*
+ * fmt_get_key --
+ *     Unpack the cursor's key through the public API into fields that outlive the next call.
+ */
+static void
+fmt_get_key(WT_CURSOR *cursor, FMT_ID id, FMT_KEY *key)
+{
+    WT_ITEM item;
+    int32_t i32;
+    const char *str;
+
+    memset(key, 0, sizeof(*key));
+    key->nfields = 1;
+    switch (id) {
+    case FMT_q:
+        key->f[0].type = 'q';
+        testutil_check(cursor->get_key(cursor, &key->f[0].i));
+        break;
+    case FMT_Q:
+        key->f[0].type = 'Q';
+        testutil_check(cursor->get_key(cursor, &key->f[0].u));
+        break;
+    case FMT_i:
+        key->f[0].type = 'i';
+        testutil_check(cursor->get_key(cursor, &i32));
+        key->f[0].i = i32;
+        break;
+    case FMT_S:
+        key->f[0].type = 'S';
+        testutil_check(cursor->get_key(cursor, &str));
+        testutil_snprintf(key->f[0].s, sizeof(key->f[0].s), "%s", str);
+        break;
+    case FMT_u:
+        key->f[0].type = 'u';
+        testutil_check(cursor->get_key(cursor, &item));
+        testutil_assert(item.size <= sizeof(key->f[0].raw));
+        memcpy(key->f[0].raw, item.data, item.size);
+        key->f[0].rawsize = item.size;
+        break;
+    case FMT_qS:
+        key->nfields = 2;
+        key->f[0].type = 'q';
+        key->f[1].type = 'S';
+        testutil_check(cursor->get_key(cursor, &key->f[0].i, &str));
+        testutil_snprintf(key->f[1].s, sizeof(key->f[1].s), "%s", str);
+        break;
+    case FMT_Sq:
+        key->nfields = 2;
+        key->f[0].type = 'S';
+        key->f[1].type = 'q';
+        testutil_check(cursor->get_key(cursor, &str, &key->f[1].i));
+        testutil_snprintf(key->f[0].s, sizeof(key->f[0].s), "%s", str);
+        break;
+    case FMT_qu:
+        key->nfields = 2;
+        key->f[0].type = 'q';
+        key->f[1].type = 'u';
+        testutil_check(cursor->get_key(cursor, &key->f[0].i, &item));
+        testutil_assert(item.size <= sizeof(key->f[1].raw));
+        memcpy(key->f[1].raw, item.data, item.size);
+        key->f[1].rawsize = item.size;
+        break;
+    case FMT_10uq:
+        key->nfields = 2;
+        key->f[0].type = 'u';
+        key->f[1].type = 'q';
+        testutil_check(cursor->get_key(cursor, &item, &key->f[1].i));
+        testutil_assert(item.size == 10);
+        memcpy(key->f[0].raw, item.data, item.size);
+        key->f[0].rawsize = item.size;
+        break;
+    case FMT_COUNT:
+        testutil_assert(false);
+    }
+}
+
+/*
+ * fmt_cmp --
+ *     Compare two unpacked keys the way their format orders them.
+ */
+static int
+fmt_cmp(const FMT_KEY *a, const FMT_KEY *b)
+{
+    const FMT_FIELD *fa, *fb;
+    size_t len;
+    int cmp, n;
+
+    for (n = 0; n < a->nfields; ++n) {
+        fa = &a->f[n];
+        fb = &b->f[n];
+        switch (fa->type) {
+        case 'q':
+        case 'i':
+            cmp = fa->i < fb->i ? -1 : fa->i > fb->i ? 1 : 0;
+            break;
+        case 'Q':
+            cmp = fa->u < fb->u ? -1 : fa->u > fb->u ? 1 : 0;
+            break;
+        case 'S':
+            cmp = strcmp(fa->s, fb->s);
+            break;
+        case 'u':
+            len = WT_MIN(fa->rawsize, fb->rawsize);
+            cmp = memcmp(fa->raw, fb->raw, len);
+            if (cmp == 0)
+                cmp = fa->rawsize < fb->rawsize ? -1 : fa->rawsize > fb->rawsize ? 1 : 0;
+            break;
+        default:
+            testutil_assert(false);
+        }
+        if (cmp != 0)
+            return (cmp);
+    }
+    return (0);
+}
+
+/*
+ * test_cursor_position_formats --
+ *     Key-only boundaries of tables with typed and multi-column key formats unpack through the
+ *     public API and separate the page from the records before it in the format's own order. A
+ *     table with a custom collator returns the separator as stored.
+ */
+static void
+test_cursor_position_formats(const char *home, const char *build_dir)
+{
+    WT_CONNECTION *conn;
+    WT_CURSOR *cursor;
+    WT_ITEM first_raw;
+    WT_SESSION *session;
+    WT_SESSION_IMPL *wt_session;
+    FMT_KEY before, boundary, first;
+    double pos;
+    int64_t q, q_first;
+    int exact_cmp, i, id;
+    char config[1024], table_config[128], fmt_uri[64];
+    bool have_before;
+    static const char *const rev_uri = "file:normalized_pos_rev.wt";
+
+    if (build_dir != NULL)
+        testutil_snprintf(config, sizeof(config),
+          "create,cache_size=100MB,extensions=[%s/ext/collators/reverse/"
+          "libwiredtiger_reverse_collator.so]",
+          build_dir);
+    else
+        testutil_snprintf(config, sizeof(config), "create,cache_size=100MB");
+
+    testutil_check(wiredtiger_open(home, NULL, config, &conn));
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    for (id = 0; id < FMT_COUNT; ++id) {
+        testutil_snprintf(
+          fmt_uri, sizeof(fmt_uri), "file:normalized_pos_fmt_%s.wt", fmt_strings[id]);
+        testutil_snprintf(table_config, sizeof(table_config),
+          "key_format=%s,value_format=S,leaf_page_max=4KB,internal_page_max=4KB", fmt_strings[id]);
+        testutil_check(session->create(session, fmt_uri, table_config));
+        testutil_check(session->open_cursor(session, fmt_uri, NULL, NULL, &cursor));
+        for (i = 0; i < NUM_FMT_KEYS; ++i)
+            fmt_insert(cursor, (FMT_ID)id, i);
+        testutil_check(cursor->close(cursor));
+    }
+    if (build_dir != NULL) {
+        testutil_check(session->create(session, rev_uri,
+          "key_format=q,value_format=S,collator=reverse,leaf_page_max=4KB,internal_page_max=4KB"));
+        testutil_check(session->open_cursor(session, rev_uri, NULL, NULL, &cursor));
+        for (i = 0; i < NUM_FMT_KEYS; ++i)
+            fmt_insert(cursor, FMT_q, i);
+        testutil_check(cursor->close(cursor));
+    }
+    testutil_check(session->checkpoint(session, NULL));
+    testutil_check(conn->close(conn, ""));
+
+    /* Read the trees back from disk, with the separators reconciliation wrote. */
+    testutil_check(wiredtiger_open(home, NULL, config, &conn));
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    wt_session = (WT_SESSION_IMPL *)session;
+
+    for (id = 0; id < FMT_COUNT; ++id) {
+        if (verbose)
+            printf("  format %s\n", fmt_strings[id]);
+        testutil_snprintf(
+          fmt_uri, sizeof(fmt_uri), "file:normalized_pos_fmt_%s.wt", fmt_strings[id]);
+        testutil_check(session->open_cursor(session, fmt_uri, NULL, NULL, &cursor));
+        for (i = 0; i <= NUM_SAMPLES; ++i) {
+            pos = (double)i / NUM_SAMPLES;
+
+            testutil_check(position_flags(cursor, pos, WT_POSITION_ANCHOR_FIRST));
+            fmt_get_key(cursor, (FMT_ID)id, &first);
+            have_before = cursor->prev(cursor) == 0;
+            if (have_before)
+                fmt_get_key(cursor, (FMT_ID)id, &before);
+
+            /* The leftmost page's boundary is the empty sentinel whatever the format. */
+            testutil_check(position_flags(cursor, pos, WT_POSITION_KEY_ONLY));
+            if (i == 0)
+                testutil_assert(cursor->key.size == 0);
+            if (cursor->key.size == 0) {
+                testutil_assertfmt(!have_before,
+                  "format %s position %f: empty boundary but a record precedes the page",
+                  fmt_strings[id], pos);
+                continue;
+            }
+
+            /* The boundary unpacks and separates the page from what precedes it. */
+            fmt_get_key(cursor, (FMT_ID)id, &boundary);
+            testutil_assertfmt(fmt_cmp(&boundary, &first) <= 0,
+              "format %s position %f: boundary sorts after the page's first key", fmt_strings[id],
+              pos);
+            if (have_before)
+                testutil_assertfmt(fmt_cmp(&before, &boundary) < 0,
+                  "format %s position %f: boundary does not sort after the previous page",
+                  fmt_strings[id], pos);
+
+            testutil_check(cursor->search_near(cursor, &exact_cmp));
+            fmt_get_key(cursor, (FMT_ID)id, &boundary);
+            testutil_assert(exact_cmp >= 0 && fmt_cmp(&boundary, &first) == 0);
+        }
+        testutil_check(cursor->close(cursor));
+    }
+
+    if (build_dir != NULL) {
+        if (verbose)
+            printf("  reverse collator\n");
+        WT_CLEAR(first_raw);
+        testutil_check(session->open_cursor(session, rev_uri, NULL, NULL, &cursor));
+        for (i = 0; i <= NUM_SAMPLES; ++i) {
+            pos = (double)i / NUM_SAMPLES;
+            testutil_check(position_flags(cursor, pos, WT_POSITION_ANCHOR_FIRST));
+            testutil_check(cursor->get_key(cursor, &q_first));
+            testutil_check(
+              __wt_buf_set(wt_session, &first_raw, cursor->key.data, cursor->key.size));
+
+            /* With a collator separators are never shortened: the boundary is the first key. */
+            testutil_check(position_flags(cursor, pos, WT_POSITION_KEY_ONLY));
+            if (i == 0)
+                testutil_assert(cursor->key.size == 0);
+            if (cursor->key.size == 0)
+                continue;
+            testutil_check(cursor->get_key(cursor, &q));
+            testutil_assert(q == q_first);
+            testutil_assert(cursor->key.size == first_raw.size &&
+              memcmp(cursor->key.data, first_raw.data, first_raw.size) == 0);
+        }
+        __wt_buf_free(wt_session, &first_raw);
+        testutil_check(cursor->close(cursor));
+    }
+
+    testutil_check(conn->close(conn, ""));
+}
+
+/*
+ * check_separator --
+ *     Check the stored separator of the page holding a key is the given single byte: the cut right
+ *     after the first byte of an encoding that completion has to handle. A page in slot 0 of its
+ *     parent carries no separator of its own, so the check only applies when the page has one.
+ */
+static void
+check_separator(WT_CURSOR *cursor, uint8_t expected)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_PAGE_INDEX *pindex;
+    WT_SESSION_IMPL *wt_session;
+    size_t size;
+    uint32_t slot;
+    const uint8_t *data;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    wt_session = CUR2S(cbt);
+    testutil_check(cursor->search(cursor));
+    WT_WITH_PAGE_INDEX(wt_session, __wt_ref_index_slot(wt_session, cbt->ref, &pindex, &slot));
+    if (slot == 0) {
+        printf(
+          "page of the pinned edge key is the first child of its parent, separator not "
+          "checked\n");
+        return;
+    }
+    __wt_ref_key_home(cbt->ref, &data, &size);
+    testutil_assertfmt(size == 1 && data[0] == expected,
+      "separator is %" WT_SIZET_FMT " bytes starting 0x%02x, expected the single byte 0x%02x", size,
+      size == 0 ? 0 : data[0], expected);
+}
+
+/*
+ * check_int_edges --
+ *     Walk a table of consecutive integer keys with one record per page and check every page's
+ *     boundary against its first key and the record before it.
+ */
+static void
+check_int_edges(WT_SESSION *session, const char *table_uri, bool is_signed)
+{
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_POSITION p;
+    double pos;
+    uint64_t boundary_u, key_u, prev_u;
+    int64_t boundary_q, key_q, prev_q;
+    bool first_on_page, have_prev;
+
+    testutil_check(session->open_cursor(session, table_uri, NULL, NULL, &cursor));
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    have_prev = false;
+    prev_q = 0;
+    prev_u = 0;
+    while ((ret = cursor->next(cursor)) == 0) {
+        if (is_signed)
+            testutil_check(cursor->get_key(cursor, &key_q));
+        else
+            testutil_check(cursor->get_key(cursor, &key_u));
+        first_on_page = cbt->slot == 0 && cbt->ins == NULL;
+        testutil_check(cursor->get_position(cursor, &pos));
+
+        memset(&p, 0, sizeof(p));
+        p.pos = pos;
+        p.flags = WT_POSITION_KEY_ONLY;
+        testutil_check(cursor->set_position(cursor, &p));
+        if (cursor->key.size != 0) {
+            if (is_signed) {
+                testutil_check(cursor->get_key(cursor, &boundary_q));
+                testutil_assertfmt(boundary_q <= key_q,
+                  "boundary %" PRId64 " is above record %" PRId64, boundary_q, key_q);
+                if (first_on_page && have_prev)
+                    testutil_assertfmt(boundary_q > prev_q,
+                      "boundary %" PRId64 " is not above the previous page's %" PRId64, boundary_q,
+                      prev_q);
+            } else {
+                testutil_check(cursor->get_key(cursor, &boundary_u));
+                testutil_assertfmt(boundary_u <= key_u,
+                  "boundary %" PRIu64 " is above record %" PRIu64, boundary_u, key_u);
+                if (first_on_page && have_prev)
+                    testutil_assertfmt(boundary_u > prev_u,
+                      "boundary %" PRIu64 " is not above the previous page's %" PRIu64, boundary_u,
+                      prev_u);
+            }
+        }
+
+        /* Key-only positioning dropped the position: return to the record and move on. */
+        if (is_signed) {
+            cursor->set_key(cursor, key_q);
+            prev_q = key_q;
+        } else {
+            cursor->set_key(cursor, key_u);
+            prev_u = key_u;
+        }
+        testutil_check(cursor->search(cursor));
+        have_prev = true;
+    }
+    testutil_assert(ret == WT_NOTFOUND);
+    testutil_check(cursor->close(cursor));
+}
+
+/*
+ * test_cursor_position_int_edges --
+ *     Consecutive integer keys spanning the values where the packed integer encoding changes
+ *     length, so separators are cut right after the first byte of an encoding. Values just under
+ *     the overflow threshold fill a 1KB page on their own, so the checkpointed tree has one record
+ *     per page and a boundary at every key.
+ */
+static void
+test_cursor_position_int_edges(const char *home)
+{
+    WT_CONNECTION *conn;
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
+    int64_t q;
+    char val_str[500];
+    static const char *const q_uri = "file:normalized_pos_edge_q.wt";
+    static const char *const u_uri = "file:normalized_pos_edge_Q.wt";
+    static const char *const table_config =
+      "value_format=S,leaf_page_max=1KB,leaf_value_max=600,allocation_size=1KB";
+    char config[128];
+
+    memset(val_str, 'A', sizeof(val_str));
+    val_str[sizeof(val_str) - 1] = '\0';
+
+    testutil_check(wiredtiger_open(home, NULL, "create,cache_size=100MB", &conn));
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    testutil_snprintf(config, sizeof(config), "key_format=Q,%s", table_config);
+    testutil_check(session->create(session, u_uri, config));
+    testutil_check(session->open_cursor(session, u_uri, NULL, NULL, &cursor));
+    for (q = 8000; q <= 9000; ++q) {
+        cursor->set_key(cursor, (uint64_t)q);
+        cursor->set_value(cursor, val_str);
+        testutil_check(cursor->insert(cursor));
+    }
+    testutil_check(cursor->close(cursor));
+
+    testutil_snprintf(config, sizeof(config), "key_format=q,%s", table_config);
+    testutil_check(session->create(session, q_uri, config));
+    testutil_check(session->open_cursor(session, q_uri, NULL, NULL, &cursor));
+    for (q = -9000; q <= 9000; q = q == -8000 ? 8000 : q + 1) {
+        cursor->set_key(cursor, q);
+        cursor->set_value(cursor, val_str);
+        testutil_check(cursor->insert(cursor));
+    }
+    testutil_check(cursor->close(cursor));
+
+    testutil_check(session->checkpoint(session, NULL));
+    testutil_check(conn->close(conn, ""));
+
+    /* The tree read back from disk does not change under the checks. */
+    testutil_check(wiredtiger_open(home, NULL, "cache_size=100MB", &conn));
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    /*
+     * 8256 is the first value with the positive multi-byte marker and 8255 the last two-byte one;
+     * -8256 is the first two-byte negative value and -8257 the last multi-byte one. Both separators
+     * are cut to the marker byte alone.
+     */
+    testutil_check(session->open_cursor(session, u_uri, NULL, NULL, &cursor));
+    cursor->set_key(cursor, (uint64_t)8256);
+    check_separator(cursor, 0xe1);
+    testutil_check(cursor->close(cursor));
+    testutil_check(session->open_cursor(session, q_uri, NULL, NULL, &cursor));
+    cursor->set_key(cursor, (int64_t)-8256);
+    check_separator(cursor, 0x20);
+    testutil_check(cursor->close(cursor));
+
+    check_int_edges(session, u_uri, false);
+    check_int_edges(session, q_uri, true);
+    testutil_check(conn->close(conn, ""));
+}
+
+/*
  * run --
  *     Run the test.
  *
@@ -699,7 +1229,7 @@ test_cursor_position_skipped(const char *home)
  *     change of the underlying btree during the test.
  */
 static void
-run(const char *working_dir, bool in_mem)
+run(const char *working_dir, const char *build_dir, bool in_mem)
 {
     WT_CONNECTION *conn;
     char home[1024];
@@ -733,6 +1263,14 @@ run(const char *working_dir, bool in_mem)
         if (verbose)
             printf(" skipped\n");
         test_cursor_position_skipped(home);
+        if (verbose)
+            printf(" formats\n");
+        testutil_recreate_dir(home);
+        test_cursor_position_formats(home, build_dir);
+        if (verbose)
+            printf(" integer edges\n");
+        testutil_recreate_dir(home);
+        test_cursor_position_int_edges(home);
     }
 
     testutil_remove(home);
@@ -745,10 +1283,18 @@ run(const char *working_dir, bool in_mem)
 int
 main(int argc, char *argv[])
 {
+    TEST_OPTS opts;
     int ch;
     const char *working_dir;
 
     working_dir = "WT_TEST.normalized_pos";
+
+    /* The reverse collator extension is loaded from the build tree when it can be located. */
+    memset(&opts, 0, sizeof(opts));
+    opts.argv0 = argv[0];
+    testutil_deduce_build_dir(&opts);
+    if (opts.build_dir == NULL)
+        printf("build directory not found from %s: skipping the collator check\n", argv[0]);
 
     while ((ch = __wt_getopt(progname, argc, argv, "h:v")) != EOF)
         switch (ch) {
@@ -768,9 +1314,10 @@ main(int argc, char *argv[])
 
     if (verbose)
         printf("mem\n");
-    run(working_dir, true);
+    run(working_dir, opts.build_dir, true);
     if (verbose)
         printf("disk\n");
-    run(working_dir, false);
+    run(working_dir, opts.build_dir, false);
+    free(opts.build_dir);
     return 0;
 }

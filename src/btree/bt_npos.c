@@ -670,6 +670,13 @@ __wt_btcur_set_position(WT_CURSOR_BTREE *cbt, WT_POSITION *position)
     if (LF_ISSET(WT_POSITION_KEY_ONLY)) {
         WT_WITH_PAGE_INDEX(session, ret = __npos_key(session, npos, read_flags, &cursor->key));
         WT_TRET(__cursor_reset(cbt));
+        /*
+         * Without a collator the key order is the byte order and reconciliation shortens separators
+         * to a prefix, so finish the prefix into a key of the format that still separates the
+         * pages. The leftmost sentinel stays empty.
+         */
+        if (ret == 0 && CUR2BT(cbt)->collator == NULL)
+            ret = __wt_struct_complete_prefix(session, CUR2BT(cbt)->key_format, &cursor->key);
         if (ret == 0)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
         return (ret);

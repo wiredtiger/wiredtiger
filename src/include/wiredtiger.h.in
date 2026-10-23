@@ -758,10 +758,10 @@ struct __wt_cursor {
      * With ::WT_POSITION_KEY_ONLY no leaf page is read: the key is set to the
      * boundary key of the addressed page, exactly as if WT_CURSOR::set_key had
      * been called, and the cursor ends with no position. Follow the call with
-     * WT_CURSOR::search_near to reach a record. Boundary keys are prefixes of
-     * record keys: a string-format key is returned as a string, but a key of
-     * another typed format such as \c q may not unpack and should be read
-     * through a cursor opened in raw mode. The leftmost page has the empty
+     * WT_CURSOR::search_near to reach a record. Boundary keys are complete
+     * keys in the object's key format that need not exist in the object: a
+     * boundary is greater than every key on the preceding page and no greater
+     * than the first key on its own page. The leftmost page has the empty
      * key as its boundary: a sentinel for the start of the object, not a key
      * usable for a search or a bound. An object with no internal pages, for
      * example one never checkpointed that fits in a single in-memory page,
