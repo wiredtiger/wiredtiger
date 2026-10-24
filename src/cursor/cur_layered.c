@@ -519,6 +519,7 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
   WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
 {
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
 
     op->clayered = clayered;
     op->ingest = LF_ISSET(CLAYERED_ENTER_OPEN_INGEST) ? clayered->ingest_cursor : NULL;
@@ -526,6 +527,14 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
+
+    /*
+     * Every operation needs a constituent. A transaction older than a step-down-created table,
+     * reading it while the role change is in flight, can end up with neither: the step-down walk
+     * clears the table's step-down-created mark before it publishes the follower role.
+     */
+    WT_ASSERT_ALWAYS(session, op->ingest != NULL || op->stable != NULL,
+      "layered cursor operation has neither an ingest nor a stable constituent");
 
     op->write_target = __clayered_write_target_for_op(clayered, op, mode, role);
 }
@@ -610,6 +619,14 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
+
+    /*
+     * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
+     * records the generation of no snapshot at all and a context change goes unnoticed. This must
+     * follow the stable open: the follower refuses to bind a snapshot that predates a checkpoint
+     * adoption.
+     */
+    __wt_txn_cursor_op(session);
 
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
@@ -1187,23 +1204,22 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
 
     const uint64_t snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
     const uint64_t read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
+    const uint32_t txn_mod_count = session->txn->mod_count;
 
     /*
-     * If the transaction context has changed since the last call (different read timestamp or a new
-     * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
-     * flags to force a re-search under the new context.
-     *
-     * FIXME-WT-17960: a context change while ingest is stalled on a prepare conflict leaves stable
-     * parked under the old context with no anchor to re-search it from.
+     * If the transaction context has changed since the last call (different read timestamp, a new
+     * snapshot, or a write by this transaction through another cursor), the parked alternate
+     * cursor's cached position and value may be stale. Clear the iteration flags to force a
+     * re-search under the new context. While ingest is stalled on a prepare conflict the parked
+     * stable position is kept and rechecked instead, see __clayered_advance_positioned.
      */
-    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp) {
-        WT_ASSERT(session,
-          !__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor));
+    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp ||
+      clayered->txn_mod_count != txn_mod_count)
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    }
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
+    clayered->txn_mod_count = txn_mod_count;
     clayered->last_role = role;
 }
 
@@ -1216,12 +1232,12 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
 {
     WT_CURSOR *c, *cursor;
     WT_LAYERED_TABLE *layered;
-    const char *ckpt_cfg[2] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+    const char *cfg[2] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     c = &clayered->iface;
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
-    WT_RET(__wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &cursor));
+    WT_RET(__wt_open_cursor(session, layered->ingest_uri, c, cfg, &cursor));
 
     /*
      * We always open ingest in overwrite mode to be able to rewrite tombstones with insert().
@@ -1354,7 +1370,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
         /* Open stable the first time if needed, unless the constituent does not exist yet. */
         if (!__wt_atomic_load_bool_relaxed(
               &((WT_LAYERED_TABLE *)clayered->dhandle)->step_down_created) &&
-          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
+          !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
@@ -1708,7 +1724,8 @@ __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
 
     /* Only valid on stable tables during step up to leader, routed via WT_SESSION_INGEST_REPLAY. */
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_INGEST_REPLAY));
-    WT_ASSERT(session, WT_URI_IS_STABLE(trunc_info->start->internal_uri));
+    WT_ASSERT(session,
+      __wt_dhandle_shared_btree_kind(CUR2BT(trunc_info->start)->dhandle) == WT_SHARED_BTREE_LIVE);
     WT_ASSERT(session, __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /* Both boundary cursors must be fully positioned. */
@@ -1913,35 +1930,30 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
 
     /*
      * If the current cursor was blocked by a prepared conflict on a previous call, drive it again:
-     * this rechecks the key it is currently blocked on rather than stepping past it. Once the
-     * conflict resolves, the current cursor has a key, which is needed to position the alternate.
+     * this rechecks the key it is currently blocked on rather than stepping past it.
      */
     if (__clayered_ingest_prepare_blocked(op, c_current)) {
         /*
-         * The alternate (stable) cursor is deliberately not repositioned here. A set iteration flag
-         * guarantees the read context is unchanged since the last positioned step - a new snapshot
-         * or read timestamp clears the flag in __clayered_update_state - so the stable cursor still
-         * holds its correct position, and prepared updates never move it. A context change would
-         * clear the flag and route us through the alternate-positioning branch below instead.
+         * The alternate (stable) cursor keeps its parked position: the blocked cursor carries no
+         * key to re-search it from, and the key it resolves to may lie past stable keys that still
+         * have to be returned. Writes by this transaction during the stall cannot reveal stable
+         * keys, only a truncate can hide the parked one, so recheck it against the truncate list
+         * regardless of the iteration flag. The parked position may legitimately be exhausted.
          *
-         * That correct position may be exhausted: on a walk where the stable cursor ran out of keys
-         * before ingest, it is legitimately unpositioned here. The assert below therefore checks
-         * the alternate's identity and the iteration flag rather than requiring it to carry a key.
+         * FIXME-WT-17960: a read timestamp change during the stall can reveal stable keys before
+         * the parked position, and there is no anchor to re-search them from.
          */
-        WT_ASSERT(CUR2S(clayered),
-          c_alternate == op->stable &&
-            F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV));
+        WT_ASSERT(CUR2S(clayered), c_alternate == op->stable);
+        if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT))
+            WT_RET_NOTFOUND_OK(__clayered_reposition_truncate_iterate(op, c_alternate, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, c_current, forward));
         current_moved = true;
-    } else if (!F_ISSET(clayered, iter_flag)) {
+    } else if (!F_ISSET(clayered, iter_flag))
         /*
          * The current cursor is positioned but `iter_flag` is not set, so the alternate cannot be
-         * trusted and must be positioned from the current key. A prepared conflict is never handled
-         * here: that case always has `iter_flag` set and is taken by the branch above.
+         * trusted and must be positioned from the current key.
          */
-        WT_ASSERT(CUR2S(clayered), !__clayered_ingest_prepare_blocked(op, c_current));
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
-    }
 
     /*
      * When both constituents are positioned on the same key, advance the alternate too so the key
@@ -2026,8 +2038,9 @@ __clayered_iterate_finish(
  *     cursor - the stable cursor ignores prepared updates - and a prepared conflict clears the
  *     ingest cursor's WT_CURSTD_KEY_INT while leaving its page reference intact. A walk blocked
  *     this way is therefore detected through the reference rather than the key, and on the next
- *     call the ingest cursor is driven again so it rechecks the key it is currently blocked on
- *     before the alternate is positioned.
+ *     call the ingest cursor is driven again so it rechecks the key it is currently blocked on. The
+ *     stable cursor keeps its parked position across the stall, rechecked against truncates by this
+ *     transaction.
  */
 static int
 __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
@@ -3831,7 +3844,8 @@ __clayered_close_int(WT_CURSOR *cursor)
 
     dead = F_ISSET(cursor, WT_CURSTD_DEAD);
     session = CUR2S(cursor);
-    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
+    WT_ASSERT_ALWAYS(session,
+      session->dhandle == NULL || session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
       "Valid layered dhandle is required to close a cursor");
     clayered = (WTI_CURSOR_LAYERED *)cursor;
 
@@ -4387,10 +4401,11 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     if (0) {
 err:
         /* Our caller expects to release the data handles if we fail. */
-        clayered->dhandle = NULL;
         __wt_cursor_dhandle_decr_use(session);
-        if (clayered != NULL)
+        if (clayered != NULL) {
+            clayered->dhandle = NULL;
             WT_TRET(__clayered_close(cursor));
+        }
         WT_TRET(__wt_session_release_dhandle(session));
 
         *cursorp = NULL;

@@ -305,7 +305,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls that return an error",
-  "cursor: cursor insert check calls that return an error",
   "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls that return an error",
   "cursor: cursor next calls that return an error",
@@ -336,6 +335,12 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: open cursor time internal (usecs)",
   "cursor: operation restarted",
   "cursor: prev calls",
+  "cursor: range truncate fast-delete candidates in memory or busy",
+  "cursor: range truncate fast-delete candidates rejected",
+  "cursor: range truncate fast-delete pages",
+  "cursor: range truncate fast-delete skipped, all entries already deleted",
+  "cursor: range truncate internal page bytes newly dirtied",
+  "cursor: range truncate internal pages newly dirtied",
   "cursor: remove calls",
   "cursor: remove key bytes removed",
   "cursor: reserve calls",
@@ -408,8 +413,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
   "reconciliation: dictionary matches",
-  "reconciliation: fast-path page deletion skipped, all entries already deleted",
-  "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full internal pages written instead of a page delta for the shared history "
@@ -519,6 +522,510 @@ __wt_stat_dsrc_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
     return (0);
 }
 
+static const int __stats_dsrc_otel_none[] = {
+  WT_STAT_DSRC_AUTOCOMMIT_READONLY_RETRY,
+  WT_STAT_DSRC_AUTOCOMMIT_UPDATE_RETRY,
+  WT_STAT_DSRC_BACKUP_BLOCKS_COMPRESSED,
+  WT_STAT_DSRC_BACKUP_BLOCKS_UNCOMPRESSED,
+  WT_STAT_DSRC_DISAGG_BLOCK_HS_BYTE_READ,
+  WT_STAT_DSRC_DISAGG_BLOCK_HS_BYTE_WRITE,
+  WT_STAT_DSRC_DISAGG_BLOCK_GET,
+  WT_STAT_DSRC_DISAGG_BLOCK_GET_COLD,
+  WT_STAT_DSRC_DISAGG_BLOCK_HS_GET,
+  WT_STAT_DSRC_DISAGG_BLOCK_PLH_PUT_FAILED,
+  WT_STAT_DSRC_DISAGG_BLOCK_PAGE_DISCARD,
+  WT_STAT_DSRC_DISAGG_BLOCK_PUT,
+  WT_STAT_DSRC_DISAGG_BLOCK_PUT_COLD,
+  WT_STAT_DSRC_DISAGG_BLOCK_HS_PUT,
+  WT_STAT_DSRC_DISAGG_BLOCK_READ_AHEAD_FRONTIER,
+  WT_STAT_DSRC_BLOCK_EXTENSION,
+  WT_STAT_DSRC_BLOCK_ALLOC,
+  WT_STAT_DSRC_BLOCK_FREE,
+  WT_STAT_DSRC_BLOCK_CHECKPOINT_SIZE,
+  WT_STAT_DSRC_ALLOCATION_SIZE,
+  WT_STAT_DSRC_BLOCK_REUSE_BYTES,
+  WT_STAT_DSRC_BLOCK_MAGIC,
+  WT_STAT_DSRC_BLOCK_MAJOR,
+  WT_STAT_DSRC_BLOCK_SIZE,
+  WT_STAT_DSRC_BLOCK_MINOR,
+  WT_STAT_DSRC_BTREE_SIZE_DELETED_KEY_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_DELETED_KEY_COUNT,
+  WT_STAT_DSRC_BTREE_SIZE_DELETED_VALUE_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_DELETED_VALUE_COUNT,
+  WT_STAT_DSRC_BTREE_SIZE_INTERNAL_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_INTERNAL_PAGES,
+  WT_STAT_DSRC_BTREE_SIZE_KEY_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_KEY_COUNT,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_0,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_1,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_2,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_3,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_4,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_5,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_6,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_7,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_8,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_BUCKETS,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_CEILING,
+  WT_STAT_DSRC_BTREE_SIZE_LEAF_PAGES,
+  WT_STAT_DSRC_BTREE_SIZE_OVERFLOW_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_OVERFLOW_PAGES,
+  WT_STAT_DSRC_BTREE_SIZE_NO_IMAGE_PAGES,
+  WT_STAT_DSRC_BTREE_SIZE_VALUE_BYTES,
+  WT_STAT_DSRC_BTREE_SIZE_VALUE_COUNT,
+  WT_STAT_DSRC_BTREE_CHECKPOINT_GENERATION,
+  WT_STAT_DSRC_BTREE_CLEAN_CHECKPOINT_TIMER,
+  WT_STAT_DSRC_BTREE_COMPACT_PAGES_SELECTED_INMEM,
+  WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED,
+  WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN,
+  WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED,
+  WT_STAT_DSRC_BTREE_COMPACT_BYTES_REWRITTEN_EXPECTED,
+  WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN_EXPECTED,
+  WT_STAT_DSRC_BTREE_CHECKPOINT_PAGES_RECONCILED,
+  WT_STAT_DSRC_BTREE_COMPACT_SKIPPED,
+  WT_STAT_DSRC_BTREE_COLUMN_INTERNAL,
+  WT_STAT_DSRC_BTREE_COLUMN_RLE,
+  WT_STAT_DSRC_BTREE_COLUMN_DELETED,
+  WT_STAT_DSRC_BTREE_COLUMN_VARIABLE,
+  WT_STAT_DSRC_BTREE_FIXED_LEN,
+  WT_STAT_DSRC_BTREE_MAXINTLPAGE,
+  WT_STAT_DSRC_BTREE_MAXLEAFKEY,
+  WT_STAT_DSRC_BTREE_MAXLEAFPAGE,
+  WT_STAT_DSRC_BTREE_MAXLEAFVALUE,
+  WT_STAT_DSRC_BTREE_MAXIMUM_DEPTH,
+  WT_STAT_DSRC_BTREE_ENTRIES,
+  WT_STAT_DSRC_BTREE_OBSOLETE_ONDISK_KV_BYTES,
+  WT_STAT_DSRC_BTREE_OBSOLETE_ONDISK_KV_BYTES_MIXED,
+  WT_STAT_DSRC_BTREE_OVERFLOW,
+  WT_STAT_DSRC_BTREE_OBSOLETE_ONDISK_KV_ANALYZED,
+  WT_STAT_DSRC_BTREE_OBSOLETE_ONDISK_KV_PAGES,
+  WT_STAT_DSRC_BTREE_ROW_EMPTY_VALUES,
+  WT_STAT_DSRC_BTREE_ROW_INTERNAL,
+  WT_STAT_DSRC_BTREE_ROW_LEAF_AVG_ENTRIES,
+  WT_STAT_DSRC_BTREE_ROW_LEAF,
+  WT_STAT_DSRC_BTREE_ROW_LEAF_PAGES,
+  WT_STAT_DSRC_BTREE_CHECKPOINT_RECONCILE_DURATION,
+  WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_LT_25,
+  WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_25_50,
+  WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_50_75,
+  WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_GT_75,
+  WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE,
+  WT_STAT_DSRC_CACHE_BYTES_INUSE,
+  WT_STAT_DSRC_CACHE_BYTES_DIRTY_TOTAL,
+  WT_STAT_DSRC_CACHE_BYTES_READ,
+  WT_STAT_DSRC_CACHE_BYTES_WRITE,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS,
+  WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY,
+  WT_STAT_DSRC_EVICTION_FAIL,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_PROGRESS,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PREFETCHED,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_UPDATES,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_CLEAN,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_DIRTY,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_UPDATES,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_CLEAN,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_DIRTY,
+  WT_STAT_DSRC_EVICTION_WALK_PASSES,
+  WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10,
+  WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32,
+  WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128,
+  WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64,
+  WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128,
+  WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_REDUCED,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_HAZARD,
+  WT_STAT_DSRC_CACHE_EVICTION_HS_CURSOR_NOT_CACHED,
+  WT_STAT_DSRC_CACHE_HS_INSERT,
+  WT_STAT_DSRC_CACHE_HS_INSERT_RESTART,
+  WT_STAT_DSRC_CACHE_HS_KEY_PROCESSED,
+  WT_STAT_DSRC_CACHE_HS_READ,
+  WT_STAT_DSRC_CACHE_HS_READ_MISS,
+  WT_STAT_DSRC_CACHE_HS_READ_SQUASH,
+  WT_STAT_DSRC_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP,
+  WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE,
+  WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS,
+  WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE,
+  WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE,
+  WT_STAT_DSRC_CACHE_HS_ORDER_REMOVE,
+  WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL,
+  WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE_DRYRUN,
+  WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN,
+  WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN,
+  WT_STAT_DSRC_CACHE_HS_UPDATE_PROCESSED,
+  WT_STAT_DSRC_CACHE_HS_ORDER_REINSERT,
+  WT_STAT_DSRC_CACHE_HS_WRITE_SQUASH,
+  WT_STAT_DSRC_CACHE_INMEM_SPLITTABLE,
+  WT_STAT_DSRC_CACHE_INMEM_SPLIT,
+  WT_STAT_DSRC_CACHE_INMEM_SPLIT_INGEST,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT,
+  WT_STAT_DSRC_CACHE_EVICTION_INTERNAL,
+  WT_STAT_DSRC_CACHE_READ_INTERNAL,
+  WT_STAT_DSRC_CACHE_EVICTION_SPLIT_INTERNAL,
+  WT_STAT_DSRC_CACHE_READ_LEAF,
+  WT_STAT_DSRC_CACHE_EVICTION_SPLIT_LEAF,
+  WT_STAT_DSRC_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT,
+  WT_STAT_DSRC_CACHE_EVICTION_DIRTY,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_READ_INTERNAL_DELTA,
+  WT_STAT_DSRC_CACHE_READ_LEAF_DELTA,
+  WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED,
+  WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_REACHED,
+  WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED,
+  WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_RACE,
+  WT_STAT_DSRC_CACHE_OBSOLETE_UPDATES_REMOVED,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS,
+  WT_STAT_DSRC_CACHE_READ_OVERFLOW,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MATERIALIZATION,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_EVICTION_DEEPEN,
+  WT_STAT_DSRC_CACHE_WRITE_HS,
+  WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW,
+  WT_STAT_DSRC_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN,
+  WT_STAT_DSRC_CACHE_READ,
+  WT_STAT_DSRC_CACHE_READ_DELETED,
+  WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED,
+  WT_STAT_DSRC_CACHE_READ_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_PAGES_REQUESTED,
+  WT_STAT_DSRC_CACHE_PAGES_PREFETCH,
+  WT_STAT_DSRC_CACHE_PAGES_REQUESTED_INTERNAL,
+  WT_STAT_DSRC_CACHE_PAGES_REQUESTED_LEAF,
+  WT_STAT_DSRC_CACHE_PAGES_REQUESTED_HS,
+  WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN,
+  WT_STAT_DSRC_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED,
+  WT_STAT_DSRC_CACHE_EVICTION_MULTIBLOCK_SPLIT_RE_RECONCILED,
+  WT_STAT_DSRC_CACHE_WRITE,
+  WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE,
+  WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT,
+  WT_STAT_DSRC_CACHE_EVICT_SPLIT_FAILED_LOCK,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_RECENTLY_MODIFIED,
+  WT_STAT_DSRC_CACHE_SCRUB_RESTORE,
+  WT_STAT_DSRC_CACHE_REVERSE_SPLITS,
+  WT_STAT_DSRC_CACHE_REVERSE_SPLITS_SKIPPED_VLCS,
+  WT_STAT_DSRC_CACHE_EVICTION_HS_SHARED_CURSOR_NOT_CACHED,
+  WT_STAT_DSRC_CACHE_READ_DELTA_UPDATES,
+  WT_STAT_DSRC_CACHE_READ_RESTORED_TOMBSTONE_BYTES,
+  WT_STAT_DSRC_CACHE_HS_INSERT_FULL_UPDATE,
+  WT_STAT_DSRC_CACHE_HS_INSERT_REVERSE_MODIFY,
+  WT_STAT_DSRC_CACHE_BYTES_DIRTY,
+  WT_STAT_DSRC_CACHE_BYTES_DIRTY_INTERNAL,
+  WT_STAT_DSRC_CACHE_BYTES_DIRTY_LEAF,
+  WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE,
+  WT_STAT_DSRC_CACHE_EVICTION_CLEAN,
+  WT_STAT_DSRC_CACHE_STATE_GEN_AVG_GAP,
+  WT_STAT_DSRC_CACHE_STATE_AVG_WRITTEN_SIZE,
+  WT_STAT_DSRC_CACHE_STATE_AVG_VISITED_AGE,
+  WT_STAT_DSRC_CACHE_STATE_AVG_UNVISITED_AGE,
+  WT_STAT_DSRC_CACHE_STATE_PAGES_CLEAN,
+  WT_STAT_DSRC_CACHE_STATE_GEN_CURRENT,
+  WT_STAT_DSRC_CACHE_STATE_PAGES_DIRTY,
+  WT_STAT_DSRC_CACHE_STATE_ROOT_ENTRIES,
+  WT_STAT_DSRC_CACHE_STATE_PAGES_INTERNAL,
+  WT_STAT_DSRC_CACHE_STATE_PAGES_LEAF,
+  WT_STAT_DSRC_CACHE_STATE_GEN_MAX_GAP,
+  WT_STAT_DSRC_CACHE_STATE_MAX_PAGESIZE,
+  WT_STAT_DSRC_CACHE_STATE_MIN_WRITTEN_SIZE,
+  WT_STAT_DSRC_CACHE_STATE_UNVISITED_COUNT,
+  WT_STAT_DSRC_CACHE_STATE_SMALLER_ALLOC_SIZE,
+  WT_STAT_DSRC_CACHE_STATE_MEMORY,
+  WT_STAT_DSRC_CACHE_STATE_QUEUED,
+  WT_STAT_DSRC_CACHE_STATE_NOT_QUEUEABLE,
+  WT_STAT_DSRC_CACHE_STATE_REFS_SKIPPED,
+  WT_STAT_DSRC_CACHE_STATE_ROOT_SIZE,
+  WT_STAT_DSRC_CACHE_STATE_PAGES,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_EVICT,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED,
+  WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_VISITED,
+  WT_STAT_DSRC_CHECKPOINT_SNAPSHOT_ACQUIRED,
+  WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE,
+  WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE,
+  WT_STAT_DSRC_COMPRESS_WRITE_FAIL,
+  WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL,
+  WT_STAT_DSRC_COMPRESS_READ,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_MAX,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_2,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_4,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_8,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_16,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_32,
+  WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_64,
+  WT_STAT_DSRC_COMPRESS_WRITE,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_MAX,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_2,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_4,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_8,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_16,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_32,
+  WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64,
+  WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP,
+  WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL,
+  WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL,
+  WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION,
+  WT_STAT_DSRC_CURSOR_TREE_WALK_READ_ONLY_DEL_INTERNAL_PAGE_SKIP,
+  WT_STAT_DSRC_CURSOR_TREE_WALK_INMEM_DEL_PAGE_SKIP,
+  WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_INTERNAL_PAGE_SKIP,
+  WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP,
+  WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS,
+  WT_STAT_DSRC_CURSOR_TREE_WALK_SKIP_LOCK_CONTENDED,
+  WT_STAT_DSRC_CURSOR_REPOSITION_FAILED,
+  WT_STAT_DSRC_CURSOR_REPOSITION,
+  WT_STAT_DSRC_CURSOR_INSERT_BULK,
+  WT_STAT_DSRC_CURSOR_REOPEN,
+  WT_STAT_DSRC_CURSOR_CACHE,
+  WT_STAT_DSRC_CURSOR_CREATE,
+  WT_STAT_DSRC_CURSOR_BOUND_ERROR,
+  WT_STAT_DSRC_CURSOR_BOUNDS_RESET,
+  WT_STAT_DSRC_CURSOR_BOUNDS_COMPARISONS,
+  WT_STAT_DSRC_CURSOR_BOUNDS_NEXT_UNPOSITIONED,
+  WT_STAT_DSRC_CURSOR_BOUNDS_NEXT_EARLY_EXIT,
+  WT_STAT_DSRC_CURSOR_BOUNDS_PREV_UNPOSITIONED,
+  WT_STAT_DSRC_CURSOR_BOUNDS_PREV_EARLY_EXIT,
+  WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_EARLY_EXIT,
+  WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_NEAR_REPOSITIONED_CURSOR,
+  WT_STAT_DSRC_CURSOR_CACHE_ERROR,
+  WT_STAT_DSRC_CURSOR_CLOSE_ERROR,
+  WT_STAT_DSRC_CURSOR_COMPARE_ERROR,
+  WT_STAT_DSRC_CURSOR_EQUALS_ERROR,
+  WT_STAT_DSRC_CURSOR_GET_KEY_ERROR,
+  WT_STAT_DSRC_CURSOR_GET_VALUE_ERROR,
+  WT_STAT_DSRC_CURSOR_INSERT_ERROR,
+  WT_STAT_DSRC_CURSOR_LARGEST_KEY_ERROR,
+  WT_STAT_DSRC_CURSOR_MODIFY_ERROR,
+  WT_STAT_DSRC_CURSOR_NEXT_ERROR,
+  WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE,
+  WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100,
+  WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100,
+  WT_STAT_DSRC_CURSOR_NEXT_RANDOM_ERROR,
+  WT_STAT_DSRC_CURSOR_PREV_ERROR,
+  WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE,
+  WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100,
+  WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100,
+  WT_STAT_DSRC_CURSOR_RECONFIGURE_ERROR,
+  WT_STAT_DSRC_CURSOR_REMOVE_ERROR,
+  WT_STAT_DSRC_CURSOR_REOPEN_ERROR,
+  WT_STAT_DSRC_CURSOR_RESERVE_ERROR,
+  WT_STAT_DSRC_CURSOR_RESET_ERROR,
+  WT_STAT_DSRC_CURSOR_SEARCH_ERROR,
+  WT_STAT_DSRC_CURSOR_SEARCH_NEAR_ERROR,
+  WT_STAT_DSRC_CURSOR_UPDATE_ERROR,
+  WT_STAT_DSRC_CURSOR_INSERT,
+  WT_STAT_DSRC_CURSOR_INSERT_BYTES,
+  WT_STAT_DSRC_CURSOR_MODIFY,
+  WT_STAT_DSRC_CURSOR_MODIFY_BYTES,
+  WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH,
+  WT_STAT_DSRC_CURSOR_NEXT,
+  WT_STAT_DSRC_CURSOR_OPEN_COUNT,
+  WT_STAT_DSRC_CURSOR_OPEN_TIME_USER_USECS,
+  WT_STAT_DSRC_CURSOR_OPEN_TIME_INTERNAL_USECS,
+  WT_STAT_DSRC_CURSOR_RESTART,
+  WT_STAT_DSRC_CURSOR_PREV,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_IN_MEMORY,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_PAGES,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_INTERNAL_BYTES_DIRTIED,
+  WT_STAT_DSRC_CURSOR_TRUNCATE_INTERNAL_PAGES_DIRTIED,
+  WT_STAT_DSRC_CURSOR_REMOVE,
+  WT_STAT_DSRC_CURSOR_REMOVE_BYTES,
+  WT_STAT_DSRC_CURSOR_RESERVE,
+  WT_STAT_DSRC_CURSOR_RESET,
+  WT_STAT_DSRC_CURSOR_SEARCH,
+  WT_STAT_DSRC_CURSOR_SEARCH_HS,
+  WT_STAT_DSRC_CURSOR_SEARCH_NEAR,
+  WT_STAT_DSRC_CURSOR_TRUNCATE,
+  WT_STAT_DSRC_CURSOR_UPDATE,
+  WT_STAT_DSRC_CURSOR_UPDATE_BYTES,
+  WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_DSRC_LAYERED_CURS_INSERT,
+  WT_STAT_DSRC_LAYERED_CURS_MODIFY,
+  WT_STAT_DSRC_LAYERED_CURS_NEXT,
+  WT_STAT_DSRC_LAYERED_CURS_NEXT_INGEST,
+  WT_STAT_DSRC_LAYERED_CURS_NEXT_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_PREV,
+  WT_STAT_DSRC_LAYERED_CURS_PREV_INGEST,
+  WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_REMOVE,
+  WT_STAT_DSRC_LAYERED_CURS_REOPEN_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR,
+  WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST,
+  WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_SEARCH,
+  WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST,
+  WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE,
+  WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED,
+  WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE,
+  WT_STAT_DSRC_LAYERED_CURS_UPDATE,
+  WT_STAT_DSRC_LAYERED_STABLE_LIVE_OPEN_REFUSED,
+  WT_STAT_DSRC_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_PREFIX,
+  WT_STAT_DSRC_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_SUFFIX,
+  WT_STAT_DSRC_LAYERED_CURS_STABLE_VALUE_TOMBSTONE,
+  WT_STAT_DSRC_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_X3,
+  WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS,
+  WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED,
+  WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_INGEST_TOMBSTONES_WRITTEN,
+  WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED,
+  WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED,
+  WT_STAT_DSRC_LAYERED_TABLE_MANAGER_SKIP_LSN,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_CALLS,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_RUNS,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_GC_ENTRIES_EXAMINED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ENTRIES_INSERTED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_CLEAR_ENTRIES_REMOVED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_ROLLBACK_ENTRIES_REMOVED,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_HITS,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_SEARCH_MISSES,
+  WT_STAT_DSRC_LAYERED_TRUNCATE_LIST_WRITE_CONFLICTS,
+  WT_STAT_DSRC_REC_VLCS_EMPTIED_PAGES,
+  WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN,
+  WT_STAT_DSRC_REC_AVERAGE_INTERNAL_PAGE_DELTA_CHAIN_LENGTH,
+  WT_STAT_DSRC_REC_AVERAGE_LEAF_PAGE_DELTA_CHAIN_LENGTH,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE5,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE10,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE20,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE50,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE100,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE200,
+  WT_STAT_DSRC_REC_PAGE_MODS_LE500,
+  WT_STAT_DSRC_REC_PAGE_MODS_GT500,
+  WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS,
+  WT_STAT_DSRC_REC_DICTIONARY,
+  WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION,
+  WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL,
+  WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_SHARED_HS_INTERNAL,
+  WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF,
+  WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_SHARED_HS_LEAF,
+  WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK,
+  WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED,
+  WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED,
+  WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL,
+  WT_STAT_DSRC_REC_PAGE_DELTA_SHARED_HS_INTERNAL,
+  WT_STAT_DSRC_REC_SUFFIX_COMPRESSION,
+  WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL,
+  WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA,
+  WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL,
+  WT_STAT_DSRC_REC_PAGE_DELTA_LEAF,
+  WT_STAT_DSRC_REC_PAGE_DELTA_SHARED_HS_LEAF,
+  WT_STAT_DSRC_REC_MULTIBLOCK_LEAF,
+  WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF,
+  WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS,
+  WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS,
+  WT_STAT_DSRC_REC_MULTIBLOCK_MAX,
+  WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE,
+  WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN,
+  WT_STAT_DSRC_REC_OVERFLOW_VALUE,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_DELETE_THRESHOLD,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_BUILD_FAILED,
+  WT_STAT_DSRC_REC_PAGES,
+  WT_STAT_DSRC_REC_PAGES_EVICTION,
+  WT_STAT_DSRC_REC_PAGES_SIZE_1MB_TO_10MB,
+  WT_STAT_DSRC_REC_PAGES_SIZE_10MB_TO_100MB,
+  WT_STAT_DSRC_REC_PAGES_SIZE_100MB_TO_1GB,
+  WT_STAT_DSRC_REC_PAGES_SIZE_1GB_PLUS,
+  WT_STAT_DSRC_REC_PAGE_DELETE,
+  WT_STAT_DSRC_REC_PAGE_DELTA_ELIGIBLE,
+  WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS,
+  WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS,
+  WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS,
+  WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN,
+  WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN,
+  WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS,
+  WT_STAT_DSRC_REC_TIME_AGGR_PREPARED,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN,
+  WT_STAT_DSRC_REC_PAGES_WITH_INTERNAL_DELTAS,
+  WT_STAT_DSRC_REC_PAGES_WITH_LEAF_DELTAS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED,
+  WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_START_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN,
+  WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS,
+  WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN,
+  WT_STAT_DSRC_REC_SKIP_WRITE,
+  WT_STAT_DSRC_SESSION_COMPACT,
+  WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT,
+  WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE,
+  WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE,
+  WT_STAT_DSRC_TXN_RTS_BTREES_APPLIED,
+  WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN,
+  WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START,
+  WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT,
+  WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED,
+  WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED,
+  WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN,
+  WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN,
+  WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN,
+  WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES,
+  WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES,
+  WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE,
+  WT_STAT_DSRC_TXN_RTS_BTREES_SKIPPED,
+  WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED,
+  WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED,
+  WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS,
+  WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN,
+  WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN,
+  WT_STAT_DSRC_TXN_RTS_HS_REMOVED,
+  WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN,
+  WT_STAT_DSRC_TXN_UPDATE_CONFLICT,
+};
+
+int
+__wt_stat_dsrc_otel_keys(uint32_t otel_flag, const int **keysp, u_int *countp)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        *keysp = NULL;
+        *countp = 0;
+        break;
+    case WT_STAT_OTEL_GAUGES:
+        *keysp = NULL;
+        *countp = 0;
+        break;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        *keysp = NULL;
+        *countp = 0;
+        break;
+    case WT_STAT_OTEL_NONE:
+        *keysp = __stats_dsrc_otel_none;
+        *countp = WT_ELEMENTS(__stats_dsrc_otel_none);
+        break;
+    default:
+        return (EINVAL);
+    }
+    return (0);
+}
+
 void
 __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats)
 {
@@ -546,8 +1053,8 @@ __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
     __wt_free(session, handle->stat_array);
 }
 
-void
-__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
+static void
+__stat_dsrc_clear_none(WT_DSRC_STATS *stats)
 {
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
@@ -829,7 +1336,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_get_key_error = 0;
     stats->cursor_get_value_error = 0;
     stats->cursor_insert_error = 0;
-    stats->cursor_insert_check_error = 0;
     stats->cursor_largest_key_error = 0;
     stats->cursor_modify_error = 0;
     stats->cursor_next_error = 0;
@@ -860,6 +1366,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cursor_open_time_internal_usecs */
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
+    stats->cursor_truncate_fast_delete_fallback_in_memory = 0;
+    stats->cursor_truncate_fast_delete_fallback_pages = 0;
+    stats->cursor_truncate_fast_delete_pages = 0;
+    stats->cursor_truncate_fast_delete_pages_skipped_already_deleted = 0;
+    stats->cursor_truncate_internal_bytes_dirtied = 0;
+    stats->cursor_truncate_internal_pages_dirtied = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
     stats->cursor_reserve = 0;
@@ -930,8 +1442,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
     stats->rec_dictionary = 0;
-    stats->rec_page_delete_fast_skip_deleted = 0;
-    stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_shared_hs_internal = 0;
@@ -1024,12 +1534,32 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 }
 
 void
-__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats)
+__wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_dsrc_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_dsrc_clear_none(stats);
+}
+
+void
+__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i)
-        __wt_stat_dsrc_clear_single(stats[i]);
+        __wt_stat_dsrc_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -1354,7 +1884,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_get_key_error += from->cursor_get_key_error;
     to->cursor_get_value_error += from->cursor_get_value_error;
     to->cursor_insert_error += from->cursor_insert_error;
-    to->cursor_insert_check_error += from->cursor_insert_check_error;
     to->cursor_largest_key_error += from->cursor_largest_key_error;
     to->cursor_modify_error += from->cursor_modify_error;
     to->cursor_next_error += from->cursor_next_error;
@@ -1385,6 +1914,15 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_open_time_internal_usecs += from->cursor_open_time_internal_usecs;
     to->cursor_restart += from->cursor_restart;
     to->cursor_prev += from->cursor_prev;
+    to->cursor_truncate_fast_delete_fallback_in_memory +=
+      from->cursor_truncate_fast_delete_fallback_in_memory;
+    to->cursor_truncate_fast_delete_fallback_pages +=
+      from->cursor_truncate_fast_delete_fallback_pages;
+    to->cursor_truncate_fast_delete_pages += from->cursor_truncate_fast_delete_pages;
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      from->cursor_truncate_fast_delete_pages_skipped_already_deleted;
+    to->cursor_truncate_internal_bytes_dirtied += from->cursor_truncate_internal_bytes_dirtied;
+    to->cursor_truncate_internal_pages_dirtied += from->cursor_truncate_internal_pages_dirtied;
     to->cursor_remove += from->cursor_remove;
     to->cursor_remove_bytes += from->cursor_remove_bytes;
     to->cursor_reserve += from->cursor_reserve;
@@ -1466,8 +2004,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_page_mods_gt500 += from->rec_page_mods_gt500;
     to->rec_hs_wrapup_next_prev_calls += from->rec_hs_wrapup_next_prev_calls;
     to->rec_dictionary += from->rec_dictionary;
-    to->rec_page_delete_fast_skip_deleted += from->rec_page_delete_fast_skip_deleted;
-    to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       from->rec_free_page_id_due_to_failed_replacement_reconciliation;
     to->rec_page_full_image_internal += from->rec_page_full_image_internal;
@@ -1937,7 +2473,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_get_key_error += WT_STAT_DSRC_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_DSRC_READ(from, cursor_get_value_error);
     to->cursor_insert_error += WT_STAT_DSRC_READ(from, cursor_insert_error);
-    to->cursor_insert_check_error += WT_STAT_DSRC_READ(from, cursor_insert_check_error);
     to->cursor_largest_key_error += WT_STAT_DSRC_READ(from, cursor_largest_key_error);
     to->cursor_modify_error += WT_STAT_DSRC_READ(from, cursor_modify_error);
     to->cursor_next_error += WT_STAT_DSRC_READ(from, cursor_next_error);
@@ -1968,6 +2503,18 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_open_time_internal_usecs += WT_STAT_DSRC_READ(from, cursor_open_time_internal_usecs);
     to->cursor_restart += WT_STAT_DSRC_READ(from, cursor_restart);
     to->cursor_prev += WT_STAT_DSRC_READ(from, cursor_prev);
+    to->cursor_truncate_fast_delete_fallback_in_memory +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
+    to->cursor_truncate_fast_delete_fallback_pages +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_pages);
+    to->cursor_truncate_fast_delete_pages +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages);
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
+    to->cursor_truncate_internal_bytes_dirtied +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_internal_bytes_dirtied);
+    to->cursor_truncate_internal_pages_dirtied +=
+      WT_STAT_DSRC_READ(from, cursor_truncate_internal_pages_dirtied);
     to->cursor_remove += WT_STAT_DSRC_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_DSRC_READ(from, cursor_remove_bytes);
     to->cursor_reserve += WT_STAT_DSRC_READ(from, cursor_reserve);
@@ -2064,9 +2611,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_DSRC_READ(from, rec_hs_wrapup_next_prev_calls);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
-    to->rec_page_delete_fast_skip_deleted +=
-      WT_STAT_DSRC_READ(from, rec_page_delete_fast_skip_deleted);
-    to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_DSRC_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
     to->rec_page_full_image_internal += WT_STAT_DSRC_READ(from, rec_page_full_image_internal);
@@ -2216,13 +2760,9 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks without compressed data",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
-  "block-cache: cold collection pages not added to the disaggregated victim cache during eviction",
   "block-cache: evicted blocks",
-  "block-cache: failed page inserts into the disaggregated victim cache",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
-  "block-cache: maximum time spent adding a single page to the disaggregated victim cache, reset "
-  "per checkpoint (usecs)",
   "block-cache: number of blocks not evicted due to overhead",
   "block-cache: number of bypasses because no-write-allocate setting was on",
   "block-cache: number of bypasses due to overhead on put",
@@ -2232,13 +2772,8 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of hits",
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
-  "block-cache: pages added to the disaggregated victim cache",
-  "block-cache: pages added to the disaggregated victim cache by application threads",
   "block-cache: removed blocks",
-  "block-cache: time application threads spent adding pages to the disaggregated victim cache "
-  "(usecs)",
   "block-cache: time sleeping to remove block (usecs)",
-  "block-cache: time spent adding pages to the disaggregated victim cache (usecs)",
   "block-cache: total blocks",
   "block-cache: total blocks inserted on read path",
   "block-cache: total blocks inserted on write path",
@@ -2368,8 +2903,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
-  "cache: eviction server skips checkpointed stable btrees on followers when not looking for clean "
-  "pages",
+  "cache: eviction server skips btrees that are read-only when looking only for dirty or update "
+  "pages and the btree holds none",
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
@@ -2678,11 +3213,9 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent duration for gathering all handles (usecs)",
   "checkpoint: most recent duration for gathering applied handles (usecs)",
   "checkpoint: most recent duration for gathering skipped handles (usecs)",
-  "checkpoint: most recent duration for handles metadata checked (usecs)",
   "checkpoint: most recent duration for locking the handles (usecs)",
   "checkpoint: most recent handles applied",
   "checkpoint: most recent handles checkpoint dropped",
-  "checkpoint: most recent handles metadata checked",
   "checkpoint: most recent handles metadata locked",
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
@@ -2710,6 +3243,10 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub min time (msecs)",
   "checkpoint: scrub most recent time (msecs)",
   "checkpoint: scrub total time (msecs)",
+  "checkpoint: step down checkpoint max time (msecs)",
+  "checkpoint: step down checkpoint min time (msecs)",
+  "checkpoint: step down checkpoint most recent time (msecs)",
+  "checkpoint: step down checkpoint total time (msecs)",
   "checkpoint: stop timing stress active",
   "checkpoint: the percentage of checkpoint sync time spent in reconciliation across all threads",
   "checkpoint: time spent on per-tree checkpoint work (usecs)",
@@ -2772,9 +3309,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
-  "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
-  "cursor: cursor insert check calls that return an error",
   "cursor: cursor insert key and value bytes",
   "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls",
@@ -2818,9 +3353,16 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
   "cursor: cursors reused from cache",
+  "cursor: insert calls",
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
   "cursor: open cursor time internal (usecs)",
+  "cursor: range truncate fast-delete candidates in memory or busy",
+  "cursor: range truncate fast-delete candidates rejected",
+  "cursor: range truncate fast-delete pages",
+  "cursor: range truncate fast-delete skipped, all entries already deleted",
+  "cursor: range truncate internal page bytes newly dirtied",
+  "cursor: range truncate internal pages newly dirtied",
   "data-handle: Layered connection data handles currently active",
   "data-handle: Table connection data handles currently active",
   "data-handle: btree connection data handles currently active",
@@ -2831,6 +3373,7 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweep dead dhandles closed",
   "data-handle: connection sweep dhandles removed from hash list",
   "data-handle: connection sweep expired dhandles closed",
+  "data-handle: connection sweep ingest dhandles closed after checkpoint coverage",
   "data-handle: connection sweep time-of-death sets",
   "data-handle: connection sweeps",
   "data-handle: connection sweeps skipped due to checkpoint gathering handles",
@@ -2845,13 +3388,19 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoint metadata version of the most recently picked up checkpoint: 0 none",
   "disagg: checkpoint metadata version this binary writes",
   "disagg: checkpoint pick-ups deferred for active transaction snapshots",
+  "disagg: cold collection pages not added to the victim cache during eviction",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: failed page inserts into the victim cache",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
+  "disagg: maximum time spent adding a single page to the victim cache, reset per checkpoint "
+  "(usecs)",
   "disagg: most recently adopted checkpoint metadata LSN",
   "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
+  "disagg: pages added to the victim cache",
+  "disagg: pages added to the victim cache by application threads",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: pick up checkpoint time at startup (msecs)",
   "disagg: role leader",
@@ -2859,6 +3408,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step downs attempted",
+  "disagg: step downs completed",
   "disagg: step up checkpoint restart most recent time (msecs)",
   "disagg: step up deferred checkpoint pickup retries before stepping up",
   "disagg: step up deferred checkpoint pickup retry most recent time (msecs)",
@@ -2871,6 +3422,10 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up missing stable tables created",
   "disagg: step up most recent time (msecs)",
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
+  "disagg: time application threads spent adding pages to the victim cache (usecs)",
+  "disagg: time spent adding pages to the victim cache (usecs)",
+  "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
+  "(msecs)",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -3135,8 +3690,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
-  "reconciliation: fast-path page deletion skipped, all entries already deleted",
-  "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full internal pages written instead of a page delta for the shared history "
@@ -3234,6 +3787,8 @@ static const char *const __stats_connection_desc[] = {
   "session: table create with import failed calls",
   "session: table create with import repair calls",
   "session: table create with import successful calls",
+  "session: table drop deferred operations applied",
+  "session: table drop deferred operations pending",
   "session: table drop failed calls",
   "session: table drop successful calls",
   "session: table publish failed calls",
@@ -3367,6 +3922,1155 @@ __wt_stat_connection_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
     return (0);
 }
 
+static const int __stats_connection_otel_counters[] = {
+  WT_STAT_CONN_CURSOR_INSERT,
+};
+
+static const int __stats_connection_otel_gauges[] = {
+  WT_STAT_CONN_CACHE_PAGES_INUSE,
+};
+
+static const int __stats_connection_otel_histograms[] = {
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT2,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT5,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT10,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT50,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_GT1000,
+  WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_TOTAL_MSECS,
+};
+
+static const int __stats_connection_otel_none[] = {
+  WT_STAT_CONN_AUTOCOMMIT_READONLY_RETRY,
+  WT_STAT_CONN_AUTOCOMMIT_UPDATE_RETRY,
+  WT_STAT_CONN_BACKGROUND_COMPACT_FAIL,
+  WT_STAT_CONN_BACKGROUND_COMPACT_FAIL_CACHE_PRESSURE,
+  WT_STAT_CONN_BACKGROUND_COMPACT_INTERRUPTED,
+  WT_STAT_CONN_BACKGROUND_COMPACT_EMA,
+  WT_STAT_CONN_BACKGROUND_COMPACT_BYTES_RECOVERED,
+  WT_STAT_CONN_BACKGROUND_COMPACT_RUNNING,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_EXCLUDE,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_SMALL_FILE,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_UNSUCCESSFUL,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_NO_SUCH_FILE,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_MISSING_PERMISSIONS,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SLEEP_CACHE_PRESSURE,
+  WT_STAT_CONN_BACKGROUND_COMPACT_SUCCESS,
+  WT_STAT_CONN_BACKGROUND_COMPACT_TIMEOUT,
+  WT_STAT_CONN_BACKGROUND_COMPACT_FILES_TRACKED,
+  WT_STAT_CONN_BACKUP_CURSOR_OPEN,
+  WT_STAT_CONN_BACKUP_DUP_OPEN,
+  WT_STAT_CONN_BACKUP_GRANULARITY,
+  WT_STAT_CONN_BACKUP_BITS_CLR,
+  WT_STAT_CONN_BACKUP_INCREMENTAL,
+  WT_STAT_CONN_BACKUP_START,
+  WT_STAT_CONN_BACKUP_BLOCKS,
+  WT_STAT_CONN_BACKUP_BLOCKS_COMPRESSED,
+  WT_STAT_CONN_BACKUP_BLOCKS_UNCOMPRESSED,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE,
+  WT_STAT_CONN_BLOCK_CACHE_BYTES_UPDATE,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_EVICTED,
+  WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE,
+  WT_STAT_CONN_BLOCK_CACHE_LOOKUPS,
+  WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD,
+  WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC,
+  WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT,
+  WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET,
+  WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT,
+  WT_STAT_CONN_BLOCK_CACHE_EVICTION_PASSES,
+  WT_STAT_CONN_BLOCK_CACHE_HITS,
+  WT_STAT_CONN_BLOCK_CACHE_MISSES,
+  WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED_BLOCKED,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_READ,
+  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_WRITE,
+  WT_STAT_CONN_BLOCK_CACHE_BYTES,
+  WT_STAT_CONN_BLOCK_CACHE_BYTES_INSERT_READ,
+  WT_STAT_CONN_BLOCK_CACHE_BYTES_INSERT_WRITE,
+  WT_STAT_CONN_DISAGG_BLOCK_HS_BYTE_READ,
+  WT_STAT_CONN_DISAGG_BLOCK_HS_BYTE_WRITE,
+  WT_STAT_CONN_DISAGG_BLOCK_GET,
+  WT_STAT_CONN_DISAGG_BLOCK_GET_COLD,
+  WT_STAT_CONN_DISAGG_BLOCK_HS_GET,
+  WT_STAT_CONN_DISAGG_BLOCK_PLH_PUT_FAILED,
+  WT_STAT_CONN_DISAGG_BLOCK_PAGE_DISCARD,
+  WT_STAT_CONN_DISAGG_BLOCK_PUT,
+  WT_STAT_CONN_DISAGG_BLOCK_PUT_COLD,
+  WT_STAT_CONN_DISAGG_BLOCK_HS_PUT,
+  WT_STAT_CONN_DISAGG_BLOCK_READ_AHEAD_FRONTIER,
+  WT_STAT_CONN_BLOCK_PRELOAD,
+  WT_STAT_CONN_BLOCK_READ,
+  WT_STAT_CONN_BLOCK_WRITE,
+  WT_STAT_CONN_BLOCK_BYTE_READ,
+  WT_STAT_CONN_BLOCK_BYTE_READ_INTL,
+  WT_STAT_CONN_BLOCK_BYTE_READ_INTL_DISK,
+  WT_STAT_CONN_BLOCK_BYTE_READ_LEAF,
+  WT_STAT_CONN_BLOCK_BYTE_READ_LEAF_DISK,
+  WT_STAT_CONN_BLOCK_BYTE_READ_MMAP,
+  WT_STAT_CONN_BLOCK_BYTE_READ_SYSCALL,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_SAVED_DELTA_INTL,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_SAVED_DELTA_LEAF,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_COMPACT,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_CHECKPOINT,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DISK,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DISK,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_MMAP,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_SYSCALL,
+  WT_STAT_CONN_BLOCK_MAP_READ,
+  WT_STAT_CONN_BLOCK_BYTE_MAP_READ,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT20,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT40,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT60,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT80,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT100,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_GT100,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT20,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT40,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT60,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT80,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT100,
+  WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_GT100,
+  WT_STAT_CONN_BLOCK_REMAP_FILE_RESIZE,
+  WT_STAT_CONN_BLOCK_REMAP_FILE_WRITE,
+  WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME,
+  WT_STAT_CONN_EVICTION_APP_BOUNDED_WAIT_EXCEEDED,
+  WT_STAT_CONN_EVICTION_INTERUPTED_BY_APP,
+  WT_STAT_CONN_EVICTION_APP_TIME,
+  WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_LT_25,
+  WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_25_50,
+  WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_50_75,
+  WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_GT_75,
+  WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE,
+  WT_STAT_CONN_CACHE_READ_APP_COUNT,
+  WT_STAT_CONN_CACHE_READ_APP_TIME,
+  WT_STAT_CONN_CACHE_WRITE_APP_COUNT,
+  WT_STAT_CONN_CACHE_WRITE_APP_TIME,
+  WT_STAT_CONN_CACHE_BYTES_UPDATES,
+  WT_STAT_CONN_CACHE_BYTES_UPDATES_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_UPDATES_STABLE,
+  WT_STAT_CONN_CACHE_BYTES_IMAGE,
+  WT_STAT_CONN_CACHE_BYTES_IMAGE_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_IMAGE_STABLE,
+  WT_STAT_CONN_CACHE_BYTES_HS,
+  WT_STAT_CONN_CACHE_BYTES_INUSE,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_TOTAL,
+  WT_STAT_CONN_CACHE_BYTES_OTHER,
+  WT_STAT_CONN_CACHE_SCRUB_IMAGE_BYTES,
+  WT_STAT_CONN_CACHE_BYTES_READ,
+  WT_STAT_CONN_CACHE_BYTES_WRITE,
+  WT_STAT_CONN_CACHE_TOLERANCE_LEVEL,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS,
+  WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY,
+  WT_STAT_CONN_CACHE_BYTES_HS_DIRTY,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE,
+  WT_STAT_CONN_EVICTION_DISAGG_PUBLISH_CLEARED,
+  WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT,
+  WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT,
+  WT_STAT_CONN_EVICTION_SERVER_EVICT_FAIL,
+  WT_STAT_CONN_EVICTION_WORKER_EVICT_FAIL,
+  WT_STAT_CONN_EVICTION_GET_REF_EMPTY,
+  WT_STAT_CONN_EVICTION_GET_REF_EMPTY2,
+  WT_STAT_CONN_EVICTION_AGGRESSIVE_SET,
+  WT_STAT_CONN_EVICTION_EMPTY_SCORE,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_PROGRESS,
+  WT_STAT_CONN_EVICTION_WALK_PASSES,
+  WT_STAT_CONN_EVICTION_QUEUE_EMPTY,
+  WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY,
+  WT_STAT_CONN_EVICTION_DHANDLE_COMPLETE_WALK,
+  WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_ALREADY_IN_URGENT_QUEUE,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PREFETCHED,
+  WT_STAT_CONN_EVICTION_ROOT_PAGES_SKIPPED,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_HISTORY_STORE_PAGES_WITH_UPDATES_DURING_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_DISAGG_TREES_CHECKPOINTED,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_INGEST_TREES,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_WITH_ACTIVE_CHILD,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_STALE_DISAGG_PAGES,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_CHECKPOINT_TIMESTAMP,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_LAST_RUNNING,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_NOT_MOVE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_RETRY,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_PAGES,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_RESTORED_UNCHANGED,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_WALK_COMPLETE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_STABLE_TREES,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_TOO_MANY_ACTIVE_WALKS,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_CHECKPOINTING_TREES,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_STICK_IN_CACHE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_EVICTION_DISABLED,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_NOT_USEFUL_BEFORE,
+  WT_STAT_CONN_EVICTION_SERVER_SLEPT,
+  WT_STAT_CONN_EVICTION_SLOW,
+  WT_STAT_CONN_EVICTION_WALK_LEAF_NOTFOUND,
+  WT_STAT_CONN_EVICTION_SERVER_WALK_DOMINATING_CACHE,
+  WT_STAT_CONN_EVICTION_SERVER_WALK_DOMINATING_CACHE_UNPRODUCTIVE,
+  WT_STAT_CONN_EVICTION_STATE,
+  WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TARGET,
+  WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TRIGGER,
+  WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TARGET,
+  WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TRIGGER,
+  WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TARGET,
+  WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TRIGGER,
+  WT_STAT_CONN_EVICTION_WALK_SLEEPS,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_UPDATES,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_CLEAN,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_DIRTY,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_UPDATES,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_CLEAN,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_DIRTY,
+  WT_STAT_CONN_NPOS_EVICT_WALK_MAX,
+  WT_STAT_CONN_EVICTION_RESTORED_POS,
+  WT_STAT_CONN_EVICTION_RESTORED_POS_DIFFER,
+  WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10,
+  WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT32,
+  WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_GE128,
+  WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT64,
+  WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT128,
+  WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_REDUCED,
+  WT_STAT_CONN_EVICTION_TARGET_STRATEGY_CLEAN,
+  WT_STAT_CONN_EVICTION_TARGET_STRATEGY_DIRTY,
+  WT_STAT_CONN_EVICTION_TARGET_STRATEGY_UPDATES,
+  WT_STAT_CONN_EVICTION_WALKS_ABANDONED,
+  WT_STAT_CONN_EVICTION_WALKS_STOPPED,
+  WT_STAT_CONN_EVICTION_WALKS_GAVE_UP_NO_TARGETS,
+  WT_STAT_CONN_EVICTION_WALKS_GAVE_UP_RATIO,
+  WT_STAT_CONN_EVICTION_WALK_RANDOM_RETURNS_NULL_POSITION,
+  WT_STAT_CONN_EVICTION_WALKS_ENDED,
+  WT_STAT_CONN_EVICTION_WALK_RESTART,
+  WT_STAT_CONN_EVICTION_WALK_FROM_ROOT,
+  WT_STAT_CONN_EVICTION_WALK_SAVED_POS,
+  WT_STAT_CONN_EVICTION_ACTIVE_WORKERS,
+  WT_STAT_CONN_EVICTION_STABLE_STATE_WORKERS,
+  WT_STAT_CONN_EVICTION_CKPT_SNAPSHOT_DECLINED,
+  WT_STAT_CONN_EVICTION_WALKS_ACTIVE,
+  WT_STAT_CONN_EVICTION_WALKS_STARTED,
+  WT_STAT_CONN_EVICTION_FORCE_NO_RETRY,
+  WT_STAT_CONN_EVICTION_FORCE_HS_FAIL,
+  WT_STAT_CONN_EVICTION_FORCE_HS,
+  WT_STAT_CONN_EVICTION_FORCE_HS_SUCCESS,
+  WT_STAT_CONN_EVICTION_FORCE_INGEST_SUCCESS,
+  WT_STAT_CONN_EVICTION_FORCE_CLEAN,
+  WT_STAT_CONN_EVICTION_FORCE_DIRTY,
+  WT_STAT_CONN_EVICTION_FORCE_LONG_UPDATE_LIST,
+  WT_STAT_CONN_EVICTION_FORCE_DELETE,
+  WT_STAT_CONN_EVICTION_FORCE_INGEST_FAIL,
+  WT_STAT_CONN_EVICTION_FORCE,
+  WT_STAT_CONN_EVICTION_FORCE_FAIL,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_HAZARD,
+  WT_STAT_CONN_CACHE_HAZARD_CHECKS,
+  WT_STAT_CONN_CACHE_HAZARD_WALKS,
+  WT_STAT_CONN_CACHE_HAZARD_MAX,
+  WT_STAT_CONN_CACHE_EVICTION_HS_CURSOR_NOT_CACHED,
+  WT_STAT_CONN_CACHE_HS_INSERT,
+  WT_STAT_CONN_CACHE_HS_INSERT_RESTART,
+  WT_STAT_CONN_CACHE_HS_KEY_PROCESSED,
+  WT_STAT_CONN_CACHE_HS_ONDISK_MAX,
+  WT_STAT_CONN_CACHE_HS_ONDISK,
+  WT_STAT_CONN_CACHE_HS_READ,
+  WT_STAT_CONN_CACHE_HS_READ_MISS,
+  WT_STAT_CONN_CACHE_HS_READ_SQUASH,
+  WT_STAT_CONN_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP,
+  WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE,
+  WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS,
+  WT_STAT_CONN_CACHE_HS_BTREE_TRUNCATE,
+  WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE,
+  WT_STAT_CONN_CACHE_HS_ORDER_REMOVE,
+  WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL,
+  WT_STAT_CONN_CACHE_HS_BTREE_TRUNCATE_DRYRUN,
+  WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN,
+  WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN,
+  WT_STAT_CONN_CACHE_HS_UPDATE_PROCESSED,
+  WT_STAT_CONN_CACHE_HS_ORDER_REINSERT,
+  WT_STAT_CONN_CACHE_HS_WRITE_SQUASH,
+  WT_STAT_CONN_CACHE_INMEM_SPLITTABLE,
+  WT_STAT_CONN_CACHE_INMEM_SPLIT,
+  WT_STAT_CONN_CACHE_INMEM_SPLIT_INGEST,
+  WT_STAT_CONN_EVICTION_INGEST_SUCCESS,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT,
+  WT_STAT_CONN_CACHE_EVICTION_INTERNAL,
+  WT_STAT_CONN_EVICTION_INTERNAL_PAGES_QUEUED,
+  WT_STAT_CONN_CACHE_READ_INTERNAL,
+  WT_STAT_CONN_EVICTION_INTERNAL_PAGES_SEEN,
+  WT_STAT_CONN_EVICTION_INTERNAL_PAGES_ALREADY_QUEUED,
+  WT_STAT_CONN_CACHE_EVICTION_SPLIT_INTERNAL,
+  WT_STAT_CONN_CACHE_PAGES_INUSE_LEAF,
+  WT_STAT_CONN_CACHE_READ_LEAF,
+  WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF,
+  WT_STAT_CONN_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT,
+  WT_STAT_CONN_CACHE_BYTES_MAX,
+  WT_STAT_CONN_EVICTION_MAXIMUM_CLEAN_PAGE_SIZE_PER_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_MAXIMUM_DIRTY_PAGE_SIZE_PER_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_MAXIMUM_UNVISITED_GEN_GAP,
+  WT_STAT_CONN_EVICTION_MAXIMUM_UNVISITED_GEN_GAP_PER_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_MAXIMUM_VISITED_GEN_GAP,
+  WT_STAT_CONN_EVICTION_MAXIMUM_VISITED_GEN_GAP_PER_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS,
+  WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS_PER_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_QUEUE_PAGE,
+  WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_EVICT_PAGE,
+  WT_STAT_CONN_EVICTION_MAXIMUM_UPDATES_PAGE_SIZE_PER_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_APP_DIRTY_ATTEMPT,
+  WT_STAT_CONN_EVICTION_APP_DIRTY_FAIL,
+  WT_STAT_CONN_CACHE_EVICTION_DIRTY,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT,
+  WT_STAT_CONN_NPOS_READ_WALK_MAX,
+  WT_STAT_CONN_CACHE_READ_INTERNAL_DELTA,
+  WT_STAT_CONN_CACHE_READ_LEAF_DELTA,
+  WT_STAT_CONN_CACHE_EVICTION_TRIGGER_DIRTY_REACHED,
+  WT_STAT_CONN_CACHE_EVICTION_TRIGGER_REACHED,
+  WT_STAT_CONN_CACHE_EVICTION_TRIGGER_UPDATES_REACHED,
+  WT_STAT_CONN_CACHE_CAS_BTREE_MAX_LSN_RACE,
+  WT_STAT_CONN_CACHE_OBSOLETE_UPDATES_REMOVED,
+  WT_STAT_CONN_EVICTION_TIMED_OUT_OPS,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS,
+  WT_STAT_CONN_CACHE_READ_OVERFLOW,
+  WT_STAT_CONN_EVICTION_APP_ATTEMPT,
+  WT_STAT_CONN_EVICTION_APP_FAIL,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MATERIALIZATION,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT,
+  WT_STAT_CONN_CACHE_EVICTION_DEEPEN,
+  WT_STAT_CONN_CACHE_WRITE_HS,
+  WT_STAT_CONN_EVICTION_PAGES_REMAINING_IN_QUEUE,
+  WT_STAT_CONN_EVICTION_CONSIDER_PREFETCH,
+  WT_STAT_CONN_CACHE_PAGES_INUSE_INGEST,
+  WT_STAT_CONN_CACHE_PAGES_INUSE_STABLE,
+  WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES,
+  WT_STAT_CONN_CACHE_EVICTION_DIRTY_OBSOLETE_TW,
+  WT_STAT_CONN_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN,
+  WT_STAT_CONN_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_PAGES_ORDINARY_QUEUED,
+  WT_STAT_CONN_EVICTION_PAGES_QUEUED_POST_LRU,
+  WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT,
+  WT_STAT_CONN_EVICTION_PAGES_QUEUED_OLDEST,
+  WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT_HS_DIRTY,
+  WT_STAT_CONN_CACHE_READ,
+  WT_STAT_CONN_CACHE_READ_DELETED,
+  WT_STAT_CONN_CACHE_READ_DELETED_PREPARED,
+  WT_STAT_CONN_CACHE_READ_CHECKPOINT,
+  WT_STAT_CONN_EVICTION_CLEAR_ORDINARY,
+  WT_STAT_CONN_CACHE_PAGES_REQUESTED,
+  WT_STAT_CONN_CACHE_PAGES_PREFETCH,
+  WT_STAT_CONN_CACHE_PAGES_REQUESTED_INTERNAL,
+  WT_STAT_CONN_CACHE_PAGES_REQUESTED_LEAF,
+  WT_STAT_CONN_CACHE_PAGES_REQUESTED_HS,
+  WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN,
+  WT_STAT_CONN_EVICTION_PAGES_ALREADY_QUEUED,
+  WT_STAT_CONN_EVICTION_FAIL,
+  WT_STAT_CONN_EVICTION_FAIL_ACTIVE_CHILDREN_ON_AN_INTERNAL_PAGE,
+  WT_STAT_CONN_EVICTION_FAIL_IN_RECONCILIATION,
+  WT_STAT_CONN_EVICTION_FAIL_CHECKPOINT_NO_TS,
+  WT_STAT_CONN_EVICTION_FAIL_INGEST,
+  WT_STAT_CONN_EVICTION_WALK,
+  WT_STAT_CONN_CACHE_SCRUB_IMAGE_PAGES,
+  WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED,
+  WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_SPLIT_RE_RECONCILED,
+  WT_STAT_CONN_CACHE_WRITE,
+  WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_CHECKPOINT,
+  WT_STAT_CONN_CACHE_WRITE_RESTORE_INVISIBLE,
+  WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB,
+  WT_STAT_CONN_CACHE_TOP_DIRTY_PCT,
+  WT_STAT_CONN_CACHE_TOP5_DIRTY_PCT,
+  WT_STAT_CONN_CACHE_TOP_UPDATES_PCT,
+  WT_STAT_CONN_CACHE_TOP5_UPDATES_PCT,
+  WT_STAT_CONN_CACHE_TOP_INUSE_PCT,
+  WT_STAT_CONN_CACHE_TOP5_INUSE_PCT,
+  WT_STAT_CONN_CACHE_OVERHEAD,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT,
+  WT_STAT_CONN_CACHE_EVICT_SPLIT_FAILED_LOCK,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_RECENTLY_MODIFIED,
+  WT_STAT_CONN_CACHE_SCRUB_RESTORE,
+  WT_STAT_CONN_CACHE_REVERSE_SPLITS,
+  WT_STAT_CONN_CACHE_REVERSE_SPLITS_SKIPPED_VLCS,
+  WT_STAT_CONN_CACHE_SHARED_DSK_LOCK_CONTENTION,
+  WT_STAT_CONN_CACHE_SHARED_DSK_BYTES_DUPLICATE,
+  WT_STAT_CONN_CACHE_SHARED_DSK_HASH_SIZE,
+  WT_STAT_CONN_CACHE_SHARED_DSK_HIT,
+  WT_STAT_CONN_CACHE_SHARED_DSK_MISS,
+  WT_STAT_CONN_CACHE_EVICTION_HS_SHARED_CURSOR_NOT_CACHED,
+  WT_STAT_CONN_CACHE_READ_DELTA_UPDATES,
+  WT_STAT_CONN_CACHE_READ_RESTORED_TOMBSTONE_BYTES,
+  WT_STAT_CONN_CACHE_HS_INSERT_FULL_UPDATE,
+  WT_STAT_CONN_CACHE_HS_INSERT_REVERSE_MODIFY,
+  WT_STAT_CONN_EVICTION_WORKER_LOCK_WAIT_TIME,
+  WT_STAT_CONN_EVICTION_REENTRY_HS_EVICTION_MILLISECONDS,
+  WT_STAT_CONN_CACHE_BYTES_INTERNAL,
+  WT_STAT_CONN_CACHE_BYTES_INTERNAL_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_INTERNAL_STABLE,
+  WT_STAT_CONN_CACHE_BYTES_LEAF,
+  WT_STAT_CONN_CACHE_BYTES_LEAF_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_LEAF_STABLE,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_STABLE,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_INTERNAL,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_INTERNAL_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_INTERNAL_STABLE,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_LEAF,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_LEAF_INGEST,
+  WT_STAT_CONN_CACHE_BYTES_DIRTY_LEAF_STABLE,
+  WT_STAT_CONN_CACHE_PAGES_DIRTY,
+  WT_STAT_CONN_CACHE_PAGES_DIRTY_INGEST,
+  WT_STAT_CONN_CACHE_PAGES_DIRTY_STABLE,
+  WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE,
+  WT_STAT_CONN_CACHE_EVICTION_CLEAN,
+  WT_STAT_CONN_CACHE_BYTES_HS_UPDATES,
+  WT_STAT_CONN_CACHE_UPDATES_TXN_UNCOMMITTED_BYTES,
+  WT_STAT_CONN_CACHE_UPDATES_TXN_UNCOMMITTED_COUNT,
+  WT_STAT_CONN_FSYNC_ALL_FH_TOTAL,
+  WT_STAT_CONN_FSYNC_ALL_FH,
+  WT_STAT_CONN_FSYNC_ALL_TIME,
+  WT_STAT_CONN_CAPACITY_BYTES_READ,
+  WT_STAT_CONN_CAPACITY_BYTES_CKPT,
+  WT_STAT_CONN_CAPACITY_BYTES_EVICT,
+  WT_STAT_CONN_CAPACITY_BYTES_LOG,
+  WT_STAT_CONN_CAPACITY_BYTES_WRITTEN,
+  WT_STAT_CONN_CAPACITY_THRESHOLD,
+  WT_STAT_CONN_CAPACITY_TIME_TOTAL,
+  WT_STAT_CONN_CAPACITY_TIME_CKPT,
+  WT_STAT_CONN_CAPACITY_TIME_EVICT,
+  WT_STAT_CONN_CAPACITY_TIME_LOG,
+  WT_STAT_CONN_CAPACITY_TIME_READ,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_THREAD_START,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_THREAD_STOP,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_DURATION,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_HANDLE_PROCESSED,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_INMEM_PAGES_VISITED,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_EVICT,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_REMOVED,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_VISITED,
+  WT_STAT_CONN_CHECKPOINT_CLEANUP_SUCCESS,
+  WT_STAT_CONN_CHECKPOINT_SNAPSHOT_ACQUIRED,
+  WT_STAT_CONN_CHECKPOINT_SKIPPED,
+  WT_STAT_CONN_CHECKPOINT_FSYNC_POST,
+  WT_STAT_CONN_CHECKPOINT_FSYNC_POST_DURATION,
+  WT_STAT_CONN_CHECKPOINT_GENERATION,
+  WT_STAT_CONN_CHECKPOINT_TIME_MAX,
+  WT_STAT_CONN_CHECKPOINT_DISAGG_METADATA_APPLY,
+  WT_STAT_CONN_CHECKPOINT_DISAGG_METADATA_UNSTABLE,
+  WT_STAT_CONN_CHECKPOINT_TIME_MIN,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_DROP_DURATION,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_DURATION,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_APPLY_DURATION,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_SKIP_DURATION,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_LOCK_DURATION,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_APPLIED,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_DROPPED,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_LOCKED,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_SKIPPED,
+  WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED,
+  WT_STAT_CONN_CHECKPOINT_TIME_RECENT,
+  WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES,
+  WT_STAT_CONN_CHECKPOINTS_API,
+  WT_STAT_CONN_CHECKPOINTS_COMPACT,
+  WT_STAT_CONN_CHECKPOINT_SYNC,
+  WT_STAT_CONN_CHECKPOINT_PRESYNC,
+  WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED,
+  WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL,
+  WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF,
+  WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED,
+  WT_STAT_CONN_CHECKPOINT_PARALLEL_PAGES_RECONCILED,
+  WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILIATION_SKIPPED_EVICT_SNAPSHOT,
+  WT_STAT_CONN_CHECKPOINT_PREP_RUNNING,
+  WT_STAT_CONN_CHECKPOINT_PREP_MAX,
+  WT_STAT_CONN_CHECKPOINT_PREP_MIN,
+  WT_STAT_CONN_CHECKPOINT_PREP_RECENT,
+  WT_STAT_CONN_CHECKPOINT_PREP_TOTAL,
+  WT_STAT_CONN_CHECKPOINT_STATE,
+  WT_STAT_CONN_CHECKPOINT_SCRUB_TARGET,
+  WT_STAT_CONN_CHECKPOINT_SCRUB_MAX,
+  WT_STAT_CONN_CHECKPOINT_SCRUB_MIN,
+  WT_STAT_CONN_CHECKPOINT_SCRUB_RECENT,
+  WT_STAT_CONN_CHECKPOINT_SCRUB_TOTAL,
+  WT_STAT_CONN_CHECKPOINT_STEPDOWN_TIME_MAX,
+  WT_STAT_CONN_CHECKPOINT_STEPDOWN_TIME_MIN,
+  WT_STAT_CONN_CHECKPOINT_STEPDOWN_TIME_RECENT,
+  WT_STAT_CONN_CHECKPOINT_STEPDOWN_TIME_TOTAL,
+  WT_STAT_CONN_CHECKPOINT_STOP_STRESS_ACTIVE,
+  WT_STAT_CONN_CHECKPOINT_SYNC_REC_PCT,
+  WT_STAT_CONN_CHECKPOINT_TREE_DURATION,
+  WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED,
+  WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED,
+  WT_STAT_CONN_CHECKPOINT_TIME_TOTAL,
+  WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE,
+  WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY,
+  WT_STAT_CONN_COND_AUTO_WAIT_RESET,
+  WT_STAT_CONN_COND_AUTO_WAIT,
+  WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED,
+  WT_STAT_CONN_BTREE_OPEN,
+  WT_STAT_CONN_TIME_TRAVEL,
+  WT_STAT_CONN_FILE_OPEN,
+  WT_STAT_CONN_BUCKETS_DH,
+  WT_STAT_CONN_BUCKETS,
+  WT_STAT_CONN_MEMORY_ALLOCATION,
+  WT_STAT_CONN_MEMORY_FREE,
+  WT_STAT_CONN_MEMORY_GROW,
+  WT_STAT_CONN_NO_SESSION_SWEEP_5MIN,
+  WT_STAT_CONN_NO_SESSION_SWEEP_60MIN,
+  WT_STAT_CONN_COND_WAIT,
+  WT_STAT_CONN_RWLOCK_READ,
+  WT_STAT_CONN_RWLOCK_WRITE,
+  WT_STAT_CONN_FSYNC_IO,
+  WT_STAT_CONN_READ_IO,
+  WT_STAT_CONN_WRITE_IO,
+  WT_STAT_CONN_CURSOR_TREE_WALK_DEL_LEAF_PAGE_SKIP,
+  WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL,
+  WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL,
+  WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION,
+  WT_STAT_CONN_CURSOR_TREE_WALK_READ_ONLY_DEL_INTERNAL_PAGE_SKIP,
+  WT_STAT_CONN_CURSOR_TREE_WALK_INMEM_DEL_PAGE_SKIP,
+  WT_STAT_CONN_CURSOR_TREE_WALK_ONDISK_DEL_INTERNAL_PAGE_SKIP,
+  WT_STAT_CONN_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP,
+  WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS,
+  WT_STAT_CONN_CURSOR_TREE_WALK_SKIP_LOCK_CONTENDED,
+  WT_STAT_CONN_CURSOR_REPOSITION_FAILED,
+  WT_STAT_CONN_CURSOR_REPOSITION,
+  WT_STAT_CONN_CURSOR_BULK_COUNT,
+  WT_STAT_CONN_CURSOR_CACHED_COUNT,
+  WT_STAT_CONN_CURSOR_BOUND_ERROR,
+  WT_STAT_CONN_CURSOR_BOUNDS_RESET,
+  WT_STAT_CONN_CURSOR_BOUNDS_COMPARISONS,
+  WT_STAT_CONN_CURSOR_BOUNDS_NEXT_UNPOSITIONED,
+  WT_STAT_CONN_CURSOR_BOUNDS_NEXT_EARLY_EXIT,
+  WT_STAT_CONN_CURSOR_BOUNDS_PREV_UNPOSITIONED,
+  WT_STAT_CONN_CURSOR_BOUNDS_PREV_EARLY_EXIT,
+  WT_STAT_CONN_CURSOR_BOUNDS_SEARCH_EARLY_EXIT,
+  WT_STAT_CONN_CURSOR_BOUNDS_SEARCH_NEAR_REPOSITIONED_CURSOR,
+  WT_STAT_CONN_CURSOR_INSERT_BULK,
+  WT_STAT_CONN_CURSOR_CACHE_ERROR,
+  WT_STAT_CONN_CURSOR_CACHE,
+  WT_STAT_CONN_CURSOR_CLOSE_ERROR,
+  WT_STAT_CONN_CURSOR_COMPARE_ERROR,
+  WT_STAT_CONN_CURSOR_CREATE,
+  WT_STAT_CONN_CURSOR_EQUALS_ERROR,
+  WT_STAT_CONN_CURSOR_GET_KEY_ERROR,
+  WT_STAT_CONN_CURSOR_GET_VALUE_ERROR,
+  WT_STAT_CONN_CURSOR_INSERT_ERROR,
+  WT_STAT_CONN_CURSOR_INSERT_BYTES,
+  WT_STAT_CONN_CURSOR_LARGEST_KEY_ERROR,
+  WT_STAT_CONN_CURSOR_MODIFY,
+  WT_STAT_CONN_CURSOR_MODIFY_ERROR,
+  WT_STAT_CONN_CURSOR_MODIFY_BYTES,
+  WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH,
+  WT_STAT_CONN_CURSOR_NEXT,
+  WT_STAT_CONN_CURSOR_NEXT_ERROR,
+  WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE,
+  WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100,
+  WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100,
+  WT_STAT_CONN_CURSOR_NEXT_RANDOM_ERROR,
+  WT_STAT_CONN_CURSOR_RESTART,
+  WT_STAT_CONN_CURSOR_PREV,
+  WT_STAT_CONN_CURSOR_PREV_ERROR,
+  WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE,
+  WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100,
+  WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100,
+  WT_STAT_CONN_CURSOR_RECONFIGURE_ERROR,
+  WT_STAT_CONN_CURSOR_REMOVE,
+  WT_STAT_CONN_CURSOR_REMOVE_ERROR,
+  WT_STAT_CONN_CURSOR_REMOVE_BYTES,
+  WT_STAT_CONN_CURSOR_REOPEN_ERROR,
+  WT_STAT_CONN_CURSOR_RESERVE,
+  WT_STAT_CONN_CURSOR_RESERVE_ERROR,
+  WT_STAT_CONN_CURSOR_RESET,
+  WT_STAT_CONN_CURSOR_RESET_ERROR,
+  WT_STAT_CONN_CURSOR_SEARCH,
+  WT_STAT_CONN_CURSOR_SEARCH_ERROR,
+  WT_STAT_CONN_CURSOR_SEARCH_HS,
+  WT_STAT_CONN_CURSOR_SEARCH_NEAR,
+  WT_STAT_CONN_CURSOR_SEARCH_NEAR_ERROR,
+  WT_STAT_CONN_CURSOR_SWEEP_BUCKETS,
+  WT_STAT_CONN_CURSOR_SWEEP_CLOSED,
+  WT_STAT_CONN_CURSOR_SWEEP_EXAMINED,
+  WT_STAT_CONN_CURSOR_SWEEP,
+  WT_STAT_CONN_CURSOR_TRUNCATE,
+  WT_STAT_CONN_CURSOR_TRUNCATE_KEYS_DELETED,
+  WT_STAT_CONN_CURSOR_UPDATE,
+  WT_STAT_CONN_CURSOR_UPDATE_ERROR,
+  WT_STAT_CONN_CURSOR_UPDATE_BYTES,
+  WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_CONN_CURSOR_REOPEN,
+  WT_STAT_CONN_CURSOR_OPEN_COUNT,
+  WT_STAT_CONN_CURSOR_OPEN_TIME_USER_USECS,
+  WT_STAT_CONN_CURSOR_OPEN_TIME_INTERNAL_USECS,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_IN_MEMORY,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_FALLBACK_PAGES,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES,
+  WT_STAT_CONN_CURSOR_TRUNCATE_FAST_DELETE_PAGES_SKIPPED_ALREADY_DELETED,
+  WT_STAT_CONN_CURSOR_TRUNCATE_INTERNAL_BYTES_DIRTIED,
+  WT_STAT_CONN_CURSOR_TRUNCATE_INTERNAL_PAGES_DIRTIED,
+  WT_STAT_CONN_DH_CONN_HANDLE_LAYERED_COUNT,
+  WT_STAT_CONN_DH_CONN_HANDLE_TABLE_COUNT,
+  WT_STAT_CONN_DH_CONN_HANDLE_BTREE_COUNT,
+  WT_STAT_CONN_DH_CONN_HANDLE_CHECKPOINT_COUNT,
+  WT_STAT_CONN_DH_CONN_HANDLE_SIZE,
+  WT_STAT_CONN_DH_CONN_HANDLE_COUNT,
+  WT_STAT_CONN_DH_SWEEP_REF,
+  WT_STAT_CONN_DH_SWEEP_DEAD_CLOSE,
+  WT_STAT_CONN_DH_SWEEP_REMOVE,
+  WT_STAT_CONN_DH_SWEEP_EXPIRED_CLOSE,
+  WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE,
+  WT_STAT_CONN_DH_SWEEP_TOD,
+  WT_STAT_CONN_DH_SWEEPS,
+  WT_STAT_CONN_DH_SWEEP_SKIP_CKPT,
+  WT_STAT_CONN_DH_SESSION_HANDLES,
+  WT_STAT_CONN_DH_SESSION_SWEEPS,
+  WT_STAT_CONN_DISAGG_ABANDON_CHECKPOINT_FAILED,
+  WT_STAT_CONN_DISAGG_ABANDON_CHECKPOINT_SUCCEED,
+  WT_STAT_CONN_DISAGG_APPLY_CHECKPOINT_META_TIME,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_STORAGE_COMPATIBLE_VERSION,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_BINARY_COMPATIBLE_VERSION,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_STORAGE_VERSION,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_BINARY_VERSION,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_COLD_NOT_CACHED,
+  WT_STAT_CONN_DISAGG_CONN_RECONFIG,
+  WT_STAT_CONN_DISAGG_DATABASE_SIZE,
+  WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_FAILURES,
+  WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME_MAX,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN,
+  WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUTS,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUTS,
+  WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME,
+  WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP,
+  WT_STAT_CONN_DISAGG_ROLE_LEADER,
+  WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD,
+  WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING,
+  WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS,
+  WT_STAT_CONN_DISAGG_STEP_DOWN_TIME,
+  WT_STAT_CONN_DISAGG_STEP_DOWN_ATTEMPTED,
+  WT_STAT_CONN_DISAGG_STEP_DOWN_COMPLETED,
+  WT_STAT_CONN_DISAGG_STEP_UP_CHECKPOINT_RESTART_TIME,
+  WT_STAT_CONN_DISAGG_STEP_UP_DEFERRED_PICKUP_RETRIES,
+  WT_STAT_CONN_DISAGG_STEP_UP_DEFERRED_PICKUP_RETRY_TIME,
+  WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS,
+  WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY,
+  WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES,
+  WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME,
+  WT_STAT_CONN_DISAGG_STEP_UP_INGEST_TABLES_DRAINED,
+  WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_CREATE_TIME,
+  WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_TABLES_CREATED,
+  WT_STAT_CONN_DISAGG_STEP_UP_TIME,
+  WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUT_TIME,
+  WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME,
+  WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
+  WT_STAT_CONN_LAYERED_CURS_INSERT,
+  WT_STAT_CONN_LAYERED_CURS_MODIFY,
+  WT_STAT_CONN_LAYERED_CURS_NEXT,
+  WT_STAT_CONN_LAYERED_CURS_NEXT_INGEST,
+  WT_STAT_CONN_LAYERED_CURS_NEXT_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_PREV,
+  WT_STAT_CONN_LAYERED_CURS_PREV_INGEST,
+  WT_STAT_CONN_LAYERED_CURS_PREV_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_REMOVE,
+  WT_STAT_CONN_LAYERED_CURS_REOPEN_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR,
+  WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST,
+  WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_SEARCH,
+  WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST,
+  WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE,
+  WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED,
+  WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE,
+  WT_STAT_CONN_LAYERED_CURS_UPDATE,
+  WT_STAT_CONN_LAYERED_STABLE_LIVE_OPEN_REFUSED,
+  WT_STAT_CONN_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_PREFIX,
+  WT_STAT_CONN_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_SUFFIX,
+  WT_STAT_CONN_LAYERED_CURS_STABLE_VALUE_TOMBSTONE,
+  WT_STAT_CONN_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_X3,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_INGEST_TOMBSTONES_WRITTEN,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_SKIP_LSN,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FOLLOWER,
+  WT_STAT_CONN_LAYERED_TABLE_MANAGER_TABLES,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_CALLS,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_RUNS,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_REMOVED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_GC_ENTRIES_EXAMINED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_ENTRIES_INSERTED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_CLEAR_ENTRIES_REMOVED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_ROLLBACK_ENTRIES_REMOVED,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_HITS,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_SEARCH_MISSES,
+  WT_STAT_CONN_LAYERED_TRUNCATE_LIST_WRITE_CONFLICTS,
+  WT_STAT_CONN_LIVE_RESTORE_BYTES_COPIED,
+  WT_STAT_CONN_LIVE_RESTORE_WORK_REMAINING,
+  WT_STAT_CONN_LIVE_RESTORE_SOURCE_READ_COUNT,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT2,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT5,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT10,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT50,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT100,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT250,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT500,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT1000,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_GT1000,
+  WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_TOTAL_MSECS,
+  WT_STAT_CONN_LIVE_RESTORE_STATE,
+  WT_STAT_CONN_READ_REJECT_COUNT,
+  WT_STAT_CONN_WRITE_REJECT_COUNT,
+  WT_STAT_CONN_READ_LOAD,
+  WT_STAT_CONN_WRITE_LOAD,
+  WT_STAT_CONN_LOCK_BTREE_PAGE_COUNT,
+  WT_STAT_CONN_LOCK_BTREE_PAGE_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_BTREE_PAGE_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_CHECKPOINT_COUNT,
+  WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_DHANDLE_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_DHANDLE_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_DHANDLE_READ_COUNT,
+  WT_STAT_CONN_LOCK_DHANDLE_WRITE_COUNT,
+  WT_STAT_CONN_LOCK_METADATA_COUNT,
+  WT_STAT_CONN_LOCK_METADATA_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_METADATA_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_SCHEMA_COUNT,
+  WT_STAT_CONN_LOCK_SCHEMA_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_SCHEMA_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_TABLE_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_TABLE_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_TABLE_READ_COUNT,
+  WT_STAT_CONN_LOCK_TABLE_WRITE_COUNT,
+  WT_STAT_CONN_LOCK_TRUNCATE_LIST_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_TRUNCATE_LIST_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_TRUNCATE_LIST_READ_COUNT,
+  WT_STAT_CONN_LOCK_TRUNCATE_LIST_WRITE_COUNT,
+  WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_APPLICATION,
+  WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_TXN_GLOBAL_READ_COUNT,
+  WT_STAT_CONN_LOCK_TXN_GLOBAL_WRITE_COUNT,
+  WT_STAT_CONN_LOG_SLOT_SWITCH_BUSY,
+  WT_STAT_CONN_LOG_FORCE_REMOVE_SLEEP,
+  WT_STAT_CONN_LOG_BYTES_PAYLOAD,
+  WT_STAT_CONN_LOG_BYTES_WRITTEN,
+  WT_STAT_CONN_LOG_ZERO_FILLS,
+  WT_STAT_CONN_LOG_FLUSH,
+  WT_STAT_CONN_LOG_FORCE_WRITE,
+  WT_STAT_CONN_LOG_FORCE_WRITE_SKIP,
+  WT_STAT_CONN_LOG_COMPRESS_WRITES,
+  WT_STAT_CONN_LOG_COMPRESS_WRITE_FAILS,
+  WT_STAT_CONN_LOG_COMPRESS_SMALL,
+  WT_STAT_CONN_LOG_RELEASE_WRITE_LSN,
+  WT_STAT_CONN_LOG_SCANS,
+  WT_STAT_CONN_LOG_SCAN_REREADS,
+  WT_STAT_CONN_LOG_WRITE_LSN,
+  WT_STAT_CONN_LOG_WRITE_LSN_SKIP,
+  WT_STAT_CONN_LOG_SYNC,
+  WT_STAT_CONN_LOG_SYNC_DURATION,
+  WT_STAT_CONN_LOG_SYNC_DIR,
+  WT_STAT_CONN_LOG_SYNC_DIR_DURATION,
+  WT_STAT_CONN_LOG_WRITES,
+  WT_STAT_CONN_LOG_SLOT_CONSOLIDATED,
+  WT_STAT_CONN_LOG_MAX_FILESIZE,
+  WT_STAT_CONN_LOG_PREALLOC_MAX,
+  WT_STAT_CONN_LOG_PREALLOC_MISSED,
+  WT_STAT_CONN_LOG_PREALLOC_FILES,
+  WT_STAT_CONN_LOG_PREALLOC_USED,
+  WT_STAT_CONN_LOG_SCAN_RECORDS,
+  WT_STAT_CONN_LOG_SLOT_CLOSE_RACE,
+  WT_STAT_CONN_LOG_SLOT_CLOSE_UNBUF,
+  WT_STAT_CONN_LOG_SLOT_CLOSES,
+  WT_STAT_CONN_LOG_SLOT_RACES,
+  WT_STAT_CONN_LOG_SLOT_YIELD_RACE,
+  WT_STAT_CONN_LOG_SLOT_IMMEDIATE,
+  WT_STAT_CONN_LOG_SLOT_YIELD_CLOSE,
+  WT_STAT_CONN_LOG_SLOT_YIELD_SLEEP,
+  WT_STAT_CONN_LOG_SLOT_YIELD,
+  WT_STAT_CONN_LOG_SLOT_ACTIVE_CLOSED,
+  WT_STAT_CONN_LOG_SLOT_YIELD_DURATION,
+  WT_STAT_CONN_LOG_SLOT_NO_FREE_SLOTS,
+  WT_STAT_CONN_LOG_SLOT_UNBUFFERED,
+  WT_STAT_CONN_LOG_COMPRESS_MEM,
+  WT_STAT_CONN_LOG_BUFFER_SIZE,
+  WT_STAT_CONN_LOG_COMPRESS_LEN,
+  WT_STAT_CONN_LOG_SLOT_COALESCED,
+  WT_STAT_CONN_LOG_CLOSE_YIELDS,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT2,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT5,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT10,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT50,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_GT1000,
+  WT_STAT_CONN_PERF_HIST_BMREAD_LATENCY_TOTAL_MSECS,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT2,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT5,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT10,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT50,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_GT1000,
+  WT_STAT_CONN_PERF_HIST_BMWRITE_LATENCY_TOTAL_MSECS,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT2500,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT5000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT10000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_GT10000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_TOTAL_USECS,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT2500,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT5000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT10000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_GT10000,
+  WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_TOTAL_USECS,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT2,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT5,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT10,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT50,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_GT1000,
+  WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_TOTAL_MSECS,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT2500,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT5000,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT10000,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_GT10000,
+  WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_TOTAL_USECS,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT2500,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT5000,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT10000,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_GT10000,
+  WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_TOTAL_USECS,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT2500,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT5000,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT10000,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_GT10000,
+  WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_TOTAL_USECS,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT100,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT250,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT500,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT1000,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT2500,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT5000,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT10000,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_GT10000,
+  WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_TOTAL_USECS,
+  WT_STAT_CONN_PREFETCH_SKIPPED_INTERNAL_PAGE,
+  WT_STAT_CONN_PREFETCH_SKIPPED_NO_FLAG_SET,
+  WT_STAT_CONN_PREFETCH_ATTEMPTS,
+  WT_STAT_CONN_PREFETCH_SKIPPED_SAME_REF,
+  WT_STAT_CONN_PREFETCH_DISK_ONE,
+  WT_STAT_CONN_PREFETCH_SKIPPED_NO_VALID_DHANDLE,
+  WT_STAT_CONN_PREFETCH_SKIPPED_DISK_READ_COUNT,
+  WT_STAT_CONN_PREFETCH_SKIPPED_INTERNAL_SESSION,
+  WT_STAT_CONN_PREFETCH_SKIPPED_SPECIAL_HANDLE,
+  WT_STAT_CONN_PREFETCH_SKIPPED_QUEUE_FULL,
+  WT_STAT_CONN_PREFETCH_PAGES_FAIL,
+  WT_STAT_CONN_PREFETCH_PAGES_QUEUED,
+  WT_STAT_CONN_PREFETCH_PAGES_READ,
+  WT_STAT_CONN_PREFETCH_ATTEMPTS_SUCCEEDED,
+  WT_STAT_CONN_PREFETCH_SKIPPED_ERROR_OK,
+  WT_STAT_CONN_PREFETCH_SKIPPED_INTERNAL_SPLIT_GEN,
+  WT_STAT_CONN_REC_VLCS_EMPTIED_PAGES,
+  WT_STAT_CONN_REC_TIME_WINDOW_BYTES_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_BYTES_TXN,
+  WT_STAT_CONN_REC_AVERAGE_INTERNAL_PAGE_DELTA_CHAIN_LENGTH,
+  WT_STAT_CONN_REC_AVERAGE_LEAF_PAGE_DELTA_CHAIN_LENGTH,
+  WT_STAT_CONN_REC_PAGE_MODS_LE5,
+  WT_STAT_CONN_REC_PAGE_MODS_LE10,
+  WT_STAT_CONN_REC_PAGE_MODS_LE20,
+  WT_STAT_CONN_REC_PAGE_MODS_LE50,
+  WT_STAT_CONN_REC_PAGE_MODS_LE100,
+  WT_STAT_CONN_REC_PAGE_MODS_LE200,
+  WT_STAT_CONN_REC_PAGE_MODS_LE500,
+  WT_STAT_CONN_REC_PAGE_MODS_GT500,
+  WT_STAT_CONN_REC_HS_WRAPUP_NEXT_PREV_CALLS,
+  WT_STAT_CONN_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION,
+  WT_STAT_CONN_REC_PAGE_FULL_IMAGE_INTERNAL,
+  WT_STAT_CONN_REC_PAGE_FULL_IMAGE_SHARED_HS_INTERNAL,
+  WT_STAT_CONN_REC_PAGE_FULL_IMAGE_LEAF,
+  WT_STAT_CONN_REC_PAGE_FULL_IMAGE_SHARED_HS_LEAF,
+  WT_STAT_CONN_REC_INGEST_KEEP_PREPARE_ROLLBACK,
+  WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL_KEY_DELETED,
+  WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED,
+  WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL,
+  WT_STAT_CONN_REC_PAGE_DELTA_SHARED_HS_INTERNAL,
+  WT_STAT_CONN_REC_MULTIBLOCK_INTERNAL,
+  WT_STAT_CONN_REC_PAGE_DELTA_LEAF,
+  WT_STAT_CONN_REC_PAGE_DELTA_SHARED_HS_LEAF,
+  WT_STAT_CONN_REC_MULTIBLOCK_LEAF,
+  WT_STAT_CONN_REC_OVERFLOW_KEY_LEAF,
+  WT_STAT_CONN_REC_MAX_INTERNAL_PAGE_DELTAS,
+  WT_STAT_CONN_REC_MAX_LEAF_PAGE_DELTAS,
+  WT_STAT_CONN_REC_MAXIMUM_MILLISECONDS,
+  WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS,
+  WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS,
+  WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE,
+  WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN,
+  WT_STAT_CONN_REC_OVERFLOW_VALUE,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_DELETE_THRESHOLD,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_BUILD_FAILED,
+  WT_STAT_CONN_REC_PAGES,
+  WT_STAT_CONN_REC_PAGES_EVICTION,
+  WT_STAT_CONN_REC_PAGES_SIZE_1MB_TO_10MB,
+  WT_STAT_CONN_REC_PAGES_SIZE_10MB_TO_100MB,
+  WT_STAT_CONN_REC_PAGES_SIZE_100MB_TO_1GB,
+  WT_STAT_CONN_REC_PAGES_SIZE_1GB_PLUS,
+  WT_STAT_CONN_REC_PAGES_WITH_PREPARE,
+  WT_STAT_CONN_REC_PAGES_WITH_TS,
+  WT_STAT_CONN_REC_PAGES_WITH_TXN,
+  WT_STAT_CONN_REC_PAGE_DELETE,
+  WT_STAT_CONN_REC_PAGE_DELTA_ELIGIBLE,
+  WT_STAT_CONN_REC_TIME_AGGR_NEWEST_START_DURABLE_TS,
+  WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS,
+  WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_TS,
+  WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_TXN,
+  WT_STAT_CONN_REC_TIME_AGGR_NEWEST_TXN,
+  WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_TS,
+  WT_STAT_CONN_REC_TIME_AGGR_PREPARED,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_PREPARED,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_DURABLE_START_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_TXN,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_TXN,
+  WT_STAT_CONN_REC_PAGES_WITH_INTERNAL_DELTAS,
+  WT_STAT_CONN_REC_PAGES_WITH_LEAF_DELTAS,
+  WT_STAT_CONN_REC_TIME_WINDOW_PREPARED,
+  WT_STAT_CONN_REC_TIME_WINDOW_DURABLE_START_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_START_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_START_TXN,
+  WT_STAT_CONN_REC_TIME_WINDOW_DURABLE_STOP_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_STOP_TS,
+  WT_STAT_CONN_REC_TIME_WINDOW_STOP_TXN,
+  WT_STAT_CONN_REC_SPLIT_STASHED_BYTES,
+  WT_STAT_CONN_REC_SPLIT_STASHED_OBJECTS,
+  WT_STAT_CONN_REC_SKIP_WRITE,
+  WT_STAT_CONN_SESSION_HS_VERIFY_BTREES_CHECKED,
+  WT_STAT_CONN_SESSION_OPEN,
+  WT_STAT_CONN_SESSION_QUERY_TS,
+  WT_STAT_CONN_SESSION_TABLE_ALTER_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_ALTER_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_ALTER_TRIGGER_CHECKPOINT,
+  WT_STAT_CONN_SESSION_TABLE_ALTER_SKIP,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_CONFLICTING_CHECKPOINT,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_DHANDLE_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL_CACHE_PRESSURE,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_BYTES_REWRITE_INMEM,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_PASSES,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_EVICTION,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_RUNNING,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_SKIPPED,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_COMPACT_TIMEOUT,
+  WT_STAT_CONN_SESSION_TABLE_CREATE_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_CREATE_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_REPAIR,
+  WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_DROP_DEFERRED_APPLIED,
+  WT_STAT_CONN_SESSION_TABLE_DROP_DEFERRED,
+  WT_STAT_CONN_SESSION_TABLE_DROP_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_DROP_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_PUBLISH_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_PUBLISH_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_SALVAGE_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_SALVAGE_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_TRUNCATE_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_TRUNCATE_SUCCESS,
+  WT_STAT_CONN_SESSION_TABLE_VERIFY_FAIL,
+  WT_STAT_CONN_SESSION_TABLE_VERIFY_HS_KEYS_CHECKED,
+  WT_STAT_CONN_SESSION_TABLE_VERIFY_SUCCESS,
+  WT_STAT_CONN_THREAD_FSYNC_ACTIVE,
+  WT_STAT_CONN_THREAD_READ_ACTIVE,
+  WT_STAT_CONN_THREAD_WRITE_ACTIVE,
+  WT_STAT_CONN_APPLICATION_EVICT_CHECKPOINT_SNAPSHOT,
+  WT_STAT_CONN_APPLICATION_CACHE_OPS,
+  WT_STAT_CONN_APPLICATION_CACHE_INTERRUPTIBLE_OPS,
+  WT_STAT_CONN_APPLICATION_CACHE_UNINTERRUPTIBLE_OPS,
+  WT_STAT_CONN_APPLICATION_EVICT_SNAPSHOT_REFRESHED,
+  WT_STAT_CONN_APPLICATION_CACHE_TIME,
+  WT_STAT_CONN_APPLICATION_CACHE_INTERRUPTIBLE_TIME,
+  WT_STAT_CONN_APPLICATION_CACHE_UNINTERRUPTIBLE_TIME,
+  WT_STAT_CONN_TXN_RELEASE_BLOCKED,
+  WT_STAT_CONN_DHANDLE_LOCK_BLOCKED,
+  WT_STAT_CONN_PAGE_INDEX_SLOT_REF_BLOCKED,
+  WT_STAT_CONN_PREPARED_TRANSITION_BLOCKED_PAGE,
+  WT_STAT_CONN_PAGE_BUSY_BLOCKED,
+  WT_STAT_CONN_PAGE_FORCIBLE_EVICT_BLOCKED,
+  WT_STAT_CONN_PAGE_LOCKED_BLOCKED,
+  WT_STAT_CONN_PAGE_READ_BLOCKED,
+  WT_STAT_CONN_PAGE_SLEEP,
+  WT_STAT_CONN_PAGE_DEL_ROLLBACK_BLOCKED,
+  WT_STAT_CONN_CHILD_MODIFY_BLOCKED_PAGE,
+  WT_STAT_CONN_PAGE_SPLIT_RESTART,
+  WT_STAT_CONN_PAGE_READ_SKIP_DELETED,
+  WT_STAT_CONN_TXN_PREPARED_UPDATES,
+  WT_STAT_CONN_TXN_PREPARED_UPDATES_COMMITTED,
+  WT_STAT_CONN_TXN_PREPARED_UPDATES_KEY_REPEATED,
+  WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLEDBACK,
+  WT_STAT_CONN_TXN_READ_RACE_PREPARE_COMMIT,
+  WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE,
+  WT_STAT_CONN_TXN_ROLLBACK_OLDEST_PINNED,
+  WT_STAT_CONN_TXN_ROLLBACK_OLDEST_ID,
+  WT_STAT_CONN_TXN_PREPARE,
+  WT_STAT_CONN_TXN_PREPARE_COMMIT,
+  WT_STAT_CONN_TXN_PREPARE_ACTIVE,
+  WT_STAT_CONN_TXN_PREPARE_ROLLBACK,
+  WT_STAT_CONN_TXN_QUERY_TS,
+  WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE,
+  WT_STAT_CONN_TXN_RTS_BTREES_APPLIED,
+  WT_STAT_CONN_TXN_RTS,
+  WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START,
+  WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT,
+  WT_STAT_CONN_TXN_RTS_KEYS_REMOVED,
+  WT_STAT_CONN_TXN_RTS_KEYS_RESTORED,
+  WT_STAT_CONN_TXN_RTS_KEYS_REMOVED_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_KEYS_RESTORED_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_PAGES_VISITED,
+  WT_STAT_CONN_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES,
+  WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES,
+  WT_STAT_CONN_TXN_RTS_PREPARED_FAST_TRUNCATE,
+  WT_STAT_CONN_TXN_RTS_BTREES_SKIPPED,
+  WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED,
+  WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED,
+  WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS,
+  WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES,
+  WT_STAT_CONN_TXN_RTS_UPD_ABORTED,
+  WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_HS_REMOVED,
+  WT_STAT_CONN_TXN_RTS_UPD_ABORTED_DRYRUN,
+  WT_STAT_CONN_TXN_RTS_HS_REMOVED_DRYRUN,
+  WT_STAT_CONN_TXN_SESSIONS_WALKED,
+  WT_STAT_CONN_TXN_SET_TS,
+  WT_STAT_CONN_TXN_SET_TS_DURABLE,
+  WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD,
+  WT_STAT_CONN_TXN_SET_TS_FORCE,
+  WT_STAT_CONN_TXN_SET_TS_OUT_OF_ORDER,
+  WT_STAT_CONN_TXN_SET_TS_OLDEST,
+  WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD,
+  WT_STAT_CONN_TXN_SET_TS_STABLE,
+  WT_STAT_CONN_TXN_SET_TS_STABLE_DISAGG_EPOCH,
+  WT_STAT_CONN_TXN_SET_TS_STABLE_DISAGG_EPOCH_UPD,
+  WT_STAT_CONN_TXN_SET_TS_STABLE_UPD,
+  WT_STAT_CONN_TXN_STEPDOWN_EPOCH_SET,
+  WT_STAT_CONN_TXN_STEPDOWN_TS_SET,
+  WT_STAT_CONN_TXN_BEGIN,
+  WT_STAT_CONN_TXN_HS_CKPT_DURATION,
+  WT_STAT_CONN_TXN_GLOBAL_CHECKPOINT_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_DURABLE_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_LAST_RUNNING_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_NEWEST_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_OLDEST_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_PINNED_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_STABLE_TIMESTAMP,
+  WT_STAT_CONN_TXN_GLOBAL_VERSION_CURSOR_TIMESTAMP,
+  WT_STAT_CONN_TXN_PINNED_READERS,
+  WT_STAT_CONN_TXN_PINNED_RANGE,
+  WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE,
+  WT_STAT_CONN_TXN_PINNED_TIMESTAMP_LAG,
+  WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT_LAG,
+  WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER_LAG,
+  WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST,
+  WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ,
+  WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING,
+  WT_STAT_CONN_TXN_WALK_SESSIONS,
+  WT_STAT_CONN_TXN_COMMIT,
+  WT_STAT_CONN_TXN_ROLLBACK,
+  WT_STAT_CONN_TXN_ROLLBACK_TOO_LARGE_FOR_CACHE,
+  WT_STAT_CONN_TXN_TRUNCATE_DIRTY_CACHE_ROLLBACK,
+  WT_STAT_CONN_TXN_UPDATE_CONFLICT,
+  WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN,
+};
+
+int
+__wt_stat_connection_otel_keys(uint32_t otel_flag, const int **keysp, u_int *countp)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        *keysp = __stats_connection_otel_counters;
+        *countp = WT_ELEMENTS(__stats_connection_otel_counters);
+        break;
+    case WT_STAT_OTEL_GAUGES:
+        *keysp = __stats_connection_otel_gauges;
+        *countp = WT_ELEMENTS(__stats_connection_otel_gauges);
+        break;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        *keysp = __stats_connection_otel_histograms;
+        *countp = WT_ELEMENTS(__stats_connection_otel_histograms);
+        break;
+    case WT_STAT_OTEL_NONE:
+        *keysp = __stats_connection_otel_none;
+        *countp = WT_ELEMENTS(__stats_connection_otel_none);
+        break;
+    default:
+        return (EINVAL);
+    }
+    return (0);
+}
+
 void
 __wt_stat_connection_init_single(WT_CONNECTION_STATS *stats)
 {
@@ -3394,8 +5098,37 @@ __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handl
     __wt_free(session, handle->stat_array);
 }
 
-void
-__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
+static void
+__stat_connection_clear_counters(WT_CONNECTION_STATS *stats)
+{
+    stats->cursor_insert = 0;
+}
+
+static void
+__stat_connection_clear_gauges(WT_CONNECTION_STATS *stats)
+{
+    WT_UNUSED(stats);
+
+    /* not clearing cache_pages_inuse */
+}
+
+static void
+__stat_connection_clear_histograms(WT_CONNECTION_STATS *stats)
+{
+    stats->perf_hist_fsread_latency_lt2 = 0;
+    stats->perf_hist_fsread_latency_lt5 = 0;
+    stats->perf_hist_fsread_latency_lt10 = 0;
+    stats->perf_hist_fsread_latency_lt50 = 0;
+    stats->perf_hist_fsread_latency_lt100 = 0;
+    stats->perf_hist_fsread_latency_lt250 = 0;
+    stats->perf_hist_fsread_latency_lt500 = 0;
+    stats->perf_hist_fsread_latency_lt1000 = 0;
+    stats->perf_hist_fsread_latency_gt1000 = 0;
+    stats->perf_hist_fsread_latency_total_msecs = 0;
+}
+
+static void
+__stat_connection_clear_none(WT_CONNECTION_STATS *stats)
 {
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
@@ -3426,12 +5159,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->backup_blocks_uncompressed = 0;
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
-    stats->block_cache_cold_not_cached = 0;
     stats->block_cache_blocks_evicted = 0;
-    stats->block_cache_put_failures = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
-    /* not clearing block_cache_put_time_max */
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_overhead_put = 0;
@@ -3441,12 +5171,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_hits = 0;
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
-    stats->block_cache_puts = 0;
-    stats->block_cache_app_thread_puts = 0;
     stats->block_cache_blocks_removed = 0;
-    stats->block_cache_app_thread_put_time = 0;
     stats->block_cache_blocks_removed_blocked = 0;
-    stats->block_cache_put_time = 0;
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
@@ -3714,7 +5440,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_hs = 0;
     stats->eviction_pages_remaining_in_queue = 0;
     /* not clearing eviction_consider_prefetch */
-    /* not clearing cache_pages_inuse */
     /* not clearing cache_pages_inuse_ingest */
     /* not clearing cache_pages_inuse_stable */
     /* not clearing cache_truncate_txn_uncommitted_bytes */
@@ -3840,11 +5565,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_handle_duration */
     /* not clearing checkpoint_handle_apply_duration */
     /* not clearing checkpoint_handle_skip_duration */
-    /* not clearing checkpoint_handle_meta_check_duration */
     /* not clearing checkpoint_handle_lock_duration */
     stats->checkpoint_handle_applied = 0;
     stats->checkpoint_handle_dropped = 0;
-    stats->checkpoint_handle_meta_checked = 0;
     stats->checkpoint_handle_locked = 0;
     stats->checkpoint_handle_skipped = 0;
     stats->checkpoint_handle_walked = 0;
@@ -3871,6 +5594,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_min */
     /* not clearing checkpoint_scrub_recent */
     /* not clearing checkpoint_scrub_total */
+    /* not clearing checkpoint_stepdown_time_max */
+    /* not clearing checkpoint_stepdown_time_min */
+    /* not clearing checkpoint_stepdown_time_recent */
+    /* not clearing checkpoint_stepdown_time_total */
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_sync_rec_pct */
     stats->checkpoint_tree_duration = 0;
@@ -3930,9 +5657,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_equals_error = 0;
     stats->cursor_get_key_error = 0;
     stats->cursor_get_value_error = 0;
-    stats->cursor_insert = 0;
     stats->cursor_insert_error = 0;
-    stats->cursor_insert_check_error = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_largest_key_error = 0;
     stats->cursor_modify = 0;
@@ -3979,6 +5704,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_open_count */
     /* not clearing cursor_open_time_user_usecs */
     /* not clearing cursor_open_time_internal_usecs */
+    stats->cursor_truncate_fast_delete_fallback_in_memory = 0;
+    stats->cursor_truncate_fast_delete_fallback_pages = 0;
+    stats->cursor_truncate_fast_delete_pages = 0;
+    stats->cursor_truncate_fast_delete_pages_skipped_already_deleted = 0;
+    stats->cursor_truncate_internal_bytes_dirtied = 0;
+    stats->cursor_truncate_internal_pages_dirtied = 0;
     /* not clearing dh_conn_handle_layered_count */
     /* not clearing dh_conn_handle_table_count */
     /* not clearing dh_conn_handle_btree_count */
@@ -3989,6 +5720,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweep_dead_close = 0;
     stats->dh_sweep_remove = 0;
     stats->dh_sweep_expired_close = 0;
+    stats->dh_sweep_ingest_close = 0;
     stats->dh_sweep_tod = 0;
     stats->dh_sweeps = 0;
     stats->dh_sweep_skip_ckpt = 0;
@@ -4002,13 +5734,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_storage_version */
     /* not clearing disagg_checkpoint_binary_version */
     stats->disagg_checkpoint_defer = 0;
+    stats->disagg_victim_cache_cold_not_cached = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
+    stats->disagg_victim_cache_put_failures = 0;
     stats->disagg_ingest_stable_tombstone_stripped = 0;
+    /* not clearing disagg_victim_cache_put_time_max */
     /* not clearing disagg_checkpoint_meta_lsn */
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
+    stats->disagg_victim_cache_puts = 0;
+    stats->disagg_victim_cache_app_thread_puts = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_pick_up_checkpoint_time_startup = 0;
     stats->disagg_role_leader = 0;
@@ -4016,6 +5753,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_stable_tombstone_encoding */
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    stats->disagg_step_down_attempted = 0;
+    stats->disagg_step_down_completed = 0;
     stats->disagg_step_up_checkpoint_restart_time = 0;
     stats->disagg_step_up_deferred_pickup_retries = 0;
     stats->disagg_step_up_deferred_pickup_retry_time = 0;
@@ -4028,6 +5767,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_up_missing_stable_tables_created = 0;
     stats->disagg_step_up_time = 0;
     stats->disagg_step_down_window_creates = 0;
+    stats->disagg_victim_cache_app_thread_put_time = 0;
+    stats->disagg_victim_cache_put_time = 0;
+    /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -4204,16 +5946,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_disaggbmwrite_latency_lt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_gt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_total_usecs = 0;
-    stats->perf_hist_fsread_latency_lt2 = 0;
-    stats->perf_hist_fsread_latency_lt5 = 0;
-    stats->perf_hist_fsread_latency_lt10 = 0;
-    stats->perf_hist_fsread_latency_lt50 = 0;
-    stats->perf_hist_fsread_latency_lt100 = 0;
-    stats->perf_hist_fsread_latency_lt250 = 0;
-    stats->perf_hist_fsread_latency_lt500 = 0;
-    stats->perf_hist_fsread_latency_lt1000 = 0;
-    stats->perf_hist_fsread_latency_gt1000 = 0;
-    stats->perf_hist_fsread_latency_total_msecs = 0;
     stats->perf_hist_fswrite_latency_lt2 = 0;
     stats->perf_hist_fswrite_latency_lt5 = 0;
     stats->perf_hist_fswrite_latency_lt10 = 0;
@@ -4290,8 +6022,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
-    stats->rec_page_delete_fast_skip_deleted = 0;
-    stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_shared_hs_internal = 0;
@@ -4383,6 +6113,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_import_fail */
     /* not clearing session_table_create_import_repair */
     /* not clearing session_table_create_import_success */
+    /* not clearing session_table_drop_deferred_applied */
+    /* not clearing session_table_drop_deferred */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
     /* not clearing session_table_publish_fail */
@@ -4500,12 +6232,38 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 }
 
 void
-__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats)
+__wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        __stat_connection_clear_counters(stats);
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        __stat_connection_clear_gauges(stats);
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        __stat_connection_clear_histograms(stats);
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_connection_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_connection_clear_counters(stats);
+    __stat_connection_clear_gauges(stats);
+    __stat_connection_clear_histograms(stats);
+    __stat_connection_clear_none(stats);
+}
+
+void
+__wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i)
-        __wt_stat_connection_clear_single(stats[i]);
+        __wt_stat_connection_clear_single(stats[i], otel_flag);
 }
 
 void
@@ -4551,12 +6309,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
     to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
-    to->block_cache_cold_not_cached += WT_STAT_CONN_READ(from, block_cache_cold_not_cached);
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
-    to->block_cache_put_failures += WT_STAT_CONN_READ(from, block_cache_put_failures);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
-    to->block_cache_put_time_max += WT_STAT_CONN_READ(from, block_cache_put_time_max);
     to->block_cache_not_evicted_overhead +=
       WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
@@ -4567,13 +6322,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_hits += WT_STAT_CONN_READ(from, block_cache_hits);
     to->block_cache_misses += WT_STAT_CONN_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_CONN_READ(from, block_cache_bypass_chkpt);
-    to->block_cache_puts += WT_STAT_CONN_READ(from, block_cache_puts);
-    to->block_cache_app_thread_puts += WT_STAT_CONN_READ(from, block_cache_app_thread_puts);
     to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
-    to->block_cache_app_thread_put_time += WT_STAT_CONN_READ(from, block_cache_app_thread_put_time);
     to->block_cache_blocks_removed_blocked +=
       WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
-    to->block_cache_put_time += WT_STAT_CONN_READ(from, block_cache_put_time);
     to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
@@ -5107,12 +6858,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_apply_duration +=
       WT_STAT_CONN_READ(from, checkpoint_handle_apply_duration);
     to->checkpoint_handle_skip_duration += WT_STAT_CONN_READ(from, checkpoint_handle_skip_duration);
-    to->checkpoint_handle_meta_check_duration +=
-      WT_STAT_CONN_READ(from, checkpoint_handle_meta_check_duration);
     to->checkpoint_handle_lock_duration += WT_STAT_CONN_READ(from, checkpoint_handle_lock_duration);
     to->checkpoint_handle_applied += WT_STAT_CONN_READ(from, checkpoint_handle_applied);
     to->checkpoint_handle_dropped += WT_STAT_CONN_READ(from, checkpoint_handle_dropped);
-    to->checkpoint_handle_meta_checked += WT_STAT_CONN_READ(from, checkpoint_handle_meta_checked);
     to->checkpoint_handle_locked += WT_STAT_CONN_READ(from, checkpoint_handle_locked);
     to->checkpoint_handle_skipped += WT_STAT_CONN_READ(from, checkpoint_handle_skipped);
     to->checkpoint_handle_walked += WT_STAT_CONN_READ(from, checkpoint_handle_walked);
@@ -5143,6 +6891,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_min += WT_STAT_CONN_READ(from, checkpoint_scrub_min);
     to->checkpoint_scrub_recent += WT_STAT_CONN_READ(from, checkpoint_scrub_recent);
     to->checkpoint_scrub_total += WT_STAT_CONN_READ(from, checkpoint_scrub_total);
+    to->checkpoint_stepdown_time_max += WT_STAT_CONN_READ(from, checkpoint_stepdown_time_max);
+    to->checkpoint_stepdown_time_min += WT_STAT_CONN_READ(from, checkpoint_stepdown_time_min);
+    to->checkpoint_stepdown_time_recent += WT_STAT_CONN_READ(from, checkpoint_stepdown_time_recent);
+    to->checkpoint_stepdown_time_total += WT_STAT_CONN_READ(from, checkpoint_stepdown_time_total);
     to->checkpoint_stop_stress_active += WT_STAT_CONN_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_sync_rec_pct += WT_STAT_CONN_READ(from, checkpoint_sync_rec_pct);
     to->checkpoint_tree_duration += WT_STAT_CONN_READ(from, checkpoint_tree_duration);
@@ -5210,9 +6962,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_equals_error += WT_STAT_CONN_READ(from, cursor_equals_error);
     to->cursor_get_key_error += WT_STAT_CONN_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
-    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
-    to->cursor_insert_check_error += WT_STAT_CONN_READ(from, cursor_insert_check_error);
     to->cursor_insert_bytes += WT_STAT_CONN_READ(from, cursor_insert_bytes);
     to->cursor_largest_key_error += WT_STAT_CONN_READ(from, cursor_largest_key_error);
     to->cursor_modify += WT_STAT_CONN_READ(from, cursor_modify);
@@ -5256,9 +7006,22 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
+    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
+    to->cursor_truncate_fast_delete_fallback_in_memory +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
+    to->cursor_truncate_fast_delete_fallback_pages +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_fallback_pages);
+    to->cursor_truncate_fast_delete_pages +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_pages);
+    to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
+      WT_STAT_CONN_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
+    to->cursor_truncate_internal_bytes_dirtied +=
+      WT_STAT_CONN_READ(from, cursor_truncate_internal_bytes_dirtied);
+    to->cursor_truncate_internal_pages_dirtied +=
+      WT_STAT_CONN_READ(from, cursor_truncate_internal_pages_dirtied);
     to->dh_conn_handle_layered_count += WT_STAT_CONN_READ(from, dh_conn_handle_layered_count);
     to->dh_conn_handle_table_count += WT_STAT_CONN_READ(from, dh_conn_handle_table_count);
     to->dh_conn_handle_btree_count += WT_STAT_CONN_READ(from, dh_conn_handle_btree_count);
@@ -5269,6 +7032,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweep_dead_close += WT_STAT_CONN_READ(from, dh_sweep_dead_close);
     to->dh_sweep_remove += WT_STAT_CONN_READ(from, dh_sweep_remove);
     to->dh_sweep_expired_close += WT_STAT_CONN_READ(from, dh_sweep_expired_close);
+    to->dh_sweep_ingest_close += WT_STAT_CONN_READ(from, dh_sweep_ingest_close);
     to->dh_sweep_tod += WT_STAT_CONN_READ(from, dh_sweep_tod);
     to->dh_sweeps += WT_STAT_CONN_READ(from, dh_sweeps);
     to->dh_sweep_skip_ckpt += WT_STAT_CONN_READ(from, dh_sweep_skip_ckpt);
@@ -5289,16 +7053,25 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_binary_version +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_binary_version);
     to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
+    to->disagg_victim_cache_cold_not_cached +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_cold_not_cached);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_victim_cache_put_failures +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_put_failures);
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
+    to->disagg_victim_cache_put_time_max +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_put_time_max);
     to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
     to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
+    to->disagg_victim_cache_puts += WT_STAT_CONN_READ(from, disagg_victim_cache_puts);
+    to->disagg_victim_cache_app_thread_puts +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_app_thread_puts);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_pick_up_checkpoint_time_startup +=
       WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
@@ -5308,6 +7081,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_down_attempted += WT_STAT_CONN_READ(from, disagg_step_down_attempted);
+    to->disagg_step_down_completed += WT_STAT_CONN_READ(from, disagg_step_down_completed);
     to->disagg_step_up_checkpoint_restart_time +=
       WT_STAT_CONN_READ(from, disagg_step_up_checkpoint_restart_time);
     to->disagg_step_up_deferred_pickup_retries +=
@@ -5329,6 +7104,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_step_up_missing_stable_tables_created);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
+    to->disagg_victim_cache_app_thread_put_time +=
+      WT_STAT_CONN_READ(from, disagg_victim_cache_app_thread_put_time);
+    to->disagg_victim_cache_put_time += WT_STAT_CONN_READ(from, disagg_victim_cache_put_time);
+    to->disagg_checkpoint_defer_adopt_wait +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
@@ -5690,9 +7470,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
-    to->rec_page_delete_fast_skip_deleted +=
-      WT_STAT_CONN_READ(from, rec_page_delete_fast_skip_deleted);
-    to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_CONN_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
     to->rec_page_full_image_internal += WT_STAT_CONN_READ(from, rec_page_full_image_internal);
@@ -5817,6 +7594,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, session_table_create_import_repair);
     to->session_table_create_import_success +=
       WT_STAT_CONN_READ(from, session_table_create_import_success);
+    to->session_table_drop_deferred_applied +=
+      WT_STAT_CONN_READ(from, session_table_drop_deferred_applied);
+    to->session_table_drop_deferred += WT_STAT_CONN_READ(from, session_table_drop_deferred);
     to->session_table_drop_fail += WT_STAT_CONN_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_CONN_READ(from, session_table_drop_success);
     to->session_table_publish_fail += WT_STAT_CONN_READ(from, session_table_publish_fail);
@@ -5977,14 +7757,56 @@ __wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
     return (0);
 }
 
+static const int __stats_session_otel_none[] = {
+  WT_STAT_SESSION_BYTES_READ,
+  WT_STAT_SESSION_BYTES_WRITE,
+  WT_STAT_SESSION_LOCK_DHANDLE_WAIT,
+  WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY,
+  WT_STAT_SESSION_TXN_BYTES_DIRTY,
+  WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY,
+  WT_STAT_SESSION_TXN_UPDATES,
+  WT_STAT_SESSION_READ_TIME,
+  WT_STAT_SESSION_WRITE_TIME,
+  WT_STAT_SESSION_LOCK_SCHEMA_WAIT,
+  WT_STAT_SESSION_CACHE_TIME,
+  WT_STAT_SESSION_CACHE_TIME_INTERRUPTIBLE,
+  WT_STAT_SESSION_CACHE_TIME_MANDATORY,
+};
+
+int
+__wt_stat_session_otel_keys(uint32_t otel_flag, const int **keysp, u_int *countp)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        *keysp = NULL;
+        *countp = 0;
+        break;
+    case WT_STAT_OTEL_GAUGES:
+        *keysp = NULL;
+        *countp = 0;
+        break;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        *keysp = NULL;
+        *countp = 0;
+        break;
+    case WT_STAT_OTEL_NONE:
+        *keysp = __stats_session_otel_none;
+        *countp = WT_ELEMENTS(__stats_session_otel_none);
+        break;
+    default:
+        return (EINVAL);
+    }
+    return (0);
+}
+
 void
 __wt_stat_session_init_single(WT_SESSION_STATS *stats)
 {
     memset(stats, 0, sizeof(*stats));
 }
 
-void
-__wt_stat_session_clear_single(WT_SESSION_STATS *stats)
+static void
+__stat_session_clear_none(WT_SESSION_STATS *stats)
 {
     stats->bytes_read = 0;
     stats->bytes_write = 0;
@@ -5999,4 +7821,24 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->cache_time = 0;
     stats->cache_time_interruptible = 0;
     stats->cache_time_mandatory = 0;
+}
+
+void
+__wt_stat_session_clear_single(WT_SESSION_STATS *stats, uint32_t otel_flag)
+{
+    switch (otel_flag) {
+    case WT_STAT_OTEL_COUNTERS:
+        return;
+    case WT_STAT_OTEL_GAUGES:
+        return;
+    case WT_STAT_OTEL_HISTOGRAMS:
+        return;
+    case WT_STAT_OTEL_NONE:
+        __stat_session_clear_none(stats);
+        return;
+    default:
+        break;
+    }
+
+    __stat_session_clear_none(stats);
 }

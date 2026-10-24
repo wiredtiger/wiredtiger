@@ -368,6 +368,7 @@ encryptors
 endcode
 endcond
 endditaa
+endhtmlonly
 endian
 endif
 endinternal
@@ -412,6 +413,7 @@ flamegraphs
 flcs
 fnv
 fontsize
+footbox
 forw
 fprofile
 fput
@@ -440,6 +442,7 @@ github
 gnuplot
 graphviz
 growable
+handoff
 hashtable
 hb
 hotbackup
@@ -449,6 +452,7 @@ hs
 hsearch
 html
 htmlinclude
+htmlonly
 huffman
 hugepage
 iSi
@@ -458,6 +462,7 @@ ie
 iface
 ifdef
 iflag
+iframe
 img
 incr
 indices
@@ -661,6 +666,8 @@ recno
 recnoN
 recnum
 reconfig
+reconfigures
+reconfiguring
 recoverability
 recs
 rectype
