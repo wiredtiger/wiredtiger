@@ -78,10 +78,7 @@ The table above shows how a role transition coordinates different parts of Wired
 
 @section disagg-roles-transitions Role transitions diagram
 
-@htmlonly
-<img src="disagg-roles.svg" alt="The leader writes shared checkpoints; the follower applies local
-changes and adopts checkpoints. Step-up and step-down change these responsibilities." />
-@endhtmlonly
+@image html disagg-roles.svg
 
 @section disagg-roles-step-up Step-up
 
@@ -96,31 +93,7 @@ data and local changes into a consistent live shared tree. Transactions and posi
 must not span step-up. The application must finish transactions and reset or close positioned
 cursors before the step-up reconfiguration; it can start new work after the transition completes.
 
-@section disagg-roles-step-down Step-down
-
-Step-down transfers shared-write responsibility without restarting the old leader. There are
-two ways to prepare for the transition:
-
-- <b>Blocking step-down:</b> the application no longer initiates new write transactions, finishes
-  existing write transactions, advances the stable timestamp to cover their changes, and takes
-  the concluding checkpoint. Writes remain stopped until it reconfigures the connection as a
-  follower. No step-down timestamp is set;
-  the application must ensure that the checkpoint contains all changes being handed off.
-- <b>Asynchronous step-down:</b> the application sets a step-down timestamp to define the boundary
-  for the concluding checkpoint. Once the step-down timestamp is set, new write transactions
-  write to local ingest tables, allowing writes to continue during checkpoint preparation.
-  Write transactions already in progress when the timestamp is set, including those that span
-  the transition, are rolled back to prevent an inconsistent state.
-
-In both cases, the application coordinates checkpoint handoff and finishes all write
-transactions before reconfiguring the old leader as a follower. The connection then reads
-stable tables through read-only views of the concluding checkpoint and merges them with any
-newer changes in its local ingest tables.
-
-Asynchronous step-down does not allow writers to run during or span the step-down reconfiguration.
-Read transactions are allowed at all times, but those without read timestamps are rolled back
-if they span reconfiguration. See
-WT_CONNECTION::set_timestamp for the step-down timestamp API and @ref error_handling for
-rollback handling.
+@anchor disagg-roles-step-down
+@subpage arch-disagg-step-down
 
 */

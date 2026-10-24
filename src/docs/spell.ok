@@ -725,7 +725,9 @@ statlog
 stderr
 stdin
 stdout
+stepdown
 str
+straddler
 strerror
 strftime
 strget
