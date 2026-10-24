@@ -452,12 +452,9 @@ struct __wt_connection_stats {
     int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
-    int64_t block_cache_cold_not_cached;
     int64_t block_cache_blocks_evicted;
-    int64_t block_cache_put_failures;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
-    int64_t block_cache_put_time_max;
     int64_t block_cache_not_evicted_overhead;
     int64_t block_cache_bypass_writealloc;
     int64_t block_cache_bypass_overhead_put;
@@ -467,12 +464,8 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
-    int64_t block_cache_puts;
-    int64_t block_cache_app_thread_puts;
     int64_t block_cache_blocks_removed;
-    int64_t block_cache_app_thread_put_time;
     int64_t block_cache_blocks_removed_blocked;
-    int64_t block_cache_put_time;
     int64_t block_cache_blocks;
     int64_t block_cache_blocks_insert_read;
     int64_t block_cache_blocks_insert_write;
@@ -895,6 +888,10 @@ struct __wt_connection_stats {
     int64_t checkpoint_scrub_min;
     int64_t checkpoint_scrub_recent;
     int64_t checkpoint_scrub_total;
+    int64_t checkpoint_stepdown_time_max;
+    int64_t checkpoint_stepdown_time_min;
+    int64_t checkpoint_stepdown_time_recent;
+    int64_t checkpoint_stepdown_time_total;
     int64_t checkpoint_stop_stress_active;
     int64_t checkpoint_sync_rec_pct;
     int64_t checkpoint_tree_duration;
@@ -954,7 +951,6 @@ struct __wt_connection_stats {
     int64_t cursor_equals_error;
     int64_t cursor_get_key_error;
     int64_t cursor_get_value_error;
-    int64_t cursor_insert;
     int64_t cursor_insert_error;
     int64_t cursor_insert_bytes;
     int64_t cursor_largest_key_error;
@@ -999,6 +995,7 @@ struct __wt_connection_stats {
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
     int64_t cursor_reopen;
+    int64_t cursor_insert;
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
@@ -1018,6 +1015,7 @@ struct __wt_connection_stats {
     int64_t dh_sweep_dead_close;
     int64_t dh_sweep_remove;
     int64_t dh_sweep_expired_close;
+    int64_t dh_sweep_ingest_close;
     int64_t dh_sweep_tod;
     int64_t dh_sweeps;
     int64_t dh_sweep_skip_ckpt;
@@ -1031,13 +1029,18 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_storage_version;
     int64_t disagg_checkpoint_binary_version;
     int64_t disagg_checkpoint_defer;
+    int64_t disagg_victim_cache_cold_not_cached;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
+    int64_t disagg_victim_cache_put_failures;
     int64_t disagg_ingest_stable_tombstone_stripped;
+    int64_t disagg_victim_cache_put_time_max;
     int64_t disagg_checkpoint_meta_lsn;
     int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
+    int64_t disagg_victim_cache_puts;
+    int64_t disagg_victim_cache_app_thread_puts;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_pick_up_checkpoint_time_startup;
     int64_t disagg_role_leader;
@@ -1045,6 +1048,8 @@ struct __wt_connection_stats {
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_down_attempted;
+    int64_t disagg_step_down_completed;
     int64_t disagg_step_up_checkpoint_restart_time;
     int64_t disagg_step_up_deferred_pickup_retries;
     int64_t disagg_step_up_deferred_pickup_retry_time;
@@ -1057,6 +1062,9 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_missing_stable_tables_created;
     int64_t disagg_step_up_time;
     int64_t disagg_step_down_window_creates;
+    int64_t disagg_victim_cache_app_thread_put_time;
+    int64_t disagg_victim_cache_put_time;
+    int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
