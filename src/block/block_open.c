@@ -218,7 +218,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
-        if (block->objectid == objectid && strcmp(filename, block->name) == 0) {
+        if (block->type == WT_BLOCK_TYPE_LOCAL && block->objectid == objectid &&
+          strcmp(filename, block->name) == 0) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
@@ -231,6 +232,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     block->compact_session_id = WT_SESSION_ID_INVALID;
     block->objectid = objectid;
     block->ref = 1;
+    block->type = WT_BLOCK_TYPE_LOCAL;
 
     /* If not passed an allocation size, get one from the configuration. */
     if (allocsize == 0) {
