@@ -2848,8 +2848,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                      * byte budget as a full one. Measuring against the maximum can admit a delta
                      * approaching the image on a page well under the maximum, which saves little
                      * over the full page and still costs a read to apply; in that mode bound the
-                     * delta at twice delta_pct of the image, a limit that reaches the whole image,
-                     * and so stops applying, once delta_pct is 50.
+                     * delta at half the image plus half of delta_pct, a limit that reaches the
+                     * whole image, and so stops applying, at a delta_pct of 100.
                      */
                     if (build_delta) {
                         WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)r->delta.data;
@@ -2868,7 +2868,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                             build_delta = false;
                         } else if (F_ISSET(&conn->page_delta, WT_DELTA_PCT_OF_TARGET_PAGE_SIZE) &&
                           r->delta.size * 100 / chunk->image.size >
-                            2 * conn->page_delta.delta_pct) {
+                            (100 + conn->page_delta.delta_pct) / 2) {
                             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_size_threshold);
                             build_delta = false;
                         }

@@ -132,9 +132,9 @@ class test_layered_delta18(wttest.WiredTigerTestCase):
         rejected = self.get_stat(stat.dsrc.rec_page_delta_rejected_size_threshold)
         # The size limit is delta_pct of the image with the image denominator. With the
         # target denominator it is delta_pct of the target, but a delta approaching the
-        # image is still rejected, at twice delta_pct of the image, and since the image is
-        # well under the target here that is the effective limit.
-        limit = 2 * self.delta_pct if self.use_target else self.delta_pct
+        # image is still rejected, at half the image plus half of delta_pct, and since the
+        # image is well under the target here that is the effective limit.
+        limit = (100 + self.delta_pct) // 2 if self.use_target else self.delta_pct
         if self.DELTA_PCT_OF_IMAGE[self.nmodify] < limit:
             self.assertGreater(deltas, 0)
             self.assertEqual(rejected, 0)
