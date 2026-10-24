@@ -561,4 +561,20 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: byte-read statistics
         CHECK(block_byte_read() - before == static_cast<int64_t>(blocks[0].size()));
         CHECK(hs_byte_read() - hs_before == static_cast<int64_t>(blocks[0].size()));
     }
+
+    /*
+     * A failed read has nothing to account for: the base page is corrupt, so the chain fails after
+     * the deltas have already been walked, and neither byte statistic moves.
+     */
+    SECTION("a failed read counts no bytes")
+    {
+        uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
+        blocks[0].corrupt_body(300);
+
+        int64_t before = block_byte_read();
+        int64_t hs_before = hs_byte_read();
+        REQUIRE(read_multiple(cookie_checksum) == WT_ERROR);
+        CHECK(block_byte_read() == before);
+        CHECK(hs_byte_read() == hs_before);
+    }
 }
