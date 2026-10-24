@@ -44,19 +44,21 @@ wait_until(Pred pred)
 }
 
 /*
- * Block nthreads on the condition, wake them with the given call, and return how many came back as
- * signalled, or -1 if the waiters never blocked or fewer than min_woken woke before the deadline.
+ * Block the given number of threads on the condition, wake them with the given call, and return how
+ * many came back as signalled, or -1 if the waiters never blocked or fewer than the minimum woke
+ * before the deadline.
  */
 template <typename WakeFn>
 int
-count_woken(WT_SESSION_IMPL *session, WT_CONDVAR *cond, int nthreads, int min_woken, WakeFn wake)
+count_woken(
+  WT_SESSION_IMPL *session, WT_CONDVAR *cond, int thread_count, int min_woken, WakeFn wake)
 {
     std::atomic<int> woken(0), done(0);
     std::vector<std::thread> threads;
     int result = -1;
 
     blocking = 0;
-    for (int i = 0; i < nthreads; ++i)
+    for (int i = 0; i < thread_count; ++i)
         threads.emplace_back([&]() {
             bool signalled = false;
             __wt_cond_wait_signal(session, cond, 60 * WT_MILLION, count_blocking, &signalled);
@@ -65,7 +67,7 @@ count_woken(WT_SESSION_IMPL *session, WT_CONDVAR *cond, int nthreads, int min_wo
             ++done;
         });
 
-    if (wait_until([&]() { return (blocking.load() == nthreads); })) {
+    if (wait_until([&]() { return (blocking.load() == thread_count); })) {
         wake();
         if (wait_until([&]() { return (woken.load() >= min_woken); })) {
             /* Leave time for any wakes beyond the expected ones to show up. */
@@ -75,7 +77,7 @@ count_woken(WT_SESSION_IMPL *session, WT_CONDVAR *cond, int nthreads, int min_wo
     }
 
     /* Release the rest so the threads can be joined. */
-    while (done.load() < nthreads) {
+    while (done.load() < thread_count) {
         __wt_cond_signal(session, cond);
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -95,7 +97,8 @@ TEST_CASE("Test cond signal_n: counted wake", "[cond]")
 
     SECTION("Fewer than three quarters of the waiters wake n, not all")
     {
-        int woken = count_woken(session, cond, 8, 3, [&]() { __wt_cond_signal_n(session, cond, 3); });
+        int woken =
+          count_woken(session, cond, 8, 3, [&]() { __wt_cond_signal_n(session, cond, 3); });
         CHECK(woken >= 3);
         CHECK(woken < 8);
     }
@@ -114,7 +117,8 @@ TEST_CASE("Test cond signal_n: counted wake", "[cond]")
 
     SECTION("Zero is treated as one wake")
     {
-        int woken = count_woken(session, cond, 8, 1, [&]() { __wt_cond_signal_n(session, cond, 0); });
+        int woken =
+          count_woken(session, cond, 8, 1, [&]() { __wt_cond_signal_n(session, cond, 0); });
         CHECK(woken >= 1);
         CHECK(woken < 8);
     }
