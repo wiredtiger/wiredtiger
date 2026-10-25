@@ -1191,6 +1191,7 @@ fast_truncate_lock_acquire_write(
   WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
 {
     testutil_assert(state->count == 0);
+    testutil_assert(!state->exclusive);
     RWLOCK *lock = fast_truncate_lock_for_table(table);
     lock_writelock(session, lock);
     state->locks[state->count++] = lock;
@@ -1204,6 +1205,11 @@ fast_truncate_lock_acquire_write(
 static WT_INLINE void
 fast_truncate_lock_release(WT_SESSION *session, fast_truncate_lock_state_t *state)
 {
+    testutil_assert(!state->exclusive || state->count == 1);
+    if (state->count != 0) {
+        WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+        testutil_assert(!F_ISSET(session_impl->txn, WT_TXN_RUNNING));
+    }
     while (state->count != 0) {
         RWLOCK *lock = state->locks[--state->count];
         if (state->exclusive)
@@ -1299,6 +1305,7 @@ rollback_retry:
         if (tinfo->quit)
             break;
 
+        testutil_assert(intxn || lock_state.count == 0);
         ++tinfo->ops;
 
         if (!tinfo->replay_again) {
@@ -1744,7 +1751,8 @@ skip_operation:
          */
         if (rnd != 5) {
             __wt_yield(); /* Encourage races */
-            snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
+            bool committed = commit_transaction(tinfo, prepared);
+            snap_repeat_update(tinfo, committed);
             fast_truncate_lock_release(session, &lock_state);
             if (rlog_op_name != NULL) {
                 fprintf(g.replay_op_log,
@@ -1786,7 +1794,11 @@ rollback:
     }
 
 loop_exit:
-    /* Defensive: release lock on any unexpected exit path. */
+    /* Resolve remaining writes before allowing another worker to truncate. */
+    if (intxn) {
+        rollback_transaction(tinfo, prepared);
+        snap_repeat_update(tinfo, false);
+    }
     fast_truncate_lock_release(session, &lock_state);
     if (session != NULL)
         testutil_check(session->close(session, NULL));
