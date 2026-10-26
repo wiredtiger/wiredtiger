@@ -87,8 +87,21 @@ position_kv(WT_CURSOR *cursor)
 
     testutil_check(cursor->get_key(cursor, &key));
     testutil_check(cursor->get_value(cursor, &value));
-    testutil_check(cursor->get_position(cursor, &pos));
-    testutil_assert(pos >= 0. && pos <= 1.);
+
+    /* A layered table's position space can be empty while the record came from ingest. */
+    switch (ret = cursor->get_position(cursor, &pos)) {
+    case 0:
+        testutil_assert(pos >= 0. && pos <= 1.);
+        break;
+    case WT_NOTFOUND:
+    case WT_CACHE_FULL:
+    case WT_PREPARE_CONFLICT:
+        return (true);
+    case WT_ROLLBACK:
+        return (false);
+    default:
+        testutil_check(ret);
+    }
     return (true);
 }
 
