@@ -157,8 +157,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
 
         time.sleep(0.5)
         self.conn.reconfigure('disaggregated=(role="leader")')
-        truncate_thread.join(timeout=5)
-        self.assertFalse(truncate_thread.is_alive(), 'truncate thread did not finish')
+        truncate_thread.join(timeout=5)  # Expect abort.
         self.fail('truncate-list insertion succeeded in leader mode')
 
     def assert_subprocess_aborts(self, subprocess_method, expected_message):
