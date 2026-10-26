@@ -801,6 +801,7 @@ err:
 static int
 __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
+    struct timespec tsp;
     WT_DATA_HANDLE *layered_dhandle = NULL;
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
@@ -829,6 +830,11 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
     size_t ntruncates;
+
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_TRUNCATE_BEFORE_LIST_SNAPSHOT, &tsp);
+
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
