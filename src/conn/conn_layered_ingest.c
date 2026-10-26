@@ -120,10 +120,11 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
          */
         if (last_upd->prepare_state == WT_PREPARE_INPROGRESS && last_upd->txnid != WT_TXN_ABORTED) {
             for (upd = *updates_ptr; upd != last_upd; upd = upd->next)
-                if (upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid != WT_TXN_ABORTED &&
-                  upd->prepared_id == last_upd->prepared_id)
-                    break;
-            if (upd == last_upd)
+                WT_ASSERT(session,
+                  upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == last_upd->txnid &&
+                    upd->prepared_id == last_upd->prepared_id);
+            /* Discard the orphan prepared delete's operations when it is the only update. */
+            if (*updates_ptr == last_upd)
                 WT_ERR(__layered_drop_prepared_transaction_ops(
                   session, key, CUR2BT(cbt), last_upd->txnid, last_upd->prepared_id));
         }
