@@ -35,9 +35,6 @@ transactions that have not finished when the step-down timestamp is set are roll
 not allowed during the step-down reconfiguration, so asynchronous step-down only shortens the period
 of write unavailability but does not eliminate it.
 
-Reads can continue during all the step-down stages. A read transaction without a read timestamp
-that spans the step-down reconfiguration is rolled back.
-
 The application is responsible for replicating or replaying operations above N on the new
 leader. They are not part of the concluding checkpoint, and retaining them in the old
 leader's ingest tables does not transfer them to another node. Applying these operations on the
@@ -76,8 +73,6 @@ in WT_CONNECTION::set_timestamp:
 - WT_SESSION::reset_snapshot operations must not occur during the step-down process.
 - All write transactions must finish before the step-down reconfiguration. No writes or
   active write transactions may run during that call.
-- Read transactions spanning the step-down reconfiguration must have a read timestamp.
-  That timestamp must not be older than the oldest timestamp of the checkpoint they read.
 - Prepared transactions and truncate operations must finish before the step-down timestamp is
   set and must not occur during the step-down process.
 - Operations above N must be replicated or replayed on the new leader.
@@ -94,7 +89,8 @@ be known.
 
 A writer that began before the step-down timestamp was set may already have written to the
 stable tables. If it committed above N, its updates would not be included in the concluding
-checkpoint and would have no ingest table copy to survive the step-down reconfiguration.
+checkpoint and would have no ingest table copy to survive the step-down reconfiguration,
+leading to data loss.
 WiredTiger rolls back such a writer when a subsequent write or commit check observes that the
 step-down timestamp has been set. The application retries the whole transaction, which now
 begins with N set and writes to the ingest tables.
