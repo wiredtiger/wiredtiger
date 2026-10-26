@@ -196,11 +196,10 @@ beginning, WT first acquires a snapshot and then reads the step-down TS protecte
 case, there will never be a situation where a cursor sees role=leader and the step-down TS is not
 set, but the snapshot is new enough to read ingest writes.
 
-Another interesting point is that this class of read transactions is the only one that can
-potentially access a table created after the step-down timestamp was set, so this table has only an
-ingest table (read the schema operations section above). Since table creation always happens before
-access to the table in this case, a cursor operation will always see the step-down-created flag on
-the dhandle.
+These transactions can access a table created after the step-down timestamp was set, provided
+creation preceded transaction begin. Such a table has only an ingest constituent. While its
+step-down-created flag is set, a leader cursor skips opening stable (see the schema operations
+section above). Transactions that begin after reconfiguration can also access it.
 
 However, this flag is cleared during the step-down reconfiguration before the role is changed. Since
 cursor ops do not hold any locks on the fast path, it may well be that a cursor operation racing
@@ -221,26 +220,27 @@ role and encounter the race described above.
 
 ### Post-reconfigure txns
 
-All read transactions that observed the global role being changed after the reconfiguration are safe
-to continue operating in follower mode. If some cursors that are part of these transactions have
-some constituents open, they will follow the same process of reopening the stable table in the
-read-only checkpointed view (or ignoring its non-existence) as the operations from the previous
-paragraph.
+Read transactions whose snapshots are established in follower mode can read the follower view and
+need no step-down-related extra synchronisation. If snapshot acquisition observes follower and
+validates the recorded role generation, the transaction's cursor operations are guaranteed to also
+observe follower.
 
-So in this section, we will try to cover borderline cases where transactions are starting or cursors
-are performing their first operations (read opening tables) while the step-down reconfigure is
-happening. While all ingest tables stay unchanged and can be accessed as before during the
-reconfigure, stable table dhandles are marked as outdated and readonly during the step-down
-reconfiguration. Since this happens for all the dhandles in a loop before changing the role from
-leader to follower, it is quite possible that an operation on a newly opened cursor will try to open
-a stable table, but its dhandle is already marked as outdated (which means that the dhandle should
-be reopened for this URI). Since in this case the right thing for the cursor to do is to wait for
-the role to be updated to follower and open in follower mode to access the stable table via a
-readonly checkpointed view, the live open must not succeed after the transition has completed.
+## Cursor opens racing with reconfiguration
 
-The fresh btree open takes the schema lock. If reconfiguration wins, the open waits and then sees
-follower. The cursor operation returns `WT_ROLLBACK` rather than opening a live stable tree. If the
-application retries before another role change, it will see the follower role.
+Cursor operations that race with reconfiguration need separate consideration.
+
+During reconfiguration, stable trees are marked read-only and their handles outdated before
+follower is published. A cursor operation can therefore observe the outdated flag on the stable
+handle while the connection role read for that operation is still leader. Ingest remains accessible
+throughout the transition, but a new live stable open must not succeed once the node is a follower.
+
+This case is handled because a fresh btree open takes the schema lock, as does the step-down
+reconfiguration. If reconfiguration wins, the open waits to acquire the lock and then observes the
+updated follower role. The cursor operation returns `WT_ROLLBACK` rather than opening a live stable
+tree. If the application retries the transaction, it will see the follower role.
+
+If a live stable open that completes before reconfiguration it is a "post-step-down-ts" transaction;
+see the previous section for more details.
 
 ## Rolling back straddlers
 
@@ -352,65 +352,6 @@ see one of these updates, its conflict check may roll it back too; this is safe 
 straddler must also roll back. Transactions writing the same constituent continue to use the usual
 single-tree conflict check.
 
-OPEN QUESTIONS:
-
-* WHY DO WE NEED RELAXED ACCESS AROUND `step_down_timestamp` for schema? Is that only for
-  consistency (C11 style, where a variable, once accessed as atomic, becomes atomic everywhere)?
-* WHAT ABOUT `step_down_disaggregated_schema_epoch`? Why is it protected by the step-down mutex?
-* LOOK CLOSELY AT WHY WE HAVE EVERY SINGLE LOCK IN RECONFIGURE.
-
-STRUCTURE IMPROVEMENTS:
-* Think about establishing common terminology
-* Do not use shortcuts like "ops"
-* Make ### Post-reconfigure txns shorter and do a separate topic about reading outdated dhandles.
-* What places are the best to add diagrams on how it's expected to be synchronised?
-* Split the doc, to txn calls logic, schema epochs, cursor read ops and cursor write ops??
-* TODO: Add a two-thread diagram in "Write transactions straddling setting the step-down timestamp".
-  Show transaction begin and commit before, after, or straddling timestamp setting; mark the
-  setter's write-lock section, the begin-time read-lock section, and the commit-time read-lock
-  section where a straddler check is needed.
-
-DRAFT STATUS:
-* Filled: write-target table, stable-open race handling, untimestamped reader rollback explanation,
-  eviction synchronisation, and write-conflict synchronisation without mirroring.
-* The write-straddler diagram TODO is retained above with its intended location and three cases;
-  the illustration is pending.
-* Descriptive terms replace internal code names; the broader terminology and abbreviation pass
-  remains pending.
-* Synchronisation details are now in their corresponding sections. Shortening the post-reconfigure
-  section, extracting the outdated-handle topic, and splitting the document remain pending.
-* All three open questions above remain open; the reconfiguration-lock review is only partial.
-* Removed repeated write-routing explanations and implementation details following the table.
-* Moved the largest-key exception to the final section. Access to tables newer than the transaction
-  is outside the model, not a supported pre-step-down routing exception.
-* Added the snapshot-reset restriction to the final section; step-down-specific enforcement remains
-  pending in the implementation.
-* Simplified write-straddler detection to the locked commit-time guarantee and unlocked early
-  checks; removed repeated routing cases and moved snapshot-build retries into the reader rollback
-  section.
-* Removed repeated missing-stable details from the race discussion. Prepared-transaction limits are
-  recorded in the final exceptions section rather than the write-straddler explanation.
-* Reworked the added explanations around the reader's problem and the synchronization that solves
-  it; the reader rollback explanation now introduces role generations and links to their guide.
-* Removed internal error-conversion details, eviction counters, and cursor-position bookkeeping from
-  the model explanation. The full publication-versus-snapshot ordering is described only in the
-  stable-versus-ingest subsection; prepared cases remain in the final exceptions section.
-* Pending: clarify that follower reader safety requires a follower-established snapshot, and remove
-  the claim that only post-step-down-timestamp transactions can access step-down-created tables.
-* Retry descriptions are conditional on the application's choice. The reader explanation omits
-  step-up-spanning examples and the broader role-generation recheck after checkpoint selection.
-* Clarified that a stable-writing transaction may finish after timestamp setting only under the
-  application requirement that its commit timestamp is at or below the step-down boundary. The
-  step-down lock orders the straddler check; it does not establish this timestamp requirement.
-* Removed ordinary checkpoint-generation details and repeated reader-rollback explanations.
-  Eviction ordering now distinguishes setting the flag from stopping work already in progress;
-  the cross-table explanation distinguishes published updates from snapshot-visible updates.
-
-IMPLEMENTATION REFERENCES:
-
-- `txn->stepdown_ts_set`
-- `step_down_lock`
--
 
 # Exceptional operations and model limits
 
@@ -430,5 +371,69 @@ IMPLEMENTATION REFERENCES:
   only. If the application needs a new snapshot, it can end the transaction and begin a new one
   instead. The current API rejects reset outside snapshot isolation or after modifications, but
   has no step-down-specific rejection. Enforcing this model restriction remains pending.
+
+OPEN QUESTIONS:
+
+* WHY DO WE NEED RELAXED ACCESS AROUND `step_down_timestamp` for schema? Is that only for
+  consistency (C11 style, where a variable, once accessed as atomic, becomes atomic everywhere)?
+* WHAT ABOUT `step_down_disaggregated_schema_epoch`? Why is it protected by the step-down mutex?
+* LOOK CLOSELY AT WHY WE HAVE EVERY SINGLE LOCK IN RECONFIGURE.
+
+STRUCTURE IMPROVEMENTS:
+* Think about establishing common terminology
+* Do not use shortcuts like "ops"
+* Completed: cursor-open races involving outdated handles now have their own section.
+* What places are the best to add diagrams on how it's expected to be synchronised?
+* Split the doc, to txn calls logic, schema epochs, cursor read ops and cursor write ops??
+* TODO: Add a two-thread diagram in "Write transactions straddling setting the step-down timestamp".
+  Show transaction begin and commit before, after, or straddling timestamp setting; mark the
+  setter's write-lock section, the begin-time read-lock section, and the commit-time read-lock
+  section where a straddler check is needed.
+
+DRAFT STATUS:
+* Filled: write-target table, stable-open race handling, untimestamped reader rollback explanation,
+  eviction synchronisation, and write-conflict synchronisation without mirroring.
+* The write-straddler diagram TODO is retained above with its intended location and three cases;
+  the illustration is pending.
+* Descriptive terms replace internal code names; the broader terminology and abbreviation pass
+  remains pending.
+* Synchronisation details are now in their corresponding sections. The post-reconfigure section is
+  shorter, and cursor-open races involving outdated handles have a separate section. Splitting the
+  document remains pending.
+* All three open questions above remain open; the reconfiguration-lock review is only partial.
+* Removed repeated write-routing explanations and implementation details following the table.
+* Moved the largest-key exception to the final section. Access to tables newer than the transaction
+  is outside the model, not a supported pre-step-down routing exception.
+* Added the snapshot-reset restriction to the final section; step-down-specific enforcement remains
+  pending in the implementation.
+* Simplified write-straddler detection to the locked commit-time guarantee and unlocked early
+  checks; removed repeated routing cases and moved snapshot-build retries into the reader rollback
+  section.
+* Removed repeated missing-stable details from the race discussion. Prepared-transaction limits are
+  recorded in the final exceptions section rather than the write-straddler explanation.
+* Reworked the added explanations around the reader's problem and the synchronization that solves
+  it; the reader rollback explanation now introduces role generations and links to their guide.
+* Removed internal error-conversion details, eviction counters, and cursor-position bookkeeping from
+  the model explanation. The full publication-versus-snapshot ordering is described only in the
+  stable-versus-ingest subsection; prepared cases remain in the final exceptions section.
+* Clarified that observing follower does not make an older untimestamped snapshot safe, and that
+  transactions begun after reconfiguration can also access step-down-created tables. Table creation
+  must precede transaction begin.
+* Retry descriptions are conditional on the application's choice. The reader explanation omits
+  step-up-spanning examples and the broader role-generation recheck after checkpoint selection.
+* Clarified that a stable-writing transaction may finish after timestamp setting only under the
+  application requirement that its commit timestamp is at or below the step-down boundary. The
+  step-down lock orders the straddler check; it does not establish this timestamp requirement.
+* Removed ordinary checkpoint-generation details and repeated reader-rollback explanations.
+  Eviction ordering now distinguishes setting the flag from stopping work already in progress;
+  the cross-table explanation distinguishes published updates from snapshot-visible updates.
+* Clarified that the post-reconfigure visibility guarantee requires snapshot acquisition to observe
+  follower and validate the recorded role generation, not merely observe the new generation.
+
+IMPLEMENTATION REFERENCES:
+
+- `txn->stepdown_ts_set`
+- `step_down_lock`
+-
 
 */
