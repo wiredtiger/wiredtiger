@@ -74,7 +74,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.setup_follower()
         self.truncate_uncommitted(self.session, 2, 8)
 
-        self.conn.reconfigure('disaggregated=(role="leader")')
+        self.conn.reconfigure('disaggregated=(role="leader")')  # Expect abort.
         self.fail('step-up succeeded with an uncommitted follower truncate')
 
     def subprocess_committed_follower_truncate(self):
@@ -86,21 +86,20 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         step_up_thread = threading.Thread(
           target=lambda: self.conn.reconfigure('disaggregated=(role="leader")'), daemon=True)
         step_up_thread.start()
-        try:
-            self.assertStatGreaterSoon(
-              wiredtiger.stat.conn.disagg_step_up_in_progress, 0, session=stats_session,
-              msg='step-up did not start')
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-            self.assertGreater(
-              self.get_stat(wiredtiger.stat.conn.disagg_step_up_in_progress, session=stats_session),
-              0, 'truncate was not committed while step-up was in progress')
-            self.assertStatGreaterSoon(
-              wiredtiger.stat.conn.disagg_step_up_time, 0, session=stats_session, timeout=3,
-              msg='step-up did not complete successfully')
-        finally:
-            stats_session.close()
-            step_up_thread.join(timeout=30)
+        self.assertStatGreaterSoon(
+            wiredtiger.stat.conn.disagg_step_up_in_progress, 0, session=stats_session,
+            msg='step-up did not start')
 
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+        self.assertGreater(
+            self.get_stat(wiredtiger.stat.conn.disagg_step_up_in_progress, session=stats_session),
+            0, 'truncate was not committed while step-up was in progress')
+        self.assertStatGreaterSoon(
+            wiredtiger.stat.conn.disagg_step_up_time, 0, session=stats_session, timeout=3,
+            msg='step-up did not complete successfully')
+
+        stats_session.close()
+        step_up_thread.join(timeout=30)
         self.assertFalse(step_up_thread.is_alive(), 'step-up did not finish')
 
     def subprocess_truncate_started_during_stepup(self):
@@ -121,11 +120,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
           wiredtiger.stat.conn.disagg_step_up_in_progress, 0, msg='step-up did not start')
 
         self.session.begin_transaction()
-        self.session.truncate(None, start, stop, None)
-        start.close()
-        stop.close()
-        step_up_thread.join(timeout=10)
-        self.assertFalse(step_up_thread.is_alive(), 'step-up did not finish')
+        self.session.truncate(None, start, stop, None)  # Expect abort.
         self.fail('truncate succeeded while step-up was in progress')
 
     def subprocess_truncate_insert_during_stepup(self):
@@ -138,46 +133,35 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
           'disagg_before_truncate_list_drain]')
         search_calls = wiredtiger.stat.dsrc.layered_truncate_list_search_calls
         search_calls_before = self.get_stat(search_calls, uri=self.uri)
-        truncate_returned = threading.Event()
-        rollback = threading.Event()
 
-        def truncate_and_wait():
+        def truncate():
             session = self.conn.open_session('')
-            try:
-                self.truncate_uncommitted(session, 2, 8)
-                truncate_returned.set()
-                rollback.wait(timeout=30)
-                session.rollback_transaction()
-            finally:
-                session.close()
+            self.truncate_uncommitted(session, 2, 8)
+            session.close()
 
-        truncate_thread = threading.Thread(target=truncate_and_wait)
+        truncate_thread = threading.Thread(target=truncate, daemon=True)
         truncate_thread.start()
 
-        try:
-            self.assertStatGreaterSoon(
-              search_calls, search_calls_before, uri=self.uri,
-              msg='follower truncate did not reach truncate-list conflict detection')
-            self.conn.reconfigure('disaggregated=(role="leader")')
-            self.assertTrue(truncate_returned.wait(timeout=10),
-              'truncate insertion did not complete during the step-up drain')
-            self.fail('truncate-list insertion succeeded during step-up')
-        finally:
-            rollback.set()
-            truncate_thread.join(timeout=10)
+        self.assertStatGreaterSoon(
+          search_calls, search_calls_before, uri=self.uri,
+          msg='follower truncate did not reach truncate-list conflict detection')
+        self.conn.reconfigure('disaggregated=(role="leader")')  # Expect abort (in truncate thread).
+        self.fail('truncate-list insertion succeeded during step-up')
 
-        self.assertFalse(truncate_thread.is_alive(), 'truncate rollback did not finish')
-
-    def test_step_up_asserts_on_uncommitted_follower_truncate(self):
+    def assert_subprocess_aborts(self, subprocess_method, expected_message):
         rc, home = self.run_subprocess_function(
-            'SUBPROCESS',
-            'test_layered_stepup14.test_layered_stepup14.subprocess_uncommitted_follower_truncate',
-            silent=True,
-            scenario=self.scenario_name)
+          'SUBPROCESS',
+          f'{__name__}.{self.__class__.__name__}.{subprocess_method}',
+          silent=True,
+          scenario=self.scenario_name)
         self.assert_crashed(rc, signal.SIGABRT)
         with open(os.path.join(home, 'stderr.txt')) as err:
-            self.assertIn(
-              'an uncommitted follower truncate was found during the step-up drain', err.read())
+            self.assertIn(expected_message, err.read())
+
+    def test_step_up_asserts_on_uncommitted_follower_truncate(self):
+        self.assert_subprocess_aborts(
+          'subprocess_uncommitted_follower_truncate',
+          'an uncommitted follower truncate was found during the step-up drain')
 
     def test_step_up_succeeds_on_committed_follower_truncate(self):
         rc, _ = self.run_subprocess_function(
@@ -188,21 +172,11 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(rc, 0)
 
     def test_truncate_started_during_stepup_asserts(self):
-        rc, home = self.run_subprocess_function(
-          'SUBPROCESS',
-          'test_layered_stepup14.test_layered_stepup14.subprocess_truncate_started_during_stepup',
-          silent=True,
-          scenario=self.scenario_name)
-        self.assert_crashed(rc, signal.SIGABRT)
-        with open(os.path.join(home, 'stderr.txt')) as err:
-            self.assertIn('truncate is not supported during step-up', err.read())
+        self.assert_subprocess_aborts(
+          'subprocess_truncate_started_during_stepup',
+          'truncate is not supported during step-up')
 
     def test_truncate_insert_during_stepup_asserts(self):
-        rc, home = self.run_subprocess_function(
-          'SUBPROCESS',
-          'test_layered_stepup14.test_layered_stepup14.subprocess_truncate_insert_during_stepup',
-          silent=True,
-          scenario=self.scenario_name)
-        self.assert_crashed(rc, signal.SIGABRT)
-        with open(os.path.join(home, 'stderr.txt')) as err:
-            self.assertIn('truncate list entries cannot be inserted during step-up', err.read())
+        self.assert_subprocess_aborts(
+          'subprocess_truncate_insert_during_stepup',
+          'truncate list entries cannot be inserted during step-up')
