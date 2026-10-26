@@ -30,7 +30,7 @@
 # begin or try to insert entries during step-up. A truncate already on the list may commit before
 # the drain and be replayed successfully.
 
-import os, signal, threading, wiredtiger, wttest
+import os, signal, threading, time, wiredtiger, wttest
 from contextlib import closing
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
@@ -90,6 +90,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
             wiredtiger.stat.conn.disagg_step_up_in_progress, 0, session=stats_session,
             msg='step-up did not start')
 
+        time.sleep(0.5)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
         self.assertGreater(
             self.get_stat(wiredtiger.stat.conn.disagg_step_up_in_progress, session=stats_session),
@@ -119,6 +120,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertStatGreaterSoon(
           wiredtiger.stat.conn.disagg_step_up_in_progress, 0, msg='step-up did not start')
 
+        time.sleep(0.5)
         self.session.begin_transaction()
         self.session.truncate(None, start, stop, None)  # Expect abort.
         self.fail('truncate succeeded while step-up was in progress')
@@ -129,8 +131,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
         self.conn.reconfigure(
-          'timing_stress_for_test=[disagg_truncate_entry_insert,'
-          'disagg_before_truncate_list_drain]')
+          'timing_stress_for_test=[disagg_truncate_entry_insert,disagg_role_transition]')
         search_calls = wiredtiger.stat.dsrc.layered_truncate_list_search_calls
         search_calls_before = self.get_stat(search_calls, uri=self.uri)
 
@@ -141,10 +142,11 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
 
         truncate_thread = threading.Thread(target=truncate, daemon=True)
         truncate_thread.start()
-
         self.assertStatGreaterSoon(
           search_calls, search_calls_before, uri=self.uri,
           msg='follower truncate did not reach truncate-list conflict detection')
+
+        time.sleep(0.5)
         self.conn.reconfigure('disaggregated=(role="leader")')  # Expect abort (in truncate thread).
         self.fail('truncate-list insertion succeeded during step-up')
 

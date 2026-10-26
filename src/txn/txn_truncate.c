@@ -168,7 +168,7 @@ __txn_insert_truncate_entry_helper(
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, entry));
 
-    tsp.tv_sec = 2;
+    tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_TRUNCATE_ENTRY_INSERT, &tsp);
 

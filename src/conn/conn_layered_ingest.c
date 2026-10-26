@@ -831,7 +831,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
     size_t ntruncates;
 
-    tsp.tv_sec = 2;
+    tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_BEFORE_TRUNCATE_LIST_DRAIN, &tsp);
 
