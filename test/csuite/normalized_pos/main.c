@@ -1146,8 +1146,8 @@ check_int_edges(WT_SESSION *session, const char *table_uri, bool is_signed)
     testutil_check(session->open_cursor(session, table_uri, NULL, NULL, &cursor));
     cbt = (WT_CURSOR_BTREE *)cursor;
     have_prev = false;
-    prev_q = 0;
-    prev_u = 0;
+    boundary_q = key_q = prev_q = 0;
+    boundary_u = key_u = prev_u = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         if (is_signed)
             testutil_check(cursor->get_key(cursor, &key_q));
