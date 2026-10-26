@@ -1261,7 +1261,15 @@ begin_serialized_truncate(
     /* Release prior shared locks, acquire an exclusive lock and begin a new transaction. */
     unlock_tables(session, lock_statep);
     lock_table_exclusive(session, table, lock_statep);
-    begin_transaction_ts(tinfo);
+
+    if (g.disagg_leader)
+        begin_transaction_ts(tinfo);
+    else
+        /*
+         * FIXME-WT-17637: A follower truncate with a backdated read timestamp can miss committed
+         * ingest updates.
+         */
+        begin_transaction(tinfo, NULL);
 }
 
 /*
