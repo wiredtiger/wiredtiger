@@ -117,6 +117,14 @@ connection_page_delta_config_common = [
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
         delta. Deltas larger than full pages are permitted for measurement and testing
         reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+    Config('delta_pct_of_target_page_size', 'true', r'''
+        When enabled, the \c delta_pct threshold is evaluated against the configured
+        maximum page size for the page type rather than the size of the full page image
+        just built, so a partially filled page gets the same delta byte budget as a full
+        one. A delta larger than half the image plus half of \c delta_pct is still
+        rejected, a bound that reaches the whole image, and so stops applying, at a \c
+        delta_pct of 100''',
+        type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation may write deltas for internal pages
         instead of writing entire pages every time''',
@@ -173,7 +181,7 @@ disaggregated_config_common = [
 ]
 # Disaggregated options accepted only at wiredtiger_open, never at reconfigure.
 connection_disaggregated_config_open = [
-    Config('stepdown_write_mirroring', 'false', r'''
+    Config('stepdown_write_mirroring', 'true', r'''
         mirror writes to both the stable and ingest constituents during the step-down
         window to enable early cross-constituents write conflicts detection''',
         type='boolean', undoc=True),
