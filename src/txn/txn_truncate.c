@@ -168,6 +168,9 @@ __txn_insert_truncate_entry_helper(
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, entry));
 
+    /* At this point, adding the entry to the truncate list will not error (it can only assert). */
+    __log_truncate_entry(session, layered_table, entry);
+
     tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_TRUNCATE_ENTRY_INSERT, &tsp);
@@ -183,8 +186,6 @@ __txn_insert_truncate_entry_helper(
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
 
     __wt_writeunlock(session, &truncate_list->lock);
-
-    __log_truncate_entry(session, layered_table, entry);
 
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
