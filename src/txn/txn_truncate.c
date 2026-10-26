@@ -177,15 +177,14 @@ __txn_insert_truncate_entry_helper(
     WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP),
       "truncate list entries cannot be inserted during step-up");
 
-    /* At this point, adding the entry to the truncate list will not fail. */
-    __log_truncate_entry(session, layered_table, entry);
-
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
 
     __wt_writeunlock(session, &truncate_list->lock);
+
+    __log_truncate_entry(session, layered_table, entry);
 
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
