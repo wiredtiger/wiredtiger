@@ -28,6 +28,12 @@
 
 #include "format.h"
 
+typedef struct {
+    RWLOCK *locks[V_MAX_TABLES_CONFIG + 1];
+    u_int count;
+    bool exclusive;
+} fast_truncate_lock_state_t;
+
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
 static void clear_bounds(WT_CURSOR *);
 static int col_insert(TINFO *);
@@ -37,6 +43,8 @@ static int col_remove(TINFO *, bool);
 static int col_reserve(TINFO *, bool);
 static int col_truncate(TINFO *);
 static int col_update(TINFO *, bool);
+static WT_INLINE int fast_truncate_lock_acquire_read(
+  WT_SESSION *, TABLE *, fast_truncate_lock_state_t *);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
@@ -880,7 +888,8 @@ mirror_check(TINFO *tinfo, iso_level_t iso_level, thread_op op, int *expect_retp
  *     Per-thread table operation.
  */
 static int
-table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pause_writes)
+table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pause_writes,
+  fast_truncate_lock_state_t *lock_state)
 {
     WT_DECL_RET;
     TABLE *table;
@@ -951,6 +960,11 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pau
          */
         if (!pause_writes && intxn && iso_level == ISOLATION_SNAPSHOT &&
           tinfo->ignore_prepare == false && mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
+            if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
+                ret = fast_truncate_lock_acquire_read(tinfo->session, table, lock_state);
+                if (ret != 0)
+                    OP_FAILED(true);
+            }
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -1136,12 +1150,6 @@ ops_session_open(TINFO *tinfo)
     wt_wrap_open_session(conn, &tinfo->sap, NULL, NULL, &session);
     tinfo->session = session;
 }
-
-typedef struct {
-    RWLOCK *locks[V_MAX_TABLES_CONFIG + 1];
-    u_int count;
-    bool exclusive;
-} fast_truncate_lock_state_t;
 
 /*
  * fast_truncate_lock_for_table --
@@ -1603,7 +1611,7 @@ rollback_retry:
         expect_set = false;
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
-            ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
+            ret = table_op(tinfo, intxn, iso_level, op, pause_writes, &lock_state);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 
             /*
@@ -1626,7 +1634,7 @@ rollback_retry:
         }
         if (ret == 0 && table != skip1) {
             tinfo->table = table;
-            ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
+            ret = table_op(tinfo, intxn, iso_level, op, pause_writes, &lock_state);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
             if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                 goto rollback;
@@ -1650,7 +1658,7 @@ rollback_retry:
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
-                    ret = table_op(tinfo, intxn, iso_level, op, pause_writes);
+                    ret = table_op(tinfo, intxn, iso_level, op, pause_writes, &lock_state);
                     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
                     if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                         goto rollback;
