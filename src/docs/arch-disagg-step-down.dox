@@ -35,6 +35,9 @@ transactions that have not finished when the step-down timestamp is set are roll
 not allowed during the step-down reconfiguration, so asynchronous step-down only shortens the period
 of write unavailability but does not eliminate it.
 
+Reads can continue during all the step-down stages. A read transaction without a read timestamp
+that spans the step-down reconfiguration is rolled back.
+
 The application is responsible for replicating or replaying operations above N on the new
 leader. They are not part of the concluding checkpoint, and retaining them in the old
 leader's ingest tables does not transfer them to another node. Applying these operations on the
