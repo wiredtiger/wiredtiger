@@ -1242,7 +1242,7 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
 #define WT_IK_DECODE_KEY_LEN(v) ((v) >> 32)
 #define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
-#define WT_IK_DECODE_KEY_OFFSET(v) (((v) & 0xFFFFFFFF) >> 1)
+#define WT_IK_DECODE_KEY_OFFSET(v) (((v)&0xFFFFFFFF) >> 1)
     /*
      * Read the key once: both forms are valid at any instant, but the flag test and the value used
      * have to agree. A split can instantiate the key underneath us, so a caller handed an
