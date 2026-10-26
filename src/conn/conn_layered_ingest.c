@@ -829,7 +829,6 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
     size_t ntruncates;
-
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
