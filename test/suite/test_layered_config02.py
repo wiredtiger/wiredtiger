@@ -29,9 +29,8 @@
 import os, os.path, shutil, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
-from wiredtiger import stat
 
-# Test disaggregated storage with block cache.
+# Test disaggregated storage with long delta chains.
 @disagg_test_class
 class test_layered_config02(wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -41,8 +40,7 @@ class test_layered_config02(wttest.WiredTigerTestCase):
 
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'precise_checkpoint=true,' \
-                     + 'block_cache=(enabled=true,type="dram",size=256MB),'
+                     + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -54,8 +52,6 @@ class test_layered_config02(wttest.WiredTigerTestCase):
         ('layered', dict(prefix='layered:')),
         ('shared', dict(prefix='table:')),
     ])
-    def early_setup(self):
-        self.skipTest("FIXME-WT-15663: currently block cache is disabled.")
 
     # Test long delta chains
     def test_layered_config02(self):
@@ -80,9 +76,6 @@ class test_layered_config02(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp1)}')
         self.session.checkpoint()
 
-        # Track block cache stats before evicting
-        prev_block_cache_blocks_removed = self.get_stat(stat.conn.block_cache_blocks_removed)
-
         # Create several updates with small changes
         value_prefix2 = 'bbb'
         for n in range(1, self.num_updates + 1):
@@ -96,7 +89,7 @@ class test_layered_config02(wttest.WiredTigerTestCase):
             self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp_n)}')
             self.session.checkpoint()
 
-        # Evict a page and read it back, which should put it in to the block cache
+        # Evict the page and read it back
         self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
         self.assertEqual(cursor[str(self.key_to_update)], last_value)
@@ -109,29 +102,3 @@ class test_layered_config02(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.rollback_transaction()
 
-        # Evict the page again
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        self.assertEqual(cursor[str(self.key_to_update)], last_value)
-        cursor.reset()
-        cursor.close()
-        self.session.rollback_transaction()
-
-        self.assertStatGreaterSoon(stat.conn.block_cache_blocks_removed, prev_block_cache_blocks_removed)
-
-        # Remember the relevant statistics
-        stat_cursor = self.session.open_cursor('statistics:')
-        prev_cache_read_leaf = stat_cursor[wiredtiger.stat.conn.cache_read_leaf][2]
-        prev_cache_pages_requested_leaf = stat_cursor[wiredtiger.stat.conn.cache_pages_requested_leaf][2]
-        stat_cursor.close()
-
-        # Read it again, which should be satisfied from the block cache
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.assertEqual(cursor[str(self.key_to_update)], last_value)
-        cursor.close()
-        self.session.rollback_transaction()
-
-        # Check the relevant statistics
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.cache_read_leaf), prev_cache_read_leaf)
-        self.assertStatGreaterSoon(wiredtiger.stat.conn.cache_pages_requested_leaf, prev_cache_pages_requested_leaf)
