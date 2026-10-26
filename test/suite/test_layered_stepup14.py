@@ -79,7 +79,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
 
     def subprocess_committed_follower_truncate(self):
         self.setup_follower()
-        self.conn.reconfigure('timing_stress_for_test=[disagg_before_truncate_list_drain]')
+        self.conn.reconfigure('timing_stress_for_test=[disagg_role_transition]')
         self.truncate_uncommitted(self.session, 2, 8)
 
         stats_session = self.conn.open_session('')
