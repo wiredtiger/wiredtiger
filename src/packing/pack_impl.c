@@ -160,7 +160,7 @@ __pack_int_len(uint8_t first)
 {
     switch (first & 0xf0) {
     case NEG_MULTI_MARKER:
-        return (1 + sizeof(uint64_t) - (first & 0xf));
+        return (1 + sizeof(uint64_t) - (size_t)(first & 0xf));
     case NEG_2BYTE_MARKER:
     case NEG_2BYTE_MARKER | 0x10:
     case POS_2BYTE_MARKER:
@@ -176,7 +176,7 @@ __pack_int_len(uint8_t first)
     case POS_1BYTE_MARKER | 0x30:
         return (1);
     case POS_MULTI_MARKER:
-        return (1 + (first & 0xf));
+        return (1 + (size_t)(first & 0xf));
     default:
         return (0);
     }
