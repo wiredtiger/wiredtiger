@@ -953,6 +953,7 @@ struct __wt_connection_stats {
     int64_t cursor_equals_error;
     int64_t cursor_get_key_error;
     int64_t cursor_get_value_error;
+    int64_t cursor_insert;
     int64_t cursor_insert_error;
     int64_t cursor_insert_bytes;
     int64_t cursor_largest_key_error;
@@ -997,7 +998,6 @@ struct __wt_connection_stats {
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
     int64_t cursor_reopen;
-    int64_t cursor_insert;
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;

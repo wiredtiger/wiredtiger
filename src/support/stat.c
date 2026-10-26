@@ -3311,6 +3311,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
   "cursor: cursor get value calls that return an error",
+  "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert key and value bytes",
   "cursor: cursor largest key calls that return an error",
@@ -3355,7 +3356,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
   "cursor: cursors reused from cache",
-  "cursor: insert calls",
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
   "cursor: open cursor time internal (usecs)",
@@ -6970,6 +6970,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_equals_error += WT_STAT_CONN_READ(from, cursor_equals_error);
     to->cursor_get_key_error += WT_STAT_CONN_READ(from, cursor_get_key_error);
     to->cursor_get_value_error += WT_STAT_CONN_READ(from, cursor_get_value_error);
+    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_insert_error += WT_STAT_CONN_READ(from, cursor_insert_error);
     to->cursor_insert_bytes += WT_STAT_CONN_READ(from, cursor_insert_bytes);
     to->cursor_largest_key_error += WT_STAT_CONN_READ(from, cursor_largest_key_error);
@@ -7014,7 +7015,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
-    to->cursor_insert += WT_STAT_CONN_READ(from, cursor_insert);
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
