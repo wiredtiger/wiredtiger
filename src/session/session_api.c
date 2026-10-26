@@ -1846,7 +1846,8 @@ err:
 
 /*
  * __session_verify_all --
- *     Verify every table in the database. With the abort_on_error option set, stop at the first failure.
+ *     Verify every table in the database. With the abort_on_error option set, stop at the first
+ *     failure.
  */
 static int
 __session_verify_all(WT_SESSION_IMPL *session, const char *cfg[])

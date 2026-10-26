@@ -1935,8 +1935,8 @@ methods = {
 'WT_SESSION.verify' : Method([
     Config('abort_on_error', 'false', r'''
         when verifying all tables (no URI given), stop at the first table that fails
-        verification; by default every table is verified and the first failure is returned at
-        the end''',
+        verification; by default all tables are verified, with every failure logged as it is
+        found, and the return value reports the first failure''',
         type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes

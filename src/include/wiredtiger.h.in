@@ -1569,8 +1569,9 @@ struct __wt_session {
      * database
      * @configstart{WT_SESSION.verify, see dist/api_data.py}
      * @config{abort_on_error, when verifying all tables (no URI given)\, stop at the first table
-     * that fails verification; by default every table is verified and the first failure is returned
-     * at the end., a boolean flag; default \c false.}
+     * that fails verification; by default all tables are verified\, with every failure logged as it
+     * is found\, and the return value reports the first failure., a boolean flag; default \c
+     * false.}
      * @config{do_not_clear_txn_id, Turn off transaction id clearing\, intended for debugging and
      * better diagnosis of crashes or failures.  Note: History store validation is disabled when the
      * configuration is set as visibility rules may not work correctly because the transaction ids
