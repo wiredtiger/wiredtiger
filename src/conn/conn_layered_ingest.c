@@ -833,7 +833,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
-    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_TRUNCATE_BEFORE_LIST_SNAPSHOT, &tsp);
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_BEFORE_TRUNCATE_LIST_DRAIN, &tsp);
 
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));

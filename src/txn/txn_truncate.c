@@ -172,13 +172,13 @@ __txn_insert_truncate_entry_helper(
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_TRUNCATE_ENTRY_INSERT, &tsp);
 
-    /* At this point, adding the entry to the truncate list will not fail. */
-    __log_truncate_entry(session, layered_table, entry);
-
     __wt_writelock(session, &truncate_list->lock);
 
     WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP),
-      "truncates are not permitted during step-up");
+      "truncate list entries cannot be inserted during step-up");
+
+    /* At this point, adding the entry to the truncate list will not fail. */
+    __log_truncate_entry(session, layered_table, entry);
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);

@@ -77,7 +77,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
 
     def subprocess_committed_follower_truncate(self):
         self.setup_follower()
-        self.conn.reconfigure('timing_stress_for_test=[disagg_truncate_before_list_snapshot]')
+        self.conn.reconfigure('timing_stress_for_test=[disagg_before_truncate_list_drain]')
 
         start = self.session.open_cursor(self.uri)
         stop = self.session.open_cursor(self.uri)
@@ -155,7 +155,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.conn.reconfigure(
           'timing_stress_for_test=[disagg_truncate_entry_insert,'
-          'disagg_truncate_before_list_snapshot]')
+          'disagg_before_truncate_list_drain]')
         search_calls = wiredtiger.stat.dsrc.layered_truncate_list_search_calls
         search_calls_before = self.get_stat(search_calls, uri=self.uri)
         truncate_returned = threading.Event()
