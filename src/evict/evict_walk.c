@@ -775,7 +775,6 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 
     cache = S2C(session)->cache;
     evict = S2C(session)->evict;
-    btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
