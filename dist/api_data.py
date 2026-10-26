@@ -1933,6 +1933,11 @@ methods = {
 
 'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.verify' : Method([
+    Config('abort_on_error', 'false', r'''
+        when verifying all tables (no URI given), stop at the first table that fails
+        verification; by default every table is verified and the first failure is returned at
+        the end''',
+        type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as
