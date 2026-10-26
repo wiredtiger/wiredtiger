@@ -43,45 +43,42 @@ corresponding global variable.
 
 Before switching to follower mode, reconfigure(role=follower) also marks all the shared btrees
 OUTDATED and READONLY and only then changes the corresponding global role variable for follower
-mode. While doing so, it holds the global eviction lock and the handle list read lock. It also holds
-the checkpoint and schema locks for the entire duration of the role change.
+mode. While doing so, it holds the handle list read lock and obtains exclusive eviction access for
+each tree while marking it. It also holds the checkpoint and schema locks for the entire duration
+of the role change.
 
-It also holds the step-down lock, but only while setting `step_down_timestamp` and
-`step_down_disaggregated_schema_epoch` to none.
+It also holds the step-down lock, but only while clearing the step-down timestamp and schema epoch.
 
 It also increases the role generation right before switching to follower mode.
 
 The lock sequence looks like this:
 
 ```
-reconfigure(role=follower) {
-    lock(conn->checkpoint_lock)
-    lock(conn->schema_lock)
+Step-down reconfiguration {
+    acquire checkpoint lock
+    acquire schema lock
+    acquire handle list read lock
 
-    mark_disagg_btrees_readonly_and_outdated_then_step_down() {
-        read_lock(dhanle_list_rw_lock)
-        for (every dhandle) {
-            if (layered and step_down_created) step_down_created = false;
-
-            if (disagg_btree) {
-                 eviction_exclusive_lock();
-                 dhandle->readonly = true;
-                 dhandle->outdated = true;
-                 eviction_exclusive_unlock();
-            }
+    for each handle except the history store {
+        if layered: clear the step-down-created flag
+        if an open disaggregated btree that is not already read-only {
+            obtain exclusive eviction access
+            mark the btree read-only and its handle outdated
+            release exclusive eviction access
         }
-        __wt_gen_next(session, WT_GEN_DISAGG_ROLE);
-        store_release(conn->leader, false);
-        read_unlock(dhanle_list_rw_lock)
     }
+    mark the shared history store read-only and outdated with exclusive eviction access
+    advance the role generation
+    publish follower role with a release store
+    release handle list read lock
 
-    write_lock(step_down_lock);
-    conn->step_down_timestamp = NONE;
-    conn->step_down_disaggregated_schema_epoch = NONE;
-    write_unlock(step_down_lock);
+    acquire step-down write lock
+    clear the step-down timestamp and schema epoch
+    release step-down write lock
 
-    unlock(conn->checkpoint_lock)
-    unlock(conn->schema_lock);
+    release schema lock
+    release checkpoint lock
+}
 ```
 
 # The schema ops part of the logic
@@ -93,12 +90,12 @@ of these tables are created). In every place where schema is later created, veri
 opened, it always holds the global schema lock, as it does when the step-down timestamp is set.
 
 The interesting piece is that when a layered table is opened and it detects that the step-down-ts is
-set and the stable table does not exist, it sets a special `step_down_created` flag on the dhandle,
+set and the stable table does not exist, it sets a special step-down-created flag on the dhandle,
 which cursors later use to determine whether they should access the stable constituent. This flag is
 also removed during the `reconfigure(role=follower)` call, when all the layered tables start working
 in “follower” mode.
 
-`Step_down_disaggregated_schema_epoch` is also cleaned up during reconfigure(role=follower).
+The step-down schema epoch is also cleared during reconfigure(role=follower).
 
 # Transaction semantics related to ingest/stable
 
@@ -112,7 +109,13 @@ following data:
 * Whether the dhandle has a flag marking that the table was created during the step-down window
 * The mode (mirroring writes or legacy write conflict detection) the step-down is operating in
 
-Here is the table defining which constituent we should write to: TBD
+| Role | Step-down-created table | Step-down TS set at txn begin | Mirroring | Write target |
+| ---- | ----------------------- | ------------------------- | --------- | ------------ |
+| Follower | Either | Either | Either | Ingest only |
+| Leader | Yes | Either | Either | Ingest only |
+| Leader | No | No | Either | Stable only |
+| Leader | No | Yes | Enabled | Both stable and ingest |
+| Leader | No | Yes | Disabled | Ingest only |
 
 To start with something simple, the write conflict detection mode is global and does not need a sync
 mechanism.
@@ -157,7 +160,8 @@ the reconfiguration and those that started after. This separation is guaranteed 
 first changes the role field value from leader to follower and only then unsets the step-down
 timestamp under the step-down lock, so every transaction will see either step-down-ts=N and
 role=leader/follower (step-down transition mode) or step-down-ts=NONE and role=follower (follower
-mode).
+mode). Clearing the timestamp under the step-down write lock orders it against the begin-time read:
+a transaction that observes the cleared timestamp must also see that the node is now a follower.
 
 ### Pre-step-down-ts txns
 
@@ -209,6 +213,12 @@ semantics. In this case, being unable to open such a table will be tolerated, an
 cursor operations will be guaranteed to see the follower state, where it is totally fine to be
 unable to open a stable table (the checkpoint has not been picked up yet).
 
+The role and the table flag must agree once a cursor observes follower. Cursor operations
+therefore acquire-load the role before reading the flag, and
+reconfiguration release-stores follower only after clearing it. An operation that sees follower
+must also see the cleared flag, although an operation already in progress can still use the old
+role and encounter the race described above.
+
 ### Post-reconfigure txns
 
 All read transactions that observed the global role being changed after the reconfiguration are safe
@@ -226,47 +236,121 @@ leader to follower, it is quite possible that an operation on a newly opened cur
 a stable table, but its dhandle is already marked as outdated (which means that the dhandle should
 be reopened for this URI). Since in this case the right thing for the cursor to do is to wait for
 the role to be updated to follower and open in follower mode to access the stable table via a
-readonly checkpointed view, IN THIS CASE TBD I REMEMBER WE HAD LOGIC FOR RETURNING EBUSY OR A
-DIFFERENT ERROR CODE WHILE OPENING THE STABLE TABLE.
+readonly checkpointed view, the live open must not succeed after the transition has completed.
+
+The fresh btree open takes the schema lock. If reconfiguration wins, the open waits and then sees
+follower. The cursor operation returns `WT_ROLLBACK` rather than opening a live stable tree. If the
+application retries before another role change, it will see the follower role.
 
 ## Rolling back straddlers
 
 ### Write transactions straddling setting the step-down timestamp
 
-The logic is pretty simple here. The connection has a global read-write lock that is write-acquired
-when the step-down timestamp is set and read-acquired when we begin a transaction, to record the
-step-down-ts value at the transaction beginning, or when we commit a write transaction, to see
-whether the step-down timestamp value has changed since txn begin. If it has, it means that the
-transaction is a straddler and should be rolled back.
+The check that guarantees rolling back a write straddler is at transaction commit. Transaction
+begin and the commit-time check read whether the step-down timestamp is set under the same
+step-down read lock, while setting the timestamp takes the write lock. A write transaction is
+rolled back if the timestamp was not set when it began but is set at the commit-time check.
+Cursor write operations can also roll back a straddler early, but these checks are purely a
+performance optimization: they do not acquire the lock and do not establish the happens-before
+edge that guarantees detection at commit.
 
-AI later TODO: Draw a diagram with three examples (two threads: one is setting the timestamp, and
-the other has txn\_begin and txn\_commit; txn begin and commit can be on both sides of the setting
-of the step-down ts, but because it has a lock, there will always be a clear distinction; show the
-step-down-lock locking sections).
+The lock is released before the rest of the commit, so the check, not commit completion, determines
+whether the transaction straddles the setting. A transaction that passes the check can therefore
+finish committing after the step-down timestamp is set. This is safe provided the application
+guarantees that this stable-writing transaction's commit timestamp is at or below the step-down
+timestamp, N.
 
-### Read transactions without read ts straddling setting the step-down reconfiguration
+### Read transactions without read ts straddling the step-down reconfiguration
 
+Read transactions without a read timestamp that span reconfiguration must be rolled back.
+Their snapshot was acquired against the live btree and
+cannot safely describe the read-only checkpoint view. The differences in transaction-ID
+representation behind this are outside the scope of this document.
 
-TODO: replace code with explanation.
+To detect such transactions, snapshot acquisition at transaction begin enters the current role
+generation and records the role in the session. Reconfiguration advances the generation before
+publishing follower. A cursor operation that opens or reopens stable compares the role and
+generation with those recorded for the snapshot. If the transaction has no read timestamp and
+either differs, the operation returns `WT_ROLLBACK`. See @ref generations for the generation
+semantic and synchronisation guarantees.
 
-```c
-__clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session, bool leader)
-{
-    WT_ASSERT(session, __clayered_stable_bind_check_needed(session));
+Comparing the generation also catches a step-down that advanced the generation before publishing
+follower. The follower role is release-stored after the advance, so a cursor that acquire-loads
+follower must also see the advanced generation.
 
-    if (leader == session->txn->disagg_role_leader &&
-      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) == __wt_gen(session, WT_GEN_DISAGG_ROLE))
-        return (0);
+A transaction that races with reconfiguration while acquiring its snapshot has not yet read under
+that snapshot. Snapshot acquisition checks the recorded role and generation after the scan and
+rebuilds the snapshot if either changed, rather than rolling back the transaction.
 
-    return (__clayered_stable_bind_refuse(session));
-}
-```
+Transactions with a read timestamp do not need the role-and-generation check when opening or
+reopening stable because the history store protects their reads. Their timestamp must still be
+at least the latest published checkpoint's oldest timestamp, which is no older than that of the
+checkpoint being opened. A newer checkpoint pickup during the open can therefore make this
+requirement stricter.
 
-## Eviction synchronisation???
+## Eviction synchronisation
 
-## Detecting write conflicts synchronisation???
+Setting the read-only flag does not by itself stop eviction already in progress from writing shared
+pages. Reconfiguration therefore obtains exclusive eviction access
+for each open disaggregated tree that is not already read-only, marks the tree read-only and its
+handle outdated, then re-enables eviction. Ingest is not marked. The shared history store is
+processed last so eviction can still use it while draining the other trees.
 
-The same talk about
+Exclusive eviction access prevents new normal eviction for the tree, interrupts and clears its
+walk, removes queued candidates, and waits for concurrent LRU eviction to finish. Eviction remains
+disabled until the tree is marked read-only and outdated.
+
+Readers may still be using the old stable tree after it is marked. Eviction must retain any page
+whose content cannot be read back from shared storage while the old handle is still in use. Once
+the last reader releases the handle, eviction can discard the remaining pages without reconciling
+them to shared storage.
+
+## Detecting write conflicts synchronisation
+
+### Why ingest-only writes need a cross-table check
+
+The @ref disagg-roles-step-down overview describes write routing. Without mirroring, writers in
+different constituents do not share an update chain, so a single-tree conflict check cannot detect
+a conflicting update in the other constituent.
+
+An ingest-routed write therefore checks the key in both constituents when the transaction observed
+the step-down timestamp set at begin.
+
+Mirrored writes do not need this cross-table check because writing stable already uses the usual
+stable-tree conflict check.
+
+### Stable transactions versus ingest transactions
+
+Consider a transaction that passes its commit-time straddler check before the timestamp is set,
+and another that begins with the timestamp set. The first writes stable and can commit; the second
+writes ingest. Their writes are ordered as follows:
+
+1. The stable transaction publishes its writes before its read-locked commit-time check.
+2. The timestamp setter acquires the write lock after that check releases the read lock.
+3. The ingest transaction takes the read lock after the timestamp store and records the set flag.
+4. Its cursor operations run after that begin-time read.
+
+The timestamp setter's write lock connects the two read-locked sections; read locks alone would not
+order them. The ingest transaction must therefore see the stable updates when checking the update
+chains. However, passing the stable transaction's check does not mean its commit has completed.
+The ingest transaction acquires its snapshot before reading the step-down timestamp under the lock,
+so that snapshot may still exclude the stable transaction, even if it has committed by the time
+the locked timestamp read finishes. The ingest write must therefore check stable for a conflict:
+an ordinary lookup can miss an update excluded by the snapshot, and the native ingest conflict
+check cannot inspect that update in stable.
+
+### Ingest transactions versus straddlers
+
+A straddler begins before the timestamp is set and reaches its commit-time check afterwards.
+Its cursor write checks can miss the setting, so it may still write stable while another
+transaction writes ingest. No lock ordering guarantees that either sees the other's writes.
+
+Both may temporarily write the same logical key into different constituents, but the locked
+commit-time check must roll back the straddler, so they cannot both commit. Other snapshot readers
+cannot see its uncommitted writes, and rollback marks them aborted. If the ingest transaction does
+see one of these updates, its conflict check may roll it back too; this is safe even though the
+straddler must also roll back. Transactions writing the same constituent continue to use the usual
+single-tree conflict check.
 
 OPEN QUESTIONS:
 
@@ -280,12 +364,71 @@ STRUCTURE IMPROVEMENTS:
 * Do not use shortcuts like "ops"
 * Make ### Post-reconfigure txns shorter and do a separate topic about reading outdated dhandles.
 * What places are the best to add diagrams on how it's expected to be synchronised?
+* Split the doc, to txn calls logic, schema epochs, cursor read ops and cursor write ops??
+* TODO: Add a two-thread diagram in "Write transactions straddling setting the step-down timestamp".
+  Show transaction begin and commit before, after, or straddling timestamp setting; mark the
+  setter's write-lock section, the begin-time read-lock section, and the commit-time read-lock
+  section where a straddler check is needed.
 
+DRAFT STATUS:
+* Filled: write-target table, stable-open race handling, untimestamped reader rollback explanation,
+  eviction synchronisation, and write-conflict synchronisation without mirroring.
+* The write-straddler diagram TODO is retained above with its intended location and three cases;
+  the illustration is pending.
+* Descriptive terms replace internal code names; the broader terminology and abbreviation pass
+  remains pending.
+* Synchronisation details are now in their corresponding sections. Shortening the post-reconfigure
+  section, extracting the outdated-handle topic, and splitting the document remain pending.
+* All three open questions above remain open; the reconfiguration-lock review is only partial.
+* Removed repeated write-routing explanations and implementation details following the table.
+* Moved the largest-key exception to the final section. Access to tables newer than the transaction
+  is outside the model, not a supported pre-step-down routing exception.
+* Added the snapshot-reset restriction to the final section; step-down-specific enforcement remains
+  pending in the implementation.
+* Simplified write-straddler detection to the locked commit-time guarantee and unlocked early
+  checks; removed repeated routing cases and moved snapshot-build retries into the reader rollback
+  section.
+* Removed repeated missing-stable details from the race discussion. Prepared-transaction limits are
+  recorded in the final exceptions section rather than the write-straddler explanation.
+* Reworked the added explanations around the reader's problem and the synchronization that solves
+  it; the reader rollback explanation now introduces role generations and links to their guide.
+* Removed internal error-conversion details, eviction counters, and cursor-position bookkeeping from
+  the model explanation. The full publication-versus-snapshot ordering is described only in the
+  stable-versus-ingest subsection; prepared cases remain in the final exceptions section.
+* Pending: clarify that follower reader safety requires a follower-established snapshot, and remove
+  the claim that only post-step-down-timestamp transactions can access step-down-created tables.
+* Retry descriptions are conditional on the application's choice. The reader explanation omits
+  step-up-spanning examples and the broader role-generation recheck after checkpoint selection.
+* Clarified that a stable-writing transaction may finish after timestamp setting only under the
+  application requirement that its commit timestamp is at or below the step-down boundary. The
+  step-down lock orders the straddler check; it does not establish this timestamp requirement.
+* Removed ordinary checkpoint-generation details and repeated reader-rollback explanations.
+  Eviction ordering now distinguishes setting the flag from stopping work already in progress;
+  the cross-table explanation distinguishes published updates from snapshot-visible updates.
 
 IMPLEMENTATION REFERENCES:
 
 - `txn->stepdown_ts_set`
 - `step_down_lock`
 -
+
+# Exceptional operations and model limits
+
+* Prepared commits while the step-down timestamp is set are unsupported on the normal path; the
+  internal-testing debug-mode bypass does not guarantee support for prepared straddlers.
+  Cross-table conflict checks skip on-page prepared time windows, matching leader behavior; they do
+  not add support for prepared transactions across step-down.
+* The largest-key operation ignores snapshot visibility by contract and always consults ingest,
+  regardless of the role or the begin-time step-down flag.
+* Transactions are expected to access tables created before they began. Access to a newer table is
+  outside this model. During reconfiguration, a transaction older than a step-down-created table
+  can resolve neither constituent as the table flag is cleared before follower is published. An
+  always-on assertion detects the missing constituent; this is not a supported routing exception.
+* Snapshot reset is outside this model during async step-down. It replaces the snapshot without
+  refreshing the begin-time step-down flag. Resetting a pre-step-down transaction's snapshot after
+  the timestamp is set can therefore include ingest writes while cursor reads still select stable
+  only. If the application needs a new snapshot, it can end the transaction and begin a new one
+  instead. The current API rejects reset outside snapshot isolation or after modifications, but
+  has no step-down-specific rejection. Enforcing this model restriction remains pending.
 
 */
