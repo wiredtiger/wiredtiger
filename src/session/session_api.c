@@ -1876,15 +1876,12 @@ __session_verify_all(WT_SESSION_IMPL *session, const char *cfg[])
             continue;
         ret = __wt_schema_worker(
           session, key, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY);
-        if (ret == 0 || ret == ENOTSUP) {
-            ret = 0;
+        if (ret == 0 || ret == ENOTSUP)
             continue;
-        }
         if (abort_on_error)
             goto err;
         if (first_error == 0)
             first_error = ret;
-        ret = 0;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
     ret = first_error;
