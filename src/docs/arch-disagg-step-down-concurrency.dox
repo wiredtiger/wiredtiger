@@ -1,0 +1,291 @@
+/*! @arch_page arch-disagg-step-down-concurrency Async step-down concurrency synchronization model
+
+# Summary \- Cursor operations and transactions
+
+Every cursor operation makes two decisions that can be affected by an async step-down:
+
+* Which layered table constituents should be accessed (stable only, both stable and ingest, or
+  ingest only) and in what mode.
+* Whether the transaction should be rolled back (this decision could also be made while trying to
+  commit a transaction).
+
+Schema operations also behave differently before and after the step-down TS is set.
+
+Since the step-down timestamp can be set by a different thread with cursor or schema operations, it
+requires synchronisation to guarantee certain visibility rules for other threads.
+
+Transactions are expected to be rolled back when:
+
+* A write transaction straddles the setting of a step-down timestamp.
+* A read transaction that does not have a read timestamp straddles the step-down reconfiguration
+  call.
+
+Choosing the right constituents involves:
+
+* Choosing the right write target: the stable table, both tables, or ingest only (the legacy write
+  conflict detection mode or tables created after the step-down-ts is set).
+  * It is simpler in some sense because writes are not permitted during the step-down
+    reconfiguration, so the follower epoch writes are guaranteed to see the follower connection
+    state.
+* Choosing the right read target, which could also be stable, ingest, or both stable and ingest.
+
+The difference in schema operation behavior is:
+
+* Schema create creates both ingest and stable constituents before the step-down was set and only
+  the ingest table when the step-down timestamp is set. All the other schema/cursor APIs should be
+  aware of this and work in accordance with it.
+
+# The step-down timestamp logic and important concurrency events during reconfigure(role=follower)
+
+The step-down timestamp is set during `set_timestamp(step-down-ts)` and later cleared during
+`reconfigure(role=follower)`, after the node has been turned into a follower by setting the
+corresponding global variable.
+
+Before switching to follower mode, reconfigure(role=follower) also marks all the shared btrees
+OUTDATED and READONLY and only then changes the corresponding global role variable for follower
+mode. While doing so, it holds the global eviction lock and the handle list read lock. It also holds
+the checkpoint and schema locks for the entire duration of the role change.
+
+It also holds the step-down lock, but only while setting `step_down_timestamp` and
+`step_down_disaggregated_schema_epoch` to none.
+
+It also increases the role generation right before switching to follower mode.
+
+The lock sequence looks like this:
+
+```
+reconfigure(role=follower) {
+    lock(conn->checkpoint_lock)
+    lock(conn->schema_lock)
+
+    mark_disagg_btrees_readonly_and_outdated_then_step_down() {
+        read_lock(dhanle_list_rw_lock)
+        for (every dhandle) {
+            if (layered and step_down_created) step_down_created = false;
+
+            if (disagg_btree) {
+                 eviction_exclusive_lock();
+                 dhandle->readonly = true;
+                 dhandle->outdated = true;
+                 eviction_exclusive_unlock();
+            }
+        }
+        __wt_gen_next(session, WT_GEN_DISAGG_ROLE);
+        store_release(conn->leader, false);
+        read_unlock(dhanle_list_rw_lock)
+    }
+
+    write_lock(step_down_lock);
+    conn->step_down_timestamp = NONE;
+    conn->step_down_disaggregated_schema_epoch = NONE;
+    write_unlock(step_down_lock);
+
+    unlock(conn->checkpoint_lock)
+    unlock(conn->schema_lock);
+```
+
+# The schema ops part of the logic
+
+The logic here is that if a table is created after the step-down timestamp was set, it should not
+create the stable constituent (all such operations should be replicated on the new leader after it
+gets promoted to create these tables in the cloud; after the step-down TS is set, only local copies
+of these tables are created). In every place where schema is later created, verified, dropped, or
+opened, it always holds the global schema lock, as it does when the step-down timestamp is set.
+
+The interesting piece is that when a layered table is opened and it detects that the step-down-ts is
+set and the stable table does not exist, it sets a special `step_down_created` flag on the dhandle,
+which cursors later use to determine whether they should access the stable constituent. This flag is
+also removed during the `reconfigure(role=follower)` call, when all the layered tables start working
+in “follower” mode.
+
+`Step_down_disaggregated_schema_epoch` is also cleaned up during reconfigure(role=follower).
+
+# Transaction semantics related to ingest/stable
+
+## Write transaction choices
+
+For every write operation, the decision about which constituent to write a change to is based on the
+following data:
+
+* Whether a step-down TS is set or not set when the transaction begins
+* Which role is read during the cursor operation
+* Whether the dhandle has a flag marking that the table was created during the step-down window
+* The mode (mirroring writes or legacy write conflict detection) the step-down is operating in
+
+Here is the table defining which constituent we should write to: TBD
+
+To start with something simple, the write conflict detection mode is global and does not need a sync
+mechanism.
+
+Both setting the step-down timestamp and reading it during txn\_begin are protected by the same
+global step-down lock. It’s enough to read the step-down timestamp value at the transaction
+beginning only because write transactions are expected to be stopped before
+reconfigure(role=follower), so a transaction can expect that if it observed the step-down timestamp
+being set, it won’t change until the end of the transaction. Cursor operations can also rely on
+transaction-begin data because all writes are required to have explicit transactions (no auto-txn).
+
+For write transactions, the role being read does not have concurrent access because write
+transactions are not allowed to run during reconfigure(role=follower), so the role change is
+expected to be ordered by an application that stops serving writes before reconfigure and resumes
+them only afterwards.
+
+The flag indicating whether the table was created after the step-down timestamp was set follows the
+same rules. Synchronisation for write transactions is not needed because no writes occur during
+reconfigure(role=follower), and if a transaction or a cursor operation has seen the
+step-down-created flag on a dhandle, it won’t be cleared until the end of the transaction. So an
+operation can see either the step-down-created flag with the leader role, or the follower role
+(after reconfigure) without the step-down-created flag.
+
+Another peculiar thing is that all pre-reconfigure write transactions should access the stable table
+in live-btree mode, while all follower transactions should access it only through a checkpointed
+read-only view. This does not require any additional synchronisation either, since no write
+transactions should be running during the reconfiguration.
+
+## Read transaction choices
+
+The most important point about read transactions is that only explicitly started transactions with
+snapshot isolation or a read\_timestamp are allowed in disagg mode. This means that all the
+transactions are expected acquire a snapshot (or get access to a read timestamp snapshot) and always
+read this state without taking into account any later changes. Given that, we will split the
+analysis into different subcategories based on when the transaction started and, therefore, acquired
+a snapshot.
+
+Since both reading the step-down timestamp value and writing it obtain the same lock, we can
+definitely split read transactions into those that started before the step-down timestamp was set
+and those that started after. Another separation could be between transactions that started before
+the reconfiguration and those that started after. This separation is guaranteed by the fact that WT
+first changes the role field value from leader to follower and only then unsets the step-down
+timestamp under the step-down lock, so every transaction will see either step-down-ts=N and
+role=leader/follower (step-down transition mode) or step-down-ts=NONE and role=follower (follower
+mode).
+
+### Pre-step-down-ts txns
+
+Such transactions record that the step-down timestamp was not set at the beginning, so they can
+continue reading only the stable constituent throughout the entire step-down until they observe
+effects or reconfigure(role=follower). Accessing or not accessing the ingest table in their case
+will change nothing, since ingest table writes will always happen after the step-down TS is set, so
+they will always be empty for a snapshot acquired by such a transaction.
+
+The tricky moment with such transactions is that as soon as they straddle
+`reconfigure(role=follower)`, they should start accessing the stable table via a read-only
+checkpointed view. Since there are no locks around changing the global role field from leader to
+follower, there is no guarantee that all read transactions will see it as soon as it’s set (some
+transactions might be in progress at this moment or pass the point where they check the value), but
+it’s fine, since the step-down reconfiguration marks all the stable tables as readonly, which gives
+eviction all the needed signals, so it’s fine to reopen the stable table eventually in this case.
+
+However, only read transactions with a read\_ts provided can safely reopen the stable table in this
+case, since the snapshot they are reading is protected by the HS. All read transactions that
+straddle the step-down reconfigure and don’t have a read-ts are rolled back \- see below.
+
+### Post-step-down-ts txns
+
+This is the class of transactions that observe both the step-down-ts set and the role being leader.
+To survive the step-down reconfigure, they should start accessing the ingest table for reads, since
+not all the needed writes are included in the concluding checkpoints (some of them might already be
+accessible only via ingest tables after the reconfigure, since they were committed after the
+step-down TS was set).
+
+To keep the state between the acquired snapshot and the step-down-ts value acquired at the
+beginning, WT first acquires a snapshot and then reads the step-down TS protected by a lock. In this
+case, there will never be a situation where a cursor sees role=leader and the step-down TS is not
+set, but the snapshot is new enough to read ingest writes.
+
+Another interesting point is that this class of read transactions is the only one that can
+potentially access a table created after the step-down timestamp was set, so this table has only an
+ingest table (read the schema operations section above). Since table creation always happens before
+access to the table in this case, a cursor operation will always see the step-down-created flag on
+the dhandle.
+
+However, this flag is cleared during the step-down reconfiguration before the role is changed. Since
+cursor ops do not hold any locks on the fast path, it may well be that a cursor operation racing
+with clearing the flag during the step-down reconfigure will not see the step-down-created flag but
+will still observe the leader role being stored. In this case, the cursor op will try to open the
+stable table, but since both opening the stable table and the step-down reconfiguration acquire the
+global schema lock, opening the stable table will need to wait for the step-down reconfiguration to
+complete and will also be guaranteed to see the role as follower afterwards because of the mutex
+semantics. In this case, being unable to open such a table will be tolerated, and all subsequent
+cursor operations will be guaranteed to see the follower state, where it is totally fine to be
+unable to open a stable table (the checkpoint has not been picked up yet).
+
+### Post-reconfigure txns
+
+All read transactions that observed the global role being changed after the reconfiguration are safe
+to continue operating in follower mode. If some cursors that are part of these transactions have
+some constituents open, they will follow the same process of reopening the stable table in the
+read-only checkpointed view (or ignoring its non-existence) as the operations from the previous
+paragraph.
+
+So in this section, we will try to cover borderline cases where transactions are starting or cursors
+are performing their first operations (read opening tables) while the step-down reconfigure is
+happening. While all ingest tables stay unchanged and can be accessed as before during the
+reconfigure, stable table dhandles are marked as outdated and readonly during the step-down
+reconfiguration. Since this happens for all the dhandles in a loop before changing the role from
+leader to follower, it is quite possible that an operation on a newly opened cursor will try to open
+a stable table, but its dhandle is already marked as outdated (which means that the dhandle should
+be reopened for this URI). Since in this case the right thing for the cursor to do is to wait for
+the role to be updated to follower and open in follower mode to access the stable table via a
+readonly checkpointed view, IN THIS CASE TBD I REMEMBER WE HAD LOGIC FOR RETURNING EBUSY OR A
+DIFFERENT ERROR CODE WHILE OPENING THE STABLE TABLE.
+
+## Rolling back straddlers
+
+### Write transactions straddling setting the step-down timestamp
+
+The logic is pretty simple here. The connection has a global read-write lock that is write-acquired
+when the step-down timestamp is set and read-acquired when we begin a transaction, to record the
+step-down-ts value at the transaction beginning, or when we commit a write transaction, to see
+whether the step-down timestamp value has changed since txn begin. If it has, it means that the
+transaction is a straddler and should be rolled back.
+
+AI later TODO: Draw a diagram with three examples (two threads: one is setting the timestamp, and
+the other has txn\_begin and txn\_commit; txn begin and commit can be on both sides of the setting
+of the step-down ts, but because it has a lock, there will always be a clear distinction; show the
+step-down-lock locking sections).
+
+### Read transactions without read ts straddling setting the step-down reconfiguration
+
+
+TODO: replace code with explanation.
+
+```c
+__clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session, bool leader)
+{
+    WT_ASSERT(session, __clayered_stable_bind_check_needed(session));
+
+    if (leader == session->txn->disagg_role_leader &&
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) == __wt_gen(session, WT_GEN_DISAGG_ROLE))
+        return (0);
+
+    return (__clayered_stable_bind_refuse(session));
+}
+```
+
+## Eviction synchronisation???
+
+## Detecting write conflicts synchronisation???
+
+The same talk about
+
+OPEN QUESTIONS:
+
+* WHY DO WE NEED RELAXED ACCESS AROUND `step_down_timestamp` for schema? Is that only for
+  consistency (C11 style, where a variable, once accessed as atomic, becomes atomic everywhere)?
+* WHAT ABOUT `step_down_disaggregated_schema_epoch`? Why is it protected by the step-down mutex?
+* LOOK CLOSELY AT WHY WE HAVE EVERY SINGLE LOCK IN RECONFIGURE.
+
+STRUCTURE IMPROVEMENTS:
+* Think about establishing common terminology
+* Do not use shortcuts like "ops"
+* Make ### Post-reconfigure txns shorter and do a separate topic about reading outdated dhandles.
+* What places are the best to add diagrams on how it's expected to be synchronised?
+
+
+IMPLEMENTATION REFERENCES:
+
+- `txn->stepdown_ts_set`
+- `step_down_lock`
+-
+
+*/
