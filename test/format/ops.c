@@ -592,40 +592,43 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 }
 
 /*
- * transaction_read_timestamp --
- *     Select a read timestamp for a transaction.
- */
-static uint64_t
-transaction_read_timestamp(TINFO *tinfo)
-{
-    if (GV(RUNS_PREDICTABLE_REPLAY))
-        return (replay_read_ts(tinfo));
-
-    /*
-     * Transaction timestamp reads are repeatable, but read timestamps must be before any possible
-     * commit timestamp. Without a read timestamp, reads are based on the transaction snapshot,
-     * which will include the latest values as of when the snapshot is taken. Test in both modes:
-     * 75% of the time, pick a read timestamp before any commit timestamp still in use, 25% of the
-     * time don't set a timestamp at all.
-     */
-    return (mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed());
-}
-
-/*
  * begin_transaction_ts --
  *     Begin a timestamped transaction.
  */
 static void
-begin_transaction_ts(TINFO *tinfo, uint64_t ts, bool ignore_prepare)
+begin_transaction_ts(TINFO *tinfo, bool allow_ignore_prepare)
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    uint64_t ts;
+    const char *config;
 
     session = tinfo->session;
     tinfo->ignore_prepare = false;
+
+    /* Pick a read timestamp. */
+    if (GV(RUNS_PREDICTABLE_REPLAY))
+        ts = replay_read_ts(tinfo);
+    else
+        /*
+         * Transaction timestamp reads are repeatable, but read timestamps must be before any
+         * possible commit timestamp. Without a read timestamp, reads are based on the transaction
+         * snapshot, which will include the latest values as of when the snapshot is taken. Test in
+         * both modes: 75% of the time, pick a read timestamp before any commit timestamp still in
+         * use, 25% of the time don't set a timestamp at all.
+         */
+        ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
-        wt_wrap_begin_transaction(session, ignore_prepare ? "ignore_prepare=true" : NULL);
-        tinfo->ignore_prepare = ignore_prepare;
+        /* 10% of times configure ignore_prepare */
+        if (allow_ignore_prepare && GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
+            config = "ignore_prepare=true";
+            tinfo->ignore_prepare = true;
+        } else {
+            config = NULL;
+            tinfo->ignore_prepare = false;
+        }
+
+        wt_wrap_begin_transaction(session, config);
 
         /*
          * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
@@ -1400,11 +1403,7 @@ rollback_retry:
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
-            uint64_t read_ts = transaction_read_timestamp(tinfo);
-            /* 10% of times configure ignore_prepare */
-            bool ignore_prepare =
-              read_ts != 0 && GV(OPS_PREPARE) && mmrand(&tinfo->data_rnd, 1, 10) == 1;
-            begin_transaction_ts(tinfo, read_ts, ignore_prepare);
+            begin_transaction_ts(tinfo, true);
             intxn = true;
         }
         if (!intxn) {
@@ -1595,8 +1594,7 @@ rollback_retry:
                 }
                 fast_truncate_lock_release(session, &lock_state);
                 fast_truncate_lock_acquire_write(session, table, &lock_state);
-                uint64_t read_ts = transaction_read_timestamp(tinfo);
-                begin_transaction_ts(tinfo, read_ts, false);
+                begin_transaction_ts(tinfo, false);
                 intxn = true;
             } else if (op != READ) {
                 ret = fast_truncate_lock_acquire_read(session, table, &lock_state);
