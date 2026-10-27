@@ -11,6 +11,7 @@ else()
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
