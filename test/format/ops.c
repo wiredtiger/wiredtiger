@@ -1669,10 +1669,6 @@ rollback_retry:
 skip_operation:
         table = tinfo->table = NULL;
 
-        /* Implicit txn: no later commit, release here. Explicit txn keeps the lock until commit. */
-        if (!intxn)
-            fast_truncate_lock_release(session, &lock_state);
-
         /* Release the truncate operation counter. */
         if (op == TRUNCATE)
             (void)__wt_atomic_sub_uint64_v(&g.truncate_cnt, 1);
