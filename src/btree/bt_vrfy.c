@@ -604,8 +604,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session,
       __verify_lock_held(session, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT));
-    WT_ASSERT(
-      session, __verify_lock_held(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     btree = S2BT(session);
     bm = btree->bm;

@@ -1313,6 +1313,7 @@ isnew
 ispo
 isprint
 isspace
+iswritelocked
 iter
 iterable
 ized

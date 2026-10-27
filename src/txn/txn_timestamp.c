@@ -614,13 +614,13 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 set:
     /*
-     * Publish the step-down timestamp under the schema lock, so a schema operation runs entirely on
-     * one side of the boundary. Take it before the global transaction lock to keep strict lock
-     * order, with the raw spinlock standing in for the schema-lock macro because the shared default
-     * session cannot track lock ownership.
+     * Publish the step-down timestamp under the schema lock, so each schema operation runs either
+     * entirely before or entirely after it. Take the schema lock before the global transaction lock
+     * to keep lock order. Lock it directly rather than through the schema lock macro: the macro
+     * sets lock flags on the session, and the default session is shared between threads.
      */
     if (has_step_down)
-        __wt_spin_lock_track(session, &S2C(session)->schema_lock);
+        __wt_writelock(session, &S2C(session)->schema_lock);
     __wt_writelock(session, &txn_global->rwlock);
     /*
      * This method can be called from multiple threads, check that we are moving the global
@@ -707,7 +707,7 @@ set:
 
     __wt_writeunlock(session, &txn_global->rwlock);
     if (has_step_down)
-        __wt_spin_unlock(session, &S2C(session)->schema_lock);
+        __wt_writeunlock(session, &S2C(session)->schema_lock);
 
     /*
      * Emit the verbose messages after releasing the lock: the event handler runs on this thread and

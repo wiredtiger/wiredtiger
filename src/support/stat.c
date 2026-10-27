@@ -3505,9 +3505,10 @@ static const char *const __stats_connection_desc[] = {
   "lock: metadata lock acquisitions",
   "lock: metadata lock application thread wait time (usecs)",
   "lock: metadata lock internal thread wait time (usecs)",
-  "lock: schema lock acquisitions",
   "lock: schema lock application thread wait time (usecs)",
   "lock: schema lock internal thread wait time (usecs)",
+  "lock: schema read lock acquisitions",
+  "lock: schema write lock acquisitions",
   "lock: table lock application thread time waiting for the table lock (usecs)",
   "lock: table lock internal thread time waiting for the table lock (usecs)",
   "lock: table read lock acquisitions",
@@ -4661,9 +4662,10 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_LOCK_METADATA_COUNT,
   WT_STAT_CONN_LOCK_METADATA_WAIT_APPLICATION,
   WT_STAT_CONN_LOCK_METADATA_WAIT_INTERNAL,
-  WT_STAT_CONN_LOCK_SCHEMA_COUNT,
   WT_STAT_CONN_LOCK_SCHEMA_WAIT_APPLICATION,
   WT_STAT_CONN_LOCK_SCHEMA_WAIT_INTERNAL,
+  WT_STAT_CONN_LOCK_SCHEMA_READ_COUNT,
+  WT_STAT_CONN_LOCK_SCHEMA_WRITE_COUNT,
   WT_STAT_CONN_LOCK_TABLE_WAIT_APPLICATION,
   WT_STAT_CONN_LOCK_TABLE_WAIT_INTERNAL,
   WT_STAT_CONN_LOCK_TABLE_READ_COUNT,
@@ -5847,9 +5849,10 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->lock_metadata_count = 0;
     stats->lock_metadata_wait_application = 0;
     stats->lock_metadata_wait_internal = 0;
-    stats->lock_schema_count = 0;
     stats->lock_schema_wait_application = 0;
     stats->lock_schema_wait_internal = 0;
+    stats->lock_schema_read_count = 0;
+    stats->lock_schema_write_count = 0;
     stats->lock_table_wait_application = 0;
     stats->lock_table_wait_internal = 0;
     stats->lock_table_read_count = 0;
@@ -7223,9 +7226,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lock_metadata_count += WT_STAT_CONN_READ(from, lock_metadata_count);
     to->lock_metadata_wait_application += WT_STAT_CONN_READ(from, lock_metadata_wait_application);
     to->lock_metadata_wait_internal += WT_STAT_CONN_READ(from, lock_metadata_wait_internal);
-    to->lock_schema_count += WT_STAT_CONN_READ(from, lock_schema_count);
     to->lock_schema_wait_application += WT_STAT_CONN_READ(from, lock_schema_wait_application);
     to->lock_schema_wait_internal += WT_STAT_CONN_READ(from, lock_schema_wait_internal);
+    to->lock_schema_read_count += WT_STAT_CONN_READ(from, lock_schema_read_count);
+    to->lock_schema_write_count += WT_STAT_CONN_READ(from, lock_schema_write_count);
     to->lock_table_wait_application += WT_STAT_CONN_READ(from, lock_table_wait_application);
     to->lock_table_wait_internal += WT_STAT_CONN_READ(from, lock_table_wait_internal);
     to->lock_table_read_count += WT_STAT_CONN_READ(from, lock_table_read_count);
