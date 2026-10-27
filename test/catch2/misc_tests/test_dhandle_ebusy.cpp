@@ -9,8 +9,8 @@
 /*
  * When attempting to lock a dhandle returns EBUSY because the btree has special flags set
  * (bulk/salvage/verify), the session's dhandle ref must be cleared to NULL. Leaving it set exposes
- * callers to a handle they never locked, which can corrupt its lock state if they attempt
- * to release it.
+ * callers to a handle they never locked, which can corrupt its lock state if they attempt to
+ * release it.
  */
 
 #include <catch2/catch.hpp>
