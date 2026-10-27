@@ -151,7 +151,8 @@ synchronization for this switch because none run during the step-down reconfigur
 
 Read transactions on disaggregated connections are always started explicitly with snapshot
 isolation. This means that each transaction acquires a snapshot at transaction begin and continues
-to read that state without incorporating later changes.
+to read that state without incorporating later changes which is an important consideration for the 
+concurrency management.
 
 Since both observing the step-down timestamp at transaction begin and setting it acquire the same
 lock, read transactions can be separated into those whose timestamp observation precedes setting
