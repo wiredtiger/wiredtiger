@@ -188,7 +188,8 @@ __time_aggregate_validate_parent(
       WT_MAX(parent->newest_start_durable_ts, parent->newest_stop_durable_ts);
     if (ta->newest_stop_durable_ts > parent_newest_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest stop durable time after its parent's; time aggregate "
+          "aggregate time window has a newest stop durable time after its parent's newest durable "
+          "timestamp; time aggregate "
           "%s, parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
