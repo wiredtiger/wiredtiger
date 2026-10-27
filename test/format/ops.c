@@ -1747,8 +1747,9 @@ skip_operation:
         }
 
         /*
-         * Ordinary transactions continue 50%, commit 40% and roll back 10% of the time. Serialized
-         * truncate transactions instead commit 90% and roll back 10% of the time.
+         * If we're in a transaction, commit 40% of the time and rollback 10% of the time (we
+         * already continued to add operations to the transaction the remaining half of the time).
+         * Serialized truncates instead commit 90% and roll back 10%.
          */
         if (rnd != 5) {
             __wt_yield(); /* Encourage races */
