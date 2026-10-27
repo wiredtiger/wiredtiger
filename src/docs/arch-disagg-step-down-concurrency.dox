@@ -52,7 +52,8 @@ as follower.
 Before publishing the follower role, the step-down reconfiguration marks each open disaggregated
 B-tree read-only and its data handle outdated. It holds the data handle list read lock and obtains
 exclusive eviction access for each tree while marking it. The checkpoint and schema locks cover
-the entire step-down reconfiguration.
+the entire step-down reconfiguration. Holding the checkpoint lock makes the step-down
+reconfiguration wait for a checkpoint in progress.
 
 The step-down write lock covers clearing the step-down timestamp and step-down schema epoch. The
 role generation is advanced immediately before publishing the global role as
@@ -91,8 +92,8 @@ The step-down reconfiguration {
 # Schema operations
 
 Creating a layered table while the step-down timestamp is set creates only its local ingest table.
-Such tables are not published to shared metadata, so the application must replicate
-the schema operations to the new leader so that it populates them in shared storage.
+Its shared metadata operation are not getting to the concluding checkpoint so the application must
+replicate the schema operations to the new leader so that it populates them in shared storage.
 Schema creation, where this choice is made, and schema opening, verification, and
 deletion all hold the global schema lock. Setting the step-down timestamp takes the same lock, so
 these operations are ordered relative to one another.
@@ -151,7 +152,7 @@ synchronization for this switch because none run during the step-down reconfigur
 
 Read transactions on disaggregated connections are always started explicitly with snapshot
 isolation. This means that each transaction acquires a snapshot at transaction begin and continues
-to read that state without incorporating later changes which is an important consideration for the 
+to read that state without incorporating later changes which is an important consideration for the
 concurrency management.
 
 Since both observing the step-down timestamp at transaction begin and setting it acquire the same
@@ -220,10 +221,8 @@ so an operation racing with clearing it may observe the flag as cleared while st
 earlier observation of the global role as leader. In this case, the cursor tries to open the
 stable table. Both that fresh open and the step-down reconfiguration take the schema lock, so
 the open must wait for the step-down reconfiguration to finish and is then guaranteed to observe
-the global role as follower. The missing stable table is tolerated, because a follower may not
-yet have a checkpoint for that table. Later cursor operations also observe the global role as
-follower.
-
+the global role as follower. The missing stable table is tolerated in this case. Later cursor
+operations are also guaranteed to observe the global role as follower.
 
 ### Read transactions beginning in the follower role
 
@@ -252,7 +251,9 @@ operation is still leader. The ingest table remains accessible throughout the tr
 a fresh open of the stable table's live B-tree view must not succeed once the node is a follower.
 
 This case is handled because a fresh open of the stable table's live B-tree view takes the schema
-lock, as does the step-down reconfiguration. If the step-down reconfiguration acquires the lock
+lock, as does the step-down reconfiguration. Once the stable table's data handle is marked
+outdated, the session and connection handle lookups skip it, so any later open of the live B-tree
+view is a fresh open. If the step-down reconfiguration acquires the lock
 first, the open waits and then observes the updated global role as follower. The cursor operation
 returns `WT_ROLLBACK` rather than opening the live B-tree view. If the application retries the
 transaction, it observes the global role as follower.
@@ -398,13 +399,44 @@ roll back. Transactions writing to the same table continue to use its single-tre
   cleared before the global role is published as follower. An always-on assertion detects the
   missing table selection; this is not a supported routing exception.
 * Snapshot reset is outside this model during asynchronous step-down.
+* Truncating a layered table while the step-down timestamp is set is unsupported. An always-on
+  assertion detects it.
 
 OPEN QUESTIONS:
 
 * Why do schema operations use relaxed atomic accesses when observing the step-down timestamp?
   Is this only for consistent atomic access under the C11 memory model?
+  * Yes. Setting the timestamp, clearing it during the step-down reconfiguration, and the schema
+    operations that observe it all hold the schema lock, which provides the ordering. The fields
+    are atomic only because transaction begin and cursor operations observe them without that
+    lock.
 * Why is the step-down schema epoch protected by the step-down lock?
+  * It does not need to be. The epoch is stored together with the timestamp under the step-down
+    lock, but no reader observes the epoch under that lock. Its readers, shared metadata
+    publication and the step-down reconfiguration's checks, hold the schema lock, which also
+    orders them against setting and clearing the epoch.
 * What is the purpose of each lock held during the step-down reconfiguration?
+  * The checkpoint lock keeps a checkpoint from reconciling the B-trees being marked read-only,
+    keeps the latest checkpoint timestamp stable while it is verified, and preserves the
+    checkpoint-before-schema lock order required to open checkpoint data handles.
+  * The schema lock orders the reconfiguration against schema operations and against fresh opens
+    of a live B-tree view, which decides the cursor-open race.
+  * The data handle list read lock keeps data handles from being removed from the list during the
+    marking walk.
+  * The step-down write lock orders publishing the follower role before any transaction begin
+    that observes the cleared step-down timestamp.
+* Is a forced eviction safe if it starts between marking a tree read-only and marking its data
+  handle outdated? Page eviction only applies the retention rule once both are set, and
+  reconciliation asserts that the tree is not read-only.
+  * Eviction server, queued and urgent-queue evictions are covered: they are counted as in
+    progress, or recheck whether eviction is enabled, under the eviction queue locks that
+    exclusive eviction access also takes. An application thread evicting a page it releases
+    checks whether eviction is enabled without a lock and is counted as in progress only after
+    locking the page and possibly caching a history store cursor, with no recheck. It can
+    therefore start after exclusive access has drained eviction. If it reconciles a dirty page
+    after the tree is marked read-only but before its data handle is marked outdated, the
+    reconciliation assertion fails. Rechecking whether eviction is enabled after counting the
+    eviction as in progress would close this window.
 
 STRUCTURE IMPROVEMENTS:
 
