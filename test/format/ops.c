@@ -28,6 +28,7 @@
 
 #include "format.h"
 
+/* Tracks which tables a transaction has locked. */
 typedef struct {
     RWLOCK *locks[V_MAX_TABLES_CONFIG + 1];
     u_int lock_count;
@@ -603,7 +604,6 @@ begin_transaction_ts(TINFO *tinfo, bool allow_ignore_prepare)
     const char *config;
 
     session = tinfo->session;
-    tinfo->ignore_prepare = false;
 
     /* Pick a read timestamp. */
     if (GV(RUNS_PREDICTABLE_REPLAY))
@@ -963,6 +963,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pau
         if (!pause_writes && intxn && iso_level == ISOLATION_SNAPSHOT &&
           tinfo->ignore_prepare == false && mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
             if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
+                /* A reserve is an update, so acquire the shared lock before reserving. */
                 ret = lock_table_shared(tinfo->session, table, lock_state);
                 if (ret != 0)
                     OP_FAILED(true);
@@ -1411,7 +1412,7 @@ rollback_retry:
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
-            begin_transaction_ts(tinfo, true);
+            begin_transaction_ts(tinfo, /* allow_ignore_prepare */ true);
             intxn = true;
         }
         if (!intxn) {
@@ -1600,7 +1601,7 @@ rollback_retry:
                 }
                 unlock_tables(session, &lock_state);
                 lock_table_exclusive(session, table, &lock_state);
-                begin_transaction_ts(tinfo, false);
+                begin_transaction_ts(tinfo, /* allow_ignore_prepare */ false);
                 intxn = true;
             } else if (op != READ) {
                 ret = lock_table_shared(session, table, &lock_state);
@@ -1704,12 +1705,12 @@ skip_operation:
              */
             if (rnd == 5 && ntries != 0)
                 rnd = 4; /* Choose to do a commit this time. */
-        } else {
-            if (!intxn)
-                continue;
-            rnd = mmrand(&tinfo->data_rnd, 1, 10);
+        } else if (!intxn)
+            continue;
+        else if ((rnd = mmrand(&tinfo->data_rnd, 1, 10)) > 5) {
             /* Keep serialized truncates separate from subsequent CRUD writes. */
-            if (rnd > 5 && !lock_state.exclusive_write)
+            bool serialized_truncate = (op == TRUNCATE) && lock_state.exclusive_write;
+            if (!serialized_truncate)
                 continue;
         }
 
@@ -1803,7 +1804,6 @@ rollback:
     }
 
 loop_exit:
-    /* Resolve remaining writes before allowing another worker to truncate. */
     if (intxn) {
         rollback_transaction(tinfo, prepared);
         snap_repeat_update(tinfo, false);
@@ -2445,6 +2445,7 @@ col_insert_add(TINFO *tinfo)
 {
     struct col_insert *cip;
     u_int i;
+
     /* Add the inserted record to the insert array. */
     cip = &tinfo->col_insert[tinfo->table->id - 1];
     for (i = 0; i < WT_ELEMENTS(cip->insert_list); ++i)
