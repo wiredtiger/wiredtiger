@@ -30,8 +30,8 @@
 
 typedef struct {
     RWLOCK *locks[V_MAX_TABLES_CONFIG + 1];
-    u_int count;
-    bool exclusive;
+    u_int lock_count;
+    bool exclusive_write;
 } fast_truncate_lock_state_t;
 
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
@@ -1174,12 +1174,12 @@ fast_truncate_lock_acquire_read(
   WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
 {
     RWLOCK *lock = fast_truncate_lock_for_table(table);
-    testutil_assert(!state->exclusive);
-    for (u_int i = 0; i < state->count; ++i)
+    testutil_assert(!state->exclusive_write);
+    for (u_int i = 0; i < state->lock_count; ++i)
         if (state->locks[i] == lock)
             return (0);
 
-    if (state->count == 0)
+    if (state->lock_count == 0)
         lock_readlock(session, lock);
     else {
         /* Waiting with other locks held can deadlock behind queued truncates. */
@@ -1188,8 +1188,8 @@ fast_truncate_lock_acquire_read(
             return (WT_ROLLBACK);
         testutil_check(ret);
     }
-    testutil_assert(state->count < WT_ELEMENTS(state->locks));
-    state->locks[state->count++] = lock;
+    testutil_assert(state->lock_count < WT_ELEMENTS(state->locks));
+    state->locks[state->lock_count++] = lock;
     return (0);
 }
 
@@ -1201,12 +1201,12 @@ static WT_INLINE void
 fast_truncate_lock_acquire_write(
   WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
 {
-    testutil_assert(state->count == 0);
-    testutil_assert(!state->exclusive);
+    testutil_assert(state->lock_count == 0);
+    testutil_assert(!state->exclusive_write);
     RWLOCK *lock = fast_truncate_lock_for_table(table);
     lock_writelock(session, lock);
-    state->locks[state->count++] = lock;
-    state->exclusive = true;
+    state->locks[state->lock_count++] = lock;
+    state->exclusive_write = true;
 }
 
 /*
@@ -1216,19 +1216,19 @@ fast_truncate_lock_acquire_write(
 static WT_INLINE void
 fast_truncate_lock_release(WT_SESSION *session, fast_truncate_lock_state_t *state)
 {
-    testutil_assert(!state->exclusive || state->count == 1);
-    if (state->count != 0) {
+    testutil_assert(!state->exclusive_write || state->lock_count == 1);
+    if (state->lock_count != 0) {
         WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
         testutil_assert(!F_ISSET(session_impl->txn, WT_TXN_RUNNING));
     }
-    while (state->count != 0) {
-        RWLOCK *lock = state->locks[--state->count];
-        if (state->exclusive)
+    while (state->lock_count != 0) {
+        RWLOCK *lock = state->locks[--state->lock_count];
+        if (state->exclusive_write)
             lock_writeunlock(session, lock);
         else
             lock_readunlock(session, lock);
     }
-    state->exclusive = false;
+    state->exclusive_write = false;
 }
 
 /*
@@ -1317,7 +1317,7 @@ rollback_retry:
         if (tinfo->quit)
             break;
 
-        testutil_assert(intxn || lock_state.count == 0);
+        testutil_assert(intxn || lock_state.lock_count == 0);
         ++tinfo->ops;
 
         if (!tinfo->replay_again) {
@@ -1702,7 +1702,7 @@ skip_operation:
                 continue;
             rnd = mmrand(&tinfo->data_rnd, 1, 10);
             /* Keep serialized truncates separate from subsequent CRUD writes. */
-            if (rnd > 5 && !lock_state.exclusive)
+            if (rnd > 5 && !lock_state.exclusive_write)
                 continue;
         }
 
