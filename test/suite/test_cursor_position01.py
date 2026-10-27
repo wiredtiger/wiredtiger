@@ -62,9 +62,6 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
             config += ',in_memory=true'
         return config
 
-    def conn_extensions(self, extlist):
-        extlist.extension('collators', 'reverse')
-
     # Key formats whose boundaries must unpack and compare in the format's own order, each with
     # a key generator. Multi-column keys are lists, as the cursor returns them.
     key_formats = [
@@ -308,8 +305,19 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         self.require_disk()
         tables = [('table:%s_fmt_%s' % (self.name, fmt), fmt, keyfn, '')
             for fmt, keyfn in self.key_formats]
-        tables.append(('table:%s_fmt_rev' % self.name, 'q', self.key_formats[0][1],
-            ',collator=reverse'))
+
+        # The reverse collator is an extension not built everywhere: cover the collated table
+        # only where it is available, loading it for this test alone.
+        config = self.conn_config()
+        libs = self.findExtension('collators', 'reverse')
+        if libs:
+            config += ',extensions=["%s"]' % libs[0]
+            tables.append(('table:%s_fmt_rev' % self.name, 'q', self.key_formats[0][1],
+                ',collator=reverse'))
+        else:
+            self.pr('reverse collator extension not built, skipping the collated table')
+        self.reopen_conn(config=config)
+
         for uri, fmt, keyfn, collator in tables:
             self.session.create(uri, 'key_format=%s,value_format=S%s,leaf_page_max=4KB,'
                 'internal_page_max=4KB' % (fmt, collator))
@@ -320,7 +328,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
                 c.set_value('v' * 80)
                 self.assertEqual(c.insert(), 0)
             c.close()
-        self.reopen_conn()
+        self.reopen_conn(config=config)
 
         for uri, fmt, keyfn, collator in tables:
             c = self.session.open_cursor(uri)
