@@ -17,6 +17,11 @@
 #define WTI_EVICT_WALK_INCR 100         /* Pages added each walk */
 
 /*
+ * The walk period doubles on every unproductive walk of a tree, so saturation means the tree has
+ * been unproductive for many consecutive walks.
+ */
+#define WTI_EVICT_WALK_PERIOD_MAX 100 /* Ceiling on walks skipped for one tree */
+/*
  * WTI_EVICT_ENTRY --
  *	Encapsulation of an eviction candidate.
  */
