@@ -280,7 +280,6 @@ typedef struct {
     bool background_compaction_running; /* Background compaction running */
 
     RWLOCK backup_lock; /* Backup running */
-
     uint64_t backup_id; /* Block incremental id */
     bool backup_incr;   /* Incremental backup */
     bool backup_verify; /* Verifying backup */

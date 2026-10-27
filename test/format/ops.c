@@ -1575,9 +1575,7 @@ rollback_retry:
         if (op == MODIFY)
             modify_build(tinfo);
 
-        /*
-         * Serialize fast truncate against concurrent writers in disagg switch mode.
-         */
+        /* Serialize fast truncate against concurrent writers in disagg switch mode. */
         if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
             if (op == TRUNCATE) {
                 if (intxn) {
