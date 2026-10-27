@@ -158,7 +158,7 @@ locks_init(WT_CONNECTION *conn)
 
     u_int first = ntables == 0 ? 0 : 1;
     for (u_int i = first; i <= ntables; ++i)
-        lock_init(session, &tables[i]->fast_truncate_lock);
+        lock_init(session, &tables[i]->rwlock);
 
     testutil_check(session->close(session, NULL));
 }
@@ -179,7 +179,7 @@ locks_destroy(WT_CONNECTION *conn)
 
     u_int first = ntables == 0 ? 0 : 1;
     for (u_int i = first; i <= ntables; ++i)
-        lock_destroy(session, &tables[i]->fast_truncate_lock);
+        lock_destroy(session, &tables[i]->rwlock);
 
     testutil_check(session->close(session, NULL));
 }

@@ -32,7 +32,7 @@ typedef struct {
     RWLOCK *locks[V_MAX_TABLES_CONFIG + 1];
     u_int lock_count;
     bool exclusive_write;
-} fast_truncate_lock_state_t;
+} table_lock_state_t;
 
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
 static void clear_bounds(WT_CURSOR *);
@@ -43,8 +43,7 @@ static int col_remove(TINFO *, bool);
 static int col_reserve(TINFO *, bool);
 static int col_truncate(TINFO *);
 static int col_update(TINFO *, bool);
-static WT_INLINE int fast_truncate_lock_acquire_read(
-  WT_SESSION *, TABLE *, fast_truncate_lock_state_t *);
+static WT_INLINE int lock_table_shared(WT_SESSION *, TABLE *, table_lock_state_t *);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
@@ -892,7 +891,7 @@ mirror_check(TINFO *tinfo, iso_level_t iso_level, thread_op op, int *expect_retp
  */
 static int
 table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pause_writes,
-  fast_truncate_lock_state_t *lock_state)
+  table_lock_state_t *lock_state)
 {
     WT_DECL_RET;
     TABLE *table;
@@ -964,7 +963,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op, bool pau
         if (!pause_writes && intxn && iso_level == ISOLATION_SNAPSHOT &&
           tinfo->ignore_prepare == false && mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
             if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
-                ret = fast_truncate_lock_acquire_read(tinfo->session, table, lock_state);
+                ret = lock_table_shared(tinfo->session, table, lock_state);
                 if (ret != 0)
                     OP_FAILED(true);
             }
@@ -1155,79 +1154,87 @@ ops_session_open(TINFO *tinfo)
 }
 
 /*
- * fast_truncate_lock_for_table --
- *     Get the lock for a table or its mirror group.
+ * lock_for_table --
+ *     Get the read-write lock for a table or its mirror group.
  */
 static RWLOCK *
-fast_truncate_lock_for_table(TABLE *table)
+lock_for_table(TABLE *table)
 {
-    TABLE *lock_table = table->mirror ? g.base_mirror : table;
-    return (&lock_table->fast_truncate_lock);
+    TABLE *owner = table->mirror ? g.base_mirror : table;
+    return (&owner->rwlock);
 }
 
 /*
- * fast_truncate_lock_acquire_read --
- *     Acquire shared protection for a table's writes until transaction resolution.
+ * lock_table_shared --
+ *     Lock the table in shared mode.
  */
 static WT_INLINE int
-fast_truncate_lock_acquire_read(
-  WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
+lock_table_shared(WT_SESSION *session, TABLE *table, table_lock_state_t *state)
 {
-    RWLOCK *lock = fast_truncate_lock_for_table(table);
+    RWLOCK *lock = lock_for_table(table);
     testutil_assert(!state->exclusive_write);
+
     for (u_int i = 0; i < state->lock_count; ++i)
         if (state->locks[i] == lock)
-            return (0);
+            return (0); /* Lock already held by this transaction. */
 
     if (state->lock_count == 0)
         lock_readlock(session, lock);
     else {
-        /* Waiting with other locks held can deadlock behind queued truncates. */
+        /* Do not block while holding other locks, as that can cause deadlocks. */
         int ret = lock_try_readlock(session, lock);
         if (ret == EBUSY)
             return (WT_ROLLBACK);
         testutil_check(ret);
     }
+
     testutil_assert(state->lock_count < WT_ELEMENTS(state->locks));
     state->locks[state->lock_count++] = lock;
+
     return (0);
 }
 
 /*
- * fast_truncate_lock_acquire_write --
- *     Acquire exclusive protection for a table or mirror group after releasing shared locks.
+ * lock_table_exclusive --
+ *     Lock the table in exclusive mode.
  */
 static WT_INLINE void
-fast_truncate_lock_acquire_write(
-  WT_SESSION *session, TABLE *table, fast_truncate_lock_state_t *state)
+lock_table_exclusive(WT_SESSION *session, TABLE *table, table_lock_state_t *state)
 {
     testutil_assert(state->lock_count == 0);
     testutil_assert(!state->exclusive_write);
-    RWLOCK *lock = fast_truncate_lock_for_table(table);
+
+    RWLOCK *lock = lock_for_table(table);
     lock_writelock(session, lock);
+
     state->locks[state->lock_count++] = lock;
     state->exclusive_write = true;
 }
 
 /*
- * fast_truncate_lock_release --
- *     Release the transaction's truncate/write protection.
+ * unlock_tables --
+ *     Release all table locks held by the current transaction.
  */
 static WT_INLINE void
-fast_truncate_lock_release(WT_SESSION *session, fast_truncate_lock_state_t *state)
+unlock_tables(WT_SESSION *session, table_lock_state_t *state)
 {
-    testutil_assert(!state->exclusive_write || state->lock_count == 1);
-    if (state->lock_count != 0) {
-        WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
-        testutil_assert(!F_ISSET(session_impl->txn, WT_TXN_RUNNING));
-    }
-    while (state->lock_count != 0) {
-        RWLOCK *lock = state->locks[--state->lock_count];
-        if (state->exclusive_write)
-            lock_writeunlock(session, lock);
-        else
-            lock_readunlock(session, lock);
-    }
+    if (state->exclusive_write)
+        testutil_assert(state->lock_count == 1);
+
+    if (state->lock_count == 0)
+        return; /* No lock held - nothing to release. */
+
+    /* Locks should not be released partway through a transaction. */
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    testutil_assert(!F_ISSET(session_impl->txn, WT_TXN_RUNNING));
+
+    if (state->exclusive_write)
+        lock_writeunlock(session, state->locks[0]);
+    else
+        for (u_int i = 0; i < state->lock_count; ++i)
+            lock_readunlock(session, state->locks[i]);
+
+    state->lock_count = 0;
     state->exclusive_write = false;
 }
 
@@ -1251,7 +1258,7 @@ ops(void *arg)
     int expect_ret, rlog_ret;
     const char *iso_config, *rlog_op_name;
     bool expect_set, greater_than, intxn, pause_writes, prepared, mirrored_truncate;
-    fast_truncate_lock_state_t lock_state;
+    table_lock_state_t lock_state;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1339,7 +1346,7 @@ rollback_retry:
          */
         if (intxn && GV(RUNS_PREDICTABLE_REPLAY)) {
             commit_transaction(tinfo, false);
-            fast_truncate_lock_release(session, &lock_state);
+            unlock_tables(session, &lock_state);
             intxn = false;
         }
 
@@ -1352,7 +1359,7 @@ rollback_retry:
             /* Resolve any running transaction. */
             if (intxn) {
                 commit_transaction(tinfo, false);
-                fast_truncate_lock_release(session, &lock_state);
+                unlock_tables(session, &lock_state);
                 intxn = false;
             }
 
@@ -1591,12 +1598,12 @@ rollback_retry:
                     }
                     intxn = false;
                 }
-                fast_truncate_lock_release(session, &lock_state);
-                fast_truncate_lock_acquire_write(session, table, &lock_state);
+                unlock_tables(session, &lock_state);
+                lock_table_exclusive(session, table, &lock_state);
                 begin_transaction_ts(tinfo, false);
                 intxn = true;
             } else if (op != READ) {
-                ret = fast_truncate_lock_acquire_read(session, table, &lock_state);
+                ret = lock_table_shared(session, table, &lock_state);
                 if (ret != 0)
                     goto rollback;
             }
@@ -1755,7 +1762,7 @@ skip_operation:
             __wt_yield(); /* Encourage races */
             bool committed = commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, committed);
-            fast_truncate_lock_release(session, &lock_state);
+            unlock_tables(session, &lock_state);
             if (rlog_op_name != NULL) {
                 fprintf(g.replay_op_log,
                   "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
@@ -1772,7 +1779,7 @@ rollback:
                 /* Force a rollback */
                 testutil_assert(intxn);
                 rollback_transaction(tinfo, prepared);
-                fast_truncate_lock_release(session, &lock_state);
+                unlock_tables(session, &lock_state);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1781,7 +1788,7 @@ rollback:
             }
             __wt_yield(); /* Encourage races */
             rollback_transaction(tinfo, prepared);
-            fast_truncate_lock_release(session, &lock_state);
+            unlock_tables(session, &lock_state);
             snap_repeat_update(tinfo, false);
         }
 
@@ -1801,7 +1808,7 @@ loop_exit:
         rollback_transaction(tinfo, prepared);
         snap_repeat_update(tinfo, false);
     }
-    fast_truncate_lock_release(session, &lock_state);
+    unlock_tables(session, &lock_state);
     if (session != NULL)
         testutil_check(session->close(session, NULL));
     tinfo->session = NULL;
@@ -2438,7 +2445,6 @@ col_insert_add(TINFO *tinfo)
 {
     struct col_insert *cip;
     u_int i;
-
     /* Add the inserted record to the insert array. */
     cip = &tinfo->col_insert[tinfo->table->id - 1];
     for (i = 0; i < WT_ELEMENTS(cip->insert_list); ++i)
