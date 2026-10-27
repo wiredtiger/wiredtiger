@@ -624,6 +624,7 @@ retry:
                 WT_WITH_DHANDLE(session, dhandle, wanted = __evict_btree_has_interest(session));
             __wt_spin_unlock(session, &evict->evict_walk_lock);
             if (!wanted) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree_early);
                 WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
                 continue;
             }

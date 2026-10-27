@@ -113,8 +113,8 @@ class test_eviction08(wttest.WiredTigerTestCase):
 
         offset = 0
         deadline = time.time() + 120
-        while self.get_stat(stat.conn.eviction_server_skip_unwanted_tree) == 0:
-            self.assertLess(time.time(), deadline, 'eviction never skipped an idle table')
+        while self.get_stat(stat.conn.eviction_server_skip_unwanted_tree_early) == 0:
+            self.assertLess(time.time(), deadline, 'eviction never skipped an idle table early')
             churn(offset)
             offset = (offset + 1) % 7
 
