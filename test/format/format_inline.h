@@ -422,6 +422,7 @@ lock_try_readlock(WT_SESSION *session, RWLOCK *lock)
 
     if (lock->lock_type == LOCK_WT)
         return (__wt_try_readlock((WT_SESSION_IMPL *)session, &lock->l.wt));
+
     return (pthread_rwlock_tryrdlock(&lock->l.pthread));
 }
 
