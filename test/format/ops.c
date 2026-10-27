@@ -1255,6 +1255,7 @@ ops(void *arg)
 
     tinfo = arg;
     mirrored_truncate = false;
+    prepared = false;
     memset(&lock_state, 0, sizeof(lock_state));
     rlog_key = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
     rlog_table_id = 0;
