@@ -88,12 +88,6 @@ class test_eviction08(wttest.WiredTigerTestCase):
         for c in small_cursors:
             c.close()
 
-    def table_stat(self, uri, key):
-        cursor = self.session.open_cursor('statistics:' + uri, None, None)
-        value = cursor[key][2]
-        cursor.close()
-        return value
-
     # A table that holds nothing of interest is skipped by the eviction scan. The skip must not
     # stick: once such a table is written, the scan has to pick it up again and evict its dirty
     # content.
@@ -134,11 +128,11 @@ class test_eviction08(wttest.WiredTigerTestCase):
             if i % 500 == 499:
                 self.session.commit_transaction()
         tcursor.close()
-        written = self.table_stat(target, stat.dsrc.cache_bytes_dirty)
+        written = self.get_stat(stat.dsrc.cache_bytes_dirty, target)
         self.assertGreater(written, 0)
 
         deadline = time.time() + 120
-        while self.table_stat(target, stat.dsrc.cache_bytes_dirty) > written // 2:
+        while self.get_stat(stat.dsrc.cache_bytes_dirty, target) > written // 2:
             self.assertLess(time.time(), deadline, 'dirty content of a formerly idle table stuck')
             churn(offset)
             offset = (offset + 1) % 7
