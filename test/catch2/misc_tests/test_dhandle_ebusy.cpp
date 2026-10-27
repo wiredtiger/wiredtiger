@@ -9,7 +9,7 @@
 /*
  * When attempting to lock a dhandle returns EBUSY because the btree has special flags set
  * (bulk/salvage/verify), the session's dhandle ref must be cleared to NULL. Leaving it set exposes
- * callers to a handle they never locked, which can corrupt the dhandle's lock state if they attempt
+ * callers to a handle they never locked, which can corrupt its lock state if they attempt
  * to release it.
  */
 
@@ -21,9 +21,9 @@
 #include "../wrappers/connection_wrapper.h"
 #include "../../utility/test_util.h"
 
-TEST_CASE("session->dhandle is NULL after EBUSY from get_dhandle", "[dhandle][dhandle_ebusy]")
+TEST_CASE("session->dhandle is NULL after EBUSY from get_dhandle", "[dhandle][dhandle_busy]")
 {
-    const std::string home = "WT_TEST.dhandle_ebusy";
+    const std::string home = "WT_TEST.dhandle_busy";
     utils::wiredtiger_cleanup(home);
 
     {
