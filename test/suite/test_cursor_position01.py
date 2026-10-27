@@ -75,6 +75,12 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
         ('qu', lambda i: [i // 7 - 1400, b'k%08d' % i]),
     ]
 
+    # Table names must stay distinct on case-insensitive file systems, where q and Q collide.
+    @staticmethod
+    def format_name(fmt):
+        names = {'q': 'int64', 'Q': 'uint64', 'i': 'int32', 'S': 'str', 'u': 'raw'}
+        return '_'.join(names[ch] for ch in fmt)
+
     # Raw keys: boundary keys returned in key-only mode are prefixes of record keys, which only a
     # raw format unpacks intact.
     def key(self, i):
@@ -303,7 +309,7 @@ class test_cursor_position01(wttest.WiredTigerTestCase):
 
     def test_key_only_formats(self):
         self.require_disk()
-        tables = [('table:%s_fmt_%s' % (self.name, fmt), fmt, keyfn, '')
+        tables = [('table:%s_fmt_%s' % (self.name, self.format_name(fmt)), fmt, keyfn, '')
             for fmt, keyfn in self.key_formats]
 
         # The reverse collator is an extension not built everywhere: cover the collated table

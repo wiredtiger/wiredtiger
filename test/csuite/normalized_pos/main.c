@@ -36,6 +36,9 @@ typedef enum {
 } FMT_ID;
 static const char *const fmt_strings[FMT_COUNT] = {
   "q", "Q", "i", "S", "u", "qS", "Sq", "qu", "10uq"};
+/* File names for the formats, distinct on case-insensitive file systems where q and Q collide. */
+static const char *const fmt_names[FMT_COUNT] = {
+  "int64", "uint64", "int32", "str", "raw", "int64_str", "str_int64", "int64_raw", "raw10_int64"};
 static const int NUM_FMT_KEYS = 20000;
 
 /* An unpacked key: up to two fields, each tagged with its format character. */
@@ -994,8 +997,7 @@ test_cursor_position_formats(const char *home, const char *build_dir)
     testutil_check(wiredtiger_open(home, NULL, config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     for (id = 0; id < FMT_COUNT; ++id) {
-        testutil_snprintf(
-          fmt_uri, sizeof(fmt_uri), "file:normalized_pos_fmt_%s.wt", fmt_strings[id]);
+        testutil_snprintf(fmt_uri, sizeof(fmt_uri), "file:normalized_pos_fmt_%s.wt", fmt_names[id]);
         testutil_snprintf(table_config, sizeof(table_config),
           "key_format=%s,value_format=S,leaf_page_max=4KB,internal_page_max=4KB", fmt_strings[id]);
         testutil_check(session->create(session, fmt_uri, table_config));
@@ -1023,8 +1025,7 @@ test_cursor_position_formats(const char *home, const char *build_dir)
     for (id = 0; id < FMT_COUNT; ++id) {
         if (verbose)
             printf("  format %s\n", fmt_strings[id]);
-        testutil_snprintf(
-          fmt_uri, sizeof(fmt_uri), "file:normalized_pos_fmt_%s.wt", fmt_strings[id]);
+        testutil_snprintf(fmt_uri, sizeof(fmt_uri), "file:normalized_pos_fmt_%s.wt", fmt_names[id]);
         testutil_check(session->open_cursor(session, fmt_uri, NULL, NULL, &cursor));
         for (i = 0; i <= NUM_SAMPLES; ++i) {
             pos = (double)i / NUM_SAMPLES;
@@ -1210,8 +1211,8 @@ test_cursor_position_int_edges(const char *home)
     WT_SESSION *session;
     int64_t q;
     char val_str[500];
-    static const char *const q_uri = "file:normalized_pos_edge_q.wt";
-    static const char *const u_uri = "file:normalized_pos_edge_Q.wt";
+    static const char *const q_uri = "file:normalized_pos_edge_int64.wt";
+    static const char *const u_uri = "file:normalized_pos_edge_uint64.wt";
     static const char *const table_config =
       "value_format=S,leaf_page_max=1KB,leaf_value_max=600,allocation_size=1KB";
     char config[128];
