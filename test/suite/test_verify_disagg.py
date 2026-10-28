@@ -70,13 +70,13 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         # against that value. A leaf rebuilt from a base image and deltas can keep its values' time
         # windows while its aggregate in the parent is empty; verify then requires that no value is
         # newer than the checkpoint timestamp, which is zero without a stable timestamp.
-        ts = 'stable_timestamp=' + self.timestamp_str(self.timestamp)
+        ts_config = 'stable_timestamp=' + self.timestamp_str(self.timestamp)
         # With the commits timestamped, overwritten versions would otherwise be retained in the
         # history store at checkpoint; advance the oldest timestamp to keep it empty when requested.
         # Set it together with stable: oldest may never be later than stable.
         if not self.fill_hs:
-            ts += ',oldest_timestamp=' + self.timestamp_str(self.timestamp)
-        self.conn.set_timestamp(ts)
+            ts_config += ',oldest_timestamp=' + self.timestamp_str(self.timestamp)
+        self.conn.set_timestamp(ts_config)
 
     def verify(self, sessions, expected_error = None):
         for session in sessions:
