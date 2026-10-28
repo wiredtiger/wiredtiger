@@ -1240,6 +1240,35 @@ unlock_tables(WT_SESSION *session, table_lock_state_t *state)
 }
 
 /*
+ * begin_serialized_truncate --
+ *     Resolve the current transaction and begin a truncate transaction under an exclusive lock.
+ */
+static void
+begin_serialized_truncate(
+  TINFO *tinfo, WT_SESSION *session, TABLE *table, bool intxn, table_lock_state_t *lock_statep)
+{
+    if (intxn) {
+        /* Finish any existing transaction. */
+        int ret = snap_repeat_txn(tinfo);
+        testutil_assertfmt(
+          ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL, "operation failed: %d", ret);
+
+        if (ret == 0) {
+            bool committed = commit_transaction(tinfo, false);
+            snap_repeat_update(tinfo, committed);
+        } else {
+            rollback_transaction(tinfo, false);
+            snap_repeat_update(tinfo, false);
+        }
+    }
+
+    /* Release prior shared locks, acquire an exclusive lock and begin a new transaction. */
+    unlock_tables(session, lock_statep);
+    lock_table_exclusive(session, table, lock_statep);
+    begin_transaction_ts(tinfo, /* allow_ignore_prepare */ false);
+}
+
+/*
  * ops --
  *     Per-thread operations.
  */
@@ -1583,27 +1612,13 @@ rollback_retry:
         if (op == MODIFY)
             modify_build(tinfo);
 
-        /* Serialize fast truncate against concurrent writers in disagg switch mode. */
         if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
             if (op == TRUNCATE) {
-                if (intxn) {
-                    ret = snap_repeat_txn(tinfo);
-                    testutil_assertfmt(ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL,
-                      "operation failed: %d", ret);
-                    if (ret == 0) {
-                        bool committed = commit_transaction(tinfo, false);
-                        snap_repeat_update(tinfo, committed);
-                    } else {
-                        rollback_transaction(tinfo, false);
-                        snap_repeat_update(tinfo, false);
-                    }
-                    intxn = false;
-                }
-                unlock_tables(session, &lock_state);
-                lock_table_exclusive(session, table, &lock_state);
-                begin_transaction_ts(tinfo, /* allow_ignore_prepare */ false);
+                /* Serialize truncates against concurrent CRUD writes. */
+                begin_serialized_truncate(tinfo, session, table, intxn, &lock_state);
                 intxn = true;
             } else if (op != READ) {
+                /* CRUD write transactions can overlap one another, but not a fast truncate. */
                 ret = lock_table_shared(session, table, &lock_state);
                 if (ret != 0)
                     goto rollback;
