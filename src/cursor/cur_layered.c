@@ -378,14 +378,14 @@ __clayered_constituent_prepare_blocked(const WT_CURSOR *c)
 }
 
 /*
- * __clayered_clear_trusted --
- *     Forget that the constituents' positions can be trusted, because the read context or a
- *     constituent changed under them. The iteration flags say the alternate is positioned for the
+ * __clayered_invalidate_positions --
+ *     Invalidate what the walk knows about the constituents' positions, because the read context or
+ *     a constituent changed under them. The iteration flags say the alternate is positioned for the
  *     walk direction, and the moved flags say a reversal has already moved a constituent off the
  *     stopped key: both describe positions that are stale now, so they are cleared together.
  */
 static WT_INLINE void
-__clayered_clear_trusted(WTI_CURSOR_LAYERED *clayered)
+__clayered_invalidate_positions(WTI_CURSOR_LAYERED *clayered)
 {
     F_CLR(clayered,
       WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV | WTI_CLAYERED_STALL_MOVED_INGEST |
@@ -399,7 +399,7 @@ __clayered_clear_trusted(WTI_CURSOR_LAYERED *clayered)
 static WT_INLINE void
 __clayered_clear_walk(WTI_CURSOR_LAYERED *clayered)
 {
-    __clayered_clear_trusted(clayered);
+    __clayered_invalidate_positions(clayered);
     F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
     clayered->stopped_key.size = 0;
 }
@@ -1205,7 +1205,7 @@ __clayered_reopen_stable(
          * the correct location.
          */
         if (ret == WT_NOTFOUND)
-            __clayered_clear_trusted(clayered);
+            __clayered_invalidate_positions(clayered);
     } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
         if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
@@ -1264,7 +1264,7 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_STABLE_MODE s
      */
     if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp ||
       clayered->txn_mod_count != txn_mod_count)
-        __clayered_clear_trusted(clayered);
+        __clayered_invalidate_positions(clayered);
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
@@ -1388,7 +1388,7 @@ __clayered_open_stable_first(
       (stable_mode == WTI_CLAYERED_STABLE_CHECKPOINT && conn_lsn == WT_DISAGG_LSN_NONE))
         return (0);
 
-    __clayered_clear_trusted(clayered);
+    __clayered_invalidate_positions(clayered);
     ret = __clayered_open_stable(clayered, false, stable_mode);
     /* A leader can miss here legitimately: a table created after the step-down has no stable. */
     if (__clayered_ignore_missing_stable(session, stable_mode, ret))
@@ -2185,9 +2185,7 @@ __clayered_iterate_finish(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag, int 
         return (ret);
     }
 
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
-    __clayered_clear_trusted(clayered);
-    clayered->stopped_key.size = 0;
+    __clayered_clear_walk(clayered);
     if (ret == 0)
         F_SET(clayered, iter_flag);
     else
@@ -2271,8 +2269,7 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
                   forward ? WTI_CLAYERED_ITERATE_RETRY_NEXT : WTI_CLAYERED_ITERATE_RETRY_PREV);
             }
         } else if (ret != WT_PREPARE_CONFLICT) {
-            F_CLR(op->clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
-            op->clayered->stopped_key.size = 0;
+            __clayered_clear_walk(op->clayered);
         }
         return (ret);
     }
