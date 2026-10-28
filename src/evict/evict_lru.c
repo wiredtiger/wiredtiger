@@ -1336,6 +1336,22 @@ __evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __evict_session_unencumbered --
+ *     Return whether an application session is between transactions: it holds no transaction ID,
+ *     has no published snapshot (pinned ID) and no hazard pointers. Such a session evicts like a
+ *     dedicated eviction thread: it pins nothing while it works and has no operation of its own
+ *     waiting. Internal sessions are not application sessions and return false.
+ */
+static WT_INLINE bool
+__evict_session_unencumbered(WT_SESSION_IMPL *session)
+{
+    return (!F_ISSET(session, WT_SESSION_INTERNAL) && !F_ISSET(session->txn, WT_TXN_HAS_ID) &&
+      __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->pinned_id) ==
+        WT_TXN_NONE &&
+      session->hazards.num_active == 0);
+}
+
+/*
  * __evict_skip_dirty_candidate --
  *     Check if eviction should skip the dirty page.
  */
@@ -3105,8 +3121,8 @@ __wti_evict_app_assist_worker(
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_EVICT *evict = conn->evict;
-    bool may_evict;
-    uint64_t time_start = 0;
+    bool counted, may_evict, unencumbered;
+    uint64_t evicted, time_start = 0;
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -3134,6 +3150,19 @@ __wti_evict_app_assist_worker(
         if (divisor > 1 && (session->id % divisor) != 0)
             may_evict = false;
     }
+
+    /*
+     * An application thread between transactions (see __evict_session_unencumbered) pins nothing
+     * while it evicts, so the per-session rule above has no reason to keep it out. Admit it anyway,
+     * as long as fewer than WT_EVICT_EXPECTED_CONTENTION such threads are evicting at once: the cap
+     * matters when many threads become unencumbered together, typically after cache-full
+     * rollbacks, when an unbounded number of them would converge on the same hot pages. Such a
+     * thread also leaves after a batch of its own evictions, see below.
+     */
+    unencumbered = __evict_session_unencumbered(session);
+    if (unencumbered)
+        WT_STAT_CONN_INCR(session, app_evict_worker_entered_unencumbered);
+    evicted = 0;
 
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
@@ -3220,15 +3249,39 @@ __wti_evict_app_assist_worker(
             break;
         }
 
+        /*
+         * A thread between transactions is never busy, so the rule above keeps it here for as long
+         * as the cache stays over a trigger, possibly until its wait times out. Let it leave once
+         * it has done a batch of evictions of its own, as an eviction worker would: it will be back
+         * at its next commit if the cache still needs help.
+         */
+        if (unencumbered && evicted >= max_progress) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_exit_unencumbered_batch);
+            break;
+        }
+
         if (!__evict_check_user_ok_with_eviction(session, interruptible)) {
             WT_STAT_CONN_INCR(session, app_evict_worker_exit_user_not_ok);
             break;
         }
 
-        /* Evict a page. */
-        if (may_evict) {
+        /*
+         * Evict a page. An unencumbered thread the per-session rule refused counts itself in on the
+         * way into __evict_page and out on the way back, so the cap bounds how many evict at once.
+         */
+        counted = false;
+        if (!may_evict && unencumbered) {
+            if (__wt_atomic_add_uint32(&evict->app_evict_unencumbered, 1) <=
+              WT_EVICT_EXPECTED_CONTENTION)
+                counted = true;
+            else
+                (void)__wt_atomic_sub_uint32(&evict->app_evict_unencumbered, 1);
+        }
+        if (may_evict || counted) {
             WT_STAT_CONN_INCR(session, app_evict_worker_evict_attempt);
             ret = __evict_page(session);
+            if (counted)
+                (void)__wt_atomic_sub_uint32(&evict->app_evict_unencumbered, 1);
         } else {
             WT_STAT_CONN_INCR(session, app_evict_refused_contention);
             ret = WT_NOTFOUND;
@@ -3239,6 +3292,7 @@ __wti_evict_app_assist_worker(
             WT_STAT_CONN_INCRV(session, app_evict_time, elapsed);
         }
         if (ret == 0) {
+            ++evicted;
             WT_STAT_CONN_INCR(session, app_evict_worker_evict_success);
             /* If the caller holds resources, we can stop after a successful eviction. */
             if (busy) {

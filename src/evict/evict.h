@@ -36,6 +36,13 @@ struct __wt_evict {
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
 
     /*
+     * Application threads admitted to eviction between transactions beyond the per-session
+     * admission rule, and currently inside __evict_page. Capped at WT_EVICT_EXPECTED_CONTENTION,
+     * see __wti_evict_app_assist_worker.
+     */
+    wt_shared uint32_t app_evict_unencumbered;
+
+    /*
      * Ramped clean-eviction decision, held for a fixed quantum rather than re-rolled on every call.
      *
      * A worker that finds WT_EVICT_CACHE_CLEAN clear leaves __evict_lru_pages() and parks on a

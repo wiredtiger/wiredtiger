@@ -1922,7 +1922,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: application eviction skipped: transaction is prepared",
   "cache: application eviction skipped: user or interruptible check failed",
   "cache: application eviction worker: entered work loop",
+  "cache: application eviction worker: entered work loop between transactions (unencumbered)",
   "cache: application eviction worker: eviction queue was empty",
+  "cache: application eviction worker: exited after a batch of evictions between transactions",
   "cache: application eviction worker: exited because eviction not needed or enough progress made",
   "cache: application eviction worker: exited busy after successful eviction",
   "cache: application eviction worker: exited due to cache wait timeout",
@@ -3049,7 +3051,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing app_evict_refused_prepare */
     /* not clearing app_evict_refused_user_not_ok */
     /* not clearing app_evict_worker_entered */
+    /* not clearing app_evict_worker_entered_unencumbered */
     /* not clearing app_evict_worker_evict_queue_empty */
+    /* not clearing app_evict_worker_exit_unencumbered_batch */
     /* not clearing app_evict_worker_exit_not_needed_or_progress */
     /* not clearing app_evict_worker_exit_busy_after_success */
     /* not clearing app_evict_worker_exit_cache_timeout */
@@ -4147,8 +4151,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->app_evict_refused_prepare += WT_STAT_CONN_READ(from, app_evict_refused_prepare);
     to->app_evict_refused_user_not_ok += WT_STAT_CONN_READ(from, app_evict_refused_user_not_ok);
     to->app_evict_worker_entered += WT_STAT_CONN_READ(from, app_evict_worker_entered);
+    to->app_evict_worker_entered_unencumbered +=
+      WT_STAT_CONN_READ(from, app_evict_worker_entered_unencumbered);
     to->app_evict_worker_evict_queue_empty +=
       WT_STAT_CONN_READ(from, app_evict_worker_evict_queue_empty);
+    to->app_evict_worker_exit_unencumbered_batch +=
+      WT_STAT_CONN_READ(from, app_evict_worker_exit_unencumbered_batch);
     to->app_evict_worker_exit_not_needed_or_progress +=
       WT_STAT_CONN_READ(from, app_evict_worker_exit_not_needed_or_progress);
     to->app_evict_worker_exit_busy_after_success +=
