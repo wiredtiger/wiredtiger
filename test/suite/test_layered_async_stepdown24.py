@@ -239,6 +239,68 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(3), 'v'), (self.key(2), 'v'), (self.key(1), 'v')])
 
+    # The walk's last returned key becomes prepared under a new read context while the other
+    # constituent is blocked. Reversing reads that key again and conflicts on it too. The walk keeps
+    # reporting the conflict, and once both are resolved returns that key again, then everything
+    # before it.
+    def test_reverse_when_last_key_becomes_prepared(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(r): 'v' for r in (1, 2, 3, 4)}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(3, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(2): 'v-ingest'}, 18)
+
+        # Rank 2 is in both constituents, so stepping stable off it blocks on rank 3.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 2)
+        self.assert_conflict(cursor)
+
+        ingest_prepare = self.prepare(2, 22)
+        self.session.commit_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_conflict(cursor, back=True)
+        self.assert_conflict(cursor, back=True)
+
+        self.resolve(stable_prepare)
+        self.resolve(ingest_prepare)
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        self.assertEqual(actual, [(self.key(2), 'v-ingest'), (self.key(1), 'v')])
+
+    # As above, but after the reversal conflicts on the last returned key the walk turns back again.
+    # Like a btree cursor stepping on from a key it conflicted on, it resumes past that key: the
+    # keys before it, which the other constituent holds, are not returned again.
+    def test_resume_after_failed_reversal(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(r): 'v' for r in (2, 3, 4, 5)}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(4, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(1): 'v-ingest', self.key(3): 'v-ingest'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        for rank in (1, 2, 3):
+            self.assert_returns(cursor, rank)
+        self.assert_conflict(cursor)
+
+        ingest_prepare = self.prepare(3, 22)
+        self.session.commit_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_conflict(cursor, back=True)
+        self.assert_conflict(cursor)
+
+        self.resolve(stable_prepare)
+        self.resolve(ingest_prepare)
+        actual = self.rest_of_walk(cursor)
+        self.session.rollback_transaction()
+        self.assertEqual(actual, [(self.key(4), 'v'), (self.key(5), 'v')])
+
     # The walk returns a key both constituents hold, then blocks stepping the other constituent past
     # it. Reversing returns that key again, as a btree cursor does.
     def test_reverse_after_alternate_block(self):

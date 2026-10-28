@@ -134,7 +134,9 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
 
         return seen, conflicts
 
-    def test_walk_over_prepared_key(self):
+    # Build the table with the prepared update on the blocked key. Returns the blocked key, the
+    # prepared session and cursor, and a function that resolves the prepared transaction.
+    def prepare_table(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -182,6 +184,12 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         def resolve():
             prepare_session.rollback_transaction()
 
+        return blocked_key, prepare_session, prepare_cursor, resolve
+
+    def test_walk_over_prepared_key(self):
+        keys = self.keys()
+        blocked_key, prepare_session, prepare_cursor, resolve = self.prepare_table()
+
         # Read above the prepared timestamp so the prepared update is a conflict rather than
         # invisible content the walk may skip, and above the ingest keys so they are all visible.
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -205,6 +213,37 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         # The tie keys are already members of the full key list, so the expected sequence does not
         # change; only how each of them is produced (from one constituent or both) does.
         expected = keys if self.forward else list(reversed(keys))
+        self.assertEqual(seen, expected)
+
+    # A bounded walk whose first key is the prepared one: the btree cursor resets itself on the
+    # conflict while it is first positioned, so there is no blocked position to resume from. The
+    # walk keeps reporting the conflict, and once it is resolved returns the keys within the bound.
+    def test_bounded_walk_starting_on_prepared_key(self):
+        keys = self.keys()
+        blocked_key, prepare_session, prepare_cursor, resolve = self.prepare_table()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
+        cursor.set_key(blocked_key)
+        cursor.bound('bound=' + ('lower' if self.forward else 'upper'))
+        step = cursor.next if self.forward else cursor.prev
+
+        try:
+            for _ in range(3):
+                self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                    '/conflict with a prepared update/')
+            resolve()
+            seen = []
+            while step() == 0:
+                seen.append(cursor.get_key())
+        finally:
+            self.session.rollback_transaction()
+            cursor.close()
+            prepare_cursor.close()
+            prepare_session.close()
+
+        expected = keys[self.blocked_index:] if self.forward else \
+            list(reversed(keys[:self.blocked_index + 1]))
         self.assertEqual(seen, expected)
 
 if __name__ == '__main__':
