@@ -128,42 +128,24 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         self.assertEqual(actual, [(self.key(1), 'v'), (self.key(2), 'v'),
             (self.key(3), 'v-ingest'), (self.key(4), 'v'), (self.key(5), 'v')])
 
-@disagg_test_class
-class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredTigerTestCase):
     # Writes the walk's own transaction makes through another cursor while the walk is blocked on
     # stable, by rank: 2 sits between the last returned key and the blocked one, 4 between the
     # blocked key and the next ingest key, and 5 is the next ingest key itself. In the
-    # alternate_key scenarios ingest also holds rank 2, so the walk is blocked before returning it,
+    # alternate_key tests ingest also holds rank 2, so the walk is blocked before returning it,
     # with ingest already on rank 2. As with a plain table, a key written behind the blocked
     # position is not returned.
-    stall_writes = [
-        ('insert_before_blocked', dict(ingest=[5], op='insert', rank=2,
-            expected=[(3, 'v'), (5, 'v')])),
-        ('insert_after_blocked', dict(ingest=[5], op='insert', rank=4,
-            expected=[(3, 'v'), (4, 'new'), (5, 'v')])),
-        ('remove_next_ingest', dict(ingest=[5], op='remove', rank=5, expected=[(3, 'v')])),
-        ('update_next_ingest', dict(ingest=[5], op='insert', rank=5,
-            expected=[(3, 'v'), (5, 'new')])),
-        ('remove_alternate_key_before_blocked', dict(ingest=[2, 5], op='remove', rank=2,
-            expected=[(3, 'v'), (5, 'v')])),
-        ('update_alternate_key_before_blocked', dict(ingest=[2, 5], op='insert', rank=2,
-            expected=[(2, 'new'), (3, 'v'), (5, 'v')])),
-    ]
-
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True),
-        BlockedWalkMixin.directions, stall_writes)
-
+    #
     # Stable blocks on rank 3 right after the walk returns rank 1, before the walk returns any
     # ingest key. The walk's own write must be visible once the block resolves, including when the
     # walk is retried, and blocks again, between the write and the resolution.
-    def test_write_while_stable_blocked(self):
+    def check_write_while_stable_blocked(self, ingest, op, rank, expected):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {self.key(1): 'v', self.key(3): 'v'}, 10)
         self.set_global_ts(1, 10)
         stable_prepare = self.prepare(3, 12)
         self.set_step_down_ts(15)
-        self.write_at(self.uri, {self.key(r): 'v' for r in self.ingest}, 18)
+        self.write_at(self.uri, {self.key(r): 'v' for r in ingest}, 18)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
@@ -171,8 +153,8 @@ class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredT
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
-        writer.set_key(self.key(self.rank))
-        if self.op == 'insert':
+        writer.set_key(self.key(rank))
+        if op == 'insert':
             writer.set_value('new')
             self.assertEqual(writer.insert(), 0)
         else:
@@ -184,11 +166,27 @@ class test_layered_async_stepdown24_stall_writes(BlockedWalkMixin, wttest.WiredT
 
         actual = self.rest_of_walk(cursor)
         self.session.rollback_transaction()
-        self.assertEqual(actual, [(self.key(r), v) for r, v in self.expected])
+        self.assertEqual(actual, [(self.key(r), v) for r, v in expected])
 
-@disagg_test_class
-class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerTestCase):
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
+    def test_write_while_stable_blocked_insert_before_blocked(self):
+        self.check_write_while_stable_blocked([5], 'insert', 2, [(3, 'v'), (5, 'v')])
+
+    def test_write_while_stable_blocked_insert_after_blocked(self):
+        self.check_write_while_stable_blocked(
+            [5], 'insert', 4, [(3, 'v'), (4, 'new'), (5, 'v')])
+
+    def test_write_while_stable_blocked_remove_next_ingest(self):
+        self.check_write_while_stable_blocked([5], 'remove', 5, [(3, 'v')])
+
+    def test_write_while_stable_blocked_update_next_ingest(self):
+        self.check_write_while_stable_blocked([5], 'insert', 5, [(3, 'v'), (5, 'new')])
+
+    def test_write_while_stable_blocked_remove_alternate_key_before_blocked(self):
+        self.check_write_while_stable_blocked([2, 5], 'remove', 2, [(3, 'v'), (5, 'v')])
+
+    def test_write_while_stable_blocked_update_alternate_key_before_blocked(self):
+        self.check_write_while_stable_blocked(
+            [2, 5], 'insert', 2, [(2, 'new'), (3, 'v'), (5, 'v')])
 
     # Reversing a walk blocked on a prepared update returns the last key it returned again, as a
     # btree cursor does, then everything before it. Rank 3 is in both constituents, so ingest must
@@ -439,11 +437,6 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(1), 'v')])
 
-@disagg_test_class
-class test_layered_async_stepdown24_reverse_conflict(BlockedWalkMixin, wttest.WiredTigerTestCase):
-    # The walk is positioned by a search, which depends on the direction search_near prefers.
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions[:1])
-
     # A walk positioned by a search passes a prepared ingest key it never read. It blocks on a
     # stable prepared update, then reverses into that ingest key. The walk keeps reporting the
     # conflict until the ingest key resolves, then, like a btree cursor reversing out of a stall,
@@ -470,11 +463,6 @@ class test_layered_async_stepdown24_reverse_conflict(BlockedWalkMixin, wttest.Wi
         self.session.rollback_transaction()
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(3), 'v'), (self.key(1), 'v')])
-
-@disagg_test_class
-class test_layered_async_stepdown24_reverse_step_down(BlockedWalkMixin,
-                                                      wttest.WiredTigerTestCase):
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions[:1])
 
     # A walk blocked on a prepared update in stable reverses across a step-down. The walk is
     # positioned on the last key it returned, now on a follower. The next operation completes the
@@ -507,21 +495,53 @@ class test_layered_async_stepdown24_reverse_step_down(BlockedWalkMixin,
             self.assertEqual(stable_prepare.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
         stable_prepare.close()
 
+    # A new walk blocks on its first key, on stable or on both constituents, and retries. Like a
+    # btree cursor blocked there, reversing returns only keys before that key in the walk
+    # direction: none, or a key the walk's own transaction inserted there.
+    def check_reverse_from_first_key(self, ingest_blocked, insert):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(3): 'v', self.key(4): 'v', self.key(5): 'v'}, 10)
+        self.set_global_ts(1, 10)
+        prepares = [self.prepare(3, 12)]
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(6): 'v'}, 18)
+        if ingest_blocked:
+            prepares.append(self.prepare(2, 22))
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_conflict(cursor)
+        self.assert_conflict(cursor)
+        if insert:
+            writer = self.session.open_cursor(self.uri, None, None)
+            writer[self.key(1)] = 'new'
+            writer.close()
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        for session in prepares:
+            self.resolve(session)
+        self.assertEqual(actual, [(self.key(1), 'new')] if insert else [])
+
+    def test_reverse_from_first_key_stable_blocked(self):
+        self.check_reverse_from_first_key(ingest_blocked=False, insert=False)
+
+    def test_reverse_from_first_key_stable_blocked_insert(self):
+        self.check_reverse_from_first_key(ingest_blocked=False, insert=True)
+
+    def test_reverse_from_first_key_both_blocked(self):
+        self.check_reverse_from_first_key(ingest_blocked=True, insert=False)
+
 @disagg_test_class
-class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.WiredTigerTestCase):
+class test_layered_async_stepdown24_mirrored(BlockedWalkMixin, wttest.WiredTigerTestCase):
     conn_config = BlockedWalkMixin.conn_config.replace(
         'disaggregated=(', 'disaggregated=(stepdown_write_mirroring=true,')
-    inserts = [
-        ('no_insert', dict(insert_past_blocked=False)),
-        ('insert_past_blocked', dict(insert_past_blocked=True)),
-    ]
-    scenarios = make_scenarios(
-        gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions, inserts)
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
 
     # With write mirroring, the walk's own transaction removes the last key returned from stable
     # while the walk is blocked there, leaving nothing before it, and may insert a key past the
     # blocked one. Reversing returns nothing.
-    def test_reverse_after_last_key_removed(self):
+    def check_last_key_removed(self, insert_past_blocked):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {self.key(2): 'v', self.key(4): 'v'}, 10)
@@ -538,7 +558,7 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
         writer = self.session.open_cursor(self.uri, None, None)
         writer.set_key(self.key(2))
         self.assertEqual(writer.remove(), 0)
-        if self.insert_past_blocked:
+        if insert_past_blocked:
             writer[self.key(5)] = 'new'
         writer.close()
 
@@ -554,7 +574,7 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
     # The walk returns a key both constituents hold, then blocks on a prepared update stepping the
     # other constituent past it. With write mirroring, the walk's own transaction deletes that key
     # from both constituents, so neither holds it. Reversing does not return it.
-    def check_last_key_deleted_from_both(self, earlier_key):
+    def check_last_key_deleted_from_both(self, earlier_key, insert_past_blocked):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         ranks = (1, 2, 3, 4) if earlier_key else (2, 3, 4)
@@ -574,7 +594,7 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
         writer = self.session.open_cursor(self.uri, None, None)
         writer.set_key(self.key(2))
         self.assertEqual(writer.remove(), 0)
-        if self.insert_past_blocked:
+        if insert_past_blocked:
             writer[self.key(5)] = 'new'
         writer.close()
 
@@ -587,18 +607,23 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
         # Verification needs the step-down completed when writes are mirrored.
         self.complete_step_down(15)
 
+    def test_reverse_after_last_key_removed(self):
+        self.check_last_key_removed(insert_past_blocked=False)
+
+    def test_reverse_after_last_key_removed_insert_past_blocked(self):
+        self.check_last_key_removed(insert_past_blocked=True)
+
     def test_reverse_after_last_key_deleted_from_both(self):
-        self.check_last_key_deleted_from_both(earlier_key=True)
+        self.check_last_key_deleted_from_both(earlier_key=True, insert_past_blocked=False)
+
+    def test_reverse_after_last_key_deleted_from_both_insert_past_blocked(self):
+        self.check_last_key_deleted_from_both(earlier_key=True, insert_past_blocked=True)
 
     def test_reverse_after_last_key_deleted_from_both_nothing_before(self):
-        self.check_last_key_deleted_from_both(earlier_key=False)
+        self.check_last_key_deleted_from_both(earlier_key=False, insert_past_blocked=False)
 
-@disagg_test_class
-class test_layered_async_stepdown24_mirrored_writes(
-        BlockedWalkMixin, wttest.WiredTigerTestCase):
-    conn_config = BlockedWalkMixin.conn_config.replace(
-        'disaggregated=(', 'disaggregated=(stepdown_write_mirroring=true,')
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
+    def test_reverse_after_last_key_deleted_from_both_nothing_before_insert_past_blocked(self):
+        self.check_last_key_deleted_from_both(earlier_key=False, insert_past_blocked=True)
 
     def write_own(self, rank, value):
         writer = self.session.open_cursor(self.uri, None, None)
@@ -656,44 +681,6 @@ class test_layered_async_stepdown24_mirrored_writes(
         cursor.close()
         self.finish(stable_prepare)
         self.assertEqual(actual, [(self.key(1), 'new')])
-
-@disagg_test_class
-class test_layered_async_stepdown24_first_key(BlockedWalkMixin, wttest.WiredTigerTestCase):
-    first_key = [
-        ('stable_blocked', dict(ingest_blocked=False, insert=False)),
-        ('stable_blocked_insert', dict(ingest_blocked=False, insert=True)),
-        ('both_blocked', dict(ingest_blocked=True, insert=False)),
-    ]
-    scenarios = make_scenarios(
-        gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions, first_key)
-
-    # A new walk blocks on its first key, on stable or on both constituents, and retries. Like a
-    # btree cursor blocked there, reversing returns only keys before that key in the walk
-    # direction: none, or a key the walk's own transaction inserted there.
-    def test_reverse_from_first_key(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {self.key(3): 'v', self.key(4): 'v', self.key(5): 'v'}, 10)
-        self.set_global_ts(1, 10)
-        prepares = [self.prepare(3, 12)]
-        self.set_step_down_ts(15)
-        self.write_at(self.uri, {self.key(6): 'v'}, 18)
-        if self.ingest_blocked:
-            prepares.append(self.prepare(2, 22))
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_conflict(cursor)
-        self.assert_conflict(cursor)
-        if self.insert:
-            writer = self.session.open_cursor(self.uri, None, None)
-            writer[self.key(1)] = 'new'
-            writer.close()
-        actual = self.walk_back(cursor)
-        self.session.rollback_transaction()
-        for session in prepares:
-            self.resolve(session)
-        self.assertEqual(actual, [(self.key(1), 'new')] if self.insert else [])
 
 if __name__ == '__main__':
     wttest.run()
