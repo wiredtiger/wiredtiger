@@ -1070,6 +1070,7 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_pickup_skip_signal',
         'disagg_role_transition',
+        'disagg_truncate_entry_insert',
         'drop_deferred_hold', 'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
         'disagg_stable_dhandle_delay',
@@ -1941,6 +1942,11 @@ methods = {
 
 'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.verify' : Method([
+    Config('abort_on_error', 'false', r'''
+        when verifying all tables (no URI given), stop at the first table that fails
+        verification; by default all tables are verified, with every failure logged as it is
+        found, and the return value reports the first failure''',
+        type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as
