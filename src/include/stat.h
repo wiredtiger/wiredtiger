@@ -867,6 +867,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoint_pages_reconciled_bytes;
+    int64_t checkpoint_evict_drain;
     int64_t checkpoints_api;
     int64_t checkpoints_compact;
     int64_t checkpoint_sync;
@@ -899,6 +900,7 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
     int64_t checkpoint_rec_blkcache_write;
+    int64_t checkpoint_evict_drain_duration;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
