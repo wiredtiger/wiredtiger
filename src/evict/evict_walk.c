@@ -615,8 +615,15 @@ retry:
          * Skip a tree with no bytes of interest while still holding the handle list lock, which is
          * far cheaper than releasing it, walking the tree to find that out and taking it again. The
          * root page is only safe to read with the walk lock held, as that is what a closing thread
-         * takes before discarding it. Take the lock without waiting and fall through to the full
-         * path if it is busy. A tree awaiting publication still has to reach the publish step.
+         * takes before discarding it. A tree awaiting publication still has to reach the publish
+         * step.
+         *
+         * Only try to acquire the lock, never wait for it, and fall through to the full path if it
+         * is busy. A thread turning off eviction holds this lock while it waits for the eviction
+         * server to acknowledge that it has stopped using the tree, so waiting here could deadlock
+         * with it. Even without a deadlock, waiting would stall the eviction server, and keep the
+         * handle list lock held while it waits, to save work on a tree that the full path handles
+         * correctly anyway.
          */
         if (!try_publish && !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
             wanted = true;
