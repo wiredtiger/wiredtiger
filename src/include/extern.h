@@ -1861,6 +1861,8 @@ extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
 extern void __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id);
 extern void __wt_layered_table_truncate_clear(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table);
+extern void __wt_layered_table_truncate_prune(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp);
 extern void __wt_log_data_dump(
   WT_SESSION_IMPL *session, const void *data, size_t size, const char *fmt, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)));
@@ -1912,17 +1914,17 @@ extern void __wt_size_stat_reset(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
 extern void __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *to);
-extern void __wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats);
-extern void __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats);
+extern void __wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats, uint32_t otel_flag);
+extern void __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats, uint32_t otel_flag);
 extern void __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle);
 extern void __wt_stat_connection_init_single(WT_CONNECTION_STATS *stats);
 extern void __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to);
 extern void __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to);
-extern void __wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats);
-extern void __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats);
+extern void __wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag);
+extern void __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag);
 extern void __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle);
 extern void __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats);
-extern void __wt_stat_session_clear_single(WT_SESSION_STATS *stats);
+extern void __wt_stat_session_clear_single(WT_SESSION_STATS *stats, uint32_t otel_flag);
 extern void __wt_stat_session_init_single(WT_SESSION_STATS *stats);
 extern void __wt_thread_group_start_one(
   WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked);
@@ -2037,6 +2039,8 @@ static WT_INLINE bool __wt_btcur_skip_internal_page_read_only(WT_SESSION_IMPL *s
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_can_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_btree_dhandle_is_outdated_disagg(
+  WT_DATA_HANDLE *dhandle, WT_BTREE *btree) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_entry_is_shared(WT_SESSION_IMPL *session, const char *uri,
@@ -2145,6 +2149,8 @@ static WT_INLINE bool __wt_txn_snap_range_visible(WT_SESSION_IMPL *session, uint
 static WT_INLINE bool __wt_txn_snapshot_intersects_range(
   uint64_t *snapshot, uint32_t snapshot_count, uint64_t lo, uint64_t hi)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_txn_ta_newest_stop_visible_all(
+  WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_timestamp_visible(WT_SESSION_IMPL *session, wt_timestamp_t timestamp,
   wt_timestamp_t durable_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session,

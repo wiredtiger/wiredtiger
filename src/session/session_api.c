@@ -1313,7 +1313,7 @@ __session_reset(WT_SESSION *wt_session)
 
     /* Reset the session statistics. */
     if (WT_STAT_ENABLED(session))
-        __wt_stat_session_clear_single(&session->stats);
+        __wt_stat_session_clear_single(&session->stats, 0);
 
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
@@ -1845,44 +1845,67 @@ err:
 }
 
 /*
- * __session_verify_int --
- *     Verify a single object, or run database-wide checks when no URI is given.
+ * __session_verify_all --
+ *     Verify every table in the database. With the abort_on_error option set, stop at the first
+ *     failure.
  */
 static int
-__session_verify_int(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__session_verify_all(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    bool verify_unique_id;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    int first_error;
+    const char *key;
+    bool abort_on_error;
 
-    WT_RET(__wt_config_gets(session, cfg, "verify_unique_id", &cval));
-    verify_unique_id = cval.val != 0;
+    cursor = NULL;
+    first_error = 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "abort_on_error", &cval));
+    abort_on_error = cval.val != 0;
 
     /*
-     * A NULL URI selects database-wide verification rather than any particular object. The unique
-     * btree ID check is the only database-wide check today; verifying every table in the database
-     * may be added here in the future.
-     *
-     * This is the intended entry point for database-wide checks: a caller sweeps tables with
-     * per-object verifies, then makes one NULL-URI call per sweep instead of paying for the
-     * metadata scan on every table.
+     * Iterate the metadata entries, verifying each table. Typically each table has multiple
+     * entries, so only verify table and layered entries; this skips the duplicate entries and any
+     * entries that are not supported with verify.
      */
-    if (uri == NULL) {
-        if (verify_unique_id)
-            WT_RET(__wt_verify_metadata_consistency(session));
-        return (0);
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &key));
+        if (!WT_PREFIX_MATCH(key, "table:") && !WT_PREFIX_MATCH(key, "layered:"))
+            continue;
+        ret = __wt_schema_worker(
+          session, key, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY);
+        if (ret == 0 || ret == ENOTSUP)
+            continue;
+        if (abort_on_error)
+            goto err;
+        if (first_error == 0)
+            first_error = ret;
     }
+    WT_ERR_NOTFOUND_OK(ret, false);
+    ret = first_error;
 
-    WT_RET(__wt_schema_worker(
+err:
+    if (cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __session_verify_dispatch --
+ *     Route a verify call: no URI verifies every table in the database, anything else verifies a
+ *     single object.
+ */
+static int
+__session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+    if (uri == NULL)
+        return (__session_verify_all(session, cfg));
+
+    return (__wt_schema_worker(
       session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
-
-    /*
-     * The unique btree ID check called with an URI, may be removed depending on final decision of
-     * the validate owners.
-     */
-    if (verify_unique_id)
-        WT_RET(__wt_verify_metadata_consistency(session));
-
-    return (0);
 }
 
 /*
@@ -1901,7 +1924,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __session_verify_int(session, uri, cfg)));
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __session_verify_dispatch(session, uri, cfg)));
     WT_ERR(ret);
 err:
     if (ret != 0)
