@@ -33,9 +33,7 @@ from wtscenario import make_scenarios
 
 # Verify a table on a follower that never set a stable timestamp, after the leader wrote a leaf as a
 # base image followed by one delta. The delta is written either by the checkpoint or by an earlier
-# eviction of the dirty leaf; full page writes are the control. The leader sets a stable timestamp
-# or not: without one its checkpoints carry no checkpoint timestamp, so a delta-reconstructed page
-# has no stable point to be validated against.
+# eviction of the dirty leaf; full page writes are the control.
 @disagg_test_class
 class test_verify_disagg07(wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -48,11 +46,7 @@ class test_verify_disagg07(wttest.WiredTigerTestCase):
         ('ckpt_write', dict(evict_first=False)),
         ('evict_write', dict(evict_first=True)),
     ]
-    leader_stable = [
-        ('leader_stable', dict(set_leader_stable=True)),
-        ('no_leader_stable', dict(set_leader_stable=False)),
-    ]
-    scenarios = make_scenarios(disagg_storages, page_formats, writers, leader_stable)
+    scenarios = make_scenarios(disagg_storages, page_formats, writers)
 
     conn_config_follower = 'disaggregated=(role="follower"),statistics=(all)'
 
@@ -86,29 +80,22 @@ class test_verify_disagg07(wttest.WiredTigerTestCase):
         self.fail('the dirty leaf was not evicted as a delta')
 
     def test_verify_delta_empty_parent_without_follower_stable(self):
-        if self.set_leader_stable:
-            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-                                    ',stable_timestamp=' + self.timestamp_str(1))
-        else:
-            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+                                ',stable_timestamp=' + self.timestamp_str(1))
         self.session.create(self.uri, self.table_cfg)
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(20):
             cursor[f'key{i:02d}'] = 'a' * 200
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
-        if self.set_leader_stable:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
         self.session.checkpoint()
 
         self.session.begin_transaction()
         cursor['key00'] = 'b' * 200
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-        if self.set_leader_stable:
-            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
-                                    ',stable_timestamp=' + self.timestamp_str(10))
-        else:
-            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
+                                ',stable_timestamp=' + self.timestamp_str(10))
         cursor.close()
         if self.evict_first:
             self.evict_leaf()

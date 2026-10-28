@@ -386,17 +386,6 @@ __time_value_validate_parent_stable(
      */
     stable = from_delta ? S2BT(session)->checkpoint_timestamp : __wt_get_stable_timestamp(session);
 
-    /*
-     * A checkpoint written by a connection that never set a stable timestamp carries no checkpoint
-     * timestamp. A delta-reconstructed page then has no stable point to be compared against, and
-     * comparing with WT_TS_NONE would reject every cell that kept its time window: that is not a
-     * stricter check, it is a comparison against a bound that means "unset". Full images keep the
-     * comparison, because a full image whose aggregate is empty while its cells carry windows is
-     * genuinely inconsistent.
-     */
-    if (from_delta && stable == WT_TS_NONE)
-        return (0);
-
     if (tw->durable_start_ts > stable)
         WT_TIME_ERROR("a durable start time after");
     if (tw->start_ts > stable)
