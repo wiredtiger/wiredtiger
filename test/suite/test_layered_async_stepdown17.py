@@ -92,5 +92,65 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         prepare_cursor.close()
         prepare_session.close()
 
+    # The walk blocks on a prepared update, then a reversal hits a prepare conflict on the key it
+    # last returned, then the step-down completes. The walk then reverses on the follower, which
+    # returns the last returned key again, then everything before it.
+    def test_walk_reversal_conflict_across_step_down(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'key2': 'v', 'key4': 'v', 'key6': 'v', 'key8': 'v'}, 10)
+        self.set_global_ts(1, 10)
+
+        first = self.conn.open_session()
+        first_cursor = first.open_cursor(self.uri, None, None)
+        first.begin_transaction()
+        first_cursor['key6' if self.forward else 'key4'] = 'v-prepared'
+        first.prepare_transaction('prepare_timestamp=' + self.timestamp_str(12))
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(14))
+        step, back = (cursor.next, cursor.prev) if self.forward else (cursor.prev, cursor.next)
+        for key in ('key2', 'key4') if self.forward else ('key8', 'key6'):
+            self.assertEqual(step(), 0)
+            self.assertEqual(cursor.get_key(), key)
+        self.assertRaisesException(wiredtiger.WiredTigerError, step,
+            '/conflict with a prepared update/')
+
+        # The key the walk last returned is prepared by another transaction, and read under a new
+        # snapshot, so reversing conflicts on it too.
+        second = self.conn.open_session()
+        second_cursor = second.open_cursor(self.uri, None, None)
+        second.begin_transaction()
+        second_cursor['key4' if self.forward else 'key6'] = 'v-prepared'
+        second.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30))
+        self.session.commit_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
+        self.assertRaisesException(wiredtiger.WiredTigerError, back,
+            '/conflict with a prepared update/')
+        second.rollback_transaction()
+        second_cursor.close()
+        second.close()
+
+        self.set_step_down_ts(32)
+        self.complete_step_down(32)
+
+        returned = []
+        while back() == 0:
+            returned.append(cursor.get_key())
+        self.assertEqual(returned, ['key4', 'key2'] if self.forward else ['key6', 'key8'])
+
+        # Resetting releases the position, which pins the live stable table. Resolving a straddling
+        # prepared transaction on the follower is not supported yet (FIXME-WT-18422), so the
+        # rollback can be refused.
+        cursor.reset()
+        self.session.rollback_transaction()
+        cursor.close()
+        try:
+            first.rollback_transaction()
+        except wiredtiger.WiredTigerError:
+            pass
+        first_cursor.close()
+        first.close()
+
 if __name__ == '__main__':
     wttest.run()
