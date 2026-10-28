@@ -14,6 +14,9 @@ __wt_4b_size_posint2
 __wt_4b_unpack_array
 __wt_4b_unpack_posint1
 __wt_4b_unpack_posint2
+__wt_btree_diff_next
+__wt_btree_diff_open
+__wt_btree_diff_open_checkpoints
 __wt_bulk_insert_row
 __wt_bulk_insert_var
 __wt_config_getone
