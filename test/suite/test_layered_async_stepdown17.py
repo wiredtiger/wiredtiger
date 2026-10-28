@@ -145,8 +145,9 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         prepare_cursor.close()
         prepare_session.close()
 
-    # A search abandons the blocked walk, so it reads the follower's checkpoint like any other
-    # operation after the step-down, and does not conflict on the prepared key.
+    # A search abandons a walk blocked on a prepared update, so it reads the follower's checkpoint
+    # like any other operation after the step-down, and gets no prepare conflict on the prepared
+    # key.
     def test_search_while_stable_blocked_across_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -184,7 +185,7 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         prepare_session.close()
 
 # A walk that began before the step-down timestamp was announced reads stable alone. When it blocks
-# on a stable prepared update and a step-down then completes, the walk keeps waiting on the
+# on a stable prepared update and a step-down then completes, the walk keeps reporting the prepare
 # conflict: the role change adds ingest to the walk, which resumes from where it stopped.
 @disagg_test_class
 class test_layered_async_stepdown17_direct_walk(LayeredStepdownMixin, wttest.WiredTigerTestCase):
@@ -232,9 +233,9 @@ class test_layered_async_stepdown17_direct_walk(LayeredStepdownMixin, wttest.Wir
         self.assertRaisesException(wiredtiger.WiredTigerError, step,
             '/conflict with a prepared update/')
 
-        # Resetting releases the blocked position, which pins the live stable table. Resolving a
-        # straddling prepared transaction on the follower is not supported yet (FIXME-WT-18422),
-        # so the rollback can be refused.
+        # Resetting releases the position blocked on the prepared update, which pins the live stable
+        # table. Resolving a straddling prepared transaction on the follower is not supported yet
+        # (FIXME-WT-18422), so the rollback can be refused.
         cursor.reset()
         self.session.rollback_transaction()
         cursor.close()

@@ -643,8 +643,9 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     const bool leader = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader);
 
     /*
-     * Only a walk resumes a blocked stable cursor. Any other operation abandons the walk, so drop
-     * the blocked position and let the stable cursor follow the node's role.
+     * Only a walk resumes a stable cursor blocked on a prepared update. Any other operation
+     * abandons the walk, so drop the blocked position and let the stable cursor follow the node's
+     * role.
      */
     if (mode != WTI_CLAYERED_MODE_ITERATE &&
       __clayered_constituent_prepare_blocked(clayered->stable_cursor))
@@ -1937,7 +1938,8 @@ __clayered_step_past(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, const WT_ITEM 
 /*
  * __clayered_reread --
  *     Read a positioned constituent's key again: the value it holds can predate a change of read
- *     context. A prepared update on the key resets the constituent and reports the conflict.
+ *     context. If the key now has a prepared update, the read reports a prepare conflict and resets
+ *     the constituent, which is then no longer positioned.
  */
 static int
 __clayered_reread(WT_CURSOR *constituent)
@@ -1951,7 +1953,8 @@ __clayered_reread(WT_CURSOR *constituent)
  * __clayered_step_back_past --
  *     Move a constituent of a reversed walk strictly past the stopped key in the new direction.
  *     Like a btree cursor, step it back from where it is, or from where it is blocked, so keys
- *     beyond its position are never read. Only a constituent with no position is searched for.
+ *     beyond its position are never read. A constituent blocked on a prepared update is stepped
+ *     again to recheck the blocked key, and only a constituent with no position is searched for.
  */
 static int
 __clayered_step_back_past(
@@ -1967,7 +1970,7 @@ __clayered_step_back_past(
 /*
  * __clayered_resume_at --
  *     Position a constituent on its first key at or past the stopped key in the walk direction. A
- *     blocked constituent rechecks its own blocked key instead.
+ *     constituent blocked on a prepared update rechecks its own blocked key instead.
  */
 static int
 __clayered_resume_at(
@@ -2049,8 +2052,8 @@ __clayered_position_both(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forward)
         return (0);
 
     /*
-     * A bounded cursor resets itself on a conflict while it is first positioned, so it is not
-     * blocked and has no key to resume from: restart the walk.
+     * A bounded cursor resets itself on a prepare conflict while it is first positioned, so it is
+     * not left blocked on the prepared update and has no key to resume from: restart the walk.
      */
     if ((ingest_ret == WT_PREPARE_CONFLICT &&
           !__clayered_constituent_prepare_blocked(op->ingest)) ||
@@ -2082,7 +2085,7 @@ __clayered_select_current(WTI_CLAYERED_OP *op, WT_CURSOR **currentp, WT_CURSOR *
     /*
      * The current cursor is always known here: every path that clears it also clears both
      * constituents. It has a key, unless the previous call left it blocked on a prepared update or
-     * a reversal's re-read of its key hit one and reset it.
+     * a reversal's re-read of its key hit a prepare conflict and reset it.
      */
     WT_ASSERT(session, clayered->current_cursor != NULL);
     c_current = clayered->current_cursor;
@@ -2224,8 +2227,9 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
      */
     if (reversed && clayered->stopped_key.size != 0) {
         /*
-         * Read both keys again before moving anything, so a prepared conflict on either one leaves
-         * the walk stalled where it was, with a blocked alternate still blocked.
+         * Read both keys again before moving anything, so a prepare conflict on either one leaves
+         * the walk stalled where it was, with an alternate blocked on a prepared update still
+         * blocked.
          */
         WT_RET(__clayered_reread(c_current));
         WT_RET(__clayered_reread(c_alternate));
@@ -2234,7 +2238,7 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
     }
 
     /*
-     * A reversal's re-read of the current cursor's key hit a prepared update and reset it, and the
+     * A reversal's re-read of the current cursor's key hit a prepare conflict and reset it, and the
      * walk now turns back again. Like a btree cursor stepping on from a key it conflicted on,
      * resume both constituents at the stopped key.
      */
@@ -2342,7 +2346,8 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
      * A layered cursor can legitimately have a single constituent: the ingest cursor is NULL when
      * accessing the stable table alone is sufficient (e.g. on the leader), and the stable cursor
      * may likewise be absent. With only one constituent there is no alternate to track, so step it
-     * directly. Only a stall is recorded, so a later role change can resume the walk.
+     * directly. Only a stall on a prepared update is recorded, so a later role change can resume
+     * the walk.
      */
     WT_ASSERT(CUR2S(op->clayered), op->stable != NULL || op->ingest != NULL);
     if (op->ingest == NULL || op->stable == NULL) {
@@ -2350,9 +2355,10 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
         ret = __clayered_constituent_iter_helper(op, only, forward);
         if (ret == WT_PREPARE_CONFLICT && __clayered_constituent_prepare_blocked(only)) {
             /*
-             * Record where the walk first stalls: a role change can add the other constituent while
-             * the walk is blocked, and the walk then resumes from the stopped key. A reversal that
-             * conflicts again keeps it, as the two-constituent walk does.
+             * Record where the walk first stalls on a prepared update: a role change can add the
+             * other constituent while the walk is blocked, and the walk then resumes from the
+             * stopped key. A reversal that hits another prepare conflict keeps it, as the
+             * two-constituent walk does.
              */
             op->clayered->current_cursor = only;
             if (!F_ISSET(op->clayered,

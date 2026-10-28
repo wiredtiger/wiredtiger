@@ -215,9 +215,10 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         expected = keys if self.forward else list(reversed(keys))
         self.assertEqual(seen, expected)
 
-    # A bounded walk whose first key is the prepared one: the btree cursor resets itself on the
-    # conflict while it is first positioned, so there is no blocked position to resume from. The
-    # walk keeps reporting the conflict, and once it is resolved returns the keys within the bound.
+    # A bounded walk whose first key has a prepared update: the btree cursor resets itself on the
+    # prepare conflict while it is first positioned, so there is no blocked position to resume
+    # from. The walk keeps reporting the prepare conflict, and once the prepared transaction is
+    # resolved returns the keys within the bound.
     def test_bounded_walk_starting_on_prepared_key(self):
         keys = self.keys()
         blocked_key, prepare_session, prepare_cursor, resolve = self.prepare_table()

@@ -239,10 +239,10 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.resolve(stable_prepare)
         self.assertEqual(actual, [(self.key(3), 'v'), (self.key(2), 'v'), (self.key(1), 'v')])
 
-    # The walk's last returned key becomes prepared under a new read context while the other
-    # constituent is blocked. Reversing reads that key again and conflicts on it too. The walk keeps
-    # reporting the conflict, and once both are resolved returns that key again, then everything
-    # before it.
+    # The walk's last returned key gets a prepared update, visible under a new read context, while
+    # the other constituent is blocked on a prepared update. Reversing reads that key again and hits
+    # a prepare conflict on it too. The walk keeps reporting the prepare conflict, and once both
+    # prepared transactions are resolved returns that key again, then everything before it.
     def test_reverse_when_last_key_becomes_prepared(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -252,7 +252,7 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.set_step_down_ts(15)
         self.write_at(self.uri, {self.key(2): 'v-ingest'}, 18)
 
-        # Rank 2 is in both constituents, so stepping stable off it blocks on rank 3.
+        # Rank 2 is in both constituents, so stepping stable off it blocks on the prepared rank 3.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
         self.assert_returns(cursor, 1)
@@ -271,9 +271,10 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.session.rollback_transaction()
         self.assertEqual(actual, [(self.key(2), 'v-ingest'), (self.key(1), 'v')])
 
-    # As above, but after the reversal conflicts on the last returned key the walk turns back again.
-    # Like a btree cursor stepping on from a key it conflicted on, it resumes past that key: the
-    # keys before it, which the other constituent holds, are not returned again.
+    # As above, but after the reversal hits a prepare conflict on the last returned key the walk
+    # turns back again. Like a btree cursor stepping on from a key it hit a prepare conflict on, it
+    # resumes past that key: the keys before it, which the other constituent holds, are not
+    # returned again.
     def test_resume_after_failed_reversal(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
