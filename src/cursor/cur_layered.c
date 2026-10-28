@@ -11,9 +11,7 @@
 
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
-static bool __clayered_can_update_stable(
-  WTI_CURSOR_LAYERED *, uint32_t, uint64_t, WTI_CLAYERED_STABLE_MODE);
-static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint64_t, WTI_CLAYERED_STABLE_MODE);
+static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_STABLE_MODE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
@@ -660,14 +658,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    const uint64_t conn_lsn = stable_mode == WTI_CLAYERED_STABLE_CHECKPOINT ?
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
-      WT_DISAGG_LSN_NONE;
-    if (__clayered_can_update_stable(clayered, flags, conn_lsn, stable_mode)) {
-        /* Only a blocked stable cursor keeps a mode that differs from the node's role. */
-        WT_ASSERT(session, stable_mode == __clayered_stable_mode_for_role(leader));
-        WT_RET(__clayered_update_stable(clayered, conn_lsn, stable_mode));
-    }
+    WT_RET(__clayered_update_stable(clayered, flags, stable_mode));
 
     /*
      * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
@@ -1403,8 +1394,17 @@ __clayered_open_stable_first(
  */
 static int
 __clayered_update_stable(
-  WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, WTI_CLAYERED_STABLE_MODE stable_mode)
+  WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
+    /* Read the checkpoint LSN once: the decision and the open must agree on it. */
+    const uint64_t conn_lsn = stable_mode == WTI_CLAYERED_STABLE_CHECKPOINT ?
+      __wt_atomic_load_uint64_acquire(
+        &S2C(CUR2S(clayered))->disaggregated_storage.last_checkpoint_meta_lsn) :
+      WT_DISAGG_LSN_NONE;
+
+    if (!__clayered_can_update_stable(clayered, flags, conn_lsn, stable_mode))
+        return (0);
+
     if (clayered->stable_cursor == NULL)
         return (__clayered_open_stable_first(clayered, stable_mode, conn_lsn));
 
