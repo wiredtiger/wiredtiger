@@ -5,83 +5,32 @@ it to a follower. To do this, the application needs a clear boundary between inc
 that belong in the shared checkpoint handed to the next leader and later writes that must be
 stored locally for follower operations.
 
+For application-level role meanings, the API sequence, and restrictions, see
+@ref disagg_role_management in @ref programming.
+
 @section disagg-step-down-motivation Blocking step-down
 
-The simplest approach, once the application decides to step down, is to take a concluding
-checkpoint and then call WT_CONNECTION::reconfigure with
-<code>disaggregated=(role=follower)</code>. This approach cannot accept writes that will not be
-included in the concluding checkpoint. Until reconfiguration, the node still operates as a
-leader and writes to its live stable tables. Reconfiguration switches those tables to read-only
-checkpoint views, so updates newer than the checkpoint would no longer be available through
-the follower's stable tables.
-
-Using only checkpoint and reconfiguration therefore requires the application to stop new
-writes and finish all write transactions before checkpointing. It advances the stable timestamp
-to cover their changes, takes the concluding checkpoint, and then reconfigures the connection
-as a follower, keeping writes stopped throughout these actions. This is <b>blocking step-down</b>:
+In <b>blocking step-down</b>, writes are stopped while the concluding checkpoint is taken:
 the concluding checkpoint's latency becomes part of the period in which the application cannot
 write.
+
+This is because, until reconfiguration, the node still operates as a leader and writes to its live
+stable tables. Reconfiguration switches those tables to read-only checkpoint views, so updates newer than
+the checkpoint would no longer be available through the follower's stable tables.
 
 @section disagg-step-down-preparation Asynchronous step-down
 
 Asynchronous step-down allows writes to continue while the concluding checkpoint is taken by
 defining the boundary in advance. The application sets a step-down timestamp N. Write
-transactions beginning after it is set also replicate their writes to the local ingest tables and
-must commit at timestamps above N. The concluding checkpoint is taken at N. The node can then
-switch to checkpointed stable table views without losing its newer writes, which remain in the ingest tables.
+transactions beginning after it is set also replicate their writes to the local ingest tables.
+The concluding checkpoint is taken at N. The node can then switch to checkpointed stable table
+views without losing its newer writes, which remain in the ingest tables.
 
 This separates taking the concluding checkpoint from the step-down reconfiguration. Write
-transactions that have not finished when the step-down timestamp is set are rolled back. Writes are
-not allowed during the step-down reconfiguration, so asynchronous step-down only shortens the period
-of write unavailability but does not eliminate it.
-
-Reads can continue during all the step-down stages. A read transaction without a read timestamp
-that spans the step-down reconfiguration is rolled back.
-
-The application is responsible for replicating or replaying operations above N on the new
-leader. They are not part of the concluding checkpoint, and retaining them in the old
-leader's ingest tables does not transfer them to another node. Applying these operations on the
-new leader allows it to include their changes in subsequent shared checkpoints.
-
-@section disagg-step-down-lifecycle Asynchronous lifecycle
-
-The usual flow of asynchronous step-down is:
-
-1. <b>Set the step-down timestamp:</b> choose N newer than the commit timestamps of all
-   transactions already committed, subject to the timestamp API contract below, and call
-   WT_CONNECTION::set_timestamp with <code>step_down_timestamp=N</code>.
-2. <b>Create the concluding checkpoint:</b> advance <code>stable_timestamp</code> to N once all
-   transactions with commit timestamps at or below N have committed or rolled back, and call
-   WT_SESSION::checkpoint.
-3. <b>Stop serving write operations:</b> once the checkpoint is complete, stop new writes and
-   wait for all ongoing write transactions to finish. Writes must remain stopped during
-   the step-down reconfiguration.
-4. <b>Reconfigure:</b> call WT_CONNECTION::reconfigure with
-   <code>disaggregated=(role=follower)</code> to switch WiredTiger to follower operations.
-
-The step-down timestamp must remain unchanged until the step-down reconfiguration clears it.
-The stable timestamp must not advance above N during the step-down process. Both the stable
-timestamp and the last completed shared checkpoint timestamp must equal N at reconfiguration.
-
-@section disagg-step-down-requirements Application requirements
-
-The application must meet the following requirements and the timestamp API contract described
-in WT_CONNECTION::set_timestamp:
-
-- The step-down timestamp must be set only once per step-down/reconfiguration cycle, on a leader.
-- N must be higher than every committed transaction's commit timestamp when it is set.
-- Write transactions beginning after N is set must commit with a timestamp higher than N.
-- Layered-table reads and writes must use explicit snapshot-isolation transactions. Auto-commit,
-  read-committed, and read-uncommitted transactions must not occur during the step-down process.
-- WT_SESSION::reset_snapshot operations must not occur during the step-down process.
-- All write transactions must finish before the step-down reconfiguration. No writes or
-  active write transactions may run during that call.
-- Prepared transactions and truncate operations must finish before the step-down timestamp is
-  set and must not occur during the step-down process.
-- Operations above N must be replicated or replayed on the new leader.
-
-When schema epochs are used, the application must also meet the requirements in
-@ref disagg-step-down-schema.
+transactions that have not finished when the step-down timestamp is set are rolled back.
+Asynchronous step-down only shortens the period of write unavailability but does not eliminate
+it. See @ref disagg-step-down-transactions for rollback behavior and
+@ref disagg-step-down-requirements for the caller's requirements.
 
 @section disagg-step-down-transactions Why straddling writers are rolled back
 
@@ -95,34 +44,17 @@ stable tables. If it committed above N, its updates would not be included in the
 checkpoint and would have no ingest table copy to survive the step-down reconfiguration,
 leading to data loss.
 WiredTiger rolls back such a writer when a subsequent write or commit check observes that the
-step-down timestamp has been set. The application retries the whole transaction, which now
-begins with N set and writes to the ingest tables.
+step-down timestamp has been set. A retried transaction now begins with N set and writes to
+the ingest tables.
 
 @section disagg-step-down-schema Schema changes during the step-down
 
-Data timestamps and <b>schema epochs</b> describe different boundaries: one selects record
-versions, while the other selects schema operations included in shared metadata. Creating or
-dropping a table locally does not itself publish the change to other nodes. The application
-replicates schema operations, and shared checkpoints carry the corresponding metadata. With
-schema epochs, WT_SESSION::publish assigns epochs to pending schema operations for a table;
-checkpointing includes published operations through the stable schema epoch.
-
-When schema epochs are in use, <code>step_down_disaggregated_schema_epoch=E</code> must be
-provided together with the step-down timestamp N. Before taking the concluding checkpoint,
-the schema operations required through epoch E must be completed and published, and
-<code>stable_disaggregated_schema_epoch</code> must advance to E. E must not be older than the
-existing stable schema epoch. The stable schema epoch must not advance above E during the
-step-down process and must remain at E through the step-down reconfiguration.
+See @ref disagg_role_management_schema for the schema-epoch contract during step-down.
 
 A layered table created after the step-down timestamp is set has the follower table shape:
 only its local ingest table is created. It has no stable table to include in the concluding
 checkpoint, and its writes remain ingest-only. A later step-up creates the missing stable
-table. The application must replicate or replay schema operations after the boundary on the
-new leader as well as their associated data writes.
-
-When publishing during step-down, the table's latest create or drop determines the permitted
-epoch: above E if it occurred after the step-down timestamp was set, and at or below E if it
-occurred before. Publication must also be above the current stable schema epoch.
+table.
 
 @section disagg-step-down-write-conflict Write conflict detection
 
@@ -131,15 +63,15 @@ ingest tables. The default mode also writes them to the stable tables, so earlie
 writers use the default btree's conflict detection. The legacy mode writes only to the ingest
 tables and checks for conflicts across the two constituents:
 
-- <b>Mirrored writes (default):</b> with <code>disaggregated=(stepdown_write_mirroring=true)</code>,
-  writes from transactions beginning after the step-down timestamp is set on existing layered
-  tables go to the stable table first and then to the ingest table. Since all write transactions
+- <b>Mirrored writes (default):</b> writes from transactions beginning after the step-down
+  timestamp is set on existing layered tables go to the stable table first and then to the
+  ingest table. Since all write transactions
   on these tables, including those beginning after the step-down timestamp is set, write to the
   stable table, WiredTiger's normal single-btree conflict detection handles conflicts between
   them and provides consistent behavior. Both copies belong to the same transaction.
-- <b>Ingest-only writes (legacy):</b> with <code>disaggregated=(stepdown_write_mirroring=false)</code>,
-  write transactions beginning after the step-down timestamp is set write to the ingest tables
-  only. Each ingest-only cursor write performs an explicit check against the stable table for
+- <b>Ingest-only writes (legacy):</b> write transactions beginning after the step-down timestamp
+  is set write to the ingest tables only. Each ingest-only cursor write performs an explicit
+  check against the stable table for
   conflicting updates. This avoids writing an additional copy to the stable table, but requires
   cross-table conflict detection. It does not always detect
   conflicts immediately with writes from straddling transactions that will be rolled back.

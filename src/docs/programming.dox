@@ -46,6 +46,7 @@ each of which is ordered by one or more columns.
 - @subpage signals
 
 <h2>Advanced topics</h2>
+- @subpage disagg_role_management
 - @subpage backup
 - @subpage compact
 - @subpage in_memory
