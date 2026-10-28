@@ -302,6 +302,48 @@ class test_layered_async_stepdown24_reverse(BlockedWalkMixin, wttest.WiredTigerT
         self.session.rollback_transaction()
         self.assertEqual(actual, [(self.key(4), 'v'), (self.key(5), 'v')])
 
+    # The walk returns a key both constituents hold, then blocks on a prepared update stepping the
+    # other constituent past it. The key then becomes deleted, so ingest holds a tombstone over the
+    # stable copy. Reversing does not return the deleted key, and returns the key before it.
+    def deleted_last_key_setup(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(r): 'v' for r in (1, 2, 3, 4)}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(3, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(2): 'v-ingest'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 2)
+        self.assert_conflict(cursor)
+        return cursor, stable_prepare
+
+    # The walk's own transaction deletes the last returned key through another cursor.
+    def test_reverse_after_last_key_deleted_by_walk(self):
+        cursor, stable_prepare = self.deleted_last_key_setup()
+        writer = self.session.open_cursor(self.uri, None, None)
+        writer.set_key(self.key(2))
+        self.assertEqual(writer.remove(), 0)
+        writer.close()
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'v')])
+
+    # Another transaction deletes the last returned key, and the walk reads under a new snapshot.
+    def test_reverse_after_last_key_deleted_by_other_transaction(self):
+        cursor, stable_prepare = self.deleted_last_key_setup()
+        self.session.commit_transaction()
+        self.remove_at(self.uri, [self.key(2)], 22)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'v')])
+
     # The walk returns a key both constituents hold, then blocks stepping the other constituent past
     # it. Reversing returns that key again, as a btree cursor does.
     def test_reverse_after_alternate_block(self):
