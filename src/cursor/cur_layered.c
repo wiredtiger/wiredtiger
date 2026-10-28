@@ -576,16 +576,34 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
 }
 
 /*
- * __clayered_assert_role_change --
+ * In diagnostic mode the role-change assertions also check the snapshot against the node's role.
+ */
+#ifdef HAVE_DIAGNOSTIC
+#define __clayered_assert_role_change(clayered, mode, leader, flags) \
+    __clayered_assert_role_change_func(clayered, mode, flags, leader)
+#else
+#define __clayered_assert_role_change(clayered, mode, leader, flags) \
+    __clayered_assert_role_change_func(clayered, mode, flags)
+#endif
+
+/*
+ * __clayered_assert_role_change_func --
  *     Assert the role-change invariants: a step-up requires an unpositioned cursor (ingest drains
- *     under the position); a step-down requires only writes to be unpositioned, since the stable
- *     tree after it matches the step-down checkpoint.
+ *     under the position) and no spanning snapshot (it cannot be consistent with the drained and
+ *     adopted stable content); a step-down requires only writes to be unpositioned, since the
+ *     stable tree after it matches the step-down checkpoint.
  */
 static WT_INLINE void
-__clayered_assert_role_change(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, uint32_t flags)
+__clayered_assert_role_change_func(
+  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, uint32_t flags
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  bool leader
+#endif
+)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_TXN *txn = session->txn;
 
     if (LF_ISSET(CLAYERED_ENTER_STEP_UP))
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
@@ -594,18 +612,6 @@ __clayered_assert_role_change(
         WT_ASSERT_ALWAYS(session,
           !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) || mode != WTI_CLAYERED_MODE_WRITE,
           "Write cursors should be left unpositioned before a step-down.");
-}
-
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __clayered_assert_snapshot_role --
- *     Assert that the transaction's snapshot is consistent with the node's role: it cannot span a
- *     step-up, because it cannot be consistent with the drained and adopted stable content.
- */
-static WT_INLINE void
-__clayered_assert_snapshot_role(WT_SESSION_IMPL *session, bool leader)
-{
-    WT_TXN *txn = session->txn;
 
     /* Skip snapshots that recorded no role era (a checkpoint's bumped snapshot). */
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || __wt_session_gen(session, WT_GEN_DISAGG_ROLE) == 0)
@@ -621,8 +627,6 @@ __clayered_assert_snapshot_role(WT_SESSION_IMPL *session, bool leader)
     /* A snapshot established on a follower must not be used on a leader: a step-up span. */
     WT_ASSERT(session, txn->disagg_role_leader || !leader);
 }
-#endif
-
 /*
  * __clayered_enter --
  *     Start an operation on a layered cursor.
@@ -638,10 +642,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     const WTI_CLAYERED_STABLE_MODE stable_mode = __clayered_stable_mode_for_role(leader);
     uint32_t flags = __clayered_enter_flags(clayered, mode, leader, cursor_mode, stable_mode);
 
-    __clayered_assert_role_change(clayered, mode, flags);
-#ifdef HAVE_DIAGNOSTIC
-    __clayered_assert_snapshot_role(session, leader);
-#endif
+    __clayered_assert_role_change(clayered, mode, leader, flags);
 
     /*
      * largest_key is exempt: it ignores visibility by contract and always consults ingest, so its
