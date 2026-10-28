@@ -75,6 +75,19 @@ Step 4 applies whether or not schema epochs are used: schema epochs select which
 operations a checkpoint includes, but do not replace replication. The application must make the
 corresponding schema available before applying data writes that depend on it.
 
+The diagram shows one asynchronous handoff in which the next leader adopts the checkpoint
+while still a follower, before the old leader completes its step-down. The example omits schema
+epochs; their additional settings are described in @ref disagg_role_management_schema.
+
+@htmlonly
+<div style="overflow-x:auto;" tabindex="0" aria-label="Shared-write handoff timeline">
+<div style="min-width:1100px;">
+@endhtmlonly
+@image html disagg-handoff.svg
+@htmlonly
+</div></div>
+@endhtmlonly
+
 @section disagg_role_management_step_up Step-up
 
 Step-up is initiated by calling WT_CONNECTION::reconfigure with
@@ -199,8 +212,7 @@ step-down timestamp.
   receives WT_ROLLBACK. Transactions with a read timestamp continue across the reconfiguration,
   and positioned read cursors remain usable.
 
-When the application receives WT_ROLLBACK, it must roll back the transaction and retry the
-operation in a new transaction. See @ref error_handling for rollback handling.
+See @ref error_handling for rollback handling.
 
 @subsection disagg_role_management_schema Schema operations during step-down
 

@@ -111,6 +111,10 @@ at transaction begin. A transaction that began before N was set writes to the st
 only. A transaction that began after N was set writes to the ingest tables, and in the default
 mode to the stable tables as well.
 
+Writes above N must be retained in the ingest tables because they are not included in the
+concluding checkpoint. After the step-down reconfiguration, stable-table reads use the read-only
+checkpoint view, so those newer writes must remain available in the ingest tables.
+
 The <code>disaggregated=(stepdown_write_mirroring)</code> setting of ::wiredtiger_open selects
 between the two modes for transactions that begin after N. For applications, the modes differ
 mainly in the write-conflict detection they guarantee: mirrored writes detect every conflict at
@@ -136,17 +140,22 @@ cross-table check.
 
 @subsection disagg-step-down-transactions Why straddling writers are rolled back
 
-A transaction's commit timestamp may be set after some of its writes have already occurred, so
-until the commit timestamp is known, WiredTiger cannot tell on which side of N those writes
-belong. Rather than guess, it rolls back write transactions that straddle setting the step-down
-timestamp. Such a writer has written to the stable tables
-only: if it committed above N, its updates would be excluded from the concluding checkpoint and
-would have no ingest table copy to survive the step-down reconfiguration, leading to data loss.
+WiredTiger chooses the destination of transaction writes using the step-down state recorded at
+transaction begin for two reasons:
+
+1. A transaction can set its commit timestamp after it has already written, and the write cannot
+   be moved to the alternative table afterwards. A write with a commit timestamp at or below N
+   belongs in the stable table, so the destination needs to be chosen before the relevant commit
+   timestamp exists.
+2. Straddler rollback keeps each transaction's write destinations consistent with its begin-time
+   state, so the state recorded at begin provides the correct destination for every write of
+   that transaction.
 
 A layered-table write checks whether the transaction began before N was set and returns
 WT_ROLLBACK when it observes the change, failing the transaction early. The commit path also
-checks for straddling writers. A retried transaction begins with N set and writes to the ingest
-tables.
+checks for straddling writers and is synchronized with setting the step-down timestamp. Under
+the application contract, this ensures such writers cannot commit above N. A retried transaction
+begins with N set and writes to the ingest tables.
 
 @subsection disagg-step-down-reads Reads during step-down
 
