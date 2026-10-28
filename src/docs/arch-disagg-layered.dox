@@ -13,6 +13,8 @@ storage directly.
 - Follower nodes can quickly transition to take over write responsibilities if the current leader
 (writer) becomes unavailable.
 
+See @ref arch-disagg-roles for connection-wide roles and role changes.
+
 @section shared-tables Shared vs local tables
 
 Tables can be distinguished by the backing storage mechanism. A shared table is a table whose data
@@ -61,26 +63,22 @@ Ingest Table:
 Layered tables support all the regular tables operations, with exceptions listed here:
 
 - All writes, from all nodes, must be timestamped
+- On followers, the commit timestamp of a non-prepared transaction and the prepare and durable
+  timestamps of a prepared transaction must be after the latest adopted checkpoint timestamp. They
+  are checked when the timestamp is set. Prepare discovery restores checkpointed transactions with
+  their original prepare timestamps and is exempt from the prepare timestamp check.
 - All nodes must use the same URI for the same table
 - All nodes must use byte-wise identical keys, values, and timestamps for the same records.
 - Table compaction is not supported on layered tables
 - Backup cursors will not return information about layered tables
 - Bulk cursors are not supported on layered tables
+- A table backed by a layered table can only have a single, unnamed column group, whose source is
+  the layered table with the same name
 
 @section layered-implementation Implementation aspects
 
 __Note:__ This section is closely tied to the source code and may become outdated if not
 maintained in sync with implementation changes.
-
-@subsection layered-leader-follower Leader vs Follower
-- Leader (Primary):
-    - All operations (including writes) go directly to the stable table
-    - The ingest table remains empty
-    - Can create new checkpoints
-- Follower (Standby):
-    - The stable table contains read-only checkpointed data from the leader
-    - The ingest table holds changes applied since the last checkpoint
-    - When a new checkpoint is fetched, the ingest table is cleaned up
 
 @subsection layered-metadata Layered tables metadata representation and related files
 
@@ -93,8 +91,9 @@ file:foo.wt_ingest
 file:foo.wt_stable
 ```
 
-The ingest and stable table could also have table: prefixed metadata entries if the table was created
-with the `block_manager=disagg,type=layered` config.
+A layered table created through a `table:` URI with the `type=layered` config is that table's only
+column group, so it also has `table:foo` and `colgroup:foo` entries, and the column group's source is
+`layered:foo`.
 
 Since shared metadata and history store tables are shared but not layered tables, they both have
 `.wt_stable` suffixed metadata entries but no associated `layered:` ones:

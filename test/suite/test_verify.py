@@ -37,10 +37,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = f'{test_name}.a'
     nentries = 1000
 
-    # Returns the .wt file extension, or in the case
-    # of tiered storage, builds the .wtobj object name.
-    # Assumes that no checkpoints are done, so we
-    # are on the first object.
     def file_name(self, name):
         return self.initialFileName('table:' + name)
 
@@ -157,6 +153,30 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.populate(self.tablename)
         self.verifyUntilSuccess(self.session, 'table:' + self.tablename)
         self.check_populate(self.tablename)
+
+    # The start message identifies the object by its file URI, which the disagg verify path does not
+    # produce in the same form.
+    @wttest.skip_for_hook("disagg", "Layered verify does not emit a single file URI")
+    def test_verify_api_logs_uri(self):
+        """
+        Test that verify emits an informational message identifying the object being verified. The
+        message is at the info verbosity level, off by default, so enable the verify category.
+        """
+        params = 'key_format=S,value_format=S'
+        self.session.create('table:' + self.tablename, params)
+        self.populate(self.tablename)
+        self.session.checkpoint()
+
+        self.conn.reconfigure('verbose=[verify:0]')
+        try:
+            self.verifyUntilSuccess(self.session, 'table:' + self.tablename)
+        finally:
+            self.conn.reconfigure('verbose=[]')
+
+        output = self.readStdout(50000)
+        self.assertTrue('verify: starting on ' in output and self.tablename in output,
+            'verify did not log the object being verified; stdout: ' + output)
+        self.cleanStdout()
 
     def test_verify_api_75pct_null(self):
         """
@@ -415,15 +435,21 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.runWt(["verify"])
 
-        # Purposely corrupt the last two tables. Test that verifying the database
-        # with the abort option stops after seeing the first corrupted table.
+        # Purposely corrupt the last two tables. Verifying all tables reports every corrupted
+        # table by default, and stops after the first one with the abort option.
         for i in range(1, ntables):
             with self.open_and_position(self.tablename + str(i), 75) as f:
                 for i in range(0, 4096):
                     f.write(struct.pack('B', 0))
 
+        self.runWt(["-p", "verify"], outfilename="verifyerr.out", errfilename="verifyerr.err", failure=True)
+        self.assertNotEqual(self.count_file_contains("verifyerr.err",
+            f"file:{self.test_name}.a1.wt"), 0)
+        self.assertNotEqual(self.count_file_contains("verifyerr.err",
+            f"file:{self.test_name}.a2.wt"), 0)
+
         self.runWt(["-p", "verify", "-a"], outfilename="verifyerr.out", errfilename="verifyerr.err", failure=True)
+        self.assertNotEqual(self.count_file_contains("verifyerr.err",
+            f"file:{self.test_name}.a1.wt"), 0)
         self.assertEqual(self.count_file_contains("verifyerr.err",
-            f"table:{self.test_name}.a1: WT_ERROR"), 1)
-        self.assertEqual(self.count_file_contains("verifyerr.err",
-            f"table:{self.test_name}.a2: WT_ERROR"), 0)
+            f"file:{self.test_name}.a2.wt"), 0)

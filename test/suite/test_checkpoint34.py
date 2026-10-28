@@ -34,7 +34,6 @@ from helper import simulate_crash_restart
 
 #
 # Test precise checkpoint with fast truncate
-@wttest.skip_for_hook("tiered", "fast truncate is not supported for tiered yet")
 class test_checkpoint34(wttest.WiredTigerTestCase):
 
     format_values = [
@@ -47,7 +46,7 @@ class test_checkpoint34(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def get_fast_truncated_pages(self):
-        return self.get_stat(stat.conn.rec_page_delete_fast)
+        return self.get_stat(stat.conn.cursor_truncate_fast_delete_pages)
 
     def test_checkpoint(self):
         uri = 'table:checkpoint34'

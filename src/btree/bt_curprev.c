@@ -262,6 +262,7 @@ restart_read:
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
         cbt->slot = WT_COL_SLOT(page, cip);
+        F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
 
         /* Check any insert list for a matching record. */
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
@@ -557,24 +558,23 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     uint64_t time_start;
     uint32_t flags;
     bool key_out_of_bounds, need_walk, newpage, repositioned, restart;
-#ifdef HAVE_DIAGNOSTIC
-    bool inclusive_set;
-    WT_NOT_READ(inclusive_set, false);
-#endif
 
     cursor = &cbt->iface;
     key_out_of_bounds = need_walk = newpage = repositioned = false;
     session = CUR2S(cbt);
     total_skipped = 0;
-    walk_skip_stats.total_del_pages_skipped = 0;
+    walk_skip_stats.total_ondisk_del_internal_pages_skipped = 0;
+    walk_skip_stats.total_del_leaf_pages_skipped = 0;
     walk_skip_stats.total_inmem_del_pages_skipped = 0;
+    walk_skip_stats.total_read_only_del_internal_pages_skipped = 0;
+    walk_skip_stats.total_skip_lock_contended = 0;
     WT_NOT_READ(time_start, 0);
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_prev);
 
     /* Track prev calls during HS wrapup */
     if (F_ISSET(session, WT_SESSION_HS_WRAPUP))
-        session->reconcile_stats.hs_wrapup_next_prev_calls++;
+        WT_STAT_CONN_INCR(session, rec_hs_wrapup_next_prev_calls);
 
     /* tree walk flags */
     flags = WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
@@ -624,8 +624,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          * code, it's in a simple format.
          */
         if (newpage && page != NULL && page->type != WT_PAGE_ROW_LEAF &&
-          (cbt->ins_head = WT_COL_APPEND(page)) != NULL)
+          (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
             F_SET(cbt, WT_CBT_ITERATE_APPEND);
+            F_CLR(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+        }
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */
@@ -720,12 +722,21 @@ err:
     }
 
     WT_STAT_CONN_DSRC_INCRV(session, cursor_prev_skip_total, total_skipped);
-    if (walk_skip_stats.total_del_pages_skipped != 0)
-        WT_STAT_CONN_DSRC_INCRV(
-          session, cursor_tree_walk_del_page_skip, walk_skip_stats.total_del_pages_skipped);
+    if (walk_skip_stats.total_ondisk_del_internal_pages_skipped != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_ondisk_del_internal_page_skip,
+          walk_skip_stats.total_ondisk_del_internal_pages_skipped);
+    if (walk_skip_stats.total_del_leaf_pages_skipped != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_del_leaf_page_skip,
+          walk_skip_stats.total_del_leaf_pages_skipped);
     if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
         WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
           walk_skip_stats.total_inmem_del_pages_skipped);
+    if (walk_skip_stats.total_read_only_del_internal_pages_skipped != 0)
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_read_only_del_internal_page_skip,
+          walk_skip_stats.total_read_only_del_internal_pages_skipped);
+    if (walk_skip_stats.total_skip_lock_contended != 0)
+        WT_STAT_CONN_DSRC_INCRV(
+          session, cursor_tree_walk_skip_lock_contended, walk_skip_stats.total_skip_lock_contended);
 
     /*
      * If we positioned the cursor using bounds, which is similar to a search, update the read
@@ -743,40 +754,7 @@ err:
         else
             F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 #ifdef HAVE_DIAGNOSTIC
-        /*
-         * Skip key order check, if next is called after a prev returned a prepare conflict error,
-         * i.e cursor has changed direction at a prepared update, hence current key returned could
-         * be same as earlier returned key.
-         *
-         * eg: Initial data set : (2,3,...10) insert key 1 in a prepare transaction. loop on prev
-         * will return 10,...3,2 and subsequent call to prev will return a prepare conflict. Now if
-         * we call next key 2 will be returned which will be same as earlier returned key.
-         *
-         * Additionally, reset the cursor check when we are using read uncommitted isolation mode
-         * and cross a page boundary. It's possible to see out-of-order keys when the earlier
-         * returned key is removed and new keys are inserted at the end of the page.
-         */
-        if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT)) {
-            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED && newpage)
-                __wt_cursor_key_order_reset(cbt);
-            ret = __wti_cursor_key_order_check(session, cbt, false);
-        }
-
-        if (need_walk) {
-            /*
-             * The bounds positioning code relies on the assumption that if we had to walk then we
-             * can't possibly have walked to the upper bound. We check that assumption here by
-             * comparing the upper bound with our current key or recno. Force inclusive to be false
-             * so we don't consider the bound itself.
-             */
-            inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-            F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-            ret = __wt_compare_bounds(
-              session, cursor, &cbt->iface.key, cbt->recno, true, &key_out_of_bounds);
-            WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
-            if (inclusive_set)
-                F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-        }
+        ret = __wti_cursor_return_check(session, cbt, false, newpage, need_walk);
 #endif
         break;
     case WT_PREPARE_CONFLICT:
@@ -792,8 +770,18 @@ err:
          */
         if (repositioned)
             WT_TRET(__cursor_reset(cbt));
-        else
+        else {
             F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
+#ifdef HAVE_DIAGNOSTIC
+            /*
+             * A prepare conflict while the cursor is changing direction consumes the flag below
+             * that restarts the key order check, so restart it now: the next key returned can be
+             * the key returned before the first prepare conflict.
+             */
+            if (F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
+                __wt_cursor_key_order_reset(cbt);
+#endif
+        }
         break;
     default:
         WT_TRET(__cursor_reset(cbt));

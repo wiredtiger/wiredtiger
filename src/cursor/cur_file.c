@@ -424,38 +424,6 @@ err:
 }
 
 /*
- * __wt_curfile_insert_check --
- *     WT_CURSOR->insert_check method for the btree cursor type.
- */
-int
-__wt_curfile_insert_check(WT_CURSOR *cursor)
-{
-    WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    int tret;
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    tret = 0;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert_check);
-
-    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
-
-    WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__cursor_checkkey(cursor));
-
-    tret = __wt_btcur_insert_check(cbt);
-
-/*
- * Detecting a conflict should not cause transaction error.
- */
-err:
-    CURSOR_UPDATE_API_END(session, ret);
-    WT_TRET(tret);
-    API_RET_STAT(session, ret, cursor_insert_check);
-}
-
-/*
  * __curfile_modify --
  *     WT_CURSOR->modify method for the btree cursor type.
  */
@@ -811,6 +779,17 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
         can_sweep = !WT_DHANDLE_CAN_REOPEN(dhandle) && dhandle != session->dhandle;
         return (can_sweep ? WT_NOTFOUND : 0);
     }
+
+#if defined(__GNUC__)
+    /*
+     * Warm the dhandle's rwlock and btree handle: the reopen below is about to lock the former and
+     * dereference the latter, and both are commonly cold after a cursor has sat in the cache. No
+     * cache-prefetch intrinsic is available outside GCC/Clang, so this is skipped elsewhere; the
+     * warm is purely advisory.
+     */
+    __builtin_prefetch(&dhandle->rwlock, WT_WARM_WRITE, WT_WARM_LOCALITY_HIGH);
+    __builtin_prefetch(dhandle->handle, WT_WARM_READ, WT_WARM_LOCALITY_HIGH);
+#endif
 
     /*
      * Temporarily set the session's data handle to the data handle in the cursor. Reopen may be
@@ -1200,7 +1179,11 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __wt_version_gte(S2C(session)->compat_version, WT_LOG_V2_VERSION))
         cursor->modify = __curfile_modify;
 
-    /* Cursors on metadata should not be cached, doing so interferes with named checkpoints. */
+    /*
+     * Cursors on metadata should not be cached, doing so interferes with named checkpoints. The
+     * shared metadata is cached instead: it has no per-session cursor of its own and a cursor is
+     * opened and closed for every key it writes.
+     */
     if (cacheable && strcmp(WT_METAFILE_URI, cursor->internal_uri) != 0)
         F_SET(cursor, WT_CURSTD_CACHEABLE);
 
@@ -1224,7 +1207,7 @@ err:
     }
 
     if (ret == 0 && bulk)
-        WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
+        WT_STAT_CONN_INCR(session, cursor_bulk_count);
 
     return (ret);
 }

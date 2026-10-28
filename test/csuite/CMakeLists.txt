@@ -93,21 +93,28 @@ define_c_test(
 )
 
 if(ENABLE_PALITE AND WT_POSIX)
-    # FIXME-WT-18112: Build the binary but register no ctest test, so it never runs in
-    # "make check" or csuite-tests-fast while the follower step-up data-loss bug is open.
-    # The wiredtiger-disagg project invokes the binary directly.
     create_test_executable(test_schema_disagg_abort
         SOURCES
+            schema_disagg_abort/ckpt.c
+            schema_disagg_abort/event_pipe.c
+            schema_disagg_abort/evq.c
+            schema_disagg_abort/generator.c
             schema_disagg_abort/main.c
-            schema_disagg_abort/workload.c
+            schema_disagg_abort/node.c
+            schema_disagg_abort/parent.c
+            schema_disagg_abort/reader.c
+            schema_disagg_abort/schema_disagg_abort.h
+            schema_disagg_abort/subproc.c
+            schema_disagg_abort/subproc.h
             schema_disagg_abort/verify.c
+            schema_disagg_abort/worker.c
         ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
         BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/schema_disagg_abort
     )
     # Use C++ linker for building this target.
     # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
     # to link against the C++ sanitizer runtimes.
-    # Some extensions (PALite, tiered storage) require C++ runtime to be linked
+    # Some extensions (PALite) require C++ runtime to be linked
     # for sanitizers to work correctly.
     if(TARGET test_schema_disagg_abort)
         set_target_properties(test_schema_disagg_abort PROPERTIES LINKER_LANGUAGE CXX)
@@ -405,6 +412,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt15907_conn_stat_race
+    SOURCES wt15907_conn_stat_race/main.c
+    DIR_NAME wt15907_conn_stat_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt16990_disagg_checkpoint_panic
     SOURCES wt16990_disagg_checkpoint_panic/main.c
     DIR_NAME wt16990_disagg_checkpoint_panic
@@ -416,8 +431,34 @@ define_c_test(
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.
-# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# Some extensions (PALite) require C++ runtime to be linked
 # for sanitizers to work correctly.
 if(TARGET test_wt16990_disagg_checkpoint_panic)
     set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
 endif()
+
+define_c_test(
+    TARGET test_wt17597_backup_force_stop_race
+    SOURCES wt17597_backup_force_stop_race/main.c
+    DIR_NAME wt17597_backup_force_stop_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt18959_log_scan_truncate
+    SOURCES wt18959_log_scan_truncate/main.c
+    DIR_NAME wt18959_log_scan_truncate
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt18959_log_scan_truncate/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt18959_log_scan_truncate>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt18969_log_backup_seal
+    SOURCES wt18969_log_backup_seal/main.c
+    DIR_NAME wt18969_log_backup_seal
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt18969_log_backup_seal/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt18969_log_backup_seal>
+    DEPENDS "WT_POSIX"
+)

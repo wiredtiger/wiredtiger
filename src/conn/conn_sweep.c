@@ -47,7 +47,7 @@ __sweep_file_dhandle_check_and_reset_tod(WT_SESSION_IMPL *session, WT_DATA_HANDL
          * Reset the time of death if the file dhandle exists for the associated table dhandle.
          */
         if (ret == 0) {
-            dhandle->timeofdeath = 0;
+            __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, 0);
             WT_DHANDLE_CLEAR(session);
             return (WT_ERROR_LOG_ADD(ret));
         }
@@ -69,6 +69,18 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 
     conn = S2C(session);
 
+    /*
+     * This walk, like the other sweep-server walks below, doesn't take the handle list lock. During
+     * normal operation, the sweep server is the only thing that ever removes a handle from this
+     * list, so nothing else invalidates the pointers this walk follows. A new handle is fully
+     * initialized, behind a release barrier, before it is linked in, so this walk never finds one
+     * half-built either.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (WT_IS_METADATA(dhandle))
             continue;
@@ -79,14 +91,15 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
          * of death.
          */
         if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 1)
-            dhandle->timeofdeath = 0;
+            __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, 0);
 
         /*
          * If the handle is open exclusive or currently in use, or the time of death is already set,
          * move on.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0 || dhandle->timeofdeath != 0)
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0 ||
+          __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) != 0)
             continue;
 
         /* For table dhandles, skip expiration if associated file dhandles exist. */
@@ -122,7 +135,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
         __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
           "Sweep server setting the time of death for dhandle %s", dhandle->name);
 
-        dhandle->timeofdeath = now;
+        __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
         WT_STAT_CONN_INCR(session, dh_sweep_tod);
     }
 }
@@ -136,18 +149,27 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
+    bool redundant_ingest;
 
     dhandle = session->dhandle;
     btree = WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
+    redundant_ingest = false;
 
     /* This method expects dhandle write lock. */
     WT_ASSERT(session, FLD_ISSET(dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
 
     /*
+     * A tree awaiting publication holds the only copy of its contents, and that state cannot be
+     * recovered once the handle is closed.
+     */
+    if (btree != NULL && F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return (0);
+
+    /*
      * Sweep only closes clean trees, with one exception: an ingest btree whose entire contents are
      * known to be durable in the stable table.
      */
-    if (btree != NULL && btree->modified) {
+    if (btree != NULL && __wt_atomic_load_bool_relaxed(&btree->modified)) {
         /*
          * We check that there are no cursors open that can be adding new content, and we hold the
          * dhandle write lock, which blocks new opens. Open transaction modifications also bump the
@@ -171,6 +193,7 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
           max_write_ts >
             __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.last_ckpt_timestamp))
             return (0);
+        redundant_ingest = true;
     }
 
     /*
@@ -179,7 +202,10 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
      * For btree handles, closing the handle decrements the open file count, meaning the close loop
      * won't overrun the configured minimum.
      */
-    return (__wt_conn_dhandle_close(session, false, true, false));
+    WT_RET(__wt_conn_dhandle_close(session, false, true, false));
+    if (redundant_ingest)
+        WT_STAT_CONN_INCR(session, dh_sweep_ingest_close);
+    return (0);
 }
 
 /*
@@ -221,6 +247,17 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 
     conn = S2C(session);
 
+    /*
+     * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
+     * only thing that ever removes a handle from this list, so nothing else invalidates the
+     * pointers this walk follows. A new handle is fully initialized, behind a release barrier,
+     * before it is linked in, so this walk never finds one half-built either.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         bool sweep_non_outdated_handle =
           __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep.handles_min;
@@ -230,7 +267,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!__wt_conn_is_disagg(session) && !sweep_non_outdated_handle)
             break;
 
-        if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
+        if (!__wt_atomic_load_bool_relaxed(&dhandle->outdated) && !sweep_non_outdated_handle)
             continue;
         /*
          * For outdated btrees, hold standby node checkpoint handles for a short grace period,
@@ -238,10 +275,11 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
          * time has elapsed since time of death.
          */
         uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
-        if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+        if (__wt_atomic_load_bool_relaxed(&dhandle->outdated)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
-            if (__wt_conn_is_disagg(session) && WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
+            if (__wt_conn_is_disagg(session) &&
+              __wt_dhandle_shared_btree_kind(dhandle) == WT_SHARED_BTREE_CHECKPOINT) {
                 if (tod == 0) {
                     __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
                     continue;
@@ -289,6 +327,17 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
     conn = S2C(session);
 
+    /*
+     * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
+     * only thing that ever removes a handle from this list, so nothing else invalidates the
+     * pointers this walk follows. A new handle is fully initialized, behind a release barrier,
+     * before it is linked in, so this walk never finds one half-built either.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (WT_DHANDLE_CAN_DISCARD(dhandle))
             ++*dead_handlesp;
@@ -357,6 +406,20 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
+     * only thing that ever removes a handle from this list, so nothing else invalidates the
+     * pointers this walk follows. A new handle is fully initialized, behind a release barrier,
+     * before it is linked in, so this walk never finds one half-built either.
+     *
+     * The safe variant lets this loop remove the handle it is currently visiting, which is the one
+     * thing it does that the other sweep walks don't.
+     *
+     * That only holds walking forward. Removing whatever handle currently sits at the tail is
+     * routine, not rare -- it happens on every ordinary reap of the oldest resident handle -- and
+     * it updates only the tail-side pointers. Walking this list backwards without the lock would
+     * routinely follow one of those into a handle that has already been freed.
+     */
     TAILQ_FOREACH_SAFE(dhandle, &conn->dhqh, q, dhandle_tmp)
     {
         if (WT_IS_METADATA(dhandle))
@@ -523,6 +586,13 @@ __sweep_server(void *arg)
             continue;
         }
         WT_STAT_CONN_INCR(session, dh_sweeps);
+
+        /*
+         * Report the cache-consumer rankings if their verbose category is enabled. A diagnostic
+         * report that cannot allocate is not a reason to lose the connection.
+         */
+        WT_IGNORE_RET(__wt_cache_top_maintain(session));
+
         /*
          * Mark handles with a time of death, and report whether any handles are marked dead. If
          * sweep_idle_time is 0, handles never become idle.
@@ -553,7 +623,8 @@ __sweep_server(void *arg)
         __sweep_check_session_sweep(session, now);
 
         /* On a stepped-up leader, mark the shared disk cache dead once its reuse window elapses. */
-        if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
+        if (__wt_conn_is_disagg(session) &&
+          __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) &&
           __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
             WT_DSK_CACHE_READONLY) {
             uint64_t readonly_since =

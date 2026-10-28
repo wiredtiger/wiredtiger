@@ -1181,7 +1181,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     __wt_writelock(session, &txn_global->rwlock);
     if (__wt_atomic_load_uint32_relaxed(&conn->version_cursor_count) == 0) {
         __wt_txn_pinned_timestamp(session, &pinned_ts);
-        txn_global->version_cursor_pinned_timestamp = pinned_ts;
+        __wt_atomic_store_uint64_relaxed(&txn_global->version_cursor_pinned_timestamp, pinned_ts);
     }
     (void)__wt_atomic_add_uint32(&conn->version_cursor_count, 1);
     __wt_writeunlock(session, &txn_global->rwlock);
@@ -1206,7 +1206,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Open the history store cursor for btrees that may have data in the history store.*/
     file_btree = CUR2BT(version_cursor->file_cursor);
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) && !__wt_btree_stays_in_memory(file_btree)) {
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) && !F_ISSET(file_btree, WT_BTREE_IN_MEMORY)) {
         WT_ERR(__wt_curhs_open(session, file_btree->id, NULL, cursor, &version_cursor->hs_cursor));
         F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
@@ -1251,7 +1251,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       true);
     if (ret == 0) {
         if (cval.val) {
-            if (!__wt_btree_stays_in_memory(file_btree))
+            if (!F_ISSET(file_btree, WT_BTREE_IN_MEMORY))
                 WT_ERR_MSG(session, EINVAL,
                   "debug.dump_version.show_prepared_rollback is only supported for in-memory "
                   "b-trees");

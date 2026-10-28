@@ -27,6 +27,12 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define SALVAGE "salvage=true"
 #define VERIFY_METADATA "verify_metadata=true"
 
+typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
+static util_func_t disagg_supported[] = {
+  util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
+
+static const char disagg_supported_flags[] = {'C', 'E', 'h', 'i', 'm', 'p', 'q', 'V', 'v', '?'};
+
 /*
  * wt_explicit_zero --
  *     Clear a buffer, with precautions against being optimized away.
@@ -69,7 +75,7 @@ util_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
      * Leader-mode pickup is handled inside wiredtiger_open by __wti_disagg_conn_config. Connections
      * without a page log don't need pickup.
      */
-    if (conn_impl->layered_table_manager.leader ||
+    if (__wt_atomic_load_bool_relaxed(&conn_impl->layered_table_manager.leader) ||
       conn_impl->disaggregated_storage.npage_log == NULL)
         return (0);
 
@@ -139,9 +145,35 @@ done:
  *     read_corrupt.
  */
 static bool
-util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
+util_func_supports_read_corrupt(util_func_t util_func)
 {
-    return (func == util_dump || func == util_read || func == util_stat);
+    return (util_func == util_dump || util_func == util_read || util_func == util_stat);
+}
+
+/*
+ * util_func_allowed_disagg --
+ *     Whether a wt subcommand is allowed in disaggregated storage mode.
+ */
+static bool
+util_func_allowed_disagg(util_func_t util_func)
+{
+    for (size_t i = 0; i < WT_ELEMENTS(disagg_supported); i++)
+        if (util_func == disagg_supported[i])
+            return (true);
+    return (false);
+}
+
+/*
+ * util_flag_allowed_disagg --
+ *     Whether a wt global option is allowed in disaggregated storage mode.
+ */
+static bool
+util_flag_allowed_disagg(int ch)
+{
+    for (size_t i = 0; i < WT_ELEMENTS(disagg_supported_flags); i++)
+        if (ch == disagg_supported_flags[i])
+            return (true);
+    return (false);
 }
 
 /*
@@ -195,7 +227,7 @@ main(int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION *session;
     size_t len;
-    int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
+    int ch, disagg_bad_flag, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
     char session_cfg_buf[256];
     const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *rec_config,
@@ -204,6 +236,7 @@ main(int argc, char *argv[])
       recover, salvage;
 
     conn = NULL;
+    disagg_bad_flag = 0;
     p = NULL;
 
     /* Get the program name. */
@@ -233,7 +266,7 @@ main(int argc, char *argv[])
       recover = salvage = false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:il:LmpqRrSVv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:il:LmpqRrSVv?")) != EOF) {
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -296,6 +329,10 @@ main(int argc, char *argv[])
             usage();
             goto err;
         }
+
+        if (disagg_bad_flag == 0 && !util_flag_allowed_disagg(ch))
+            disagg_bad_flag = ch;
+    }
     if ((logoff && recover) || (logoff && salvage) || (recover && salvage)) {
         fprintf(stderr, "Only one of -L, -R, and -S is allowed.\n");
         goto err;
@@ -469,6 +506,23 @@ open:
           "specifying one. Ensure you execute wt within a WiredTiger directory, or use the -h flag "
           "to direct it to one.\n");
         goto err;
+    }
+
+    /*
+     * Reject the global options and the subcommands that are not supported in disaggregated storage
+     * mode.
+     */
+    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.page_log_meta != NULL) {
+        if (disagg_bad_flag != 0) {
+            fprintf(stderr, "%s: -%c is not supported in disaggregated storage mode\n", progname,
+              disagg_bad_flag);
+            goto err;
+        }
+        if (func != NULL && !util_func_allowed_disagg(func)) {
+            fprintf(
+              stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
+            goto err;
+        }
     }
 
     if (secretkey != NULL) {

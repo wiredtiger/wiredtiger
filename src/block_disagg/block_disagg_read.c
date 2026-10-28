@@ -38,7 +38,8 @@ err:
 
 /*
  * __block_disagg_read_err --
- *     Print a block disagg read error context in a standard way.
+ *     Print a block disagg read error context in a standard way. When the caller expects and
+ *     tolerates corruption, report at read-verbose level instead of dropping the context entirely.
  */
 static void
 __block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint64_t table_id,
@@ -67,11 +68,20 @@ err:
     }
     va_end(args);
 
-    __wt_errx(session,
-      "%s: read error for %" PRIu32
-      "B block at "
-      "page %" PRIu64 ", lsn %" PRIu64 ", table_id %" PRIu64 ", %s, %s",
-      name, size, page_id, lsn, table_id, page_desc, context_msg);
+    /*
+     * Build the message once: the two sinks differ only in where the text goes. Truncation is
+     * harmless here and a failure return has nowhere useful to go, so the result is ignored.
+     */
+    char msg[1024];
+    WT_IGNORE_RET(__wt_snprintf(msg, sizeof(msg),
+      "%s: read error for %" PRIu32 "B block at page %" PRIu64 ", lsn %" PRIu64
+      ", table_id %" PRIu64 ", %s, %s",
+      name, size, page_id, lsn, table_id, page_desc, context_msg));
+
+    if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+        __wt_verbose_debug1(session, WT_VERB_READ, "%s", msg);
+    else
+        __wt_errx(session, "%s", msg);
 }
 
 /*
@@ -109,6 +119,47 @@ __block_disagg_header_version_compatible(uint8_t compatible_version)
 }
 
 /*
+ * __wt_block_disagg_header_size_valid --
+ *     Return whether a block's recorded header size can describe its own headers. Everything that
+ *     walks the image finds the data with this size, so it has to be large enough to hold the
+ *     fields the reader has already used and small enough to leave the data inside the block. A
+ *     newer writer's larger header is legal, hence the upper bound is the format's rather than this
+ *     build's own.
+ */
+bool
+__wt_block_disagg_header_size_valid(uint8_t combined_header_size, uint32_t block_size)
+{
+    return (combined_header_size >= WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE &&
+      combined_header_size <= WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE &&
+      combined_header_size <= block_size);
+}
+
+/*
+ * __wt_block_disagg_header_v1_size_fix --
+ *     If version 1 header sizes are being ignored and a version 1 block records a header size other
+ *     than the version 1 size, correct the size in both the image and its byte-swapped copy,
+ *     returning the size originally recorded. Version 1 predates headers growing, so its layout is
+ *     always the minimum size whatever the header claims. Return 0 if nothing was changed.
+ */
+uint8_t
+__wt_block_disagg_header_v1_size_fix(
+  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG_HEADER *blk, WT_BLOCK_DISAGG_HEADER *swap)
+{
+    uint8_t recorded;
+
+    if (!(S2C(session)->debug.disagg_block_header_v1_ignore_size && swap->version == 1 &&
+          swap->combined_header_size != WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE))
+        return (0);
+
+    recorded = swap->combined_header_size;
+
+    /* The size is a single-byte field, so the image needs no byte-swapping. */
+    blk->combined_header_size = swap->combined_header_size =
+      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE;
+    return (recorded);
+}
+
+/*
  * __block_disagg_read_multiple --
  *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
  *     page id, checkpoint id pair.
@@ -123,14 +174,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t block_size_sum;
+    uint32_t total_size;
     int32_t last, result;
-    uint8_t expected_magic;
+    uint8_t expected_magic, recorded_header_size;
     bool from_cache, is_delta;
 
-    /* This variable is only used in an assertion, diagnostic builders don't like this. */
-    WT_UNUSED(block_size_sum);
-    block_size_sum = 0;
+    total_size = 0;
     from_cache = false;
     time_start = __wt_clock(session);
 
@@ -141,6 +190,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
         F_SET(&get_args, WT_PAGE_LOG_COLD);
 
+    /* A checkpoint cursor reads historical page versions, so bypass any block cache. */
+    if (WT_DHANDLE_IS_CHECKPOINT(S2BT(session)->dhandle))
+        F_SET(&get_args, WT_PAGE_LOG_CACHE_BYPASS);
+
     __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", table_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
       ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
@@ -148,13 +201,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);
-    WT_STAT_CONN_INCRV(session, block_byte_read, size);
     __block_disagg_check_lsn_frontier(session, lsn, block_disagg->tableid);
 
-    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
+    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS))
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
-        WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
-    }
     if (F_ISSET(&get_args, WT_PAGE_LOG_COLD))
         WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
@@ -180,7 +230,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_ASSERT(session, current->size < UINT32_MAX);
         size = (uint32_t)current->size;
         is_delta = (result != 0);
-        block_size_sum += size;
+        total_size += size;
 
         if (is_delta)
             __wt_verbose(session, WT_VERB_READ,
@@ -198,17 +248,36 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wt_block_disagg_header_byteswap_copy(blk, &swap);
 
-        /*
-         * TODO(WT-16511): When we have the original checksum stored in the page, we should check
-         * that instead of skipping the check entirely for cached pages.
-         */
-        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED))
+        /* Determine if the page was read from the cache based on the modified flag. */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
+            /*
+             * A page modified "offline" is written as a standalone base image, so it is the only
+             * result. Deltas on top of one would leave the checksum chain below comparing the wrong
+             * field.
+             *
+             * FIXME-WT-18666: This restriction will go away once we have a dedicated field for the
+             * original page checksum.
+             */
+            if (*results_count != 1) {
+                __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+                  page_id, lsn, is_delta, result,
+                  "a page modified offline must be the only result, but %u results were returned",
+                  (u_int)*results_count);
+                goto corrupt;
+            }
             from_cache = true;
-        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
+        }
+
+        /*
+         * The checksum field must match the expected checksum, except for a page that was modified
+         * "offline", where it covers the rewritten image; there the previous_checksum field holds
+         * the checksum that the internal page still references.
+         */
+        if (from_cache ? swap.previous_checksum == checksum : swap.checksum == checksum) {
             blk->checksum = 0;
-            if (__wt_checksum_match(current->data,
-                  F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
-                  swap.checksum)) {
+            size_t cksum_len =
+              F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP);
+            if (__wt_checksum_match(current->data, cksum_len, swap.checksum)) {
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
@@ -224,6 +293,25 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       "compatible version error, the block's compatible version %" PRIu8
                       " is greater than the reader version of %" PRIu8,
                       swap.compatible_version, WT_BLOCK_DISAGG_VERSION);
+                    goto corrupt;
+                }
+
+                if ((recorded_header_size =
+                        __wt_block_disagg_header_v1_size_fix(session, blk, &swap)) != 0)
+                    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "%s: table_id %" PRIu64 ", page_id %" PRIu64 ", lsn %" PRIu64
+                      ", %s: version 1 block header has combined header size %" PRIu8 ", using %d",
+                      block_disagg->name, block_disagg->tableid, page_id, lsn,
+                      is_delta ? "delta" : "base page", recorded_header_size,
+                      WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE);
+
+                if (!__wt_block_disagg_header_size_valid(swap.combined_header_size, size)) {
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
+                      "header size %" PRIu8
+                      " is outside the legal range of %d to %d, or larger than the block",
+                      swap.combined_header_size, WT_BLOCK_DISAGG_HEADER_MIN_COMBINED_SIZE,
+                      (int)WT_BLOCK_DISAGG_HEADER_MAX_COMBINED_SIZE);
                     goto corrupt;
                 }
 
@@ -266,12 +354,20 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 continue;
             }
 
-            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
-                  page_id, lsn, is_delta, result,
-                  "calculated checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
-                  swap.checksum, checksum);
-        } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+            /*
+             * Unfortunately, we can't figure out calculated above, then use it for both that check,
+             * and here. The checksum match function is a little bit special, because it knows how
+             * to use the alternate implementation on Windows to work around an old bug. There may
+             * still be blocks floating around with those checksums, so we can't just drop the alt
+             * version. But at the same time, I imagine it's pretty rare that we'd need to report a
+             * mismatch on such a block. So for logging we can just be lazy and use one checksum.
+             */
+            uint32_t calculated = __wt_checksum(current->data, cksum_len);
+            __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+              page_id, lsn, is_delta, result,
+              "calculated checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
+              calculated, checksum);
+        } else
             __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
               page_id, lsn, is_delta, result,
               "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
@@ -285,7 +381,7 @@ corrupt:
 
         /* Panic if a checksum fails during an ordinary read. */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (WT_SESSION_READ_CORRUPT_OK(session))
+        if (block_disagg->verify || WT_SESSION_READ_CORRUPT_OK(session))
             WT_ERR(WT_ERROR);
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
           block_disagg->name, block_disagg->tableid);
@@ -303,7 +399,16 @@ corrupt:
          * Since the Victim Cache stores compressed variant of in-memory page representation rather
          * than what we have in SLS, these numbers will not match.
          */
-        WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
+        WT_ASSERT(session, block_meta->cumulative_size == total_size);
+
+    /*
+     * Account for what the read actually returned: the base image plus every delta, not the
+     * cumulative size recorded in the address cookie, which describes what was written. Only a
+     * successful read reaches here, so a failed read counts nothing.
+     */
+    WT_STAT_CONN_INCRV(session, block_byte_read, total_size);
+    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS))
+        WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, total_size);
 
 err:
     time_stop = __wt_clock(session);

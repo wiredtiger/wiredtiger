@@ -37,7 +37,6 @@ from wtscenario import make_scenarios
 # Check the behavior of a fast-truncated page where the truncation is not stable but
 # everything else on the page is.
 
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_rollback_to_stable36(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),verbose=(rts:5)'
     session_config = 'isolation=snapshot'
@@ -156,7 +155,7 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
         # Make sure we did at least one fast-delete. (Unless we specifically didn't want to)
-        fastdelete_pages = self.get_stat(stat.conn.rec_page_delete_fast)
+        fastdelete_pages = self.get_stat(stat.conn.cursor_truncate_fast_delete_pages)
         if self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:

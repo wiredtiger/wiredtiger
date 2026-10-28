@@ -69,7 +69,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PAGE_COL_INT:
         recno = 0; /* Less than any valid record number. */
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(session, ref->home == page,
+            WT_ASSERT_ALWAYS(session, __wt_atomic_load_ptr_relaxed(&ref->home) == page,
               "Internal page in illegal state, child ref is referencing an incorrect page");
             WT_ASSERT_ALWAYS(
               session, ref->ref_recno > recno, "Out of order refs detected in parent index");
@@ -85,7 +85,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         slot = 0;
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(session, ref->home == page,
+            WT_ASSERT_ALWAYS(session, __wt_atomic_load_ptr_relaxed(&ref->home) == page,
               "Internal page in illegal state, child ref is referencing an incorrect page");
 
             /*
@@ -228,7 +228,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if ((ikey = __wt_ref_key_instantiated(ref)) == NULL) {
             __wt_ref_key(from_home, ref, &key, &size);
             WT_RET(__wti_row_ikey(session, 0, key, size, ref));
-            ikey = ref->ref_ikey;
+            /* Relaxed: this thread published the key immediately above. */
+            ikey = __wt_atomic_load_ptr_relaxed(&ref->ref_ikey);
         } else {
             WT_RET(__split_ovfl_key_cleanup(session, from_home, ref));
             *decrp += sizeof(WT_IKEY) + ikey->size;
@@ -368,10 +369,21 @@ __split_ref_prepare(
 
         WT_PAGE_LOCK(session, child);
 
-        /* Switch the WT_REF's to their new page. */
+        /*
+         * Switch the WT_REF's to their new page. The created children have no disk image, so every
+         * key must already have been instantiated: an encoded key would decode against a NULL image
+         * once a reader picks up the new home page.
+         */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
-            child_ref->home = child;
+            WT_ASSERT(session,
+              child->type != WT_PAGE_ROW_INT || __wt_ref_key_instantiated(child_ref) != NULL);
+            /*
+             * Publish the new home page with a release so a reader that picks it up also sees the
+             * key and address instantiated above; the created page has no disk image, so an on-page
+             * key or address paired with it would be decoded against nothing.
+             */
+            __wt_atomic_store_ptr_release(&child_ref->home, child);
             child_ref->pindex_hint = j++;
         }
         WT_INTL_FOREACH_END;
@@ -466,7 +478,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          * Initialize the page's child reference; we need a copy of the page's key.
          */
         ref = *alloc_refp++;
-        ref->home = root;
+        __wt_atomic_store_ptr_relaxed(&ref->home, root);
         ref->page = child;
         ref->addr = NULL;
         if (root->type == WT_PAGE_ROW_INT) {
@@ -626,7 +638,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref, true));
+    WT_TRET(__wt_ref_block_free(session, ref, true, false));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
@@ -672,7 +684,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 #endif
 
     btree = S2BT(session);
-    parent = ref->home;
+    parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
     alloc_index = pindex = NULL;
     parent_decr = 0;
@@ -771,7 +783,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         next_ref = pindex->index[i];
         if (next_ref == ref) {
             for (j = 0; j < new_entries; ++j) {
-                ref_new[j]->home = parent;
+                __wt_atomic_store_ptr_relaxed(&ref_new[j]->home, parent);
                 ref_new[j]->pindex_hint = hint++;
                 *alloc_refp++ = ref_new[j];
             }
@@ -1041,7 +1053,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          * Initialize the page's child reference; we need a copy of the page's key.
          */
         ref = *alloc_refp++;
-        ref->home = parent;
+        __wt_atomic_store_ptr_relaxed(&ref->home, parent);
         ref->page = child;
         ref->addr = NULL;
         if (page->type == WT_PAGE_ROW_INT) {
@@ -1248,7 +1260,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * to use a different lock if we have to block reconciliation anyway.
      */
     for (;;) {
-        parent = ref->home;
+        parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
         /* Encourage races. */
         __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7, NULL);
@@ -1260,7 +1272,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
             WT_RET(WT_PAGE_TRYLOCK(session, parent));
         } else
             WT_PAGE_LOCK(session, parent);
-        if (parent == ref->home)
+        if (parent == (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home))
             break;
         WT_PAGE_UNLOCK(session, parent);
     }
@@ -1455,9 +1467,9 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
      * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
      * page.
      */
-    mod->last_evict_pass_gen = orig_modify->last_evict_pass_gen;
-    mod->last_eviction_id = orig_modify->last_eviction_id;
-    mod->last_eviction_timestamp = orig_modify->last_eviction_timestamp;
+    mod->rec_evict_attempt_pass_gen = orig_modify->rec_evict_attempt_pass_gen;
+    mod->rec_evict_attempt_oldest_id = orig_modify->rec_evict_attempt_oldest_id;
+    mod->rec_evict_attempt_pinned_ts = orig_modify->rec_evict_attempt_pinned_ts;
     mod->rec_max_txn = orig_modify->rec_max_txn;
     mod->rec_max_timestamp = orig_modify->rec_max_timestamp;
     /*
@@ -1466,6 +1478,13 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
      */
     mod->rec_pinned_stable_timestamp = orig_modify->rec_pinned_stable_timestamp;
     mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
+
+    /*
+     * Inherit the checkpoint snapshot stamp so checkpoint can skip re-reconciling a page that
+     * eviction already reconciled under the checkpoint snapshot. Checkpoint verifies the page has a
+     * durable on-disk image before skipping it.
+     */
+    mod->rec_ckpt_snap_gen = orig_modify->rec_ckpt_snap_gen;
 }
 
 /*
@@ -1486,6 +1505,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     uint64_t recno, txnid;
     uint32_t i, slot;
     bool instantiate_upd;
+
+    /* A btree awaiting publication is never reconciled, so there is nothing to re-create. */
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH));
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1518,7 +1540,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !__wt_btree_stays_in_memory(S2BT(session)) &&
+    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
@@ -1527,13 +1549,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
-     *
-     * A btree awaiting publication is reconciled in memory only, so the rebuilt page would
-     * otherwise be clean and hold its only copy in an in-memory image. Keep it dirty so the
-     * checkpoint that runs once the table is published rewrites it to shared storage.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
-      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
         WT_RET(__wt_page_modify_init(session, page));
         __wt_page_modify_set(session, page);
     }
@@ -1935,7 +1952,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     case WT_PAGE_ROW_LEAF:
         delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, page->type);
         if (delta_enabled && first) {
-            __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
+            __wt_ref_key_home(old_ref, &key, &key_size);
             WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
             if (incrp)
                 *incrp += sizeof(WT_IKEY) + key_size;
@@ -1986,7 +2003,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     } else if (delta_enabled && multi_entries == 1 && old_ref->addr != NULL) {
         old_addr = (WT_ADDR *)old_ref->addr;
-        if (!__wt_off_page(old_ref->home, old_addr))
+        if (!__wt_off_page((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&old_ref->home), old_addr))
             ref->addr = old_addr;
         else {
             WT_RET(__wt_calloc_one(session, &addr));
@@ -2065,13 +2082,13 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     parent_incr += sizeof(WT_REF);
     child = split_ref[0];
     child->page = ref->page;
-    child->home = ref->home;
+    __wt_atomic_store_ptr_relaxed(&child->home, __wt_atomic_load_ptr_relaxed(&ref->home));
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
-        __wt_ref_key(ref->home, ref, &key, &key_size);
+        __wt_ref_key_home(ref, &key, &key_size);
         WT_ERR(__wti_row_ikey(session, 0, key, key_size, child));
         parent_incr += sizeof(WT_IKEY) + key_size;
     } else
@@ -2213,8 +2230,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * must include either the original page or both new pages. The page we're splitting is dirty,
      * but that's insufficient: set the first dirty transaction to an impossibly old value so this
      * page is not skipped by a checkpoint.
+     *
+     * Clear the checkpoint snapshot stamp so checkpoint doesn't skip the page and reference that
+     * stale image, which still holds the keys now living in the new page.
      */
     page->modify->first_dirty_txn = WT_TXN_FIRST;
+    page->modify->rec_ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
     F_SET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT);
     /*
      * We modified the page above, which will have set the first dirty transaction to the last
@@ -2334,7 +2355,7 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
 
-    if (__wt_btree_is_stale_disagg(session))
+    if (__wt_btree_is_outdated_disagg(session))
         return (__wt_set_return(session, EBUSY));
 
     /*
@@ -2461,7 +2482,7 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
-    if (__wt_btree_is_stale_disagg(session))
+    if (__wt_btree_is_outdated_disagg(session))
         ret = __wt_set_return(session, EBUSY);
     else
         /*
@@ -2503,7 +2524,7 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
 
-    if (__wt_btree_is_stale_disagg(session))
+    if (__wt_btree_is_outdated_disagg(session))
         return (__wt_set_return(session, EBUSY));
 
     /*
@@ -2525,9 +2546,11 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *new;
+    bool instantiated;
 
     page = ref->page;
     addr = NULL;
+    instantiated = page->modify != NULL && page->modify->instantiated;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
@@ -2544,13 +2567,25 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
      *
      * Build the new page.
      *
-     * Allocate a WT_REF, the error path calls routines that free memory. The only field we need to
-     * set is the record number, as it's used by the search routines.
+     * Allocate a WT_REF, the error path calls routines that free memory. Set the record number for
+     * the search routines and the type flags which are checked when the page is built.
      */
     WT_RET(__wt_calloc_one(session, &new));
     new->ref_recno = ref->ref_recno;
+    F_SET(new, F_MASK(ref, WT_REF_FLAG_INTERNAL | WT_REF_FLAG_LEAF));
 
     WT_ERR(__split_multi_inmem(session, page, multi, new));
+
+    /*
+     * With no new address the parent's cell may still be a fast-truncate proxy cell: carry the
+     * instantiated flag so parent reconciliation keeps evaluating the child through the retained
+     * page-delete information. Allocation can fail, so do it before the point of no return.
+     */
+    if (instantiated) {
+        WT_ASSERT(session, multi->addr.block_cookie == NULL);
+        WT_ERR(__wt_page_modify_init(session, new->page));
+        new->page->modify->instantiated = true;
+    }
 
     /*
      * The rewrite succeeded, we can no longer fail.

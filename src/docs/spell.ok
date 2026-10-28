@@ -128,7 +128,9 @@ NUMA
 NoSQL
 OOP
 OPTYPE
+OTel
 Observability
+OpenTelemetry
 PALI
 PALite
 PMU
@@ -366,6 +368,7 @@ encryptors
 endcode
 endcond
 endditaa
+endhtmlonly
 endian
 endif
 endinternal
@@ -410,6 +413,7 @@ flamegraphs
 flcs
 fnv
 fontsize
+footbox
 forw
 fprofile
 fput
@@ -438,6 +442,7 @@ github
 gnuplot
 graphviz
 growable
+handoff
 hashtable
 hb
 hotbackup
@@ -447,6 +452,7 @@ hs
 hsearch
 html
 htmlinclude
+htmlonly
 huffman
 hugepage
 iSi
@@ -456,6 +462,7 @@ ie
 iface
 ifdef
 iflag
+iframe
 img
 incr
 indices
@@ -591,12 +598,14 @@ objectid
 objectsin
 ol
 oltp
+ondisk
 oob
 oop
 oplog
 optrack
 optype
 os
+otel
 outlier
 outliers
 ovfl
@@ -657,6 +666,8 @@ recno
 recnoN
 recnum
 reconfig
+reconfigures
+reconfiguring
 recoverability
 recs
 rectype
@@ -726,6 +737,7 @@ suboptimal
 subpage
 substring
 subsubsection
+subtree
 sudo
 supd
 superset

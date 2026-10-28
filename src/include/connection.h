@@ -31,8 +31,6 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
-    bool tiered_shared_2023; /* tiered shared run-time configuration */
-
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
     /*
@@ -44,6 +42,9 @@ struct __wt_process {
     uint8_t modify_pad_byte;
 };
 extern WT_PROCESS __wt_process;
+
+/* Connection methods share the default session. The method's name is kept per thread instead. */
+extern WT_THREAD_LOCAL const char *__wt_conn_api_name;
 
 typedef enum __wt_background_compact_cleanup_stat_type {
     BACKGROUND_COMPACT_CLEANUP_EXIT,      /* Cleanup when the thread exits */
@@ -138,14 +139,14 @@ struct __wt_layered_table_manager {
     uint32_t open_layered_table_count;
     /*
      * This is a sparsely populated array of layered tables - each fileid in the system gets an
-     * entry in this table. A lookups checks for a valid manager entry at the file ID offset for the
-     * ingest constituent in a layered table. It's done that way so that we can cheaply check
-     * whether a log record belongs to a layered table and should be applied.
+     * entry in this table. A lookups checks for a valid manager entry at the unnamespaced file ID
+     * offset for the ingest constituent in a layered table. It's done that way so that we can
+     * cheaply check whether a log record belongs to a layered table and should be applied.
      */
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
     size_t entries_allocated_bytes;
 
-    bool leader;
+    wt_shared bool leader; /* The node's disaggregated role, written on role reconfigure */
 };
 
 /*
@@ -155,8 +156,16 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 2
 #define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+/*
+ * A checkpoint whose stable tables omit tombstone encoding cannot be read by a node that still
+ * strips the escape byte; such readers are version 2 or newer. Checkpoints that keep the encoding
+ * stay compatible with every reader. The compatible version doubles as the format indicator: a
+ * reader below this version would strip escape bytes that are not there, so a checkpoint at or
+ * above it carries raw stable values and an older one carries escaped values.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED 2
 
 /*
  * Turtle/checkpoint metadata version constants:
@@ -191,11 +200,20 @@ struct __wt_disagg_metadata_op {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
+    /* The create-time configuration of the stable component, for recreating it at step-up. */
+    char *stable_create_config;
+
     WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
     wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
 
     /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
+
+    /* The operation was issued inside the step-down window, so it belongs to the next era. */
+    bool in_step_down_window;
+
+    /* The operation was queued before a stable schema epoch was set. */
+    bool before_stable_epoch;
 
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
@@ -211,6 +229,22 @@ struct __wt_disagg_pending_crypt_key {
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
+
+/*
+ * The checkpoint generation encoding of an LSN: the LSN plus one. The generation manager starts
+ * connection generations at one and reserves zero in a session slot for "not entered", so the
+ * initial generation is exactly the encoding of "no checkpoint" and a published pin of an
+ * un-delivered node covers nothing. A pin covers an LSN when its generation exceeds it, and a
+ * generation-active query at an LSN finds exactly the pins that do not cover it.
+ */
+#define WT_DISAGG_CKPT_GEN(lsn) ((lsn) + 1)
+
+/* The backoff between retries of a blocked checkpoint adoption. */
+#define WT_DISAGG_RETRY_SLEEP_USECS (100 * WT_THOUSAND)
+
+/* The deferred pickup server's timed wake while a checkpoint is queued and while idle. */
+#define WT_DISAGG_PICKUP_QUEUED_WAIT_USECS WT_MILLION
+#define WT_DISAGG_PICKUP_IDLE_WAIT_USECS (2 * WT_MILLION)
 
 /*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
@@ -233,8 +267,9 @@ struct __wt_page_delta_config {
     u_int delete_pct;            /* Max delete fraction (%) before forcing full page */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_INTERNAL_PAGE_DELTA 0x1u
-#define WT_LEAF_PAGE_DELTA 0x2u
+#define WT_DELTA_PCT_OF_TARGET_PAGE_SIZE 0x1u
+#define WT_INTERNAL_PAGE_DELTA 0x2u
+#define WT_LEAF_PAGE_DELTA 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -273,6 +308,18 @@ struct __wt_repair {
 };
 
 /*
+ * WT_DISAGG_DEFERRED_CKPT --
+ *      A checkpoint whose adoption is deferred while transactional snapshots that predate it are
+ *      active.
+ */
+struct __wt_disagg_deferred_ckpt {
+    uint64_t lsn;         /* Checkpoint metadata LSN */
+    uint64_t queued_time; /* Clock reading when the checkpoint was deferred */
+    char *meta;           /* Checkpoint metadata configuration */
+    TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
+};
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -287,12 +334,44 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
+    /*
+     * The LSN of the newest checkpoint received, published before its adoption begins. A snapshot
+     * established after a checkpoint's arrival may pin it even though the adoption has not
+     * completed: arrival implies the checkpoint's content is already replayed into the ingest
+     * tables, so such a snapshot covers it. Only ever moves forward.
+     */
+    wt_shared uint64_t pending_checkpoint_meta_lsn;
+
+    /*
+     * Checkpoints whose adoption is deferred while transactional snapshots that predate them are
+     * active, oldest first. Keeping every checkpoint not yet adopted lets the node adopt
+     * incrementally up to the newest one no active snapshot predates, so a reader only ever blocks
+     * the checkpoints newer than its own snapshot.
+     */
+    WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
+    TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
+
+    /*
+     * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until
+     * a pinning transaction finishes or a checkpoint is deferred.
+     */
+    WT_CONDVAR *deferred_pickup_cond;
+    WT_SESSION_IMPL *deferred_pickup_session;
+    wt_thread_t deferred_pickup_tid;
+
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
-    wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
+
+    /*
+     * Three schema epochs. The current epoch is the live stable schema epoch and decides what this
+     * node gates. The write epoch is what the checkpoint writes to its metadata for other nodes,
+     * and never moves backwards. The last checkpoint's epoch is what this node wrote or picked up.
+     */
+    wt_timestamp_t cur_schema_epoch;
+    wt_timestamp_t cur_write_schema_epoch;
+
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
-    wt_shared wt_timestamp_t
-      last_checkpoint_schema_epoch; /* The schema epoch of the last checkpoint. */
+    wt_shared wt_timestamp_t last_checkpoint_schema_epoch;
 
     /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
@@ -331,6 +410,32 @@ struct __wt_disaggregated_storage {
     bool base_write_gen_missing;
 
     /*
+     * !!!
+     * Stable tombstone encoding mode transitions, per connection. The mode itself lives in the
+     * WT_DISAGG_STABLE_TOMBSTONE_ENCODING flag; the decision tree below has no other transitions,
+     * and reconfigure never changes the mode: the break-glass option is not part of the
+     * reconfigure schema. The states are in-memory; the durable truth is each checkpoint's
+     * compatible version ("compat" below: < 2 escaped, >= 2 unescaped, absent fields default 1).
+     *
+     * wiredtiger_open:
+     * - break_glass=true -> Forced legacy (escaped);
+     *   break_glass=false -> Forced new (unescaped):
+     *   - fixed for the connection's life; any pickup keeps the mode, a disagreeing pickup warns.
+     * - option unset -> Unadopted (encoding off), then the first of:
+     *   - pickup with compat < 2, OR with absent version fields -> Adopted legacy (escaped);
+     *   - pickup with compat >= 2, OR a leader starting on empty storage (a new database)
+     *     -> Adopted new (unescaped);
+     *   and on every later pickup:
+     *   - the same compat side -> re-adopt, a no-op;
+     *   - the other compat side -> PANIC: the storage was rewritten in the other format, and a
+     *     restart re-detects from the data.
+     *
+     * This flag records the adoption: true once automatic mode has adopted from a pickup or a new
+     * database. Unused while the mode is forced (WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED).
+     */
+    bool stable_tombstone_encoding_adopted;
+
+    /*
      * Total size of all stable tables in the database, along with other components such as the KEK
      * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
      */
@@ -349,9 +454,15 @@ struct __wt_disaggregated_storage {
      * (really, per block-manager) so it's easy to accidentally miss a file when doing it that way,
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
+    /* Set while the deferred pickup server thread exists; placed here to pack with the flags. */
+    bool deferred_pickup_tid_set;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
-#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x2u
+#define WT_DISAGG_NO_LOCAL_DURABILITY 0x01u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING 0x02u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED 0x04u
+#define WT_DISAGG_STEPDOWN_WRITE_MIRRORING 0x08u
+#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x10u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -409,39 +520,6 @@ struct __wt_page_history {
     WT_CONDVAR *report_cond;
     wt_shared bool report_shutdown;
 };
-
-/*
- * WT_BUCKET_STORAGE --
- *	A list entry for a storage source with a unique name (bucket, prefix).
- */
-struct __wt_bucket_storage {
-    const char *bucket;                /* Bucket name */
-    const char *bucket_prefix;         /* Bucket prefix */
-    const char *cache_directory;       /* Locally cached file location */
-    int owned;                         /* Storage needs to be terminated */
-    uint64_t retain_secs;              /* Tiered period */
-    const char *auth_token;            /* Tiered authentication cookie */
-    bool tiered_shared;                /* Tiered shared */
-    WT_FILE_SYSTEM *file_system;       /* File system for bucket */
-    WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
-    /* Linked list of bucket storage entries */
-    TAILQ_ENTRY(__wt_bucket_storage) hashq;
-    TAILQ_ENTRY(__wt_bucket_storage) q;
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_BUCKET_FREE 0x1u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t flags;
-};
-
-/* Call a function with the bucket storage and its associated file system. */
-#define WT_WITH_BUCKET_STORAGE(bsto, s, e)                                  \
-    do {                                                                    \
-        WT_BUCKET_STORAGE *__saved_bstorage = (s)->bucket_storage;          \
-        (s)->bucket_storage = ((bsto) == NULL ? S2C(s)->bstorage : (bsto)); \
-        e;                                                                  \
-        (s)->bucket_storage = __saved_bstorage;                             \
-    } while (0)
 
 /*
  * WT_HEURISTIC_CONTROLS --
@@ -545,19 +623,6 @@ struct __wt_named_page_log {
 };
 
 /*
- * WT_NAMED_STORAGE_SOURCE --
- *	A storage source list entry
- */
-struct __wt_named_storage_source {
-    const char *name;                  /* Name of storage source */
-    WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
-    TAILQ_HEAD(__wt_buckethash, __wt_bucket_storage) * buckethashqh;
-    TAILQ_HEAD(__wt_bucket_qh, __wt_bucket_storage) bucketqh;
-    /* Linked list of storage sources */
-    TAILQ_ENTRY(__wt_named_storage_source) q;
-};
-
-/*
  * WT_CONN_BACKUP --
  *     Hot backup state for a connection.
  */
@@ -587,10 +652,6 @@ struct __wt_conn_extensions {
     /* Locked: page log list */
     WT_SPINLOCK page_log_lock; /* Page log list lock */
     TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
-
-    /* Locked: storage source list */
-    WT_SPINLOCK storage_lock; /* Storage source list lock */
-    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 };
 
 /*
@@ -687,30 +748,6 @@ struct __wt_conn_sweep {
     uint64_t idle_time;       /* Handle sweep idle time */
     uint64_t interval;        /* Handle sweep interval */
     uint64_t handles_min;     /* Handle sweep minimum open */
-};
-
-/*
- * WT_CONN_TIERED --
- *	Fields for the tiered storage server thread and its associated queue and locks.
- */
-struct __wt_conn_tiered {
-    /* Locked: tiered system work queue */
-    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
-
-    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
-    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
-
-    WT_SESSION_IMPL *session;           /* Tiered thread session */
-    wt_thread_t tid;                    /* Tiered thread */
-    bool tid_set;                       /* Tiered thread set */
-    WT_CONDVAR *flush_cond;             /* Flush wait mutex */
-    WT_CONDVAR *cond;                   /* Tiered wait mutex */
-    uint64_t interval;                  /* Tiered work interval */
-    bool server_running;                /* Internal tiered server operating */
-    wt_shared bool flush_ckpt_complete; /* Checkpoint after flush completed */
-    uint64_t flush_most_recent;         /* Clock value of last flush_tier */
-    uint32_t flush_state;               /* State of last flush tier */
-    wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
 };
 
 /*
@@ -821,6 +858,19 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE --
+ *     The debug mode for upgrade/downgrade of the disaggregated storage block header.
+ */
+typedef enum __wt_conn_debug_disagg_block_header_upgrade {
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_NONE = 0,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_COMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_INCOMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE_V1_OVERSIZED
+} WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE;
+#endif
+
 /*
  * WT_CONN_DEBUG --
  *     Connection debug-mode configuration and state.
@@ -833,32 +883,40 @@ struct __wt_conn_debug {
     wt_shared uint32_t log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
-#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
-#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
-#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
-#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
-#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
-#define WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER 0x00200u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00400u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00800u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x01000u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x02000u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x04000u
-#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x08000u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x10000u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x20000u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x40000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x80000u
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x000001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x000002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x000004u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x000008u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x000010u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x000020u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x000040u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x000080u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x000100u
+#define WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL 0x000200u
+#define WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER 0x000400u
+#define WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE 0x000800u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x001000u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x002000u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x004000u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x008000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x010000u
+#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x020000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x040000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x080000u
+#define WT_CONN_DEBUG_TIMING_STRESS_FORCE 0x100000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x200000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
     /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE disagg_address_cookie_upgrade;
     bool disagg_address_cookie_optional_field;
+
+#ifdef HAVE_DIAGNOSTIC
+    /* The debug mode for upgrade/downgrade of the disaggregated storage block header. */
+    WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE disagg_block_header_upgrade;
+#endif
+    bool disagg_block_header_v1_ignore_size;
 };
 
 /*
@@ -873,6 +931,23 @@ struct __wt_conn_evict_config {
     bool sample_inmem;               /* Sample in-memory pages */
     wt_shared bool use_npos;         /* Use npos page visit strategy */
     bool legacy_page_visit_strategy; /* Use legacy page visit strategy */
+};
+
+/*
+ * WT_CKPT_EVICTION_SNAP --
+ *     A buffer holding the snapshot a precise checkpoint publishes, so that eviction can reconcile
+ *     with accurate visibility without holding a lock. Readers hold WT_GEN_HAS_CKPT_SNAPSHOT across
+ *     their use of it.
+ */
+struct __wt_ckpt_eviction_snap {
+    WT_TXN_SNAPSHOT snap;
+    uint64_t *snap_array;
+    size_t snap_capacity;
+    /*
+     * The generation of the checkpoint that published this buffer. Eviction stamps the pages it
+     * reconciles with this, so that checkpoint can identify its own work and skip it.
+     */
+    wt_shared uint64_t gen;
 };
 
 /*
@@ -1020,16 +1095,13 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
     /*
-     * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
-     * visibility without holding any lock. Two buffers alternate so eviction always has a valid
-     * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
+     * Two buffers alternate so eviction always has a valid snapshot to read. The published flag is
+     * the synchronization point: a checkpoint sets it once it has written the inactive buffer and
+     * clears it before releasing the snapshot, and readers acquire it before reading the index.
      */
-    WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
-    uint64_t *ckpt_eviction_snap_array[2];
-    size_t ckpt_eviction_snap_capacity[2];
-    wt_shared uint32_t ckpt_eviction_snap_idx;
-    wt_shared bool
-      ckpt_eviction_snap_published; /* true once the first snapshot has been published */
+    WT_CKPT_EVICTION_SNAP ckpt_eviction_snap[2];
+    wt_shared uint32_t ckpt_eviction_snap_idx;   /* Buffer holding the published snapshot */
+    wt_shared bool ckpt_eviction_snap_published; /* Whether a checkpoint has published one */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
@@ -1078,10 +1150,6 @@ struct __wt_connection_impl {
 
     WT_CONN_CAPACITY capacity; /* I/O capacity subsystem */
 
-#define WT_CONN_TIERED_STORAGE_ENABLED(conn) ((conn)->bstorage != NULL)
-    WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
-    WT_BUCKET_STORAGE bstorage_none; /* Bucket storage for "none" */
-
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
     WT_CONN_EVICT_CONFIG evict_config; /* Eviction thread group and configuration */
@@ -1098,6 +1166,8 @@ struct __wt_connection_impl {
         TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
         bool running;
         uint32_t thread_count;
+        wt_shared uint64_t tables_drained; /* Ingest tables drained, current step up */
+        wt_shared uint64_t drain_bytes;    /* Bytes moved to stable tables, current step up */
     } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
@@ -1108,8 +1178,6 @@ struct __wt_connection_impl {
     bool preserve_prepared; /* Preserve prepared updates */
 
     WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
-
-    WT_CONN_TIERED tiered; /* Tiered storage server thread fields */
 
     WT_LOG_MANAGER log_mgr;
 
@@ -1185,47 +1253,52 @@ struct __wt_connection_impl {
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE 0x00000000001ull
-#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x00000000002ull
-#define WT_TIMING_STRESS_BACKUP_RENAME 0x00000000004ull
-#define WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE 0x00000000008ull
-#define WT_TIMING_STRESS_CHECKPOINT_HANDLE 0x00000000010ull
-#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x00000000020ull
-#define WT_TIMING_STRESS_CHECKPOINT_STOP 0x00000000040ull
-#define WT_TIMING_STRESS_CLOSE_STRESS_LOG 0x00000000080ull
-#define WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW 0x00000000100ull
-#define WT_TIMING_STRESS_COMPACT_SLOW 0x00000000200ull
-#define WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION 0x00000000400ull
-#define WT_TIMING_STRESS_EVICT_REPOSITION 0x00000000800ull
-#define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN 0x00000001000ull
-#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x00000002000ull
-#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x00000004000ull
-#define WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT 0x00000008000ull
-#define WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP 0x00000010000ull
-#define WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE 0x00000020000ull
-#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00000040000ull
-#define WT_TIMING_STRESS_HS_SEARCH 0x00000080000ull
-#define WT_TIMING_STRESS_HS_SWEEP 0x00000100000ull
-#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x00000200000ull
-#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x00000400000ull
-#define WT_TIMING_STRESS_PREFETCH_1 0x00000800000ull
-#define WT_TIMING_STRESS_PREFETCH_2 0x00001000000ull
-#define WT_TIMING_STRESS_PREFETCH_3 0x00002000000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00004000000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00008000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00010000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00020000000ull
-#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x00040000000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00080000000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x00100000000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x00200000000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x00400000000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x00800000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x01000000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x02000000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x04000000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x08000000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x10000000000ull
+#define WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE 0x000000000001ull
+#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x000000000002ull
+#define WT_TIMING_STRESS_BACKUP_BLKMOD_DELAY 0x000000000004ull
+#define WT_TIMING_STRESS_BACKUP_RENAME 0x000000000008ull
+#define WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE 0x000000000010ull
+#define WT_TIMING_STRESS_CHECKPOINT_HANDLE 0x000000000020ull
+#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x000000000040ull
+#define WT_TIMING_STRESS_CHECKPOINT_STOP 0x000000000080ull
+#define WT_TIMING_STRESS_CLOSE_STRESS_LOG 0x000000000100ull
+#define WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW 0x000000000200ull
+#define WT_TIMING_STRESS_COMPACT_SLOW 0x000000000400ull
+#define WT_TIMING_STRESS_DISAGG_PICKUP_SKIP_SIGNAL 0x000000000800ull
+#define WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION 0x000000001000ull
+#define WT_TIMING_STRESS_DISAGG_STABLE_DHANDLE_DELAY 0x000000002000ull
+#define WT_TIMING_STRESS_DISAGG_TRUNCATE_ENTRY_INSERT 0x000000004000ull
+#define WT_TIMING_STRESS_DROP_DEFERRED_HOLD 0x000000008000ull
+#define WT_TIMING_STRESS_EVICT_REPOSITION 0x000000010000ull
+#define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY 0x000000020000ull
+#define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN 0x000000040000ull
+#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x000000080000ull
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x000000100000ull
+#define WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT 0x000000200000ull
+#define WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP 0x000000400000ull
+#define WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE 0x000000800000ull
+#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x000001000000ull
+#define WT_TIMING_STRESS_HS_SEARCH 0x000002000000ull
+#define WT_TIMING_STRESS_HS_SWEEP 0x000004000000ull
+#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x000008000000ull
+#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x000010000000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x000020000000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x000040000000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x000080000000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x000100000000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x000200000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x000400000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x000800000000ull
+#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x001000000000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x002000000000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x004000000000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x008000000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x010000000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x020000000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x040000000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x080000000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x100000000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x200000000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -1252,14 +1325,14 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x0004u
 #define WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS 0x0008u
 #define WT_CONN_SERVER_COMPACT 0x0010u
-#define WT_CONN_SERVER_EVICTION 0x0020u
-#define WT_CONN_SERVER_LAYERED 0x0040u
-#define WT_CONN_SERVER_LOG 0x0080u
-#define WT_CONN_SERVER_PREFETCH 0x0100u
-#define WT_CONN_SERVER_RTS 0x0200u
-#define WT_CONN_SERVER_STATISTICS 0x0400u
-#define WT_CONN_SERVER_SWEEP 0x0800u
-#define WT_CONN_SERVER_TIERED 0x1000u
+#define WT_CONN_SERVER_DISAGG_PICKUP 0x0020u
+#define WT_CONN_SERVER_EVICTION 0x0040u
+#define WT_CONN_SERVER_LAYERED 0x0080u
+#define WT_CONN_SERVER_LOG 0x0100u
+#define WT_CONN_SERVER_PREFETCH 0x0200u
+#define WT_CONN_SERVER_RTS 0x0400u
+#define WT_CONN_SERVER_STATISTICS 0x0800u
+#define WT_CONN_SERVER_SWEEP 0x1000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 
@@ -1284,24 +1357,22 @@ struct __wt_connection_impl {
     wt_shared uint32_t flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_CACHE_POOL 0x00001u
-#define WT_CONN_CKPT_GATHER 0x00002u
-#define WT_CONN_CLOSING 0x00004u
-#define WT_CONN_CLOSING_CHECKPOINT 0x00008u
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x00010u
-#define WT_CONN_COMPATIBILITY 0x00020u
-#define WT_CONN_DATA_CORRUPTION 0x00040u
-#define WT_CONN_HS_OPEN 0x00080u
-#define WT_CONN_INCR_BACKUP 0x00100u
-#define WT_CONN_LEAK_MEMORY 0x00200u
-#define WT_CONN_MINIMAL 0x00400u
-#define WT_CONN_OPTRACK 0x00800u
-#define WT_CONN_PANIC 0x01000u
-#define WT_CONN_READY 0x02000u
-#define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
-#define WT_CONN_RECONFIGURING_STEP_DOWN 0x08000u
-#define WT_CONN_RECONFIGURING_STEP_UP 0x10000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
+#define WT_CONN_CACHE_POOL 0x0001u
+#define WT_CONN_CKPT_GATHER 0x0002u
+#define WT_CONN_CLOSING 0x0004u
+#define WT_CONN_CLOSING_CHECKPOINT 0x0008u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x0010u
+#define WT_CONN_COMPATIBILITY 0x0020u
+#define WT_CONN_DATA_CORRUPTION 0x0040u
+#define WT_CONN_HS_OPEN 0x0080u
+#define WT_CONN_INCR_BACKUP 0x0100u
+#define WT_CONN_LEAK_MEMORY 0x0200u
+#define WT_CONN_MINIMAL 0x0400u
+#define WT_CONN_OPTRACK 0x0800u
+#define WT_CONN_PANIC 0x1000u
+#define WT_CONN_READY 0x2000u
+#define WT_CONN_RECONFIGURING_CACHE_POOL 0x4000u
+#define WT_CONN_RECONFIGURING_STEP_UP 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
 

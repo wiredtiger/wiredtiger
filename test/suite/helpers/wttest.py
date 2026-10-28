@@ -173,8 +173,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def globalSetup(command_line_vars, preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
-                    printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
-                    ss_random_prefix = 0, timeout = 0):
+                    printOutput = False, seedw = 0, seedz = 0, hookmgr = None, timeout = 0):
         # Make a readonly view of the command line options passed in.
         # This view will be shared by all test cases.
         WiredTigerTestCase._command_line_vars = ReadonlySimpleNamespace(command_line_vars)
@@ -188,7 +187,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase._extralongtest = extralongtest
         WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._concurrent = False
-        WiredTigerTestCase._ss_random_prefix = ss_random_prefix
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
         WiredTigerTestCase._timeout = timeout
@@ -196,6 +194,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
         WiredTigerTestCase.hook_names = hookmgr.get_hook_names()
+        WiredTigerTestCase.hook_specs = hookmgr.get_hook_specs()
 
         WiredTigerTestCase.setupTestDir(parentTestDir, preserveFiles, removeAtStart, useTimestamp)
         WiredTigerTestCase.setupIO('results.txt', ignoreStdout, printOutput, verbose)
@@ -258,8 +257,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def tableExists(self, name):
         return self.platform_api.tableExists(name)
 
-    # The first filename for this URI.  In the tiered storage
-    # world, this makes a difference, every flush tier creates a
+    # The first filename for this URI.
     # This may have a different implementation when running under certain hooks.
     def initialFileName(self, name):
         return self.platform_api.initialFileName(name)
@@ -271,22 +269,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     # Return the WiredTigerTimestamp for this testcase, or None if there is none.
     def getTimestamp(self):
         return self.platform_api.getTimestamp()
-
-    # Return the tier share percent for this testcase, or 0 if there is none.
-    def getTierSharePercent(self):
-        return self.platform_api.getTierSharePercent()
-
-    # Return the tier cache percent for this testcase, or 0 if there is none.
-    def getTierCachePercent(self):
-        return self.platform_api.getTierCachePercent()
-
-    # Return the tier storage source for this testcase, or 'dir_store' if there is none.
-    def getTierStorageSource(self):
-        return self.platform_api.getTierStorageSource()
-
-    # Return the tier storage source configuration for this testcase, or None.
-    def getTierStorageSourceConfig(self):
-        return self.platform_api.getTierStorageSourceConfig()
 
     def buildDirectory(self):
         return self._builddir
@@ -656,17 +638,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.pr('ERROR: failed to tear down the platform API')
             self.prexception(sys.exc_info())
 
-        # Download the files from the bucket for tiered tests if the test fails or preserve is
-        # turned on.
-        try:
-            if hasattr(self, 'ss_name') and not self.skipped and \
-                (not passed or WiredTigerTestCase._preserveFiles):
-                    self.pr('downloading object files')
-                    self.download_objects(self.bucket, self.bucket_prefix)
-        except:
-            self.pr('ERROR: failed to download objects')
-            self.prexception(sys.exc_info())
-
         self.pr('finishing')
 
         # Close all connections that weren't explicitly closed.
@@ -900,20 +871,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def prepared_id_str(self, id):
         return '%x' % id
 
-    # Some tests do table drops as a means to perform some test repeatedly in a loop.
-    # These tests require that a name be completely removed before the next iteration
-    # can begin.  However, tiered storage does not always provide a way to remove objects
-    # that have been stored to the cloud, as doing that is not the normal
-    # part of a workflow (at this writing, GC is not yet implemented). Most storage sources
-    # return ENOTSUP when asked to remove a cloud object, so we really don't have a way to
-    # clear out the name space, and so we skip these tests under tiered storage.
-    #
-    # Note: as part of PM-3389, we may end up with unique names for every cloud object.
-    # If so, we could remove this restriction.
-    def requireDropRemovesNameConflict(self):
-        if self.runningHook('tiered'):
-            self.skipTest('Test requires removal from cloud storage, which is not yet permitted')
-
     def retryEBUSY(self, session, func, checkpoint_on_busy=True, max_retries=5, sleep=0):
         """
         Call the given function.
@@ -946,8 +903,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def dropUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
         # Most test cases consider a drop, and especially a 'drop until success',
         # to completely remove a file's artifacts, so that the name can be reused.
-        # Require this behavior.
-        self.requireDropRemovesNameConflict()
         session = self.session if session is None else session
         uri = self.uri if uri is None else uri
         return self.retryEBUSY(session, lambda: session.drop(uri, config), **kwargs)
@@ -1161,27 +1116,38 @@ def prevent(what):
     else:
         return runit_decorator
 
-def skip_for_hook(hookname, description):
+def _hook_active(hookname, param):
+    if param is None:
+        return hookname in WiredTigerTestCase.hook_names
+    return WiredTigerTestCase._hookmgr.hook_has_param(hookname, param)
+
+def _hook_label(hookname, param):
+    return f"hook '{hookname}'" if param is None else f"hook '{hookname}' ({param}=true)"
+
+def skip_for_hook(hookname, description, param=None):
     """
-    Used as a function decorator, for example, @wttest.skip_for_hook("tiered", "fails at commit_transaction").
+    Used as a function decorator, for example, @wttest.skip_for_hook("disagg", "fails at commit_transaction").
     The decorator indicates that this test function fails with the hook, which should be investigated.
+    If param is given, the test is skipped only when the hook runs with that parameter set to true,
+    for example, @wttest.skip_for_hook("disagg", "fails at commit_transaction", param="schema_epochs").
     """
     def runit_decorator(func):
         return func
-    if hookname in WiredTigerTestCase.hook_names:
-        return unittest.skip("because running with hook '{}': {}".format(hookname, description))
+    if _hook_active(hookname, param):
+        return unittest.skip("because running with {}: {}".format(_hook_label(hookname, param), description))
     else:
         return runit_decorator
 
-def only_for_hook(hookname, description):
+def only_for_hook(hookname, description, param=None):
     """
-    Used as a function decorator, e.g., @wttest.only_for_hook("tiered", "only runs with tiered hook").
-    The test will be skipped unless the specified hook is active.
+    Used as a function decorator, e.g., @wttest.only_for_hook("disagg", "only runs with the disagg hook").
+    The test will be skipped unless the specified hook is active. If param is given, the hook must
+    also run with that parameter set to true.
     """
     def runit_decorator(func):
         return func
-    if hookname not in WiredTigerTestCase.hook_names:
-        return unittest.skip(f"only runs with hook '{hookname}': {description}")
+    if not _hook_active(hookname, param):
+        return unittest.skip(f"only runs with {_hook_label(hookname, param)}: {description}")
     else:
         return runit_decorator
 
@@ -1198,9 +1164,6 @@ def islongtest():
 
 def getseed():
     return WiredTigerTestCase._seeds
-
-def getss_random_prefix():
-    return WiredTigerTestCase._ss_random_prefix
 
 # We have to override the ThreadsafeForwardingResult implementation of tags so it gets set immediately
 # which allows us to set the pid of the process on our output stream to make debugging easier.
@@ -1223,6 +1186,10 @@ def runsuite(suite, parallel):
         warnings.filterwarnings(
             "ignore", category=RuntimeWarning,
             message="line buffering .* isn't supported in binary mode")
+        # Python 3.12+ reports test timing to the result; the one used in the forked children lacks that method.
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning,
+            message="TestResult has no addDuration method")
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel), wrap_result=wrap_result_for_tags)
     try:
         if WiredTigerTestCase._randomseed:

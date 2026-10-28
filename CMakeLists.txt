@@ -138,6 +138,11 @@ if(HAVE_UNITTEST)
     )
 
     FetchContent_MakeAvailable(Catch2)
+
+    # FIXME-WT-18597: Catch2 v2 uses std::nothrow without including <new>.
+    target_compile_options(Catch2
+        INTERFACE $<IF:$<BOOL:${MSVC_CXX_COMPILER}>,/FInew,-include new>
+    )
 endif()
 
 # Enable CTest. Subsequent targets may additionally define their own ctest definitions.
@@ -284,7 +289,6 @@ endif()
 # Build the wiredtiger test suites.
 add_subdirectory(bench/dhandle)
 add_subdirectory(bench/wtperf)
-add_subdirectory(bench/tiered)
 add_subdirectory(bench/wt2853_perf)
 add_subdirectory(examples)
 add_subdirectory(test)

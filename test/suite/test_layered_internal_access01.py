@@ -28,12 +28,13 @@
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class
+from suite_subprocess import suite_subprocess
 
 # test_layered_internal_access01.py
 #   Direct access to the ingest and stable constituents of a layered table is
 #   refused unless the session is configured with debug=(allow_internal_access).
 @disagg_test_class
-class test_layered_internal_access01(wttest.WiredTigerTestCase):
+class test_layered_internal_access01(wttest.WiredTigerTestCase, suite_subprocess):
 
     test_name = __qualname__
     uri_base = test_name
@@ -54,7 +55,9 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase):
 
         # The layered table itself works through a regular session.
         c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
         c['key'] = 'value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
         c.close()
 
         # Data, checkpoint and statistics cursors on the constituents are refused.
@@ -112,3 +115,21 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: session.open_cursor(self.ingest_uri), self.msg)
         session.close()
+
+    def test_cli_internal_access(self):
+        self.ignoreStdoutPattern('Removing local file due to disagg mode')
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        c['key'] = 'value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+        c.close()
+
+        config = self.extensionsConfig() + ',disaggregated=(role="leader")'
+        self.close_conn()
+        self.runWt(['-C', config, 'dump', self.stable_uri],
+            outfilename='dump.out', errfilename='dump.err', closeconn=False, failure=True)
+        self.check_file_contains('dump.err', 'direct access to an internal table')
+        self.runWt(['-i', '-C', config, 'dump', self.stable_uri],
+            outfilename='dump.out', errfilename='dump.err', closeconn=False)
+        self.check_file_contains('dump.out', 'value')

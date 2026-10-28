@@ -108,6 +108,15 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         }
 
         /*
+         * Clear the durable flags for the stable update to indicate that it has to be written
+         * again. A newer version was written to the page and has just been aborted, so the page
+         * holds a value that no longer belongs there, even though an earlier write may have already
+         * marked the stable update as written.
+         */
+        if (!dryrun && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            F_CLR(stable_upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE);
+
+        /*
          * Clear the history store flags for the stable update to indicate that this update should
          * be written to the history store later. The next time when this update is moved into the
          * history store, it will have a different stop time point.
@@ -1064,6 +1073,7 @@ __wti_rts_btree_abort_updates(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_PAGE *page;
+    WT_REF_STATE previous_state;
     bool dryrun, modified;
 
     dryrun = S2C(session)->rts->dryrun;
@@ -1106,5 +1116,21 @@ __wti_rts_btree_abort_updates(
     /* Mark the page as dirty to reconcile the page. */
     if (!dryrun && page->modify)
         __wt_page_modify_set(session, page);
+
+    /*
+     * A rolled-back fast truncate leaves the retained page-delete information describing nothing.
+     * Discard it together with the instantiated flag, as transaction rollback does, or a later
+     * skipped write carries it forward and the parent re-asserts the truncate. Lock the ref so the
+     * two change together for any reader of the parent.
+     */
+    if (!dryrun && page->modify != NULL && page->modify->instantiated && ref->page_del != NULL &&
+      (ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+        ref->page_del->pg_del_durable_ts > rollback_timestamp)) {
+        WT_REF_LOCK(session, ref, &previous_state);
+        WT_ASSERT(session, ref->page_del->committed);
+        page->modify->instantiated = false;
+        __wt_free(session, ref->page_del);
+        WT_REF_UNLOCK(ref, previous_state);
+    }
     return (0);
 }

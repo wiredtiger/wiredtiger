@@ -32,7 +32,6 @@ from wiredtiger import stat
 #
 # Test that reconciliation is performing in-memory restoration due to invisible updates
 # during eviction.
-@wttest.skip_for_hook("disagg", "Fails due to evict a page.")
 class test_eviction04(wttest.WiredTigerTestCase):
 
     test_name = __qualname__
@@ -40,6 +39,9 @@ class test_eviction04(wttest.WiredTigerTestCase):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
+    @wttest.skip_for_hook(
+        "disagg", "new tables cannot be evicted until their publication takes effect",
+        param="schema_epochs")
     def test_eviction(self):
         uri = f'table:{self.test_name}'
 

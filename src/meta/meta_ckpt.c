@@ -108,13 +108,13 @@ __wt_meta_checkpoint_has_prepare(WT_SESSION_IMPL *session, const char *config, b
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
-    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+    for (; (ret = __wt_config_next(&ckptconf, &key, &cval)) == 0;) {
         ret = __wt_config_subgets(session, &cval, "prepare", &value);
         if (ret == 0 && value.val)
             *has_prepp = true;
         WT_RET_NOTFOUND_OK(ret);
     }
-    return (0);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
@@ -271,7 +271,7 @@ __wt_meta_checkpoint_by_name(WT_SESSION_IMPL *session, const char *uri, const ch
     /*
      * Take the first match: there should never be more than a single checkpoint of any name.
      */
-    while (__wt_config_next(&ckptconf, &k, &v) == 0)
+    while ((ret = __wt_config_next(&ckptconf, &k, &v)) == 0)
         if (WT_CONFIG_MATCH(checkpoint, k)) {
 
             WT_ERR(__wt_config_subgets(session, &v, "order", &a));
@@ -381,6 +381,7 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM k, v;
+    WT_DECL_RET;
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &v));
     __wt_config_subinit(session, &ckptconf, &v);
@@ -388,11 +389,11 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
     /*
      * Take the first match: there should never be more than a single checkpoint of any name.
      */
-    while (__wt_config_next(&ckptconf, &k, &v) == 0)
+    while ((ret = __wt_config_next(&ckptconf, &k, &v)) == 0)
         if (WT_CONFIG_MATCH(checkpoint, k))
             return (__ckpt_load(session, &k, &v, ckpt));
 
-    return (WT_NOTFOUND);
+    return (ret);
 }
 
 /*
@@ -404,11 +405,12 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
+    WT_DECL_RET;
     int64_t found;
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &v));
     __wt_config_subinit(session, &ckptconf, &v);
-    for (found = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
+    for (found = 0; (ret = __wt_config_next(&ckptconf, &k, &v)) == 0;) {
         /* Ignore checkpoints before the ones we've already seen. */
         WT_RET(__wt_config_subgets(session, &v, "order", &a));
         if (found) {
@@ -419,6 +421,7 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
         found = a.val;
         WT_RET(__ckpt_load(session, &k, &v, ckpt));
     }
+    WT_RET_NOTFOUND_OK(ret);
 
     return (found ? 0 : WT_NOTFOUND);
 }
@@ -445,7 +448,7 @@ __wt_ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **n
 
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &v));
     __wt_config_subinit(session, &ckptconf, &v);
-    for (found = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
+    for (found = 0; (ret = __wt_config_next(&ckptconf, &k, &v)) == 0;) {
 
         /* Ignore checkpoints before (by the order numbering) the ones we've already seen. */
         WT_ERR(__wt_config_subgets(session, &v, "order", &a));
@@ -460,6 +463,7 @@ __wt_ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **n
         __wt_free(session, *namep);
         WT_ERR(__wt_strndup(session, k.str, k.len, namep));
     }
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (!found)
         ret = WT_NOTFOUND;
     else {
@@ -602,15 +606,24 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
         if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
             free = true;
             setup = false;
-        } else if (F_ISSET(blk_mod, WT_CKPT_BLOCK_MODS_VALID) &&
-          WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
-            /* We match, keep our entry and don't set up. */
-            setup = false;
-            free = false;
         } else {
-            /* We don't match, free any old information. */
-            free = true;
-            setup = true;
+            /*
+             * Wait between observing the global entry as valid and reading its id string, widening
+             * the window in which a concurrent force stop of incremental backup can free that
+             * string.
+             */
+            __wt_timing_stress(session, WT_TIMING_STRESS_BACKUP_BLKMOD_DELAY, NULL);
+
+            if (F_ISSET(blk_mod, WT_CKPT_BLOCK_MODS_VALID) &&
+              WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
+                /* We match, keep our entry and don't set up. */
+                setup = false;
+                free = false;
+            } else {
+                /* We don't match, free any old information. */
+                free = true;
+                setup = true;
+            }
         }
 
         /* If we are keeping or setting up an entry on a rename, set the flag. */
@@ -931,7 +944,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
         __wt_config_subinit(session, &ckptconf, &v);
-        for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
+        for (; (ret = __wt_config_next(&ckptconf, &k, &v)) == 0; ++slot) {
             /*
              * Allocate a slot for a new value, plus a slot to mark the end.
              */
@@ -985,43 +998,43 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
      * Copy the name, address (raw and hex), order and time into the slot. If there's no address,
      * it's a fake.
      */
-    WT_RET(__wt_strndup(session, k->str, k->len, &ckpt->name));
+    WT_ERR(__wt_strndup(session, k->str, k->len, &ckpt->name));
 
-    WT_RET(__wt_config_subgets(session, v, "addr", &a));
-    WT_RET(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
+    WT_ERR(__wt_config_subgets(session, v, "addr", &a));
+    WT_ERR(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
     if (a.len == 0)
         F_SET(ckpt, WT_CKPT_FAKE);
     else
-        WT_RET(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw));
+        WT_ERR(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw));
 
-    WT_RET(__wt_config_subgets(session, v, "order", &a));
+    WT_ERR(__wt_config_subgets(session, v, "order", &a));
     if (a.len == 0)
-        WT_RET_MSG(session, WT_ERROR, "corrupted order value in checkpoint config");
+        WT_ERR_MSG(session, WT_ERROR, "corrupted order value in checkpoint config");
     ckpt->order = a.val;
 
-    WT_RET(__wt_config_subgets(session, v, "time", &a));
+    WT_ERR(__wt_config_subgets(session, v, "time", &a));
     ret = __ckpt_parse_time(session, &a, &ckpt->sec);
     if (ret != 0)
-        WT_RET_MSG(session, WT_ERROR, "corrupted time value in checkpoint config");
+        WT_ERR_MSG(session, WT_ERROR, "corrupted time value in checkpoint config");
 
-    WT_RET(__wt_config_subgets(session, v, "size", &a));
+    WT_ERR(__wt_config_subgets(session, v, "size", &a));
     ckpt->size = (uint64_t)a.val;
 
     /* Default to durability. */
     WT_TIME_AGGREGATE_INIT(&ckpt->ta);
 
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.oldest_start_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_txn", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_txn = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_start_durable_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
     else {
@@ -1030,23 +1043,23 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
          * WT, make sure that we read older format in case if we didn't find the newer format name.
          */
         ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
-        WT_RET_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, true);
         if (ret != WT_NOTFOUND && a.len != 0)
             ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
     }
 
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_stop_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_stop_txn = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_stop_durable_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
     else {
@@ -1055,21 +1068,21 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
          * WT, make sure that we read older format in case if we didn't find the newer format name.
          */
         ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
-        WT_RET_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, true);
         if (ret != WT_NOTFOUND && a.len != 0)
             ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
     }
 
     ret = __wt_config_subgets(session, v, "prepare", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.prepare = (uint8_t)a.val;
 
-    WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
+    WT_ERR(__wt_check_addr_validity(session, &ckpt->ta, false));
 
-    WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
+    WT_ERR(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
-        WT_RET_MSG(session, WT_ERROR, "corrupted write_gen in checkpoint config");
+        WT_ERR_MSG(session, WT_ERROR, "corrupted write_gen in checkpoint config");
     ckpt->write_gen = (uint64_t)a.val;
 
     /*
@@ -1078,13 +1091,13 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
      * as part of a previous run.
      */
     ret = __wt_config_subgets(session, v, "run_write_gen", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->run_write_gen = (uint64_t)a.val;
 
     /* This is a recent addition for disaggregated storage. Allow for the value to be missing. */
     ret = __wt_config_subgets(session, v, "next_page_id", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->next_page_id = (uint64_t)a.val;
 
@@ -1095,16 +1108,20 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
      * WT_STAT_TYPE_TREE_WALK replaces it with a real value for both fields together.
      */
     ret = __wt_config_subgets(session, v, "leaf_entry_ewma", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     ckpt->leaf_entry_ewma =
       ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "approx_leaf_pages", &a);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
     ckpt->approx_leaf_pages =
       ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
 
     return (0);
+
+err:
+    __wt_checkpoint_free(session, ckpt);
+    return (ret);
 }
 
 /*
@@ -1368,7 +1385,6 @@ __meta_live_restore_to_meta(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, W
     if (bm->is_remote)
         return (0);
 
-    WT_ASSERT(session, bm->is_multi_handle == false);
     /* FIXME-WT-13897 Replace this with an API call into the block manager. */
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
     WT_RET_NOTFOUND_OK(__wt_live_restore_fh_to_metadata(session, fh, buf));
@@ -1434,9 +1450,6 @@ __wt_meta_ckptlist_set(
 
     if (ckptlsn_str != NULL)
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%s)", ckptlsn_str));
-
-    if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
-        WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
@@ -1767,8 +1780,9 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
         /* Extract the checkpoint time. */
         if (ckpttime != NULL) {
             WT_ERR_NOTFOUND_OK(
-              __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval), false);
-            WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
+              __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval), true);
+            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+                WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
         }
 
         /*
@@ -1819,8 +1833,9 @@ __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,
         if (ckpttime != NULL) {
             /* Extract the checkpoint time. */
             WT_ERR_NOTFOUND_OK(
-              __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval), false);
-            WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
+              __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval), true);
+            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+                WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
         }
     }
 

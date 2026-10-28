@@ -58,6 +58,9 @@
 #  - Test tombstone-prefixed values (to cover __wt_clayered_deleted encode/decode).
 #  - Add operations with overwrite on/off.
 #  - Add setting bounds to cursors.
+#
+# FIXME-WT-18209: extend this test to cover async step-down, subsuming the randomized coverage in
+# test_layered_async_stepdown02.
 
 import math, os, random
 from dataclasses import dataclass, field
@@ -80,10 +83,7 @@ def write_allowed(txn):
 
 # The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
 # WORKLOAD_PROFILES and are what the suite actually runs.
-# FIXME-WT-17827: the follower layered cursor mishandles operating on a just-removed cursor -- a repeat
-# remove of an already-deleted key leaves a stale position (a later iterate then diverges) and modify on
-# a deleted slot aborts. So op_pos_remove resets the dsc cursor in that case (see there) and there is no
-# modify op; revisit both once WT-17827 lands.
+# FIXME-WT-18563: there is no modify op; add one, including modify on a just-removed slot.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
 @dataclass(frozen=True)
@@ -114,8 +114,8 @@ class RemoveKeyWeights:
 @dataclass(frozen=True)
 class BulkRemoveWeights:
     # scen_bulk_remove deletes a contiguous 40/80/100% range either by per-key remove or range truncate.
-    # FIXME-WT-XXXX: truncate over-truncates on the follower layered table -- a key re-inserted inside a
-    # prior truncate range is lost once it drains to stable. Disabled (weight 0) until fixed; raise it then.
+    # FIXME-WT-18839: a positioned follower cursor can return a key that a range truncate through another
+    # cursor in the same transaction deleted. Disabled (weight 0) until fixed; raise it then.
     remove: float = 100
     truncate: float = 0
 
@@ -401,13 +401,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             commit_cfg = 'commit_timestamp=' + self.timestamp_str(self.state.ts)
         for n in nodes:
             n.session.commit_transaction(commit_cfg)
-
-        # FIXME-WT-17830: a follower layered cursor held across an as-of-past txn commit
-        # fails to advance (stays on its key instead of moving). Reset works around it; remove once fixed.
-        if self.state.txn_read_ts is not None:
-            for n in nodes:
-                n.reset_all()
-            self.state.cur_pos = None
         self._reset_txn_state()
 
     def rollback_txn(self, nodes):
@@ -590,16 +583,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def op_pos_remove(self, nodes, rnd, trace):
         # The long-lived position can be stale, so it cannot satisfy the blind-remove guarantee.
-        # Use the stable-aware remove cursors and reset the shared positioned cursors afterward.
+        # Use the stable-aware remove cursors; the shared cursors stay positioned on the removed key.
         key = self.state.cur_pos
         if key not in self.state.py_table:
             return
         trace.log('pos_remove %r' % key)
         self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'pos_remove')
         self.state.py_table.pop(key, None)
-        for n in nodes:
-            n.reset_all()
-        self.state.cur_pos = None
 
     def op_txn_begin(self, nodes, rnd, trace):
         # No txn open -> begin one (flavor by the txn_mode weights); a txn open -> end it.

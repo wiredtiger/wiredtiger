@@ -48,11 +48,10 @@ table_verify(TABLE *table, void *arg)
     wt_wrap_open_session(conn, &sap, table->track_prefix, session_prefetch_cfg(), &session);
 
     /*
-     * Verify can race with special-handle transitions and return EBUSY. In switch mode, async role
-     * switches can leave handles in a dirty state; skip the retry delay to avoid minutes of
-     * accumulated wait time across many runs. FIXME - WT-18083
+     * Verify can race with special-handle transitions and return EBUSY. In switch and multi-node
+     * modes, skip the retry delay to avoid minutes of accumulated wait time across many runs.
      */
-    if (disagg_is_mode_switch()) {
+    if (disagg_is_mode_switch() || disagg_is_multi_node()) {
         ret = session->verify(session, table->uri, "strict");
         retries = 0;
     } else {
@@ -73,8 +72,8 @@ table_verify(TABLE *table, void *arg)
       ret == 0 || ret == EBUSY || (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));
 
     if (ret == EBUSY) {
-        if (disagg_is_mode_switch())
-            WARN("table.%u skipped verify in switch mode (EBUSY)", table->id);
+        if (disagg_is_mode_switch() || disagg_is_multi_node())
+            WARN("table.%u skipped verify in disagg mode (EBUSY)", table->id);
         else
             WARN("table.%u skipped verify because of EBUSY after %u retries", table->id, retries);
     }
@@ -421,6 +420,16 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
 
     if (g.reopen && GV(OPS_SALVAGE)) {
         WARN("%s", "skipping mirror verify on reopen because salvage testing was done");
+        return;
+    }
+
+    /*
+     * A follower cannot persist layered content, only a leader checkpoint makes it durable. On
+     * reopen after a follower-only run the layered tables restart empty while any non-disaggregated
+     * mirror keeps its locally checkpointed rows, so the mirrors legitimately diverge.
+     */
+    if (g.reopen && g.disagg_storage_config && !g.disagg_leader && !disagg_is_mode_switch()) {
+        WARN("%s", "skipping mirror verify on reopen after a follower-only run");
         return;
     }
 

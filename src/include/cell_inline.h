@@ -17,7 +17,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 #ifdef HAVE_DIAGNOSTIC
     WT_DECL_RET;
 
-    if ((ret = __wt_time_value_validate(session, tw, NULL, false)) != 0)
+    if ((ret = __wt_time_value_validate(session, tw, NULL, false, false)) != 0)
         return (expected_error ?
             WT_ERROR :
             __wt_panic(session, ret, "value timestamp window failed validation"));
@@ -347,7 +347,6 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
 {
     WT_BTREE *btree;
     WT_CELL_KV key, val;
-    WT_DECL_RET;
     size_t packed_size;
     uint8_t pfx;
 
@@ -370,8 +369,12 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
         __wt_cell_compress_prefix_key(
           s->last_key, key_data, key_size, s->key_pfx_last, btree->prefix_compression_min, &pfx);
 
-    /* Copy the non-prefix bytes into the key buffer. */
-    WT_ERR(__wt_buf_set(session, &key.buf, (uint8_t *)key_data + pfx, key_size - pfx));
+    /*
+     * Reference the non-prefix bytes in place: the caller's key storage remains valid until the
+     * copy into the new image below, so no intermediate buffer is needed.
+     */
+    key.buf.data = (const uint8_t *)key_data + pfx;
+    key.buf.size = key_size - pfx;
     s->key_pfx_last = pfx;
     key.cell_len = __wt_cell_pack_leaf_key(&key.cell, pfx, key.buf.size);
     key.len = key.cell_len + key.buf.size;
@@ -393,7 +396,7 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
      */
     packed_size = key.len + val.len;
     if (new_image->size + packed_size > new_image->memsize)
-        WT_ERR(__wt_buf_grow(session, new_image, new_image->size + packed_size));
+        WT_RET(__wt_buf_grow(session, new_image, new_image->size + packed_size));
 
     /* Recompute write pointer after possible realloc */
     WT_ASSERT(session, new_image->mem != NULL);
@@ -409,12 +412,18 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
     }
     new_image->size += packed_size;
 
-    /* Update last key for next prefix compression comparison */
-    WT_ERR(__wt_buf_set(session, s->last_key, key_data, key_size));
+    /*
+     * Remember the full key for the next prefix compression comparison. The first prefix bytes
+     * already match what's stored in last_key, so only copy the suffix.
+     */
+    if (btree->prefix_compression) {
+        WT_RET(__wt_buf_grow(session, s->last_key, key_size));
+        memcpy((uint8_t *)s->last_key->mem + pfx, (const uint8_t *)key_data + pfx, key_size - pfx);
+        s->last_key->data = s->last_key->mem;
+        s->last_key->size = key_size;
+    }
 
-err:
-    __wt_buf_free(session, &key.buf);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -2027,29 +2036,32 @@ __wt_page_cell_data_ref_kv(
         (s)->unpacked = true;                                                             \
     } while (0)
 
-#define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                        \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-          __i -= 2) {                                                                           \
+#define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                     \
+    do {                                                                     \
+        uint32_t __i;                                                        \
+        uint8_t *__cell;                                                     \
+        for (__cell = WT_PAGE_HEADER_READ_BYTE(session, S2BT(session), dsk), \
+            __i = (dsk)->u.entries;                                          \
+          __i > 0; __i -= 2) {                                               \
             WT_CELL_DELTA_LEAF_UNPACK(session, dsk, unpack, __cell);
 
-#define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-          --__i) {                                                                              \
-            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));                  \
+#define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                             \
+    do {                                                                       \
+        uint32_t __i;                                                          \
+        uint8_t *__cell;                                                       \
+        for (__cell = WT_PAGE_HEADER_READ_BYTE(session, S2BT(session), dsk),   \
+            __i = (dsk)->u.entries;                                            \
+          __i > 0; --__i) {                                                    \
+            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack)); \
             __cell += (unpack).__len;
 
-#define WT_CELL_FOREACH_KV(session, dsk, unpack)                                                \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-          __cell += (unpack).__len, --__i) {                                                    \
+#define WT_CELL_FOREACH_KV(session, dsk, unpack)                             \
+    do {                                                                     \
+        uint32_t __i;                                                        \
+        uint8_t *__cell;                                                     \
+        for (__cell = WT_PAGE_HEADER_READ_BYTE(session, S2BT(session), dsk), \
+            __i = (dsk)->u.entries;                                          \
+          __i > 0; __cell += (unpack).__len, --__i) {                        \
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack));
 
 #define WT_CELL_FOREACH_END \

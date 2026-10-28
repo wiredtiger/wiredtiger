@@ -13,13 +13,17 @@ static int __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_col_var(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_int(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
+static int __size_stat_flush_key(WT_SESSION_IMPL *, uint32_t, const uint8_t *, size_t, bool);
 static void __size_stat_hist_incr(WT_SESSION_IMPL *, size_t);
+static void __size_stat_incr_key(WT_SESSION_IMPL *, uint32_t, bool);
+static void __size_stat_incr_value(WT_SESSION_IMPL *, uint32_t, bool);
 static int __size_stat_overflow(WT_SESSION_IMPL *, const uint8_t *, size_t, int);
 
 /*
- * Leaf page-size histogram bucketing for the size summary. All but the last bucket are equal-width
- * slices of [0, leaf page max); the final bucket holds pages at or above the leaf page max. The
- * bucket count must match the number of btree_size_leaf_hist_N statistics.
+ * Leaf page-size histogram bucketing for the size summary. Size-stats measure uncompressed leaf
+ * images (dsk->mem_size). All but the last bucket are equal-width slices of [0, pre-compression
+ * leaf page budget); the final bucket holds pages at or above that budget. The bucket count must
+ * match the number of btree_size_leaf_hist_N statistics.
  */
 #define WT_SIZE_STAT_HIST_BUCKETS 9
 
@@ -30,6 +34,8 @@ static int __size_stat_overflow(WT_SESSION_IMPL *, const uint8_t *, size_t, int)
 #define WT_SIZE_STAT_OVFL_OVERHEAD 0
 #define WT_SIZE_STAT_OVFL_KEY 1
 #define WT_SIZE_STAT_OVFL_VALUE 2
+#define WT_SIZE_STAT_OVFL_DELETED_KEY 3
+#define WT_SIZE_STAT_OVFL_DELETED_VALUE 4
 
 /*
  * __wt_btree_stat_init --
@@ -41,7 +47,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DSRC_STATS **stats;
-    uint64_t avg_internal_chain, avg_leaf_chain;
+    uint64_t avg_internal_chain, avg_leaf_chain, internal_delta_pages, leaf_delta_pages;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -71,14 +77,18 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_STATP_DSRC_SET(
       session, stats, compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
 
-    avg_internal_chain = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas) == 0 ?
+    /*
+     * Aggregation sums the slots without a lock, so a second read of the denominator can be zero
+     * after the check. Use the value that was tested.
+     */
+    internal_delta_pages = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas);
+    avg_internal_chain = internal_delta_pages == 0 ?
       0 :
-      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_internal) /
-        (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas);
-    avg_leaf_chain = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas) == 0 ?
+      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_internal) / internal_delta_pages;
+    leaf_delta_pages = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas);
+    avg_leaf_chain = leaf_delta_pages == 0 ?
       0 :
-      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_leaf) /
-        (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas);
+      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_leaf) / leaf_delta_pages;
     WT_STATP_DSRC_SET(
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
     WT_STATP_DSRC_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
@@ -126,6 +136,10 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
     WT_STATP_DSRC_SET(session, stats, btree_column_rle, 0);
     WT_STATP_DSRC_SET(session, stats, btree_column_variable, 0);
     WT_STATP_DSRC_SET(session, stats, btree_entries, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_ondisk_kv_analyzed, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_ondisk_kv_bytes, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_ondisk_kv_bytes_mixed, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_obsolete_ondisk_kv_pages, 0);
     WT_STATP_DSRC_SET(session, stats, btree_overflow, 0);
     WT_STATP_DSRC_SET(session, stats, btree_row_internal, 0);
     WT_STATP_DSRC_SET(session, stats, btree_row_leaf, 0);
@@ -318,10 +332,13 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
     WT_INSERT *ins;
     WT_ROW *rip;
     WT_UPDATE *upd;
+    uint64_t key_size, obsolete_bytes;
     uint32_t empty_values, entry_cnt, i, ovfl_cnt;
-    bool key;
+    bool have_live, key;
 
     empty_values = entry_cnt = ovfl_cnt = 0;
+    obsolete_bytes = 0;
+    have_live = false;
 
     WT_STATP_DSRC_INCR(session, stats, btree_row_leaf);
 
@@ -361,18 +378,42 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
      *
      * Zero-length values are the same, we have to look at the disk image to know. They aren't
      * stored but we know they exist if there are two keys in a row, or a key as the last item.
+     *
+     * Globally obsolete on-disk bytes are counted in the same pass but only reported for a clean
+     * page, since a dirty page's image is about to be replaced. A clean page reconciled by
+     * checkpoint still has its pre-checkpoint image, so cells the checkpoint already dropped are
+     * counted anyway: the result is an upper bound for those pages, in exchange for covering the
+     * cached working set. A pair is obsolete when its value is, and only plain key and value cells
+     * carry inline payload: an overflow cell holds only an address and a value-copy cell's payload
+     * lives in its source cell.
      */
     if (page->dsk != NULL) {
         key = false;
+        key_size = 0;
         WT_CELL_FOREACH_KV (session, page->dsk, unpack) {
             switch (__wt_cell_type(unpack.cell)) {
             case WT_CELL_KEY_OVFL:
                 ++ovfl_cnt;
             /* FALLTHROUGH */
             case WT_CELL_KEY:
-                if (key)
+                if (key) {
                     ++empty_values;
+                    have_live = true;
+                }
                 key = true;
+                key_size = unpack.type == WT_CELL_KEY ? unpack.size : 0;
+                break;
+            case WT_CELL_VALUE:
+            case WT_CELL_VALUE_COPY:
+            case WT_CELL_VALUE_OVFL:
+                key = false;
+                if (!__wt_txn_tw_stop_visible_all(session, &unpack.tw))
+                    have_live = true;
+                else {
+                    obsolete_bytes += key_size;
+                    if (__wt_cell_type(unpack.cell) == WT_CELL_VALUE)
+                        obsolete_bytes += unpack.size;
+                }
                 break;
             default:
                 key = false;
@@ -380,8 +421,21 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
             }
         }
         WT_CELL_FOREACH_END;
-        if (key)
+        if (key) {
             ++empty_values;
+            have_live = true;
+        }
+
+        if (!__wt_page_is_modified(page)) {
+            WT_STATP_DSRC_INCR(session, stats, btree_obsolete_ondisk_kv_analyzed);
+            if (obsolete_bytes != 0) {
+                WT_STATP_DSRC_INCR(session, stats, btree_obsolete_ondisk_kv_pages);
+                WT_STATP_DSRC_INCRV(session, stats, btree_obsolete_ondisk_kv_bytes, obsolete_bytes);
+                if (have_live)
+                    WT_STATP_DSRC_INCRV(
+                      session, stats, btree_obsolete_ondisk_kv_bytes_mixed, obsolete_bytes);
+            }
+        }
     }
 
     WT_STATP_DSRC_INCRV(session, stats, btree_row_empty_values, empty_values);
@@ -428,6 +482,38 @@ __size_stat_hist_incr(WT_SESSION_IMPL *session, size_t bucket)
 }
 
 /*
+ * __size_stat_incr_key --
+ *     Account one on-page key against live or deleted size-summary counters.
+ */
+static void
+__size_stat_incr_key(WT_SESSION_IMPL *session, uint32_t size, bool deleted)
+{
+    if (deleted) {
+        WT_STAT_DSRC_INCRV(session, btree_size_deleted_key_bytes, size);
+        WT_STAT_DSRC_INCR(session, btree_size_deleted_key_count);
+    } else {
+        WT_STAT_DSRC_INCRV(session, btree_size_key_bytes, size);
+        WT_STAT_DSRC_INCR(session, btree_size_key_count);
+    }
+}
+
+/*
+ * __size_stat_incr_value --
+ *     Account one on-page value against live or deleted size-summary counters.
+ */
+static void
+__size_stat_incr_value(WT_SESSION_IMPL *session, uint32_t size, bool deleted)
+{
+    if (deleted) {
+        WT_STAT_DSRC_INCRV(session, btree_size_deleted_value_bytes, size);
+        WT_STAT_DSRC_INCR(session, btree_size_deleted_value_count);
+    } else {
+        WT_STAT_DSRC_INCRV(session, btree_size_value_bytes, size);
+        WT_STAT_DSRC_INCR(session, btree_size_value_count);
+    }
+}
+
+/*
  * __size_stat_overflow --
  *     Read an overflow page and account it against the size summary. The payload (datalen) counts
  *     as key or value data; the overflow page image counts as overhead.
@@ -449,17 +535,40 @@ __size_stat_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 
     WT_STAT_DSRC_INCR(session, btree_size_overflow_pages);
     WT_STAT_DSRC_INCRV(session, btree_size_overflow_bytes, dsk->mem_size);
-    if (kind == WT_SIZE_STAT_OVFL_KEY) {
-        WT_STAT_DSRC_INCRV(session, btree_size_key_bytes, dsk->u.datalen);
-        WT_STAT_DSRC_INCR(session, btree_size_key_count);
-    } else if (kind == WT_SIZE_STAT_OVFL_VALUE) {
-        WT_STAT_DSRC_INCRV(session, btree_size_value_bytes, dsk->u.datalen);
-        WT_STAT_DSRC_INCR(session, btree_size_value_count);
+    switch (kind) {
+    case WT_SIZE_STAT_OVFL_KEY:
+        __size_stat_incr_key(session, dsk->u.datalen, false);
+        break;
+    case WT_SIZE_STAT_OVFL_VALUE:
+        __size_stat_incr_value(session, dsk->u.datalen, false);
+        break;
+    case WT_SIZE_STAT_OVFL_DELETED_KEY:
+        __size_stat_incr_key(session, dsk->u.datalen, true);
+        break;
+    case WT_SIZE_STAT_OVFL_DELETED_VALUE:
+        __size_stat_incr_value(session, dsk->u.datalen, true);
+        break;
     }
 
 err:
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __size_stat_flush_key --
+ *     Account a deferred row-store key once its following value's stop (or lack of a value cell)
+ *     decides live vs deleted.
+ */
+static int
+__size_stat_flush_key(
+  WT_SESSION_IMPL *session, uint32_t key_size, const uint8_t *ovfl, size_t ovfl_size, bool deleted)
+{
+    if (ovfl != NULL)
+        return (__size_stat_overflow(session, ovfl, ovfl_size,
+          deleted ? WT_SIZE_STAT_OVFL_DELETED_KEY : WT_SIZE_STAT_OVFL_KEY));
+    __size_stat_incr_key(session, key_size, deleted);
+    return (0);
 }
 
 /*
@@ -472,6 +581,7 @@ void
 __wt_size_stat_reset(WT_SESSION_IMPL *session)
 {
     WT_DSRC_STATS **stats;
+    uint64_t hist_ceiling;
 
     if (session->dhandle == NULL || session->dhandle->stat_array == NULL)
         return;
@@ -487,6 +597,10 @@ __wt_size_stat_reset(WT_SESSION_IMPL *session)
     WT_STATP_DSRC_SET(session, stats, btree_size_value_bytes, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_key_count, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_value_count, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_size_deleted_key_bytes, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_size_deleted_value_bytes, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_size_deleted_key_count, 0);
+    WT_STATP_DSRC_SET(session, stats, btree_size_deleted_value_count, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_0, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_1, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_2, 0);
@@ -497,13 +611,21 @@ __wt_size_stat_reset(WT_SESSION_IMPL *session)
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_7, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_8, 0);
     WT_STATP_DSRC_SET(session, stats, btree_size_no_image_pages, 0);
+
+    /* Publish the histogram contract; N is fixed named slots, not a growing series. */
+    hist_ceiling = S2BT(session)->maxleafpage_precomp;
+    if (hist_ceiling == 0)
+        hist_ceiling = S2BT(session)->maxleafpage;
+    WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_buckets, WT_SIZE_STAT_HIST_BUCKETS);
+    WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_ceiling, hist_ceiling);
 }
 
 /*
  * __wti_size_stat_page --
  *     Accumulate one page into the size-summary statistics. Measured from the on-disk page image,
  *     so pages without one (dirty, in-memory only) are skipped. Key and value byte totals are
- *     row-store only.
+ *     row-store only. Cells whose value time window has a stop visible to the walk are counted
+ *     separately from live keys and values.
  */
 int
 __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -546,10 +668,22 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_STAT_DSRC_INCRV(session, btree_size_leaf_bytes, page_mem);
 
     /*
-     * Bucket the leaf by uncompressed size: equal-width slices of [0, leaf page max), with the
-     * final bucket for pages at or above the configured maximum.
+     * Bucket the uncompressed leaf image against the pre-compression leaf budget published at
+     * reset. Equal-width slices of [0, ceiling); the final bucket is at or above that ceiling. Use
+     * the first counter slot: summing every slot on each leaf is wasted, and stats may not be
+     * allocated.
      */
-    uint32_t bucket_width = S2BT(session)->maxleafpage / (WT_SIZE_STAT_HIST_BUCKETS - 1);
+    uint64_t ceiling = 0;
+    if (session->dhandle != NULL && session->dhandle->stat_array != NULL &&
+      session->dhandle->stats[0] != NULL)
+        ceiling = (uint64_t)__wt_atomic_load_int64_relaxed(
+          &session->dhandle->stats[0]->btree_size_leaf_hist_ceiling);
+    if (ceiling == 0) {
+        ceiling = S2BT(session)->maxleafpage_precomp;
+        if (ceiling == 0)
+            ceiling = S2BT(session)->maxleafpage;
+    }
+    uint64_t bucket_width = ceiling / (WT_SIZE_STAT_HIST_BUCKETS - 1);
     size_t hist_bucket;
     if (bucket_width == 0)
         hist_bucket = 0;
@@ -562,35 +696,65 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
      * prefix compression is deliberately not resolved, matching what occupies the page image.
      * Overflow key/value payloads are pulled in from their referenced pages.
      *
+     * Keys have no time window. A visible stop on the following value cell means both occupy the
+     * leaf as a tombstone; empty values (a key with no following value cell) have no stop and count
+     * as live. Overflow values with a visible stop are deleted too.
+     *
      * A removed overflow cell (WT_CELL_{KEY,VALUE}_OVFL_RM) normalizes to WT_CELL_{KEY,VALUE}_OVFL
      * but its backing blocks are already freed; skip it via the raw type so we never read them. The
      * removed payload no longer occupies the tree, so there is nothing to attribute.
      */
     if (page->type == WT_PAGE_ROW_LEAF) {
         WT_CELL_UNPACK_KV unpack_kv;
+        const uint8_t *pending_ovfl = NULL;
+        size_t pending_ovfl_size = 0;
+        uint32_t pending_key_size = 0;
+        bool have_key = false;
+
         WT_CELL_FOREACH_KV (session, dsk, unpack_kv) {
             switch (unpack_kv.type) {
             case WT_CELL_KEY:
-                WT_STAT_DSRC_INCRV(session, btree_size_key_bytes, unpack_kv.size);
-                WT_STAT_DSRC_INCR(session, btree_size_key_count);
+            case WT_CELL_KEY_OVFL:
+                /* A key with no value cell is an empty on-page value: count it live. */
+                if (have_key)
+                    WT_RET(__size_stat_flush_key(
+                      session, pending_key_size, pending_ovfl, pending_ovfl_size, false));
+                have_key = false;
+                pending_ovfl = NULL;
+                pending_ovfl_size = 0;
+                pending_key_size = 0;
+                if (unpack_kv.type == WT_CELL_KEY) {
+                    pending_key_size = unpack_kv.size;
+                    have_key = true;
+                } else if (unpack_kv.raw == WT_CELL_KEY_OVFL) {
+                    pending_ovfl = unpack_kv.data;
+                    pending_ovfl_size = unpack_kv.size;
+                    have_key = true;
+                }
                 break;
             case WT_CELL_VALUE:
-                WT_STAT_DSRC_INCRV(session, btree_size_value_bytes, unpack_kv.size);
-                WT_STAT_DSRC_INCR(session, btree_size_value_count);
+            case WT_CELL_VALUE_OVFL: {
+                bool deleted = __wt_txn_tw_stop_visible(session, &unpack_kv.tw);
+
+                if (have_key)
+                    WT_RET(__size_stat_flush_key(
+                      session, pending_key_size, pending_ovfl, pending_ovfl_size, deleted));
+                have_key = false;
+                pending_ovfl = NULL;
+
+                if (unpack_kv.type == WT_CELL_VALUE)
+                    __size_stat_incr_value(session, unpack_kv.size, deleted);
+                else if (unpack_kv.raw == WT_CELL_VALUE_OVFL)
+                    WT_RET(__size_stat_overflow(session, unpack_kv.data, unpack_kv.size,
+                      deleted ? WT_SIZE_STAT_OVFL_DELETED_VALUE : WT_SIZE_STAT_OVFL_VALUE));
                 break;
-            case WT_CELL_KEY_OVFL:
-                if (unpack_kv.raw == WT_CELL_KEY_OVFL)
-                    WT_RET(__size_stat_overflow(
-                      session, unpack_kv.data, unpack_kv.size, WT_SIZE_STAT_OVFL_KEY));
-                break;
-            case WT_CELL_VALUE_OVFL:
-                if (unpack_kv.raw == WT_CELL_VALUE_OVFL)
-                    WT_RET(__size_stat_overflow(
-                      session, unpack_kv.data, unpack_kv.size, WT_SIZE_STAT_OVFL_VALUE));
-                break;
+            }
             }
         }
         WT_CELL_FOREACH_END;
+        if (have_key)
+            WT_RET(__size_stat_flush_key(
+              session, pending_key_size, pending_ovfl, pending_ovfl_size, false));
     }
 
     return (0);
