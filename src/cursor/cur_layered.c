@@ -2268,9 +2268,8 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
                 F_SET(op->clayered,
                   forward ? WTI_CLAYERED_ITERATE_RETRY_NEXT : WTI_CLAYERED_ITERATE_RETRY_PREV);
             }
-        } else if (ret != WT_PREPARE_CONFLICT) {
+        } else if (ret != WT_PREPARE_CONFLICT)
             __clayered_clear_walk(op->clayered);
-        }
         return (ret);
     }
 
