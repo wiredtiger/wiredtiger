@@ -551,6 +551,48 @@ class test_layered_async_stepdown24_reverse_mirrored(BlockedWalkMixin, wttest.Wi
         # Verification needs the step-down completed when writes are mirrored.
         self.complete_step_down(15)
 
+    # The walk returns a key both constituents hold, then blocks on a prepared update stepping the
+    # other constituent past it. With write mirroring, the walk's own transaction deletes that key
+    # from both constituents, so neither holds it. Reversing does not return it.
+    def check_last_key_deleted_from_both(self, earlier_key):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        ranks = (1, 2, 3, 4) if earlier_key else (2, 3, 4)
+        self.write_at(self.uri, {self.key(r): 'v' for r in ranks}, 10)
+        self.set_global_ts(1, 10)
+        stable_prepare = self.prepare(3, 12)
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(2): 'v-ingest'}, 18)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        if earlier_key:
+            self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 2)
+        self.assert_conflict(cursor)
+
+        writer = self.session.open_cursor(self.uri, None, None)
+        writer.set_key(self.key(2))
+        self.assertEqual(writer.remove(), 0)
+        if self.insert_past_blocked:
+            writer[self.key(5)] = 'new'
+        writer.close()
+
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        cursor.close()
+        self.resolve(stable_prepare)
+        self.assertEqual(actual, [(self.key(1), 'v')] if earlier_key else [])
+
+        # Verification needs the step-down completed when writes are mirrored.
+        self.complete_step_down(15)
+
+    def test_reverse_after_last_key_deleted_from_both(self):
+        self.check_last_key_deleted_from_both(earlier_key=True)
+
+    def test_reverse_after_last_key_deleted_from_both_nothing_before(self):
+        self.check_last_key_deleted_from_both(earlier_key=False)
+
 @disagg_test_class
 class test_layered_async_stepdown24_mirrored_writes(
         BlockedWalkMixin, wttest.WiredTigerTestCase):
