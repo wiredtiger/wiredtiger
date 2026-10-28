@@ -381,6 +381,7 @@ conn_stats = [
     EvictStat('application_check_evict', 'application checked if eviction is needed', 'no_clear'),
     EvictStat('application_try_evict', 'application tried to evict', 'no_clear'),
     EvictStat('eviction_active_workers', 'eviction worker thread active', 'no_clear'),
+    EvictStat('eviction_admit_page_checkpoint', 'eviction exempts a dirty page last updated by the running checkpoint from the transaction tests'),
     EvictStat('eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
     EvictStat('eviction_app_evict_attempt', 'page evict attempts by application threads'),
     EvictStat('eviction_app_evict_fail', 'page evict failures by application threads'),

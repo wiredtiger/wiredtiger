@@ -2000,6 +2000,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction eligible bucketset won't need clean leaf",
   "cache: eviction eligible bucketset won't need dirty leaf",
   "cache: eviction eligible bucketset won't need internal",
+  "cache: eviction exempts a dirty page last updated by the running checkpoint from the "
+  "transaction tests",
   "cache: eviction found page ineligible for eviction in reconciliation",
   "cache: eviction gave up due to detecting a disk value without a timestamp behind the last "
   "update on the chain",
@@ -3123,6 +3125,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_eligible_wont_need_clean_leaf = 0;
     stats->eviction_eligible_wont_need_dirty_leaf = 0;
     stats->eviction_eligible_wont_need_internal = 0;
+    stats->eviction_admit_page_checkpoint = 0;
     stats->eviction_reconcile_cannot_evict = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_2 = 0;
@@ -4257,6 +4260,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_eligible_wont_need_dirty_leaf);
     to->eviction_eligible_wont_need_internal +=
       WT_STAT_CONN_READ(from, eviction_eligible_wont_need_internal);
+    to->eviction_admit_page_checkpoint += WT_STAT_CONN_READ(from, eviction_admit_page_checkpoint);
     to->eviction_reconcile_cannot_evict += WT_STAT_CONN_READ(from, eviction_reconcile_cannot_evict);
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_1);

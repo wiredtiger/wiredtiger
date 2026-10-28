@@ -613,6 +613,7 @@ struct __wt_connection_stats {
     int64_t eviction_eligible_wont_need_clean_leaf;
     int64_t eviction_eligible_wont_need_dirty_leaf;
     int64_t eviction_eligible_wont_need_internal;
+    int64_t eviction_admit_page_checkpoint;
     int64_t eviction_reconcile_cannot_evict;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;

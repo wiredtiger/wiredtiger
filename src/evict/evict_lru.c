@@ -1344,6 +1344,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
+    uint64_t update_txn;
+    bool checkpoint_page;
 
     conn = S2C(session);
     txn = session->txn;
@@ -1372,16 +1374,36 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * set. Application threads therefore use the last-running test below, as they effectively do
      * when the eviction server selects their candidates for them.
      */
+    update_txn = __wt_atomic_load_uint64_relaxed(&page->modify->update_txn);
+
+    /*
+     * A page whose latest update was made by the running checkpoint is exempt from the transaction
+     * tests below. Every snapshot taken while a checkpoint runs lists the checkpoint's transaction
+     * as running, so that readers ignore the uncommitted metadata changes it makes (see
+     * __txn_get_snapshot_int). As a side effect, every page the checkpoint itself modifies, such as
+     * the history store pages it fills while reconciling other trees, fails the snapshot test for
+     * as long as the checkpoint runs, and may fail the last-running test too if an older
+     * transaction is still open. Rejecting those pages for the whole checkpoint leaves them to pile
+     * up and be rescanned. Transaction visibility is not what protects them: __wt_page_can_evict
+     * refuses dirty eviction in the tree the checkpoint is writing, and reconciliation's own
+     * checkpoint checks still apply. Metadata pages keep the normal rules: they are the reason the
+     * checkpoint's ID is in snapshots in the first place.
+     */
+    checkpoint_page = update_txn != WT_TXN_NONE && !WT_IS_METADATA(session->dhandle) &&
+      update_txn ==
+        __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.checkpoint_txn_shared.id);
+    if (checkpoint_page)
+        WT_STAT_CONN_INCR(session, eviction_admit_page_checkpoint);
+
     if (F_ISSET(session, WT_SESSION_INTERNAL) &&
       F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
       F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
-        if (!__txn_visible_id(
-              session, __wt_atomic_load_uint64_relaxed(&page->modify->update_txn))) {
+        if (!checkpoint_page && !__txn_visible_id(session, update_txn)) {
             WT_STAT_CONN_INCR(session, eviction_skip_page_snapshot_not_visible);
             return (true);
         }
-    } else if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) >=
-      __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running)) {
+    } else if (!checkpoint_page &&
+      update_txn >= __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running)) {
         WT_STAT_CONN_INCR(session, eviction_skip_page_last_running);
         return (true);
     } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
