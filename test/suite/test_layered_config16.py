@@ -105,8 +105,10 @@ class test_layered_config16(wttest.WiredTigerTestCase):
 
     def test_new_shared_files_have_disagg_block_manager(self):
         self.populate_table()
-        self.session.create('file:test_layered_config16_plain.wt_stable',
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.create('file:test_layered_config16_plain.wt_stable',
             'key_format=S,value_format=S')
+        debug_session.close()
         cursor = self.session.open_cursor('file:WiredTiger.wt')
         shared = {}
         while cursor.next() == 0:

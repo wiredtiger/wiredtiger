@@ -85,11 +85,15 @@ class test_disagg_checkpoint_size22(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
     def size_stat(self, key, uri=None, session=None):
         """Return one statistic from a size-only statistics cursor."""
-        with wttest.open_cursor(
-            session or self.session,
-            f"statistics:{uri or self.layered_table.uri}",
-            config="statistics=(size)",
-        ) as cursor:
+        with (
+            closing((session or self.session).connection.open_session(
+                'debug=(allow_internal_access=true)')) as debug_session,
+            wttest.open_cursor(
+                debug_session,
+                f"statistics:{uri or self.layered_table.uri}",
+                config="statistics=(size)",
+            ) as cursor,
+        ):
             return cursor[key][2]
 
     def block_size(self, uri=None, session=None):
