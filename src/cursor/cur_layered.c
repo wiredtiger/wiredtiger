@@ -576,25 +576,14 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
 }
 
 /*
- * In diagnostic mode the role-change assertions also check the snapshot against the node's role.
- */
-#ifdef HAVE_DIAGNOSTIC
-#define __clayered_assert_role_change(clayered, mode, leader, flags) \
-    __clayered_assert_role_change_func(clayered, mode, flags, leader)
-#else
-#define __clayered_assert_role_change(clayered, mode, leader, flags) \
-    __clayered_assert_role_change_func(clayered, mode, flags)
-#endif
-
-/*
- * __clayered_assert_role_change_func --
+ * __clayered_assert_role_change --
  *     Assert the role-change invariants: a step-up requires an unpositioned cursor (ingest drains
  *     under the position) and no spanning snapshot (it cannot be consistent with the drained and
  *     adopted stable content); a step-down requires only writes to be unpositioned, since the
  *     stable tree after it matches the step-down checkpoint.
  */
 static WT_INLINE void
-__clayered_assert_role_change_func(
+__clayered_assert_role_change(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
   ,
@@ -642,7 +631,11 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     const WTI_CLAYERED_STABLE_MODE stable_mode = __clayered_stable_mode_for_role(leader);
     uint32_t flags = __clayered_enter_flags(clayered, mode, leader, cursor_mode, stable_mode);
 
-    __clayered_assert_role_change(clayered, mode, leader, flags);
+#ifdef HAVE_DIAGNOSTIC
+    __clayered_assert_role_change(clayered, mode, flags, leader);
+#else
+    __clayered_assert_role_change(clayered, mode, flags);
+#endif
 
     /*
      * largest_key is exempt: it ignores visibility by contract and always consults ingest, so its

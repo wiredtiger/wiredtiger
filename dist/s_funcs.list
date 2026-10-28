@@ -3,7 +3,6 @@ WT_CRC32_ENTRY
 WT_CURDUMP_PASS
 __bit_ffs
 __bit_nclr
-__clayered_assert_role_change_func
 __ovfl_discard_dump
 __ovfl_reuse_dump
 __wt_4b_pack_array
