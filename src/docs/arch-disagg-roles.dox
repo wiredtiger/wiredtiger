@@ -138,15 +138,15 @@ cross-table check.
 
 A transaction's commit timestamp may be set after some of its writes have already occurred, so
 until the commit timestamp is known, WiredTiger cannot tell on which side of N those writes
-belong. Rather than guess, it rolls back every write transaction that began before the step-down
-timestamp was set and straddles its setting. Such a writer has written to the stable tables
+belong. Rather than guess, it rolls back write transactions that straddle setting the step-down
+timestamp. Such a writer has written to the stable tables
 only: if it committed above N, its updates would be excluded from the concluding checkpoint and
 would have no ingest table copy to survive the step-down reconfiguration, leading to data loss.
 
-A layered-table write returns WT_ROLLBACK once it observes that N is set, failing the transaction
-early. The commit check is the guarantee: it reads the step-down timestamp under the step-down
-lock, so a transaction with modifications that began before N was set cannot commit after it was
-set. A retried transaction begins with N set and writes to the ingest tables.
+A layered-table write checks whether the transaction began before N was set and returns
+WT_ROLLBACK when it observes the change, failing the transaction early. The commit path also
+checks for straddling writers. A retried transaction begins with N set and writes to the ingest
+tables.
 
 @subsection disagg-step-down-reads Reads during step-down
 
@@ -160,8 +160,9 @@ transactions while N is set, and WT_SESSION::reset_snapshot is not allowed.
 The step-down reconfiguration replaces each live stable table with a view of the concluding
 checkpoint. The checkpoint keeps older versions in the shared history store, which supports
 reads at a timestamp, so a transaction with a read timestamp selects the same versions from the
-checkpoint view and continues. A snapshot without a read timestamp cannot select consistent content from the
-replacement, so such a transaction receives WT_ROLLBACK at its next layered-table operation.
+checkpoint view. A transaction without a read timestamp that straddles reconfiguration may be
+rolled back because its snapshot cannot be assumed to select consistent content from the
+replacement.
 
 @subsection disagg-step-down-schema Schema changes during step-down
 

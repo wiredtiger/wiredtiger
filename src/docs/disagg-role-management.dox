@@ -153,7 +153,7 @@ in WT_CONNECTION::set_timestamp:
 - The step-down timestamp can only be set on a leader, and only once per step-down. Once set,
   it cannot be changed or cleared; only the step-down reconfiguration clears it, so a step-down
   cannot be abandoned after N is set.
-- N must be newer than every commit timestamp already committed.
+- N must be newer than every committed transaction's commit timestamp.
 - Write transactions beginning after N is set must commit with a timestamp higher than N.
 - Operations on layered tables must use explicit snapshot-isolation transactions. Auto-commit,
   read-committed, and read-uncommitted operations must not occur while N is set.
@@ -193,11 +193,11 @@ The usual flow of asynchronous step-down is:
 
 Some transactions that overlap an asynchronous step-down receive WT_ROLLBACK:
 
-- A transaction that began before N was set receives WT_ROLLBACK at its next layered-table
-  write, or at commit if it has made any modifications.
+- A write transaction that began before N was set receives WT_ROLLBACK if it straddles setting the
+step-down timestamp.
 - A transaction without a read timestamp whose snapshot spans the step-down reconfiguration
-  receives WT_ROLLBACK at its next layered-table operation. Transactions with a read timestamp
-  continue across the reconfiguration, and positioned read cursors remain usable.
+  receives WT_ROLLBACK. Transactions with a read timestamp continue across the reconfiguration,
+  and positioned read cursors remain usable.
 
 When the application receives WT_ROLLBACK, it must roll back the transaction and retry the
 operation in a new transaction. See @ref error_handling for rollback handling.
@@ -206,8 +206,8 @@ operation in a new transaction. See @ref error_handling for rollback handling.
 
 Data timestamps and <b>schema epochs</b> describe different boundaries: one selects record
 versions, while the other selects schema operations included in shared metadata. Creating or
-dropping a table locally does not itself publish the change to other nodes. The application
-replicates schema operations, and shared checkpoints carry the corresponding metadata. With
+dropping a table locally does not publish the change to other nodes. The application
+replicates schema operations, and shared checkpoints contain the corresponding metadata. With
 schema epochs, WT_SESSION::publish assigns epochs to pending schema operations for a table;
 checkpointing includes published operations through the stable schema epoch.
 
