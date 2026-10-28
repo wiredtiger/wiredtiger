@@ -43,6 +43,7 @@ before the step-up reconfiguration. The following terms are used throughout the 
 * The **step-down schema epoch** marks the corresponding boundary for schema operations when
   schema epochs are used.
 
+@anchor disagg-step-down-reconfiguration-locks
 # Ordering during the step-down reconfiguration
 
 The step-down reconfiguration changes the stable table view while read transactions may still be
@@ -50,13 +51,24 @@ running. It clears the step-down timestamp only after publishing the global role
 as follower.
 
 Before publishing the follower role, the step-down reconfiguration marks each open disaggregated
-B-tree read-only and its data handle outdated. It holds the data handle list read lock and obtains
-exclusive eviction access for each tree while marking it. The checkpoint and schema locks cover
-the entire step-down reconfiguration. Holding the checkpoint lock makes the step-down
-reconfiguration wait for a checkpoint in progress.
+B-tree read-only and its data handle outdated. It holds the data handle list read lock,
+which keeps data handles from being removed from the list during the marking walk. It also obtains
+exclusive eviction access for each tree while marking it (see
+@ref disagg-step-down-eviction "eviction synchronization" for more details).
 
-The step-down write lock covers clearing the step-down timestamp and step-down schema epoch. The
-role generation is advanced immediately before publishing the global role as
+The checkpoint and schema locks cover the entire step-down reconfiguration. The checkpoint lock
+makes the step-down reconfiguration wait for a checkpoint in progress and prevents a checkpoint
+from reconciling the B-trees being marked read-only. It also keeps the latest checkpoint timestamp
+unchanged while it is verified. When both locks are needed, the checkpoint lock must be taken
+before the schema lock to avoid deadlocks. The schema lock orders the step-down reconfiguration
+against schema operations and fresh opens of a live B-tree view, which also
+decides the @ref disagg-step-down-cursor-open-races "cursor-open race".
+
+The step-down write lock covers clearing the step-down timestamp and step-down schema epoch.
+It makes observing the cleared step-down timestamp at transaction begin happen after publishing
+the global role as follower for cursor operations.
+
+The role generation is advanced immediately before publishing the global role as
 follower. The lock ordering is:
 
 ```
@@ -92,8 +104,6 @@ The step-down reconfiguration {
 # Schema operations
 
 Creating a layered table while the step-down timestamp is set creates only its local ingest table.
-Its shared metadata operation are not getting to the concluding checkpoint so the application must
-replicate the schema operations to the new leader so that it populates them in shared storage.
 Schema creation, where this choice is made, and schema opening, verification, and
 deletion all hold the global schema lock. Setting the step-down timestamp takes the same lock, so
 these operations are ordered relative to one another.
@@ -386,102 +396,5 @@ they cannot both commit. Other snapshot readers cannot read its uncommitted writ
 marks them aborted. If the transaction writing to the ingest table observes one of these updates,
 its conflict check may roll it back too; this is safe even though the other transaction must also
 roll back. Transactions writing to the same table continue to use its single-tree conflict check.
-
-@anchor disagg-step-down-exceptions
-# Exceptional operations and model limits
-
-* Prepared commits while the step-down timestamp is set are unsupported.
-* The largest-key operation ignores snapshot visibility by contract and always consults the ingest
-  table, regardless of the global role or begin-time step-down timestamp state.
-* Transactions are expected to access tables created before they began. Access to a newer table is
-  outside this model. During the step-down reconfiguration, a transaction older than a
-  step-down-created table can fail to select either table for a cursor operation as the flag is
-  cleared before the global role is published as follower. An always-on assertion detects the
-  missing table selection; this is not a supported routing exception.
-* Snapshot reset is outside this model during asynchronous step-down.
-* Truncating a layered table while the step-down timestamp is set is unsupported. An always-on
-  assertion detects it.
-
-OPEN QUESTIONS:
-
-* Why do schema operations use relaxed atomic accesses when observing the step-down timestamp?
-  Is this only for consistent atomic access under the C11 memory model?
-  * Yes. Setting the timestamp, clearing it during the step-down reconfiguration, and the schema
-    operations that observe it all hold the schema lock, which provides the ordering. The fields
-    are atomic only because transaction begin and cursor operations observe them without that
-    lock.
-* Why is the step-down schema epoch protected by the step-down lock?
-  * It does not need to be. The epoch is stored together with the timestamp under the step-down
-    lock, but no reader observes the epoch under that lock. Its readers, shared metadata
-    publication and the step-down reconfiguration's checks, hold the schema lock, which also
-    orders them against setting and clearing the epoch.
-* What is the purpose of each lock held during the step-down reconfiguration?
-  * The checkpoint lock keeps a checkpoint from reconciling the B-trees being marked read-only,
-    keeps the latest checkpoint timestamp stable while it is verified, and preserves the
-    checkpoint-before-schema lock order required to open checkpoint data handles.
-  * The schema lock orders the reconfiguration against schema operations and against fresh opens
-    of a live B-tree view, which decides the cursor-open race.
-  * The data handle list read lock keeps data handles from being removed from the list during the
-    marking walk.
-  * The step-down write lock orders publishing the follower role before any transaction begin
-    that observes the cleared step-down timestamp.
-* Is a forced eviction safe if it starts between marking a tree read-only and marking its data
-  handle outdated? Page eviction only applies the retention rule once both are set, and
-  reconciliation asserts that the tree is not read-only.
-  * Eviction server, queued and urgent-queue evictions are covered: they are counted as in
-    progress, or recheck whether eviction is enabled, under the eviction queue locks that
-    exclusive eviction access also takes. An application thread evicting a page it releases
-    checks whether eviction is enabled without a lock and is counted as in progress only after
-    locking the page and possibly caching a history store cursor, with no recheck. It can
-    therefore start after exclusive access has drained eviction. If it reconciles a dirty page
-    after the tree is marked read-only but before its data handle is marked outdated, the
-    reconciliation assertion fails. Rechecking whether eviction is enabled after counting the
-    eviction as in progress would close this window.
-
-STRUCTURE IMPROVEMENTS:
-
-* Completed: establish common terminology and replace short forms throughout the model.
-* Completed: give @ref disagg-step-down-cursor-open-races "cursor-open races" involving outdated
-  data handles a separate section.
-* Pending: choose where diagrams would best explain the synchronization.
-* TODO: Clean up the @ref disagg-step-down-exceptions "exceptions section" to remove requirements
-  already described on the @ref disagg-roles-step-down "common step-down page" and link to them
-  instead.
-
-* TODO: Add a two-thread diagram in the
-  @ref disagg-step-down-write-rollback "write-transaction rollback section".
-  Show transaction begin and commit before, after, or spanning setting the step-down timestamp.
-  Mark the write-lock section for setting the timestamp, the transaction-begin read-lock section,
-  and the commit-time read-lock section where the boundary check is needed.
-
-DRAFT STATUS:
-
-* The write-routing table, cursor-open race handling, reader rollback explanation, eviction
-  synchronization, and write-conflict synchronization without mirroring are filled in.
-* The terminology and verbosity pass defines the model's state and observations consistently.
-  @ref disagg-step-down-cursor-open-races "Cursor-open races" have their own section; internal code
-  names and implementation bookkeeping are omitted from the explanation.
-* Term definitions contain meanings only; synchronization mechanisms and reasoning remain in
-  their corresponding sections. Introductions explain the scope and the problem before the details.
-* Read transaction explanations and the later model sections retain the committed draft's context
-  and sentence flow, with formal phrasing, current terminology, verified corrections, and links.
-* The full published-update versus snapshot-visibility argument appears only in the
-  @ref disagg-step-down-table-conflicts "stable and ingest table conflict analysis".
-  @ref disagg-step-down-exceptions "Exceptions" remain the last model section.
-* Reader classification uses the begin-time state and snapshot role, not the time a table opens.
-  Tables must predate transaction begin. Observing a new role generation alone does not imply
-  observing the global role as follower.
-* Application retries are conditional. A transaction that passes its commit-time check may finish
-  after setting the step-down timestamp only under the application requirement that its commit
-  timestamp for writes to the stable table is at or below that boundary.
-* All three open questions remain open; the reconfiguration-lock review is partial. The diagram
-  and possible document split remain pending. The snapshot-reset restriction is not yet enforced
-  specifically for asynchronous step-down.
-
-IMPLEMENTATION REFERENCES:
-
-* The begin-time step-down timestamp state.
-* The step-down read-write lock.
-* Additional implementation references remain to be added.
 
 */
