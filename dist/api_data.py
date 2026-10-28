@@ -544,7 +544,8 @@ layered_meta = format_meta + layered_config + log_runtime_config + connection_di
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
     Config('block_cache', '', r'''
-        block cache configuration options''',
+        deprecated: the block cache is no longer supported, all settings are ignored and
+        enablement is rejected''',
         type='category', subconfig=[
         Config('cache_on_checkpoint', 'true', r'''
             cache blocks written by a checkpoint''',
@@ -553,7 +554,7 @@ connection_runtime_config = [
             cache blocks as they are written (other than checkpoint blocks)''',
             type='boolean'),
         Config('enabled', 'false', r'''
-            enable block cache''',
+            no longer supported; block cache enablement is rejected''',
             type='boolean'),
         Config('blkcache_eviction_aggression', '1800', r'''
             seconds an unused block remains in the cache before it is evicted''',
