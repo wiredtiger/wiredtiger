@@ -386,7 +386,8 @@ __clayered_clear_walk(WTI_CURSOR_LAYERED *clayered)
 {
     F_CLR(clayered,
       WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV | WTI_CLAYERED_ITERATE_RETRY_NEXT |
-        WTI_CLAYERED_ITERATE_RETRY_PREV);
+        WTI_CLAYERED_ITERATE_RETRY_PREV | WTI_CLAYERED_STALL_MOVED_INGEST |
+        WTI_CLAYERED_STALL_MOVED_STABLE);
     clayered->stopped_key.size = 0;
 }
 
@@ -1903,44 +1904,36 @@ __clayered_step_past(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, const WT_ITEM 
 }
 
 /*
- * __clayered_reread --
- *     Read a positioned constituent's key again: the value it holds can predate a change of read
- *     context. If the key now has a prepared update, the read reports a prepare conflict and resets
- *     the constituent, which is then no longer positioned.
- */
-static int
-__clayered_reread(WT_CURSOR *constituent)
-{
-    if (F_ISSET(constituent, WT_CURSTD_KEY_INT))
-        WT_RET_NOTFOUND_OK(constituent->search(constituent));
-    return (0);
-}
-
-/*
  * __clayered_resume_constituent --
  *     Move a constituent of a stalled walk on from the stopped key. One blocked on a prepared
  *     update steps again from where it is blocked, which rechecks the blocked key or steps back
- *     from it without reading it. A walk that continues gives up the position of any other
- *     constituent and searches for the first key at or past the stopped key, which reads the
- *     stopped key. A walk that reverses keeps a positioned constituent where it is, and searches
- *     only for one with no position. A reversal returns only keys strictly before the stopped key.
+ *     from it without reading it. Any other gives up its position and searches for the first key at
+ *     or past the stopped key in the walk direction, which reads the stopped key. A reversal
+ *     returns only keys strictly before the stopped key, and remembers that it moved the
+ *     constituent: a retry after a conflict on the other constituent must not search it from the
+ *     stopped key again, which can still be prepared in this one.
  */
 static int
 __clayered_resume_constituent(
-  WTI_CLAYERED_OP *op, WT_CURSOR *constituent, bool forward, bool reversed)
+  WTI_CLAYERED_OP *op, WT_CURSOR *constituent, uint32_t moved_flag, bool forward, bool reversed)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
 
+    if (reversed && F_ISSET(clayered, moved_flag))
+        return (0);
+
     if (__clayered_constituent_prepare_blocked(constituent))
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, constituent, forward));
-    else if (!reversed || !F_ISSET(constituent, WT_CURSTD_KEY_INT)) {
+    else {
         if (__clayered_constituent_needs_reset(constituent))
             WT_RET(constituent->reset(constituent));
         WT_RET_NOTFOUND_OK(
           __clayered_position_alternate_at(op, &clayered->stopped_key, constituent, forward));
     }
-    if (reversed)
+    if (reversed) {
         WT_RET(__clayered_step_past(op, constituent, &clayered->stopped_key, forward));
+        F_SET(clayered, moved_flag);
+    }
     return (0);
 }
 
@@ -1956,20 +1949,18 @@ __clayered_resume_constituent(
 static int
 __clayered_resume_stalled(WTI_CLAYERED_OP *op, bool forward)
 {
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
     const bool reversed = F_ISSET(
-      op->clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
+      clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
 
-    /*
-     * Read the positioned keys of a reversal again before moving anything, so a prepare conflict on
-     * one leaves the walk where it was, with a constituent blocked on a prepared update still
-     * blocked.
-     */
-    if (reversed) {
-        WT_RET(__clayered_reread(op->ingest));
-        WT_RET(__clayered_reread(op->stable));
-    }
-    WT_RET(__clayered_resume_constituent(op, op->ingest, forward, reversed));
-    return (__clayered_resume_constituent(op, op->stable, forward, reversed));
+    /* A walk that continues repositions both constituents, so forget what a reversal moved. */
+    if (!reversed)
+        F_CLR(clayered, WTI_CLAYERED_STALL_MOVED_INGEST | WTI_CLAYERED_STALL_MOVED_STABLE);
+
+    WT_RET(__clayered_resume_constituent(
+      op, op->ingest, WTI_CLAYERED_STALL_MOVED_INGEST, forward, reversed));
+    return (__clayered_resume_constituent(
+      op, op->stable, WTI_CLAYERED_STALL_MOVED_STABLE, forward, reversed));
 }
 
 /*
@@ -2182,6 +2173,7 @@ __clayered_iterate_finish(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag, int 
     }
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_RETRY_NEXT | WTI_CLAYERED_ITERATE_RETRY_PREV);
+    F_CLR(clayered, WTI_CLAYERED_STALL_MOVED_INGEST | WTI_CLAYERED_STALL_MOVED_STABLE);
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     clayered->stopped_key.size = 0;
     if (ret == 0)
