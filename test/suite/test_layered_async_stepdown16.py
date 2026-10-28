@@ -28,6 +28,7 @@
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # A walk over a layered table tracks a position in each constituent. A prepared update blocks the
@@ -42,7 +43,7 @@ from wtscenario import make_scenarios
 # knob does not affect the step-down straddler check, so a straddling prepared transaction can
 # still only commit into a panic.
 @disagg_test_class
-class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
+class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
         'debug_mode=(disagg_stepdown_prepare=true),'
 
@@ -66,11 +67,19 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
         ('with_tie', dict(with_tie=True)),
     ]
 
+    # Whether writes in the step-down window are mirrored to stable. Mirrored, a prepared update
+    # written after the announcement is in both constituents, so both block the walk.
+    mirroring_modes = [
+        ('unmirrored', dict(mirroring=False)),
+        ('mirrored', dict(mirroring=True)),
+    ]
+
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader",stepdown_write_mirroring=false)'
+        return self.conn_base_config + 'disaggregated=(role="leader",stepdown_write_mirroring=%s)' % \
+            ('true' if self.mirroring else 'false')
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, prepare_targets, directions, tie_scenarios)
+    scenarios = make_scenarios(disagg_storages, prepare_targets, directions, tie_scenarios, mirroring_modes)
 
     test_name = __qualname__
     uri = f'layered:{test_name}'
@@ -203,6 +212,10 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
             prepare_cursor.close()
             prepare_session.close()
 
+        # Verification needs the step-down completed when writes are mirrored.
+        if self.mirroring:
+            self.complete_step_down(15)
+
         # The prepared key must have blocked the walk; otherwise the scenario never arose and the
         # rest of the assertions prove nothing.
         self.assertGreater(conflicts, 0,
@@ -242,6 +255,10 @@ class test_layered_async_stepdown16(wttest.WiredTigerTestCase):
             cursor.close()
             prepare_cursor.close()
             prepare_session.close()
+
+        # Verification needs the step-down completed when writes are mirrored.
+        if self.mirroring:
+            self.complete_step_down(15)
 
         expected = keys[self.blocked_index:] if self.forward else \
             list(reversed(keys[:self.blocked_index + 1]))
