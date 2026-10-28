@@ -1179,10 +1179,13 @@ __disagg_pick_up_new_layered_table(WT_SESSION_IMPL *session, WT_CURSOR *md_curso
       sh_values[WT_DISAGG_CURSOR_LAYERED] != NULL && sh_keys[WT_DISAGG_CURSOR_FILE] != NULL &&
         sh_values[WT_DISAGG_CURSOR_FILE] != NULL);
 
-    WT_RET(__disagg_ensure_ingest_table(
-      session, md_cursor, sh_values[WT_DISAGG_CURSOR_LAYERED], is_startup, &ingest_created));
-    if (ingest_created)
-        ++*new_ingestp;
+    /* Defer ingest-table creation on the first pickup to the first cursor open. */
+    if (!is_startup) {
+        WT_RET(__disagg_ensure_ingest_table(
+          session, md_cursor, sh_values[WT_DISAGG_CURSOR_LAYERED], is_startup, &ingest_created));
+        if (ingest_created)
+            ++*new_ingestp;
+    }
     WT_RET(__disagg_insert_meta(session, sh_keys[WT_DISAGG_CURSOR_LAYERED],
       sh_values[WT_DISAGG_CURSOR_LAYERED], stable_btree_ids));
     WT_RET(__disagg_insert_meta(
