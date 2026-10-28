@@ -907,13 +907,13 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
 }
 
 /*
- * __clayered_open_stable_follower --
+ * __clayered_open_stable_checkpoint --
  *     Open the stable table cursor on the newest available checkpoint. In some cases it's fine to
  *     not have a checkpoint (e.g. when we open it for the first time) - leave the cursor
  *     uninitialized.
  */
 static int
-__clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected)
+__clayered_open_stable_checkpoint(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected)
 {
     WT_DECL_ITEM(last_ckpt_uri);
     WT_DECL_RET;
@@ -1029,11 +1029,11 @@ err:
 }
 
 /*
- * __clayered_open_stable_leader --
+ * __clayered_open_stable_live --
  *     Open the stable table cursor on the live stable table.
  */
 static int
-__clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
+__clayered_open_stable_live(WTI_CURSOR_LAYERED *clayered)
 {
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
@@ -1074,8 +1074,8 @@ __clayered_open_stable(
   WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_STABLE_MODE stable_mode)
 {
     return (stable_mode == WTI_CLAYERED_STABLE_LIVE ?
-        __clayered_open_stable_leader(clayered) :
-        __clayered_open_stable_follower(clayered, checkpoint_expected));
+        __clayered_open_stable_live(clayered) :
+        __clayered_open_stable_checkpoint(clayered, checkpoint_expected));
 }
 
 /*
