@@ -198,7 +198,6 @@ of the documentation.
 
 - @subpage arch-toc-disaggregated-storage
     - @ref arch-disagg-roles
-        - @ref arch-disagg-step-down
     - @ref arch-page-delta
     - @ref arch-disagg-cross-checkpoint-caching
     - @ref arch-disagg-layered
