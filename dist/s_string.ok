@@ -232,6 +232,7 @@ Getters
 Gh
 Github
 Golomb
+HALFLIFE
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -600,6 +601,7 @@ WiredTigerTimestamp
 WiredTigerTmplog
 WithSeeds
 WriteFile
+Wswitch
 Wundef
 Wuninitialized
 Wunused
@@ -1119,6 +1121,7 @@ goto
 goutf
 groupd
 gte
+halvings
 handleops
 handlep
 hardcoded
@@ -1338,6 +1341,7 @@ memsize
 metaconf
 metadata's
 metafile
+metric's
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
@@ -1729,6 +1733,7 @@ strtoll
 strtoull
 strtouq
 struct
+struct's
 structs
 su
 subcommand

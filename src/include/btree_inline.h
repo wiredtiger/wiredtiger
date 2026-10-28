@@ -366,7 +366,10 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
         else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_stable, size);
     }
-    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    uint64_t tree_inmem = __wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    if (tree_inmem >=
+      __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_INMEM]))
+        __wt_cache_top_track(session, btree, WT_CACHE_TOP_INMEM, tree_inmem);
     if (WT_PAGE_IS_INTERNAL(page)) {
         (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_internal, size);
         if (is_disagg) {
@@ -389,7 +392,10 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                 else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
                     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates_stable, size);
             }
-            (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            uint64_t tree_updates = __wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
+            if (tree_updates >=
+              __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_UPDATES]))
+                __wt_cache_top_track(session, btree, WT_CACHE_TOP_UPDATES, tree_updates);
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_updates, size);
         }
         if (__wt_page_is_modified(page)) {
@@ -410,7 +416,11 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                     else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
                         (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_dirty_leaf_stable, size);
                 }
-                (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                uint64_t tree_dirty =
+                  __wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
+                if (tree_dirty >=
+                  __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[WT_CACHE_TOP_DIRTY]))
+                    __wt_cache_top_track(session, btree, WT_CACHE_TOP_DIRTY, tree_dirty);
             }
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
         }

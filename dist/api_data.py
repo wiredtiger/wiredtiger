@@ -1056,6 +1056,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'block_cache',
+            'cache_top',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
@@ -2243,6 +2244,8 @@ methods = {
         print incremental backup information''', type='boolean'),
     Config('cache', 'false', r'''
         print cache information''', type='boolean'),
+    Config('cache_top', 'false', r'''
+        print the tables consuming the most cache''', type='boolean'),
     Config('cursors', 'false', r'''
         print all open cursor information''', type='boolean'),
     Config('handles', 'false', r'''
