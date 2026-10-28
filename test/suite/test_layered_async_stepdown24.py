@@ -340,6 +340,49 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         self.resolve(ingest_prepare)
         self.assertEqual(actual, [])
 
+    # A reversal moves ingest back onto the last returned key, then conflicts on stable, which has a
+    # key that another transaction prepared in the meantime. Before the retry the walk's own
+    # transaction updates the last returned key. The retry does not return the value ingest held
+    # before the update.
+    def test_reverse_retry_after_context_change(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {self.key(5): 'v'}, 10)
+        self.set_global_ts(1, 10)
+
+        # A transaction that began before the step-down inserts into stable, and is prepared later.
+        late_session = self.conn.open_session()
+        late_cursor = late_session.open_cursor(self.uri, None, None)
+        late_session.begin_transaction()
+        late_cursor[self.key(3)] = 'late'
+
+        self.set_step_down_ts(15)
+        self.write_at(self.uri, {self.key(1): 'v-ingest', self.key(2): 'v-ingest'}, 18)
+        ingest_prepare = self.prepare(4, 22)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 2)
+        self.assert_conflict(cursor)
+
+        late_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40))
+        self.session.commit_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(45))
+        self.assert_conflict(cursor, back=True)
+
+        writer = self.session.open_cursor(self.uri, None, None)
+        writer[self.key(2)] = 'new'
+        writer.close()
+        late_session.rollback_transaction()
+        self.resolve(ingest_prepare)
+        actual = self.walk_back(cursor)
+        self.session.rollback_transaction()
+        cursor.close()
+        late_cursor.close()
+        late_session.close()
+        self.assertEqual(actual, [(self.key(2), 'new'), (self.key(1), 'v-ingest')])
+
     # The walk returns a key both constituents hold, then blocks on a prepared update stepping the
     # other constituent past it. The key then becomes deleted, so ingest holds a tombstone over the
     # stable copy. Reversing does not return the deleted key, and returns the key before it.
