@@ -476,9 +476,9 @@ class test_layered_async_stepdown24_reverse_step_down(BlockedWalkMixin,
                                                       wttest.WiredTigerTestCase):
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions[:1])
 
-    # A walk blocked on stable keeps its stable cursor across a step-down. Reversing it releases the
-    # block and positions the walk on the last key it returned, now on a follower. The next
-    # operation completes the step-down on that positioned cursor, including a write through it.
+    # A walk blocked on a prepared update in stable reverses across a step-down. The walk is
+    # positioned on the last key it returned, now on a follower. The next operation completes the
+    # step-down on that positioned cursor, including a write through it.
     def test_write_after_reversal_across_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')

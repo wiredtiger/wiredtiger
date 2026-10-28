@@ -16,8 +16,7 @@ typedef enum { WTI_CLAYERED_CURSOR_DIRECT, WTI_CLAYERED_CURSOR_LAYERED } WTI_CLA
 
 /*
  * WTI_CLAYERED_STABLE_MODE --
- *	What the stable cursor is opened on: the leader's live table or a follower's checkpoint. A
- *	stable cursor blocked on a prepared update keeps the live table across a step-down.
+ *	What the stable cursor is opened on: the leader's live table or a follower's checkpoint.
  */
 typedef enum { WTI_CLAYERED_STABLE_LIVE, WTI_CLAYERED_STABLE_CHECKPOINT } WTI_CLAYERED_STABLE_MODE;
 
