@@ -219,15 +219,12 @@ struct __wt_cell_unpack_kv {
 
 /*
  * WT_CELL_UNPACK_DELTA_INT --
- *     Unpacked internal delta cell.
+ *     Unpacked internal delta key+address pair, decoded exactly as a full internal page pair.
  */
 struct __wt_cell_unpack_delta_int {
-    uint32_t __len;
-    WT_CELL_UNPACK_KV key;
+    WT_CELL_UNPACK_ADDR key;
     WT_CELL_UNPACK_ADDR value;
 };
-
-#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(Bu)
 
 /*
  * WT_CELL_UNPACK_DELTA_LEAF_KV --
