@@ -37,7 +37,8 @@ from wtscenario import make_scenarios
 # transaction that straddles the step-down panics by design.
 class BlockedWalkMixin(LayeredStepdownMixin):
     conn_config = 'statistics=(all),precise_checkpoint=true,' \
-        'debug_mode=(disagg_stepdown_prepare=true),disaggregated=(role="leader")'
+        'debug_mode=(disagg_stepdown_prepare=true),' \
+        'disaggregated=(role="leader",stepdown_write_mirroring=false)'
 
     directions = [
         ('next', dict(forward=True)),
@@ -618,7 +619,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 @disagg_test_class
 class test_layered_async_stepdown24_mirrored(BlockedWalkMixin, wttest.WiredTigerTestCase):
     conn_config = BlockedWalkMixin.conn_config.replace(
-        'disaggregated=(', 'disaggregated=(stepdown_write_mirroring=true,')
+        'stepdown_write_mirroring=false', 'stepdown_write_mirroring=true')
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
 
     # With write mirroring, the walk's own transaction removes the last key returned from stable

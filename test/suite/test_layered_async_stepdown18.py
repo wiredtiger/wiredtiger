@@ -54,7 +54,7 @@ class test_layered_async_stepdown18(wttest.WiredTigerTestCase):
     ]
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader")'
+        return self.conn_base_config + 'disaggregated=(role="leader",stepdown_write_mirroring=false)'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, directions, entry_points)

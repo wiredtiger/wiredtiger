@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     def conn_config(self):
-        return 'statistics=(all),precise_checkpoint=true,disaggregated=(role="leader")'
+        return 'statistics=(all),precise_checkpoint=true,disaggregated=(role="leader",stepdown_write_mirroring=false)'
 
     directions = [
         ('next', dict(forward=True)),

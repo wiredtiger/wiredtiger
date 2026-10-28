@@ -41,7 +41,7 @@ class test_layered_async_stepdown21(LayeredStepdownMixin, wttest.WiredTigerTestC
         'debug_mode=(disagg_stepdown_prepare=true),'
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader")'
+        return self.conn_base_config + 'disaggregated=(role="leader",stepdown_write_mirroring=false)'
 
     directions = [
         ('next', dict(forward=True)),
