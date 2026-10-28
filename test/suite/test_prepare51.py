@@ -80,3 +80,68 @@ class test_prepare51(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.rollback_transaction()
         prep_session.rollback_transaction()
+
+# A cursor that reverses direction after a prepare conflict and hits another prepare conflict
+# before it returns a key can later return the key it returned before the first conflict. The key
+# order check must restart for that return too.
+class test_prepare51_second_conflict(wttest.WiredTigerTestCase):
+    uri = 'table:test_prepare51_second_conflict'
+
+    # The walk returns two keys and conflicts on the third. A second transaction then prepares the
+    # key the walk last returned, so reversing conflicts on that key.
+    directions = [
+        ('forward', dict(forward=True, visited=[2, 4], blocked=6, second=4)),
+        ('backward', dict(forward=False, visited=[8, 6], blocked=4, second=6)),
+    ]
+    scenarios = make_scenarios(directions)
+
+    def test_reverse_after_second_conflict(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            self.session.begin_transaction()
+            for key in (2, 4, 6, 8):
+                cursor[key] = 'value'
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp(
+            'oldest_timestamp=1,stable_timestamp=' + self.timestamp_str(10))
+
+        def prepare(key, ts):
+            prep_session = self.conn.open_session()
+            prep_cursor = prep_session.open_cursor(self.uri)
+            prep_session.begin_transaction()
+            prep_cursor[key] = 'prepared'
+            prep_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts))
+            return prep_session, prep_cursor
+
+        conflict = '/conflict with a prepared update/'
+        step = lambda c: c.next() if self.forward else c.prev()
+        step_back = lambda c: c.prev() if self.forward else c.next()
+
+        first = prepare(self.blocked, 12)
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(14))
+        for key in self.visited:
+            self.assertEqual(step(cursor), 0)
+            self.assertEqual(cursor.get_key(), key)
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: step(cursor), conflict)
+
+        # Prepare the last returned key, and read it under a new snapshot.
+        second = prepare(self.second, 30)
+        self.session.commit_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: step_back(cursor), conflict)
+        second[0].rollback_transaction()
+
+        # Reversing returns the last returned key again, then everything before it.
+        returned = []
+        while step_back(cursor) == 0:
+            returned.append(cursor.get_key())
+        self.assertEqual(returned, list(reversed(self.visited)))
+
+        cursor.close()
+        self.session.rollback_transaction()
+        first[0].rollback_transaction()
+        for session, prep_cursor in (first, second):
+            prep_cursor.close()
+            session.close()
+

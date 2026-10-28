@@ -808,6 +808,15 @@ err:
             WT_TRET(__cursor_reset(cbt));
         else
             F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * A conflict while the cursor is changing direction consumes the flag below that restarts
+         * the key order check, so restart it now: the next key returned can be the key returned
+         * before the first conflict.
+         */
+        if (F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
+            __wt_cursor_key_order_reset(cbt);
+#endif
         break;
     default:
         WT_TRET(__cursor_reset(cbt));
