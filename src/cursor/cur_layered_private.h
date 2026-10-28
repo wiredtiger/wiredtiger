@@ -52,14 +52,14 @@ struct __wti_cursor_layered {
     uint32_t txn_mod_count;                    /* Transaction modification count on last access */
     uint64_t stable_checkpoint_meta_lsn;       /* Checkpoint LSN stable cursor is on */
     WTI_CLAYERED_STABLE_MODE last_stable_mode; /* Mode the stable cursor was last opened in */
-    WT_ITEM stopped_key;                       /* Key a blocked walk stopped at */
+    WT_ITEM stopped_key; /* Key a walk stalled on a prepared update stopped at */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_CLAYERED_ACTIVE 0x01u             /* Incremented the session count */
 #define WTI_CLAYERED_ITERATE_NEXT 0x02u       /* Forward iteration */
 #define WTI_CLAYERED_ITERATE_PREV 0x04u       /* Backward iteration */
-#define WTI_CLAYERED_ITERATE_RETRY_NEXT 0x08u /* Current cursor blocked by next */
-#define WTI_CLAYERED_ITERATE_RETRY_PREV 0x10u /* Current cursor blocked by prev */
+#define WTI_CLAYERED_ITERATE_RETRY_NEXT 0x08u /* Walk stalled on a prepared update by next */
+#define WTI_CLAYERED_ITERATE_RETRY_PREV 0x10u /* Walk stalled on a prepared update by prev */
 #define WTI_CLAYERED_RANDOM 0x20u             /* Random cursor operations only */
 #define WTI_CLAYERED_SIZE_STAT 0x40u          /* Accumulate the size summary on the active btree */
                                               /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
