@@ -1896,11 +1896,24 @@ err:
 /*
  * __session_verify_dispatch --
  *     Route a verify call: no URI verifies every table in the database, anything else verifies a
- *     single object.
+ *     single object. With the verify_unique_id configuration set, the database-wide metadata
+ *     consistency checks run once per call, ahead of any object verification.
  */
 static int
 __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "verify_unique_id", &cval));
+
+    /*
+     * The unique btree ID check scans the whole metadata and is independent of any particular
+     * btree, so it runs exactly once per call, whether or not a URI was given, and before any
+     * object verification, since a metadata-level corruption makes per-object results meaningless.
+     */
+    if (cval.val != 0)
+        WT_RET(__wt_verify_metadata_consistency(session));
+
     if (uri == NULL)
         return (__session_verify_all(session, cfg));
 
