@@ -1903,6 +1903,33 @@ __clayered_step_past(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, const WT_ITEM 
 }
 
 /*
+ * __clayered_resume_constituent --
+ *     Move a constituent of a stalled walk on from the stopped key. One blocked on a prepared
+ *     update steps again from where it is blocked, which rechecks the blocked key or steps back
+ *     from it without reading it. Any other gives up its position and searches for the first key at
+ *     or past the stopped key in the walk direction, which reads the stopped key. A reversal
+ *     returns only keys strictly before the stopped key.
+ */
+static int
+__clayered_resume_constituent(
+  WTI_CLAYERED_OP *op, WT_CURSOR *constituent, bool forward, bool reversed)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+
+    if (__clayered_constituent_prepare_blocked(constituent))
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, constituent, forward));
+    else {
+        if (__clayered_constituent_needs_reset(constituent))
+            WT_RET(constituent->reset(constituent));
+        WT_RET_NOTFOUND_OK(
+          __clayered_position_alternate_at(op, &clayered->stopped_key, constituent, forward));
+    }
+    if (reversed)
+        WT_RET(__clayered_step_past(op, constituent, &clayered->stopped_key, forward));
+    return (0);
+}
+
+/*
  * __clayered_resume_stalled --
  *     Resume a walk stalled on a prepared update from the stopped key. Like a btree cursor blocked
  *     there, a walk that continues rechecks the stopped key, and a walk that reverses returns only
@@ -1914,41 +1941,21 @@ __clayered_step_past(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, const WT_ITEM 
 static int
 __clayered_resume_stalled(WTI_CLAYERED_OP *op, bool forward)
 {
-    WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_CURSOR *constituent[] = {op->ingest, op->stable};
     const bool reversed = F_ISSET(
-      clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
-    u_int i;
-    bool blocked;
+      op->clayered, forward ? WTI_CLAYERED_ITERATE_RETRY_PREV : WTI_CLAYERED_ITERATE_RETRY_NEXT);
 
     /*
-     * A constituent blocked on a prepared update steps again from where it is blocked, which
-     * rechecks the blocked key or steps back from it without reading it. Any other gives up its
-     * position and searches for the first key at or past the stopped key in the walk direction,
-     * which reads the stopped key. Handle the others first: a prepare conflict on the stopped key
-     * leaves a blocked constituent as it was, so a later reversal can still step back from it.
+     * Move a constituent that is not blocked first: a prepare conflict on the stopped key leaves a
+     * blocked constituent as it was, so a later reversal can still step back from it. Otherwise
+     * move ingest first.
      */
-    for (blocked = false;; blocked = true) {
-        for (i = 0; i < WT_ELEMENTS(constituent); ++i) {
-            if (__clayered_constituent_prepare_blocked(constituent[i]) != blocked)
-                continue;
-            if (blocked)
-                WT_RET_NOTFOUND_OK(__clayered_constituent_iter_helper(op, constituent[i], forward));
-            else {
-                if (__clayered_constituent_needs_reset(constituent[i]))
-                    WT_RET(constituent[i]->reset(constituent[i]));
-                WT_RET_NOTFOUND_OK(__clayered_position_alternate_at(
-                  op, &clayered->stopped_key, constituent[i], forward));
-            }
-
-            /* A reversal returns only keys strictly before the stopped key. */
-            if (reversed)
-                WT_RET(__clayered_step_past(op, constituent[i], &clayered->stopped_key, forward));
-        }
-        if (blocked)
-            break;
+    if (__clayered_constituent_prepare_blocked(op->ingest) &&
+      !__clayered_constituent_prepare_blocked(op->stable)) {
+        WT_RET(__clayered_resume_constituent(op, op->stable, forward, reversed));
+        return (__clayered_resume_constituent(op, op->ingest, forward, reversed));
     }
-    return (0);
+    WT_RET(__clayered_resume_constituent(op, op->ingest, forward, reversed));
+    return (__clayered_resume_constituent(op, op->stable, forward, reversed));
 }
 
 /*
@@ -2020,8 +2027,9 @@ __clayered_stall(WTI_CLAYERED_OP *op, bool forward, WT_CURSOR *first, int first_
 
 /*
  * __clayered_position_both --
- *     Start of a walk: position both constituents on the first (or last) key. Both are stepped even
- *     if one is blocked on a prepared update, because the stopped key depends on both.
+ *     Start of a walk: position both constituents on the first (or last) key. A prepare conflict on
+ *     one does not stop the other from stepping, because the stopped key is the first key either
+ *     holds, so the walk needs both to record where it stalled.
  */
 static int
 __clayered_position_both(WTI_CLAYERED_OP *op, bool forward)
