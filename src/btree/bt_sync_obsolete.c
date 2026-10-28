@@ -145,8 +145,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
 
     has_stop = WT_TIME_AGGREGATE_HAS_STOP(&newest_ta);
     if (do_visibility_check && has_stop)
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_ta_newest_stop_visible_all(session, &newest_ta);
 
     if (obsolete) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -204,8 +203,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_DELETED *page_del;
 
     page_del = ref->page_del;
-    if (page_del == NULL ||
-      __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
+    if (__wt_page_del_visible_all(session, page_del, true)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
@@ -252,8 +250,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_ta_newest_stop_visible_all(session, &newest_ta);
     }
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
