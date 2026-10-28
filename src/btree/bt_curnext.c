@@ -519,8 +519,8 @@ __cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool ne
 
 /*
  * __wti_cursor_return_check --
- *     Diagnostic checks on the key a cursor movement is about to return: the key order, and the
- *     assumption of the bounds positioning code.
+ *     Diagnostic checks on the key a cursor movement is about to return: that it is in key order,
+ *     and that a walk started by bounds positioning did not reach the bound it started from.
  */
 int
 __wti_cursor_return_check(
