@@ -596,7 +596,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
  *     Begin a timestamped transaction.
  */
 static void
-begin_transaction_ts(TINFO *tinfo, bool allow_ignore_prepare)
+begin_transaction_ts(TINFO *tinfo)
 {
     WT_DECL_RET;
     WT_SESSION *session;
@@ -619,7 +619,7 @@ begin_transaction_ts(TINFO *tinfo, bool allow_ignore_prepare)
         ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
-        if (allow_ignore_prepare && GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
+        if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
             config = "ignore_prepare=true";
             tinfo->ignore_prepare = true;
         } else {
@@ -1173,11 +1173,12 @@ static WT_INLINE int
 lock_table_shared(WT_SESSION *session, TABLE *table, table_lock_state_t *state)
 {
     RWLOCK *lock = lock_for_table(table);
-    testutil_assert(!state->exclusive_write);
 
     for (u_int i = 0; i < state->lock_count; ++i)
         if (state->locks[i] == lock)
             return (0); /* Lock already held by this transaction. */
+
+    testutil_assert(!state->exclusive_write);
 
     if (state->lock_count == 0)
         lock_readlock(session, lock);
@@ -1265,7 +1266,7 @@ begin_serialized_truncate(
     /* Release prior shared locks, acquire an exclusive lock and begin a new transaction. */
     unlock_tables(session, lock_statep);
     lock_table_exclusive(session, table, lock_statep);
-    begin_transaction_ts(tinfo, /* allow_ignore_prepare */ false);
+    begin_transaction_ts(tinfo);
 }
 
 /*
@@ -1441,7 +1442,7 @@ rollback_retry:
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
-            begin_transaction_ts(tinfo, /* allow_ignore_prepare */ true);
+            begin_transaction_ts(tinfo);
             intxn = true;
         }
         if (!intxn) {
@@ -1483,11 +1484,20 @@ rollback_retry:
             if (i < TV(OPS_PCT_DELETE)) {
                 op = REMOVE;
                 if (TV(OPS_TRUNCATE) && tinfo->ops > truncate_op) {
-                    /* Limit test runs to a maximum of 4 truncation operations at a time. */
-                    if (__wt_atomic_add_uint64_v(&g.truncate_cnt, 1) > 4)
-                        (void)__wt_atomic_sub_uint64_v(&g.truncate_cnt, 1);
-                    else
-                        op = TRUNCATE;
+                    if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
+                        /* Serialize fast truncate against concurrent CRUD writes. */
+                        begin_serialized_truncate(tinfo, session, table, intxn, &lock_state);
+                        intxn = true;
+                    }
+                    if (tinfo->ignore_prepare)
+                        op = READ;
+                    else {
+                        /* Limit test runs to a maximum of 4 truncation operations at a time. */
+                        if (__wt_atomic_add_uint64_v(&g.truncate_cnt, 1) > 4)
+                            (void)__wt_atomic_sub_uint64_v(&g.truncate_cnt, 1);
+                        else
+                            op = TRUNCATE;
+                    }
 
                     /* Pick the next truncate operation. */
                     truncate_op += mmrand(&tinfo->data_rnd, 20 * WT_THOUSAND, 100 * WT_THOUSAND);
@@ -1613,11 +1623,7 @@ rollback_retry:
             modify_build(tinfo);
 
         if (disagg_is_mode_switch() && !GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)) {
-            if (op == TRUNCATE) {
-                /* Serialize truncates against concurrent CRUD writes. */
-                begin_serialized_truncate(tinfo, session, table, intxn, &lock_state);
-                intxn = true;
-            } else if (op != READ) {
+            if (op != READ && op != TRUNCATE) {
                 /* CRUD write transactions can overlap one another, but not a fast truncate. */
                 ret = lock_table_shared(session, table, &lock_state);
                 if (ret != 0)
@@ -1723,9 +1729,8 @@ skip_operation:
         } else if (!intxn)
             continue;
         else if ((rnd = mmrand(&tinfo->data_rnd, 1, 10)) > 5) {
-            /* Keep serialized truncates separate from subsequent CRUD writes. */
-            bool serialized_truncate = (op == TRUNCATE) && lock_state.exclusive_write;
-            if (!serialized_truncate)
+            /* Resolve the transaction before releasing the exclusive lock. */
+            if (!lock_state.exclusive_write)
                 continue;
         }
 
