@@ -296,7 +296,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
-    /* The options below are applied on every call, so reconfigure can turn them on and off. */
+    /* The options below are set or cleared on every reconfigure, so they can be turned off. */
     WT_RET(__wt_config_gets(session, cfg, "eviction.bounded_wake", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_BOUNDED_WAKE);
