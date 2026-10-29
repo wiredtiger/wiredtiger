@@ -193,9 +193,13 @@ __wt_cond_signal_n(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint32_t n)
 
     __wt_verbose_debug2(session, WT_VERB_MUTEX, "signal_n %s", cond->name);
 
-    /* Same barrier and already-signalled fast path as the broadcast wake. */
+    /* Same barrier as the broadcast wake. */
     WT_FULL_BARRIER();
 
+    /*
+     * Fast path if we are in (or can enter), a state where the next waiter will return immediately
+     * as already signaled.
+     */
     cond_waiters = __wt_atomic_load_int32_relaxed(&cond->waiters);
     if (cond_waiters == -1 || (cond_waiters == 0 && __wt_atomic_cas_int32(&cond->waiters, 0, -1)))
         return;
@@ -205,8 +209,9 @@ __wt_cond_signal_n(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint32_t n)
 
     WT_ERR(pthread_mutex_lock(&cond->mtx));
     /*
-     * Waking most of the waiters costs the waker about the same either way, and a broadcast wakes
-     * them in one call.
+     * Broadcast once n reaches three quarters of the waiters, or exceeds them. Each signal costs
+     * the waker about as much as a broadcast costs per waiter, so at that point individual signals
+     * save little and a broadcast wakes everyone in one call.
      */
     if ((uint64_t)n * 4 >= (uint64_t)cond_waiters * 3) {
         WT_STAT_CONN_INCR(session, cond_signal_n_broadcast);
