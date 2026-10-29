@@ -9,6 +9,29 @@
 #pragma once
 
 /*
+ * __wt_cache_read_incr --
+ *     Account a read-backed page admitted to the cache.
+ */
+static WT_INLINE void
+__wt_cache_read_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    uint32_t size;
+
+    size = page->dsk->mem_size;
+    WT_STAT_CONN_DSRC_INCR(session, cache_read);
+    if (WT_PAGE_IS_INTERNAL(page))
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, size);
+    WT_STAT_SESSION_INCRV(session, bytes_read, size);
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, size);
+    __wt_cache_top_flow_incr(session, S2BT(session), WT_CACHE_TOP_READ, size);
+}
+
+/*
  * __wt_cache_pages_inuse --
  *     Return the number of pages in use.
  */

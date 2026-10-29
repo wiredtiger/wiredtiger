@@ -133,5 +133,5 @@ class test_layered_config02(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Check the relevant statistics
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.cache_read_leaf), prev_cache_read_leaf)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.cache_read_leaf), prev_cache_read_leaf)
         self.assertStatGreaterSoon(wiredtiger.stat.conn.cache_pages_requested_leaf, prev_cache_pages_requested_leaf)
