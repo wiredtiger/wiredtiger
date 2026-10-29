@@ -48,8 +48,8 @@ class test_cursor_skip01(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(directions)
 
     def session_stat(self, session, forward):
-        which = stat.session.cursor_next_skip_total if forward else \
-            stat.session.cursor_prev_skip_total
+        which = stat.session.cursor_next_entries_skipped if forward else \
+            stat.session.cursor_prev_entries_skipped
         return self.get_stat(which, uri='session', session=session)
 
     def table_stat(self, uri):

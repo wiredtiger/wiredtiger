@@ -10792,22 +10792,28 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * @anchor statistics_session
  * @{
  */
+/*!
+ * session: Total number of entries skipped by cursor next calls,
+ * excluding history store and metadata
+ */
+#define	WT_STAT_SESSION_CURSOR_NEXT_ENTRIES_SKIPPED	4000
+/*!
+ * session: Total number of entries skipped by cursor prev calls,
+ * excluding history store and metadata
+ */
+#define	WT_STAT_SESSION_CURSOR_PREV_ENTRIES_SKIPPED	4001
 /*! session: bytes read into cache */
-#define	WT_STAT_SESSION_BYTES_READ			4000
+#define	WT_STAT_SESSION_BYTES_READ			4002
 /*! session: bytes written from cache */
-#define	WT_STAT_SESSION_BYTES_WRITE			4001
+#define	WT_STAT_SESSION_BYTES_WRITE			4003
 /*! session: dhandle lock wait time (usecs) */
-#define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4002
+#define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4004
 /*! session: dirty bytes from updates in this txn */
-#define	WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY		4003
+#define	WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY		4005
 /*! session: dirty bytes in this txn, from both updates and fast-truncate */
-#define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4004
+#define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4006
 /*! session: dirty bytes pinned by fast-truncate in this txn */
-#define	WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY	4005
-/*! session: entries skipped by cursor next calls */
-#define	WT_STAT_SESSION_CURSOR_NEXT_SKIP_TOTAL		4006
-/*! session: entries skipped by cursor prev calls */
-#define	WT_STAT_SESSION_CURSOR_PREV_SKIP_TOTAL		4007
+#define	WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY	4007
 /*! session: number of updates in this txn */
 #define	WT_STAT_SESSION_TXN_UPDATES			4008
 /*! session: page read from disk to cache time (usecs) */

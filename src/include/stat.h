@@ -2023,14 +2023,14 @@ struct __wt_dsrc_stats {
  */
 #define WT_SESSION_STATS_BASE 4000
 struct __wt_session_stats {
+    int64_t cursor_next_entries_skipped;
+    int64_t cursor_prev_entries_skipped;
     int64_t bytes_read;
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
     int64_t txn_updates_bytes_dirty;
     int64_t txn_bytes_dirty;
     int64_t txn_truncate_bytes_dirty;
-    int64_t cursor_next_skip_total;
-    int64_t cursor_prev_skip_total;
     int64_t txn_updates;
     int64_t read_time;
     int64_t write_time;

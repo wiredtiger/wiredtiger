@@ -7734,14 +7734,16 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
 }
 
 static const char *const __stats_session_desc[] = {
+  "session: Total number of entries skipped by cursor next calls, excluding history store and "
+  "metadata",
+  "session: Total number of entries skipped by cursor prev calls, excluding history store and "
+  "metadata",
   "session: bytes read into cache",
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes from updates in this txn",
   "session: dirty bytes in this txn, from both updates and fast-truncate",
   "session: dirty bytes pinned by fast-truncate in this txn",
-  "session: entries skipped by cursor next calls",
-  "session: entries skipped by cursor prev calls",
   "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
@@ -7760,14 +7762,14 @@ __wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 }
 
 static const int __stats_session_otel_none[] = {
+  WT_STAT_SESSION_CURSOR_NEXT_ENTRIES_SKIPPED,
+  WT_STAT_SESSION_CURSOR_PREV_ENTRIES_SKIPPED,
   WT_STAT_SESSION_BYTES_READ,
   WT_STAT_SESSION_BYTES_WRITE,
   WT_STAT_SESSION_LOCK_DHANDLE_WAIT,
   WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY,
   WT_STAT_SESSION_TXN_BYTES_DIRTY,
   WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY,
-  WT_STAT_SESSION_CURSOR_NEXT_SKIP_TOTAL,
-  WT_STAT_SESSION_CURSOR_PREV_SKIP_TOTAL,
   WT_STAT_SESSION_TXN_UPDATES,
   WT_STAT_SESSION_READ_TIME,
   WT_STAT_SESSION_WRITE_TIME,
@@ -7812,14 +7814,14 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
 static void
 __stat_session_clear_none(WT_SESSION_STATS *stats)
 {
+    stats->cursor_next_entries_skipped = 0;
+    stats->cursor_prev_entries_skipped = 0;
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
     /* not clearing txn_updates_bytes_dirty */
     /* not clearing txn_bytes_dirty */
     /* not clearing txn_truncate_bytes_dirty */
-    stats->cursor_next_skip_total = 0;
-    stats->cursor_prev_skip_total = 0;
     /* not clearing txn_updates */
     stats->read_time = 0;
     stats->write_time = 0;
