@@ -460,11 +460,10 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     }
 
     /*
-     * The deprecated block cache configuration is ignored; enablement in the new configuration is
-     * rejected. Only the caller-supplied configuration is checked, the saved configuration always
-     * contains the block cache category.
+     * Only the new configuration is checked: the saved configuration always contains the block
+     * cache category, and checking it would warn on every reconfigure.
      */
-    WT_ERR(__wti_blkcache_config_check(session, cfg[1], NULL));
+    WT_ERR(__wti_blkcache_user_config_check(session, cfg[1], NULL));
 
     /*
      * Reconfigure the system.
