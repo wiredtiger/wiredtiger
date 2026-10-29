@@ -132,6 +132,11 @@ __wt_block_read_off_blind(
     *sizep = 0;
     *checksump = 0;
 
+    if (block->in_memory) {
+        WT_ASSERT(session, block->fh == NULL);
+        WT_RET_MSG(session, EINVAL, "%s: no backing file", block->name);
+    }
+
     /*
      * Make sure the buffer is large enough for the header and read the first allocation-size block.
      */

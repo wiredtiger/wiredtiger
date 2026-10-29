@@ -13,6 +13,8 @@ storage directly.
 - Follower nodes can quickly transition to take over write responsibilities if the current leader
 (writer) becomes unavailable.
 
+See @ref arch-disagg-roles for connection-wide roles and role changes.
+
 @section shared-tables Shared vs local tables
 
 Tables can be distinguished by the backing storage mechanism. A shared table is a table whose data
@@ -61,6 +63,10 @@ Ingest Table:
 Layered tables support all the regular tables operations, with exceptions listed here:
 
 - All writes, from all nodes, must be timestamped
+- On followers, the commit timestamp of a non-prepared transaction and the prepare and durable
+  timestamps of a prepared transaction must be after the latest adopted checkpoint timestamp. They
+  are checked when the timestamp is set. Prepare discovery restores checkpointed transactions with
+  their original prepare timestamps and is exempt from the prepare timestamp check.
 - All nodes must use the same URI for the same table
 - All nodes must use byte-wise identical keys, values, and timestamps for the same records.
 - Table compaction is not supported on layered tables
@@ -73,16 +79,6 @@ Layered tables support all the regular tables operations, with exceptions listed
 
 __Note:__ This section is closely tied to the source code and may become outdated if not
 maintained in sync with implementation changes.
-
-@subsection layered-leader-follower Leader vs Follower
-- Leader (Primary):
-    - All operations (including writes) go directly to the stable table
-    - The ingest table remains empty
-    - Can create new checkpoints
-- Follower (Standby):
-    - The stable table contains read-only checkpointed data from the leader
-    - The ingest table holds changes applied since the last checkpoint
-    - When a new checkpoint is fetched, the ingest table is cleaned up
 
 @subsection layered-metadata Layered tables metadata representation and related files
 

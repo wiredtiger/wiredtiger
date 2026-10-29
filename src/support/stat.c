@@ -2908,8 +2908,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
-  "cache: eviction server skips checkpointed stable btrees on followers when not looking for clean "
-  "pages",
+  "cache: eviction server skips btrees that are read-only when looking only for dirty or update "
+  "pages and the btree holds none",
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
@@ -2934,6 +2934,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips resuming trees whose walk already traversed the whole tree",
   "cache: eviction server skips stable btrees in disagg",
   "cache: eviction server skips tree that we do not want to evict",
+  "cache: eviction server skips tree that we do not want to evict before releasing the handle list "
+  "lock",
   "cache: eviction server skips trees because there are too many active walks",
   "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
@@ -3379,6 +3381,7 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweep dead dhandles closed",
   "data-handle: connection sweep dhandles removed from hash list",
   "data-handle: connection sweep expired dhandles closed",
+  "data-handle: connection sweep ingest dhandles closed after checkpoint coverage",
   "data-handle: connection sweep time-of-death sets",
   "data-handle: connection sweeps",
   "data-handle: connection sweeps skipped due to checkpoint gathering handles",
@@ -4120,6 +4123,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_WALK_COMPLETE,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_STABLE_TREES,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_TOO_MANY_ACTIVE_WALKS,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_CHECKPOINTING_TREES,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_STICK_IN_CACHE,
@@ -4540,6 +4544,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DH_SWEEP_DEAD_CLOSE,
   WT_STAT_CONN_DH_SWEEP_REMOVE,
   WT_STAT_CONN_DH_SWEEP_EXPIRED_CLOSE,
+  WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE,
   WT_STAT_CONN_DH_SWEEP_TOD,
   WT_STAT_CONN_DH_SWEEPS,
   WT_STAT_CONN_DH_SWEEP_SKIP_CKPT,
@@ -5306,6 +5311,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_trees_walk_complete = 0;
     stats->eviction_server_skip_stable_trees = 0;
     stats->eviction_server_skip_unwanted_tree = 0;
+    stats->eviction_server_skip_unwanted_tree_early = 0;
     stats->eviction_server_skip_trees_too_many_active_walks = 0;
     stats->eviction_server_skip_checkpointing_trees = 0;
     stats->eviction_server_skip_trees_stick_in_cache = 0;
@@ -5726,6 +5732,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->dh_sweep_dead_close = 0;
     stats->dh_sweep_remove = 0;
     stats->dh_sweep_expired_close = 0;
+    stats->dh_sweep_ingest_close = 0;
     stats->dh_sweep_tod = 0;
     stats->dh_sweeps = 0;
     stats->dh_sweep_skip_ckpt = 0;
@@ -6512,6 +6519,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_stable_trees);
     to->eviction_server_skip_unwanted_tree +=
       WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_tree);
+    to->eviction_server_skip_unwanted_tree_early +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_tree_early);
     to->eviction_server_skip_trees_too_many_active_walks +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_too_many_active_walks);
     to->eviction_server_skip_checkpointing_trees +=
@@ -7038,6 +7047,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweep_dead_close += WT_STAT_CONN_READ(from, dh_sweep_dead_close);
     to->dh_sweep_remove += WT_STAT_CONN_READ(from, dh_sweep_remove);
     to->dh_sweep_expired_close += WT_STAT_CONN_READ(from, dh_sweep_expired_close);
+    to->dh_sweep_ingest_close += WT_STAT_CONN_READ(from, dh_sweep_ingest_close);
     to->dh_sweep_tod += WT_STAT_CONN_READ(from, dh_sweep_tod);
     to->dh_sweeps += WT_STAT_CONN_READ(from, dh_sweeps);
     to->dh_sweep_skip_ckpt += WT_STAT_CONN_READ(from, dh_sweep_skip_ckpt);
