@@ -323,8 +323,11 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
 
     /*
      * Record how many threads were waiting, which is what a broadcast would wake, then wake no more
-     * threads than there are candidates for; the rest would find the queue drained. The waiter
-     * count is -1 when a wake is pending and nobody is waiting.
+     * threads than there are candidates for; the rest would find the queue drained.
+     *
+     * The count is -1 when a wake is already pending and nobody is waiting. Don't skip the wake on
+     * that: this read may be out of date, and the wake reads the count again after a full barrier.
+     * If it is still -1 the wake returns at once, so calling it costs almost nothing.
      */
     waiters = __wt_atomic_load_int32_relaxed(&conn->evict_config.threads.wait_cond->waiters);
     WT_STAT_CONN_INCRV(session, eviction_refill_waiters, WT_MAX(waiters, 0));
