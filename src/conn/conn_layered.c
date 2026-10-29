@@ -2341,18 +2341,20 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Clear the step-down timestamp and epoch. No write transaction runs concurrently with the
-     * step-down, but the lock is still required for readers: transaction begin reads the step-down
-     * timestamp under it, so a transaction that sees the timestamp cleared is guaranteed to also
-     * see the earlier switch of the role to follower. Without that ordering a reader could observe
-     * the stale leader role with no step-down timestamp and read only stable, missing ingest
-     * content.
+     * Clear the step-down timestamp. No write transaction runs concurrently with the step-down, but
+     * the lock is still required for readers: transaction begin reads the step-down timestamp under
+     * it, so a transaction that sees the timestamp cleared is guaranteed to also see the earlier
+     * switch of the role to follower. Without that ordering a reader could observe the stale leader
+     * role with no step-down timestamp and read only stable, missing ingest content.
      */
     __wt_writelock(session, &conn->txn_global.step_down_lock);
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
+    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+
+    /* The schema lock held in this function orders the schema epoch assignment. */
     __wt_atomic_store_uint64_relaxed(
       &conn->txn_global.step_down_disaggregated_schema_epoch, WT_SCHEMA_EPOCH_NONE);
-    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
+
     if (step_down_ts != WT_TS_NONE)
         WT_STAT_CONN_INCR(session, disagg_step_down_completed);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
