@@ -3148,6 +3148,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
+  "cache: threads waiting for candidates, summed over eviction server refills",
   "cache: time eviction worker threads spend waiting for locks (usecs)",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
   "cache: tracked bytes belonging to internal pages in the cache",
@@ -3261,6 +3262,8 @@ static const char *const __stats_connection_desc[] = {
   "connection: auto adjusting condition wait calls",
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
   "connection: btrees currently open",
+  "connection: condition wakes done as individual signals",
+  "connection: counted condition wakes that fell back to a broadcast",
   "connection: detected system time went backwards",
   "connection: files currently open",
   "connection: hash bucket array size for data handles",
@@ -4316,6 +4319,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CACHE_READ_RESTORED_TOMBSTONE_BYTES,
   WT_STAT_CONN_CACHE_HS_INSERT_FULL_UPDATE,
   WT_STAT_CONN_CACHE_HS_INSERT_REVERSE_MODIFY,
+  WT_STAT_CONN_EVICTION_REFILL_WAITERS,
   WT_STAT_CONN_EVICTION_WORKER_LOCK_WAIT_TIME,
   WT_STAT_CONN_EVICTION_REENTRY_HS_EVICTION_MILLISECONDS,
   WT_STAT_CONN_CACHE_BYTES_INTERNAL,
@@ -4427,6 +4431,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_COND_AUTO_WAIT,
   WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED,
   WT_STAT_CONN_BTREE_OPEN,
+  WT_STAT_CONN_COND_SIGNAL_N_SIGNALS,
+  WT_STAT_CONN_COND_SIGNAL_N_BROADCAST,
   WT_STAT_CONN_TIME_TRAVEL,
   WT_STAT_CONN_FILE_OPEN,
   WT_STAT_CONN_BUCKETS_DH,
@@ -5503,6 +5509,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
+    stats->eviction_refill_waiters = 0;
     stats->eviction_worker_lock_wait_time = 0;
     /* not clearing eviction_reentry_hs_eviction_milliseconds */
     /* not clearing cache_bytes_internal */
@@ -5614,6 +5621,8 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cond_auto_wait = 0;
     stats->cond_auto_wait_skipped = 0;
     /* not clearing btree_open */
+    stats->cond_signal_n_signals = 0;
+    stats->cond_signal_n_broadcast = 0;
     stats->time_travel = 0;
     /* not clearing file_open */
     /* not clearing buckets_dh */
@@ -6780,6 +6789,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
+    to->eviction_refill_waiters += WT_STAT_CONN_READ(from, eviction_refill_waiters);
     to->eviction_worker_lock_wait_time += WT_STAT_CONN_READ(from, eviction_worker_lock_wait_time);
     to->eviction_reentry_hs_eviction_milliseconds +=
       WT_STAT_CONN_READ(from, eviction_reentry_hs_eviction_milliseconds);
@@ -6913,6 +6923,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
     to->cond_auto_wait_skipped += WT_STAT_CONN_READ(from, cond_auto_wait_skipped);
     to->btree_open += WT_STAT_CONN_READ(from, btree_open);
+    to->cond_signal_n_signals += WT_STAT_CONN_READ(from, cond_signal_n_signals);
+    to->cond_signal_n_broadcast += WT_STAT_CONN_READ(from, cond_signal_n_broadcast);
     to->time_travel += WT_STAT_CONN_READ(from, time_travel);
     to->file_open += WT_STAT_CONN_READ(from, file_open);
     to->buckets_dh += WT_STAT_CONN_READ(from, buckets_dh);

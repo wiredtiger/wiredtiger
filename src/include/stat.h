@@ -794,6 +794,7 @@ struct __wt_connection_stats {
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t eviction_refill_waiters;
     int64_t eviction_worker_lock_wait_time;
     int64_t eviction_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
@@ -905,6 +906,8 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
     int64_t btree_open;
+    int64_t cond_signal_n_signals;
+    int64_t cond_signal_n_broadcast;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;

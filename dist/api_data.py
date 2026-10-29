@@ -838,6 +838,10 @@ connection_runtime_config = [
                 standard dirty or update triggers won't become active until the cache fill ratio
                 first reaches this new, higher threshold.''',
                 min='0', max='50'),
+            Config('bounded_wake', 'false', r'''
+                Wake only as many threads waiting for eviction candidates as there are candidates
+                to take, instead of waking all of them every time candidates are queued.''',
+                type='boolean'),
             Config('cache_tolerance_for_app_eviction', '0', r'''
                 This setting establishes a tolerance level for the configured
                 \c eviction_dirty_trigger and \c eviction_update_trigger.
