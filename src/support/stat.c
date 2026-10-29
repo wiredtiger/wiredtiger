@@ -7740,6 +7740,8 @@ static const char *const __stats_session_desc[] = {
   "session: dirty bytes from updates in this txn",
   "session: dirty bytes in this txn, from both updates and fast-truncate",
   "session: dirty bytes pinned by fast-truncate in this txn",
+  "session: entries skipped by cursor next calls",
+  "session: entries skipped by cursor prev calls",
   "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
@@ -7764,6 +7766,8 @@ static const int __stats_session_otel_none[] = {
   WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY,
   WT_STAT_SESSION_TXN_BYTES_DIRTY,
   WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY,
+  WT_STAT_SESSION_CURSOR_NEXT_SKIP_TOTAL,
+  WT_STAT_SESSION_CURSOR_PREV_SKIP_TOTAL,
   WT_STAT_SESSION_TXN_UPDATES,
   WT_STAT_SESSION_READ_TIME,
   WT_STAT_SESSION_WRITE_TIME,
@@ -7814,6 +7818,8 @@ __stat_session_clear_none(WT_SESSION_STATS *stats)
     /* not clearing txn_updates_bytes_dirty */
     /* not clearing txn_bytes_dirty */
     /* not clearing txn_truncate_bytes_dirty */
+    stats->cursor_next_skip_total = 0;
+    stats->cursor_prev_skip_total = 0;
     /* not clearing txn_updates */
     stats->read_time = 0;
     stats->write_time = 0;

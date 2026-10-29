@@ -1664,6 +1664,8 @@ session_stats = [
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
     SessionStat('cache_time_interruptible', 'time waiting for cache interruptible eviction (usecs)'),
     SessionStat('cache_time_mandatory', 'time waiting for mandatory cache eviction (usecs)'),
+    SessionStat('cursor_next_skip_total', 'entries skipped by cursor next calls'),
+    SessionStat('cursor_prev_skip_total', 'entries skipped by cursor prev calls'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),

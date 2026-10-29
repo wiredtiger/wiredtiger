@@ -2029,6 +2029,8 @@ struct __wt_session_stats {
     int64_t txn_updates_bytes_dirty;
     int64_t txn_bytes_dirty;
     int64_t txn_truncate_bytes_dirty;
+    int64_t cursor_next_skip_total;
+    int64_t cursor_prev_skip_total;
     int64_t txn_updates;
     int64_t read_time;
     int64_t write_time;
