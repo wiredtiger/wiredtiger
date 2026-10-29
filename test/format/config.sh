@@ -414,6 +414,10 @@ CONFIG configuration_list[] = {
 {"wiredtiger.rwlock", "configure wiredtiger read/write mutexes", C_BOOL, 80, 0, 0}
 
 {"wiredtiger.leak_memory", "leak memory on wiredtiger shutdown", C_BOOL, 0, 0, 0}
+
+{"disagg.frontier_lag", "publish a materialization frontier that trails the workload", C_BOOL, 30, 0, 0}
+
+{"disagg.frontier_lag.max", "maximum materialization frontier lag, in LSNs", C_IGNORE, 0, 0, 10000}
 END_OF_INPUT
 
 (

@@ -288,7 +288,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     WT_SESSION *session;
     STEPDOWN_ARGS stepdown_args;
     wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid,
-      follower_tid, follower_read_no_ts_tid[2], hs_tid, import_tid, random_tid;
+      follower_tid, follower_read_no_ts_tid[2], frontier_tid, hs_tid, import_tid, random_tid;
     wt_thread_t key_rotation_tid, stepdown_tid, timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
@@ -414,6 +414,9 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     if (g.checkpoint_config == CHECKPOINT_ON)
         testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
 
+    if (GV(DISAGG_FRONTIER_LAG))
+        testutil_check(__wt_thread_create(NULL, &frontier_tid, disagg_frontier, NULL));
+
     if (GV(DISAGG_KEY_PROVIDER) == DISAGG_KEY_PROVIDER_PUSH)
         testutil_check(__wt_thread_create(NULL, &key_rotation_tid, disagg_key_rotation, NULL));
 
@@ -529,6 +532,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
      */
     if (g.checkpoint_config == CHECKPOINT_ON && !stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
+    if (GV(DISAGG_FRONTIER_LAG))
+        testutil_check(__wt_thread_join(NULL, &frontier_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
     if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)

@@ -238,6 +238,78 @@ disagg_is_multi_node(void)
 }
 
 /*
+ * disagg_frontier --
+ *     Periodically publish a materialization frontier that trails the workload's last LSN. The
+ *     cadence matters: publishing only when a checkpoint completes would make the checkpoint
+ *     interval, not the configured lag, the dominant term.
+ */
+WT_THREAD_RET
+disagg_frontier(void *arg)
+{
+    SAP sap;
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+
+    (void)arg; /* Unused argument */
+
+    conn = g.wts_conn;
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+
+    while (!g.workers_finished) {
+        __wt_sleep(0, 10 * WT_THOUSAND);
+        disagg_publish_frontier(session);
+    }
+
+    wt_wrap_close_session(session);
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * disagg_publish_frontier --
+ *     Publish a materialization frontier that trails the workload's last LSN by a random amount.
+ *     Without this, format never sets a frontier and every frontier-gated decision in the engine
+ *     stays unreachable.
+ */
+void
+disagg_publish_frontier(WT_SESSION *session)
+{
+    WT_CONNECTION *conn;
+    WT_PAGE_LOG *page_log;
+    uint64_t lag, last_lsn, target;
+    int ret;
+
+    if (!GV(DISAGG_FRONTIER_LAG) || !g.disagg_leader)
+        return;
+
+    conn = g.wts_conn;
+    ret = conn->get_page_log(conn, GVS(DISAGG_PAGE_LOG), &page_log);
+    if (ret != 0)
+        return;
+
+    ret = page_log->pl_get_last_lsn(page_log, session, &last_lsn);
+    if (ret != 0 || last_lsn == 0)
+        return;
+
+    lag = mmrand(&g.extra_rnd, 0, GV(DISAGG_FRONTIER_LAG_MAX));
+    target = last_lsn > lag ? last_lsn - lag : last_lsn;
+
+    /*
+     * A role change must not move the frontier backwards. The published value is remembered across
+     * step-down and step-up rather than reset, so a node that steps back up never republishes a
+     * frontier below one it already published, and a lag that lands below it is skipped rather than
+     * fatal.
+     */
+    if (target <= g.frontier_lsn)
+        return;
+
+    ret = conn->set_context_uint(conn, WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, target);
+    testutil_assert(ret == 0 || ret == EINVAL);
+    if (ret == 0)
+        g.frontier_lsn = target;
+}
+
+/*
  * disagg_is_mode_switch --
  *     Check if disagg is configured to use "switch" mode.
  */
