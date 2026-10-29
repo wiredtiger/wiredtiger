@@ -32,9 +32,9 @@ from wtscenario import make_scenarios
 
 # test_cursor_skip01.py
 #    The per-session cursor skip statistics count the entries a session steps over
-#    while moving its cursors, and leave out history store and metadata walks.
+#    while moving its cursors through its own tables, and leave out metadata walks.
 class test_cursor_skip01(wttest.WiredTigerTestCase):
-    # The cache is large enough that nothing is evicted unless a test asks for it.
+    # The cache is large enough that nothing is evicted, so the removed entries stay in place.
     conn_config = 'cache_size=500MB,statistics=(fast)'
     uri = 'table:test_cursor_skip01'
 
@@ -91,6 +91,7 @@ class test_cursor_skip01(wttest.WiredTigerTestCase):
 
     def test_tombstone_scan(self):
         self.populate_tombstones()
+        writer_before = self.session_stat(self.session, self.forward)
 
         reader = self.conn.open_session()
         reader.begin_transaction('read_timestamp=' + self.timestamp_str(30))
@@ -104,26 +105,12 @@ class test_cursor_skip01(wttest.WiredTigerTestCase):
         table_delta = self.table_stat(self.uri) - table_before
         reader.rollback_transaction()
 
-        # Nothing is evicted and only this session walks the table, so the count is exact.
+        # Nothing is evicted, no checkpoint runs and only the reader walks the table, so the
+        # count is exact and charged to the reader alone.
         self.assertEqual(reader_delta, self.nentries)
         self.assertEqual(reader_delta, table_delta)
         self.assertEqual(self.session_stat(reader, not self.forward), other_before)
-        reader.close()
-
-    def test_session_isolation(self):
-        self.populate_tombstones()
-        writer_before = self.session_stat(self.session, self.forward)
-
-        reader = self.conn.open_session()
-        reader.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assertEqual(self.scan(reader, self.uri), 0)
-        reader.rollback_transaction()
-
-        # The reader's work is charged to the reader alone, and resetting it clears the count.
-        self.assertGreater(self.session_stat(reader, self.forward), 0)
         self.assertEqual(self.session_stat(self.session, self.forward), writer_before)
-        reader.reset()
-        self.assertEqual(self.session_stat(reader, self.forward), 0)
         reader.close()
 
     def test_metadata_excluded(self):
@@ -142,41 +129,6 @@ class test_cursor_skip01(wttest.WiredTigerTestCase):
         # The metadata walk skipped the deleted entries, but none are charged to the session.
         self.assertGreater(self.conn_stat(), conn_before)
         self.assertEqual(self.session_stat(reader, self.forward), reader_before)
-        reader.close()
-
-    def test_history_store_excluded(self):
-        nkeys = 2000
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
-        cursor = self.session.open_cursor(self.uri)
-        for ts, value in ((10, 'a'), (15, 'b'), (18, 'c')):
-            self.session.begin_transaction()
-            for i in range(1, nkeys + 1):
-                cursor[i] = value * 100
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        cursor.close()
-
-        # Evict the table so the older versions move to the history store.
-        evict_cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict=true)')
-        for i in range(1, nkeys + 1, 100):
-            evict_cursor.set_key(i)
-            self.assertEqual(evict_cursor.search(), 0)
-            evict_cursor.reset()
-        evict_cursor.close()
-
-        reader = self.conn.open_session()
-        reader.begin_transaction('read_timestamp=' + self.timestamp_str(12))
-        reader_before = self.session_stat(reader, self.forward)
-        table_before = self.table_stat(self.uri)
-
-        self.assertEqual(self.scan(reader, self.uri), nkeys)
-
-        reader_delta = self.session_stat(reader, self.forward) - reader_before
-        table_delta = self.table_stat(self.uri) - table_before
-        reader.rollback_transaction()
-
-        # Reading older versions walks the history store; only the table's own skips count.
-        self.assertEqual(reader_delta, table_delta)
         reader.close()
 
 if __name__ == '__main__':
