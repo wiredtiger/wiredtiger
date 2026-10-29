@@ -275,11 +275,11 @@ __verify_dsk_addr_page_del(
           cell_num - 1, tag, unpack->page_del.pg_del_durable_ts, unpack->page_del.pg_del_start_ts);
 
     /*
-     * The timestamps in the page_delete information are a global stop time for the entire page. The
-     * aggregate in the cell predates the truncate, so its stop information must not run past it.
-     * Validation of the effective aggregate against the parent happens with the validity window.
+     * The timestamps in the page_delete information are a global stop time for the entire page.
+     * This is not reflected in the aggregate, but is supposed to be reflected in the parent's
+     * aggregate. First check that the aggregate is consistent with being deleted at the given time.
      */
-    if (unpack->ta.newest_stop_durable_ts > unpack->page_del.pg_del_durable_ts)
+    if (unpack->ta.newest_page_stop_durable_ts > unpack->page_del.pg_del_durable_ts)
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32
           " on page at %s has invalid newest durable stop time; should be <= %" PRIu64
