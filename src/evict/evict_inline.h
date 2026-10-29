@@ -84,7 +84,7 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 #define WT_EVICT_DIRTY_POLICY_RANDOM 0
 #define WT_EVICT_DIRTY_POLICY_LRU 1
 #ifndef WT_EVICT_DIRTY_POLICY
-#define WT_EVICT_DIRTY_POLICY WT_EVICT_DIRTY_POLICY_LRU
+#define WT_EVICT_DIRTY_POLICY WT_EVICT_DIRTY_POLICY_RANDOM
 #endif
 
 /*
@@ -291,6 +291,44 @@ __evict_get_target_destination(
         return false; /* page isn't at the right place */
     }
     return true;
+}
+
+/*
+ * __evict_page_placed --
+ *     Return whether the page is already where __evict_get_target_destination would put it: in a
+ *     bucket of the level it belongs to and, at levels ordered by read generation, in one of the
+ *     buckets of its read generation's range. Called without the ref lock, so it reads the page's
+ *     bucket pointer once and never dereferences it twice; buckets are never freed, so a stale
+ *     pointer is still safe to read. The answer is a hint: a false negative only costs taking the
+ *     lock, and a false positive leaves the page where it is until its next enqueue.
+ */
+static WT_INLINE bool
+__evict_page_placed(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_EVICT_BUCKET *bucket;
+    uint64_t base_bucket, read_gen;
+    uint32_t num_buckets;
+    int level;
+
+    bucket = __wt_atomic_load_ptr_relaxed(&page->evict_data.bucket);
+    if (bucket == NULL)
+        return (false);
+
+    level = __evict_target_bucketset_level(session, page);
+    if ((int)bucket->bucketset->level != level)
+        return (false);
+
+    /* Levels not ordered by read generation keep a page in whatever bucket it is in. */
+    read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen);
+    if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON ||
+      !__evict_level_placed_by_read_gen(level))
+        return (true);
+
+    /* The test __evict_destination_bucket uses to keep a page in its read generation's range. */
+    num_buckets = bucket->bucketset->num_buckets;
+    base_bucket = read_gen / WT_READGEN_STEP * WT_EVICT_EXPECTED_CONTENTION;
+    return ((bucket->id + num_buckets - base_bucket % num_buckets) % num_buckets <
+      WT_EVICT_EXPECTED_CONTENTION);
 }
 
 /*

@@ -2567,6 +2567,24 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_MEM)
         return;
+
+    /*
+     * Fast path: if the page is already where it belongs, there is nothing to do, so don't take the
+     * ref lock. This function is called on every modification of a page (from
+     * __wt_page_only_modify_set via __wt_evict_page_first_dirty) and on read generation bumps, and
+     * in the common case the page doesn't move. Locking the ref regardless made every update
+     * briefly lock the page it modified, and other threads arriving at a hot page found its ref
+     * locked and backed off (page acquire "locked" and "busy"). The check runs without the lock
+     * and may be stale; that is fine, see __evict_page_placed: whoever changes what the page's
+     * placement depends on (dirtying, cleaning, a read generation bump) calls this function
+     * itself. A caller that already holds the ref lock takes the normal path.
+     */
+    if (!(previous_state == WT_REF_LOCKED && WT_REF_OWNER(ref) == session) &&
+      __evict_page_placed(session, page)) {
+        WT_STAT_CONN_INCR(session, eviction_enqueue_already_placed);
+        return;
+    }
+
     /*
      * Lock the page so it doesn't disappear. We aren't evicting the page, so we don't need to check
      * for hazard pointers.

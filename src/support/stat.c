@@ -1967,6 +1967,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: dirty leaf bytes discounted from the eviction thresholds because a checkpoint is syncing "
   "the tree",
+  "cache: enqueue found the page already in place without locking the ref",
   "cache: enqueue moved a page whose level changed while the ref was locked",
   "cache: enqueue skipped because another thread held the ref lock",
   "cache: enqueue skipped because the page is being destroyed",
@@ -3095,6 +3096,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     /* not clearing eviction_dirty_leaf_checkpoint */
+    stats->eviction_enqueue_already_placed = 0;
     stats->eviction_enqueue_reclassified = 0;
     stats->eviction_enqueue_skipped_locked = 0;
     stats->eviction_enqueue_skipped_destroying = 0;
@@ -4213,6 +4215,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
     to->eviction_dirty_leaf_checkpoint += WT_STAT_CONN_READ(from, eviction_dirty_leaf_checkpoint);
+    to->eviction_enqueue_already_placed += WT_STAT_CONN_READ(from, eviction_enqueue_already_placed);
     to->eviction_enqueue_reclassified += WT_STAT_CONN_READ(from, eviction_enqueue_reclassified);
     to->eviction_enqueue_skipped_locked += WT_STAT_CONN_READ(from, eviction_enqueue_skipped_locked);
     to->eviction_enqueue_skipped_destroying +=
