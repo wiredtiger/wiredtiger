@@ -41,9 +41,9 @@ struct __wti_cursor_layered {
     uint64_t next_random_seed;
     u_int next_random_sample_size;
 
-    uint64_t snapshot_gen;               /* Snapshot generation on last access */
-    uint64_t read_timestamp;             /* Read timestamp on last access */
-    uint32_t txn_mod_count;              /* Transaction modification count on last access */
+    uint64_t snapshot_gen;   /* Snapshot generation on last access except a blind remove */
+    uint64_t read_timestamp; /* Read timestamp on last access */
+    uint32_t txn_mod_count;  /* Transaction modification count on last access */
     uint64_t stable_checkpoint_meta_lsn; /* Checkpoint LSN stable cursor is on */
     WTI_CLAYERED_ROLE last_role;         /* Last-observed leader/follower role (change-detection) */
 
@@ -67,8 +67,12 @@ typedef enum {
     WTI_CLAYERED_MODE_ITERATE,     /* next, prev */
     WTI_CLAYERED_MODE_RANDOM,      /* next_random */
     WTI_CLAYERED_MODE_LARGEST_KEY, /* largest_key */
-    WTI_CLAYERED_MODE_WRITE        /* reserve, modify, insert, update, remove */
+    WTI_CLAYERED_MODE_REMOVE,      /* remove */
+    WTI_CLAYERED_MODE_WRITE        /* reserve, modify, insert, update */
 } WTI_CLAYERED_OP_MODE;
+
+#define WTI_CLAYERED_MODE_IS_WRITE(mode) \
+    ((mode) == WTI_CLAYERED_MODE_REMOVE || (mode) == WTI_CLAYERED_MODE_WRITE)
 
 /*
  * WTI_CLAYERED_OP --
@@ -81,4 +85,5 @@ struct __wti_clayered_op {
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
     WTI_CLAYERED_WRITE_TARGET write_target;
+    bool follower_blind_remove;
 };

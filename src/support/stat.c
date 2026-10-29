@@ -352,6 +352,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "layered: Layered table cursor blind remove operations on a follower",
+  "layered: Layered table cursor blind remove operations on an already deleted key",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -850,6 +852,8 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_UPDATE,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
+  WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_DSRC_LAYERED_CURS_INSERT,
   WT_STAT_DSRC_LAYERED_CURS_MODIFY,
   WT_STAT_DSRC_LAYERED_CURS_NEXT,
@@ -1383,6 +1387,8 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->layered_curs_blind_remove_follower = 0;
+    stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -1934,6 +1940,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->layered_curs_blind_remove_follower += from->layered_curs_blind_remove_follower;
+    to->layered_curs_blind_remove_ingest_deleted += from->layered_curs_blind_remove_ingest_deleted;
     to->layered_curs_insert += from->layered_curs_insert;
     to->layered_curs_modify += from->layered_curs_modify;
     to->layered_curs_next += from->layered_curs_next;
@@ -2526,6 +2534,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->layered_curs_blind_remove_follower +=
+      WT_STAT_DSRC_READ(from, layered_curs_blind_remove_follower);
+    to->layered_curs_blind_remove_ingest_deleted +=
+      WT_STAT_DSRC_READ(from, layered_curs_blind_remove_ingest_deleted);
     to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_DSRC_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
@@ -3426,6 +3438,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: time spent adding pages to the victim cache (usecs)",
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
+  "layered: Layered table cursor blind remove operations on a follower",
+  "layered: Layered table cursor blind remove operations on an already deleted key",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -4584,6 +4598,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUT_TIME,
   WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
+  WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
+  WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
   WT_STAT_CONN_LAYERED_CURS_MODIFY,
   WT_STAT_CONN_LAYERED_CURS_NEXT,
@@ -5770,6 +5786,8 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_victim_cache_app_thread_put_time = 0;
     stats->disagg_victim_cache_put_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
+    stats->layered_curs_blind_remove_follower = 0;
+    stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -7109,6 +7127,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_victim_cache_put_time += WT_STAT_CONN_READ(from, disagg_victim_cache_put_time);
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
+    to->layered_curs_blind_remove_follower +=
+      WT_STAT_CONN_READ(from, layered_curs_blind_remove_follower);
+    to->layered_curs_blind_remove_ingest_deleted +=
+      WT_STAT_CONN_READ(from, layered_curs_blind_remove_ingest_deleted);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
