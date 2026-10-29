@@ -32,15 +32,15 @@ import wttest
 
 # Test that deprecated block cache configuration is handled correctly.
 class test_block_cache_deprecate(wttest.WiredTigerTestCase):
+    msg = '/block cache has been deprecated and is no longer supported/'
 
     # Test that opening with the block cache enabled fails with an appropriate error.
     def test_block_cache_enabled_error(self):
         self.close_conn()
 
         config = 'create,block_cache=(enabled=true)'
-        msg = '/block cache has been deprecated and is no longer supported/'
         self.assertRaisesWithMessage(
-            wiredtiger.WiredTigerError, lambda: self.wiredtiger_open('.', config), msg)
+            wiredtiger.WiredTigerError, lambda: self.wiredtiger_open('.', config), self.msg)
 
         # Reopen normally so tearDown can close cleanly.
         self.open_conn()
@@ -114,7 +114,7 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
             conn = self.wiredtiger_open('A', '')
         conn.close()
 
-    # Test that WiredTiger.config is treated as a caller-supplied source: enablement there is
+    # Test that WiredTiger.config is treated as a user-supplied source: enablement there is
     # rejected, disabled settings are ignored.
     def test_block_cache_user_config(self):
         self.close_conn()
@@ -127,9 +127,8 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
         # Enabling in WiredTiger.config is rejected.
         with open('D/WiredTiger.config', 'w') as user_config:
             user_config.write('block_cache=(enabled=true)\n')
-        msg = '/block cache has been deprecated and is no longer supported/'
         self.assertRaisesWithMessage(
-            wiredtiger.WiredTigerError, lambda: self.wiredtiger_open('D', ''), msg)
+            wiredtiger.WiredTigerError, lambda: self.wiredtiger_open('D', ''), self.msg)
 
         # A disabled setting is ignored with a warning.
         with open('D/WiredTiger.config', 'w') as user_config:
@@ -141,17 +140,15 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
 
     # Test that reconfiguring with block cache settings is ignored or rejected.
     def test_block_cache_reconfigure(self):
-        msg = '/block cache has been deprecated and is no longer supported/'
-
         # Enabling is rejected.
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError,
-            lambda: self.conn.reconfigure('block_cache=(enabled=true)'), msg)
+            lambda: self.conn.reconfigure('block_cache=(enabled=true)'), self.msg)
 
         # A rejected mixed reconfigure leaves the connection usable.
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError,
-            lambda: self.conn.reconfigure('block_cache=(enabled=true),statistics=(all)'), msg)
+            lambda: self.conn.reconfigure('block_cache=(enabled=true),statistics=(all)'), self.msg)
         self.conn.reconfigure('statistics=(all)')
 
         # The block cache check runs before the compatibility change: a rejected reconfigure
@@ -159,7 +156,7 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure(
-                'block_cache=(enabled=true),compatibility=(release="99.9")'), msg)
+                'block_cache=(enabled=true),compatibility=(release="99.9")'), self.msg)
         self.conn.reconfigure('statistics=(all)')
 
         # A disabled block cache is ignored with a warning.
