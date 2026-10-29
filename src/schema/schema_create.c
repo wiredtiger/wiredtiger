@@ -1073,40 +1073,26 @@ err:
 
 /*
  * __wt_layered_create_ingest_file --
- *     Create the in-memory ingest constituent of a layered table directly, bypassing the schema
- *     create machinery (and therefore the per-table dhandle open). Shared by layered-table creation
- *     and follower checkpoint pickup so both persist identical ingest metadata. Pass the caller's
- *     metadata cursor to insert through (pickup, which already holds one) or NULL to insert via the
- *     metadata interface (table creation). The supplied configuration must be the resolved layered
- *     metadata, so the key-ordering fields are always present.
+ *     Create ingest metadata without opening a dhandle, using the caller's metadata cursor if
+ *     given.
  */
 int
 __wt_layered_create_ingest_file(
-  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *uri, const char *layered_cfg)
+  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *uri, const char *config)
 {
-    WT_CONFIG_ITEM collator, cval, key_format, value_format;
     WT_DECL_ITEM(ingest_metadata);
     WT_DECL_RET;
-    const char *filecfg[] = {WT_CONFIG_BASE(session, file_meta), NULL};
-    const char *filename = uri;
-    uint32_t allocsize, fileid;
-    bool created;
+    char *fileconf;
+    const char *merged_config;
+    const char *filecfg[] = {
+      WT_CONFIG_BASE(session, file_meta), config == NULL ? "" : config, NULL, NULL};
+    uint32_t fileid;
 
-    created = false;
+    fileconf = NULL;
+    merged_config = NULL;
 
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
-
-    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "collator", &collator));
-    WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
-    allocsize = (uint32_t)cval.val;
-
-    WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
-
-    WT_ERR(__wt_block_manager_create(session, filename, allocsize));
-    created = true;
 
     WT_ERR(__wt_generate_file_id(session, uri, false, &fileid));
 
@@ -1115,29 +1101,33 @@ __wt_layered_create_ingest_file(
     /*
      * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
      * block_manager=default so that the ingest btree is never mistakenly treated as shared.
-     * Propagate the key-ordering fields (formats, collator) from the layered configuration;
-     * everything else takes file_meta defaults at open.
+     * Preserve the creation configuration for legacy step-up, which derives stable metadata from
+     * ingest metadata.
      */
-    WT_ERR(__wt_buf_fmt(session, ingest_metadata,
-      "allocation_size=%" PRIu32 ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16
-      "),checkpoint=,checkpoint_lsn=,key_format=\"%.*s\",value_format=\"%.*s\",collator=%.*s,"
-      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)",
-      allocsize, fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor,
-      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str,
-      (int)collator.len, collator.str));
+    WT_ERR(
+      __wt_buf_fmt(session, ingest_metadata,
+        "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint=,checkpoint_lsn=,"
+        "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)",
+        fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+    filecfg[2] = ingest_metadata->data;
+    WT_ERR(__wt_config_merge(session, filecfg, NULL, &merged_config));
+    filecfg[1] = merged_config;
+    filecfg[2] = NULL;
+    WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 
-    if (md_cursor != NULL) {
+    /* The metadata interface registers inserts for rollback tracking. */
+    if (md_cursor != NULL && !WT_META_TRACKING(session)) {
         md_cursor->set_key(md_cursor, uri);
-        md_cursor->set_value(md_cursor, ingest_metadata->data);
+        md_cursor->set_value(md_cursor, fileconf);
         WT_ERR(md_cursor->insert(md_cursor));
     } else
-        WT_ERR(__wt_metadata_insert(session, uri, ingest_metadata->data));
+        WT_ERR(__wt_metadata_insert(session, uri, fileconf));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "Created ingest table \"%s\"", uri);
 
 err:
-    if (ret != 0 && created)
-        WT_TRET(__wt_block_manager_drop(session, filename, false));
+    __wt_free(session, fileconf);
+    __wt_free(session, merged_config);
     __wt_scr_free(session, &ingest_metadata);
     return (ret);
 }
@@ -1225,7 +1215,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /* Create the in-memory ingest constituent directly (shared with follower checkpoint pickup). */
-    WT_ERR(__wt_layered_create_ingest_file(session, NULL, ingest_uri, tablecfg));
+    WT_ERR(__wt_layered_create_ingest_file(session, NULL, ingest_uri, config));
 
     /* Build the stable constituent configuration for a later step-up. */
     stable_cfg[1] = disagg_config->data;
