@@ -30,7 +30,7 @@
  * directly removing metadata entries from an otherwise-complete layered table.
  *
  * During wiredtiger_open, we assert that:
- *   - file:T.wt_ingest MUST exist (on both leader and follower).
+ *   - file:T.wt_ingest is optional until the table is first accessed.
  *   - file:T.wt_stable MUST exist on a leader; optional on a follower.
  *
  * Expected outcomes:
@@ -39,12 +39,12 @@
  *   ---------|--------|--------|--------
  *   leader   |  yes   |  yes   | succeed
  *   leader   |  yes   |  no    | abort
- *   leader   |  no    |  yes   | abort
+ *   leader   |  no    |  yes   | succeed
  *   leader   |  no    |  no    | abort
  *   follower |  yes   |  yes   | succeed
  *   follower |  yes   |  no    | succeed  (missing stable is ok on follower)
- *   follower |  no    |  yes   | abort
- *   follower |  no    |  no    | abort
+ *   follower |  no    |  yes   | succeed
+ *   follower |  no    |  no    | succeed
  *
  * "should abort" cases run in a forked child so that WT_ASSERT_ALWAYS killing
  * the process does not take down the test runner.
@@ -102,9 +102,9 @@ prepare_db(const std::string &home, bool remove_ingest, bool remove_stable)
     /*
      * Phase 2: Reopen as follower so that the disaggregated role is explicitly set and does not
      * inherit the "leader" stored in the turtle file from Phase 1. With role=follower, recovery's
-     * __metadata_clean_incomplete_table only checks for the ingest entry, which is intact at this
-     * point, so recovery passes. The layered-table data handles are never accessed here (lazy
-     * open), so no active handle exists for the entries we are about to remove, and the close
+     * __metadata_clean_incomplete_table permits missing constituents, so recovery passes. The
+     * layered-table data handles are never accessed here, so no active handle exists for the
+     * entries we are about to remove, and the close
      * succeeds cleanly.
      */
     {
@@ -197,11 +197,11 @@ TEST_CASE("Layered table incomplete metadata: leader role", "[layered_incomplete
         utils::wiredtiger_cleanup(home);
     }
 
-    SECTION("leader + stable, no ingest: should abort")
+    SECTION("leader + stable, no ingest: should succeed")
     {
         const std::string home = "WT_TEST.layered_inc_leader_no_ingest";
         prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/false);
-        CHECK(reopen_aborts(home, "leader"));
+        CHECK_FALSE(reopen_aborts(home, "leader"));
         utils::wiredtiger_cleanup(home);
     }
 
@@ -232,19 +232,19 @@ TEST_CASE("Layered table incomplete metadata: follower role", "[layered_incomple
         utils::wiredtiger_cleanup(home);
     }
 
-    SECTION("follower + stable, no ingest: should abort")
+    SECTION("follower + stable, no ingest: should succeed")
     {
         const std::string home = "WT_TEST.layered_inc_follower_no_ingest";
         prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/false);
-        CHECK(reopen_aborts(home, "follower"));
+        CHECK_FALSE(reopen_aborts(home, "follower"));
         utils::wiredtiger_cleanup(home);
     }
 
-    SECTION("follower + neither ingest nor stable: should abort")
+    SECTION("follower + neither ingest nor stable: should succeed")
     {
         const std::string home = "WT_TEST.layered_inc_follower_neither";
         prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/true);
-        CHECK(reopen_aborts(home, "follower"));
+        CHECK_FALSE(reopen_aborts(home, "follower"));
         utils::wiredtiger_cleanup(home);
     }
 }

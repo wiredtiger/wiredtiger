@@ -52,6 +52,10 @@ __prepared_discover_open_ingest_cursor(WT_SESSION_IMPL *session, WT_CURSOR **ing
     prefix_len = (size_t)(stable_suffix - stable_uri);
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
     WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+    WT_SAVE_DHANDLE(session,
+      ret = __wt_schema_lazy_create_ingest(
+        session, ingest_uri_buf->data, S2BT(session)->key_format, S2BT(session)->value_format));
+    WT_ERR(ret);
     WT_SAVE_DHANDLE(
       session, ret = __wt_open_cursor(session, ingest_uri_buf->data, NULL, cfg, ingest_cursorp));
     WT_ERR(ret);

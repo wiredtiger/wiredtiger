@@ -165,6 +165,16 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
             return base + ',' + self.extra_config
         return base
 
+    def check_follower_metadata_ids(self, expected_files):
+        self.check_metadata_ids(self.session_follow,
+            {uri: namespace for uri, namespace in expected_files.items()
+                if not uri.endswith('.wt_ingest')})
+        for uri in expected_files:
+            if uri.endswith('.wt_ingest'):
+                name = uri.removeprefix('file:').removesuffix('.wt_ingest')
+                self.session_follow.open_cursor(self.prefix + name).close()
+        self.check_metadata_ids(self.session_follow, expected_files)
+
     def test_populate_table_on_leader(self):
         self.session.create(f"{self.prefix}{self.test_name}", self.make_create_config())
         # Check the leader
@@ -188,7 +198,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
         # Check the follower
-        self.check_metadata_ids(self.session_follow, expected_files)
+        self.check_follower_metadata_ids(expected_files)
 
     def test_populate_10_tables_on_leader_pick_up_on_follower(self):
         expected_files = {}
@@ -206,7 +216,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
         # Check the follower
-        self.check_metadata_ids(self.session_follow, expected_files)
+        self.check_follower_metadata_ids(expected_files)
 
     def test_populate_10_tables_on_leader_and_follower(self):
         # Verify that ingest btrees created on a follower always land in the
@@ -224,12 +234,10 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
         self.create_follower()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Create the same tables on the follower. It should reuse the existing
-        # .wt_stable (shared namespace) and allocate a new .wt_ingest in the
-        # local namespace.
+        # Create the same tables on the follower, then open them to allocate ingest tables.
         for i in range(10):
             table_name = f"{self.test_name}_{i}"
-            self.session.create(f"{self.prefix}{table_name}", self.make_create_config())
+            self.session_follow.create(f"{self.prefix}{table_name}", self.make_create_config())
 
         # Confirm the follower's ingest table received a local namespace ID.
-        self.check_metadata_ids(self.session_follow, expected_files)
+        self.check_follower_metadata_ids(expected_files)

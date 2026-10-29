@@ -133,7 +133,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.with_ingest_uris)
+        self.check_metadata_cursor(self.all_uris,
+            [uri for uri in self.with_ingest_uris if uri not in self.all_uris])
 
         # Check tables after the restart, but before we step up as a leader
         for uri in self.all_uris:
@@ -141,6 +142,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
             for i in range(self.nitems):
                 self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
+
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         # Become the leader
         self.conn.reconfigure(f'disaggregated=(role="leader")')
@@ -228,8 +231,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)
 
-        # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.with_ingest_uris)
+        self.check_metadata_cursor(self.all_uris,
+            [uri for uri in self.with_ingest_uris if uri not in self.all_uris])
 
         # Check tables after the restart
         for uri in self.update_uris:
@@ -245,3 +248,5 @@ class test_layered_config14(wttest.WiredTigerTestCase):
             for i in range(self.nitems):
                 self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
+
+        self.check_metadata_cursor(self.with_ingest_uris)
