@@ -107,8 +107,8 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
             self.assertEqual(self.search(self.session_follow, key)[0], wiredtiger.WT_NOTFOUND)
         self.assertEqual(self.search(self.session_follow, 'stable_key'), (0, 'stable_val'))
 
-    # A cursor positioned in an earlier transaction removes a key a truncate has since covered, and
-    # stays positioned on it.
+    # A cursor positioned in an earlier transaction removes a key a truncate has since covered.
+    # Nothing is written, so the cursor loses its position as a remove that found nothing does.
     def test_positioned_remove_after_truncate(self):
         cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
         cursor.set_key('stable_key')
@@ -128,16 +128,18 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         deleted = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
         self.session_follow.begin_transaction()
         self.assertEqual(cursor.remove(), 0)
-        self.assertEqual(cursor.get_key(), 'stable_key')
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError, lambda: cursor.get_key(), '/requires key be set/')
         self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'z_stable')
+        self.assertEqual(cursor.get_key(), 'anchor')
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         self.assertEqual(
             self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), deleted + 1)
         cursor.close()
 
     # A cursor positioned on another transaction's uncommitted insert of a truncated key, by search
-    # or by iteration, stays positioned when it removes the key after that insert rolls back.
+    # or by iteration, removes the key after that insert rolls back. Nothing is written, so the
+    # cursor loses its position as a remove that found nothing does.
     def check_positioned_remove_after_rollback(self, by_search):
         session = self.conn_follow.open_session('')
         start = session.open_cursor(self.uri)
@@ -172,9 +174,10 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), 0)
         self.assertEqual(
             self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), deleted + 1)
-        self.assertEqual(cursor.get_key(), 'stable_key')
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError, lambda: cursor.get_key(), '/requires key be set/')
         self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'z_stable')
+        self.assertEqual(cursor.get_key(), 'anchor')
         self.session_follow.rollback_transaction()
         cursor.close()
 

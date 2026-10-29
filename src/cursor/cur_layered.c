@@ -3458,11 +3458,12 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 
     /* Skip a key already deleted in ingest: no consecutive tombstones on an update chain. */
     if (deleted_local) {
-        if (op->follower_blind_remove) {
-            WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_ingest_deleted);
-            return (0);
-        }
-        return (WT_NOTFOUND);
+        if (!op->follower_blind_remove)
+            return (WT_NOTFOUND);
+
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_ingest_deleted);
+        WT_RET(__clayered_reset_cursors(clayered, false));
+        return (0);
     }
 
     /*
@@ -3766,10 +3767,11 @@ __clayered_remove(WT_CURSOR *cursor)
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
-     * no position, key or value.
+     * no position, key or value. A blind remove that found nothing to write already dropped the
+     * constituent position.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if (positioned)
+    if (positioned && clayered->current_cursor != NULL)
         F_SET(cursor, WT_CURSTD_KEY_INT);
     else
         WT_TRET(__clayered_reset_cursors(clayered, false));
