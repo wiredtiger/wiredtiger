@@ -68,6 +68,60 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 }
 
 /*
+ * Ordering policy for the dirty leaf level.
+ *
+ * WT_EVICT_DIRTY_POLICY_RANDOM: dirty leaf pages are placed in a random bucket and stay there for
+ * as long as they remain dirty; the eviction search starts at a random bucket. Every dirty page is
+ * equally likely to be chosen, however recently it was used.
+ *
+ * WT_EVICT_DIRTY_POLICY_LRU: dirty leaf pages are placed and re-bucketed by read generation exactly
+ * like clean leaf pages, and the eviction search sweeps the level with the same clock hand. Pages
+ * that are still being used, and so still being modified, are taken last.
+ *
+ * Another policy (ordering by the page's update transaction ID, say) needs a key that maps onto
+ * bucket ranges the way the read generation does; add it here and in the two helpers below.
+ */
+#define WT_EVICT_DIRTY_POLICY_RANDOM 0
+#define WT_EVICT_DIRTY_POLICY_LRU 1
+#ifndef WT_EVICT_DIRTY_POLICY
+#define WT_EVICT_DIRTY_POLICY WT_EVICT_DIRTY_POLICY_LRU
+#endif
+
+/*
+ * __evict_level_placed_by_read_gen --
+ *     Return whether pages at this level are placed into buckets by their read generation (and
+ *     re-bucketed when it is bumped), as opposed to a random bucket kept for the page's stay.
+ */
+static WT_INLINE bool
+__evict_level_placed_by_read_gen(int level)
+{
+    if (level == WT_EVICT_LEVEL_CLEAN_LEAF || level == WT_EVICT_LEVEL_CLEAN_INTERNAL)
+        return (true);
+#if WT_EVICT_DIRTY_POLICY == WT_EVICT_DIRTY_POLICY_LRU
+    if (level == WT_EVICT_LEVEL_DIRTY_LEAF)
+        return (true);
+#endif
+    return (false);
+}
+
+/*
+ * __evict_level_swept_by_hand --
+ *     Return whether the eviction search at this level starts from the level's clock hand (the
+ *     bucket the last victim came from) rather than from a random bucket.
+ */
+static WT_INLINE bool
+__evict_level_swept_by_hand(int level)
+{
+    if (level == WT_EVICT_LEVEL_CLEAN_LEAF)
+        return (true);
+#if WT_EVICT_DIRTY_POLICY == WT_EVICT_DIRTY_POLICY_LRU
+    if (level == WT_EVICT_LEVEL_DIRTY_LEAF)
+        return (true);
+#endif
+    return (false);
+}
+
+/*
  * __evict_destination_bucket --
  *     Given the read generation, find the id of its destination bucket.
  *
@@ -93,7 +147,7 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *bucketset, WT_PAGE *page)
 {
-    uint64_t base_bucket, read_gen;
+    uint64_t base_bucket, cur, read_gen;
     uint32_t num_buckets;
 
     num_buckets = bucketset->num_buckets;
@@ -101,13 +155,12 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
 
     /*
      * If this is a page we won't need, it goes into a distinct bucketset. In that bucketset all
-     * pages have the same read generation, so we place into a randomly selected bucket. Also, read
-     * generations only make sense for clean pages. For dirty content, we want to clean ASAP
-     * regardless of read generations.
+     * pages have the same read generation, so we place into a randomly selected bucket. Levels that
+     * are not ordered by read generation (see __evict_level_placed_by_read_gen) also use a random
+     * bucket.
      */
     if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON ||
-      (bucketset->level != WT_EVICT_LEVEL_CLEAN_LEAF &&
-        bucketset->level != WT_EVICT_LEVEL_CLEAN_INTERNAL)) {
+      !__evict_level_placed_by_read_gen(bucketset->level)) {
         /*
          * If the page is already in a bucket at this level, we return the same
          * bucket. We don't want to trigger re-bucketing at levels where we place
@@ -124,6 +177,21 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
      * are at that generation
      */
     base_bucket = read_gen / WT_READGEN_STEP * WT_EVICT_EXPECTED_CONTENTION;
+
+    /*
+     * If the page already sits in one of the buckets that belong to this read generation at this
+     * level, it is in the right place: keep it there rather than moving it to another, randomly
+     * chosen bucket of the same range. Without this every enqueue of a page whose read generation
+     * hasn't changed would move it with probability (WT_EVICT_EXPECTED_CONTENTION - 1) /
+     * WT_EVICT_EXPECTED_CONTENTION, and dirty pages are enqueued on every modification.
+     */
+    if (!WT_EVICT_PAGE_CLEARED(page) &&
+      page->evict_data.bucket->bucketset->level == bucketset->level) {
+        cur = page->evict_data.bucket->id;
+        if ((cur + num_buckets - base_bucket % num_buckets) % num_buckets <
+          WT_EVICT_EXPECTED_CONTENTION)
+            return (cur);
+    }
 
     /*
      * Add a random offset to the base bucket so we don't contend on the same bucket for the read

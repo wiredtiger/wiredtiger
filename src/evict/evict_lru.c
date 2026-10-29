@@ -1862,10 +1862,11 @@ __evict_get_ref(
 
 #if LRU_FOR_READS
         /*
-         * We only care about LRU for clean leaf pages. For other level choose a random starting
-         * bucket to reduce contention.
+         * Levels ordered by read generation and swept by the clock hand start the search near the
+         * hand (see __evict_level_swept_by_hand). For other levels choose a random starting bucket
+         * to reduce contention.
          */
-        if (i == WT_EVICT_LEVEL_CLEAN_LEAF) {
+        if (__evict_level_swept_by_hand((int)i)) {
             uint32_t hand;
 
             hand = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered);
