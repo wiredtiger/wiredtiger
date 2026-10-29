@@ -3774,10 +3774,10 @@ __clayered_remove(WT_CURSOR *cursor)
      * constituent position.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if (positioned && clayered->current_cursor != NULL)
-        F_SET(cursor, WT_CURSTD_KEY_INT);
-    else
+    if (!positioned)
         WT_TRET(__clayered_reset_cursors(clayered, false));
+    else if (clayered->current_cursor != NULL)
+        F_SET(cursor, WT_CURSTD_KEY_INT);
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
     if (op.follower_blind_remove)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_follower);
