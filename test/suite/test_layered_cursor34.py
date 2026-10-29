@@ -119,8 +119,8 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         cursor.close()
         return count
 
-    # Removing a key twice during a walk, forward or backward, writes one tombstone, and the walk
-    # carries on from the removed key.
+    # Removing a key twice during a walk, forward or backward, writes only one tombstone, and the
+    # walk can carry on from the removed key.
     def test_walk_double_remove(self):
         for forward, removed_key, next_key in ((True, 'ingest_key', 'stable_key'),
                 (False, 'stable_key', 'ingest_key')):

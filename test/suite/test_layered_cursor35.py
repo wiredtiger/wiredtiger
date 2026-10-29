@@ -52,16 +52,23 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         return self.conn_base_config + 'disaggregated=(stepdown_write_mirroring=' + \
             str(self.write_mirroring).lower() + ',role="leader")'
 
-    def test_leader_remove(self):
+    def open_blind_cursor(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v1', 'k2': 'v2'}, 10)
         if self.step_down:
             self.set_step_down_ts(20)
+        return self.session.open_cursor(self.uri, None, 'blind_remove=true')
 
-        cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
+    def finish(self):
+        if self.step_down:
+            self.complete_step_down(20)
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+
+    def test_leader_remove(self):
+        cursor = self.open_blind_cursor()
         self.session.begin_transaction()
-        # A missing key is not found on a leader yet.
         # FIXME-WT-18975: A leader must return 0 for a missing key.
         # FIXME-WT-18976: So must a leader whose step-down window writes are mirrored.
         cursor.set_key('missing')
@@ -71,26 +78,16 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
 
-        # Only the existing key is removed, and nothing is written for the missing one.
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k2': 'v2'})
         self.assertEqual(self.get_stat(stat.conn.layered_curs_blind_remove_follower), 0)
         if self.step_down:
             self.assertNotIn('missing', self.read_keys_at(self.ingest_uri(self.uri), 40))
-            self.complete_step_down(20)
-        else:
-            # Let a checkpoint include the writes, so the table verifies at teardown.
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        self.finish()
 
-    # Removing a key outside the cursor bounds fails with an invalid argument error on a leader
-    # too, and leaves the key as it was.
+    # Removing a key outside the cursor bounds fails with an invalid argument error and leaves the
+    # key as it was.
     def test_leader_remove_out_of_bounds(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'v1', 'k2': 'v2'}, 10)
-        if self.step_down:
-            self.set_step_down_ts(20)
-
-        cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
+        cursor = self.open_blind_cursor()
         cursor.set_key('k2')
         cursor.bound('bound=lower')
         self.session.begin_transaction()
@@ -101,7 +98,4 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         cursor.close()
 
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v1', 'k2': 'v2'})
-        if self.step_down:
-            self.complete_step_down(20)
-        else:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        self.finish()
