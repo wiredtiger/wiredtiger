@@ -450,6 +450,10 @@ __clayered_enter_flags(
     if (mode == WTI_CLAYERED_MODE_ITERATE || mode == WTI_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
 
+    /*
+     * A slow follower truncate only removes keys its cursor is positioned on, so it never looks up
+     * a key and the blind path gains nothing.
+     */
     bool follower_blind_remove = mode == WTI_CLAYERED_MODE_REMOVE &&
       role == WTI_CLAYERED_ROLE_FOLLOWER && F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE);
     if (follower_blind_remove)
@@ -2571,20 +2575,20 @@ err:
 /*
  * __clayered_lookup_blind_remove --
  *     Look up a key for a follower blind remove without reading stable. The out parameter is set if
- *     ingest or the truncate list already shows the key deleted.
+ *     ingest or the truncate list already shows the key removed.
  */
 static int
-__clayered_lookup_blind_remove(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *deleted_localp)
+__clayered_lookup_blind_remove(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *removed_localp)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_DECL_RET;
     bool found_local;
 
-    *deleted_localp = false;
+    *removed_localp = false;
 
     WT_ERR_NOTFOUND_OK(__clayered_lookup_ingest_and_truncate(op, value, &found_local), true);
     if (ret == WT_NOTFOUND)
-        *deleted_localp = found_local;
+        *removed_localp = found_local;
     return (0);
 
 err:
@@ -3425,47 +3429,39 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 
     WT_CLEAR(value);
 
-    /*
-     * A blind remove never reports a missing key, so a key outside the cursor bounds is a usage
-     * error.
-     */
-    if (op->follower_blind_remove) {
-        bool out_of_bounds;
-
-        WT_RET(__clayered_key_out_of_bounds(clayered, key, &out_of_bounds));
-        if (out_of_bounds)
-            WT_RET_MSG(session, EINVAL,
-              "%s: blind_remove cannot remove a key outside the cursor bounds",
-              clayered->iface.internal_uri);
-    }
-
     WT_RET(__clayered_modify_check(op, key));
 
     /* The cached value can be stale once VALUE_INT is cleared (localized at a txn boundary). */
     bool hold_value =
       clayered->current_cursor != NULL && F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT);
 
-    bool deleted_local = false;
+    bool looked_up = false, removed_local = false;
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
         if (op->follower_blind_remove)
-            WT_RET(__clayered_lookup_blind_remove(op, &value, &deleted_local));
+            WT_RET(__clayered_lookup_blind_remove(op, &value, &removed_local));
         else
             WT_RET(__clayered_lookup(op, &value));
+        looked_up = true;
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
         WT_ITEM_SET(value, c_ingest->value);
-        deleted_local = __wt_clayered_deleted(&value);
+        removed_local = __wt_clayered_deleted(&value);
     }
 
-    /* Skip a key already deleted in ingest: no consecutive tombstones on an update chain. */
-    if (deleted_local) {
+    /* Skip a key already removed locally: no consecutive tombstones on an update chain. */
+    if (removed_local) {
         if (!op->follower_blind_remove)
             return (WT_NOTFOUND);
 
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_ingest_deleted);
-        WT_RET(__clayered_reset_cursors(clayered, false));
+        /*
+         * A lookup that found the key removed leaves no constituent on it; a cached position on the
+         * ingest tombstone is still valid and is kept.
+         */
+        if (looked_up)
+            WT_RET(__clayered_reset_cursors(clayered, false));
         return (0);
     }
 
@@ -3756,6 +3752,20 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
+
+    /*
+     * A blind remove never reports a missing key, so a key outside the cursor bounds is a usage
+     * error on any role.
+     */
+    if (F_ISSET(cursor, WT_CURSTD_BLIND_REMOVE)) {
+        bool out_of_bounds;
+
+        WT_ERR(__clayered_key_out_of_bounds(clayered, &cursor->key, &out_of_bounds));
+        if (out_of_bounds)
+            WT_ERR_MSG(session, EINVAL,
+              "%s: blind_remove cannot remove a key outside the cursor bounds",
+              clayered->iface.internal_uri);
+    }
 
     WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_REMOVE, &op));
 

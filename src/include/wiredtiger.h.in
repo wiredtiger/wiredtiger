@@ -8009,7 +8009,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	1643
 /*!
  * layered: Layered table cursor blind remove operations on a key already
- * deleted locally
+ * removed locally
  */
 #define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	1644
 /*! layered: Layered table cursor insert operations */
@@ -10325,7 +10325,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	2327
 /*!
  * layered: Layered table cursor blind remove operations on a key already
- * deleted locally
+ * removed locally
  */
 #define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	2328
 /*! layered: Layered table cursor insert operations */

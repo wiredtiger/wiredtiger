@@ -93,10 +93,10 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), 'ingest_key')
         self.assertEqual(cursor.remove(), 0)
 
-        deleted = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
+        removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
         self.assertEqual(cursor.remove(), 0)
         self.assertEqual(
-            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), deleted + 1)
+            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), removed + 1)
 
         self.assertEqual(cursor.next(), 0)
         self.assertEqual(cursor.get_key(), 'stable_key')
@@ -106,6 +106,45 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         for key in ('anchor', 'ingest_key'):
             self.assertEqual(self.search(self.session_follow, key)[0], wiredtiger.WT_NOTFOUND)
         self.assertEqual(self.search(self.session_follow, 'stable_key'), (0, 'stable_val'))
+
+    def ingest_versions(self, key):
+        cursor = self.session_follow.open_cursor('file:' + self.test_name + '.wt_ingest', None,
+            'debug=(dump_version=(enabled=true))')
+        cursor.set_key(key)
+        count = 0
+        if cursor.search() == 0:
+            count = 1
+            while cursor.next() == 0 and cursor.get_key() == key:
+                count += 1
+        cursor.close()
+        return count
+
+    # Removing a key twice during a walk, forward or backward, writes one tombstone, and the walk
+    # carries on from the removed key.
+    def test_walk_double_remove(self):
+        for forward, removed_key, next_key in ((True, 'ingest_key', 'stable_key'),
+                (False, 'stable_key', 'ingest_key')):
+            cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
+            step = cursor.next if forward else cursor.prev
+            self.session_follow.begin_transaction()
+            while step() == 0 and cursor.get_key() != removed_key:
+                pass
+            self.assertEqual(cursor.get_key(), removed_key)
+            self.assertEqual(cursor.remove(), 0)
+            versions = self.ingest_versions(removed_key)
+
+            removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
+            self.assertEqual(cursor.remove(), 0)
+            self.assertEqual(
+                self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted),
+                removed + 1)
+            self.assertEqual(self.ingest_versions(removed_key), versions)
+
+            self.assertEqual(cursor.get_key(), removed_key)
+            self.assertEqual(step(), 0)
+            self.assertEqual(cursor.get_key(), next_key)
+            self.session_follow.rollback_transaction()
+            cursor.close()
 
     # A cursor positioned in an earlier transaction removes a key a truncate has since covered.
     # Nothing is written, so the cursor loses its position as a remove that found nothing does.
@@ -125,7 +164,7 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         stop.close()
         session.close()
 
-        deleted = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
+        removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
         self.session_follow.begin_transaction()
         self.assertEqual(cursor.remove(), 0)
         self.assertRaisesWithMessage(
@@ -134,7 +173,7 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), 'anchor')
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         self.assertEqual(
-            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), deleted + 1)
+            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), removed + 1)
         cursor.close()
 
     # A cursor positioned on another transaction's uncommitted insert of a truncated key, by search
@@ -169,11 +208,11 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         session.close()
 
-        deleted = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
+        removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
         self.session_follow.begin_transaction()
         self.assertEqual(cursor.remove(), 0)
         self.assertEqual(
-            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), deleted + 1)
+            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), removed + 1)
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, lambda: cursor.get_key(), '/requires key be set/')
         self.assertEqual(cursor.next(), 0)
@@ -290,7 +329,7 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
             self.get_follower_stat(stat.conn.layered_curs_blind_remove_follower), blind + 1)
 
     # Removing a key outside the cursor bounds fails with an invalid argument error and leaves the
-    # key as it was, whether it lives in stable, lives in ingest, is already deleted, or is missing.
+    # key as it was, whether it lives in stable, lives in ingest, is already removed, or is missing.
     # Removing a missing key inside the bounds succeeds.
     def test_bounds(self):
         start = self.session_follow.open_cursor(self.uri)
@@ -303,20 +342,20 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
         stop.close()
         cursor = self.session_follow.open_cursor(self.uri)
         with self.transaction(session=self.session_follow, commit_timestamp=26):
-            cursor['b_deleted'] = 'b_val'
+            cursor['b_removed'] = 'b_val'
         with self.transaction(session=self.session_follow, commit_timestamp=27):
-            cursor.set_key('b_deleted')
+            cursor.set_key('b_removed')
             self.assertEqual(cursor.remove(), 0)
         cursor.close()
 
-        deleted = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
+        removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
         cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
         cursor.set_key('m')
         cursor.bound('bound=lower')
         cursor.set_key('y')
         cursor.bound('bound=upper')
         with self.transaction(session=self.session_follow, rollback=True):
-            for key in ('a_absent', 'anchor', 'b_deleted', 'ingest_key', 'z_stable'):
+            for key in ('a_absent', 'anchor', 'b_removed', 'ingest_key', 'z_stable'):
                 cursor.set_key(key)
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.remove(),
                     '/blind_remove cannot remove a key outside the cursor bounds/')
@@ -328,4 +367,4 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.remove(), 0)
         cursor.close()
         self.assertEqual(
-            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), deleted)
+            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), removed)

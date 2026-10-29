@@ -80,3 +80,28 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
         else:
             # Let a checkpoint include the writes, so the table verifies at teardown.
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+
+    # Removing a key outside the cursor bounds fails with an invalid argument error on a leader
+    # too, and leaves the key as it was.
+    def test_leader_remove_out_of_bounds(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'v1', 'k2': 'v2'}, 10)
+        if self.step_down:
+            self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
+        cursor.set_key('k2')
+        cursor.bound('bound=lower')
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.remove(),
+            '/blind_remove cannot remove a key outside the cursor bounds/')
+        self.session.rollback_transaction()
+        cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v1', 'k2': 'v2'})
+        if self.step_down:
+            self.complete_step_down(20)
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))

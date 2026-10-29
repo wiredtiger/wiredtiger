@@ -353,7 +353,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update key and value bytes",
   "cursor: update value size change",
   "layered: Layered table cursor blind remove operations on a follower",
-  "layered: Layered table cursor blind remove operations on a key already deleted locally",
+  "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -3441,7 +3441,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "layered: Layered table cursor blind remove operations on a follower",
-  "layered: Layered table cursor blind remove operations on a key already deleted locally",
+  "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",

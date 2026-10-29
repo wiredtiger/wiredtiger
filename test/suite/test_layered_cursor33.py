@@ -41,13 +41,13 @@ class test_layered_cursor33(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    # Where the removed key lives on the follower, and whether the remove finds it already deleted.
+    # Where the removed key lives on the follower, and whether the remove finds it already removed.
     targets = [
-        ('ingest_live', dict(key='ingest_key', setup='write', already_deleted=False)),
-        ('ingest_deleted', dict(key='ingest_key', setup='write_remove', already_deleted=True)),
-        ('truncated', dict(key='stable_key', setup='truncate', already_deleted=True)),
-        ('stable_only', dict(key='stable_key', setup=None, already_deleted=False)),
-        ('absent', dict(key='absent_key', setup=None, already_deleted=False)),
+        ('ingest_live', dict(key='ingest_key', setup='write', already_removed=False)),
+        ('ingest_removed', dict(key='ingest_key', setup='write_remove', already_removed=True)),
+        ('truncated', dict(key='stable_key', setup='truncate', already_removed=True)),
+        ('stable_only', dict(key='stable_key', setup=None, already_removed=False)),
+        ('absent', dict(key='absent_key', setup=None, already_removed=False)),
     ]
     read_timestamps = [
         ('no_read_ts', dict(read_ts=None)),
@@ -133,7 +133,7 @@ class test_layered_cursor33(wttest.WiredTigerTestCase):
         self.assertEqual(delta[stat.conn.layered_curs_reopen_stable], 0)
         self.assertEqual(delta[stat.conn.layered_curs_blind_remove_follower], 1)
         self.assertEqual(delta[stat.conn.layered_curs_blind_remove_ingest_deleted],
-            1 if self.already_deleted else 0)
+            1 if self.already_removed else 0)
 
         # The key is gone and the rest of the table is untouched.
         verify = self.session_follow.open_cursor(self.uri)

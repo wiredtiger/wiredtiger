@@ -133,21 +133,21 @@ class test_layered_cursor32(wttest.WiredTigerTestCase):
         # Open with the option on, reusing the cached cursor. A layered cursor takes the option from
         # this open, so removing a missing key succeeds. A plain table rejects it, and the cursor
         # still goes back into the cache.
-        cache_reuses = self.get_stat(stat.conn.cursor_reopen)
+        cursor_reopen = self.get_stat(stat.conn.cursor_reopen)
         if self.supported:
             cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
-            self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
+            self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cursor_reopen)
             self.assertEqual(self.remove_missing(cursor), 0)
             cursor.close()
         else:
             self.assert_enotsup(
                 lambda: self.session.open_cursor(self.uri, None, 'blind_remove=true'))
-            self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
+            self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cursor_reopen)
 
         # Open with the default configuration, reusing the same cursor. A layered cursor must not
         # keep the earlier option, so removing a missing key fails.
-        cache_reuses = self.get_stat(stat.conn.cursor_reopen)
+        cursor_reopen = self.get_stat(stat.conn.cursor_reopen)
         cursor = self.session.open_cursor(self.uri)
-        self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cache_reuses)
+        self.assertGreater(self.get_stat(stat.conn.cursor_reopen), cursor_reopen)
         self.assertEqual(self.remove_missing(cursor), wiredtiger.WT_NOTFOUND)
         cursor.close()
