@@ -30,6 +30,99 @@ __conn_dhandle_config_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_dhandle_ingest_id_alloc --
+ *     Allocate a transient ingest ID without advancing the durable file ID counter.
+ */
+static int
+__conn_dhandle_ingest_id_alloc(WT_SESSION_IMPL *session, uint32_t *fileidp)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t max_id;
+
+    *fileidp = 0;
+    conn = S2C(session);
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    max_id = UINT32_MAX >> WT_BTREE_ID_NAMESPACE_BITS;
+    if (conn->next_ingest_id >= max_id)
+        WT_RET_MSG(session, WT_ERROR, "out of ingest IDs");
+    *fileidp = WT_BTREE_ID_NAMESPACED(++conn->next_ingest_id, WT_BTREE_ID_NAMESPACE_INGEST);
+    return (0);
+}
+
+/*
+ * __conn_dhandle_ingest_id --
+ *     Retrieve an ingest ID retained by its layered handle.
+ */
+static int
+__conn_dhandle_ingest_id(WT_SESSION_IMPL *session, const char *uri, uint32_t *fileidp)
+{
+    WT_DECL_RET;
+
+    *fileidp = 0;
+    if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+    WT_ASSERT(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED);
+    *fileidp = ((WT_LAYERED_TABLE *)session->dhandle)->ingest_btree_id;
+    return (0);
+}
+
+/*
+ * __conn_dhandle_ingest_config --
+ *     Build an ingest handle's configuration without inserting file metadata.
+ */
+static int
+__conn_dhandle_ingest_config(WT_SESSION_IMPL *session, const char *uri, const char **configp)
+{
+    WT_CONFIG_ITEM ingest;
+    WT_DECL_ITEM(layered_uri);
+    WT_DECL_ITEM(overrides);
+    WT_DECL_RET;
+    uint32_t fileid;
+    char *file_cfg, *layered_cfg;
+    const char *cfg[3];
+
+    *configp = NULL;
+    file_cfg = layered_cfg = NULL;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri));
+    WT_ERR(__wti_layered_derive_layered_uri(session, uri, layered_uri));
+    WT_ERR(__wt_metadata_search(session, layered_uri->data, &layered_cfg));
+    WT_ERR(__wt_config_getones(session, layered_cfg, "ingest", &ingest));
+    if (!WT_CONFIG_MATCH(uri, ingest))
+        WT_ERR_MSG(session, EINVAL, "%s is not the ingest constituent of %s", uri,
+          (const char *)layered_uri->data);
+    WT_ERR(__wt_schema_layered_file_config(session, layered_cfg, &file_cfg));
+
+    /* Sweep can replace an ingest handle while its layered handle remains registered. */
+    WT_SAVE_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, ret = __conn_dhandle_ingest_id(session, layered_uri->data, &fileid)));
+    WT_ERR(ret);
+    if (fileid == 0)
+        fileid = S2BT(session)->id;
+    if (fileid == 0)
+        WT_ERR(__conn_dhandle_ingest_id_alloc(session, &fileid));
+
+    WT_ERR(__wt_scr_alloc(session, 0, &overrides));
+    WT_ERR(__wt_buf_fmt(session, overrides,
+      "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16
+      "),block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)",
+      fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+    cfg[0] = file_cfg;
+    cfg[1] = overrides->data;
+    cfg[2] = NULL;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, configp));
+
+err:
+    __wt_free(session, file_cfg);
+    __wt_free(session, layered_cfg);
+    __wt_scr_free(session, &layered_uri);
+    __wt_scr_free(session, &overrides);
+    return (ret);
+}
+
+/*
  * __conn_dhandle_config_set --
  *     Set up a btree handle's configuration information.
  */
@@ -39,8 +132,8 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(name_buf);
     WT_DECL_RET;
-    char *metaconf, *tmp;
-    const char *base, *cfg[5], *checkpoint, *dhandle_name, *strip;
+    char *metadata_cfg, *tmp;
+    const char *base, *cfg[5], *checkpoint, *dhandle_name, *metaconf, *strip;
 
     dhandle = session->dhandle;
     dhandle_name = dhandle->name;
@@ -58,10 +151,14 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     if (checkpoint != NULL)
         F_SET(dhandle, WT_DHANDLE_SHARED_BTREE_CHECKPOINT);
 
-    /*
-     * Read the object's entry from the metadata file, we're done if we don't find one.
-     */
-    if ((ret = __wt_metadata_search(session, dhandle_name, &metaconf)) != 0) {
+    if (__wt_conn_is_disagg(session) && WT_PREFIX_MATCH(dhandle_name, "file:") &&
+      WT_URI_IS_INGEST(dhandle_name))
+        ret = __conn_dhandle_ingest_config(session, dhandle_name, &metaconf);
+    else {
+        ret = __wt_metadata_search(session, dhandle_name, &metadata_cfg);
+        metaconf = metadata_cfg;
+    }
+    if (ret != 0) {
         if (ret == WT_NOTFOUND)
             ret = __wt_set_return(session, ENOENT);
         WT_ERR(ret);

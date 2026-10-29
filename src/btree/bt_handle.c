@@ -219,8 +219,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* For disaggregated stable tree opens, separate any trailing checkpoint indicator. */
     WT_ERR(__wt_dhandle_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
 
-    /* Get the checkpoint information for this name/checkpoint pair. */
-    if (checkpoint != NULL) {
+    /* Ingest trees have no persisted checkpoint, including in legacy databases. */
+    WT_ERR(__wt_config_gets(session, dhandle->cfg, "in_memory", &cval));
+    if (__wt_conn_is_disagg(session) && WT_URI_IS_INGEST(dhandle_name) && cval.val != 0) {
+        if (dhandle->checkpoint != NULL)
+            WT_ERR(WT_NOTFOUND);
+        WT_CLEAR(ckpt);
+    } else if (checkpoint != NULL) {
         /*
          * Acquiring the checkpoint lock to prevent racing with picking up a new checkpoint.
          *

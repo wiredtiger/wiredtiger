@@ -207,6 +207,24 @@ err:
     return (ret);
 }
 /*
+ * __drop_ingest_dhandles --
+ *     Close an ingest constituent's resident handles without creating an unopened handle.
+ */
+static int
+__drop_ingest_dhandles(WT_SESSION_IMPL *session, const char *uri, bool force, bool check_visibility)
+{
+    WT_DECL_RET;
+
+    ret = __wt_conn_dhandle_find(session, uri, NULL);
+    WT_DHANDLE_CLEAR(session);
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+
+    return (__wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+}
+
+/*
  * __drop_layered --
  *     WT_SESSION::drop for a layered table.
  */
@@ -218,8 +236,6 @@ __drop_layered(
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     const char *ingest_uri, *stable_uri, *tablename;
-
-    WT_UNUSED(force);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "layered:"));
 
@@ -260,7 +276,11 @@ __drop_layered(
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
-    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, ret = __drop_ingest_dhandles(session, ingest_uri, force, check_visibility));
+    if (ret == EBUSY)
+        WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+    WT_ERR(ret);
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
