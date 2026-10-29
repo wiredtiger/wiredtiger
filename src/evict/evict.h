@@ -73,12 +73,14 @@ struct __wt_evict {
      * Eviction threshold percentages use double type to allow for specifying percentages less than
      * one.
      */
-    wt_shared double eviction_dirty_target;    /* Percent to allow dirty */
-    wt_shared double eviction_dirty_trigger;   /* Percent to trigger dirty eviction */
-    double eviction_trigger;                   /* Percent to trigger eviction */
-    double eviction_target;                    /* Percent to end eviction */
-    double eviction_updates_target;            /* Percent to allow for updates */
-    wt_shared double eviction_updates_trigger; /* Percent of updates to trigger eviction */
+    wt_shared bool eviction_dirty_index;        /* Per-btree dirty-index ring + drain enabled */
+    wt_shared bool eviction_dirty_index_disagg; /* Allow the ring for disaggregated btrees */
+    wt_shared double eviction_dirty_target;     /* Percent to allow dirty */
+    wt_shared double eviction_dirty_trigger;    /* Percent to trigger dirty eviction */
+    double eviction_trigger;                    /* Percent to trigger eviction */
+    double eviction_target;                     /* Percent to end eviction */
+    double eviction_updates_target;             /* Percent to allow for updates */
+    wt_shared double eviction_updates_trigger;  /* Percent of updates to trigger eviction */
 
     double eviction_checkpoint_target; /* Percent to reduce dirty to during checkpoint scrubs */
     wt_shared double eviction_scrub_target; /* Current scrub target */
@@ -95,6 +97,14 @@ struct __wt_evict {
                                                              page to eviction queue */
     wt_shared uint16_t evict_max_evict_page_attempts;     /* Maximum number of attempts
                                                              to evict a page */
+
+    /*
+     * Dirty-index ring statistics, aggregated across all btrees (per-btree dsrc gauges are not
+     * rolled up to the connection level). Both are advisory relaxed atomic-max high-water marks.
+     */
+    wt_shared uint64_t dirty_index_ring_full_capacity_max; /* Largest capacity of a ring that hit
+                                                              full -- the saturating-ring size */
+    wt_shared uint64_t dirty_index_ring_peak_occupancy; /* Largest (head - tail) any ring reached */
 
     struct timespec evict_tune_last_action_time; /* Time of last action */
     struct timespec evict_tune_last_time;        /* Time of last check */
@@ -180,7 +190,11 @@ struct __wt_evict {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern bool __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state,
   uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -200,6 +214,14 @@ extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint64_t __wt_dirty_index_retire_gen(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_dirty_index_block_page(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page);
+extern void __wt_dirty_index_clear_page(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page);
+extern void __wt_dirty_index_destroy(WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_dirty_index_unblock_page(WT_PAGE *page);
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);

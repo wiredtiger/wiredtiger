@@ -267,6 +267,13 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         __wt_txn_op_set_recno(session, cbt->recno);
     }
 
+    /*
+     * Announce this dirty leaf to the per-btree ring. Skip callers with exclusive page access,
+     * which perform several modifications while holding the page.
+     */
+    if (!exclusive)
+        WT_IGNORE_RET(__wt_dirty_index_insert(session, S2BT(session), cbt->ref));
+
     if (0) {
 err:
         /*
