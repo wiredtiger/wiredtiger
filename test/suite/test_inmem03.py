@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wttest
+import os, wiredtiger, wttest
 from wiredtiger import stat
 
 # Per-object in_memory on a normal on-disk connection: no data file, block_size stays zero.
@@ -84,4 +84,19 @@ class test_inmem03(wttest.WiredTigerTestCase):
         self.reopen_conn()
         self.assertFalse(os.path.exists(self.data_filename()))
         self.assertEqual(self.block_size(), 0)
+        self.session.open_cursor(self.uri).close()
+
+    # Operations that read or rewrite the data file fail cleanly when there is none.
+    def test_no_data_file_operations(self):
+        self.session.create(self.uri, self.table_config)
+        cursor = self.session.open_cursor(self.uri)
+        cursor[1] = 'abc'
+        cursor.close()
+        self.session.checkpoint()
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.salvage(self.uri, None), '/no backing file/')
+        if wiredtiger.diagnostic_build():
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.verify(self.uri, 'dump_offsets=[0]'), '/no backing file/')
         self.session.open_cursor(self.uri).close()

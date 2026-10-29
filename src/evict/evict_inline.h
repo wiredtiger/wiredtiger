@@ -569,7 +569,7 @@ __wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_BTREE *btree, 
     bool high_pressure;
 
     conn = S2C(session);
-    if (!WTI_DIRTY_INDEX_IS_DISAGG(btree) ||
+    if (!WTI_DIRTY_INDEX_IS_DISAGG(btree) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
       __wt_atomic_load_uint32_relaxed(&page->modify->page_state) >= WT_EVICT_MODIFY_COUNT_MIN)
         return (false);
 
@@ -1023,17 +1023,12 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
             return (0);
     }
 
-    /*
-     * If the cache tolerance is configured, check if the session can be tolerant. if tolerant,
-     * don't involve in eviction.
-     */
-    if (pct_full <= evict->eviction_trigger) {
-        uint8_t cache_tolerance = __wt_atomic_load_uint8_relaxed(
-          &conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
-        if ((cache_tolerance != 0) &&
-          (__evict_is_session_cache_trigger_tolerant(session, cache_tolerance)))
-            return (0);
-    }
+    /* Cache tolerance covers the dirty and updates triggers, not the eviction trigger. */
+    uint8_t cache_tolerance = __wt_atomic_load_uint8_relaxed(
+      &conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
+    if (cache_tolerance != 0 && !__wt_evict_clean_needed(session, NULL) &&
+      __evict_is_session_cache_trigger_tolerant(session, cache_tolerance))
+        return (0);
 
     /*
      * Some callers (those waiting for slow operations), will sleep if there was no cache work to

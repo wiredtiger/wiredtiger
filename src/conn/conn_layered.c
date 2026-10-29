@@ -8,6 +8,14 @@
 
 #include "wt_internal.h"
 
+/* Schema epoch messages are nested under disaggregated storage. */
+#define WT_VERB_SCHEMA_EPOCH_DISAGG \
+    WT_DECL_VERBOSE_MULTI_CATEGORY( \
+      ((WT_VERBOSE_CATEGORY[]){WT_VERB_SCHEMA_EPOCH, WT_VERB_DISAGGREGATED_STORAGE}))
+
+/* The maximum queued operations logged for one table. */
+#define WT_DISAGG_QUEUE_LOG_MAX 16
+
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
@@ -338,7 +346,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session, uint64_t
 
         /* Check if the table was dropped. */
         if (__layered_create_has_following_remove(session, conn, entry)) {
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+            __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
               "Skip creating missing stable table \"%s\" with schema epoch %" PRIu64
               " from layered config \"%s\" since it is being dropped",
               entry->stable_uri, entry->schema_epoch, entry->layered_value);
@@ -353,7 +361,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session, uint64_t
           " from layered config \"%s\"",
           entry->stable_uri, entry->schema_epoch, entry->layered_value);
         ++(*countp);
-        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
           "Created missing stable table \"%s\" with schema epoch %" PRIu64 " from \"%s\"",
           entry->stable_uri, entry->schema_epoch, entry->layered_value);
 
@@ -559,20 +567,21 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
      */
     entry->deferred = deferred;
 
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") with %s "
       "operation to shared "
       "metadata table at next checkpoint:",
       table_name, stable_uri, __wti_disagg_shared_metadata_op_to_string(metadata_op));
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
-      entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
-      entry->layered_value == NULL ? "<none>" : entry->layered_value);
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  table: %s",
-      entry->table_value == NULL ? "<none>" : entry->table_value);
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  stable: %s",
-      entry->stable_value == NULL ? "<none>" : entry->stable_value);
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  stable create config: %s",
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
+      "  colgroup: %s", entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
+      "  layered: %s", entry->layered_value == NULL ? "<none>" : entry->layered_value);
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
+      "  table: %s", entry->table_value == NULL ? "<none>" : entry->table_value);
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
+      "  stable: %s", entry->stable_value == NULL ? "<none>" : entry->stable_value);
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
+      "  stable create config: %s",
       entry->stable_create_config == NULL ? "<none>" : entry->stable_create_config);
 
     /* Cannot fail past this point. */
@@ -738,7 +747,7 @@ __wt_disagg_cancel_unpublished_op(
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
       "Dequeued unpublished op for table \"%s\" instead of adding its counterpart", table_name);
 }
 
@@ -809,7 +818,7 @@ __disagg_shared_metadata_op_helper(WT_SESSION_IMPL *session, const char *key, co
         break;
     }
 
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
       "%s disaggregated shared metadata: key=\"%s\" value=\"%s\"",
       __wti_disagg_shared_metadata_op_to_string(metadata_op), key, value);
 
@@ -879,7 +888,7 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
      * Anything else is an API violation detected below.
      */
     if (entry->metadata_op == WT_SHARED_METADATA_CREATE && entry->stable_value == NULL) {
-        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
           "Tracking CREATE for \"%s\" with no stable value (epoch %" PRIu64
           ") for API violation detection",
           entry->stable_uri, entry->schema_epoch);
@@ -904,7 +913,7 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
             }
         }
         if (found) {
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+            __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
               "Skipping CREATE and REMOVE for \"%s\" (epoch %" PRIu64
               "): table created and dropped before any checkpoint required it to exist",
               entry->stable_uri, entry->schema_epoch);
@@ -985,26 +994,172 @@ __disagg_parked_create_drop_epoch(
 }
 
 /*
+ * __disagg_schema_epoch_to_string --
+ *     Format a schema epoch for a message.
+ */
+static const char *
+__disagg_schema_epoch_to_string(wt_timestamp_t schema_epoch, char *buf, size_t len)
+{
+    if (schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
+        WT_IGNORE_RET(__wt_snprintf(buf, len, "<unpublished>"));
+    else
+        WT_IGNORE_RET(__wt_snprintf(buf, len, "%" PRIu64, schema_epoch));
+    return (buf);
+}
+
+/*
+ * __disagg_metadata_ops_describe --
+ *     Append a description of each of a table's operations in a list, up to the logging limit, and
+ *     count them all.
+ */
+static int
+__disagg_metadata_ops_describe(WT_SESSION_IMPL *session, WT_ITEM *buf,
+  struct __wt_disagg_shared_metadata_qh *ops, const char *table_name, const char *prefix,
+  uint32_t *countp)
+{
+    WT_DISAGG_METADATA_OP *op;
+    char epoch_string[WT_TS_INT_STRING_SIZE];
+
+    TAILQ_FOREACH (op, ops, q) {
+        if (!WT_STREQ(op->table_name, table_name))
+            continue;
+        if (++*countp > WT_DISAGG_QUEUE_LOG_MAX)
+            continue;
+        WT_RET(__wt_buf_catfmt(session, buf, "%s%s@%s%s%s%s%s%s", *countp == 1 ? "" : "; ",
+          __wti_disagg_shared_metadata_op_to_string(op->metadata_op),
+          __disagg_schema_epoch_to_string(op->schema_epoch, epoch_string, sizeof(epoch_string)),
+          prefix, op->deferred ? " deferred" : "",
+          op->in_step_down_window ? " in_step_down_window" : "",
+          op->before_stable_epoch ? " before_stable_epoch" : "",
+          op->metadata_op == WT_SHARED_METADATA_CREATE && op->stable_value == NULL ?
+            " no_stable_metadata" :
+            ""));
+    }
+    return (0);
+}
+
+/*
+ * __disagg_shared_metadata_queue_log_table --
+ *     Log queued operations for a given table.
+ */
+static void
+__disagg_shared_metadata_queue_log_table(WT_SESSION_IMPL *session, const char *table_name,
+  struct __wt_disagg_shared_metadata_qh *parked_creates)
+{
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    uint32_t count = 0;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    struct {
+        struct __wt_disagg_shared_metadata_qh *head;
+        const char *prefix;
+        uint32_t count;
+    } queues[] = {
+      {parked_creates, " parked", 0}, {&conn->disaggregated_storage.shared_metadata_qh, "", 0}};
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &buf));
+    for (size_t i = 0; i < WT_ELEMENTS(queues); ++i) {
+        if (queues[i].head == NULL)
+            continue;
+        uint32_t previous_count = count;
+        WT_ERR(__disagg_metadata_ops_describe(
+          session, buf, queues[i].head, table_name, queues[i].prefix, &count));
+        queues[i].count = count - previous_count;
+    }
+    if (count > WT_DISAGG_QUEUE_LOG_MAX)
+        WT_ERR(__wt_buf_catfmt(
+          session, buf, "; %" PRIu32 " more not shown", count - WT_DISAGG_QUEUE_LOG_MAX));
+
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_ERROR,
+      "Queued shared metadata operations for table \"%s\" (%" PRIu32 " total, %" PRIu32
+      " parked): %s",
+      table_name, count, queues[0].count, count == 0 ? "none" : (const char *)buf->data);
+
+err:
+    __wt_scr_free(session, &buf);
+}
+
+/*
+ * __disagg_shared_metadata_queue_log_state --
+ *     Log the shared metadata queue length and the schema epochs.
+ */
+static void
+__disagg_shared_metadata_queue_log_state(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DISAGG_METADATA_OP *op;
+    WT_TXN_GLOBAL *txn_global = &conn->txn_global;
+    uint64_t creates = 0, removes = 0, unpublished = 0, updates = 0;
+    char last_ckpt_string[WT_TS_INT_STRING_SIZE], stable_string[WT_TS_INT_STRING_SIZE],
+      step_down_string[WT_TS_INT_STRING_SIZE];
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (op, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        switch (op->metadata_op) {
+        case WT_SHARED_METADATA_NONE:
+            break;
+        case WT_SHARED_METADATA_UPDATE:
+            ++updates;
+            break;
+        case WT_SHARED_METADATA_CREATE:
+            ++creates;
+            break;
+        case WT_SHARED_METADATA_REMOVE:
+            ++removes;
+            break;
+        }
+
+        if (op->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED &&
+          op->metadata_op != WT_SHARED_METADATA_UPDATE)
+            ++unpublished;
+    }
+
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_ERROR,
+      "Shared metadata queue (excl. parked): creates=%" PRIu64 ", removes=%" PRIu64
+      ", unpublished=%" PRIu64 ", updates=%" PRIu64
+      "; stable schema epoch=%s, last checkpoint schema epoch=%s, step-down schema epoch=%s, "
+      "%s",
+      creates, removes, unpublished, updates,
+      __disagg_schema_epoch_to_string(
+        __wt_get_stable_disaggregated_schema_epoch(session), stable_string, sizeof(stable_string)),
+      __disagg_schema_epoch_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_disaggregated_schema_epoch),
+        last_ckpt_string, sizeof(last_ckpt_string)),
+      __disagg_schema_epoch_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->step_down_disaggregated_schema_epoch),
+        step_down_string, sizeof(step_down_string)),
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ? "leader" : "follower");
+}
+
+/*
  * __disagg_check_epoch_deferral --
  *     Check that leaving an entry queued for a later checkpoint is legal, and count it.
  */
 static int
-__disagg_check_epoch_deferral(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
-  WT_DISAGG_METADATA_OP *entry, wt_timestamp_t cur_schema_epoch)
+__disagg_check_epoch_deferral(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry,
+  wt_timestamp_t cur_schema_epoch, struct __wt_disagg_shared_metadata_qh *skipped_creates)
 {
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     if (__disagg_remove_is_checkpoint_violation(session, conn, entry, cur_schema_epoch)) {
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_ERROR,
           "API violation: table \"%s\" was dropped at schema epoch %" PRIu64
           " and recreated, above the checkpoint's schema epoch %" PRIu64
           ": the checkpoint refers to the dropped generation",
           entry->table_name, entry->schema_epoch, cur_schema_epoch);
+        __disagg_shared_metadata_queue_log_table(session, entry->table_name, skipped_creates);
+        __disagg_shared_metadata_queue_log_state(session);
         WT_RET_PANIC(session, EINVAL,
           "API violation: checkpoint schema epoch refers to a dropped and recreated table");
     }
 
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
       "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
       __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
       entry->schema_epoch);
@@ -1023,12 +1178,13 @@ __disagg_check_epoch_deferral(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn
  *     its create, to avoid this window.
  */
 static int
-__disagg_parked_creates_panic(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
+__disagg_parked_creates_panic(WT_SESSION_IMPL *session,
   struct __wt_disagg_shared_metadata_qh *skipped_creates, wt_timestamp_t cur_schema_epoch)
 {
     WT_DISAGG_METADATA_OP *skipped;
     wt_timestamp_t drop_epoch;
     char drop_desc[64];
+    WT_CONNECTION_IMPL *conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1042,12 +1198,14 @@ __disagg_parked_creates_panic(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn
         else
             WT_IGNORE_RET(__wt_snprintf(
               drop_desc, sizeof(drop_desc), "its DROP is at epoch %" PRIu64, drop_epoch));
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_ERROR,
           "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
           " and %s. This checkpoint must include the table in shared metadata, but the table was "
           "dropped and we have no data to write.",
           skipped->table_name, skipped->schema_epoch, drop_desc);
+        __disagg_shared_metadata_queue_log_table(session, skipped->table_name, skipped_creates);
     }
+    __disagg_shared_metadata_queue_log_state(session);
 
     WT_RET_PANIC(session, EINVAL,
       "API violation: See above for details. Current schema epoch: %" PRIu64 ".", cur_schema_epoch);
@@ -1110,7 +1268,7 @@ __wt_disagg_shared_metadata_queue_process(
     {
         /* Defer entries that belong to the next checkpoint. */
         if (entry->deferred) {
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+            __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
               "Defer metadata operation %s for table \"%s\"",
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name);
             entry->deferred = false;
@@ -1119,7 +1277,8 @@ __wt_disagg_shared_metadata_queue_process(
 
         /* Defer entries based on the schema epoch. */
         if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch) {
-            WT_ERR(__disagg_check_epoch_deferral(session, conn, entry, cur_schema_epoch));
+            WT_ERR(
+              __disagg_check_epoch_deferral(session, entry, cur_schema_epoch, &skipped_creates));
             continue;
         }
 
@@ -1152,8 +1311,7 @@ __wt_disagg_shared_metadata_queue_process(
         if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
             __disagg_requeue_skipped_creates(session, &skipped_creates);
         else
-            WT_ERR(
-              __disagg_parked_creates_panic(session, conn, &skipped_creates, cur_schema_epoch));
+            WT_ERR(__disagg_parked_creates_panic(session, &skipped_creates, cur_schema_epoch));
     }
 
 err:
@@ -1311,11 +1469,14 @@ __wt_disagg_shared_metadata_queue_publish(
 
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
-            if (entry->metadata_op == WT_SHARED_METADATA_CREATE && entry->before_stable_epoch)
+            if (entry->metadata_op == WT_SHARED_METADATA_CREATE && entry->before_stable_epoch) {
+                __disagg_shared_metadata_queue_log_table(session, table_name, NULL);
+                __disagg_shared_metadata_queue_log_state(session);
                 WT_ERR_PANIC(session, EINVAL,
                   "Publish requires table \"%s\" to be created after the stable disaggregated "
                   "schema epoch is set",
                   table_name);
+            }
             WT_ERR(__disagg_publish_check_step_down(session, table_name, schema_epoch));
             /* The last checkpoint claims to cover every operation at or below its epoch. */
             if (schema_epoch <= last_ckpt_epoch)
@@ -1323,7 +1484,7 @@ __wt_disagg_shared_metadata_queue_publish(
                   "Cannot publish for table \"%s\" at schema epoch %" PRIu64
                   " at or below the last checkpoint schema epoch %" PRIu64,
                   table_name, schema_epoch, last_ckpt_epoch);
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+            __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
               "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
               schema_epoch);
@@ -1342,11 +1503,14 @@ __wt_disagg_shared_metadata_queue_publish(
         prev_schema_epoch = entry->schema_epoch;
 
         /* Check for already-published entries at a future schema epoch. */
-        if (entry->schema_epoch > schema_epoch)
+        if (entry->schema_epoch > schema_epoch) {
+            __disagg_shared_metadata_queue_log_table(session, table_name, NULL);
+            __disagg_shared_metadata_queue_log_state(session);
             WT_ERR_PANIC(session, EINVAL,
               "Table \"%s\" has published schema operations at future schema epoch %" PRIu64
               ", while publishing at schema epoch %" PRIu64,
               table_name, entry->schema_epoch, schema_epoch);
+        }
     }
 
     if (!found)
@@ -2447,6 +2611,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.delta_pct", &cval));
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.delta_pct = (uint32_t)cval.val;
+
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.delta_pct_of_target_page_size", &cval));
+        if (cval.val)
+            F_SET(&conn->page_delta, WT_DELTA_PCT_OF_TARGET_PAGE_SIZE);
 
         /* Get the threshold fraction of keys removed from the disk image to force a full page. */
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.delete_pct", &cval));
