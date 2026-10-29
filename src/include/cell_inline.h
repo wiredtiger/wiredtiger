@@ -1733,16 +1733,12 @@ __cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_g
 }
 
 /*
- * __wt_cell_unpack_addr_delta --
- *     Unpack an address cell, resolving its values against the page header that owns the cell's
- *     encoding and deciding whether its transaction ids are from an earlier run with a possibly
- *     different header. A cell in a page delta is resolved against the base image but its ids
- *     belong to the delta that carries it: keying the clearing decision on the base image's write
- *     generation would clear the ids of a current-run delta cell whenever the base image happens to
- *     be older. For a full page image both headers are the page's own.
+ * __cell_unpack_addr --
+ *     Unpack an address cell, decoding it with one page header and clearing transaction ids based
+ *     on another.
  */
 static WT_INLINE void
-__wt_cell_unpack_addr_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
+__cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   const WT_PAGE_HEADER *gen_dsk, WT_CELL *cell, WT_CELL_UNPACK_ADDR *unpack_addr)
 {
     WT_DECL_RET;
@@ -1751,6 +1747,11 @@ __wt_cell_unpack_addr_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
+    /*
+     * Transaction ids are cleared when the cell was written in an earlier run. For a page delta
+     * that is a property of the delta carrying the cell, not of the base image the cell is decoded
+     * against, so the two headers can differ.
+     */
     if (__cell_unpack_window_need_cleanup(session, gen_dsk->write_gen))
         __cell_addr_window_cleanup(session, dsk, unpack_addr);
 }
@@ -1763,16 +1764,17 @@ static WT_INLINE void
 __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_ADDR *unpack_addr)
 {
-    __wt_cell_unpack_addr_delta(session, dsk, dsk, cell, unpack_addr);
+    __cell_unpack_addr(session, dsk, dsk, cell, unpack_addr);
 }
 
 /*
- * __wt_cell_unpack_kv_delta --
- *     Unpack a value cell; see the address variant above for the two page headers.
+ * __cell_unpack_kv --
+ *     Unpack a value cell, decoding it with one page header and clearing transaction ids based on
+ *     another.
  */
 static WT_INLINE void
-__wt_cell_unpack_kv_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
-  const WT_PAGE_HEADER *gen_dsk, WT_CELL *cell, WT_CELL_UNPACK_KV *unpack_value)
+__cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const WT_PAGE_HEADER *gen_dsk,
+  WT_CELL *cell, WT_CELL_UNPACK_KV *unpack_value)
 {
     WT_DECL_RET;
 
@@ -1802,6 +1804,7 @@ __wt_cell_unpack_kv_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
+    /* See the address variant for why the two headers can differ. */
     if (__cell_unpack_window_need_cleanup(session, gen_dsk->write_gen))
         __cell_kv_window_cleanup(session, unpack_value);
 }
@@ -1814,28 +1817,27 @@ static WT_INLINE void
 __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_KV *unpack_value)
 {
-    __wt_cell_unpack_kv_delta(session, dsk, dsk, cell, unpack_value);
+    __cell_unpack_kv(session, dsk, dsk, cell, unpack_value);
 }
 
 /*
  * __wt_cell_unpack_delta_leaf_value --
- *     Unpack a leaf delta value cell into a structure. Mirrors the manual encoding in
- *     __wti_rec_pack_delta_row_leaf (one flags byte followed by raw value bytes, no length prefix)
- *     directly, rather than through the generic, format-string-driven struct-unpack machinery, so
- *     the two sides cannot silently drift apart.
+ *     Unpack a leaf delta value cell into a structure.
  */
 static WT_INLINE void
 __wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL *value_cell, WT_CELL_UNPACK_DELTA_LEAF_KV *unpack)
 {
+    WT_DECL_RET;
+
     /* Unpack the value. */
     __wt_cell_unpack_kv(session, dsk, value_cell, &unpack->delta_value);
 
-    WT_ASSERT_ALWAYS(
-      session, unpack->delta_value.size >= 1, "Delta leaf value missing its flags byte");
-    unpack->flags = *(const uint8_t *)unpack->delta_value.data;
-    unpack->delta_value_data.data = (const uint8_t *)unpack->delta_value.data + 1;
-    unpack->delta_value_data.size = unpack->delta_value.size - 1;
+    /* Extract the delta metadata and then the actual delta value from the custom value format. */
+    ret = __wt_struct_unpack(session, unpack->delta_value.data, unpack->delta_value.size,
+      WT_DELTA_LEAF_VALUE_FORMAT, &unpack->flags, &unpack->delta_value_data);
+
+    WT_ASSERT_ALWAYS(session, ret == 0, "Failed to decode the delta leaf value.");
 }
 
 /*
@@ -1939,21 +1941,18 @@ __wt_page_cell_data_ref_kv(
     } while (0)
 
 /*
- * WT_CELL_INT_UNPACK_PAIR --
- *	Unpack one key+address pair from a row-store internal page image, advancing the read
- *position past both cells. Full page images and page deltas share the on-disk cell encoding, so
- *both the base image and the delta merge streams decode through this one macro; a divergence in
- *either writer shows up here rather than in a private copy of the decode.
- *
- * The cells are resolved against the header that owns their encoding and the clearing decision is
- * made with the write generation of the header that carries them, see __wt_cell_unpack_addr_delta.
+ * WT_CELL_INT_UNPACK_KV --
+ *	Unpack one key and address cell pair from a row-store internal page, advancing past both
+ *cells. Full page images and page deltas share this decode so a divergence between the two writers
+ *fails here. The cells are decoded with the first header and transaction ids are cleared based on
+ *the second.
  */
-#define WT_CELL_INT_UNPACK_PAIR(session, dsk, gen_dsk, cell, key, val)              \
-    do {                                                                            \
-        __wt_cell_unpack_addr_delta(session, dsk, gen_dsk, (WT_CELL *)(cell), key); \
-        (cell) += (key)->__len;                                                     \
-        __wt_cell_unpack_addr_delta(session, dsk, gen_dsk, (WT_CELL *)(cell), val); \
-        (cell) += (val)->__len;                                                     \
+#define WT_CELL_INT_UNPACK_KV(session, dsk, gen_dsk, cell, key, val)       \
+    do {                                                                   \
+        __cell_unpack_addr(session, dsk, gen_dsk, (WT_CELL *)(cell), key); \
+        (cell) += (key)->__len;                                            \
+        __cell_unpack_addr(session, dsk, gen_dsk, (WT_CELL *)(cell), val); \
+        (cell) += (val)->__len;                                            \
     } while (0)
 
 /*
@@ -1965,11 +1964,11 @@ __wt_page_cell_data_ref_kv(
  * current entry. The caller resets the decoded flag and decrements the remaining count by 2
  * when an entry is consumed or discarded, triggering a fresh decode on the next call.
  */
-#define WT_CELL_DELTA_INT_UNPACK(session, s)                                       \
-    do {                                                                           \
-        WT_CELL_INT_UNPACK_PAIR(session, (s)->base_dsk, (s)->delta_dsk, (s)->cell, \
-          &(s)->unpack.key, &(s)->unpack.value);                                   \
-        (s)->unpacked = true;                                                      \
+#define WT_CELL_DELTA_INT_UNPACK(session, s)                                                       \
+    do {                                                                                           \
+        WT_CELL_INT_UNPACK_KV(session, (s)->base_dsk, (s)->delta_dsk, (s)->cell, &(s)->unpack.key, \
+          &(s)->unpack.value);                                                                     \
+        (s)->unpacked = true;                                                                      \
     } while (0)
 
 /*
@@ -1982,7 +1981,7 @@ __wt_page_cell_data_ref_kv(
  */
 #define WT_CELL_BASE_INT_UNPACK(session, s)                                            \
     do {                                                                               \
-        WT_CELL_INT_UNPACK_PAIR(                                                       \
+        WT_CELL_INT_UNPACK_KV(                                                         \
           session, (s)->dsk, (s)->dsk, (s)->cell, &(s)->unpack_key, &(s)->unpack_val); \
         (s)->unpacked = true;                                                          \
     } while (0)
