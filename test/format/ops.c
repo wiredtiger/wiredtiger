@@ -1167,7 +1167,7 @@ lock_for_table(TABLE *table)
 
 /*
  * lock_table_shared --
- *     Lock the table in shared mode.
+ *     Try to lock the table in shared mode.
  */
 static WT_INLINE int
 lock_table_shared(WT_SESSION *session, TABLE *table, table_lock_state_t *state)
@@ -1180,15 +1180,10 @@ lock_table_shared(WT_SESSION *session, TABLE *table, table_lock_state_t *state)
 
     testutil_assert(!state->exclusive_write);
 
-    if (state->lock_count == 0)
-        lock_readlock(session, lock);
-    else {
-        /* Do not block while holding other locks, as that can cause deadlocks. */
-        int ret = lock_try_readlock(session, lock);
-        if (ret == EBUSY)
-            return (WT_ROLLBACK);
-        testutil_check(ret);
-    }
+    int ret = lock_try_readlock(session, lock);
+    if (ret == EBUSY)
+        return (WT_ROLLBACK);
+    testutil_check(ret);
 
     testutil_assert(state->lock_count < WT_ELEMENTS(state->locks));
     state->locks[state->lock_count++] = lock;
