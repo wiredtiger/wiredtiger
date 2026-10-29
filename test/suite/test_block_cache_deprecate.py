@@ -64,7 +64,7 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
             'block cache has been deprecated and is no longer supported'):
             self.open_conn('.', config)
 
-        # Unknown block cache subkeys are still a configuration error.
+        # Unknown block cache sub-keys are still a configuration error.
         self.close_conn()
         config = 'create,block_cache=(foo=bar)'
         with self.expectedStdoutPattern(
@@ -124,7 +124,7 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
         conn = self.wiredtiger_open('D', 'create')
         conn.close()
 
-        # Enablement in WiredTiger.config is rejected.
+        # Enabling in WiredTiger.config is rejected.
         with open('D/WiredTiger.config', 'w') as user_config:
             user_config.write('block_cache=(enabled=true)\n')
         msg = '/block cache has been deprecated and is no longer supported/'
@@ -143,7 +143,7 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
     def test_block_cache_reconfigure(self):
         msg = '/block cache has been deprecated and is no longer supported/'
 
-        # Enablement is rejected.
+        # Enabling is rejected.
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure('block_cache=(enabled=true)'), msg)

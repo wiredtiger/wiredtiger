@@ -3354,7 +3354,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     bool config_base_set, try_salvage, verify_meta;
-    const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
+    const char *enc_cfg[] = {NULL, NULL}, *env_config, *merge_cfg;
     char version[64];
 
     WT_VERIFY_OPAQUE_POINTER(WT_CONNECTION_IMPL);
@@ -3503,6 +3503,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     __conn_config_append(cfg, config);
     WT_ERR(__conn_config_file(session, WT_USERCONFIG, true, cfg, i2));
     WT_ERR(__conn_config_env(session, cfg, i3));
+
+    /*
+     * Check for deprecated block cache configuration in the environment; the environment is part of
+     * both the temporary and the real configuration stack, only check it once, here.
+     */
+    WT_ERR(__conn_env_var(session, cfg, "WIREDTIGER_CONFIG", &env_config));
+    if (env_config != NULL) {
+        ret = __wti_blkcache_config_check(session, env_config, "WIREDTIGER_CONFIG");
+        __wt_free(session, env_config);
+        WT_ERR(ret);
+    }
 
     /*
      * Merge the full configuration stack and save it for reconfiguration.
