@@ -389,7 +389,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     dsk = NULL;
     ip = NULL;
     tmp = NULL;
-    type = 0;
 
     count = WT_ELEMENTS(results);
 
