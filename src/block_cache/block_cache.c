@@ -318,6 +318,8 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &conn->block_lock);
     for (bucket = 0; bucket < conn->hash_size; bucket++) {
         TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
+            if (block->type != WT_BLOCK_TYPE_LOCAL)
+                continue;
             size += (size_t)block->size;
         }
     }
