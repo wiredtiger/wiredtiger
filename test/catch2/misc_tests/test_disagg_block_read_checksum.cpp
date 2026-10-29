@@ -156,6 +156,23 @@ struct stub_page_log {
 
 stub_page_log *g_page_log = nullptr;
 
+/*
+ * A corrupt read dumps each page through the error handler, so a counting handler installed on the
+ * session confirms every result is dumped rather than only the one that failed.
+ */
+int g_corrupt_dump_count = 0;
+
+int
+counting_handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *message)
+{
+    if (strstr(message, "corrupt dump:") != nullptr)
+        g_corrupt_dump_count++;
+    return (0);
+}
+
+WT_EVENT_HANDLER g_counting_event_handler = {
+  counting_handle_error, nullptr, nullptr, nullptr, nullptr};
+
 int
 stub_plh_get(WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, uint64_t, WT_PAGE_LOG_GET_ARGS *args,
   WT_ITEM *results_array, uint32_t *results_count)
@@ -385,6 +402,35 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
         REQUIRE(read_multiple(cookie_checksum) == WT_ERROR);
         CHECK(corruption_flagged());
         CHECK_FALSE(F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC));
+    }
+
+    /*
+     * The dump taken on a corrupt read walks the whole result array, not just the failing block, so
+     * drive a multi-block chain with a broken link below the newest block through the non-quiet
+     * path and confirm every page is dumped while the read is still rejected without panicking.
+     */
+    SECTION("a corrupt delta chain dumps every page and is rejected under verify")
+    {
+        build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
+        blocks[2].relink(blocks[1].checksum ^ 1);
+        blocks[3].relink(blocks[2].checksum);
+
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+        block_disagg.verify = true;
+
+        WT_EVENT_HANDLER *saved_handler = session->event_handler;
+        session->event_handler = &g_counting_event_handler;
+        g_corrupt_dump_count = 0;
+
+        REQUIRE(read_multiple(blocks[3].checksum) == WT_ERROR);
+
+        session->event_handler = saved_handler;
+
+        CHECK(corruption_flagged());
+        CHECK_FALSE(F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC));
+
+        /* The whole base-plus-delta chain is dumped, not only the block that failed. */
+        CHECK(g_corrupt_dump_count == static_cast<int>(blocks.size()));
     }
 
     /*
