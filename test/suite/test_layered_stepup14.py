@@ -120,27 +120,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.truncate(None, start, stop, None)  # Expect abort.
         self.fail('truncate succeeded while step-up was in progress')
 
-    def subprocess_truncate_insert_during_stepup(self):
-        self.setup_follower()
-        self.truncate_uncommitted(self.session, 0, 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-
-        self.conn.reconfigure(
-          'timing_stress_for_test=[disagg_truncate_entry_insert,disagg_role_transition]')
-
-        def truncate():
-            session = self.conn.open_session('')
-            self.truncate_uncommitted(session, 2, 8)
-            session.close()
-
-        truncate_thread = threading.Thread(target=truncate, daemon=True)
-        truncate_thread.start()
-
-        time.sleep(0.5)
-        self.conn.reconfigure('disaggregated=(role="leader")')  # Expect abort (in truncate thread).
-        self.fail('truncate-list insertion succeeded during step-up')
-
-    def subprocess_truncate_insert_during_leader(self):
+    def subprocess_truncate_insert_during_or_after_stepup(self):
         self.setup_follower()
         self.truncate_uncommitted(self.session, 0, 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
@@ -156,9 +136,10 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
         truncate_thread.start()
 
         time.sleep(0.5)
-        self.conn.reconfigure('disaggregated=(role="leader")')
-        truncate_thread.join(timeout=5)  # Expect abort.
-        self.fail('truncate-list insertion succeeded in leader mode')
+        self.conn.reconfigure('disaggregated=(role="leader")')  # Expect abort (in truncate thread).
+        truncate_thread.join(timeout=5)
+        self.assertFalse(truncate_thread.is_alive(), 'truncate thread did not finish')
+        self.fail('truncate-list insertion succeeded during or after step-up')
 
     def assert_subprocess_aborts(self, subprocess_method, expected_message):
         rc, home = self.run_subprocess_function(
@@ -188,12 +169,7 @@ class test_layered_stepup14(wttest.WiredTigerTestCase, suite_subprocess):
           'subprocess_truncate_started_during_stepup',
           'truncate is not supported during step-up')
 
-    def test_truncate_insert_during_stepup_asserts(self):
+    def test_truncate_insert_during_or_after_stepup_asserts(self):
         self.assert_subprocess_aborts(
-          'subprocess_truncate_insert_during_stepup',
-          'truncate list entries cannot be inserted during step-up')
-
-    def test_truncate_insert_during_leader_asserts(self):
-        self.assert_subprocess_aborts(
-          'subprocess_truncate_insert_during_leader',
-          'truncate list entries cannot be inserted in leader mode')
+          'subprocess_truncate_insert_during_or_after_stepup',
+          'truncate list entries cannot be inserted during step-up or leader mode')
