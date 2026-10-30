@@ -7782,6 +7782,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
 }
 
 static const char *const __stats_session_desc[] = {
+  "session: Total number of entries skipped by cursor next calls, excluding history store and "
+  "metadata",
+  "session: Total number of entries skipped by cursor prev calls, excluding history store and "
+  "metadata",
   "session: bytes read into cache",
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
@@ -7806,6 +7810,8 @@ __wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 }
 
 static const int __stats_session_otel_none[] = {
+  WT_STAT_SESSION_CURSOR_NEXT_ENTRIES_SKIPPED,
+  WT_STAT_SESSION_CURSOR_PREV_ENTRIES_SKIPPED,
   WT_STAT_SESSION_BYTES_READ,
   WT_STAT_SESSION_BYTES_WRITE,
   WT_STAT_SESSION_LOCK_DHANDLE_WAIT,
@@ -7856,6 +7862,8 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
 static void
 __stat_session_clear_none(WT_SESSION_STATS *stats)
 {
+    stats->cursor_next_entries_skipped = 0;
+    stats->cursor_prev_entries_skipped = 0;
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
