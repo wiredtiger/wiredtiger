@@ -1645,6 +1645,64 @@ __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const cha
 }
 
 /*
+ * __conn_blkcache_base_config_warn --
+ *     Warn about deprecated block cache configuration in the base configuration file and ignore it.
+ *     The file is machine-written and a persisted setting must not keep the home from opening, so
+ *     this never rejects.
+ */
+static int
+__conn_blkcache_base_config_warn(WT_SESSION_IMPL *session, const char *config, const char *source)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    if (config == NULL)
+        return (0);
+
+    WT_RET_NOTFOUND_OK(ret = __wt_config_getones(session, config, "block_cache", &cval));
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
+      "block cache has been deprecated and is no longer supported, ignoring block_cache "
+      "configuration%s%s",
+      source != NULL ? " from " : "", source != NULL ? source : "");
+    return (0);
+}
+
+/*
+ * __wti_blkcache_user_config_check --
+ *     Check a user-supplied configuration source (the open or reconfigure configuration string,
+ *     WiredTiger.config or the environment) for deprecated block cache configuration: settings are
+ *     ignored with a warning and enablement is rejected.
+ */
+int
+__wti_blkcache_user_config_check(WT_SESSION_IMPL *session, const char *config, const char *source)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    if (config == NULL)
+        return (0);
+
+    WT_RET_NOTFOUND_OK(ret = __wt_config_getones(session, config, "block_cache", &cval));
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    WT_RET_NOTFOUND_OK(ret = __wt_config_getones(session, config, "block_cache.enabled", &cval));
+    if (ret != WT_NOTFOUND && cval.val != 0)
+        WT_RET_MSG(session, ENOTSUP,
+          "block cache has been deprecated and is no longer supported, remove block_cache "
+          "configuration");
+
+    __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
+      "block cache has been deprecated and is no longer supported, ignoring block_cache "
+      "configuration%s%s",
+      source != NULL ? " from " : "", source != NULL ? source : "");
+    return (0);
+}
+
+/*
  * __conn_config_file --
  *     Read WiredTiger config files from the home directory.
  */
@@ -1764,6 +1822,12 @@ __conn_config_file(
      * Check for deprecated chunk cache configuration before validating the config string.
      */
     WT_ERR(__conn_chunk_cache_check(session, cbuf->data, is_user ? WT_USERCONFIG : WT_BASECONFIG));
+
+    /* Check for deprecated block cache configuration before validating the config string. */
+    if (is_user)
+        WT_ERR(__wti_blkcache_user_config_check(session, cbuf->data, WT_USERCONFIG));
+    else
+        WT_ERR(__conn_blkcache_base_config_warn(session, cbuf->data, WT_BASECONFIG));
 
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session,
@@ -2868,6 +2932,9 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
      * now, and merge the rest to be written.
      */
     WT_ERR(__wt_config_merge(session, cfg + 1,
+      "block_cache=(blkcache_eviction_aggression=,cache_on_checkpoint=,cache_on_writes=,enabled=,"
+      "full_target=,hashsize=,max_percent_overhead=,nvram_path=,percent_file_in_dram=,size=,"
+      "system_ram=,type=),"
       "checkpoint_threads=,"
       "compatibility=(release=),"
       "config_base=,"
@@ -3284,7 +3351,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     bool config_base_set, try_salvage, verify_meta;
-    const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
+    const char *enc_cfg[] = {NULL, NULL}, *env_config, *merge_cfg;
     char version[64];
 
     WT_VERIFY_OPAQUE_POINTER(WT_CONNECTION_IMPL);
@@ -3323,6 +3390,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Check for deprecated chunk cache configuration before validating. */
     WT_ERR(__conn_chunk_cache_check(session, config, NULL));
+
+    /* Check for deprecated block cache configuration before validating. */
+    WT_ERR(__wti_blkcache_user_config_check(session, config, NULL));
 
     /* Check the application-specified configuration string. */
     WT_ERR(__wt_config_check(session, WT_CONFIG_REF(session, wiredtiger_open), config, 0));
@@ -3432,6 +3502,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_config_env(session, cfg, i3));
 
     /*
+     * Check for deprecated block cache configuration in the environment. The environment variable
+     * is read more than once during open, so check it once here.
+     */
+    WT_ERR(__conn_env_var(session, cfg, "WIREDTIGER_CONFIG", &env_config));
+    if (env_config != NULL) {
+        ret = __wti_blkcache_user_config_check(session, env_config, "WIREDTIGER_CONFIG");
+        __wt_free(session, env_config);
+        WT_ERR(ret);
+    }
+
+    /*
      * Merge the full configuration stack and save it for reconfiguration.
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
@@ -3489,7 +3570,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wti_timing_stress_config(session, cfg));
     WT_ERR(__wti_disagg_debug_mode_config(session, cfg));
-    WT_ERR(__wt_blkcache_setup(session, cfg, false));
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wti_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_array.size));

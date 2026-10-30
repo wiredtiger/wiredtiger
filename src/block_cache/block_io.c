@@ -82,23 +82,6 @@ __blkcache_read_decrypt(
 }
 
 /*
- * __blkcache_cache_wants_encrypted_data --
- *     Return if the configured block cache wants to store encrypted blocks.
- */
-static bool
-__blkcache_cache_wants_encrypted_data(WT_SESSION_IMPL *session)
-{
-    /*!!!
-     * Guidance for adding new block cache types here:
-     *  - If cache only stores pages in RAM, we save CPU by storing unencrypted pages.
-     *  - If cache can store pages on external media, we store encrypted pages if encryption is
-     * configured.
-     */
-    u_int type = S2C(session)->blkcache.type;
-    return (type == WT_BLKCACHE_NVRAM);
-}
-
-/*
  * __wt_blkcache_read --
  *     Read an address-cookie referenced block into a buffer.
  */
@@ -106,14 +89,11 @@ int
 __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
   const uint8_t *addr, size_t addr_size)
 {
-    WT_BLKCACHE *blkcache;
-    WT_BLKCACHE_ITEM *blkcache_item;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
     WT_DECL_ITEM(etmp);
     WT_DECL_ITEM(ip);
-    WT_DECL_ITEM(ip_orig);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
@@ -123,20 +103,17 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
     u_int count, i, results_count;
-    bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
+    bool expect_conversion, found, timer;
 
-    blkcache = &S2C(session)->blkcache;
-    blkcache_item = NULL;
     btree = S2BT(session);
     bm = btree->bm;
     compressor = btree->compressor;
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
-    blkcache_found = found = false;
-    skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
+    found = false;
     memset(results, 0, sizeof(results));
     results_count = 0;
 
-    WT_ASSERT_ALWAYS(session, session->dhandle != NULL, "The block cache requires a dhandle");
+    WT_ASSERT_ALWAYS(session, session->dhandle != NULL, "The block manager requires a dhandle");
     /*
      * If anticipating a compressed or encrypted block, start with a scratch buffer and convert into
      * the caller's buffer. Else, start with the caller's buffer.
@@ -154,34 +131,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
 
     /* Check for mapped blocks. */
     WT_RET(__wti_blkcache_map_read(session, ip, addr, addr_size, &found));
-    if (found) {
-        skip_cache_put = true;
-        if (!expect_conversion)
-            goto verify;
-    }
-
-    /* Check the block cache. */
-    if (!found && blkcache->type != WT_BLKCACHE_UNCONFIGURED) {
-        __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
-        if (found) {
-            blkcache_found = true;
-            ip->data = blkcache_item->data;
-            ip->size = blkcache_item->data_size;
-            if (block_meta != NULL) {
-                if (blkcache_item->block_meta == NULL)
-                    WT_CLEAR(*block_meta);
-                else
-                    *block_meta = *blkcache_item->block_meta;
-            }
-            /* We don't expect to have deltas when using this variant of the read call. */
-            WT_ASSERT(session, blkcache_item->num_deltas == 0);
-            if (!expect_conversion) {
-                /* Copy to the caller's buffer before releasing our reference. */
-                WT_ERR(__wt_buf_set(session, buf, ip->data, ip->size));
-                goto verify;
-            }
-        }
-    }
+    if (found && !expect_conversion)
+        goto verify;
 
     /* Read the block. */
     if (!found) {
@@ -247,30 +198,13 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     }
 
     /*
-     * If the block is encrypted, copy the skipped bytes of the image into place, then decrypt. DRAM
-     * block-cache blocks are never encrypted.
+     * If the block is encrypted, copy the skipped bytes of the image into place, then decrypt.
      */
     dsk = ip->data;
-    ip_orig = ip;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
         WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
-    }
-
-    /*
-     * Ignore the cache if we have deltas. We don't expect to have deltas in this type of read call
-     * anyways.
-     */
-    if (results_count > 1)
-        skip_cache_put = true;
-
-    if (!skip_cache_put) {
-        /* Choose either the encrypted or decrypted data for the cache. */
-        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip_orig : ip;
-        /* Use a local variable for block metadata, because the passed-in pointer could be NULL. */
-        WT_ERR(__wti_blkcache_put(
-          session, cache_item, NULL, 0, &block_meta_tmp, addr, addr_size, false));
     }
 
     dsk = ip->data;
@@ -336,8 +270,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     }
 
     /*
-     * These statistics are increased when the block is not found in the block cache and we need to
-     * read from disk.
+     * These statistics are increased when the block is read and converted rather than served
+     * directly from a memory mapping.
      */
     if (dsk != NULL) {
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
@@ -359,10 +293,6 @@ verify:
     }
 
 err:
-    /* If we pulled the block from the block cache, decrement its reference count. */
-    if (blkcache_found)
-        (void)__wt_atomic_sub_uint32_v(&blkcache_item->ref_count, 1);
-
     /* Free the temporary buffers allocated for disagg. */
     for (i = 0; i < results_count; i++)
         __wt_buf_free(session, &results[i]);
@@ -438,8 +368,6 @@ int
 __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
 {
-    WT_BLKCACHE *blkcache;
-    WT_BLKCACHE_ITEM *blkcache_item;
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_BM *bm;
     WT_BTREE *btree;
@@ -447,135 +375,88 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
-    WT_ITEM *tmp, *ip, *ip_orig;
+    WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
     uint8_t type;
-    bool blkcache_found, found, skip_cache_put;
 
     WT_CLEAR(block_meta_tmp);
     WT_CLEAR(results);
 
-    blkcache = &S2C(session)->blkcache;
-    blkcache_found = false;
-    blkcache_item = NULL;
     btree = S2BT(session);
     bm = btree->bm;
     dsk = NULL;
-    found = false;
     ip = NULL;
-    skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
     tmp = NULL;
-    type = 0;
 
-    /* Skip block cache for M2, just read the base + delta pack. */
     count = WT_ELEMENTS(results);
 
     if (bm->read_multiple == NULL) {
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
-        /*
-         * FIXME-WT-14717: we used to read garbage values for block meta from the block cache for
-         * non-disaggregated case. It's unclear if we still do -- pass a NULL for now.
-         */
         WT_ERR(__wt_blkcache_read(session, &tmp[0], NULL, addr, addr_size));
         *buf_count = 1;
         *buf = tmp;
         return (0);
     }
 
-    /* Check the block cache. */
-    if (blkcache->type != WT_BLKCACHE_UNCONFIGURED) {
-        __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
-        if (found) {
-            blkcache_found = true;
-            WT_ASSERT_ALWAYS(session, blkcache_item->num_deltas <= WT_DELTA_LIMIT,
-              "block cache item has too many deltas");
-            results[0].data = blkcache_item->data;
-            results[0].size = blkcache_item->data_size;
-            for (i = 0; i < blkcache_item->num_deltas; i++) {
-                results[i + 1].data = blkcache_item->deltas[i].data;
-                results[i + 1].size = blkcache_item->deltas[i].data_size;
-            }
-            count = blkcache_item->num_deltas + 1;
-            if (blkcache_item->block_meta != NULL)
-                block_meta_tmp = *blkcache_item->block_meta;
+    WT_ERR(bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
+    WT_ASSERT(session, count > 0);
 
-            ip = &results[0];
-            dsk = ip->data;
-            type = dsk->type;
-        }
-    }
+    /*
+     * For the base image, we have a structure like this:
+     *
+     * ------------------------
+     * | page header          |
+     * ------------------------
+     * | block header         |
+     * ------------------------
+     * | data                 |
+     * ------------------------
+     *
+     * In this case, the encryption/compression flags live in the page header.
+     */
+    ip = &results[0];
+    dsk = ip->data;
+    type = dsk->type;
 
-    if (!found) {
-        WT_ERR(
-          bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
-        WT_ASSERT(session, count > 0);
-        found = true;
+    /*
+     * Disallow reading an unencrypted block from original source when encryption is configured.
+     */
+    if (!F_ISSET(dsk, WT_PAGE_ENCRYPTED) && btree->kencryptor != NULL)
+        WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+          "multi_read unencrypted block for which encryption configured"));
 
-        /*
-         * For the base image, we have a structure like this:
-         *
-         * ------------------------
-         * | page header          |
-         * ------------------------
-         * | block header         |
-         * ------------------------
-         * | data                 |
-         * ------------------------
-         *
-         * In this case, the encryption/compression flags live in the page header.
-         */
-        ip = &results[0];
-        dsk = ip->data;
-        type = dsk->type;
+    /*
+     * Increment statistics before we do any more processing such as decompression or decryption on
+     * the base image.
+     */
+    if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
+        WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
+    else
+        WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
-        /*
-         * Disallow reading an unencrypted block from original source when encryption is configured.
-         */
-        if (!F_ISSET(dsk, WT_PAGE_ENCRYPTED) && btree->kencryptor != NULL)
-            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
-              "multi_read unencrypted block for which encryption configured"));
+    WT_STAT_CONN_DSRC_INCR(session, cache_read);
+    if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
+    if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
+        WT_STAT_DSRC_INCR(session, compress_read);
 
-        /*
-         * Increment statistics before we do any more processing such as decompression or decryption
-         * on the base image.
-         */
-        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
-            WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
-        else
-            WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
-
-        WT_STAT_CONN_DSRC_INCR(session, cache_read);
-        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
-        else
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
-        if (WT_SESSION_IS_CHECKPOINT(session))
-            WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
-        if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
-            WT_STAT_DSRC_INCR(session, compress_read);
-
-        WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
-        WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
-        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
-        __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
-    }
+    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
+    WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
+    __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
 
     /* Decrypt. */
-    ip_orig = ip;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
         WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
-    }
-
-    /* Store the compressed block in the block_cache. */
-    if (!skip_cache_put) {
-        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip_orig : ip;
-        WT_ERR(__wti_blkcache_put(
-          session, cache_item, &results[1], count - 1, &block_meta_tmp, addr, addr_size, false));
     }
 
     /*
@@ -680,10 +561,6 @@ err:
         __wt_scr_free(session, &etmp);
         __wt_scr_free(session, &ctmp);
     }
-
-    /* If we pulled the block from the block cache, decrement its reference count. */
-    if (blkcache_found)
-        (void)__wt_atomic_sub_uint32_v(&blkcache_item->ref_count, 1);
 
     return (ret);
 }
@@ -805,7 +682,6 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
   size_t page_image_size, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
   bool checkpoint, bool checkpoint_io, bool compressed)
 {
-    WT_BLKCACHE *blkcache;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_ITEM(etmp);
@@ -815,14 +691,12 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_PAGE_HEADER *dsk;
     size_t size;
     uint64_t time_diff, time_start, time_stop;
-    uint32_t delta_count, mem_size;
+    uint32_t mem_size;
     bool data_checksum, encrypted, timer;
 
-    blkcache = &S2C(session)->blkcache;
     btree = S2BT(session);
     bm = btree->bm;
     ctmp = NULL;
-    delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
     dsk = NULL;
     encrypted = false;
 
@@ -911,36 +785,6 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
             WT_STAT_CONN_INCRV(session, block_byte_write_leaf, dsk->mem_size);
             WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
         }
-    }
-
-    /*
-     * Store a copy of the compressed buffer in the block cache.
-     *
-     * Optional if the write is part of a checkpoint. Hot blocks get written and over-written a lot
-     * as part of checkpoint, so we don't want to cache them, because (a) they are in the in-memory
-     * cache anyway, and (b) they are likely to be overwritten again in the next checkpoint. Writes
-     * that are not part of checkpoint I/O are done in the service of eviction. Those are the blocks
-     * that the in-memory cache would like to keep but can't, and we definitely want to keep them.
-     *
-     * Optional on normal writes (vs. reads) if the no-write-allocate setting is on.
-     *
-     * Ignore the final checkpoint writes.
-     *
-     * TODO: ignore block cache for deltas now.
-     */
-    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED || (block_meta != NULL && delta_count > 0))
-        ;
-    else if (!blkcache->cache_on_checkpoint && checkpoint_io)
-        WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
-    else if (!blkcache->cache_on_writes)
-        WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
-    else if (!checkpoint) {
-        /* If we are here, it means that we don't have deltas, so let's just ignore them. */
-        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip :
-          compressed                                                         ? ctmp :
-                                                                               buf;
-        WT_ERR(
-          __wti_blkcache_put(session, cache_item, NULL, 0, block_meta, addr, *addr_sizep, true));
     }
 
 err:
