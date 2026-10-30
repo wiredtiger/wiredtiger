@@ -3445,10 +3445,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             return (WT_NOTFOUND);
 
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_ingest_deleted);
-        /*
-         * A lookup that found the key removed leaves no constituent on it; a cached position on the
-         * ingest tombstone is still valid and is kept.
-         */
+        /* Reset the cursor if the lookup finds the key already removed. */
         if (looked_up)
             WT_RET(__clayered_reset_cursors(clayered, false));
         return (0);
