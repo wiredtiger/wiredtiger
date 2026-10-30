@@ -81,7 +81,6 @@ include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/sodium.cmake)
 include(cmake/third_party/iaa.cmake)
-include(cmake/third_party/memkind.cmake)
 
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
@@ -209,9 +208,6 @@ if(WITH_PIC OR ENABLE_SHARED)
     # Append any provided C flags.
     if(COMPILER_DIAGNOSTIC_C_FLAGS)
         target_compile_options(wt_objs PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
-    endif()
-    if(ENABLE_MEMKIND)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBMEMKIND_INCLUDES})
     endif()
     if(ENABLE_ANTITHESIS)
         target_include_directories(wt_objs PRIVATE ${CMAKE_SOURCE_DIR}/tools/voidstar/include)

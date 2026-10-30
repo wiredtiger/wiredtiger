@@ -1050,7 +1050,6 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
-    WT_BLKCACHE blkcache;             /* Block cache */
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
 
     uint64_t *dh_bucket_count;                   /* Locked: handles in each bucket */
