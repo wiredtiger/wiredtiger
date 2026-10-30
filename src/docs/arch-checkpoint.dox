@@ -96,6 +96,11 @@ disaggregated btree, so stable tables, the shared history store and the shared m
 never reconciled, and no shared checkpoint metadata is written. Other nodes only adopt checkpoints
 written by a leader.
 
+On a leader the shared metadata table is checkpointed last, and the checkpoint metadata that
+points at it (the metadata root, the checkpoint timestamp, the schema epoch and the oldest
+timestamp) is written to shared storage through the page log. The page holding it stands in for
+the turtle file, and a follower reads it when it picks up a checkpoint.
+
 The call succeeds rather than returning an error because applications may checkpoint without regard
 to their role.
 
