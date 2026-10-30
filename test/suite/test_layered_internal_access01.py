@@ -72,7 +72,7 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase, suite_subprocess
         # layered table, since none exists for them.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('file:WiredTigerShared.wt_stable'),
-            '/direct access to an internal table is not allowed; it may be enabled/')
+            '/direct access to an internal table is not allowed/')
 
         # Schema operations on the constituents are refused.
         self.expect_refused(lambda: self.session.create(
@@ -81,12 +81,24 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase, suite_subprocess
         self.expect_refused(lambda: self.session.truncate(self.ingest_uri, None, None, None))
         self.expect_refused(lambda: self.session.alter(self.ingest_uri, 'access_pattern_hint=none'))
 
-        # Verify remains available without the debug configuration: it must not
-        # fail with the internal-access error (other errors are acceptable).
-        try:
-            self.session.verify(self.ingest_uri)
-        except wiredtiger.WiredTigerError as e:
-            self.assertFalse('direct access to an internal table' in str(e))
+        # Verify and salvage are guarded too.
+        self.expect_refused(lambda: self.session.verify(self.stable_uri))
+        self.expect_refused(lambda: self.session.salvage(self.stable_uri))
+
+        # Constituent suffixes are reserved across schema and cursor APIs, including table URIs.
+        logical_uri = 'table:' + self.uri_base + '_logical.wt_stable'
+        self.expect_refused(lambda: self.session.create(
+            logical_uri, 'key_format=S,value_format=S'))
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.create(logical_uri, 'key_format=S,value_format=S')
+        c = debug_session.open_cursor(logical_uri)
+        c.close()
+        debug_session.close()
+
+        self.expect_refused(lambda: self.session.open_cursor(logical_uri))
+        self.expect_refused(lambda: self.session.alter(logical_uri, 'access_pattern_hint=none'))
+        self.expect_refused(lambda: self.session.drop(logical_uri))
+        self.expect_refused(lambda: self.session.truncate(logical_uri, None, None, None))
 
     def test_allowed_with_debug_config(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -98,6 +110,13 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase, suite_subprocess
         c.close()
         c = debug_session.open_cursor('statistics:' + self.stable_uri)
         c.close()
+
+        missing_uri = 'file:missing.wt_stable'
+        for operation in (debug_session.verify, debug_session.salvage):
+            try:
+                operation(missing_uri)
+            except wiredtiger.WiredTigerError as e:
+                self.assertNotIn('direct access to an internal table', str(e))
         debug_session.close()
 
     def test_reconfigure(self):
@@ -109,9 +128,9 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase, suite_subprocess
 
         session.reconfigure('debug=(allow_internal_access=true)')
         c = session.open_cursor(self.ingest_uri)
-        c.close()
-
         session.reconfigure('debug=(allow_internal_access=false)')
+        self.expect_refused(lambda: session.open_cursor(None, c))
+        c.close()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: session.open_cursor(self.ingest_uri), self.msg)
         session.close()
