@@ -421,7 +421,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     timeline->image_build_finish = __wt_clock(session);
 
     if (F_ISSET(r, WT_REC_CHECKPOINT))
-        WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
+        WT_STAT_CONN_SET(session, checkpoint_rec_page_write, r->page_write_time);
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
@@ -898,8 +898,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->max_txn = WT_TXN_NONE;
     r->max_ts = WT_TS_NONE;
 
-    /* Track time spent writing to the block cache during checkpoints. */
-    r->blkcache_write_time = 0;
+    /* Track time spent writing pages during checkpoints. */
+    r->page_write_time = 0;
 
     /* Track if updates were used and/or uncommitted. */
     r->update_used = false;
@@ -1187,11 +1187,11 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     if (WT_REC_CKPT_TRACK_TIME(r))
         _write_start = __wt_clock(session);
 
-    WT_RET(__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
+    WT_RET(__wt_bm_write_page(session, buf, block_meta, buf->size, addr, addr_sizep,
       compressed_sizep, checkpoint, checkpoint_io, compressed));
 
     if (WT_REC_CKPT_TRACK_TIME(r))
-        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+        r->page_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
 
     return (0);
 }
@@ -2384,10 +2384,10 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     /* Get the checkpoint ID. */
     if (WT_REC_CKPT_TRACK_TIME(r))
         _write_start = __wt_clock(session);
-    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+    WT_RET(__wt_bm_write_page(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     if (WT_REC_CKPT_TRACK_TIME(r))
-        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+        r->page_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
 
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
