@@ -89,16 +89,19 @@ class test_layered_internal_access01(wttest.WiredTigerTestCase, suite_subprocess
         logical_uri = 'table:' + self.uri_base + '_logical.wt_stable'
         self.expect_refused(lambda: self.session.create(
             logical_uri, 'key_format=S,value_format=S'))
-        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
-        debug_session.create(logical_uri, 'key_format=S,value_format=S')
-        c = debug_session.open_cursor(logical_uri)
-        c.close()
-        debug_session.close()
-
         self.expect_refused(lambda: self.session.open_cursor(logical_uri))
         self.expect_refused(lambda: self.session.alter(logical_uri, 'access_pattern_hint=none'))
         self.expect_refused(lambda: self.session.drop(logical_uri))
         self.expect_refused(lambda: self.session.truncate(logical_uri, None, None, None))
+
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.create(logical_uri, 'key_format=S,value_format=S')
+        c = debug_session.open_cursor(logical_uri)
+        c.close()
+        debug_session.alter(logical_uri, 'access_pattern_hint=none')
+        debug_session.truncate(logical_uri, None, None, None)
+        debug_session.drop(logical_uri)
+        debug_session.close()
 
     def test_allowed_with_debug_config(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
