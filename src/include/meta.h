@@ -27,6 +27,7 @@
 #define WT_METADATA_TURTLE_SET "WiredTiger.turtle.set" /* Turtle temp file */
 
 #define WT_METADATA_URI "metadata:"           /* Metadata alias */
+#define WT_VERIFY_DATABASE_URI "database:"    /* Database alias, for database-wide verify checks */
 #define WT_METAFILE "WiredTiger.wt"           /* Metadata table */
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */

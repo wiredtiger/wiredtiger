@@ -1566,7 +1566,8 @@ struct __wt_session {
      *
      * @param session the session handle
      * @param name the URI of the table or file to verify; if NULL, verify all tables in the
-     * database
+     * database. The special URI \c database: runs the database-wide metadata consistency checks
+     * (currently the unique btree ID check) without verifying any particular object
      * @configstart{WT_SESSION.verify, see dist/api_data.py}
      * @config{abort_on_error, when verifying all tables (no URI given)\, stop at the first table
      * that fails verification; by default all tables are verified\, with every failure logged as it

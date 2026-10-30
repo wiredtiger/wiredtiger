@@ -344,6 +344,29 @@ err:
 }
 
 /*
+ * __wt_verify_metadata_consistency --
+ *     Run the database-wide metadata consistency checks, currently confirming that no two stable
+ *     files share a btree ID, in both the local and the shared metadata. These scans cover the
+ *     whole metadata and are independent of any particular btree, so they run once per database
+ *     through the "database:" verify URI rather than once per verified btree.
+ */
+int
+__wt_verify_metadata_consistency(WT_SESSION_IMPL *session)
+{
+    WT_RET(__verify_unique_btree_ids(session));
+
+    /*
+     * The shared metadata is only reachable on a disaggregated leader; followers rely on the
+     * equivalent check performed during checkpoint pickup.
+     */
+    if (__wt_conn_is_disagg(session) &&
+      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+        WT_RET(__verify_unique_shared_ids(session));
+
+    return (0);
+}
+
+/*
  * __wt_disagg_get_database_size --
  *     Recompute the disaggregated database size from scratch: walk the metadata and sum the most
  *     recent checkpoint size for every file. The fixed overhead for the KEK table and shared turtle
@@ -637,22 +660,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     if (quit)
         goto done;
-
-    /*
-     * Check that no two shared files share the same btree ID. Only run for shared trees: the verify
-     * session's exclusive lock is on the shared file, not the metadata file, so a shared metadata
-     * cursor can be opened directly on the verify session.
-     *
-     * FIXME-WT-18582: Having these per-URI means we do a metadata scan for each verified URI.
-     */
-    if (__wt_dhandle_shared_btree_kind(btree->dhandle) != WT_SHARED_BTREE_NONE) {
-        WT_ERR(__verify_unique_btree_ids(session));
-
-        /* If we're already verifying shared metadata, don't manually perform this step. */
-        if (!WT_IS_DISAGG_META(session->dhandle) &&
-          __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
-            WT_ERR(__verify_unique_shared_ids(session));
-    }
 
     /*
      * Get a list of the checkpoints for this file. Empty objects and ingest tables have no

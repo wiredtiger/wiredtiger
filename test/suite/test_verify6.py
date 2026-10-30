@@ -51,3 +51,6 @@ class test_verify6(wttest.WiredTigerTestCase):
 
         # Verifying a single table still works alongside the NULL URI form.
         self.assertEqual(self.session.verify(f'{self.uri}_0'), 0)
+
+        # The "database:" URI runs the database-wide checks without verifying any object.
+        self.assertEqual(self.session.verify('database:'), 0)
