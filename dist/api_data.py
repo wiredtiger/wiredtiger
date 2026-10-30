@@ -2005,11 +2005,6 @@ methods = {
         Treat any verification problem as an error; by default, verify will warn, but not fail,
         in the case of errors that won't affect future behavior (for example, a leaked block)''',
         type='boolean'),
-    Config('verify_unique_id', 'false', r'''
-        Check that no two stable files share a btree ID, scanning the metadata (and the shared
-        metadata on a disaggregated leader). This check covers the whole database and runs once
-        per verify call, independent of the object being verified''',
-        type='boolean'),
 ]),
 
 'WT_SESSION.begin_transaction' : Method([

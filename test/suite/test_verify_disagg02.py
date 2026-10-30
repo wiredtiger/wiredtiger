@@ -82,18 +82,13 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         raw_cursor.insert()
         raw_cursor.close()
 
-        # The check is gated behind the verify_unique_id configuration.
+        # Per-object verifies never scan the metadata; a plain verify sails through despite the
+        # duplicate.
         session_follow.verify(self.uri)
 
-        # Verify the layered table with the check enabled. It detects the duplicate btree ID.
+        # The "database:" URI runs only the database-wide checks and detects the duplicate.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session_follow.verify(self.uri, 'verify_unique_id=true'), '/WT_ERROR/')
-        self.ignoreStderrPatternIfExists('metadata corruption')
-        self.ignoreStderrPatternIfExists('stable table verification failed')
-
-        # A NULL URI verifies all tables and, with the check enabled, detects the duplicate too.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session_follow.verify(None, 'verify_unique_id=true'), '/WT_ERROR/')
+            lambda: session_follow.verify('database:'), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('metadata corruption')
 
         # Remove the fake entry so teardown verification passes.
@@ -127,16 +122,11 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         sh_cursor['file:dup_entry.wt_stable'] = victim_config
         sh_cursor.close()
 
-        # A plain verify no longer scans the metadata; the duplicate is only detected with the
-        # verify_unique_id configuration enabled.
+        # A plain verify no longer scans the metadata; the duplicate is only detected through the
+        # database-wide checks.
         self.session.verify(self.uri)
 
+        # The "database:" URI verifies nothing but the database-wide checks.
         with self.expectedStderrPattern('metadata corruption.*dup_entry'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.verify(self.uri, 'verify_unique_id=true'), '/WT_ERROR/')
-        self.ignoreStderrPatternIfExists('stable table verification failed')
-
-        # The same check runs on a NULL URI, which verifies all tables.
-        with self.expectedStderrPattern('metadata corruption.*dup_entry'):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.verify(None, 'verify_unique_id=true'), '/WT_ERROR/')
+                lambda: self.session.verify('database:'), '/WT_ERROR/')

@@ -1566,8 +1566,8 @@ struct __wt_session {
      *
      * @param session the session handle
      * @param name the URI of the table or file to verify; if NULL, verify all tables in the
-     * database. With the \c verify_unique_id configuration set, the database-wide unique btree
-     * ID check also runs once per call
+     * database. The special URI \c database: runs the database-wide metadata consistency checks
+     * (currently the unique btree ID check) without verifying any particular object
      * @configstart{WT_SESSION.verify, see dist/api_data.py}
      * @config{abort_on_error, when verifying all tables (no URI given)\, stop at the first table
      * that fails verification; by default all tables are verified\, with every failure logged as it
@@ -1611,10 +1611,6 @@ struct __wt_session {
      * @config{strict, Treat any verification problem as an error; by default\, verify will warn\,
      * but not fail\, in the case of errors that won't affect future behavior (for example\, a
      * leaked block)., a boolean flag; default \c false.}
-     * @config{verify_unique_id, Check that no two stable files share a btree ID\, scanning the
-     * metadata (and the shared metadata on a disaggregated leader). This check covers the whole
-     * database and runs once per verify call\, independent of the object being verified., a boolean
-     * flag; default \c false.}
      * @configend
      * @ebusy_errors
      */

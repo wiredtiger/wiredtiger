@@ -49,12 +49,8 @@ class test_verify6(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.assertEqual(self.session.verify(None), 0)
 
-        # With the configuration enabled, a NULL URI verifies all tables and runs the
-        # database-wide unique btree ID check once.
-        self.assertEqual(self.session.verify(None, 'verify_unique_id=true'), 0)
-
         # Verifying a single table still works alongside the NULL URI form.
         self.assertEqual(self.session.verify(f'{self.uri}_0'), 0)
 
-        # A specific URI with the configuration verifies that table and runs the check once.
-        self.assertEqual(self.session.verify(f'{self.uri}_0', 'verify_unique_id=true'), 0)
+        # The "database:" URI runs the database-wide checks without verifying any object.
+        self.assertEqual(self.session.verify('database:'), 0)

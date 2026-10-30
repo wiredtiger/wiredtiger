@@ -347,8 +347,8 @@ err:
  * __wt_verify_metadata_consistency --
  *     Run the database-wide metadata consistency checks, currently confirming that no two stable
  *     files share a btree ID, in both the local and the shared metadata. These scans cover the
- *     whole metadata and are independent of any particular btree, so they run once per verify call
- *     when the verify_unique_id configuration is set, rather than once per verified btree.
+ *     whole metadata and are independent of any particular btree, so they run once per database
+ *     through the "database:" verify URI rather than once per verified btree.
  */
 int
 __wt_verify_metadata_consistency(WT_SESSION_IMPL *session)
