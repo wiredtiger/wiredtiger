@@ -2387,6 +2387,20 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
     parent_incr = 0;
 
     /*
+     * A disaggregated child without a retained disk image is handed back to disk and must be behind
+     * the materialization frontier to be read back safely. The frontier can be published after the
+     * eviction review that allowed this split, so check the actual children: if a block is not
+     * materialized yet, fail the eviction and leave the page in cache until it is.
+     */
+    if (page->disagg_info != NULL && !closing)
+        for (i = 0; i < new_entries; ++i)
+            if (mod->mod_multi[i].disk_image == NULL && mod->mod_multi[i].block_meta != NULL &&
+              !__wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+                return (__wt_set_return(session, EBUSY));
+            }
+
+    /*
      * Convert the split page's multiblock reconciliation information into an array of page
      * reference structures.
      */
