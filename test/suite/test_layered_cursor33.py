@@ -31,8 +31,8 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# A follower remove through a blind_remove cursor succeeds whether or not the key exists, and never
-# opens the stable table or moves it to a newer checkpoint, with or without a read timestamp.
+# On a follower, a blind remove always succeeds and never opens the stable table, wherever the key
+# is and with or without a read timestamp.
 @disagg_test_class
 class test_layered_cursor33(wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -130,7 +130,7 @@ class test_layered_cursor33(wttest.WiredTigerTestCase):
 
         delta = {s: after[s] - before[s] for s in before}
         self.assertEqual(delta[stat.conn.layered_curs_open_stable], 0)
-        self.assertEqual(delta[stat.conn.layered_curs_reopen_stable], 0)
+        self.assertEqual(delta[stat.conn.layered_curs_reopen_stable], 1 if self.stable_open else 0)
         self.assertEqual(delta[stat.conn.layered_curs_blind_remove_follower], 1)
         self.assertEqual(delta[stat.conn.layered_curs_blind_remove_ingest_deleted],
             1 if self.already_removed else 0)

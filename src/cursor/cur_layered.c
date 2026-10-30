@@ -16,7 +16,7 @@ static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static void __clayered_update_state(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
+static void __clayered_update_state(WTI_CURSOR_LAYERED *, WTI_CLAYERED_ROLE);
 
 /* Operations passed to __clayered_put. */
 typedef enum {
@@ -643,7 +643,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      */
     __wt_txn_cursor_op(session);
 
-    __clayered_update_state(clayered, flags, role);
+    __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
 
     __clayered_op_init(clayered, op, flags, mode, role);
@@ -1212,7 +1212,7 @@ err:
  *     Validate and update cursor state and refresh the transaction context.
  */
 static void
-__clayered_update_state(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
+__clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     const WT_TXN_SHARED *const txn_shared = WT_SESSION_TXN_SHARED(session);
@@ -1232,12 +1232,7 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYER
       clayered->txn_mod_count != txn_mod_count)
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
-    /*
-     * A follower blind remove skips the stable advance, so don't record its snapshot: the next
-     * operation in the same snapshot can still advance stable.
-     */
-    if (!LF_ISSET(CLAYERED_ENTER_FOLLOWER_BLIND_REMOVE))
-        clayered->snapshot_gen = snapshot_gen;
+    clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
     clayered->txn_mod_count = txn_mod_count;
     clayered->last_role = role;
@@ -1393,9 +1388,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
           !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
-      (!LF_ISSET(CLAYERED_ENTER_FOLLOWER_BLIND_REMOVE) &&
-        __clayered_can_advance_stable(
-          clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role))) {
+      __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
         /*
          * Reopen the cursor.
          *
@@ -1404,8 +1397,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
          * should be running.
          *
          * The second case of reopening the stable table is when we want to open a new checkpoint on
-         * a follower to evict more entries from the ingest table. A follower blind remove never
-         * reads stable, so it leaves that to the next operation that does.
+         * a follower to evict more entries from the ingest table.
          */
         WT_RET(__clayered_reopen_stable(session, clayered, role));
         clayered->stable_checkpoint_meta_lsn = conn_lsn;
