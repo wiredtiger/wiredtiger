@@ -641,10 +641,10 @@ begin_transaction_ts(TINFO *tinfo)
         }
         testutil_assert(ret == EINVAL);
         testutil_check(session->rollback_transaction(session, NULL));
-        tinfo->ignore_prepare = false;
     }
 
     wt_wrap_begin_transaction(session, NULL);
+    tinfo->ignore_prepare = false;
 
     snap_op_init(tinfo, ts, false);
     trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
