@@ -110,6 +110,7 @@ read_file(const char *path, uint8_t **bufp, size_t *sizep)
 {
     struct stat sb;
     FILE *fp;
+    size_t len, n;
     uint8_t *buf;
 
     if ((fp = fopen(path, "r")) == NULL)
@@ -118,9 +119,18 @@ read_file(const char *path, uint8_t **bufp, size_t *sizep)
     *sizep = (size_t)sb.st_size;
     if ((buf = malloc(*sizep + 1)) == NULL)
         testutil_die(errno, "malloc");
-    if (*sizep != 0 && fread(buf, 1, *sizep, fp) != *sizep)
+    /*
+     * The log file server truncates a sealed file to its final length once the backup cursor is
+     * closed, which can happen while the file is being read. Read to end of file rather than
+     * trusting the size from fstat: a short read only loses the pre-allocated zeroed tail.
+     */
+    for (len = 0; len < (size_t)sb.st_size; len += n)
+        if ((n = fread(buf + len, 1, (size_t)sb.st_size - len, fp)) == 0)
+            break;
+    if (ferror(fp))
         testutil_die(errno, "fread: %s", path);
     (void)fclose(fp);
+    *sizep = len;
     *bufp = buf;
 }
 

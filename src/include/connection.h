@@ -215,6 +215,9 @@ struct __wt_disagg_metadata_op {
     /* The operation was queued before a stable schema epoch was set. */
     bool before_stable_epoch;
 
+    uint64_t queued_time;    /* Clock reading when the operation was queued */
+    uint64_t published_time; /* Clock reading when the operation was published */
+
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
@@ -267,8 +270,9 @@ struct __wt_page_delta_config {
     u_int delete_pct;            /* Max delete fraction (%) before forcing full page */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_INTERNAL_PAGE_DELTA 0x1u
-#define WT_LEAF_PAGE_DELTA 0x2u
+#define WT_DELTA_PCT_OF_TARGET_PAGE_SIZE 0x1u
+#define WT_INTERNAL_PAGE_DELTA 0x2u
+#define WT_LEAF_PAGE_DELTA 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -443,6 +447,12 @@ struct __wt_disaggregated_storage {
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
     WT_SPINLOCK shared_metadata_queue_lock;
+
+    /* Shared metadata queue statistics. */
+    wt_shared uint64_t schema_awaiting_publish;
+    wt_shared uint64_t schema_awaiting_publish_oldest;
+    wt_shared uint64_t schema_awaiting_checkpoint;
+    wt_shared uint64_t schema_awaiting_checkpoint_oldest;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the

@@ -117,6 +117,14 @@ connection_page_delta_config_common = [
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
         delta. Deltas larger than full pages are permitted for measurement and testing
         reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+    Config('delta_pct_of_target_page_size', 'true', r'''
+        When enabled, the \c delta_pct threshold is evaluated against the configured
+        maximum page size for the page type rather than the size of the full page image
+        just built, so a partially filled page gets the same delta byte budget as a full
+        one. A delta larger than half the image plus half of \c delta_pct is still
+        rejected, a bound that reaches the whole image, and so stops applying, at a \c
+        delta_pct of 100''',
+        type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation may write deltas for internal pages
         instead of writing entire pages every time''',
@@ -1933,6 +1941,11 @@ methods = {
 
 'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.verify' : Method([
+    Config('abort_on_error', 'false', r'''
+        when verifying all tables (no URI given), stop at the first table that fails
+        verification; by default all tables are verified, with every failure logged as it is
+        found, and the return value reports the first failure''',
+        type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as
