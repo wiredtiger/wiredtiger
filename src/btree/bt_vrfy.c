@@ -1445,7 +1445,7 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
       __wt_addr_string(session, addr, addr_size, vs->tmp1));
 
     /* Read and verify the overflow item. */
-    WT_RET(__wt_blkcache_read(session, vs->tmp1, NULL, addr, addr_size));
+    WT_RET(__wt_bm_read_page(session, vs->tmp1, NULL, addr, addr_size));
 
     /*
      * The physical page has already been verified, but we haven't confirmed it was an overflow

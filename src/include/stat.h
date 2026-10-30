@@ -878,7 +878,7 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
-    int64_t checkpoint_rec_blkcache_write;
+    int64_t checkpoint_rec_page_write;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;

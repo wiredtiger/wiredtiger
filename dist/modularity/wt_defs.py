@@ -29,7 +29,7 @@
     "modules": [
         # Modules in subdirectories of src/
         Module("block"),
-        Module("block_cache",
+        Module("block_mgr",
                sourceAliases = ["blkcache", "bm"]),
         Module("btree", fileAliases=["btmem", "btree_cmp", "dhandle", "modify", "ref", "serial"],
                sourceAliases = ["ref", "page", "dhandle", "btcur"]),

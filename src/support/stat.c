@@ -4391,7 +4391,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED,
   WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED,
   WT_STAT_CONN_CHECKPOINT_TIME_TOTAL,
-  WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE,
+  WT_STAT_CONN_CHECKPOINT_REC_PAGE_WRITE,
   WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY,
   WT_STAT_CONN_COND_AUTO_WAIT_RESET,
   WT_STAT_CONN_COND_AUTO_WAIT,
@@ -5565,7 +5565,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
-    stats->checkpoint_rec_blkcache_write = 0;
+    stats->checkpoint_rec_page_write = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
@@ -6846,7 +6846,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);
-    to->checkpoint_rec_blkcache_write += WT_STAT_CONN_READ(from, checkpoint_rec_blkcache_write);
+    to->checkpoint_rec_page_write += WT_STAT_CONN_READ(from, checkpoint_rec_page_write);
     to->checkpoint_wait_reduce_dirty += WT_STAT_CONN_READ(from, checkpoint_wait_reduce_dirty);
     to->cond_auto_wait_reset += WT_STAT_CONN_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
