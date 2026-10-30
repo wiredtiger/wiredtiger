@@ -5872,6 +5872,19 @@ tasks:
       # Call cleanup function to avoid duplicated artifact upload in the post-task stage.
       - func: "cleanup"
 
+  - name: mongo-perf-build-config-check
+    commands:
+      - func: "get project"
+      - func: "fetch mongo repo"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            python3 test/evergreen/check_mongo_perf_build_config.py ../mongo
+
   - name: cyclomatic-complexity
     tags: ["pull_request_code_statistics"]
     commands:
@@ -8381,3 +8394,11 @@ buildvariants:
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
+
+- name: ubuntu2004-mongo-perf-config-check
+  display_name: "~ Ubuntu 20.04 MongoDB perf config check"
+  run_on:
+  - ubuntu2004-small
+  tasks:
+    - name: mongo-perf-build-config-check
+      batchtime: 7200 # every five days
