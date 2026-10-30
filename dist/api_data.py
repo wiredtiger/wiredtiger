@@ -1608,8 +1608,9 @@ cursor_runtime_config = [
         cursors with record number keys''',
         type='boolean'),
     Config('blind_remove', 'false', r'''
-        configures WT_CURSOR::remove to succeed whether or not a record with the key exists. Only
-        layered tables support this option''',
+        configures WT_CURSOR::remove to succeed whether or not a record with the key exists.
+        Removing a key outside the cursor bounds fails with \c EINVAL. On a follower, write
+        conflicts come from the ingest table alone. Only layered tables support this option''',
         type='boolean', undoc=True),
     Config('overwrite', 'true', r'''
         configures whether the cursor's insert and update methods check the existing state of

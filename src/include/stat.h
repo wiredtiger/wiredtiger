@@ -1073,6 +1073,8 @@ struct __wt_connection_stats {
     int64_t disagg_victim_cache_put_time;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_schema_canceled;
+    int64_t layered_curs_blind_remove_follower;
+    int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1878,6 +1880,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t layered_curs_blind_remove_follower;
+    int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;

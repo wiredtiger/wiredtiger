@@ -1511,6 +1511,8 @@ conn_dsrc_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('layered_curs_blind_remove_follower', 'Layered table cursor blind remove operations on a follower'),
+    LayeredStat('layered_curs_blind_remove_ingest_deleted', 'Layered table cursor blind remove operations on a key already removed locally'),
     LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
     LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
