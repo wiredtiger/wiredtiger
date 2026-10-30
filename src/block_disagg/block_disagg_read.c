@@ -174,7 +174,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t stored_checksums[WT_DELTA_LIMIT + 1], total_size;
+    uint32_t total_size;
     int32_t last, result;
     uint8_t expected_magic, recorded_header_size;
     bool from_cache, is_delta;
@@ -247,9 +247,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
          */
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wt_block_disagg_header_byteswap_copy(blk, &swap);
-
-        /* Capture the stored checksum before validation zeroes the field in place. */
-        stored_checksums[result] = swap.checksum;
 
         /* Determine if the page was read from the cache based on the modified flag. */
         if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
@@ -349,6 +346,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 }
 
                 /*
+                 * Restore the checksum zeroed above, we store the swapped value for corrupt dump.
+                 */
+                blk->checksum = swap.checksum;
+
+                /*
                  * Swap the page-header as needed; this doesn't belong here, but it's the best place
                  * to catch all callers.
                  */
@@ -383,21 +385,13 @@ corrupt:
          */
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             for (int i = 0; i <= last; i++) {
-                /*
-                 * The validation loop reached results [result, last] and captured their checksum
-                 * before zeroing the field; results it never reached are still intact, so read
-                 * their checksum here.
-                 */
-                if (i < result) {
-                    __wt_block_disagg_header_byteswap_copy(
-                      WT_BLOCK_HEADER_REF(results_array[i].data), &swap);
-                    stored_checksums[i] = swap.checksum;
-                }
+                __wt_block_disagg_header_byteswap_copy(
+                  WT_BLOCK_HEADER_REF(results_array[i].data), &swap);
                 __wt_log_data_dump(session, results_array[i].data, results_array[i].size,
                   "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32
                   "} result %d of %" PRIu32 ", %s%s",
-                  (uint32_t)0, (uintmax_t)page_id, (uint32_t)results_array[i].size,
-                  stored_checksums[i], i + 1, *results_count, i == 0 ? "base page" : "delta page",
+                  (uint32_t)0, (uintmax_t)page_id, (uint32_t)results_array[i].size, swap.checksum,
+                  i + 1, *results_count, i == 0 ? "base page" : "delta page",
                   i == result ? " (read error)" : "");
             }
 
