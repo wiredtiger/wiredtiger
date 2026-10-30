@@ -667,7 +667,13 @@ __curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fa
     bool shared = false;
 
     if (__wt_conn_is_disagg(session)) {
-        WT_ERR(__wt_metadata_search(session, file_uri, &file_config));
+        ret = __wt_metadata_search(session, file_uri, &file_config);
+        /* Metadata-free ingest trees use the dhandle path to validate their parent and get size. */
+        if (ret == WT_NOTFOUND && WT_URI_IS_INGEST(file_uri)) {
+            ret = 0;
+            goto err;
+        }
+        WT_ERR(ret);
         const char *config[] = {WT_CONFIG_BASE(session, file_meta), file_config, NULL};
 
         /* Use the block manager to classify if the file is disagg or not. */

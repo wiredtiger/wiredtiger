@@ -901,23 +901,17 @@ class DisaggSchemaEpochMixin:
 
     def uri_in_local_metadata(self, conn, uri, leader=False):
         """
-        Return True if uri is present in conn's local metadata.
-
-        On a follower, checks the ingest constituent. On a leader, checks both the ingest and
-        stable constituents.
+        Return True if the layered parent and any required stable metadata are present.
         """
         tablename = uri[len('layered:'):]
         session = conn.open_session('')
         cursor = session.open_cursor('metadata:')
+        cursor.set_key(uri)
+        found = cursor.search() == 0
         if leader:
-            cursor.set_key('file:' + tablename + '.wt_ingest')
-            ingest_found = cursor.search() == 0
             cursor.set_key('file:' + tablename + '.wt_stable')
             stable_found = cursor.search() == 0
-            found = ingest_found and stable_found
-        else:
-            cursor.set_key('file:' + tablename + '.wt_ingest')
-            found = cursor.search() == 0
+            found = found and stable_found
         cursor.close()
         session.close()
         return found

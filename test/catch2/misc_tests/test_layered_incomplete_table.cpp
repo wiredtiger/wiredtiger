@@ -22,34 +22,6 @@
 #include "../wrappers/connection_wrapper.h"
 #include "../../utility/test_util.h"
 
-/*
- * test_layered_incomplete_table.cpp
- *
- * Catch2 equivalent of test_layered_checkpoint11.py, covering all eight combinations of
- * {file:T.wt_ingest, file:T.wt_stable} presence x {leader, follower} role by
- * directly removing metadata entries from an otherwise-complete layered table.
- *
- * During wiredtiger_open, we assert that:
- *   - file:T.wt_ingest MUST exist (on both leader and follower).
- *   - file:T.wt_stable MUST exist on a leader; optional on a follower.
- *
- * Expected outcomes:
- *
- *   role     | ingest | stable | result
- *   ---------|--------|--------|--------
- *   leader   |  yes   |  yes   | succeed
- *   leader   |  yes   |  no    | abort
- *   leader   |  no    |  yes   | abort
- *   leader   |  no    |  no    | abort
- *   follower |  yes   |  yes   | succeed
- *   follower |  yes   |  no    | succeed  (missing stable is ok on follower)
- *   follower |  no    |  yes   | abort
- *   follower |  no    |  no    | abort
- *
- * "should abort" cases run in a forked child so that WT_ASSERT_ALWAYS killing
- * the process does not take down the test runner.
- */
-
 static const std::string TABLE_NAME = "test_layered_inc";
 static const std::string TABLE_URI = "table:test_layered_inc";
 
@@ -72,55 +44,34 @@ build_cfg(const std::string &role, bool create)
 
 /*
  * prepare_db --
- *     Create a fresh database with a complete layered table (both ingest and stable metadata
- *     present), then optionally remove one or both file metadata entries to manufacture the desired
- *     incomplete state.
- *
- * Metadata surgery is done in a separate follower connection where the layered table's data handles
- *     are never opened (WiredTiger opens them lazily). Removing a metadata entry while its data
- *     handle is live triggers a panic on close.
+ *     Create a layered table and optionally remove its stable metadata.
  */
 static void
-prepare_db(const std::string &home, bool remove_ingest, bool remove_stable)
+prepare_db(const std::string &home, bool remove_stable)
 {
     /* Start from a clean slate. */
     testutil_system("rm -rf %s && mkdir -p %s", home.c_str(), home.c_str());
 
-    /* Phase 1: Open as leader, create a complete layered table, and close. */
+    /* Create the complete persistent table on a leader. */
     {
         connection_wrapper conn(home, build_cfg("leader", true).c_str());
         conn.clear_do_cleanup();
         WT_SESSION *session = (WT_SESSION *)conn.create_session();
         REQUIRE(session->create(session, TABLE_URI.c_str(),
                   "key_format=S,value_format=S,block_manager=disagg,type=layered") == 0);
-        /* conn destructor closes the connection, checkpointing both metadata entries. */
     }
 
-    if (!remove_ingest && !remove_stable)
+    if (!remove_stable)
         return; /* Nothing to remove; the DB is already in the desired state. */
 
-    /*
-     * Phase 2: Reopen as follower so that the disaggregated role is explicitly set and does not
-     * inherit the "leader" stored in the turtle file from Phase 1. With role=follower, recovery's
-     * __metadata_clean_incomplete_table only checks for the ingest entry, which is intact at this
-     * point, so recovery passes. The layered-table data handles are never accessed here (lazy
-     * open), so no active handle exists for the entries we are about to remove, and the close
-     * succeeds cleanly.
-     */
+    /* Reopen as a follower so missing stable metadata is allowed. */
     {
         connection_wrapper conn(home, build_cfg("follower", false).c_str());
         conn.clear_do_cleanup();
         WT_SESSION_IMPL *session = conn.create_session();
 
-        if (remove_ingest) {
-            const std::string key = "file:" + TABLE_NAME + ".wt_ingest";
-            REQUIRE(__wt_metadata_remove(session, key.c_str()) == 0);
-        }
-        if (remove_stable) {
-            const std::string key = "file:" + TABLE_NAME + ".wt_stable";
-            REQUIRE(__wt_metadata_remove(session, key.c_str()) == 0);
-        }
-        /* conn destructor closes the connection, persisting the metadata removals. */
+        const std::string key = "file:" + TABLE_NAME + ".wt_stable";
+        REQUIRE(__wt_metadata_remove(session, key.c_str()) == 0);
     }
 }
 
@@ -175,40 +126,20 @@ reopen_aborts(const std::string &home, const std::string &role)
     return !WIFEXITED(status) || WEXITSTATUS(status) != 0;
 }
 
-/* ---------------------------------------------------------------------------
- * Test cases
- * ------------------------------------------------------------------------- */
-
 TEST_CASE("Layered table incomplete metadata: leader role", "[layered_incomplete]")
 {
-    SECTION("leader + ingest + stable: should succeed")
+    SECTION("leader + stable: should succeed")
     {
         const std::string home = "WT_TEST.layered_inc_leader_complete";
-        prepare_db(home, /*remove_ingest=*/false, /*remove_stable=*/false);
+        prepare_db(home, /*remove_stable=*/false);
         REQUIRE(try_reopen(home, "leader") == 0);
         utils::wiredtiger_cleanup(home);
     }
 
-    SECTION("leader + ingest, no stable: should abort")
+    SECTION("leader + no stable: should abort")
     {
         const std::string home = "WT_TEST.layered_inc_leader_no_stable";
-        prepare_db(home, /*remove_ingest=*/false, /*remove_stable=*/true);
-        CHECK(reopen_aborts(home, "leader"));
-        utils::wiredtiger_cleanup(home);
-    }
-
-    SECTION("leader + stable, no ingest: should abort")
-    {
-        const std::string home = "WT_TEST.layered_inc_leader_no_ingest";
-        prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/false);
-        CHECK(reopen_aborts(home, "leader"));
-        utils::wiredtiger_cleanup(home);
-    }
-
-    SECTION("leader + neither ingest nor stable: should abort")
-    {
-        const std::string home = "WT_TEST.layered_inc_leader_neither";
-        prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/true);
+        prepare_db(home, /*remove_stable=*/true);
         CHECK(reopen_aborts(home, "leader"));
         utils::wiredtiger_cleanup(home);
     }
@@ -216,35 +147,19 @@ TEST_CASE("Layered table incomplete metadata: leader role", "[layered_incomplete
 
 TEST_CASE("Layered table incomplete metadata: follower role", "[layered_incomplete]")
 {
-    SECTION("follower + ingest + stable: should succeed")
+    SECTION("follower + stable: should succeed")
     {
         const std::string home = "WT_TEST.layered_inc_follower_complete";
-        prepare_db(home, /*remove_ingest=*/false, /*remove_stable=*/false);
+        prepare_db(home, /*remove_stable=*/false);
         REQUIRE(try_reopen(home, "follower") == 0);
         utils::wiredtiger_cleanup(home);
     }
 
-    SECTION("follower + ingest, no stable: should succeed (stable optional on follower)")
+    SECTION("follower + no stable: should succeed")
     {
         const std::string home = "WT_TEST.layered_inc_follower_no_stable";
-        prepare_db(home, /*remove_ingest=*/false, /*remove_stable=*/true);
+        prepare_db(home, /*remove_stable=*/true);
         REQUIRE(try_reopen(home, "follower") == 0);
-        utils::wiredtiger_cleanup(home);
-    }
-
-    SECTION("follower + stable, no ingest: should abort")
-    {
-        const std::string home = "WT_TEST.layered_inc_follower_no_ingest";
-        prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/false);
-        CHECK(reopen_aborts(home, "follower"));
-        utils::wiredtiger_cleanup(home);
-    }
-
-    SECTION("follower + neither ingest nor stable: should abort")
-    {
-        const std::string home = "WT_TEST.layered_inc_follower_neither";
-        prepare_db(home, /*remove_ingest=*/true, /*remove_stable=*/true);
-        CHECK(reopen_aborts(home, "follower"));
         utils::wiredtiger_cleanup(home);
     }
 }

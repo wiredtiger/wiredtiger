@@ -137,12 +137,7 @@ struct __wt_layered_table_manager {
     layered_table_lock; /* Lock used for managing changes to global layered table state */
 
     uint32_t open_layered_table_count;
-    /*
-     * This is a sparsely populated array of layered tables - each fileid in the system gets an
-     * entry in this table. A lookups checks for a valid manager entry at the unnamespaced file ID
-     * offset for the ingest constituent in a layered table. It's done that way so that we can
-     * cheaply check whether a log record belongs to a layered table and should be applied.
-     */
+    /* Sparse array indexed by unnamespaced ingest IDs. */
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
     size_t entries_allocated_bytes;
 
@@ -1060,6 +1055,7 @@ struct __wt_connection_impl {
     wt_shared uint64_t dhandle_types_count[WT_DHANDLE_TYPE_NUM];
     wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
+    uint32_t next_ingest_id;                 /* Locked: transient ingest ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
     wt_shared uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
     wt_shared uint32_t version_cursor_count; /* Atomic: open version cursor count */

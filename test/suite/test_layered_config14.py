@@ -45,7 +45,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
     file_uris = [f"file:{test_name}c"]
     table_uris = [f"table:{test_name}d"]
     all_uris = layered_uris + file_uris + table_uris
-    with_ingest_uris = all_uris + [f"file:{test_name}a.wt_ingest", f"file:{test_name}b.wt_ingest"]
+    ingest_uris = [f"file:{test_name}a.wt_ingest", f"file:{test_name}b.wt_ingest"]
 
     update_uris = [table_uris[0]] + ([layered_uris[0]] if len(layered_uris) > 0 else [])
     same_uris = list(set(all_uris) - set(update_uris))
@@ -124,7 +124,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.restart_without_local_files(pickup_checkpoint=False)
 
         # There should be no shared URIs in the metadata table at this point
-        self.check_metadata_cursor([], self.with_ingest_uris)
+        self.check_metadata_cursor([], self.all_uris + self.ingest_uris)
 
         # Pick up the checkpoint
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
@@ -133,7 +133,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.with_ingest_uris)
+        self.check_metadata_cursor(self.all_uris, self.ingest_uris)
 
         # Check tables after the restart, but before we step up as a leader
         for uri in self.all_uris:
@@ -207,7 +207,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.with_ingest_uris)
+        self.check_metadata_cursor(self.all_uris, self.ingest_uris)
 
         #
         # ------------------------------ Restart 2 ------------------------------
@@ -229,7 +229,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.with_ingest_uris)
+        self.check_metadata_cursor(self.all_uris, self.ingest_uris)
 
         # Check tables after the restart
         for uri in self.update_uris:

@@ -1091,7 +1091,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     char *tablecfg;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *constituent_cfg;
-    const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
     const char *layered_cfg[5] = {
       WT_CONFIG_BASE(session, layered_meta), "", config == NULL ? "" : config, NULL, NULL};
@@ -1154,21 +1153,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
-    /*
-     * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
-     * block_manager=default so that the ingest btree is never mistakenly treated as shared.
-     */
-    ingest_cfg[2] =
-      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
-
-    /*
-     * Pass the full merged configuration string through. Otherwise file-specific metadata will be
-     * stripped out.
-     */
-    WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
-    WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
-    __wt_free(session, constituent_cfg);
-
     /* Build the stable constituent configuration for a later step-up. */
     stable_cfg[1] = disagg_config->data;
 
@@ -1176,9 +1160,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * A stable constituent uses the disaggregated block manager. Persist this setting in metadata
      * so readers can identify its base tree as shared without opening it.
      *
-     * Disable logging on the stable table to ensure we have timestamps. Force block_manager=disagg:
-     * a legacy step-up derives a missing stable constituent from the ingest metadata, cannot
-     * recover the user's value and forces disagg, so the create-time metadata must match.
+     * Disable logging on the stable table to ensure we have timestamps. Force block_manager=disagg
+     * so create-time metadata matches the configuration derived from layered metadata at step-up.
      */
     stable_cfg[3] = "block_manager=disagg,log=(enabled=false)";
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
@@ -1542,22 +1525,12 @@ err:
 }
 
 /*
- * __wt_schema_create --
- *     Process a WT_SESSION::create operation for all supported types.
- */
-int
-__wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
-{
-    return (__wt_schema_create_internal(session, uri, config, true));
-}
-
-/*
- * __wt_schema_create_internal --
+ * __schema_create_internal --
  *     Process a WT_SESSION::create operation for all supported types, with control over whether the
  *     dhandle for a newly created 'file:' object is opened immediately.
  */
-int
-__wt_schema_create_internal(
+static int
+__schema_create_internal(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool open_dhandle)
 {
     WT_DECL_RET;
@@ -1578,4 +1551,14 @@ __wt_schema_create_internal(
     ret = __schema_create(int_session, uri, config, open_dhandle);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
+}
+
+/*
+ * __wt_schema_create --
+ *     Process a WT_SESSION::create operation for all supported types.
+ */
+int
+__wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+    return (__schema_create_internal(session, uri, config, true));
 }

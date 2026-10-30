@@ -102,6 +102,7 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_NAMESPACE_LOCAL 0   /* Namespace for regular local files */
 #define WT_BTREE_ID_NAMESPACE_SHARED 1  /* Namespace for regular shared files */
 #define WT_BTREE_ID_NAMESPACE_SPECIAL 2 /* Namespace for special shared files with fixed IDs */
+#define WT_BTREE_ID_NAMESPACE_INGEST 3  /* Namespace for transient ingest trees */
 
 #define WT_BTREE_ID_NAMESPACED(base_id, namespace_id) \
     ((base_id) << WT_BTREE_ID_NAMESPACE_BITS | (namespace_id))
