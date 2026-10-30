@@ -149,11 +149,13 @@ class test_layered_tombstone_prepared_discover(wttest.WiredTigerTestCase):
         # Phase 5 (in-memory proof): read the ingest constituent directly, bypassing the layered
         # decode. The restored update must carry the ingest escape whatever the stable mode.
         expected = self.expected_ingest_bytes()
-        c = session_f.open_cursor(self.ingest_uri)
-        session_f.begin_transaction('read_timestamp=' + self.timestamp_str(200))
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.ingest_uri)
+        debug_session.begin_transaction('read_timestamp=' + self.timestamp_str(200))
         c.set_key(1)
         self.assertEqual(c.search(), 0)
         self.assertEqual(c.get_value(), expected)
-        session_f.rollback_transaction()
+        debug_session.rollback_transaction()
         c.close()
+        debug_session.close()
         session_f.close()

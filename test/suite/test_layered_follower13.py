@@ -54,7 +54,7 @@ class test_layered_follower13(wttest.WiredTigerTestCase):
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
                                                 self.conn_config_follower)
-        self.session_follow = self.conn_follow.open_session()
+        self.session_follow = self.conn_follow.open_session('')
 
     def test_updated_key_on_disk_value_removed_after_gc(self):
         """
@@ -119,10 +119,12 @@ class test_layered_follower13(wttest.WiredTigerTestCase):
         session_evict.close()
 
         # --- Step 5: verify key 1 is not visible in the ingest btree after GC ---
-        cursor_check = self.session_follow.open_cursor(self.ingest_uri)
+        debug_session = self.conn_follow.open_session('debug=(allow_internal_access=true)')
+        cursor_check = debug_session.open_cursor(self.ingest_uri)
         cursor_check.set_key(1)
         self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
         cursor_check.close()
+        debug_session.close()
 
         stat_cursor = self.session_follow.open_cursor('statistics:' + self.uri)
         garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
@@ -193,10 +195,12 @@ class test_layered_follower13(wttest.WiredTigerTestCase):
         session_evict.close()
 
         # --- Step 5: verify key 1 is not visible in the ingest btree after GC ---
-        cursor_check = self.session_follow.open_cursor(self.ingest_uri)
+        debug_session = self.conn_follow.open_session('debug=(allow_internal_access=true)')
+        cursor_check = debug_session.open_cursor(self.ingest_uri)
         cursor_check.set_key(1)
         self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
         cursor_check.close()
+        debug_session.close()
 
         stat_cursor = self.session_follow.open_cursor('statistics:' + self.uri)
         garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]

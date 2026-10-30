@@ -65,7 +65,8 @@ class test_layered_schema03(wttest.WiredTigerTestCase):
     # Ensure that the shared metadata has removed the table.
     def check_shared_metadata(self, expect_exists):
         expected_ret = 0 if expect_exists else wiredtiger.WT_NOTFOUND
-        cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
 
         cursor.set_key("file:" + self.uri_base + ".wt_stable")
         self.assertEqual(cursor.search(), expected_ret)
@@ -78,6 +79,7 @@ class test_layered_schema03(wttest.WiredTigerTestCase):
             cursor.set_key("table:" + self.uri_base)
             self.assertEqual(cursor.search(), expected_ret)
         cursor.close()
+        debug_session.close()
 
     def validate_drop(self):
         # Validate that all metadata entries are removed.

@@ -83,8 +83,10 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 40), {'k1', 'k2'})
         # No transaction can write the stable constituent, so the create skips building it.
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(self.stable_uri(uri), None, None))
+            lambda: debug_session.open_cursor(self.stable_uri(uri), None, None))
+        debug_session.close()
         self.assertEqual(self.read_keys_at(uri, 40), {'k1', 'k2'})
 
         # The table has no stable content at all, so the demotion is its first checkpoint.

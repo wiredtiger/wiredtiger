@@ -603,12 +603,14 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
 
         # The checkpoint holds only the content committed at or below the stable timestamp, and
         # nothing committed above it.
-        ckpt_cursor = self.session.open_cursor(self.stable_uri(self.uri), None,
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        ckpt_cursor = debug_session.open_cursor(self.stable_uri(self.uri), None,
             'checkpoint=WiredTigerCheckpoint')
         checkpointed = {}
         while ckpt_cursor.next() == 0:
             checkpointed[ckpt_cursor.get_key()] = ckpt_cursor.get_value()
         ckpt_cursor.close()
+        debug_session.close()
         self.assertEqual(checkpointed, {'b': 's', 'd': 's'})
 
         self.assertEqual(self.read_kvs_at(self.uri, 50), before)

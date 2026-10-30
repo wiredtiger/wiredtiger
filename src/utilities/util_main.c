@@ -11,7 +11,7 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-BLmpqRrSVv] [-C config] [-E secretkey] [-h home]";
+const char *usage_prefix = "[-BiLmpqRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false;      /* Verbose flag */
 bool read_corrupt = false; /* -q: continue past corrupt pages for read-oriented wt commands */
 
@@ -31,7 +31,7 @@ typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
 static util_func_t disagg_supported[] = {
   util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
 
-static const char disagg_supported_flags[] = {'C', 'E', 'h', 'm', 'p', 'q', 'V', 'v', '?'};
+static const char disagg_supported_flags[] = {'C', 'E', 'h', 'i', 'm', 'p', 'q', 'V', 'v', '?'};
 
 /*
  * wt_explicit_zero --
@@ -185,8 +185,10 @@ usage(void)
 {
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
-      "database directory", "-L", "turn logging off for debug-mode", "-l",
-      "run live restore using the source path specified.", "-m", "run verify on metadata", "-p",
+      "database directory", "-i",
+      "allow direct access to internal tables, such as the constituents of layered tables", "-L",
+      "turn logging off for debug-mode", "-l", "run live restore using the source path specified.",
+      "-m", "run verify on metadata", "-p",
       "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
       "data)",
       "-q",
@@ -227,9 +229,11 @@ main(int argc, char *argv[])
     size_t len;
     int ch, disagg_bad_flag, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
+    char session_cfg_buf[256];
     const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *rec_config,
       *session_config;
-    bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
+    bool backward_compatible, disable_prefetch, internal_access, logoff, meta_verify, readonly,
+      recover, salvage;
 
     conn = NULL;
     disagg_bad_flag = 0;
@@ -258,11 +262,11 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
-      false;
+    backward_compatible = disable_prefetch = internal_access = logoff = meta_verify = readonly =
+      recover = salvage = false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF) {
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:il:LmpqRrSVv?")) != EOF) {
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -282,6 +286,9 @@ main(int argc, char *argv[])
             break;
         case 'h': /* home directory */
             home = __wt_optarg;
+            break;
+        case 'i': /* access internal tables */
+            internal_access = true;
             break;
         case 'L': /* no logging */
             rec_config = REC_LOGOFF;
@@ -530,6 +537,16 @@ open:
     /* If we only want to verify the metadata, that is done in wiredtiger_open. We're done. */
     if (func == NULL && meta_verify)
         goto done;
+
+    if (internal_access) {
+        if ((ret = __wt_snprintf(session_cfg_buf, sizeof(session_cfg_buf),
+               "debug=(allow_internal_access=true)%s%s", session_config == NULL ? "" : ",",
+               session_config == NULL ? "" : session_config)) != 0) {
+            (void)util_err(NULL, ret, NULL);
+            goto err;
+        }
+        session_config = session_cfg_buf;
+    }
 
     if ((ret = conn->open_session(conn, NULL, session_config, &session)) != 0) {
         (void)util_err(NULL, ret, NULL);

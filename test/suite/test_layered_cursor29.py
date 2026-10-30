@@ -66,7 +66,8 @@ class test_layered_cursor29(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # Open a version cursor before the table is published.
         stable_uri = self.stable_uri(self.uri)
-        version_cursor = self.session.open_cursor(
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        version_cursor = debug_session.open_cursor(
             stable_uri, None, "debug=(dump_version=(enabled=true))"
         )
 
@@ -76,14 +77,14 @@ class test_layered_cursor29(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # Evict the page so the old value moves to the history store.
         with wttest.open_cursor(
-            self.session, stable_uri, config="debug=(release_evict)"
+            debug_session, stable_uri, config="debug=(release_evict)"
         ) as evict_cursor:
             evict_cursor.set_key(key)
             evict_cursor.search()
 
         # After publication, the version cursor should still see the full
         # history.
-        with self.transaction(rollback=True):
+        with self.transaction(session=debug_session, rollback=True):
             LOCATION_INDEX, VALUE_INDEX = 13, 14
             DISK_IMAGE, HISTORY_STORE = 1, 2
 
@@ -102,6 +103,7 @@ class test_layered_cursor29(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             self.assertEqual(older[LOCATION_INDEX], HISTORY_STORE)
 
         version_cursor.close()
+        debug_session.close()
 
     def test_show_prepared_rollback_unpublished(self):
         """An unpublished stable btree rejects show_prepared_rollback."""
@@ -112,8 +114,10 @@ class test_layered_cursor29(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             "debug=(dump_version=(enabled=true,show_prepared_rollback=true))"
         )
 
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(stable_uri, None, config),
+            lambda: debug_session.open_cursor(stable_uri, None, config),
             "/show_prepared_rollback is only supported for in-memory b-trees/",
         )
+        debug_session.close()

@@ -43,11 +43,11 @@ class test_prepare39(test_prepare_preserve_prepare_base):
 
     def check_ckpt_hs(self, expected_hs_value, expected_hs_start_ts,
                       expected_hs_stop_ts, expect_prepared_in_datastore = False):
-        session = self.conn.open_session(self.session_config)
-        session.checkpoint()
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.checkpoint()
         count = 0
         # Check the history store file value.
-        cursor = session.open_cursor("file:WiredTigerSharedHS.wt_stable" if 'disagg' in self.hook_names
+        cursor = debug_session.open_cursor("file:WiredTigerSharedHS.wt_stable" if 'disagg' in self.hook_names
                                      else "file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
             # check that the update type is WT_UPDATE_STANDARD
@@ -58,7 +58,7 @@ class test_prepare39(test_prepare_preserve_prepare_base):
             count = count+1
         self.assertGreaterEqual(count, 1)
         cursor.close()
-        session.close()
+        debug_session.close()
 
     def verify_read_data(self, read_ts, key, expected_value):
         self.session.begin_transaction('read_timestamp='+ self.timestamp_str(read_ts))
@@ -149,9 +149,9 @@ class test_prepare39(test_prepare_preserve_prepare_base):
         # Reopen the database and read from the HS file stored on disk
         # Since the prepared update is rolled back, value_b is stored in the data store so value_a is in the history store
         conn_backup = self.wiredtiger_open(self.home)
-        backup_session = conn_backup.open_session(self.session_config)
-        backup_session.begin_transaction('read_timestamp='+ self.timestamp_str(10))
-        cursor = backup_session.open_cursor("file:WiredTigerSharedHS.wt_stable" if 'disagg' in self.hook_names
+        debug_session = conn_backup.open_session('debug=(allow_internal_access=true)')
+        debug_session.begin_transaction('read_timestamp='+ self.timestamp_str(10))
+        cursor = debug_session.open_cursor("file:WiredTigerSharedHS.wt_stable" if 'disagg' in self.hook_names
                                      else "file:WiredTigerHS.wt", None, None)
         count = 0
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
@@ -163,5 +163,5 @@ class test_prepare39(test_prepare_preserve_prepare_base):
             count = count + 1
         self.assertGreaterEqual(count, 1)
         cursor.close()
-        backup_session.rollback_transaction()
-        backup_session.close()
+        debug_session.rollback_transaction()
+        debug_session.close()
