@@ -34,8 +34,7 @@ from wtscenario import make_scenarios
 #    The per-session cursor skip statistics count the entries a session steps over
 #    while moving its cursors through its own tables, and leave out metadata walks.
 class test_cursor_skip01(wttest.WiredTigerTestCase):
-    # The cache is large enough that nothing is evicted, so the removed entries stay in place.
-    conn_config = 'cache_size=500MB,statistics=(fast)'
+    conn_config = 'statistics=(fast)'
     uri = 'table:test_cursor_skip01'
 
     # Enough removed entries that every scan steps over a large range.
@@ -73,9 +72,9 @@ class test_cursor_skip01(wttest.WiredTigerTestCase):
         return found
 
     # Insert keys and then remove them all, keeping the removes visible only to readers newer
-    # than the remove timestamp.
+    # than the remove timestamp. The table is never evicted, so the removed entries stay in place.
     def populate_tombstones(self):
-        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.session.create(self.uri, 'key_format=i,value_format=S,cache_resident=true')
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
@@ -105,8 +104,8 @@ class test_cursor_skip01(wttest.WiredTigerTestCase):
         table_delta = self.table_stat(self.uri) - table_before
         reader.rollback_transaction()
 
-        # Nothing is evicted, no checkpoint runs and only the reader walks the table, so the
-        # count is exact and charged to the reader alone.
+        # The removed entries stay in the cache and only the reader walks the table, so the count
+        # is exact and charged to the reader alone.
         self.assertEqual(reader_delta, self.nentries)
         self.assertEqual(reader_delta, table_delta)
         self.assertEqual(self.session_stat(reader, not self.forward), other_before)
