@@ -572,6 +572,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_trees_walk_complete;
     int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
+    int64_t eviction_server_skip_unwanted_tree_early;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
@@ -866,6 +867,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_scrub_min;
     int64_t checkpoint_scrub_recent;
     int64_t checkpoint_scrub_total;
+    int64_t checkpoint_disagg_metadata_drain_time;
     int64_t checkpoint_stepdown_time_max;
     int64_t checkpoint_stepdown_time_min;
     int64_t checkpoint_stepdown_time_recent;
@@ -1010,6 +1012,7 @@ struct __wt_connection_stats {
     int64_t disagg_victim_cache_cold_not_cached;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
+    int64_t disagg_drop_refused_unpublished_data;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_victim_cache_put_failures;
     int64_t disagg_ingest_stable_tombstone_stripped;
@@ -1017,11 +1020,15 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_meta_lsn;
     int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
+    int64_t disagg_schema_awaiting_checkpoint_oldest;
+    int64_t disagg_schema_awaiting_publish_oldest;
     int64_t disagg_victim_cache_puts;
     int64_t disagg_victim_cache_app_thread_puts;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_pick_up_checkpoint_time_startup;
     int64_t disagg_role_leader;
+    int64_t disagg_schema_awaiting_checkpoint;
+    int64_t disagg_schema_awaiting_publish;
     int64_t disagg_snapshot_rebuild;
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
@@ -1043,6 +1050,7 @@ struct __wt_connection_stats {
     int64_t disagg_victim_cache_app_thread_put_time;
     int64_t disagg_victim_cache_put_time;
     int64_t disagg_checkpoint_defer_adopt_wait;
+    int64_t disagg_schema_canceled;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1490,10 +1498,12 @@ struct __wt_connection_stats {
     int64_t txn_hs_ckpt_duration;
     int64_t txn_global_checkpoint_timestamp;
     int64_t txn_global_durable_timestamp;
+    int64_t txn_global_last_checkpoint_schema_epoch;
     int64_t txn_global_last_running_timestamp;
     int64_t txn_global_newest_timestamp;
     int64_t txn_global_oldest_timestamp;
     int64_t txn_global_pinned_timestamp;
+    int64_t txn_global_stable_schema_epoch;
     int64_t txn_global_stable_timestamp;
     int64_t txn_global_version_cursor_timestamp;
     int64_t txn_pinned_readers;
