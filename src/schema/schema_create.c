@@ -1072,6 +1072,67 @@ err:
 }
 
 /*
+ * __wt_layered_create_ingest_file --
+ *     Create ingest metadata without opening a dhandle, using the caller's metadata cursor if
+ *     given.
+ */
+int
+__wt_layered_create_ingest_file(
+  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *uri, const char *config)
+{
+    WT_DECL_ITEM(ingest_metadata);
+    WT_DECL_RET;
+    char *fileconf;
+    const char *merged_config;
+    const char *filecfg[] = {
+      WT_CONFIG_BASE(session, file_meta), config == NULL ? "" : config, NULL, NULL};
+    uint32_t fileid;
+
+    fileconf = NULL;
+    merged_config = NULL;
+
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+    WT_ASSERT(session, WT_URI_IS_INGEST(uri));
+
+    WT_ERR(__wt_generate_file_id(session, uri, false, &fileid));
+
+    WT_ERR(__wt_scr_alloc(session, 0, &ingest_metadata));
+
+    /*
+     * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
+     * block_manager=default so that the ingest btree is never mistakenly treated as shared.
+     * Preserve the creation configuration for legacy step-up, which derives stable metadata from
+     * ingest metadata.
+     */
+    WT_ERR(
+      __wt_buf_fmt(session, ingest_metadata,
+        "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint=,checkpoint_lsn=,"
+        "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)",
+        fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+    filecfg[2] = ingest_metadata->data;
+    WT_ERR(__wt_config_merge(session, filecfg, NULL, &merged_config));
+    filecfg[1] = merged_config;
+    filecfg[2] = NULL;
+    WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
+
+    /* The metadata interface registers inserts for rollback tracking. */
+    if (md_cursor != NULL && !WT_META_TRACKING(session)) {
+        md_cursor->set_key(md_cursor, uri);
+        md_cursor->set_value(md_cursor, fileconf);
+        WT_ERR(md_cursor->insert(md_cursor));
+    } else
+        WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "Created ingest table \"%s\"", uri);
+
+err:
+    __wt_free(session, fileconf);
+    __wt_free(session, merged_config);
+    __wt_scr_free(session, &ingest_metadata);
+    return (ret);
+}
+
+/*
  * __create_layered --
  *     Create a layered tree - such a tree is a pair of underlying btrees, one that holds recently
  *     ingested data, the other a full set of stable data.
@@ -1091,7 +1152,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     char *tablecfg;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *constituent_cfg;
-    const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
     const char *layered_cfg[5] = {
       WT_CONFIG_BASE(session, layered_meta), "", config == NULL ? "" : config, NULL, NULL};
@@ -1154,20 +1214,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
-    /*
-     * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
-     * block_manager=default so that the ingest btree is never mistakenly treated as shared.
-     */
-    ingest_cfg[2] =
-      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
-
-    /*
-     * Pass the full merged configuration string through. Otherwise file-specific metadata will be
-     * stripped out.
-     */
-    WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
-    WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
-    __wt_free(session, constituent_cfg);
+    /* Create the in-memory ingest constituent directly (shared with follower checkpoint pickup). */
+    WT_ERR(__wt_layered_create_ingest_file(session, NULL, ingest_uri, config));
 
     /* Build the stable constituent configuration for a later step-up. */
     stable_cfg[1] = disagg_config->data;
@@ -1542,22 +1590,12 @@ err:
 }
 
 /*
- * __wt_schema_create --
- *     Process a WT_SESSION::create operation for all supported types.
- */
-int
-__wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
-{
-    return (__wt_schema_create_internal(session, uri, config, true));
-}
-
-/*
- * __wt_schema_create_internal --
+ * __schema_create_internal --
  *     Process a WT_SESSION::create operation for all supported types, with control over whether the
  *     dhandle for a newly created 'file:' object is opened immediately.
  */
-int
-__wt_schema_create_internal(
+static int
+__schema_create_internal(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool open_dhandle)
 {
     WT_DECL_RET;
@@ -1578,4 +1616,14 @@ __wt_schema_create_internal(
     ret = __schema_create(int_session, uri, config, open_dhandle);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
+}
+
+/*
+ * __wt_schema_create --
+ *     Process a WT_SESSION::create operation for all supported types.
+ */
+int
+__wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+    return (__schema_create_internal(session, uri, config, true));
 }
