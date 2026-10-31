@@ -11,6 +11,63 @@ static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, 
 static int __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server);
 static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+
+/*
+ * __evict_age_steps --
+ *     Steps of WT_READGEN_STEP since the page's read generation was last set. A bump sets it one
+ *     step ahead of the global read generation.
+ */
+static WT_INLINE uint64_t
+__evict_age_steps(WT_SESSION_IMPL *session, uint64_t read_gen)
+{
+    uint64_t now;
+
+    now = __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->read_gen) + WT_READGEN_STEP;
+    return (now > read_gen ? (now - read_gen) / WT_READGEN_STEP : 0);
+}
+
+/*
+ * __evict_stat_age --
+ *     Count an age in a log2 histogram, in the session's current data handle. Evicted pages and
+ *     read generation bumps use separate histograms.
+ */
+static void
+__evict_stat_age(WT_SESSION_IMPL *session, uint64_t steps, bool evicted)
+{
+    if (evicted) {
+        if (steps < 1)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_lt1);
+        else if (steps < 2)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_1);
+        else if (steps < 4)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_2_3);
+        else if (steps < 8)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_4_7);
+        else if (steps < 16)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_8_15);
+        else if (steps < 32)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_16_31);
+        else if (steps < 64)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_32_63);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_age_ge64);
+    } else {
+        if (steps < 2)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_1);
+        else if (steps < 4)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_2_3);
+        else if (steps < 8)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_4_7);
+        else if (steps < 16)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_8_15);
+        else if (steps < 32)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_16_31);
+        else if (steps < 64)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_32_63);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_gen_bump_age_ge64);
+    }
+}
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
 static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *levels, u_int n);
@@ -2097,6 +2154,15 @@ __evict_get_ref(
                         }
                         __wt_spin_unlock(session, &subq->evict_queue_lock);
 
+                        /* Age of clean leaf pages chosen for eviction, per tree. */
+                        if (ref != NULL && __evict_level_is_clean_leaf((int)i)) {
+                            uint64_t rg =
+                              __wt_atomic_load_uint64_relaxed(&ref->page->evict_data.read_gen);
+                            if (rg >= WT_READGEN_START_VALUE)
+                                WT_WITH_DHANDLE(session, ref->page->evict_data.dhandle,
+                                  __evict_stat_age(session, __evict_age_steps(session, rg), true));
+                        }
+
                         /* subq may now be freed by a concurrent close: use the captured name. */
                         __wt_verbose_debug1(session, WT_VERB_EVICTION,
                           "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u %s", subq_name,
@@ -2828,6 +2894,7 @@ void
 __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_REF *ref, bool internal_only, bool wont_need)
 {
     WT_PAGE *page;
+    uint64_t old_read_gen;
     bool bumped;
 
     page = ref->page;
@@ -2842,7 +2909,11 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_REF *ref, bool internal_only,
             __evict_read_gen_new(session, page);
         __wt_evict_enqueue_page(session, ref);
     } else if (!internal_only) {
+        old_read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen);
         bumped = __wti_evict_read_gen_bump(session, page);
+        /* Time since the previous bump, per tree: how long pages go between uses. */
+        if (bumped && old_read_gen >= WT_READGEN_START_VALUE && F_ISSET(ref, WT_REF_FLAG_LEAF))
+            __evict_stat_age(session, __evict_age_steps(session, old_read_gen), false);
         if (bumped || page->evict_data.bucket == NULL)
             __wt_evict_enqueue_page(session, ref);
     }

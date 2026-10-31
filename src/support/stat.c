@@ -63,6 +63,16 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: checkpoint blocked eviction of a page with a pending multi-block split",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
+  "cache: clean leaf pages chosen for eviction 1 read generation step after their last use",
+  "cache: clean leaf pages chosen for eviction 16-31 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 2-3 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 32-63 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 4-7 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 64 or more read generation steps after their last "
+  "use",
+  "cache: clean leaf pages chosen for eviction 8-15 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction less than 1 read generation step after their last "
+  "use",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: evict page attempts by eviction worker threads",
@@ -124,6 +134,13 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
   "cache: internal pages split during eviction",
+  "cache: leaf page read generation bumped 1 step after the previous bump",
+  "cache: leaf page read generation bumped 16-31 steps after the previous bump",
+  "cache: leaf page read generation bumped 2-3 steps after the previous bump",
+  "cache: leaf page read generation bumped 32-63 steps after the previous bump",
+  "cache: leaf page read generation bumped 4-7 steps after the previous bump",
+  "cache: leaf page read generation bumped 64 or more steps after the previous bump",
+  "cache: leaf page read generation bumped 8-15 steps after the previous bump",
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
@@ -520,6 +537,14 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_pending_split = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
+    stats->cache_eviction_age_1 = 0;
+    stats->cache_eviction_age_16_31 = 0;
+    stats->cache_eviction_age_2_3 = 0;
+    stats->cache_eviction_age_32_63 = 0;
+    stats->cache_eviction_age_4_7 = 0;
+    stats->cache_eviction_age_ge64 = 0;
+    stats->cache_eviction_age_8_15 = 0;
+    stats->cache_eviction_age_lt1 = 0;
     stats->eviction_fail = 0;
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     stats->eviction_worker_evict_attempt = 0;
@@ -569,6 +594,13 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
     stats->cache_eviction_split_internal = 0;
+    stats->cache_read_gen_bump_age_1 = 0;
+    stats->cache_read_gen_bump_age_16_31 = 0;
+    stats->cache_read_gen_bump_age_2_3 = 0;
+    stats->cache_read_gen_bump_age_32_63 = 0;
+    stats->cache_read_gen_bump_age_4_7 = 0;
+    stats->cache_read_gen_bump_age_ge64 = 0;
+    stats->cache_read_gen_bump_age_8_15 = 0;
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
@@ -942,6 +974,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_blocked_checkpoint_pending_split;
     to->cache_eviction_blocked_checkpoint += from->cache_eviction_blocked_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
+    to->cache_eviction_age_1 += from->cache_eviction_age_1;
+    to->cache_eviction_age_16_31 += from->cache_eviction_age_16_31;
+    to->cache_eviction_age_2_3 += from->cache_eviction_age_2_3;
+    to->cache_eviction_age_32_63 += from->cache_eviction_age_32_63;
+    to->cache_eviction_age_4_7 += from->cache_eviction_age_4_7;
+    to->cache_eviction_age_ge64 += from->cache_eviction_age_ge64;
+    to->cache_eviction_age_8_15 += from->cache_eviction_age_8_15;
+    to->cache_eviction_age_lt1 += from->cache_eviction_age_lt1;
     to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       from->cache_eviction_blocked_disagg_dirty_internal_page;
@@ -999,6 +1039,13 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_blocked_internal_page_split;
     to->cache_eviction_internal += from->cache_eviction_internal;
     to->cache_eviction_split_internal += from->cache_eviction_split_internal;
+    to->cache_read_gen_bump_age_1 += from->cache_read_gen_bump_age_1;
+    to->cache_read_gen_bump_age_16_31 += from->cache_read_gen_bump_age_16_31;
+    to->cache_read_gen_bump_age_2_3 += from->cache_read_gen_bump_age_2_3;
+    to->cache_read_gen_bump_age_32_63 += from->cache_read_gen_bump_age_32_63;
+    to->cache_read_gen_bump_age_4_7 += from->cache_read_gen_bump_age_4_7;
+    to->cache_read_gen_bump_age_ge64 += from->cache_read_gen_bump_age_ge64;
+    to->cache_read_gen_bump_age_8_15 += from->cache_read_gen_bump_age_8_15;
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
     to->cache_eviction_random_sample_inmem_root += from->cache_eviction_random_sample_inmem_root;
     to->cache_eviction_dirty += from->cache_eviction_dirty;
@@ -1387,6 +1434,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
+    to->cache_eviction_age_1 += WT_STAT_DSRC_READ(from, cache_eviction_age_1);
+    to->cache_eviction_age_16_31 += WT_STAT_DSRC_READ(from, cache_eviction_age_16_31);
+    to->cache_eviction_age_2_3 += WT_STAT_DSRC_READ(from, cache_eviction_age_2_3);
+    to->cache_eviction_age_32_63 += WT_STAT_DSRC_READ(from, cache_eviction_age_32_63);
+    to->cache_eviction_age_4_7 += WT_STAT_DSRC_READ(from, cache_eviction_age_4_7);
+    to->cache_eviction_age_ge64 += WT_STAT_DSRC_READ(from, cache_eviction_age_ge64);
+    to->cache_eviction_age_8_15 += WT_STAT_DSRC_READ(from, cache_eviction_age_8_15);
+    to->cache_eviction_age_lt1 += WT_STAT_DSRC_READ(from, cache_eviction_age_lt1);
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
@@ -1458,6 +1513,13 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_DSRC_READ(from, cache_eviction_internal);
     to->cache_eviction_split_internal += WT_STAT_DSRC_READ(from, cache_eviction_split_internal);
+    to->cache_read_gen_bump_age_1 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_1);
+    to->cache_read_gen_bump_age_16_31 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_16_31);
+    to->cache_read_gen_bump_age_2_3 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_2_3);
+    to->cache_read_gen_bump_age_32_63 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_32_63);
+    to->cache_read_gen_bump_age_4_7 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_4_7);
+    to->cache_read_gen_bump_age_ge64 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_ge64);
+    to->cache_read_gen_bump_age_8_15 += WT_STAT_DSRC_READ(from, cache_read_gen_bump_age_8_15);
     to->cache_eviction_split_leaf += WT_STAT_DSRC_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
       WT_STAT_DSRC_READ(from, cache_eviction_random_sample_inmem_root);
@@ -1963,6 +2025,16 @@ static const char *const __stats_connection_desc[] = {
   "cache: checkpoint blocked eviction of a page with a pending multi-block split",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
+  "cache: clean leaf pages chosen for eviction 1 read generation step after their last use",
+  "cache: clean leaf pages chosen for eviction 16-31 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 2-3 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 32-63 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 4-7 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction 64 or more read generation steps after their last "
+  "use",
+  "cache: clean leaf pages chosen for eviction 8-15 read generation steps after their last use",
+  "cache: clean leaf pages chosen for eviction less than 1 read generation step after their last "
+  "use",
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: dirty leaf bytes discounted from the eviction thresholds because a checkpoint is syncing "
@@ -2155,6 +2227,13 @@ static const char *const __stats_connection_desc[] = {
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
   "cache: internal pages split during eviction",
+  "cache: leaf page read generation bumped 1 step after the previous bump",
+  "cache: leaf page read generation bumped 16-31 steps after the previous bump",
+  "cache: leaf page read generation bumped 2-3 steps after the previous bump",
+  "cache: leaf page read generation bumped 32-63 steps after the previous bump",
+  "cache: leaf page read generation bumped 4-7 steps after the previous bump",
+  "cache: leaf page read generation bumped 64 or more steps after the previous bump",
+  "cache: leaf page read generation bumped 8-15 steps after the previous bump",
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: maximum bytes configured",
@@ -3093,6 +3172,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_pending_split = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
+    stats->cache_eviction_age_1 = 0;
+    stats->cache_eviction_age_16_31 = 0;
+    stats->cache_eviction_age_2_3 = 0;
+    stats->cache_eviction_age_32_63 = 0;
+    stats->cache_eviction_age_4_7 = 0;
+    stats->cache_eviction_age_ge64 = 0;
+    stats->cache_eviction_age_8_15 = 0;
+    stats->cache_eviction_age_lt1 = 0;
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     /* not clearing eviction_dirty_leaf_checkpoint */
@@ -3262,6 +3349,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
     stats->cache_eviction_split_internal = 0;
+    stats->cache_read_gen_bump_age_1 = 0;
+    stats->cache_read_gen_bump_age_16_31 = 0;
+    stats->cache_read_gen_bump_age_2_3 = 0;
+    stats->cache_read_gen_bump_age_32_63 = 0;
+    stats->cache_read_gen_bump_age_4_7 = 0;
+    stats->cache_read_gen_bump_age_ge64 = 0;
+    stats->cache_read_gen_bump_age_8_15 = 0;
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     /* not clearing cache_bytes_max */
@@ -4211,6 +4305,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_hs);
+    to->cache_eviction_age_1 += WT_STAT_CONN_READ(from, cache_eviction_age_1);
+    to->cache_eviction_age_16_31 += WT_STAT_CONN_READ(from, cache_eviction_age_16_31);
+    to->cache_eviction_age_2_3 += WT_STAT_CONN_READ(from, cache_eviction_age_2_3);
+    to->cache_eviction_age_32_63 += WT_STAT_CONN_READ(from, cache_eviction_age_32_63);
+    to->cache_eviction_age_4_7 += WT_STAT_CONN_READ(from, cache_eviction_age_4_7);
+    to->cache_eviction_age_ge64 += WT_STAT_CONN_READ(from, cache_eviction_age_ge64);
+    to->cache_eviction_age_8_15 += WT_STAT_CONN_READ(from, cache_eviction_age_8_15);
+    to->cache_eviction_age_lt1 += WT_STAT_CONN_READ(from, cache_eviction_age_lt1);
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
@@ -4466,6 +4568,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_CONN_READ(from, cache_eviction_internal);
     to->cache_eviction_split_internal += WT_STAT_CONN_READ(from, cache_eviction_split_internal);
+    to->cache_read_gen_bump_age_1 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_1);
+    to->cache_read_gen_bump_age_16_31 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_16_31);
+    to->cache_read_gen_bump_age_2_3 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_2_3);
+    to->cache_read_gen_bump_age_32_63 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_32_63);
+    to->cache_read_gen_bump_age_4_7 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_4_7);
+    to->cache_read_gen_bump_age_ge64 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_ge64);
+    to->cache_read_gen_bump_age_8_15 += WT_STAT_CONN_READ(from, cache_read_gen_bump_age_8_15);
     to->cache_eviction_split_leaf += WT_STAT_CONN_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
       WT_STAT_CONN_READ(from, cache_eviction_random_sample_inmem_root);
