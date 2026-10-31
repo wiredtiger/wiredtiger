@@ -86,6 +86,7 @@ else()
         cursors/unit/test_cursor_get_raw_key_value.cpp
         cursors/unit/test_curstat_size.cpp
         cursors/unit/test_layered_op.cpp
+        cursors/unit/test_session_reset_cursors.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
         ext/test_checkpoint_meta_version.cpp
