@@ -850,17 +850,14 @@ __metadata_assert_complete_layered_table(WT_SESSION_IMPL *session, const char *n
 {
     WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *ingest_meta_value, *stable_meta_value;
+    char *stable_meta_value;
 
-    ingest_meta_value = stable_meta_value = NULL;
+    stable_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &meta_key_buf));
 
-    WT_ERR(__wt_buf_fmt(session, meta_key_buf, "file:%s.wt_ingest", name));
-    WT_ASSERT_ALWAYS(session,
-      __wt_metadata_search(session, meta_key_buf->data, &ingest_meta_value) == 0,
-      "layered table '%s' is missing its ingest file metadata", name);
-
     /*
+     * Ingest metadata is created on first access and need not exist during recovery.
+     *
      * The stable table may not exist on the follower in some situations, e.g. we created a new
      * layered table from the oplog but haven't yet picked up a checkpoint. Thus the stable file
      * metadata entry is only strictly required in leader mode.
@@ -871,7 +868,6 @@ __metadata_assert_complete_layered_table(WT_SESSION_IMPL *session, const char *n
       "layered table '%s' is missing its stable file metadata on a leader node", name);
 
 err:
-    __wt_free(session, ingest_meta_value);
     __wt_free(session, stable_meta_value);
     __wt_scr_free(session, &meta_key_buf);
     return (ret);

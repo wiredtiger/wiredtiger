@@ -596,6 +596,40 @@ __wt_schema_open_table(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_schema_lazy_create_ingest --
+ *     Create missing ingest metadata on first access after the initial checkpoint pickup.
+ */
+int
+__wt_schema_lazy_create_ingest(
+  WT_SESSION_IMPL *session, const char *uri, const char *key_format, const char *value_format)
+{
+    WT_DECL_ITEM(ingest_config);
+    WT_DECL_RET;
+    char *ingest_cfg;
+
+    ingest_cfg = NULL;
+    WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, uri, &ingest_cfg));
+    __wt_free(session, ingest_cfg);
+    if (ret == 0)
+        return (0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &ingest_config));
+    WT_ERR(__wt_buf_fmt(session, ingest_config,
+      "key_format=\"%s\",value_format=\"%s\","
+      "in_memory=true,log=(enabled=false),"
+      "disaggregated=(page_log=none,storage_source=none)",
+      key_format, value_format));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
+    /* Another thread may have created it first; treat that as success. */
+    if (ret == EEXIST)
+        ret = 0;
+
+err:
+    __wt_scr_free(session, &ingest_config);
+    return (ret);
+}
+
+/*
  * __schema_open_layered_ingest --
  *     Open the ingest table for a layered table.
  */
@@ -603,6 +637,9 @@ static int
 __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri)
 {
     WT_BTREE *ingest_btree;
+
+    WT_RET(
+      __wt_schema_lazy_create_ingest(session, uri, layered->key_format, layered->value_format));
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
 
