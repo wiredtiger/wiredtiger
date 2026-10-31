@@ -70,6 +70,16 @@ __evict_stat_age(WT_SESSION_IMPL *session, uint64_t steps, bool evicted)
 }
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
+
+/*
+ * WT_EVICT_TREE_FIRST_BUCKETS --
+ *     For clean leaf pages, pick a tree by its share of cache bytes, then search this many buckets
+ *     from the clock hand for a page of that tree before falling back to the per-bucket lottery. 0
+ *     disables the tree-first pick.
+ */
+#ifndef WT_EVICT_TREE_FIRST_BUCKETS
+#define WT_EVICT_TREE_FIRST_BUCKETS 3
+#endif
 static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *levels, u_int n);
 static void __evict_stat_skip_cannot_evict(WT_SESSION_IMPL *session, int level);
 static bool __evict_skip_tree(
@@ -1176,6 +1186,74 @@ done:
 }
 
 /*
+ * __evict_trees_refresh_one --
+ *     Build the inactive copy of the tree list and publish it. Called with the handle list lock.
+ */
+static void
+__evict_trees_refresh_one(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_EVICT *evict;
+    struct __wt_evict_tree *trees;
+    uint64_t bytes, total;
+    uint32_t k, min, n, next;
+
+    conn = S2C(session);
+    evict = conn->evict;
+    next = __wt_atomic_load_uint32_relaxed(&evict->evict_trees_cur) ^ 1;
+    trees = evict->evict_trees[next];
+    n = 0;
+    for (dhandle = NULL;;) {
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        if (dhandle == NULL)
+            break;
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+          F_ISSET(dhandle, WT_DHANDLE_DISCARD) || dhandle->handle == NULL)
+            continue;
+        bytes = __wt_atomic_load_uint64_relaxed(&((WT_BTREE *)dhandle->handle)->bytes_inmem);
+        if (bytes == 0)
+            continue;
+        if (n < WT_EVICT_TREES_MAX)
+            k = n++;
+        else {
+            /* Keep the largest trees: replace the smallest if this one is bigger. */
+            for (min = 0, k = 1; k < n; k++)
+                if (trees[k].bytes < trees[min].bytes)
+                    min = k;
+            if (bytes <= trees[min].bytes)
+                continue;
+            k = min;
+        }
+        trees[k].dhandle = dhandle;
+        trees[k].name_hash = dhandle->name_hash;
+        trees[k].bytes = bytes;
+    }
+    for (total = 0, k = 0; k < n; k++)
+        total += trees[k].bytes;
+    evict->evict_trees_count[next] = n;
+    evict->evict_trees_bytes[next] = total;
+    __wt_atomic_store_uint32_release(&evict->evict_trees_cur, next);
+}
+
+/*
+ * __evict_trees_refresh --
+ *     Refresh the tree list at most every 100ms.
+ */
+static void
+__evict_trees_refresh(WT_SESSION_IMPL *session, uint64_t time_now)
+{
+    WT_EVICT *evict;
+
+    evict = S2C(session)->evict;
+    if (WT_EVICT_TREE_FIRST_BUCKETS == 0 ||
+      (evict->evict_trees_time != 0 && WT_CLOCKDIFF_MS(time_now, evict->evict_trees_time) < 100))
+        return;
+    evict->evict_trees_time = time_now;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, __evict_trees_refresh_one(session));
+}
+
+/*
  * __evict_server --
  *     Work to do for a thread elected to act as a server. In addition to evicting pages this thread
  *     is responsible for tuning the number of workers and incrementing the global read generation.
@@ -1213,6 +1291,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             time_prev = time_now;
 
         __evict_tune_workers(session);
+        __evict_trees_refresh(session, time_now);
 
 
         for (i = 0; i < WT_EVICT_LEVELS; i++) {
@@ -1796,6 +1875,86 @@ __evict_hashchain_next(WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry, WT_EVICT_DHANDLE
 }
 
 /*
+ * __evict_get_ref_tree_first --
+ *     Pick a tree by its share of cache bytes and look for one of its pages in up to
+ *     WT_EVICT_TREE_FIRST_BUCKETS buckets of the clean leaf level, starting at bucket j. Return the
+ *     locked ref, or NULL to fall back to the per-bucket lottery.
+ */
+static WT_REF *
+__evict_get_ref_tree_first(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *bucketset, uint32_t level,
+  uint32_t j, WT_BTREE **btreep, WT_REF_STATE *previous_statep)
+{
+    WT_DATA_HANDLE *target;
+    WT_EVICT *evict;
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
+    WT_EVICT_DHANDLE_SUBQUEUE *subq;
+    WT_REF *ref;
+    struct __wt_evict_tree *trees;
+    uint64_t draw, total;
+    uint32_t cur, k, n, searched, slot;
+    bool clear_maybe_nonempty;
+
+    evict = S2C(session)->evict;
+    cur = __wt_atomic_load_uint32_acquire(&evict->evict_trees_cur);
+    n = evict->evict_trees_count[cur];
+    total = evict->evict_trees_bytes[cur];
+    if (n == 0 || total < 2)
+        return (NULL);
+    trees = evict->evict_trees[cur];
+    draw = (((uint64_t)__wt_random(&session->rnd_random) << 32) |
+             __wt_random(&session->rnd_random)) %
+      total;
+    for (k = 0; k < n - 1 && draw >= trees[k].bytes; k++)
+        draw -= trees[k].bytes;
+    target = trees[k].dhandle;
+    slot = (uint32_t)(trees[k].name_hash % evict->dhandle_hash_size);
+
+    ref = NULL;
+    for (searched = 0; searched < WT_EVICT_TREE_FIRST_BUCKETS;
+         ++searched, j = (j + 1) % bucketset->num_buckets) {
+        bucket = &bucketset->buckets[j];
+        if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
+            continue;
+        hash_entry = &bucket->pertree_hashtable[slot];
+        if (TAILQ_EMPTY(&hash_entry->dhandle_hashchain) ||
+          __wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY)
+            continue;
+        TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq)
+            if (subq->dhandle == target)
+                break;
+        if (subq == NULL || TAILQ_EMPTY(&subq->evict_queue) ||
+          __evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle, level,
+            &clear_maybe_nonempty) ||
+          __wt_spin_trylock(session, &subq->evict_queue_lock) == EBUSY) {
+            __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+            continue;
+        }
+        __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+
+        ref = __evict_scan_queue(session, &subq->evict_queue, level, true, btreep, previous_statep);
+        if (ref != NULL) {
+            TAILQ_REMOVE(&subq->evict_queue, ref->page, evict_data.evict_q);
+            ref->page->evict_data.bucket = NULL;
+            ref->page->evict_data.subq = NULL;
+            --subq->num_items;
+            if (!subq->hidden) {
+                __wt_atomic_sub_uint64(&bucket->bucket_num_items, 1);
+                __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
+            }
+        }
+        __wt_spin_unlock(session, &subq->evict_queue_lock);
+        if (ref != NULL) {
+            __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+            WT_STAT_CONN_INCR(session, eviction_tree_first_hit);
+            return (ref);
+        }
+    }
+    WT_STAT_CONN_INCR(session, eviction_tree_first_miss);
+    return (NULL);
+}
+
+/*
  * __evict_get_ref --
  *     Get a page for eviction. The returned page is locked. It will be unlocked by the function
  *     that tries to evict it from memory if eviction fails. The ref remains in its evict bucket. It
@@ -1945,6 +2104,14 @@ __evict_get_ref(
         } else
 #endif
             j = __wt_random(&session->rnd_random) % num_buckets;
+
+        /* Tree-first pick for clean leaf pages; on a miss use the per-bucket lottery below. */
+        if (WT_EVICT_TREE_FIRST_BUCKETS > 0 && __evict_level_is_clean_leaf((int)i)) {
+            ref = __evict_get_ref_tree_first(session, bucketset, i, j, btreep, &previous_state);
+            if (ref != NULL)
+                goto done;
+        }
+
         for (iter = 0; iter++ < num_buckets; j = (j + 1) % num_buckets, total_iter++) {
 
             if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))

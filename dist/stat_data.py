@@ -520,6 +520,8 @@ conn_stats = [
     EvictStat('eviction_threshold_updates_trigger', 'eviction threshold updates trigger multiplied by 100 for precision'),
     EvictStat('eviction_timed_out_ops', 'operations timed out waiting for space in cache'),
     EvictStat('eviction_transaction_blocking', 'transaction blocking eviction progress'),
+    EvictStat('eviction_tree_first_hit', 'eviction found a clean leaf page in the tree picked by its share of cache bytes'),
+    EvictStat('eviction_tree_first_miss', 'eviction did not find a page of the picked tree and used the per-bucket lottery'),
     EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
     EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
     EvictStat('eviction_worker_lock_wait_time', 'time eviction worker threads spend waiting for locks (usecs)'),

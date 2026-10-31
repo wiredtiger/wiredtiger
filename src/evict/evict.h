@@ -28,12 +28,29 @@
 /*
  * Connection evict data.
  */
+/*
+ * Trees eligible as the target of a tree-first clean leaf pick, with their bytes in cache. The
+ * server refreshes the inactive copy and then publishes it, so readers need no lock.
+ */
+#define WT_EVICT_TREES_MAX 64
+struct __wt_evict_tree {
+    WT_DATA_HANDLE *dhandle; /* Compared, never dereferenced, by readers */
+    uint64_t name_hash;
+    uint64_t bytes;
+};
+
 struct __wt_evict {
     struct __wt_evict_bucketset evict_bucketset[WT_EVICT_LEVELS];
     uint32_t evict_num_buckets;
     uint32_t dhandle_hash_size;
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
+
+    struct __wt_evict_tree evict_trees[2][WT_EVICT_TREES_MAX];
+    uint32_t evict_trees_count[2];
+    uint64_t evict_trees_bytes[2];
+    wt_shared uint32_t evict_trees_cur; /* Published copy */
+    uint64_t evict_trees_time;          /* Last refresh */
 
     /*
      * Application threads admitted to eviction between transactions beyond the per-session
