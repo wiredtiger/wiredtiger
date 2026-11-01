@@ -168,8 +168,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
     def test_populate_table_on_leader(self):
         self.session.create(f"{self.prefix}{self.test_name}", self.make_create_config())
         # Check the leader
-        expected_files = {f"file:{self.test_name}.wt_stable": TEST_NAMESPACE_SHARED,
-                          f"file:{self.test_name}.wt_ingest": TEST_NAMESPACE_LOCAL}
+        expected_files = {f"file:{self.test_name}.wt_stable": TEST_NAMESPACE_SHARED}
         self.check_metadata_ids(self.session, expected_files)
 
         self.create_follower()
@@ -177,8 +176,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
         self.check_metadata_ids(self.session_follow)
 
     def test_populate_table_on_leader_pick_up_on_follower(self):
-        expected_files = {f"file:{self.test_name}.wt_stable": TEST_NAMESPACE_SHARED,
-                          f"file:{self.test_name}.wt_ingest": TEST_NAMESPACE_LOCAL}
+        expected_files = {f"file:{self.test_name}.wt_stable": TEST_NAMESPACE_SHARED}
 
         self.session.create(f"{self.prefix}{self.test_name}", self.make_create_config())
         # Check the leader
@@ -197,7 +195,6 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
             table_name = f"{self.test_name}_{i}"
             self.session.create(f"{self.prefix}{table_name}", self.make_create_config())
             expected_files[f"file:{table_name}.wt_stable"] = TEST_NAMESPACE_SHARED
-            expected_files[f"file:{table_name}.wt_ingest"] = TEST_NAMESPACE_LOCAL
 
         # Check the leader
         self.check_metadata_ids(self.session, expected_files)
@@ -209,27 +206,23 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
         self.check_metadata_ids(self.session_follow, expected_files)
 
     def test_populate_10_tables_on_leader_and_follower(self):
-        # Verify that ingest btrees created on a follower always land in the
-        # local namespace, regardless of how the layered table was created.
+        # Repeated creation after pickup preserves the shared file metadata.
         expected_files = {}
 
         for i in range(10):
             table_name = f"{self.test_name}_{i}"
             self.session.create(f"{self.prefix}{table_name}", self.make_create_config())
             expected_files[f"file:{table_name}.wt_stable"] = TEST_NAMESPACE_SHARED
-            expected_files[f"file:{table_name}.wt_ingest"] = TEST_NAMESPACE_LOCAL
         self.session.checkpoint()
 
         # Open a follower and advance its view to pick up the shared metadata.
         self.create_follower()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Create the same tables on the follower. It should reuse the existing
-        # .wt_stable (shared namespace) and allocate a new .wt_ingest in the
-        # local namespace.
+        # Creating the same tables reuses their existing shared metadata.
         for i in range(10):
             table_name = f"{self.test_name}_{i}"
             self.session.create(f"{self.prefix}{table_name}", self.make_create_config())
 
-        # Confirm the follower's ingest table received a local namespace ID.
+        # No ingest entries are added to the follower's metadata.
         self.check_metadata_ids(self.session_follow, expected_files)

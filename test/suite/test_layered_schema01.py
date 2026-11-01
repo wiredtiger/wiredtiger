@@ -43,7 +43,6 @@ class test_layered_schema01(wttest.WiredTigerTestCase):
 
     metadata_uris = [
             (uri, ''),
-            ("file:" + uri_base + ".wt_ingest", ''),
             ("file:" + uri_base + ".wt_stable", '')
             ]
 
@@ -66,4 +65,3 @@ class test_layered_schema01(wttest.WiredTigerTestCase):
         for u in self.metadata_uris:
             #print("Checking " + u[0])
             self.check_metadata(u[0], u[1])
-

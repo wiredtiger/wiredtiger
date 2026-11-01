@@ -123,13 +123,14 @@ class test_layered_schema27(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(epoch)
         self.leader_checkpoint(ckpt_ts)
 
-    # Check that the layered table and both constituents are in the local metadata.
+    # Check the persistent entries and the absence of ingest metadata.
     def assert_local_metadata(self, present):
         cursor = self.session.open_cursor('metadata:')
-        for uri in (self.uri, f'file:{self.test_name}.wt_ingest',
-                    f'file:{self.test_name}.wt_stable'):
+        for uri in (self.uri, f'file:{self.test_name}.wt_stable'):
             cursor.set_key(uri)
             self.assertEqual(cursor.search() == 0, present, uri)
+        cursor.set_key(f'file:{self.test_name}.wt_ingest')
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     def read_stat(self, stat_key):

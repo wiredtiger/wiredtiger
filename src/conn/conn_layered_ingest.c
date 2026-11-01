@@ -226,11 +226,11 @@ __layered_derive_stable_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT
 }
 
 /*
- * __layered_derive_layered_uri --
+ * __wti_layered_derive_layered_uri --
  *     Derive the parent layered URI from a constituent ingest URI.
  */
-static int
-__layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
+int
+__wti_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
 {
     static const char file_prefix[] = "file:";
     static const char ingest_suffix[] = ".wt_ingest";
@@ -241,7 +241,8 @@ __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, W
     if (!WT_PREFIX_MATCH(ingest_uri, file_prefix) || !WT_URI_IS_INGEST(ingest_uri))
         WT_RET_MSG(session, EINVAL,
           "Ingest URI \"%s\" does not match expected file:<name>.wt_ingest shape", ingest_uri);
-    WT_ASSERT(session, uri_len > prefix_len + suffix_len);
+    if (uri_len <= prefix_len + suffix_len)
+        WT_RET_MSG(session, EINVAL, "Ingest URI \"%s\" has no table name", ingest_uri);
     size_t name_len = uri_len - prefix_len - suffix_len;
     return (__wt_buf_fmt(session, buf, "layered:%.*s", (int)name_len, ingest_uri + prefix_len));
 }
@@ -809,7 +810,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     wt_timestamp_t prev_ts = WT_TS_NONE;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
-    WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+    WT_ERR(__wti_layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
 
     WT_ERR_ERROR_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), ENOENT, true);
@@ -1349,12 +1350,12 @@ __layered_last_checkpoint_order(
 
 /*
  * __ut_layered_derive_layered_uri --
- *     Unit test wrapper for __layered_derive_layered_uri.
+ *     Unit test wrapper for __wti_layered_derive_layered_uri.
  */
 int
 __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
 {
-    return (__layered_derive_layered_uri(session, ingest_uri, buf));
+    return (__wti_layered_derive_layered_uri(session, ingest_uri, buf));
 }
 
 #endif

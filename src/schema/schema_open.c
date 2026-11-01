@@ -596,6 +596,40 @@ __wt_schema_open_table(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_schema_layered_file_config --
+ *     Derive a constituent's file configuration from its layered metadata.
+ */
+int
+__wt_schema_layered_file_config(WT_SESSION_IMPL *session, const char *layered_cfg, char **file_cfgp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_ITEM(uri);
+    WT_DECL_RET;
+    char *stable_cfg;
+    const char *cfg[] = {WT_CONFIG_BASE(session, file_config), layered_cfg, NULL, NULL};
+
+    *file_cfgp = NULL;
+    stable_cfg = NULL;
+
+    /* Older shared layered metadata omitted file settings; recover them from the stable tree. */
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, layered_cfg, "allocation_size", &cval), true);
+    if (ret == WT_NOTFOUND) {
+        WT_ERR(__wt_scr_alloc(session, 0, &uri));
+        WT_ERR(__wt_config_getones(session, layered_cfg, "stable", &cval));
+        WT_ERR(__wt_buf_fmt(session, uri, "%.*s", (int)cval.len, cval.str));
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, uri->data, &stable_cfg), false);
+        cfg[2] = stable_cfg;
+    }
+
+    WT_ERR(__wt_config_collapse(session, cfg, file_cfgp));
+
+err:
+    __wt_free(session, stable_cfg);
+    __wt_scr_free(session, &uri);
+    return (ret);
+}
+
+/*
  * __schema_open_layered_ingest --
  *     Open the ingest table for a layered table.
  */

@@ -15,8 +15,8 @@
 static WT_INLINE uint32_t
 __layered_table_manager_slot(WT_SESSION_IMPL *session, uint32_t ingest_id)
 {
-    WT_ASSERT_ALWAYS(session, WT_BTREE_ID_NAMESPACE_ID(ingest_id) == WT_BTREE_ID_NAMESPACE_LOCAL,
-      "Ingest btree ID is not in the LOCAL namespace");
+    WT_ASSERT_ALWAYS(session, WT_BTREE_ID_NAMESPACE_ID(ingest_id) == WT_BTREE_ID_NAMESPACE_INGEST,
+      "Ingest btree ID is not in the INGEST namespace");
 
     return (WT_BTREE_ID_UNNAMESPACED(ingest_id));
 }
