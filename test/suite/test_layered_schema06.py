@@ -166,13 +166,12 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
         return base
 
     def check_follower_metadata_ids(self, expected_files):
+        # Ingest tables are created when first opened, not when a checkpoint is picked up.
+        ingest_uris = [uri for uri in expected_files if uri.endswith('.wt_ingest')]
         self.check_metadata_ids(self.session_follow,
-            {uri: namespace for uri, namespace in expected_files.items()
-                if not uri.endswith('.wt_ingest')})
-        for uri in expected_files:
-            if uri.endswith('.wt_ingest'):
-                name = uri.removeprefix('file:').removesuffix('.wt_ingest')
-                self.session_follow.open_cursor(self.prefix + name).close()
+            {uri: ns for uri, ns in expected_files.items() if uri not in ingest_uris})
+        for uri in ingest_uris:
+            self.session_follow.open_cursor(uri).close()
         self.check_metadata_ids(self.session_follow, expected_files)
 
     def test_populate_table_on_leader(self):

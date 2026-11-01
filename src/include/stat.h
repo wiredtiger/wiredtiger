@@ -1034,6 +1034,7 @@ struct __wt_connection_stats {
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_victim_cache_put_failures;
+    int64_t disagg_ingest_create_on_open;
     int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_victim_cache_put_time_max;
     int64_t disagg_checkpoint_meta_lsn;
@@ -1064,6 +1065,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_window_creates;
     int64_t disagg_victim_cache_app_thread_put_time;
     int64_t disagg_victim_cache_put_time;
+    int64_t disagg_ingest_create_on_open_time;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;

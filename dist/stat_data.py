@@ -650,6 +650,8 @@ conn_stats = [
         'no_clear,no_scale'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
+    DisaggStat('disagg_ingest_create_on_open', 'ingest tables created on first open'),
+    DisaggStat('disagg_ingest_create_on_open_time', 'time spent creating ingest tables on first open (usecs)'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
