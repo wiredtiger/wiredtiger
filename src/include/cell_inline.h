@@ -1768,13 +1768,12 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 }
 
 /*
- * __cell_unpack_kv --
- *     Unpack a value cell, decoding it with one page header and clearing transaction ids based on
- *     another.
+ * __wt_cell_unpack_kv --
+ *     Unpack a value WT_CELL into a structure.
  */
 static WT_INLINE void
-__cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const WT_PAGE_HEADER *gen_dsk,
-  WT_CELL *cell, WT_CELL_UNPACK_KV *unpack_value)
+__wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
+  WT_CELL_UNPACK_KV *unpack_value)
 {
     WT_DECL_RET;
 
@@ -1804,20 +1803,8 @@ __cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const WT_P
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    /* See the address variant for why the two headers can differ. */
-    if (__cell_unpack_window_need_cleanup(session, gen_dsk->write_gen))
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
         __cell_kv_window_cleanup(session, unpack_value);
-}
-
-/*
- * __wt_cell_unpack_kv --
- *     Unpack a value WT_CELL from a full page image into a structure.
- */
-static WT_INLINE void
-__wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
-  WT_CELL_UNPACK_KV *unpack_value)
-{
-    __cell_unpack_kv(session, dsk, dsk, cell, unpack_value);
 }
 
 /*
