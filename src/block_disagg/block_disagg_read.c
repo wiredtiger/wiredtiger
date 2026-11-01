@@ -174,14 +174,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t block_size_sum;
+    uint32_t total_size;
     int32_t last, result;
     uint8_t expected_magic, recorded_header_size;
     bool from_cache, is_delta;
 
-    /* This variable is only used in an assertion, diagnostic builders don't like this. */
-    WT_UNUSED(block_size_sum);
-    block_size_sum = 0;
+    total_size = 0;
     from_cache = false;
     time_start = __wt_clock(session);
 
@@ -203,13 +201,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);
-    WT_STAT_CONN_INCRV(session, block_byte_read, size);
     __block_disagg_check_lsn_frontier(session, lsn, block_disagg->tableid);
 
-    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
+    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS))
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
-        WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
-    }
     if (F_ISSET(&get_args, WT_PAGE_LOG_COLD))
         WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
@@ -235,7 +230,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_ASSERT(session, current->size < UINT32_MAX);
         size = (uint32_t)current->size;
         is_delta = (result != 0);
-        block_size_sum += size;
+        total_size += size;
 
         if (is_delta)
             __wt_verbose(session, WT_VERB_READ,
@@ -351,6 +346,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 }
 
                 /*
+                 * Restore the checksum zeroed above, we store the swapped value for corrupt dump.
+                 */
+                blk->checksum = swap.checksum;
+
+                /*
                  * Swap the page-header as needed; this doesn't belong here, but it's the best place
                  * to catch all callers.
                  */
@@ -379,10 +379,21 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
               swap.checksum, checksum);
 
 corrupt:
+        /*
+         * Dump every page the page service returned, not only the one that failed. A corrupt block
+         * is often part of a page delta chain, and the rest of the chain is useful context.
+         */
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            __wt_log_data_dump(session, current->data, current->size,
-              "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
-              (uintmax_t)page_id, size, checksum);
+            for (int i = 0; i <= last; i++) {
+                __wt_block_disagg_header_byteswap_copy(
+                  WT_BLOCK_HEADER_REF(results_array[i].data), &swap);
+                __wt_log_data_dump(session, results_array[i].data, results_array[i].size,
+                  "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32
+                  "} result %d of %" PRIu32 ", %s%s",
+                  (uint32_t)0, (uintmax_t)page_id, (uint32_t)results_array[i].size, swap.checksum,
+                  i + 1, *results_count, i == 0 ? "base page" : "delta page",
+                  i == result ? " (read error)" : "");
+            }
 
         /* Panic if a checksum fails during an ordinary read. */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
@@ -404,7 +415,16 @@ corrupt:
          * Since the Victim Cache stores compressed variant of in-memory page representation rather
          * than what we have in SLS, these numbers will not match.
          */
-        WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
+        WT_ASSERT(session, block_meta->cumulative_size == total_size);
+
+    /*
+     * Account for what the read actually returned: the base image plus every delta, not the
+     * cumulative size recorded in the address cookie, which describes what was written. Only a
+     * successful read reaches here, so a failed read counts nothing.
+     */
+    WT_STAT_CONN_INCRV(session, block_byte_read, total_size);
+    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS))
+        WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, total_size);
 
 err:
     time_stop = __wt_clock(session);

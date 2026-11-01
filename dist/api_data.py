@@ -117,6 +117,14 @@ connection_page_delta_config_common = [
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
         delta. Deltas larger than full pages are permitted for measurement and testing
         reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+    Config('delta_pct_of_target_page_size', 'true', r'''
+        When enabled, the \c delta_pct threshold is evaluated against the configured
+        maximum page size for the page type rather than the size of the full page image
+        just built, so a partially filled page gets the same delta byte budget as a full
+        one. A delta larger than half the image plus half of \c delta_pct is still
+        rejected, a bound that reaches the whole image, and so stops applying, at a \c
+        delta_pct of 100''',
+        type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation may write deltas for internal pages
         instead of writing entire pages every time''',
@@ -1043,9 +1051,13 @@ connection_runtime_config = [
     Config('statistics', 'none', r'''
         Maintain database statistics, which may impact performance. Choosing "all" maintains
         all statistics regardless of cost, "fast" maintains a subset of statistics that are
-        relatively inexpensive, "none" turns off all statistics. The "clear" configuration
-        resets statistics after they are gathered, where appropriate (for example, a cache size
-        statistic is not cleared, while the count of cursor insert operations will be cleared).
+        relatively inexpensive, "none" turns off all statistics. Choosing "tree_walk" gathers
+        per-page B-tree statistics by traversing the underlying trees, reading pages from disk as
+        needed, with cost proportional to tree size. Choosing "cache_walk" gathers per-page cache
+        statistics by traversing the underlying trees' cached pages, with cost proportional to the
+        number of cached pages. The "clear" configuration resets statistics after they are gathered,
+        where appropriate (for example, a cache size statistic is not cleared, while the count of
+        cursor insert operations will be cleared).
         When "clear" is configured for the database, gathered statistics are reset each time a
         statistics cursor is used to gather statistics, as well as each time statistics are logged
         using the \c statistics_log configuration. See @ref statistics for more information''',
@@ -1062,6 +1074,7 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_pickup_skip_signal',
         'disagg_role_transition',
+        'disagg_truncate_entry_insert',
         'drop_deferred_hold', 'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
         'disagg_stable_dhandle_delay',
@@ -1882,16 +1895,21 @@ methods = {
     Config('statistics', '', r'''
         Specify the statistics to be gathered. Choosing "all" gathers statistics regardless of
         cost and may include traversing on-disk files; "fast" gathers a subset of relatively
-        inexpensive statistics. The selection must agree with the database \c statistics
-        configuration specified to ::wiredtiger_open or WT_CONNECTION::reconfigure. For example,
-        "all" or "fast" can be configured when the database is configured with "all", but
-        the cursor open will fail if "all" is specified when the database is configured with
-        "fast", and the cursor open will fail in all cases when the database is configured
-        with "none". If "size" is configured, only the underlying size of the object on
-        disk is filled in and the object is not opened. If \c statistics is not configured,
-        the default configuration is the database configuration. The "clear" configuration
-        resets statistics after gathering them, where appropriate (for example, a cache size
-        statistic is not cleared, while the count of cursor insert operations will be cleared).
+        inexpensive statistics. Choosing "tree_walk" gathers per-page B-tree statistics by
+        traversing the underlying trees, reading pages from disk as needed, with cost proportional
+        to tree size. Choosing "cache_walk" gathers per-page cache statistics by traversing the
+        underlying trees' cached pages, with cost proportional to the number of cached pages.
+        The selection must agree with the database \c statistics configuration specified to
+        ::wiredtiger_open or WT_CONNECTION::reconfigure. For example, "all" or "fast" can be
+        configured when the database is configured with "all", but the cursor open will fail if
+        "all" is specified when the database is configured with "fast", and the cursor open will
+        fail in all cases when the database is configured with "none". If "size" is configured,
+        only the underlying size of the object on disk is filled in and the object is not opened.
+        The "size" option is cursor-only and cannot be combined with "all", "fast", "clear",
+        "tree_walk" or "cache_walk". If \c statistics is not configured, the default configuration
+        is the database configuration. The "clear" configuration resets statistics after gathering
+        them, where appropriate (for example, a cache size statistic is not cleared, while the
+        count of cursor insert operations will be cleared).
         At most one of the "otel_" options may also be configured to specify an OTel metric type.
         "otel_none" specifies that only metrics without an OTel metric type are gathered. See @ref
         statistics for more information''',
@@ -1933,6 +1951,11 @@ methods = {
 
 'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.verify' : Method([
+    Config('abort_on_error', 'false', r'''
+        when verifying all tables (no URI given), stop at the first table that fails
+        verification; by default all tables are verified, with every failure logged as it is
+        found, and the return value reports the first failure''',
+        type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as
