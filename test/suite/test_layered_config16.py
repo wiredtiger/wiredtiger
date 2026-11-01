@@ -94,8 +94,10 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         self.reopen_conn()
         self.check_read()
         self.session.checkpoint()
-        self.assertEqual(self.session.verify(self.shared_metadata_uri), 0)
-        self.assertEqual(self.session.verify(self.stable_uri), 0)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        self.assertEqual(debug_session.verify(self.shared_metadata_uri), 0)
+        debug_session.close()
+        self.assertEqual(self.session.verify(self.uri), 0)
 
     def test_legacy_follower(self):
         checkpoint_meta = self.populate()

@@ -135,11 +135,11 @@ class test_disagg_wt_page(
 
     def _find_base_image_page(self):
         # base_lsn=0 AND backlink_lsn=0 also matches the root (a full image
-        # with no backlink), so pick the leaf by decoding the tree with `wt
-        # verify -d dump_address` rather than guessing from palite's schema,
-        # which has no page-type column to distinguish leaf from root.
+        # with no backlink), so pick the leaf from the layered table's verify
+        # output rather than guessing from palite's schema, which has no
+        # page-type column to distinguish leaf from root.
         cmd = ['-C', self._wt_page_extra_config(), 'verify', '-d', 'dump_address',
-               self.stable_uri]
+               self.uri]
         self.runWt(cmd, outfilename='wt.out', errfilename='wt.err')
         with open('wt.out') as f:
             stdout = f.read()
