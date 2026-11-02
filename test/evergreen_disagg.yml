@@ -609,7 +609,7 @@ buildvariants:
 - name: amazon2023-disagg-stress
   display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
   run_on:
-  - amazon2023.3-arm64-large
+  - amazon2023-arm64-latest-large
   expansions:
     REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
@@ -622,7 +622,7 @@ buildvariants:
 - name: amazon2023-disagg-asan-stress
   display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
   run_on:
-  - amazon2023.3-arm64-large
+  - amazon2023-arm64-latest-large
   expansions:
     REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
