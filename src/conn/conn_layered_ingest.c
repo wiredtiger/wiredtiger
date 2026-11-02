@@ -316,6 +316,9 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     if (ret == 0)
         return (0);
 
+    if (WT_STREQ(ingest_uri, "file:.wt_ingest"))
+        return (__wt_set_return(session, ENOENT));
+
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, layered_uri_buf->data, &layered_cfg), true);
