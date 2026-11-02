@@ -75,10 +75,10 @@ static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
  * WT_EVICT_TREE_FIRST_BUCKETS --
  *     For clean leaf pages, pick a tree by its share of cache bytes, then search this many buckets
  *     from the clock hand for a page of that tree before falling back to the per-bucket lottery. 0
- *     disables the tree-first pick.
+ *     disables the tree-first pick: the oldest pages are taken regardless of tree.
  */
 #ifndef WT_EVICT_TREE_FIRST_BUCKETS
-#define WT_EVICT_TREE_FIRST_BUCKETS 3
+#define WT_EVICT_TREE_FIRST_BUCKETS 64
 #endif
 static void __evict_stat_eligible_levels(WT_SESSION_IMPL *session, const u_int *levels, u_int n);
 static void __evict_stat_skip_cannot_evict(WT_SESSION_IMPL *session, int level);
@@ -1892,8 +1892,8 @@ __evict_get_ref_tree_first(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
     WT_REF *ref;
     struct __wt_evict_tree *trees;
     uint64_t draw, total;
-    uint32_t cur, k, n, searched, slot;
-    bool clear_maybe_nonempty;
+    uint32_t cur, first, k, n, searched, slot;
+    bool clear_maybe_nonempty, found_items;
 
     evict = S2C(session)->evict;
     cur = __wt_atomic_load_uint32_acquire(&evict->evict_trees_cur);
@@ -1910,12 +1910,19 @@ __evict_get_ref_tree_first(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
     target = trees[k].dhandle;
     slot = (uint32_t)(trees[k].name_hash % evict->dhandle_hash_size);
 
+    /* The hand stays at the oldest non-empty bucket seen, so no older page is skipped. */
     ref = NULL;
+    first = j;
+    found_items = false;
     for (searched = 0; searched < WT_EVICT_TREE_FIRST_BUCKETS;
          ++searched, j = (j + 1) % bucketset->num_buckets) {
         bucket = &bucketset->buckets[j];
         if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
             continue;
+        if (!found_items) {
+            found_items = true;
+            first = j;
+        }
         hash_entry = &bucket->pertree_hashtable[slot];
         if (TAILQ_EMPTY(&hash_entry->dhandle_hashchain) ||
           __wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY)
@@ -1945,11 +1952,15 @@ __evict_get_ref_tree_first(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
         }
         __wt_spin_unlock(session, &subq->evict_queue_lock);
         if (ref != NULL) {
-            __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
-            WT_STAT_CONN_INCR(session, eviction_tree_first_hit);
+            __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, first);
+            /* The page pins its tree, so the per-tree statistic is safe. */
+            WT_WITH_DHANDLE(session, ref->page->evict_data.dhandle,
+              WT_STAT_CONN_DSRC_INCR(session, cache_eviction_tree_first_hit));
             return (ref);
         }
     }
+    if (!found_items)
+        __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
     WT_STAT_CONN_INCR(session, eviction_tree_first_miss);
     return (NULL);
 }

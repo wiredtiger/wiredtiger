@@ -626,7 +626,6 @@ struct __wt_connection_stats {
     int64_t eviction_eligible_wont_need_dirty_leaf;
     int64_t eviction_eligible_wont_need_internal;
     int64_t eviction_admit_page_checkpoint;
-    int64_t eviction_tree_first_hit;
     int64_t eviction_reconcile_cannot_evict;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
@@ -693,6 +692,7 @@ struct __wt_connection_stats {
     int64_t eviction_threshold_dirty_trigger;
     int64_t eviction_threshold_updates_target;
     int64_t eviction_threshold_updates_trigger;
+    int64_t cache_eviction_tree_first_hit;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
     int64_t cache_eviction_pages_queued_dirty;
@@ -1576,6 +1576,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_blocked_prefetched;
+    int64_t cache_eviction_tree_first_hit;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
     int64_t cache_eviction_pages_queued_dirty;
