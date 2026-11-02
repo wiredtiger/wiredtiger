@@ -331,11 +331,8 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
         WT_ERR(__wt_set_return(session, ENOENT));
 
     /*
-     * Create on an internal session. A step-up forbids schema operations on application sessions,
-     * but an application may first open a table during one. A schema operation also clears the
-     * session's data handle, which the caller is opening, and joins any metadata tracking the
-     * caller has started, whose unroll would remove the entry under the open handle. The caller
-     * opens the handle, so do not.
+     * Use a separate session so schema creation cannot clear the caller's current data handle or
+     * join its metadata tracking.
      */
     time_start = __wt_clock(session);
     WT_ERR(__wt_open_internal_session(S2C(session), "ingest-create-on-open", true,

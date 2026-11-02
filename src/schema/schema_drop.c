@@ -262,7 +262,10 @@ __drop_layered(
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
-    /* The ingest table may not have been created since the initial checkpoint pickup. */
+    /*
+     * The initial checkpoint pickup defers ingest creation until first access, so dropping an
+     * untouched layered table must tolerate missing ingest metadata.
+     */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, ingest_uri, cfg, check_visibility), ENOENT, true);
 
     /* Now drop the top-level table. */

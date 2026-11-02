@@ -1006,8 +1006,7 @@ __disagg_ensure_ingest_table(
      * A missing ingest table is expected, not an error: ingest tables are local to each node and
      * never appear in the shared metadata, and the pickup may install a table this node does not
      * yet know about. That would happen if the application installed a checkpoint ahead of oplog
-     * application to catch up a lagging node, which is cheaper than restarting it. Such pickups add
-     * few tables, so open each new ingest table now rather than on first access.
+     * application to catch up a lagging node, which is cheaper than restarting it.
      */
     if (md_value == NULL) {
         WT_ERR_MSG_CHK(session,
