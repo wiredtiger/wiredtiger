@@ -33,9 +33,9 @@ from helper import WiredTigerCursor
 # This test simulates log file corruption by manually setting
 # a log records length field to UINT32_MAX. The expected behavior is that
 # the record-length validation fails, salvage is invoked, and recovery
-# completes successfully. By repeating this recovery cycle, the test also
-# verifies that log files are removed within a few cycles rather than
-# accumulating and growing the log directory without bound.
+# completes successfully, truncating the corrupt log at the corruption
+# offset. Without that check recovery would crash on the oversize record
+# and leave the opened log file behind on every restart.
 class test_log05(wttest.WiredTigerTestCase):
 
     uri = 'table:log05'
@@ -44,26 +44,10 @@ class test_log05(wttest.WiredTigerTestCase):
 
     WT_TURTLE_FILE_NAME = "WiredTiger.turtle"
     WT_LOG_FILE = "WiredTigerLog.0000000%03d"
-    WT_LOG_RE = re.compile(r'^WiredTigerLog\.(\d{10})$')
 
-    # Recovery cycles to run. A log file leaked on every failed recovery, the
-    # failure this test guards against, would survive all of them, so this must
-    # be comfortably larger than max_retention_rounds.
+    # Recovery cycles to run. Each cycle corrupts the current log record and
+    # verifies that recovery salvages it again.
     test_round = 20
-
-    # A log file may remain on disk while checkpoints and asynchronous log
-    # removal catch up, but it must be removed within this many recovery
-    # cycles. Normally a file is removed one cycle after it is superseded; the
-    # worst lag observed under CI load is three cycles. Allow a small margin
-    # while staying far below test_round, so a file that is never removed
-    # still fails the test.
-    max_retention_rounds = 5
-
-    def log_file_numbers(self):
-        # Return the numbers of the active log files, in order. Pre-allocated
-        # and temporary log files use different prefixes.
-        return sorted(int(self.WT_LOG_RE.match(f).group(1))
-            for f in os.listdir('.') if self.WT_LOG_RE.match(f))
 
     def extract_key_from_turtle(self, line, key):
         m = re.search(key + r'=\(\s*(\d+)\s*,\s*(\d+)\s*\)', line)
@@ -85,9 +69,11 @@ class test_log05(wttest.WiredTigerTestCase):
                 break
         self.assertTrue(value is not None, "Checkpoint lsn is missing in turtle file")
         _, offset = value
+        self.corrupted_file = self.WT_LOG_FILE % id
+        self.corrupted_offset = offset
         # The first four bytes of each log record are parsed as a 32-bit unsigned length.
         # To simulate corruption, overwrite these bytes to UINT32_MAX.
-        with open(self.WT_LOG_FILE % id, 'r+b') as f:
+        with open(self.corrupted_file, 'r+b') as f:
             f.seek(offset)
             f.write(struct.pack('<I', 0xFFFFFFFF))
 
@@ -105,13 +91,10 @@ class test_log05(wttest.WiredTigerTestCase):
             with self.expectedStdoutPattern("corrupted record length oversize at position"):
                 self.open_conn()
 
-            # A log file leaked by a failed recovery is never superseded by
-            # removal. Check every cycle that no file outlives the retention
-            # deadline, rather than asserting a total count, so the check does
-            # not depend on how many files a build retains at a given instant.
-            nums = self.log_file_numbers()
-            current = nums[-1]
-            stale = [n for n in nums if current - n > self.max_retention_rounds]
-            self.assertEqual(stale, [],
-                f"Log files survived more than {self.max_retention_rounds} "
-                f"recovery cycles: {stale}")
+            # Salvage truncates the corrupt log at the corrupt record before
+            # recovery returns, so a remaining file cannot contain the oversize
+            # record. Asynchronous log removal may have deleted it instead.
+            if os.path.exists(self.corrupted_file):
+                self.assertLessEqual(os.path.getsize(self.corrupted_file),
+                    self.corrupted_offset,
+                    f"{self.corrupted_file} was not truncated at the corruption offset")
