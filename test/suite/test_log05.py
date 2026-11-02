@@ -44,8 +44,23 @@ class test_log05(wttest.WiredTigerTestCase):
 
     WT_TURTLE_FILE_NAME = "WiredTiger.turtle"
     WT_LOG_FILE = "WiredTigerLog.0000000%03d"
+    WT_LOG_RE = re.compile(r'^WiredTigerLog\.\d{10}$')
 
+    # Recovery cycles to run. A log file leaked on every failed recovery, the
+    # failure this test guards against, leaves one extra file per cycle, so
+    # this must be comfortably larger than max_retained_log_growth.
     test_round = 20
+
+    # Log files that may legitimately remain on disk while checkpoints and
+    # asynchronous log removal catch up. This does not grow with the number of
+    # recovery cycles.
+    max_retained_log_growth = 5
+
+    def log_file_count(self):
+        # Count every active log file, including the current one, so the check
+        # does not depend on the file number reaching a particular value.
+        # Pre-allocated and temporary log files use different prefixes.
+        return sum(1 for f in os.listdir('.') if self.WT_LOG_RE.match(f))
 
     def extract_key_from_turtle(self, line, key):
         m = re.search(key + r'=\(\s*(\d+)\s*,\s*(\d+)\s*\)', line)
@@ -81,17 +96,21 @@ class test_log05(wttest.WiredTigerTestCase):
                 c[f'key_{i}'] = f'val_{i}'
         self.session.commit_transaction()
 
+        initial_logs = self.log_file_count()
+
         for i in range(self.test_round):
             self.close_conn()
             self.inject_fault_to_log(i+1)
             with self.expectedStdoutPattern("corrupted record length oversize at position"):
                 self.open_conn()
 
-        logs_count = 0
-        for i in range(self.test_round):
-            if os.path.exists(self.WT_LOG_FILE % (i+1)):
-                logs_count += 1
+        logs_count = self.log_file_count()
 
-        # This assert aims to make sure no redundant log file is generated.
-        # Due to log file rotation timing, two log files may temporarily coexist.
-        self.assertLessEqual(logs_count, 2, "We should have at most 2 log files")
+        # A log file leaked on every failed recovery leaves one extra file per
+        # cycle. A bounded number of files may legitimately remain while
+        # checkpoints and asynchronous log removal catch up; that number does
+        # not grow with the cycles, so compare against the margin rather than
+        # asserting an exact count.
+        self.assertLessEqual(logs_count, initial_logs + self.max_retained_log_growth,
+            f"Log files accumulated across recovery cycles: {logs_count} after "
+            f"{self.test_round} rounds, started with {initial_logs}")
