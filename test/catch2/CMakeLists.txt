@@ -47,8 +47,8 @@ else()
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_ref_page_type.cpp
-        misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
+        misc_tests/test_layered_missing_stable.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
         misc_tests/test_palite_victim_cache.cpp
