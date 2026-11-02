@@ -37,19 +37,6 @@ __hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 }
 
 /*
- * __hs_verify_obsolete --
- *     Is a history store record obsolete against the checkpoint's oldest timestamp? Transaction ids
- *     are not comparable across the connections sharing a disaggregated history store, so only the
- *     timestamp is considered.
- */
-static WT_INLINE bool
-__hs_verify_obsolete(WT_TIME_WINDOW *tw, wt_timestamp_t checkpoint_oldest_ts)
-{
-    return (checkpoint_oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
-      tw->durable_stop_ts <= checkpoint_oldest_ts);
-}
-
-/*
  * __hs_verify_ts_stable_cmp --
  *     Verify that a history store record's start and stop timestamps are valid against the global
  *     stable timestamp.
@@ -276,7 +263,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * checked key is left alone so that any remaining record for this key is judged on its own
          * window rather than excused by this one.
          */
-        if (!chain.exists && !__hs_verify_obsolete(hs_tw, checkpoint_oldest_ts)) {
+        if (!chain.exists && !__wt_time_window_obsolete_at(hs_tw, checkpoint_oldest_ts)) {
             WT_ERR(__hs_verify_ds_search(session, ds_cbt, &key, check_data_store, &chain));
             chain.searched = true;
 

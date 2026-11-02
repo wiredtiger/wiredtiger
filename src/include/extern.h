@@ -2129,6 +2129,8 @@ static WT_INLINE bool __wt_spin_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_PAGE_INDEX *saved_pindex) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_time_window_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_ts_stable_violation(wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
   wt_timestamp_t stable_timestamp, bool *startp, wt_timestamp_t *tsp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
