@@ -446,6 +446,10 @@ conn_stats = [
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
     EvictStat('eviction_server_push_pages_failed_when_flaging', 'eviction server push pages to queue failed because of racing with setting flag'),
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
+    EvictStat('eviction_server_refill_end_filled', 'eviction server refills that ended with the queue filled'),
+    EvictStat('eviction_server_refill_end_interrupted', 'eviction server refills that ended because a handle operation interrupted the walk'),
+    EvictStat('eviction_server_refill_end_lap_complete', 'eviction server refills that ended after visiting every handle'),
+    EvictStat('eviction_server_refill_end_shutdown', 'eviction server refills that ended for shutdown or cache pool reconfiguration'),
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
     EvictStat('eviction_server_skip_disagg_trees_checkpointed', 'eviction server skips disaggregated trees already visited by the ongoing checkpoint'),
