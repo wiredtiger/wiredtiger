@@ -109,6 +109,7 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
     const char *caller_uri = "file:cursor_test.wt";
     const bool outdated = GENERATE(false, true);
     const bool with_caller_dhandle = GENERATE(false, true);
+    const bool nowait_preset = GENERATE(false, true);
     testutil_remove(home);
     {
         connection_wrapper conn(home, layered_disagg_build_cfg("follower").c_str());
@@ -134,6 +135,8 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
         }
         auto *caller_dhandle = session->dhandle;
         REQUIRE((caller_dhandle != nullptr) == with_caller_dhandle);
+        if (nowait_preset)
+            FLD_SET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
         const uint32_t caller_lock_flags = session->lock_flags;
         WT_DHANDLE_ACQUIRE(dhandle);
         writer->dhandle = dhandle;
@@ -172,7 +175,7 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
         WT_DHANDLE_CLEAR(writer);
         const int ret = lookup.get();
 
-        CAPTURE(outdated, with_caller_dhandle);
+        CAPTURE(outdated, with_caller_dhandle, nowait_preset);
         CHECK(started_status == std::future_status::ready);
         CHECK(writer_ret == 0);
         CHECK(lookup_status == std::future_status::ready);
@@ -183,6 +186,7 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
         CHECK(TAILQ_EMPTY(bucket));
         CHECK(__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0);
         WT_DHANDLE_RELEASE(dhandle);
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
 
         if (with_caller_dhandle) {
             // Release the acquired handle even if the failed lookup replaced it on the session.
@@ -203,6 +207,89 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
             CHECK(value == 42);
             REQUIRE(caller_cursor->close(caller_cursor) == 0);
         }
+    }
+    testutil_remove(home);
+}
+
+TEST_CASE("Closing a cached history store lookup does not wait for a swept dhandle writer",
+  "[dhandle][evict]")
+{
+    const char *home = "WT_TEST.dhandle_hs_close_sweep";
+    testutil_remove(home);
+    {
+        connection_wrapper conn(home, layered_disagg_build_cfg("follower").c_str());
+        auto *session = conn.create_session();
+        auto *writer = conn.create_session();
+
+        // Cache a usable local history store cursor and a shared history store cursor.
+        REQUIRE(__wt_curhs_cache(session) == 0);
+        WT_CURSOR *hs_cursor;
+        REQUIRE(session->iface.open_cursor(
+                  &session->iface, WT_HS_URI_SHARED, nullptr, nullptr, &hs_cursor) == 0);
+        WT_DHANDLE_CLEAR(session);
+        REQUIRE(hs_cursor->close(hs_cursor) == 0);
+
+        uint64_t hash_value;
+        __wt_cursor_get_hash(session, WT_HS_URI_SHARED, nullptr, &hash_value);
+        const uint32_t shared_bucket = (uint32_t)(hash_value & (S2C(session)->hash_size - 1));
+        auto *bucket = &session->cursor_cache[shared_bucket];
+        auto *shared_cursor = TAILQ_FIRST(bucket);
+        REQUIRE(shared_cursor != nullptr);
+        auto *dhandle = ((WT_CURSOR_BTREE *)shared_cursor)->dhandle;
+        WT_DHANDLE_ACQUIRE(dhandle);
+        writer->dhandle = dhandle;
+
+        const uint32_t caller_lock_flags = session->lock_flags;
+
+        std::promise<void> started;
+        std::promise<void> run_lookup;
+        auto started_future = started.get_future();
+        auto run_lookup_future = run_lookup.get_future();
+        WT_BTREE *hs_btree = nullptr;
+        auto lookup = std::async(std::launch::async, [&]() {
+            auto *pass_lock = &S2C(session)->evict->evict_pass_lock;
+            __wt_spin_lock(session, pass_lock);
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
+            started.set_value();
+            run_lookup_future.wait();
+            const int ret = __wt_curhs_get_cached(session, WT_HS_ID, &hs_btree);
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
+            __wt_spin_unlock(session, pass_lock);
+            return ret;
+        });
+
+        const auto started_status = started_future.wait_for(std::chrono::seconds(5));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        int writer_ret;
+        while ((writer_ret = __wt_session_dhandle_try_writelock(writer)) == EBUSY &&
+          std::chrono::steady_clock::now() < deadline)
+            __wt_yield();
+        if (writer_ret == 0)
+            __wt_atomic_store_bool_relaxed(&dhandle->outdated, true);
+
+        // Make closing the local history store cursor sweep the shared cursor's bucket.
+        session->cursor_sweep_countdown = 1;
+        session->cursor_sweep_position = shared_bucket;
+        session->last_cursor_sweep = 0;
+        run_lookup.set_value();
+        const auto lookup_status = lookup.wait_for(std::chrono::seconds(5));
+
+        // Release the writer before asserting so a blocking lookup can finish on failure.
+        if (writer_ret == 0)
+            __wt_session_dhandle_writeunlock(writer);
+        WT_DHANDLE_CLEAR(writer);
+        const int ret = lookup.get();
+
+        CHECK(started_status == std::future_status::ready);
+        CHECK(writer_ret == 0);
+        CHECK(lookup_status == std::future_status::ready);
+        CHECK(ret == 0);
+        CHECK(hs_btree != nullptr);
+        CHECK(session->dhandle == nullptr);
+        CHECK(session->lock_flags == caller_lock_flags);
+        CHECK(TAILQ_EMPTY(bucket));
+        CHECK(__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0);
+        WT_DHANDLE_RELEASE(dhandle);
     }
     testutil_remove(home);
 }

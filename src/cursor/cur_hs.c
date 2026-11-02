@@ -104,8 +104,6 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
      */
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor));
-    if (!dhandle_lock_nowait)
-        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
     if (ret == 0) {
         *hs_btreep = CUR2BT(cursor);
         /*
@@ -116,10 +114,14 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
          * history store dhandle is only swept after a step-down marks it outdated. Even then this
          * caller is safe: it reads the btree under the eviction pass lock, and sweep must close the
          * btree before freeing it, which waits for that lock.
+         *
+         * Closing the cursor can sweep the session's cached cursors, which reopens their handles.
          */
-        WT_RET(cursor->close(cursor));
+        ret = cursor->close(cursor);
     }
 
+    if (!dhandle_lock_nowait)
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
     return (ret);
 }
 
