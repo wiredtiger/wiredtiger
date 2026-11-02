@@ -594,6 +594,28 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
 }
 
 /*
+ * __evict_check_user_ok_with_eviction --
+ *     Check if the user wants to abort eviction in this session. #private
+ */
+static bool
+__evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool busy)
+{
+    WT_EVENT_HANDLER *event_handler;
+
+    /* Ask the user only if eviction is optional and it's a user session. */
+    if (busy || F_ISSET(session, WT_SESSION_INTERNAL))
+        return (true);
+
+    event_handler = session->event_handler;
+    if (event_handler->handle_general != NULL &&
+      event_handler->handle_general(
+        event_handler, &S2C(session)->iface, &session->iface, WT_EVENT_EVICTION, NULL) != 0)
+        return (false);
+
+    return (true);
+}
+
+/*
  * __wt_cache_eviction_check --
  *     Evict pages if the cache crosses its boundaries.
  */
@@ -606,6 +628,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     double pct_full;
+    uint64_t cache_max_wait_us;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -625,6 +648,10 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     if (F_ISSET(session->txn, WT_TXN_PREPARE))
         return (0);
 
+    /* FIXME-WT-12905: Pre-fetch threads are not allowed to be pulled into eviction. */
+    if (F_ISSET(session, WT_SESSION_PREFETCH_THREAD))
+        return (0);
+
     /*
      * If the transaction is a checkpoint cursor transaction, don't try to evict. Because eviction
      * keeps the current transaction snapshot, and the snapshot in a checkpoint cursor transaction
@@ -632,6 +659,12 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
      * be able to accomplish anything useful.
      */
     if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+        return (0);
+
+    /* Setting cache_max_wait_us to 1 effectively means "disable eviction when possible". */
+    cache_max_wait_us =
+      session->cache_max_wait_us != 0 ? session->cache_max_wait_us : cache->cache_max_wait_us;
+    if (cache_max_wait_us == 1)
         return (0);
 
     /*
@@ -691,6 +724,10 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
           (__evict_is_session_cache_trigger_tolerant(session, cache_tolerance)))
             return (0);
     }
+
+    /* Last check if application wants to prevent the thread from evicting. */
+    if (!__evict_check_user_ok_with_eviction(session, busy))
+        return (0);
 
     /*
      * Some callers (those waiting for slow operations), will sleep if there was no cache work to

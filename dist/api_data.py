@@ -523,7 +523,7 @@ connection_runtime_config = [
         min='1MB', max='10TB'),
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait for space to be
-        available in cache before giving up. Default will wait forever''',
+        available in cache before giving up. Default or 0 will wait forever. 1 will never wait''',
         min=0),
     Config('cache_stuck_timeout_ms', '300000', r'''
         the number of milliseconds to wait before a stuck cache times out in diagnostic mode.
@@ -1193,7 +1193,7 @@ session_config = [
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default value will be the global setting of the
-        connection config''',
+        connection config. 0 will wait forever. 1 will never wait''',
         min=0),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size and are not blocked
@@ -2106,7 +2106,7 @@ methods = {
     Config('threads', '4', r'''
         maximum number of threads WiredTiger will start to help RTS. Each
         RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS''',
-        min=0, 
+        min=0,
         max=10),     # !!! Must match WT_RTS_MAX_WORKERS
 ]),
 
