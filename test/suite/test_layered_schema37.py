@@ -70,110 +70,88 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
         with WiredTigerCursor(self.session_follow, 'metadata:') as cursor:
             return cursor[uri]
 
+    def follower_ingest_exists(self, layered_uri):
+        return self.uri_in_local_metadata(self.conn_follow, layered_uri)
+
     def lazy_ingest_creation_count(self):
         return self.get_stat(stat.conn.disagg_ingest_create_on_open, session=self.session_follow)
 
-    def assert_missing_file(self, uri):
+    def assert_fail_to_create(self, uri):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session_follow.open_cursor(uri), '/No such file or directory/')
         with WiredTigerCursor(self.session_follow, 'metadata:') as cursor:
             cursor.set_key(uri)
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
-    def test_startup_defers_ingest_creation(self):
-        self.start_follower()
-        self.assertFalse(self.uri_in_local_metadata(self.conn_follow, self.layered_uri))
-
-    def test_direct_ingest_open_creates_metadata(self):
-        self.start_follower()
-        self.session_follow.open_cursor(self.ingest_uri).close()
-        self.assertTrue(self.uri_in_local_metadata(self.conn_follow, self.layered_uri))
-
-    def test_layered_open_creates_ingest_and_reads_checkpoint(self):
-        self.start_follower()
-        with WiredTigerCursor(self.session_follow, self.uri) as cursor:
-            self.assertEqual(cursor[self.key], self.value)
-        self.assertTrue(self.uri_in_local_metadata(self.conn_follow, self.layered_uri))
-
-    def test_untouched_table_remains_deferred(self):
+    # Opening a table creates ingest metadata that is reused by later opens and reopens, while
+    # tables that are never opened have none.
+    def test_ingest_creation_lifecycle(self):
         self.create_table(self.uri + '_other')
         self.start_follower()
-        self.session_follow.open_cursor(self.uri).close()
-        self.assertFalse(self.uri_in_local_metadata(self.conn_follow, self.layered_uri + '_other'))
+        self.assertFalse(self.follower_ingest_exists(self.layered_uri))
 
-    def test_created_ingest_preserves_configuration(self):
-        self.start_follower()
-        self.session_follow.open_cursor(self.ingest_uri).close()
+        with WiredTigerCursor(self.session_follow, self.uri) as cursor:
+            self.assertEqual(cursor[self.key], self.value)
+        self.assertTrue(self.follower_ingest_exists(self.layered_uri))
+
         config = self.follower_metadata(self.ingest_uri)
         for setting in (f'key_format="{self.key_format}"', f'value_format="{self.value_format}"',
             'in_memory=true', 'log=(enabled=false)'):
             self.assertIn(setting, config)
-
-    def test_ingest_metadata_is_local(self):
-        self.start_follower()
-        self.session_follow.open_cursor(self.ingest_uri).close()
         with WiredTigerCursor(self.session_follow, 'file:WiredTigerShared.wt_stable') as cursor:
             self.assertNotIn(self.ingest_uri, dict(cursor))
 
-    def test_repeated_open_reuses_ingest(self):
-        self.start_follower()
-        self.session_follow.open_cursor(self.ingest_uri).close()
         ingest_id = get_table_id(self.session_follow, self.ingest_uri)
         creations = self.lazy_ingest_creation_count()
         self.session_follow.open_cursor(self.uri).close()
         self.assertEqual(get_table_id(self.session_follow, self.ingest_uri), ingest_id)
         self.assertEqual(self.lazy_ingest_creation_count(), creations)
 
-    def test_reopen_reuses_ingest_metadata(self):
-        self.start_follower()
-        self.session_follow.open_cursor(self.ingest_uri).close()
-        ingest_id = get_table_id(self.session_follow, self.ingest_uri)
-        self.session_follow.close()
-        self.conn_follow.close()
+        self.close_follower(self.conn_follow, self.session_follow)
         self.conn_follow, self.session_follow = self.open_follower()
         self.session_follow.open_cursor(self.ingest_uri).close()
         self.assertEqual(get_table_id(self.session_follow, self.ingest_uri), ingest_id)
         self.assertEqual(self.lazy_ingest_creation_count(), 0)
 
-    def test_missing_parent_does_not_create_ingest(self):
-        self.start_follower()
-        self.assert_missing_file('file:missing.wt_ingest')
+        self.assertFalse(self.follower_ingest_exists(self.layered_uri + '_other'))
 
-    def test_empty_name_does_not_create_ingest(self):
+    # A request naming a valid parent creates ingest metadata, while requests whose parent is
+    # missing, empty, mismatched, or dropped fail without creating anything.
+    def test_ingest_creation_guards(self):
+        self.create_table(self.uri + '_other')
         self.start_follower()
-        self.assert_missing_file('file:.wt_ingest')
 
-    def test_mismatched_parent_does_not_create_ingest(self):
-        self.start_follower()
+        other_ingest_uri = self.ingest_uri.replace('.wt_ingest', '_other.wt_ingest')
+        self.session_follow.open_cursor(other_ingest_uri).close()
+        self.assertTrue(self.follower_ingest_exists(self.layered_uri + '_other'))
+
+        self.assert_fail_to_create('file:missing.wt_ingest')
+        self.assert_fail_to_create('file:.wt_ingest')
+
         config = self.follower_metadata(self.layered_uri) + ',ingest="file:other.wt_ingest"'
         self.inject_stable_entry(self.conn_follow, self.layered_uri, config)
-        self.assert_missing_file(self.ingest_uri)
+        self.assert_fail_to_create(self.ingest_uri)
 
-    def test_dropped_parent_does_not_create_ingest(self):
-        self.start_follower()
         self.session_follow.drop(self.uri)
-        self.assert_missing_file(self.ingest_uri)
+        self.assert_fail_to_create(self.ingest_uri)
 
+    # Rolling back the transaction that first opened the table does not remove the created ingest
+    # metadata.
     def test_transaction_rollback_preserves_created_ingest(self):
         self.start_follower()
         with self.transaction(session=self.session_follow, rollback=True):
             with WiredTigerCursor(self.session_follow, self.uri) as cursor:
                 self.assertEqual(cursor[self.key], self.value)
-        self.assertTrue(self.uri_in_local_metadata(self.conn_follow, self.layered_uri))
+        self.assertTrue(self.follower_ingest_exists(self.layered_uri))
 
-    def test_first_open_after_step_up(self):
-        self.start_follower()
-        self.step_up(self.conn_follow)
-        self.assertFalse(self.uri_in_local_metadata(self.conn_follow, self.layered_uri))
-        with WiredTigerCursor(self.session_follow, self.uri) as cursor:
-            self.assertEqual(cursor[self.key], self.value)
-        self.assertTrue(self.uri_in_local_metadata(self.conn_follow, self.layered_uri))
-        self.step_down(self.conn_follow)
-
+    # Steady-state pickup creates ingest metadata eagerly, while a table picked up at startup
+    # remains deferred.
     def test_steady_state_pickup_creates_ingest_eagerly(self):
         self.start_follower()
+        self.assertFalse(self.follower_ingest_exists(self.layered_uri))
+
         self.create_table(self.uri + '_new', timestamp=2)
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint_and_wait(self.conn_follow)
-        self.assertTrue(self.uri_in_local_metadata(self.conn_follow, self.layered_uri + '_new'))
+        self.assertTrue(self.follower_ingest_exists(self.layered_uri + '_new'))
         self.assertEqual(self.lazy_ingest_creation_count(), 0)
