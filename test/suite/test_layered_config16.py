@@ -94,8 +94,10 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         self.reopen_conn()
         self.check_read()
         self.session.checkpoint()
-        self.assertEqual(self.session.verify(self.shared_metadata_uri), 0)
-        self.assertEqual(self.session.verify(self.stable_uri), 0)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        self.assertEqual(debug_session.verify(self.shared_metadata_uri), 0)
+        debug_session.close()
+        self.assertEqual(self.session.verify(self.uri), 0)
 
     def test_legacy_follower(self):
         checkpoint_meta = self.populate()
@@ -105,8 +107,10 @@ class test_layered_config16(wttest.WiredTigerTestCase):
 
     def test_new_shared_files_have_disagg_block_manager(self):
         self.populate_table()
-        self.session.create('file:test_layered_config16_plain.wt_stable',
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.create('file:test_layered_config16_plain.wt_stable',
             'key_format=S,value_format=S')
+        debug_session.close()
         cursor = self.session.open_cursor('file:WiredTiger.wt')
         shared = {}
         while cursor.next() == 0:

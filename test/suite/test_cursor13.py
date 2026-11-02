@@ -69,9 +69,12 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
                          hs_stats_after[stat.dsrc.cursor_reopen][2]]
 
             if self.runningHook('disagg'):
+                # Statistics on the shared history store constituent require a session
+                # allowed to access internal layered tables.
                 hs_disagg_uri = 'statistics:file:WiredTigerSharedHS.wt_stable'
-                hs_disagg_stat_before = self.session.open_cursor(hs_disagg_uri, None, None)
-                hs_disagg_stat_after = self.session.open_cursor(hs_disagg_uri, None, None)
+                debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+                hs_disagg_stat_before = debug_session.open_cursor(hs_disagg_uri, None, None)
+                hs_disagg_stat_after = debug_session.open_cursor(hs_disagg_uri, None, None)
                 hs_before[0] += hs_disagg_stat_before[stat.dsrc.cursor_cache][2]
                 hs_before[1] += hs_disagg_stat_before[stat.dsrc.cursor_reopen][2]
 
@@ -79,6 +82,9 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
                 hs_after[1] += hs_disagg_stat_after[stat.dsrc.cursor_reopen][2]
 
                 self.pr(str(totals[0]) + " " + str(hs_before[0]) + " " + str(hs_disagg_stat_before[stat.dsrc.cursor_cache][2]) + " " + str(hs_stats_before[stat.dsrc.cursor_cache][2]))
+                hs_disagg_stat_before.close()
+                hs_disagg_stat_after.close()
+                debug_session.close()
 
             hs_stats_before.close()
             hs_stats_after.close()

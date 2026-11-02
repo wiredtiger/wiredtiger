@@ -109,15 +109,17 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
         self.session.checkpoint()
 
-        sh_cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        sh_cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
         sh_cursor.set_key(f'file:{self.test_name}.wt_stable')
         self.assertEqual(sh_cursor.search(), 0)
         victim_config = sh_cursor.get_value()
         sh_cursor.close()
 
-        sh_cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, 'overwrite')
+        sh_cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, 'overwrite')
         sh_cursor['file:dup_entry.wt_stable'] = victim_config
         sh_cursor.close()
+        debug_session.close()
 
         with self.expectedStderrPattern('metadata corruption.*dup_entry'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.verify(self.uri), '/WT_ERROR/')

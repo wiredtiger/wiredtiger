@@ -537,6 +537,14 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
+    if ((ret = __wt_conf_getones(session, conf, Debug.allow_internal_access, &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
     /*
      * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
      * is completed.
@@ -827,6 +835,29 @@ err:
 }
 
 /*
+ * __wt_session_disagg_check_internal_uri --
+ *     Refuse direct application access to internal tables, such as the ingest and stable
+ *     constituents of a layered table. Sessions configured with debug=(allow_internal_access) are
+ *     exempt, as are internal sessions.
+ */
+int
+__wt_session_disagg_check_internal_uri(WT_SESSION_IMPL *session, const char *uri)
+{
+    if (F_ISSET(session, WT_SESSION_INTERNAL | WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS))
+        return (0);
+    if (uri == NULL || !__wt_conn_is_disagg(session))
+        return (0);
+
+    if (!WT_URI_IS_INGEST(uri) && !WT_URI_IS_STABLE(uri))
+        return (0);
+
+    WT_RET_MSG(session, EINVAL,
+      "%s: direct access to an internal table is not allowed; configure the session with "
+      "debug=(allow_internal_access=true) for debugging/repairing.",
+      uri);
+}
+
+/*
  * __session_open_cursor --
  *     WT_SESSION->open_cursor method.
  */
@@ -876,6 +907,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     if ((to_dup == NULL && uri == NULL) || (to_dup != NULL && uri != NULL))
         WT_ERR_MSG(
           session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
+
+    WT_ERR(__wt_session_disagg_check_internal_uri(session, to_dup == NULL ? uri : to_dup->uri));
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
@@ -1492,6 +1525,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     SESSION_API_CALL(session, ret, salvage, config, cfg, false);
 
+    WT_ERR(__wt_session_disagg_check_internal_uri(session, uri));
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /*
@@ -1920,6 +1954,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, verify, config, cfg, false);
+    WT_ERR(__wt_session_disagg_check_internal_uri(session, uri));
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */

@@ -65,22 +65,24 @@ class test_layered_cursor26(
         # cannot pass as a correct statistics result.
         self.assertFalse(self.stable_constituent_exists(self.conn, self.layered_uri))
 
-    def block_size(self, uri, config='statistics=(size)'):
+    def block_size(self, uri, config='statistics=(size)', session=None):
         """Return the block size reported by a statistics cursor on uri."""
-        with wttest.open_cursor(self.session, f'statistics:{uri}', config=config) as cursor:
+        with wttest.open_cursor(session or self.session, f'statistics:{uri}', config=config) as cursor:
             return cursor[stat.dsrc.block_size][2]
 
-    def btree_entries(self, uri, config='statistics=(size)'):
+    def btree_entries(self, uri, config='statistics=(size)', session=None):
         """Return btree entry count from a statistics cursor on uri."""
-        with wttest.open_cursor(self.session, f'statistics:{uri}', config=config) as cursor:
+        with wttest.open_cursor(session or self.session, f'statistics:{uri}', config=config) as cursor:
             return cursor[stat.dsrc.btree_entries][2]
 
     def assert_size_is_ingest_only(self, uri, config):
         """The table has no stable constituent, so its size is the ingest constituent's alone."""
         ingest_uri = self.ingest_uri(self.layered_uri)
         # Ingest tables are in_memory; block_size stays zero but entries prove the tree has data.
-        self.assertEqual(self.btree_entries(ingest_uri, 'statistics=(all)'), 2)
-        ingest = self.block_size(ingest_uri, config)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        self.assertEqual(self.btree_entries(ingest_uri, 'statistics=(all)', debug_session), 2)
+        ingest = self.block_size(ingest_uri, config, debug_session)
+        debug_session.close()
         self.assertEqual(self.block_size(uri, config), ingest)
 
     def test_size_stats_on_table_uri(self):

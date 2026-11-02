@@ -151,6 +151,9 @@ class LayeredStepdownMixin:
     # The key/value map visible through a cursor on uri at read_ts.
     def read_kvs_at(self, uri, read_ts, session=None):
         session = session or self.session
+        internal = '.wt_stable' in uri or uri.endswith('.wt_ingest')
+        if internal:
+            session = session.connection.open_session('debug=(allow_internal_access=true)')
         cursor = session.open_cursor(uri, None, None)
         session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         kv = {}
@@ -158,18 +161,13 @@ class LayeredStepdownMixin:
             kv[cursor.get_key()] = cursor.get_value()
         session.rollback_transaction()
         cursor.close()
+        if internal:
+            session.close()
         return kv
 
     # The set of keys visible through a cursor on uri at read_ts.
     def read_keys_at(self, uri, read_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
-        keys = set()
-        while cursor.next() == 0:
-            keys.add(cursor.get_key())
-        self.session.rollback_transaction()
-        cursor.close()
-        return keys
+        return set(self.read_kvs_at(uri, read_ts))
 
     # Whether the connection currently has a step-down timestamp set. This is the only external
     # view of the timestamp, so it is also the only way to see that the demotion cleared it.

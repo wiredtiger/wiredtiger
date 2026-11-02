@@ -369,6 +369,10 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
 
     WT_ERR(__repair_config_decode(session, report, config, &repair_config));
 
+    /* B-tree size repair verifies shared constituent files directly. */
+    if (repair_config.command == WT_REPAIR_COMMAND_FIX_BTREE_SIZE)
+        WT_ERR(session->iface.reconfigure(&session->iface, "debug=(allow_internal_access=true)"));
+
     switch (repair_config.command) {
     case WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE:
         WT_ERR(

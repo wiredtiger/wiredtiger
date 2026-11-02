@@ -136,7 +136,7 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
 
 /*
  * __wt_str_name_check --
- *     Disallow any use of the WiredTiger name space.
+ *     Validate names against WiredTiger and disaggregated constituent namespaces.
  */
 int
 __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
@@ -144,6 +144,8 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
     int skipped;
     const char *name, *sep;
     bool skip;
+
+    WT_RET(__wt_session_disagg_check_internal_uri(session, str));
 
     /*
      * Check if name is somewhere in the WiredTiger name space: it would be "bad" if the application

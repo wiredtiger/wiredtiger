@@ -156,13 +156,15 @@ class test_layered_tombstone_prepared_drain(wttest.WiredTigerTestCase):
         # decode. The stored bytes carry the escape only when the mode is on and the value is in the
         # tombstone namespace, proving the prepared drain stripped (or kept) the escape as configured.
         expected = self.expected_stable_bytes()
-        c = session_f.open_cursor(self.stable_uri)
-        session_f.begin_transaction('read_timestamp=' + self.timestamp_str(200))
+        debug_session = conn_follow.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.stable_uri)
+        debug_session.begin_transaction('read_timestamp=' + self.timestamp_str(200))
         c.set_key(1)
         self.assertEqual(c.search(), 0)
         self.assertEqual(c.get_value(), expected)
-        session_f.rollback_transaction()
+        debug_session.rollback_transaction()
         c.close()
+        debug_session.close()
 
         session_f.close()
         conn_follow.close()
