@@ -77,8 +77,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
         tag = "unexpected page state";
 
     if (do_visibility_check)
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_ta_newest_stop_visible_all(session, &newest_ta);
 
     if (obsolete) {
         /*
@@ -112,8 +111,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_DELETED *page_del;
 
     page_del = ref->page_del;
-    if (page_del == NULL ||
-      __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
+    if (__wt_page_del_visible_all(session, page_del, true)) {
         /*
          * When called inline during a checkpoint tree walk, only the parent page needs to be marked
          * dirty the current checkpoint will write it. When called from the dedicated cleanup
@@ -165,8 +163,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_ta_newest_stop_visible_all(session, &newest_ta);
     }
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
