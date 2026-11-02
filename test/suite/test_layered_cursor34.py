@@ -146,85 +146,96 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
             self.session_follow.rollback_transaction()
             cursor.close()
 
-    # A cursor positioned in an earlier transaction removes a key a truncate has since covered.
-    # Nothing is written, so the cursor loses its position as a remove that found nothing does.
-    def test_positioned_remove_after_truncate(self):
-        cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
-        cursor.set_key('stable_key')
-        self.assertEqual(cursor.search(), 0)
+    # Commits a remove of a key from another session.
+    def remove_key(self, key):
+        session = self.conn_follow.open_session('')
+        cursor = session.open_cursor(self.uri)
+        with self.transaction(session=session, commit_timestamp=25):
+            cursor.set_key(key)
+            self.assertEqual(cursor.remove(), 0)
+        session.close()
 
+    # Commits a truncate of a single key from another session.
+    def truncate_key(self, key):
         session = self.conn_follow.open_session('')
         start = session.open_cursor(self.uri)
         stop = session.open_cursor(self.uri)
-        start.set_key('stable_key')
-        stop.set_key('stable_key')
+        start.set_key(key)
+        stop.set_key(key)
         with self.transaction(session=session, commit_timestamp=25):
             session.truncate(None, start, stop, None)
-        start.close()
-        stop.close()
         session.close()
+
+    # Cursors positioned on a key in an earlier transaction, by search or by a walk in either
+    # direction, remove the key after it was removed underneath them. Nothing is written. A cursor
+    # that keeps its position carries on its walk from the removed key, otherwise the walk starts
+    # over.
+    def check_remove_removed_key(self, key, value, remove_underneath, read_uncommitted=False,
+            keeps_position=True):
+        keys = ['anchor', 'ingest_key', 'stable_key', 'z_stable']
+        i = keys.index(key)
+        cursors = []
+        if read_uncommitted:
+            self.session_follow.begin_transaction('isolation=read-uncommitted')
+        for by_search in (True, False):
+            for forward in (True, False):
+                cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
+                step = cursor.next if forward else cursor.prev
+                if by_search:
+                    cursor.set_key(key)
+                    self.assertEqual(cursor.search(), 0)
+                else:
+                    while step() == 0 and cursor.get_key() != key:
+                        pass
+                    self.assertEqual(cursor.get_key(), key)
+                self.assertEqual(cursor.get_value(), value)
+                if keeps_position:
+                    rest = keys[i + 1:] if forward else list(reversed(keys[:i]))
+                else:
+                    rest = [k for k in (keys if forward else reversed(keys)) if k != key]
+                cursors.append((cursor, step, rest))
+        if read_uncommitted:
+            self.session_follow.commit_transaction()
+        remove_underneath()
 
         removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
         self.session_follow.begin_transaction()
-        self.assertEqual(cursor.remove(), 0)
-        self.assertRaisesWithMessage(
-            wiredtiger.WiredTigerError, lambda: cursor.get_key(), '/requires key be set/')
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'anchor')
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        self.assertEqual(
-            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), removed + 1)
-        cursor.close()
-
-    # A cursor positioned on another transaction's uncommitted insert of a truncated key, by search
-    # or by iteration, removes the key after that insert rolls back. Nothing is written, so the
-    # cursor loses its position as a remove that found nothing does.
-    def check_positioned_remove_after_rollback(self, by_search):
-        session = self.conn_follow.open_session('')
-        start = session.open_cursor(self.uri)
-        stop = session.open_cursor(self.uri)
-        start.set_key('stable_key')
-        stop.set_key('stable_key')
-        with self.transaction(session=session, commit_timestamp=25):
-            session.truncate(None, start, stop, None)
-        start.close()
-        stop.close()
-
-        writer = session.open_cursor(self.uri)
-        session.begin_transaction()
-        writer['stable_key'] = 'uncommitted_val'
-
-        cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
-        self.session_follow.begin_transaction('isolation=read-uncommitted')
-        if by_search:
-            cursor.set_key('stable_key')
-            self.assertEqual(cursor.search(), 0)
-        else:
-            for key in ('anchor', 'ingest_key', 'stable_key'):
-                self.assertEqual(cursor.next(), 0)
+        for cursor, step, rest in cursors:
+            self.assertEqual(cursor.remove(), 0)
+            if keeps_position:
                 self.assertEqual(cursor.get_key(), key)
-        self.assertEqual(cursor.get_value(), 'uncommitted_val')
-        self.session_follow.commit_transaction()
-        session.rollback_transaction()
-        session.close()
-
-        removed = self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted)
-        self.session_follow.begin_transaction()
-        self.assertEqual(cursor.remove(), 0)
-        self.assertEqual(
-            self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted), removed + 1)
-        self.assertRaisesWithMessage(
-            wiredtiger.WiredTigerError, lambda: cursor.get_key(), '/requires key be set/')
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'anchor')
+            else:
+                self.assertRaisesWithMessage(
+                    wiredtiger.WiredTigerError, lambda: cursor.get_key(), '/requires key be set/')
+            walked = []
+            while step() == 0:
+                walked.append(cursor.get_key())
+            self.assertEqual(walked, rest)
+        self.assertEqual(self.get_follower_stat(stat.conn.layered_curs_blind_remove_ingest_deleted),
+            removed + len(cursors))
         self.session_follow.rollback_transaction()
-        cursor.close()
+        for cursor, _, _ in cursors:
+            cursor.close()
 
-    def test_positioned_remove_after_rollback_search(self):
-        self.check_positioned_remove_after_rollback(by_search=True)
+    def test_remove_key_removed_by_other_txn(self):
+        self.check_remove_removed_key(
+            'ingest_key', 'ingest_val', lambda: self.remove_key('ingest_key'))
 
-    def test_positioned_remove_after_rollback_iterate(self):
-        self.check_positioned_remove_after_rollback(by_search=False)
+    def test_remove_truncated_key(self):
+        self.check_remove_removed_key(
+            'stable_key', 'stable_val', lambda: self.truncate_key('stable_key'))
+
+    # The cursors are positioned on another transaction's uncommitted insert of a truncated key,
+    # which rolls back. With nothing left on the key, the cursors lose their position.
+    def test_remove_rolled_back_key(self):
+        self.truncate_key('stable_key')
+        session = self.conn_follow.open_session('')
+        cursor = session.open_cursor(self.uri)
+        session.begin_transaction()
+        cursor['stable_key'] = 'uncommitted_val'
+        self.check_remove_removed_key('stable_key', 'uncommitted_val', session.rollback_transaction,
+            read_uncommitted=True, keeps_position=False)
+        session.close()
 
     # A concurrent update to the key, committed later or prepared, makes a blind remove fail with a
     # write conflict without opening stable, and the key keeps the other transaction's outcome.

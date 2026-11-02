@@ -3424,7 +3424,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     bool hold_value =
       clayered->current_cursor != NULL && F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT);
 
-    bool looked_up = false, removed_local = false;
+    bool removed_local = false;
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
@@ -3432,7 +3432,6 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             WT_RET(__clayered_lookup_blind_remove(op, &value, &removed_local));
         else
             WT_RET(__clayered_lookup(op, &value));
-        looked_up = true;
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
         WT_ITEM_SET(value, c_ingest->value);
@@ -3445,8 +3444,13 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             return (WT_NOTFOUND);
 
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_ingest_deleted);
-        /* Reset the cursor if the lookup finds the key already removed. */
-        if (looked_up)
+        /*
+         * Keep the position if a constituent is still on the key. If the cursor got to the key
+         * through an ingest entry that was later rolled back, nothing is left on the key and the
+         * next walk cannot continue from it, so reset the cursor.
+         */
+        if (clayered->current_cursor == NULL ||
+          !F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT))
             WT_RET(__clayered_reset_cursors(clayered, false));
         return (0);
     }
