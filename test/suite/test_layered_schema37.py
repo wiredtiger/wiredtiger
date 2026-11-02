@@ -55,14 +55,14 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
     def table_config(self):
         return f'key_format={self.key_format},value_format={self.value_format}' + self.extra_config
 
-    def create_table(self, uri, timestamp=1):
+    def create_populated_table(self, uri, timestamp=1):
         self.session.create(uri, self.table_config())
         with self.transaction(commit_timestamp=timestamp):
             with WiredTigerCursor(self.session, uri) as cursor:
                 cursor[self.key] = self.value
 
-    def start_follower(self):
-        self.create_table(self.uri)
+    def create_table_and_start_follower(self):
+        self.create_populated_table(self.uri)
         self.leader_checkpoint(1)
         self.conn_follow, self.session_follow = self.open_follower()
 
@@ -70,13 +70,13 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
         with WiredTigerCursor(self.session_follow, 'metadata:') as cursor:
             return cursor[uri]
 
-    def follower_ingest_exists(self, layered_uri):
+    def follower_has_ingest_metadata(self, layered_uri):
         return self.uri_in_local_metadata(self.conn_follow, layered_uri)
 
     def lazy_ingest_creation_count(self):
         return self.get_stat(stat.conn.disagg_ingest_create_on_open, session=self.session_follow)
 
-    def assert_fail_to_create(self, uri):
+    def assert_ingest_open_fails(self, uri):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session_follow.open_cursor(uri), '/No such file or directory/')
         with WiredTigerCursor(self.session_follow, 'metadata:') as cursor:
@@ -86,13 +86,13 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
     # Opening a table creates ingest metadata that is reused by later opens and reopens, while
     # tables that are never opened have none.
     def test_ingest_creation_lifecycle(self):
-        self.create_table(self.uri + '_other')
-        self.start_follower()
-        self.assertFalse(self.follower_ingest_exists(self.layered_uri))
+        self.create_populated_table(self.uri + '_unopened')
+        self.create_table_and_start_follower()
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri))
 
         with WiredTigerCursor(self.session_follow, self.uri) as cursor:
             self.assertEqual(cursor[self.key], self.value)
-        self.assertTrue(self.follower_ingest_exists(self.layered_uri))
+        self.assertTrue(self.follower_has_ingest_metadata(self.layered_uri))
 
         config = self.follower_metadata(self.ingest_uri)
         for setting in (f'key_format="{self.key_format}"', f'value_format="{self.value_format}"',
@@ -113,45 +113,47 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
         self.assertEqual(get_table_id(self.session_follow, self.ingest_uri), ingest_id)
         self.assertEqual(self.lazy_ingest_creation_count(), 0)
 
-        self.assertFalse(self.follower_ingest_exists(self.layered_uri + '_other'))
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri + '_unopened'))
 
-    # A request naming a valid parent creates ingest metadata, while requests whose parent is
-    # missing, empty, mismatched, or dropped fail without creating anything.
     def test_ingest_creation_guards(self):
-        self.create_table(self.uri + '_other')
-        self.start_follower()
+        self.create_populated_table(self.uri + '_other')
+        self.create_table_and_start_follower()
 
         other_ingest_uri = self.ingest_uri.replace('.wt_ingest', '_other.wt_ingest')
         self.session_follow.open_cursor(other_ingest_uri).close()
-        self.assertTrue(self.follower_ingest_exists(self.layered_uri + '_other'))
+        self.assertTrue(self.follower_has_ingest_metadata(self.layered_uri + '_other'))
 
-        self.assert_fail_to_create('file:missing.wt_ingest')
-        self.assert_fail_to_create('file:.wt_ingest')
+        self.assert_ingest_open_fails('file:missing.wt_ingest')
+        self.assert_ingest_open_fails('file:.wt_ingest')
 
+    def test_ingest_creation_mismatched_parent(self):
+        self.create_table_and_start_follower()
         config = self.follower_metadata(self.layered_uri) + ',ingest="file:other.wt_ingest"'
         self.inject_stable_entry(self.conn_follow, self.layered_uri, config)
-        self.assert_fail_to_create(self.ingest_uri)
+        self.assert_ingest_open_fails(self.ingest_uri)
 
+    def test_ingest_creation_dropped_parent(self):
+        self.create_table_and_start_follower()
         self.session_follow.drop(self.uri)
-        self.assert_fail_to_create(self.ingest_uri)
+        self.assert_ingest_open_fails(self.ingest_uri)
 
     # Rolling back the transaction that first opened the table does not remove the created ingest
     # metadata.
     def test_transaction_rollback_preserves_created_ingest(self):
-        self.start_follower()
+        self.create_table_and_start_follower()
         with self.transaction(session=self.session_follow, rollback=True):
             with WiredTigerCursor(self.session_follow, self.uri) as cursor:
                 self.assertEqual(cursor[self.key], self.value)
-        self.assertTrue(self.follower_ingest_exists(self.layered_uri))
+        self.assertTrue(self.follower_has_ingest_metadata(self.layered_uri))
 
     # Steady-state pickup creates ingest metadata eagerly, while a table picked up at startup
     # remains deferred.
     def test_steady_state_pickup_creates_ingest_eagerly(self):
-        self.start_follower()
-        self.assertFalse(self.follower_ingest_exists(self.layered_uri))
+        self.create_table_and_start_follower()
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri))
 
-        self.create_table(self.uri + '_new', timestamp=2)
+        self.create_populated_table(self.uri + '_new', timestamp=2)
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint_and_wait(self.conn_follow)
-        self.assertTrue(self.follower_ingest_exists(self.layered_uri + '_new'))
+        self.assertTrue(self.follower_has_ingest_metadata(self.layered_uri + '_new'))
         self.assertEqual(self.lazy_ingest_creation_count(), 0)
