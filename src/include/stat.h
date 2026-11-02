@@ -594,7 +594,6 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_trees_walk_complete;
     int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
-    int64_t eviction_server_skip_unwanted_tree_early;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
@@ -794,6 +793,7 @@ struct __wt_connection_stats {
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t eviction_refill_waiters;
     int64_t eviction_worker_lock_wait_time;
     int64_t eviction_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
@@ -906,6 +906,8 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
     int64_t btree_open;
+    int64_t cond_signal_n_signals;
+    int64_t cond_signal_n_broadcast;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;
@@ -2037,6 +2039,8 @@ struct __wt_dsrc_stats {
  */
 #define WT_SESSION_STATS_BASE 4000
 struct __wt_session_stats {
+    int64_t cursor_next_entries_skipped;
+    int64_t cursor_prev_entries_skipped;
     int64_t bytes_read;
     int64_t bytes_write;
     int64_t lock_dhandle_wait;

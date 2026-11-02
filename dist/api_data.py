@@ -838,6 +838,10 @@ connection_runtime_config = [
                 standard dirty or update triggers won't become active until the cache fill ratio
                 first reaches this new, higher threshold.''',
                 min='0', max='50'),
+            Config('bounded_wake', 'true', r'''
+                Wake only as many threads waiting for eviction candidates as there are candidates
+                to take, instead of waking all of them every time candidates are queued.''',
+                type='boolean'),
             Config('cache_tolerance_for_app_eviction', '0', r'''
                 This setting establishes a tolerance level for the configured
                 \c eviction_dirty_trigger and \c eviction_update_trigger.
@@ -1051,9 +1055,13 @@ connection_runtime_config = [
     Config('statistics', 'none', r'''
         Maintain database statistics, which may impact performance. Choosing "all" maintains
         all statistics regardless of cost, "fast" maintains a subset of statistics that are
-        relatively inexpensive, "none" turns off all statistics. The "clear" configuration
-        resets statistics after they are gathered, where appropriate (for example, a cache size
-        statistic is not cleared, while the count of cursor insert operations will be cleared).
+        relatively inexpensive, "none" turns off all statistics. Choosing "tree_walk" gathers
+        per-page B-tree statistics by traversing the underlying trees, reading pages from disk as
+        needed, with cost proportional to tree size. Choosing "cache_walk" gathers per-page cache
+        statistics by traversing the underlying trees' cached pages, with cost proportional to the
+        number of cached pages. The "clear" configuration resets statistics after they are gathered,
+        where appropriate (for example, a cache size statistic is not cleared, while the count of
+        cursor insert operations will be cleared).
         When "clear" is configured for the database, gathered statistics are reset each time a
         statistics cursor is used to gather statistics, as well as each time statistics are logged
         using the \c statistics_log configuration. See @ref statistics for more information''',
@@ -1070,6 +1078,7 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_pickup_skip_signal',
         'disagg_role_transition',
+        'disagg_truncate_entry_insert',
         'drop_deferred_hold', 'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
         'disagg_stable_dhandle_delay',
@@ -1891,16 +1900,21 @@ methods = {
     Config('statistics', '', r'''
         Specify the statistics to be gathered. Choosing "all" gathers statistics regardless of
         cost and may include traversing on-disk files; "fast" gathers a subset of relatively
-        inexpensive statistics. The selection must agree with the database \c statistics
-        configuration specified to ::wiredtiger_open or WT_CONNECTION::reconfigure. For example,
-        "all" or "fast" can be configured when the database is configured with "all", but
-        the cursor open will fail if "all" is specified when the database is configured with
-        "fast", and the cursor open will fail in all cases when the database is configured
-        with "none". If "size" is configured, only the underlying size of the object on
-        disk is filled in and the object is not opened. If \c statistics is not configured,
-        the default configuration is the database configuration. The "clear" configuration
-        resets statistics after gathering them, where appropriate (for example, a cache size
-        statistic is not cleared, while the count of cursor insert operations will be cleared).
+        inexpensive statistics. Choosing "tree_walk" gathers per-page B-tree statistics by
+        traversing the underlying trees, reading pages from disk as needed, with cost proportional
+        to tree size. Choosing "cache_walk" gathers per-page cache statistics by traversing the
+        underlying trees' cached pages, with cost proportional to the number of cached pages.
+        The selection must agree with the database \c statistics configuration specified to
+        ::wiredtiger_open or WT_CONNECTION::reconfigure. For example, "all" or "fast" can be
+        configured when the database is configured with "all", but the cursor open will fail if
+        "all" is specified when the database is configured with "fast", and the cursor open will
+        fail in all cases when the database is configured with "none". If "size" is configured,
+        only the underlying size of the object on disk is filled in and the object is not opened.
+        The "size" option is cursor-only and cannot be combined with "all", "fast", "clear",
+        "tree_walk" or "cache_walk". If \c statistics is not configured, the default configuration
+        is the database configuration. The "clear" configuration resets statistics after gathering
+        them, where appropriate (for example, a cache size statistic is not cleared, while the
+        count of cursor insert operations will be cleared).
         At most one of the "otel_" options may also be configured to specify an OTel metric type.
         "otel_none" specifies that only metrics without an OTel metric type are gathered. See @ref
         statistics for more information''',
