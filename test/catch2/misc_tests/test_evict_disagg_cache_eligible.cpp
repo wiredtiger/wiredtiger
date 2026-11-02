@@ -38,6 +38,8 @@ make_dsk(uint32_t mem_size)
     dsk = static_cast<WT_PAGE_HEADER *>(calloc(1, sizeof(WT_PAGE_HEADER)));
     REQUIRE(dsk != nullptr);
     dsk->mem_size = mem_size;
+    /* A stored image always has at least one entry. */
+    dsk->u.entries = 1;
     return (dsk);
 }
 
@@ -149,7 +151,7 @@ struct eligibility_fixture {
     int64_t
     cold_not_cached() const
     {
-        return (conn->stats[session->stat_conn_bucket]->block_cache_cold_not_cached);
+        return (conn->stats[session->stat_conn_bucket]->disagg_victim_cache_cold_not_cached);
     }
 
     WTI_EVICT_VICTIM_REASON
@@ -320,6 +322,7 @@ TEST_CASE(
 
     WT_PAGE_HEADER replacement{};
     replacement.write_gen = 20;
+    replacement.u.entries = 1;
     const WT_PAGE_HEADER *disk_image = f.dsk;
 
     SECTION("The original image predates a write")

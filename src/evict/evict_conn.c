@@ -283,6 +283,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       &cache->cache_eviction_controls.cache_tolerance_for_app_eviction,
       (((uint8_t)cval.val / 10) * 10));
 
+    /* FIXME-WT-19007: the options below are only ever set, so reconfigure cannot turn them off. */
     WT_RET(__wt_config_gets(session, cfg, "eviction.incremental_app_eviction", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
@@ -290,6 +291,17 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "eviction.prefer_scrub_eviction", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
+
+    /* The options below are set or cleared on every reconfigure, so they can be turned off. */
+    WT_RET(__wt_config_gets(session, cfg, "eviction.bounded_wake", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_BOUNDED_WAKE);
+    else
+        F_CLR_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_BOUNDED_WAKE);
 
     /* Always store the override so reconfigure can return it to the heuristic default. */
     WT_RET(__wt_config_gets(session, cfg, "eviction.checkpoint_scrub_eviction", &cval));
@@ -302,10 +314,6 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "eviction.checkpoint_scrub_image_max", &cval));
     __wt_atomic_store_uint8_relaxed(
       &cache->cache_eviction_controls.checkpoint_scrub_image_max, (uint8_t)cval.val);
-
-    WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
-    if (cval.val != 0)
-        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
     WT_RET(__wt_config_gets(session, cfg, "eviction.app_eviction_min_cache_fill_ratio", &cval));
     __wt_atomic_store_uint8_relaxed(
@@ -496,7 +504,7 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
     evict = conn->evict;
     stats = conn->stats;
 
-    WT_STATP_CONN_SET(session, stats, block_cache_put_time_max,
+    WT_STATP_CONN_SET(session, stats, disagg_victim_cache_put_time_max,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_victim_cache_put_us));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_clean_page_size_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_clean_page_size_per_checkpoint));

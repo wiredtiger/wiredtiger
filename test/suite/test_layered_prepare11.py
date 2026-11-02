@@ -25,33 +25,46 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_layered_prepare11.py
+#   Preparing a transaction that truncated a range of a layered table on a follower aborts when the
+#   connection is configured to preserve prepared transactions.
 
-import wttest, wiredtiger
+import os
+import signal
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin, range_inclusive
+from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
-# Verify that a follower truncate obeys the commit timestamp requirement that every other write to
-# a disaggregated table obeys. The range holds no key the follower itself wrote, so the truncate
-# list entry is the only record of the operation.
-
 @disagg_test_class
-class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
-
-    test_name = __qualname__
-    conn_config = 'disaggregated=(role="leader"),'
-    uri = f'layered:{test_name}'
+class test_layered_prepare11(
+        LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase, suite_subprocess):
+    BASE_CONFIG = 'statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
+    conn_config = BASE_CONFIG + 'disaggregated=(role="leader"),'
+    uri = f'layered:{__qualname__}'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 100
 
-    def test_untimestamped_follower_truncate_is_refused(self):
-        keys = range_inclusive(1, self.nitems)
-        self.setup_leader(keys=keys)
-        self.setup_follower()
+    def test_prepared_follower_truncate_aborts(self):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        test_case = self.subprocess_prepared_follower_truncate
+        test_case_name = f"{test_case.__module__}.{test_case.__qualname__}"
+        home = self.crash_in_subprocess(test_case_name, test_case_name, signal.SIGABRT)
+        self.check_file_contains(os.path.join(home, "stderr.txt"),
+            "a prepared transaction cannot include a truncate entry when preserve_prepared is "
+            "configured")
+
+    def subprocess_prepared_follower_truncate(self):
+        self.session.create(self.uri, self.session_create_config())
+        self.populate(range_inclusive(1, self.nitems))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.session.checkpoint()
+        self.reopen_disagg_conn(self.BASE_CONFIG + 'disaggregated=(role="follower"),')
 
         start = self.session.open_cursor(self.uri)
         start.set_key(self.key(1))
@@ -62,9 +75,5 @@ class test_layered_fast_truncate22(LayeredFastTruncateConfigMixin, wttest.WiredT
         start.close()
         stop.close()
 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(),
-            '/commit timestamp is required for writes to disaggregated tables/')
-
-        # The refused commit rolled the truncate back, so every key is still visible.
-        self.assertEqual(self.visible_keys(), list(keys))
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10) +
+            ',prepared_id=' + self.prepared_id_str(1))

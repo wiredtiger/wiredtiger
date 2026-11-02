@@ -27,6 +27,8 @@
 #       otel_gauge     Point-in-time value that can go up and down
 #       otel_histogram Distribution of recorded values
 #       otel_none      Not an OTel metric (the default if otel_type is omitted)
+#
+# An otel_counter cannot have the no_clear flag, as OTel counters must be given in increments.
 
 from operator import attrgetter
 import sys
@@ -195,6 +197,8 @@ conn_stats = [
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_auto_wait_skipped', 'auto adjusting condition wait raced to update timeout and skipped updating'),
+    ConnStat('cond_signal_n_broadcast', 'counted condition wakes that fell back to a broadcast'),
+    ConnStat('cond_signal_n_signals', 'condition wakes done as individual signals'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),
     ConnStat('file_open', 'files currently open', 'no_clear,no_scale'),
     ConnStat('fsync_io', 'total fsync I/Os'),
@@ -243,12 +247,6 @@ conn_stats = [
     ##########################################
     # Block cache statistics
     ##########################################
-    # FIXME-WT-18764: seven of the stats below describe the disaggregated victim cache, not the
-    # block cache: app_thread_put_time, app_thread_puts, cold_not_cached, put_failures, put_time,
-    # put_time_max and puts. Eviction increments them on the page log cache path. That ticket moves
-    # them to the disagg group as disagg_victim_cache_*.
-    BlockCacheStat('block_cache_app_thread_put_time', 'time application threads spent adding pages to the disaggregated victim cache (usecs)'),
-    BlockCacheStat('block_cache_app_thread_puts', 'pages added to the disaggregated victim cache by application threads'),
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
     BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
@@ -266,16 +264,11 @@ conn_stats = [
     BlockCacheStat('block_cache_bytes_insert_read', 'total bytes inserted on read path'),
     BlockCacheStat('block_cache_bytes_insert_write', 'total bytes inserted on write path'),
     BlockCacheStat('block_cache_bytes_update', 'cached bytes updated'),
-    BlockCacheStat('block_cache_cold_not_cached', 'cold collection pages not added to the disaggregated victim cache during eviction'),
     BlockCacheStat('block_cache_eviction_passes', 'number of eviction passes'),
     BlockCacheStat('block_cache_hits', 'number of hits'),
     BlockCacheStat('block_cache_lookups', 'lookups'),
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
-    BlockCacheStat('block_cache_put_failures', 'failed page inserts into the disaggregated victim cache'),
-    BlockCacheStat('block_cache_put_time', 'time spent adding pages to the disaggregated victim cache (usecs)'),
-    BlockCacheStat('block_cache_put_time_max', 'maximum time spent adding a single page to the disaggregated victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
-    BlockCacheStat('block_cache_puts', 'pages added to the disaggregated victim cache'),
 
     ##########################################
     # Block manager statistics
@@ -445,6 +438,7 @@ conn_stats = [
     EvictStat('eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     EvictStat('eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
+    EvictStat('eviction_refill_waiters', 'threads waiting for candidates, summed over eviction server refills'),
     EvictStat('eviction_restored_pos', 'eviction walk restored position'),
     EvictStat('eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     EvictStat('eviction_root_pages_skipped', 'eviction server skipped the root pages'),
@@ -471,7 +465,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_stale_disagg_pages', 'eviction server skips pages on an outdated disaggregated read-only btree that a reader still has open'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
-    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips checkpointed stable btrees on followers when not looking for clean pages'),
+    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips btrees that are read-only when looking only for dirty or update pages and the btree holds none'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_trees_walk_complete', 'eviction server skips resuming trees whose walk already traversed the whole tree'),
@@ -545,6 +539,7 @@ conn_stats = [
     # Checkpoint statistics
     ##########################################
     CheckpointStat('checkpoint_disagg_metadata_apply', 'metadata operations applied during disaggregated checkpoint', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_disagg_metadata_drain_time', 'shared metadata queue drain most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_disagg_metadata_unstable', 'metadata operations skipped during disaggregated checkpoint because they were not stable', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
@@ -659,12 +654,18 @@ conn_stats = [
         'no_clear,no_scale'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
+    DisaggStat('disagg_drop_refused_unpublished_data', 'drops refused because the table holds unpublished data'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
     DisaggStat('disagg_role_leader', 'role leader'),
+    DisaggStat('disagg_schema_awaiting_checkpoint', 'schema operations currently awaiting a checkpoint', 'no_clear,no_scale', 'otel_gauge'),
+    DisaggStat('disagg_schema_awaiting_checkpoint_oldest', 'oldest schema operation currently awaiting a checkpoint, age since publish (secs)', 'no_clear,no_scale', 'otel_gauge'),
+    DisaggStat('disagg_schema_awaiting_publish', 'schema operations currently awaiting publish', 'no_clear,no_scale', 'otel_gauge'),
+    DisaggStat('disagg_schema_awaiting_publish_oldest', 'oldest schema operation currently awaiting publish, age (secs)', 'no_clear,no_scale', 'otel_gauge'),
+    DisaggStat('disagg_schema_canceled', 'unpublished schema operations canceled by a drop'),
     DisaggStat('disagg_snapshot_rebuild', 'snapshots rebuilt after racing a checkpoint pick-up or role change'),
     # FIXME-WT-18206: remove the mode statistic along with the legacy escaped-stable support.
     DisaggStat('disagg_stable_tombstone_encoding',
@@ -686,6 +687,13 @@ conn_stats = [
     DisaggStat('disagg_step_up_missing_stable_create_time', 'step up missing stable table create most recent time (msecs)'),
     DisaggStat('disagg_step_up_missing_stable_tables_created', 'step up missing stable tables created'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
+    DisaggStat('disagg_victim_cache_app_thread_put_time', 'time application threads spent adding pages to the victim cache (usecs)'),
+    DisaggStat('disagg_victim_cache_app_thread_puts', 'pages added to the victim cache by application threads'),
+    DisaggStat('disagg_victim_cache_cold_not_cached', 'cold collection pages not added to the victim cache during eviction'),
+    DisaggStat('disagg_victim_cache_put_failures', 'failed page inserts into the victim cache'),
+    DisaggStat('disagg_victim_cache_put_time', 'time spent adding pages to the victim cache (usecs)'),
+    DisaggStat('disagg_victim_cache_put_time_max', 'maximum time spent adding a single page to the victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
+    DisaggStat('disagg_victim_cache_puts', 'pages added to the victim cache'),
 
     ##########################################
     # Dhandle statistics
@@ -702,6 +710,7 @@ conn_stats = [
     # dh_sweep_dead_close formerly called dh_sweep_close.
     DhandleStat('dh_sweep_dead_close', 'connection sweep dead dhandles closed'),
     DhandleStat('dh_sweep_expired_close', 'connection sweep expired dhandles closed'),
+    DhandleStat('dh_sweep_ingest_close', 'connection sweep ingest dhandles closed after checkpoint coverage'),
     # Note dh_sweep_total_close = dh_sweep_dead_close + dh_sweep_expired_close
     DhandleStat('dh_sweep_ref', 'connection sweep candidate became referenced'),
     DhandleStat('dh_sweep_remove', 'connection sweep dhandles removed from hash list'),
@@ -1007,10 +1016,12 @@ conn_stats = [
     TxnStat('txn_commit', 'transactions committed'),
     TxnStat('txn_global_checkpoint_timestamp', 'transaction global checkpoint timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_durable_timestamp', 'transaction global durable timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_last_checkpoint_schema_epoch', 'transaction global last checkpoint disaggregated schema epoch', 'no_clear,no_scale'),
     TxnStat('txn_global_last_running_timestamp', 'transaction global last running timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_newest_timestamp', 'transaction global newest timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_oldest_timestamp', 'transaction global oldest timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_pinned_timestamp', 'transaction global pinned timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_stable_schema_epoch', 'transaction global stable disaggregated schema epoch', 'no_clear,no_scale'),
     TxnStat('txn_global_stable_timestamp', 'transaction global stable timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_version_cursor_timestamp', 'transaction global version cursor timestamp', 'no_clear,no_scale'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
@@ -1665,6 +1676,8 @@ session_stats = [
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
     SessionStat('cache_time_interruptible', 'time waiting for cache interruptible eviction (usecs)'),
     SessionStat('cache_time_mandatory', 'time waiting for mandatory cache eviction (usecs)'),
+    SessionStat('cursor_next_entries_skipped', 'Total number of entries skipped by cursor next calls, excluding history store and metadata'),
+    SessionStat('cursor_prev_entries_skipped', 'Total number of entries skipped by cursor prev calls, excluding history store and metadata'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),

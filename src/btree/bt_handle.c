@@ -601,9 +601,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
              * so the two never interleave and the role read below is the current role, never a
              * stale one. An open that lost the race sees the follower role here and returns EBUSY.
              * The layered cursor, for example, converts this EBUSY to a rollback, and the
-             * application's retry reopens the checkpoint view. FIXME-WT-18357: assert a follower
-             * holds no writable live stable handle, and separate a raced open from an open that
-             * begins on a follower.
+             * application's retry reopens the checkpoint view.
              */
             if (!__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) &&
               WT_URI_IS_STABLE(btree->dhandle->name) &&
@@ -788,7 +786,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
     WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
 
-    btree->modified = false; /* Clean */
+    __wt_atomic_store_bool_relaxed(&btree->modified, false); /* Clean */
 
     __wt_atomic_store_enum_relaxed(&btree->syncing, WT_BTREE_SYNC_OFF); /* Not syncing */
     btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);       /* Checkpoint generation */
@@ -878,7 +876,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * system's runtime write generation.
      */
     if (F_ISSET(session, WT_SESSION_IMPORT))
-        btree->modified = true;
+        __wt_atomic_store_bool_relaxed(&btree->modified, true);
 
     btree->checkpoint_timestamp =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
