@@ -92,12 +92,16 @@ class test_log05(wttest.WiredTigerTestCase):
                 self.open_conn()
 
             # Salvage truncates the corrupt log at the corrupt record before
-            # recovery returns, so a remaining file cannot contain the oversize
-            # record. Asynchronous log removal may have deleted it instead.
+            # recovery returns. With ftruncate the file ends at the offset;
+            # without it the remainder is zero-filled. Asynchronous log removal
+            # may have deleted the file instead.
             if os.path.exists(self.corrupted_file):
-                self.assertLessEqual(os.path.getsize(self.corrupted_file),
-                    self.corrupted_offset,
-                    f"{self.corrupted_file} was not truncated at the corruption offset")
+                with open(self.corrupted_file, 'rb') as f:
+                    f.seek(self.corrupted_offset)
+                    hdr = f.read(4)
+                self.assertTrue(len(hdr) == 0 or hdr == b'\x00' * 4,
+                    f"{self.corrupted_file}: corrupt record still present at "
+                    f"{self.corrupted_offset}: {hdr.hex()}")
 
         # Every injected corruption was truncated away, so reopening the
         # connection must not report one again. Recovery prints a notice when it
