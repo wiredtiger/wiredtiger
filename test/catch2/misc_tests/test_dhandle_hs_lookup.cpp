@@ -71,6 +71,37 @@ TEST_CASE("session->dhandle is unchanged after a cached history store lookup", "
     }
 }
 
+TEST_CASE("The pass lock permits acquisition of a closed dhandle", "[dhandle][evict]")
+{
+    connection_wrapper conn("WT_TEST.dhandle_hs_open");
+    auto *session = conn.create_session();
+    WT_DATA_HANDLE dhandle = {};
+    REQUIRE(__wt_rwlock_init(session, &dhandle.rwlock) == 0);
+    session->dhandle = &dhandle;
+
+    auto *pass_lock = &S2C(session)->evict->evict_pass_lock;
+    bool is_dead;
+    __wt_spin_lock(session, pass_lock);
+    FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
+    const int ret = __wt_session_lock_dhandle(session, 0, &is_dead);
+    const bool exclusive = F_ISSET(&dhandle, WT_DHANDLE_EXCLUSIVE);
+    FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
+    __wt_spin_unlock(session, pass_lock);
+
+    int release_ret = 0;
+    if (ret == 0 && !is_dead)
+        release_ret = __wt_session_release_dhandle(session);
+    else
+        WT_DHANDLE_CLEAR(session);
+    __wt_rwlock_destroy(session, &dhandle.rwlock);
+
+    CHECK(ret == 0);
+    CHECK(!is_dead);
+    CHECK(exclusive);
+    CHECK(release_ret == 0);
+    CHECK(session->dhandle == nullptr);
+}
+
 #ifndef _WIN32
 TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dhandle][evict]")
 {
@@ -103,6 +134,7 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
         }
         auto *caller_dhandle = session->dhandle;
         REQUIRE((caller_dhandle != nullptr) == with_caller_dhandle);
+        const uint32_t caller_lock_flags = session->lock_flags;
         WT_DHANDLE_ACQUIRE(dhandle);
         writer->dhandle = dhandle;
 
@@ -147,6 +179,7 @@ TEST_CASE("Cached history store lookup does not wait for a dhandle writer", "[dh
         CHECK(ret == WT_NOTFOUND);
         CHECK(hs_btree == nullptr);
         CHECK(session->dhandle == caller_dhandle);
+        CHECK(session->lock_flags == caller_lock_flags);
         CHECK(TAILQ_EMPTY(bucket));
         CHECK(__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0);
         WT_DHANDLE_RELEASE(dhandle);

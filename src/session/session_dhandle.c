@@ -230,8 +230,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         __wt_readunlock(session, &dhandle->rwlock);
     }
 
-    /* Sweep can hold the dhandle write lock while waiting for the eviction pass lock. */
-    if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS))
+    if (FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT))
         return (__wt_set_return(session, EBUSY));
 
     /*

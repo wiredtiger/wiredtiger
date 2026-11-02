@@ -85,6 +85,7 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     WT_DECL_RET;
     uint64_t hash_value;
     const char *uri;
+    bool dhandle_lock_nowait;
 
     /* The caller must hold the eviction pass lock to use the returned btree without a reference. */
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_pass_lock);
@@ -93,6 +94,9 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     WT_HS_ID_TO_URI(session, hs_id, uri);
 
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    /* Sweep can hold the dhandle write lock while waiting for the eviction pass lock. */
+    dhandle_lock_nowait = FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
+    FLD_SET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
     /*
      * A cache-hit reopen leaves the dhandle on the session, matching normal cursor-open behavior.
      * This caller only borrows the cursor, so restore the caller's dhandle rather than retaining a
@@ -100,6 +104,8 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
      */
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor));
+    if (!dhandle_lock_nowait)
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
     if (ret == 0) {
         *hs_btreep = CUR2BT(cursor);
         /*
