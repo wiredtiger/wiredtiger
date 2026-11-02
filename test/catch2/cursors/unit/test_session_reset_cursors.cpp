@@ -13,6 +13,10 @@
 #include "../../utils.h"
 #include "../../wrappers/connection_wrapper.h"
 
+/*
+ * WT_SESSION::reset discards cached resources (wiredtiger.h), including cursor key and value
+ * buffers, regardless of cursor position.
+ */
 TEST_CASE("Session reset frees unpositioned cursor buffers", "[session_reset]")
 {
     connection_wrapper conn(DB_HOME);
