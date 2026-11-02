@@ -98,3 +98,9 @@ class test_log05(wttest.WiredTigerTestCase):
                 self.assertLessEqual(os.path.getsize(self.corrupted_file),
                     self.corrupted_offset,
                     f"{self.corrupted_file} was not truncated at the corruption offset")
+
+        # Every injected corruption was truncated away, so reopening the
+        # connection must not report one again. Recovery prints a notice when it
+        # salvages a corrupt log, and the harness fails on unexpected output, so
+        # a surviving corruption fails this reopen.
+        self.reopen_conn()
