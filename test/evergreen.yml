@@ -2375,6 +2375,16 @@ tasks:
         vars:
           test_name: wt10897_compact_quick_interrupt
 
+  - name: csuite-wt18969-log-backup-seal-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt18969_log_backup_seal
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
