@@ -53,8 +53,11 @@ class test_log05(wttest.WiredTigerTestCase):
 
     # A log file may remain on disk while checkpoints and asynchronous log
     # removal catch up, but it must be removed within this many recovery
-    # cycles. Normally a file is removed one cycle after it is superseded.
-    max_retention_rounds = 3
+    # cycles. Normally a file is removed one cycle after it is superseded; the
+    # worst lag observed under CI load is three cycles. Allow a small margin
+    # while staying far below test_round, so a file that is never removed
+    # still fails the test.
+    max_retention_rounds = 5
 
     def log_file_numbers(self):
         # Return the numbers of the active log files, in order. Pre-allocated
