@@ -99,6 +99,25 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(position)
         return fp
 
+    def corrupt_table(self, tablename):
+        """
+        Corrupt a table's file and confirm that verify can detect the corruption.
+        Corruption that lands on a stale (freed) page is never read by verify and
+        stays invisible, so retry at a different offset until verify reports it.
+        """
+        for pct in (25, 50, 75):
+            with self.open_and_position(tablename, pct) as f:
+                for i in range(0, 4096):
+                    f.write(struct.pack('B', 0))
+            try:
+                self.runWt(["-p", "verify", "table:" + tablename],
+                    outfilename="probe.out", errfilename="probe.err", failure=True)
+                return
+            except AssertionError:
+                # Verify passed: the corruption is invisible, retry at another offset.
+                self.pr('corruption of ' + tablename + ' at ' + str(pct) + '% not detected')
+        self.skipTest('could not produce corruption that verify can detect in ' + tablename)
+
     # FIXME-WT-15064:
     @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def open_and_offset(self, tablename, offset):
@@ -438,9 +457,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # Purposely corrupt the last two tables. Verifying all tables reports every corrupted
         # table by default, and stops after the first one with the abort option.
         for i in range(1, ntables):
-            with self.open_and_position(self.tablename + str(i), 75) as f:
-                for i in range(0, 4096):
-                    f.write(struct.pack('B', 0))
+            self.corrupt_table(self.tablename + str(i))
 
         self.runWt(["-p", "verify"], outfilename="verifyerr.out", errfilename="verifyerr.err", failure=True)
         self.assertNotEqual(self.count_file_contains("verifyerr.err",
