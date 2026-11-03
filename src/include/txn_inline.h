@@ -1463,7 +1463,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
          * Stall here if the cache is completely full. Eviction check can return rollback, but the
          * WT_SESSION.begin_transaction API can't, continue on.
          */
-        WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
+        WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, true, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1518,7 +1518,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       __wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
+        WT_RET(__wt_cache_eviction_check(session, false, true, true, NULL));
 
     return (0);
 }

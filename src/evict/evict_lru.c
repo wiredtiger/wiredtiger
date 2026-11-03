@@ -2629,7 +2629,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  *     boundaries.
  */
 int
-__wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
+__wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -2730,7 +2730,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
             break;
 
         /* Last check if application wants to prevent the thread from evicting. */
-        if (!__evict_check_user_ok_with_eviction(session, busy))
+        if (!__evict_check_user_ok_with_eviction(session, interruptible))
             break;
 
         /* Evict a page. */
@@ -2758,14 +2758,14 @@ err:
         WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
-        if (busy) {
-            WT_STAT_CONN_INCR(session, application_cache_busy_ops);
-            WT_STAT_CONN_INCRV(session, application_cache_busy_time, elapsed);
-            WT_STAT_SESSION_INCRV(session, cache_time_busy, elapsed);
+        if (!interruptible) {
+            WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
         } else {
-            WT_STAT_CONN_INCR(session, application_cache_idle_ops);
-            WT_STAT_CONN_INCRV(session, application_cache_idle_time, elapsed);
-            WT_STAT_SESSION_INCRV(session, cache_time_idle, elapsed);
+            WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
         }
         session->cache_wait_us += elapsed;
         /*
