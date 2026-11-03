@@ -55,6 +55,22 @@ setup_mock_session()
     return session_mock;
 }
 
+static WT_TIME_AGGREGATE
+make_time_aggregate(wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_page_stop_durable_ts,
+  wt_timestamp_t oldest_start_ts, uint64_t newest_txn, wt_timestamp_t newest_stop_ts,
+  uint64_t newest_stop_txn)
+{
+    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE_INIT(&ta);
+    ta.newest_durable_ts = newest_durable_ts;
+    ta.newest_page_stop_durable_ts = newest_page_stop_durable_ts;
+    ta.oldest_start_ts = oldest_start_ts;
+    ta.newest_txn = newest_txn;
+    ta.newest_stop_ts = newest_stop_ts;
+    ta.newest_stop_txn = newest_stop_txn;
+    return (ta);
+}
+
 static WT_PAGE_HEADER
 make_ft_page_header()
 {
@@ -398,4 +414,53 @@ TEST_CASE(
     CHECK(unpack.ta.newest_durable_ts == 64);
     CHECK(unpack.ta.newest_page_stop_durable_ts == WT_TS_NONE);
     CHECK_FALSE(WT_TIME_AGGREGATE_HAS_STOP(&unpack.ta));
+}
+
+TEST_CASE("Time aggregate: mixed child stop durable time is within parent overall bound",
+  "[time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+    WT_TIME_AGGREGATE child, parent;
+
+    child = make_time_aggregate(150, WT_TS_NONE, 60, 10, WT_TS_MAX, WT_TXN_MAX);
+    parent = make_time_aggregate(200, WT_TS_NONE, 40, 20, WT_TS_MAX, WT_TXN_MAX);
+
+    CHECK_FALSE(WT_TIME_AGGREGATE_HAS_STOP(&child));
+    CHECK(__wt_time_aggregate_validate(session, &child, &parent, true) == 0);
+}
+
+TEST_CASE("Time aggregate: fully deleted child remains bounded by parent stop durable time",
+  "[time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+    WT_TIME_AGGREGATE child, parent;
+
+    child = make_time_aggregate(150, 150, 60, 10, 120, 10);
+    parent = make_time_aggregate(100, 100, 40, 20, WT_TS_MAX, WT_TXN_MAX);
+
+    CHECK(WT_TIME_AGGREGATE_HAS_STOP(&child));
+    CHECK(__wt_time_aggregate_validate(session, &child, &parent, true) == EINVAL);
+}
+
+TEST_CASE(
+  "Time aggregate: mixed siblings retain the fully deleted child's stop bound", "[time_aggregate]")
+{
+    auto session_mock = setup_mock_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+    WT_TIME_AGGREGATE fully_deleted_child, mixed_child, parent;
+
+    fully_deleted_child = make_time_aggregate(90, 90, 60, 10, 90, 10);
+    mixed_child = make_time_aggregate(200, WT_TS_NONE, 70, 20, WT_TS_MAX, WT_TXN_MAX);
+
+    WT_TIME_AGGREGATE_INIT_MERGE(&parent);
+    WT_TIME_AGGREGATE_MERGE(session, &parent, &fully_deleted_child);
+    WT_TIME_AGGREGATE_MERGE(session, &parent, &mixed_child);
+
+    CHECK(fully_deleted_child.newest_page_stop_durable_ts < mixed_child.newest_durable_ts);
+    CHECK(parent.newest_page_stop_durable_ts == fully_deleted_child.newest_page_stop_durable_ts);
+    CHECK(parent.newest_durable_ts == mixed_child.newest_durable_ts);
+    CHECK(__wt_time_aggregate_validate(session, &fully_deleted_child, &parent, true) == 0);
+    CHECK(__wt_time_aggregate_validate(session, &mixed_child, &parent, true) == 0);
 }
