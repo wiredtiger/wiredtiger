@@ -525,6 +525,35 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Wait for the special-purpose threads. */
     g.workers_finished = true;
+    if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)
+        testutil_check(__wt_thread_join(NULL, &stepdown_tid));
+    if (g.transaction_timestamps_config && !stepdown_triggered)
+        testutil_check(__wt_thread_join(NULL, &timestamp_tid));
+
+    /* Advance stable so eviction can make progress while background threads finish. */
+    if (g.transaction_timestamps_config &&
+      F_ISSET((WT_CONNECTION_IMPL *)conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        /* Calculate the final stable timestamp. */
+        if (!GV(RUNS_PREDICTABLE_REPLAY))
+            timestamp_sync_threads_commit_ts();
+        wt_timestamp_t stable_timestamp = timestamp_minimum_committed();
+
+        /* Respect the predictable replay endpoint. */
+        if (GV(RUNS_PREDICTABLE_REPLAY)) {
+            wt_timestamp_t stop_timestamp = __wt_atomic_load_uint64_acquire(&g.stop_timestamp);
+            if (stop_timestamp != WT_TS_NONE)
+                stable_timestamp = WT_MIN(stable_timestamp, stop_timestamp);
+        }
+
+        /* Advance stable while retaining oldest for historical reads. */
+        char config[WT_TS_HEX_STRING_SIZE + 32];
+        testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, stable_timestamp);
+        lock_writelock(session, &g.prepare_commit_lock);
+        testutil_check(conn->set_timestamp(conn, config));
+        lock_writeunlock(session, &g.prepare_commit_lock);
+        g.stable_timestamp = stable_timestamp;
+    }
+
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_join(NULL, &alter_tid));
     if (GV(BACKGROUND_COMPACT))
@@ -539,8 +568,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
-    if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)
-        testutil_check(__wt_thread_join(NULL, &stepdown_tid));
     if (disagg_is_multi_node() && !g.disagg_leader) {
         testutil_check(__wt_thread_join(NULL, &follower_tid));
         if (GV(DISAGG_SNAPSHOT_READ))
@@ -555,8 +582,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &key_rotation_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
-    if (g.transaction_timestamps_config && !stepdown_triggered)
-        testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
     trace_msg(session, "%s", "=============== thread ops stop");
