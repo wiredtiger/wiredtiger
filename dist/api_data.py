@@ -1946,6 +1946,10 @@ methods = {
         verification; by default all tables are verified, with every failure logged as it is
         found, and the return value reports the first failure''',
         type='boolean'),
+    Config('check_ids_only', 'false', r'''
+        when no URI is given, only run the database-wide unique btree ID check without
+        verifying any table''',
+        type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as

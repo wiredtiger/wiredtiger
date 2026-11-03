@@ -86,9 +86,10 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         # duplicate.
         session_follow.verify(self.uri)
 
-        # The "database:" URI runs only the database-wide checks and detects the duplicate.
+        # A NULL URI with check_ids_only skips the per-table verification and only runs the check
+        # for duplicate IDs.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session_follow.verify('database:'), '/WT_ERROR/')
+            lambda: session_follow.verify(None, 'check_ids_only=true'), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('metadata corruption')
 
         # Remove the fake entry so teardown verification passes.
@@ -126,7 +127,7 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         # database-wide checks.
         self.session.verify(self.uri)
 
-        # The "database:" URI verifies nothing but the database-wide checks.
+        # A NULL URI with check_ids_only verifies nothing but the database-wide checks.
         with self.expectedStderrPattern('metadata corruption.*dup_entry'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.verify('database:'), '/WT_ERROR/')
+                lambda: self.session.verify(None, 'check_ids_only=true'), '/WT_ERROR/')

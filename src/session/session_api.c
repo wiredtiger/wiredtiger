@@ -1896,18 +1896,20 @@ err:
 /*
  * __session_verify_dispatch --
  *     Route a verify call: no URI verifies every table in the database, anything else verifies a
- *     single object. The special "database:" URI runs the database-wide metadata consistency
- *     checks without verifying any particular object.
+ *     single object.
  */
 static int
 __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
-    /* Database-wide checks are independent of any particular btree, so they run once per call. */
-    if (uri != NULL && strcmp(uri, WT_VERIFY_DATABASE_URI) == 0)
-        return (__wt_verify_metadata_consistency(session));
+    WT_CONFIG_ITEM cval;
 
-    if (uri == NULL)
+    if (uri == NULL) {
+        /* With check_ids_only set, only run the database-wide checks, don't verify any table. */
+        WT_RET(__wt_config_gets(session, cfg, "check_ids_only", &cval));
+        if (cval.val != 0)
+            return (__wt_verify_metadata_consistency(session));
         return (__session_verify_all(session, cfg));
+    }
 
     return (__wt_schema_worker(
       session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
