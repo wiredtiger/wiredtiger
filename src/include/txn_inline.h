@@ -558,7 +558,7 @@ __wt_txn_op_delete_commit(
             ret = __wt_txn_timestamp_usage_check(session, op->btree,
               page_del->pg_del_start_ts != WT_TS_NONE ? page_del->pg_del_start_ts :
                                                         txn->time_point.commit_timestamp,
-              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+              WT_MAX(addr.ta.newest_durable_ts, addr.ta.newest_page_stop_durable_ts));
         WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         WT_ERR(ret);
     }
@@ -1286,7 +1286,7 @@ __wt_txn_ta_newest_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE 
 {
     if (ta->prepare)
         return (false);
-    return (__wt_txn_visible_all(session, ta->newest_stop_txn, ta->newest_stop_durable_ts));
+    return (__wt_txn_visible_all(session, ta->newest_stop_txn, ta->newest_page_stop_durable_ts));
 }
 
 /*
