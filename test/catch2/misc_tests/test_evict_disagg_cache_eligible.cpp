@@ -103,6 +103,7 @@ struct eligibility_fixture {
 
         /* Wire up the block manager -> block disagg -> page log chain. */
         block_disagg.plhandle = &plhandle;
+        block_disagg.type = WT_BLOCK_TYPE_DISAGG;
         bm.block = reinterpret_cast<WT_BLOCK *>(&block_disagg);
 
         /* Default to a valid, eligible disaggregated leaf page. */
