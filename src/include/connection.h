@@ -1072,10 +1072,11 @@ struct __wt_connection_impl {
 
     size_t session_scratch_max; /* Max scratch memory per session */
 
-    WT_CACHE *cache;                        /* Page cache */
-    wt_shared volatile uint64_t cache_size; /* Cache size (either statically
-                                     configured or the current size
-                                     within a cache pool). */
+    WT_CACHE *cache;                          /* Page cache */
+    wt_shared volatile uint64_t cache_size;   /* Cache size (either statically
+                                       configured or the current size
+                                       within a cache pool). */
+    bool eviction_updates_trigger_configured; /* Update trigger explicitly configured */
 
     WT_CONNECTION_LOAD_CONTROL load_control;
     WT_EVICT *evict;
