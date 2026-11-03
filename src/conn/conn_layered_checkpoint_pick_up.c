@@ -1140,6 +1140,8 @@ __disagg_pick_up_new_layered_table(WT_SESSION_IMPL *session, WT_CURSOR *md_curso
     /*
      * Startup cost scales with the number of tables, so the first pickup leaves each ingest table
      * to be created when it is first opened.
+     *
+     * FIXME-WT-19023: Defer ingest creation during steady-state checkpoint pickup too.
      */
     if (!is_startup) {
         WT_RET(__disagg_ensure_ingest_table(
