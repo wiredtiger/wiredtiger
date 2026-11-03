@@ -45,7 +45,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
     file_uris = [f"file:{test_name}c"]
     table_uris = [f"table:{test_name}d"]
     all_uris = layered_uris + file_uris + table_uris
-    with_ingest_uris = all_uris + [f"file:{test_name}a.wt_ingest", f"file:{test_name}b.wt_ingest"]
+    ingest_uris = [f"file:{test_name}a.wt_ingest", f"file:{test_name}b.wt_ingest"]
+    with_ingest_uris = all_uris + ingest_uris
 
     update_uris = [table_uris[0]] + ([layered_uris[0]] if len(layered_uris) > 0 else [])
     same_uris = list(set(all_uris) - set(update_uris))
@@ -133,8 +134,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris,
-            [uri for uri in self.with_ingest_uris if uri not in self.all_uris])
+        self.check_metadata_cursor(self.all_uris, self.ingest_uris)
 
         # Check tables after the restart, but before we step up as a leader
         for uri in self.all_uris:
@@ -231,8 +231,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)
 
-        self.check_metadata_cursor(self.all_uris,
-            [uri for uri in self.with_ingest_uris if uri not in self.all_uris])
+        self.check_metadata_cursor(self.all_uris, self.ingest_uris)
 
         # Check tables after the restart
         for uri in self.update_uris:
