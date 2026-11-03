@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 MongoDB, Inc.
+#
+# Copyright (c) 2014-present MongoDB, Inc.
+# Copyright (c) 2008-2014 WiredTiger, Inc.
+#    All rights reserved.
+#
 # See the file LICENSE for redistribution information.
 
-import json
+import os
 import re
-import subprocess
 import sys
+
+import requests
 
 TEAM = 'storage-engines-atomics-reviewers'
 HEADERS = {'src/include/gcc.h', 'src/include/msvc.h', 'src/include/hardware.h'}
@@ -17,23 +22,30 @@ def needs_review(files):
     return any(file['filename'] in HEADERS or file.get('previous_filename') in HEADERS or
         TOKENS.search(file.get('patch', '')) for file in files)
 
-def api(path, *options, body=None):
-    # gh inherits GH_TOKEN; never pass credentials as command-line arguments.
-    return json.loads(subprocess.check_output(['gh', 'api', path, *options],
-        input=json.dumps(body) if body is not None else None, text=True))
+def api(url, method='GET', body=None):
+    headers = {'Authorization': f"token {os.environ['GITHUB_TOKEN']}",
+        'Accept': 'application/vnd.github.v3+json'}
+    response = requests.request(method, url, headers=headers, json=body, timeout=30)
+    response.raise_for_status()
+    return response
 
 def run(repo, number):
-    path = f'repos/{repo}/pulls/{int(number)}'
-    pr = api(path)
+    url = f'https://api.github.com/repos/{repo}/pulls/{int(number)}'
+    pr = api(url).json()
     if pr['state'] != 'open':
         return
-    pages = api(f'{path}/files?per_page=100', '--paginate', '--slurp')
-    needed = needs_review([file for page in pages for file in page])
+    files = []
+    next_page = f'{url}/files?per_page=100'
+    while next_page:
+        response = api(next_page)
+        files.extend(response.json())
+        next_page = response.links.get('next', {}).get('url')
+    needed = needs_review(files)
     requested = any(team['slug'] == TEAM for team in pr['requested_teams'])
     print(f'Expert review needed: {needed}; already requested: {requested}')
     if needed != requested:
         method = 'POST' if needed else 'DELETE'
-        api(f'{path}/requested_reviewers', '--method', method, '--input', '-',
+        api(f'{url}/requested_reviewers', method,
             body={'reviewers': [], 'team_reviewers': [TEAM]})
         print(f'{method}: review request for @wiredtiger/{TEAM}')
 

@@ -4644,23 +4644,11 @@ tasks:
               exit 0
             fi
 
-            # Install a pinned gh CLI without requiring changes to the host image.
-            gh_version=2.65.0
-            if [ "$(uname -m)" = aarch64 ]; then
-              arch=arm64
-            elif [ "$(uname -m)" = x86_64 ]; then
-              arch=amd64
-            else
-              echo "Unsupported architecture"
-              exit 1
-            fi
-            archive=$(printf 'gh_%s_linux_%s' "$gh_version" "$arch")
-            curl --fail --silent --show-error --location \
-              "https://github.com/cli/cli/releases/download/v$gh_version/$archive.tar.gz" \
-              --output gh.tar.gz
-            tar -xzf gh.tar.gz
-            export PATH="$PWD/$archive/bin:$PATH"
-            export GH_TOKEN="${atomic_review_github_token}"
+            ${PREPARE_PATH}
+            virtualenv -p python3 venv
+            source venv/bin/activate
+            pip3 install requests==2.32.3
+            export GITHUB_TOKEN="${atomic_review_github_token}"
             python3 test/evergreen/atomic_review.py wiredtiger/wiredtiger "$pr_number"
 
   - name: code-change-report
