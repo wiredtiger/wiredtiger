@@ -572,6 +572,10 @@ struct __wt_connection_stats {
     int64_t eviction_queue_not_empty;
     int64_t eviction_dhandle_complete_walk;
     int64_t eviction_server_push_pages_failed_when_flaging;
+    int64_t eviction_server_refill_end_lap_complete;
+    int64_t eviction_server_refill_end_interrupted;
+    int64_t eviction_server_refill_end_shutdown;
+    int64_t eviction_server_refill_end_filled;
     int64_t eviction_server_skip_intl_page_non_aggressive;
     int64_t eviction_server_skip_pages_already_in_urgent_queue;
     int64_t cache_eviction_blocked_prefetched;
@@ -1077,6 +1081,8 @@ struct __wt_connection_stats {
     int64_t disagg_ingest_create_on_open_time;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_schema_canceled;
+    int64_t layered_curs_blind_remove_follower;
+    int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1882,6 +1888,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t layered_curs_blind_remove_follower;
+    int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;

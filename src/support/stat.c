@@ -352,6 +352,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "layered: Layered table cursor blind remove operations on a follower",
+  "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -850,6 +852,8 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_UPDATE,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
+  WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_DSRC_LAYERED_CURS_INSERT,
   WT_STAT_DSRC_LAYERED_CURS_MODIFY,
   WT_STAT_DSRC_LAYERED_CURS_NEXT,
@@ -1383,6 +1387,8 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->layered_curs_blind_remove_follower = 0;
+    stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -1934,6 +1940,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->layered_curs_blind_remove_follower += from->layered_curs_blind_remove_follower;
+    to->layered_curs_blind_remove_ingest_deleted += from->layered_curs_blind_remove_ingest_deleted;
     to->layered_curs_insert += from->layered_curs_insert;
     to->layered_curs_modify += from->layered_curs_modify;
     to->layered_curs_next += from->layered_curs_next;
@@ -2526,6 +2534,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->layered_curs_blind_remove_follower +=
+      WT_STAT_DSRC_READ(from, layered_curs_blind_remove_follower);
+    to->layered_curs_blind_remove_ingest_deleted +=
+      WT_STAT_DSRC_READ(from, layered_curs_blind_remove_ingest_deleted);
     to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_DSRC_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
@@ -2899,6 +2911,10 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server completed walks of all dhandles",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
+  "cache: eviction server refills that ended after visiting every handle",
+  "cache: eviction server refills that ended because a handle operation interrupted the walk",
+  "cache: eviction server refills that ended for shutdown or cache pool reconfiguration",
+  "cache: eviction server refills that ended with the queue filled",
   "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
@@ -3438,6 +3454,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "disagg: unpublished schema operations canceled by a drop",
+  "layered: Layered table cursor blind remove operations on a follower",
+  "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -4111,6 +4129,10 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY,
   WT_STAT_CONN_EVICTION_DHANDLE_COMPLETE_WALK,
   WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_LAP_COMPLETE,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_INTERRUPTED,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_SHUTDOWN,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_FILLED,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_ALREADY_IN_URGENT_QUEUE,
   WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PREFETCHED,
@@ -4610,6 +4632,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_INGEST_CREATE_ON_OPEN_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_SCHEMA_CANCELED,
+  WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
+  WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
   WT_STAT_CONN_LAYERED_CURS_MODIFY,
   WT_STAT_CONN_LAYERED_CURS_NEXT,
@@ -5311,6 +5335,10 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_queue_not_empty = 0;
     /* not clearing eviction_dhandle_complete_walk */
     stats->eviction_server_push_pages_failed_when_flaging = 0;
+    stats->eviction_server_refill_end_lap_complete = 0;
+    stats->eviction_server_refill_end_interrupted = 0;
+    stats->eviction_server_refill_end_shutdown = 0;
+    stats->eviction_server_refill_end_filled = 0;
     stats->eviction_server_skip_intl_page_non_aggressive = 0;
     stats->eviction_server_skip_pages_already_in_urgent_queue = 0;
     stats->cache_eviction_blocked_prefetched = 0;
@@ -5810,6 +5838,8 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_ingest_create_on_open_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->disagg_schema_canceled = 0;
+    stats->layered_curs_blind_remove_follower = 0;
+    stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -6505,6 +6535,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
     to->eviction_server_push_pages_failed_when_flaging +=
       WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
+    to->eviction_server_refill_end_lap_complete +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_lap_complete);
+    to->eviction_server_refill_end_interrupted +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_interrupted);
+    to->eviction_server_refill_end_shutdown +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_shutdown);
+    to->eviction_server_refill_end_filled +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_filled);
     to->eviction_server_skip_intl_page_non_aggressive +=
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_non_aggressive);
     to->eviction_server_skip_pages_already_in_urgent_queue +=
@@ -7169,6 +7207,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_schema_canceled += WT_STAT_CONN_READ(from, disagg_schema_canceled);
+    to->layered_curs_blind_remove_follower +=
+      WT_STAT_CONN_READ(from, layered_curs_blind_remove_follower);
+    to->layered_curs_blind_remove_ingest_deleted +=
+      WT_STAT_CONN_READ(from, layered_curs_blind_remove_ingest_deleted);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
