@@ -19,29 +19,29 @@ test('headers always match; other files match atomics, barriers and TSAN in the 
     assert.equal(needsReview([{filename: 'image.png'}]), false);
 });
 
-test('request only Luke, avoid duplicate requests, and remove when no longer needed', async () => {
+test('request the team, avoid duplicate requests, and remove when no longer needed', async () => {
     const calls = [];
-    const pr = {state: 'open', user: {login: 'someone-else'}, requested_reviewers: []};
+    const pr = {state: 'open', requested_teams: []};
     let files = [{filename: 'src/include/hardware.h'}];
     const github = {
         rest: {pulls: {
             get: async () => ({data: pr}), listFiles: 'files',
-            requestReviewers: async args => calls.push(['add', args.reviewers]),
-            removeRequestedReviewers: async args => calls.push(['remove', args.reviewers])
+            requestReviewers: async args => calls.push(['add', args.team_reviewers]),
+            removeRequestedReviewers: async args => calls.push(['remove', args.team_reviewers])
         }},
         paginate: async () => files
     };
     const context = {repo: {owner: 'example', repo: 'wiredtiger'}, payload: {pull_request: {number: 42}}};
     const execute = () => run({github, context, core: {info() {}}});
     await execute();
-    assert.deepEqual(calls, [['add', ['luke-pearson']]]);
-    pr.requested_reviewers = [{login: 'luke-pearson'}];
+    assert.deepEqual(calls, [['add', ['storage-engines-atomics-reviewers']]]);
+    pr.requested_teams = [{slug: 'storage-engines-atomics-reviewers'}];
     await execute();
     assert.equal(calls.length, 1);
     files = [{filename: 'src/txn/txn.c', patch: '+ordinary change'}];
     await execute();
-    assert.deepEqual(calls.at(-1), ['remove', ['luke-pearson']]);
-    pr.user.login = 'luke-pearson';
+    assert.deepEqual(calls.at(-1), ['remove', ['storage-engines-atomics-reviewers']]);
+    pr.state = 'closed';
     await execute();
     assert.equal(calls.length, 2);
 });
