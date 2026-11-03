@@ -373,7 +373,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor stable open raced a checkpoint pickup",
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
-  "layered: Layered table cursor stable open rolled back after racing a step-down",
+  "layered: Layered table cursor stable open retried after racing a step-down",
   "layered: Layered table cursor update operations",
   "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
@@ -3469,7 +3469,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor stable open raced a checkpoint pickup",
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
-  "layered: Layered table cursor stable open rolled back after racing a step-down",
+  "layered: Layered table cursor stable open retried after racing a step-down",
   "layered: Layered table cursor update operations",
   "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "

@@ -8115,8 +8115,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED	1672
 /*!
- * layered: Layered table cursor stable open rolled back after racing a
- * step-down
+ * layered: Layered table cursor stable open retried after racing a step-
+ * down
  */
 #define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE	1673
 /*! layered: Layered table cursor update operations */
@@ -10438,8 +10438,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED	2347
 /*!
- * layered: Layered table cursor stable open rolled back after racing a
- * step-down
+ * layered: Layered table cursor stable open retried after racing a step-
+ * down
  */
 #define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE	2348
 /*! layered: Layered table cursor update operations */
