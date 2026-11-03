@@ -3,6 +3,11 @@
 include:
 - filename: test/evergreen.yml
 
+parameters:
+  - key: atomic_review_pr_number
+    value: ""
+    description: "GitHub PR number for manually testing atomic reviewer notification"
+
 variables:
 # Template for perf-tasks
 - &perf-tasks-template
@@ -77,6 +82,17 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: doc-update
+
+- name: atomic-review-notification
+  display_name: "Atomic reviewer notification"
+  tags: ["pull_request"]
+  run_on:
+  - ubuntu2004-arm64-small
+  expansions:
+    ENABLE_TCMALLOC: 0
+    num_jobs: 1
+  tasks:
+    - name: atomic-review-notification
 
 - name: code-statistics
   display_name: "Ubuntu2004 ARM64 Code statistics"
