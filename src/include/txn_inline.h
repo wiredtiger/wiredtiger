@@ -1276,9 +1276,8 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
 /*
  * __wt_time_window_obsolete_at --
- *     Would a rebuild with the given oldest timestamp drop this cell? This is the timestamp half of
- *     __wt_txn_tw_stop_visible_all, for callers that hold an oldest timestamp from another
- *     connection's frame, where transaction ids are not comparable.
+ *     Is a value time window obsolete at the given oldest timestamp? Transaction ids are not comparable across connections sharing a disaggregated store, so only
+ *     the timestamp counts.
  */
 static WT_INLINE bool
 __wt_time_window_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)

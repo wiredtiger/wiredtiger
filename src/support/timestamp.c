@@ -405,9 +405,9 @@ __time_value_validate_parent_stable(
  *     cells still live under whoever is doing the rebuilding, which need not match what the
  *     checkpoint's own writer saw when it built the parent aggregate --
  *     a reader with no oldest timestamp of its own set yet, or one that has adopted a checkpoint
- *     whose oldest timestamp is ahead of its own, keeps a cell the writer had already dropped. Only
- *     cells the rebuild itself would drop are tolerated, so the check keeps its coverage of every
- *     other cell.
+ *     whose oldest timestamp is ahead of its own, keeps a cell the writer had already dropped.
+ *     Transaction ids are not comparable across connections sharing a disaggregated store, so only
+ *     the timestamp counts.
  *
  * FIXME-WT-17968: revisit whether this is still needed once the checkpoint pick-up pinned-timestamp
  *     gate is restored. A reader with no oldest timestamp of its own set yet has a pinned timestamp
