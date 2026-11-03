@@ -436,9 +436,8 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
 
     /*
      * A page rebuilt from a delta chain can hold a cell the checkpoint's own writer had already
-     * treated as obsolete when it built this aggregate, so that cell can exceed the aggregate on
-     * any of its timestamps. A full image has no such rebuild step, so a mismatch there stays a
-     * real failure.
+     * treated as obsolete when it built this aggregate; a full image has no such rebuild step, so a
+     * mismatch there stays a real failure.
      */
     obsolete_at_checkpoint = from_delta && __time_value_obsolete_at_checkpoint(session, tw);
 
