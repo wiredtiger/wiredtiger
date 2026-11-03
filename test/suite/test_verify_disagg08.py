@@ -45,13 +45,7 @@ from wtscenario import make_scenarios
 class test_verify_disagg08(wttest.WiredTigerTestCase):
     test_name = __qualname__
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    # The timestamp of the dropped key that falls outside the kept keys' aggregate.
-    clauses = [
-        ('durable_start_after', dict(clause='durable_start_after')),
-        ('start_before', dict(clause='start_before')),
-        ('durable_stop_after', dict(clause='durable_stop_after')),
-    ]
-    scenarios = make_scenarios(disagg_storages, clauses)
+    scenarios = make_scenarios(disagg_storages)
 
     conn_config = ('disaggregated=(role="leader"),cache_size=20MB,precise_checkpoint=true,'
                    'statistics=(all),'
@@ -78,10 +72,10 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         cursor.remove()
         self.session.commit_transaction(self.ts(t))
 
-    def evict(self, key, uri):
+    def evict(self, key):
         # Force the page holding key out of cache so the next access rebuilds it.
         s = self.conn.open_session('debug=(release_evict_page)')
-        cursor = s.open_cursor(uri, None, None)
+        cursor = s.open_cursor(self.uri, None, None)
         s.begin_transaction()
         cursor.set_key(key)
         cursor.search_near()
@@ -89,78 +83,7 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         s.rollback_transaction()
         s.close()
 
-    def set_stable(self, t):
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(t))
-
-    def build_durable_start_after(self, cursor):
-        # The dropped key is inserted at 3 and deleted at 4 by early transactions. The kept keys
-        # come from later transactions with an older timestamp, so the aggregate's newest durable
-        # start is 2, below the dropped key's 3.
-        self.put(cursor, 'a', 3)
-        self.remove(cursor, 'a', 4)
-        self.reader = self.conn.open_session('')
-        self.reader.begin_transaction()
-        for i in range(1, self.nitems):
-            self.put(cursor, str(i), 2)
-        self.set_stable(4)
-        self.session.checkpoint()
-
-        # Move oldest past the delete and rebuild the page under it. Deleting a kept key dirties
-        # the leaf without adding a start time, so the leader reconciles it without the dropped
-        # key.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
-        self.evict('1', self.uri)
-        self.remove(cursor, '1', 5)
-        self.set_stable(5)
-        self.session.checkpoint()
-
-    def build_start_before(self, cursor):
-        # The dropped key is inserted at 2 and deleted at 3 by early transactions. The kept keys
-        # come from later transactions with a newer timestamp, so the aggregate's oldest start is
-        # 5, above the dropped key's 2.
-        self.put(cursor, 'a', 2)
-        self.remove(cursor, 'a', 3)
-        self.reader = self.conn.open_session('')
-        self.reader.begin_transaction()
-        for i in range(1, self.nitems):
-            self.put(cursor, str(i), 5)
-        self.set_stable(5)
-        self.session.checkpoint()
-
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
-        self.evict('1', self.uri)
-        self.remove(cursor, '1', 6)
-        self.set_stable(6)
-        self.session.checkpoint()
-
-    def build_durable_stop_after(self, cursor):
-        # Every kept key is deleted at 3 by a transaction that started after the reader, so the
-        # aggregate's newest durable stop is 3, below the dropped key's delete at 5.
-        self.put(cursor, 'a', 2)
-        for i in range(1, self.nitems):
-            self.put(cursor, str(i), 2)
-        self.remove(cursor, 'a', 5)
-        self.reader = self.conn.open_session('')
-        self.reader.begin_transaction()
-        for i in range(1, self.nitems):
-            self.remove(cursor, str(i), 3)
-        self.set_stable(5)
-        self.session.checkpoint()
-
-        # A new key makes the next checkpoint a delta on top of the first image.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
-        self.evict('1', self.uri)
-        self.put(cursor, 'z', 6)
-        self.set_stable(6)
-        self.session.checkpoint()
-
-    def test_follower_keeps_key_leader_dropped(self):
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-                                ',stable_timestamp=' + self.timestamp_str(1))
-        self.session.create(self.uri, self.table_cfg)
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        getattr(self, 'build_' + self.clause)(cursor)
+    def verify_leader_and_follower(self, cursor):
         cursor.close()
 
         # A follower picks up only the latest checkpoint and has never set its oldest timestamp.
@@ -179,3 +102,86 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         self.reader.close()
         session_follow.close()
         conn_follow.close()
+
+    def test_durable_start_after(self):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+                                ',stable_timestamp=' + self.timestamp_str(1))
+        self.session.create(self.uri, self.table_cfg)
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        # The dropped key is inserted at 3 and deleted at 4 by early transactions. The kept keys
+        # come from later transactions with an older timestamp, so the aggregate's newest durable
+        # start is 2, below the dropped key's 3.
+        self.put(cursor, 'a', 3)
+        self.remove(cursor, 'a', 4)
+        self.reader = self.conn.open_session('')
+        self.reader.begin_transaction()
+        for i in range(1, self.nitems):
+            self.put(cursor, str(i), 2)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
+        self.session.checkpoint()
+
+        # Move oldest past the delete and rebuild the page under it. Deleting a kept key dirties
+        # the leaf without adding a start time, so the leader reconciles it without the dropped
+        # key.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
+        self.evict('1')
+        self.remove(cursor, '1', 5)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+        self.session.checkpoint()
+
+        self.verify_leader_and_follower(cursor)
+
+    def test_start_before(self):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+                                ',stable_timestamp=' + self.timestamp_str(1))
+        self.session.create(self.uri, self.table_cfg)
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        # The dropped key is inserted at 2 and deleted at 3 by early transactions. The kept keys
+        # come from later transactions with a newer timestamp, so the aggregate's oldest start is
+        # 5, above the dropped key's 2.
+        self.put(cursor, 'a', 2)
+        self.remove(cursor, 'a', 3)
+        self.reader = self.conn.open_session('')
+        self.reader.begin_transaction()
+        for i in range(1, self.nitems):
+            self.put(cursor, str(i), 5)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+        self.session.checkpoint()
+
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
+        self.evict('1')
+        self.remove(cursor, '1', 6)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
+        self.session.checkpoint()
+
+        self.verify_leader_and_follower(cursor)
+
+    def test_durable_stop_after(self):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+                                ',stable_timestamp=' + self.timestamp_str(1))
+        self.session.create(self.uri, self.table_cfg)
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        # Every kept key is deleted at 3 by a transaction that started after the reader, so the
+        # aggregate's newest durable stop is 3, below the dropped key's delete at 5.
+        self.put(cursor, 'a', 2)
+        for i in range(1, self.nitems):
+            self.put(cursor, str(i), 2)
+        self.remove(cursor, 'a', 5)
+        self.reader = self.conn.open_session('')
+        self.reader.begin_transaction()
+        for i in range(1, self.nitems):
+            self.remove(cursor, str(i), 3)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+        self.session.checkpoint()
+
+        # A new key makes the next checkpoint a delta on top of the first image.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
+        self.evict('1')
+        self.put(cursor, 'z', 6)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
+        self.session.checkpoint()
+
+        self.verify_leader_and_follower(cursor)
