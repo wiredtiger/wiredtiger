@@ -303,8 +303,8 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     dhandle = session->dhandle;
     ingest_cfg = layered_cfg = NULL;
 
-    if (!WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
-      !WT_URI_IS_INGEST(dhandle->name) || !__wt_conn_is_disagg(session))
+    if (!WT_DHANDLE_BTREE(dhandle) || !WT_URI_IS_INGEST(dhandle->name) ||
+      !__wt_conn_is_disagg(session))
         return (0);
     ingest_uri = dhandle->name;
 
