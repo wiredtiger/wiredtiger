@@ -31,16 +31,13 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_verify_disagg08.py
-#    Verify a data-store leaf rebuilt on a follower does not report corruption when the
+#    Verify a leaf page rebuilt on a follower does not report corruption when the
 # leader dropped a deleted key whose time window lies outside the aggregate of the keys it kept.
 #
-# The leader drops a deleted key only when its delete is visible to all, which needs both the
-# timestamp of the delete to be at or below the pinned timestamp and its transaction id to be
-# below the oldest transaction id. A long running transaction holds the oldest transaction id
-# back, so keys written after it started keep their times even though their timestamps are old.
-# Timestamps and transaction ids are not required to agree in order, so the dropped key can sit
-# above or below the kept keys on any timestamp. A follower whose oldest timestamp was never set
-# keeps the deleted key, which then disagrees with the checkpoint's aggregate.
+# The leader drops a deleted key when its delete is visible to all, which requires the checkpoint's
+# pinned timestamp, and oldest transaction id. Rebuilding the page requires the same information,
+# and a follower does not have access to same values from the checkpoint, which can lead to a
+# differently built page, which can then disagree with the checkpoint's aggregate.
 @disagg_test_class
 class test_verify_disagg08(wttest.WiredTigerTestCase):
     test_name = __qualname__
@@ -55,15 +52,13 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
 
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
     uri = f'layered:{test_name}'
-    nitems = 10
-    value = 'a' * 200
 
     def ts(self, t):
         return 'commit_timestamp=' + self.timestamp_str(t)
 
     def put(self, cursor, key, t):
         self.session.begin_transaction()
-        cursor[key] = self.value
+        cursor[key] = 'a' * 200
         self.session.commit_transaction(self.ts(t))
 
     def remove(self, cursor, key, t):
@@ -109,25 +104,24 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.table_cfg)
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        # The dropped key is inserted at 3 and deleted at 4 by early transactions. The kept keys
-        # come from later transactions with an older timestamp, so the aggregate's newest durable
+        # The dropped key is inserted at 3 and deleted at 4 by an early transaction. The kept key
+        # comes from a later transaction with an older timestamp, so the aggregate's newest durable
         # start is 2, below the dropped key's 3.
         self.put(cursor, 'a', 3)
         self.remove(cursor, 'a', 4)
+        # Pin the oldest transaction id by starting a long-running transaction, to ensure that
+        # kept keys do not have their time windows cleared.
         self.reader = self.conn.open_session('')
         self.reader.begin_transaction()
-        for i in range(1, self.nitems):
-            self.put(cursor, str(i), 2)
+        self.put(cursor, '1', 2)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
         self.session.checkpoint()
 
-        # Move oldest past the delete and rebuild the page under it. Deleting a kept key dirties
-        # the leaf without adding a start time, so the leader reconciles it without the dropped
-        # key.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
-        self.evict('1')
+        # Deleting a kept key dirties the leaf, so the leader reconciles it, and with the oldest
+        # timestamp being ahead of the delete, key 'a' is dropped in the delta.
         self.remove(cursor, '1', 5)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4) +
+                                ',stable_timestamp=' + self.timestamp_str(5))
         self.session.checkpoint()
 
         self.verify_leader_and_follower(cursor)
@@ -138,22 +132,24 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.table_cfg)
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        # The dropped key is inserted at 2 and deleted at 3 by early transactions. The kept keys
-        # come from later transactions with a newer timestamp, so the aggregate's oldest start is
+        # The dropped key is inserted at 2 and deleted at 3 by an early transaction. The kept key
+        # comes from a later transaction with a newer timestamp, so the aggregate's oldest start is
         # 5, above the dropped key's 2.
         self.put(cursor, 'a', 2)
         self.remove(cursor, 'a', 3)
+        # Pin the oldest transaction id by starting a long-running transaction, to ensure that
+        # kept keys do not have their time windows cleared.
         self.reader = self.conn.open_session('')
         self.reader.begin_transaction()
-        for i in range(1, self.nitems):
-            self.put(cursor, str(i), 5)
+        self.put(cursor, '1', 5)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
         self.session.checkpoint()
 
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
-        self.evict('1')
+        # Deleting a kept key dirties the leaf, so the leader reconciles it, and with the oldest
+        # timestamp being ahead of the delete, key 'a' is dropped in the delta.
         self.remove(cursor, '1', 6)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4) +
+                                ',stable_timestamp=' + self.timestamp_str(6))
         self.session.checkpoint()
 
         self.verify_leader_and_follower(cursor)
@@ -164,24 +160,25 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.table_cfg)
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        # Every kept key is deleted at 3 by a transaction that started after the reader, so the
-        # aggregate's newest durable stop is 3, below the dropped key's delete at 5.
+        # The dropped key is inserted at 2 and deleted at 5 by early transactions. The kept key is
+        # deleted at 3 by a later transaction with an older timestamp, so the aggregate's newest
+        # durable stop is 3, below the dropped key's 5.
         self.put(cursor, 'a', 2)
-        for i in range(1, self.nitems):
-            self.put(cursor, str(i), 2)
+        self.put(cursor, '1', 2)
         self.remove(cursor, 'a', 5)
+        # Pin the oldest transaction id by starting a long-running transaction, to ensure that
+        # kept keys do not have their time windows cleared.
         self.reader = self.conn.open_session('')
         self.reader.begin_transaction()
-        for i in range(1, self.nitems):
-            self.remove(cursor, str(i), 3)
+        self.remove(cursor, '1', 3)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
         self.session.checkpoint()
 
-        # A new key makes the next checkpoint a delta on top of the first image.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
-        self.evict('1')
+        # Inserting a new key dirties the leaf, so the leader reconciles it, and with the oldest
+        # timestamp being ahead of the delete, key 'a' is dropped in the delta.
         self.put(cursor, 'z', 6)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +
+                                ',stable_timestamp=' + self.timestamp_str(6))
         self.session.checkpoint()
 
         self.verify_leader_and_follower(cursor)
