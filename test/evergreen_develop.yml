@@ -3,11 +3,6 @@
 include:
 - filename: test/evergreen.yml
 
-parameters:
-  - key: atomic_review_pr_number
-    value: ""
-    description: "GitHub PR number for manually testing atomic reviewer notification"
-
 variables:
 # Template for perf-tasks
 - &perf-tasks-template

@@ -4617,8 +4617,18 @@ tasks:
       - func: "code coverage publish report"
 
   - name: atomic-review-notification
+    allowed_requesters: ["github_pr"]
     tags: ["pull_request"]
     commands:
+      - command: shell.exec
+        params:
+          shell: bash
+          script: |
+            pr_number="${github_pr_number|}"
+            if ! [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Missing or invalid automatic github_pr_number for PR testing."
+              exit 1
+            fi
       - func: "get project"
       - command: github.generate_token
         params:
@@ -4635,21 +4645,12 @@ tasks:
           silent: true
           script: |
             set -o errexit
-            pr_number="${github_pr_number|}"
-            if [ -z "$pr_number" ]; then
-              pr_number="${atomic_review_pr_number|}"
-            fi
-            if [ -z "$pr_number" ]; then
-              echo "No GitHub PR number; skipping reviewer notification."
-              exit 0
-            fi
-
             ${PREPARE_PATH}
             virtualenv -p python3 venv
             source venv/bin/activate
             pip3 install requests==2.32.3
             export GITHUB_TOKEN="${atomic_review_github_token}"
-            python3 test/evergreen/atomic_review.py wiredtiger/wiredtiger "$pr_number"
+            python3 test/evergreen/atomic_review.py wiredtiger/wiredtiger "${github_pr_number}"
 
   - name: code-change-report
     tags: ["pull_request_code_statistics"]
