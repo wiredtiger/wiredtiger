@@ -2078,13 +2078,13 @@ __evict_get_ref(
 
         num_buckets = bucketset->num_buckets;
 
-#define LRU_FOR_READS 1 /* Tracking LRU has cost. Use only if needed */
+#define LRU_FOR_READS 1
 
-/*
- * Width of the window of buckets, centred on the clock hand, that a search may start in. Starting
- * every search exactly on the hand would put every concurrent searcher on one bucket's locks. One
- * read generation's worth of buckets keeps the spread inside the current generation.
- */
+    /*
+	 * Width of the window of buckets, centred on the clock hand, that a search may start in. Starting
+	 * every search exactly on the hand would put every concurrent searcher on one bucket's locks. One
+	 * read generation's worth of buckets keeps the spread inside the current generation.
+	 */
 #define WT_EVICT_LRU_JITTER WT_EVICT_EXPECTED_CONTENTION
 
 #if LRU_FOR_READS
@@ -2131,17 +2131,13 @@ __evict_get_ref(
 
             /*
              * Reject an empty bucket with a single load, before touching its hash table.
-             *
-             * Racy but safe: a page enqueued concurrently is simply missed on this pass, which is
-             * already true of the unlocked TAILQ_EMPTY hint on the hash chains below.
              */
             if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
                 continue;
 
             /*
              * Every bucket holds one queue per tree, in a hashtable. Walk each hash chain under
-             * its own lock. Skipping a syncing tree costs a single check for the whole tree, rather
-             * than one check per page as it would in a flat queue.
+             * its own lock. Skipping a syncing tree costs a single check for the whole tree.
              */
             {
                 WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
@@ -2157,25 +2153,8 @@ __evict_get_ref(
                  * Start the sweep at a random slot. A tree lives in the slot its name hashes to, so
                  * sweeping from slot zero examines trees in a fixed order in every bucket, on every
                  * pass, by every thread: whichever tree occupies the lowest populated slot is
-                 * drained first and the others are only reached when it has nothing to give. That
-                 * is a per-tree bias, not a per-page one, and it does not average out.
+                 * drained first and the others are only reached when it has nothing to give.
                  *
-                 * A random start fixes the order but not the rate: each tree in the bucket is still
-                 * taken about equally often however many pages it holds, so a small tree is drained
-                 * as fast as a large one. For clean leaf levels, where which tree keeps its pages
-                 * decides the hit rate, draw once over the bytes in cache and take the first tree
-                 * whose footprint covers the draw, so a tree gives up pages in proportion to the
-                 * bytes it holds rather than the pages. Weighting by bytes rather than pages
-                 * matters when page sizes differ between trees: a page a seventh the size is then
-                 * evicted a seventh as often, which keeps the pages that deliver the most requests
-                 * per byte of cache. This is what the walk-based eviction does by budgeting each
-                 * tree's candidates by its share of cache bytes.
-                 *
-                 * Only per-tree footprints exist, not per-subqueue ones, so the draw is over the
-                 * whole cache and trees with no pages in this bucket carry weight the walk cannot
-                 * spend. When the draw runs past every tree present the bucket yields nothing this
-                 * time and the sweep moves on; that is bounded by the share of cache held by trees
-                 * absent from the bucket, and is counted.
                  */
                 weighted = __evict_level_is_clean_leaf((int)i);
                 passed_tree = false;
