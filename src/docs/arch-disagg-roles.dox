@@ -127,4 +127,6 @@ if they span reconfiguration. See
 WT_CONNECTION::set_timestamp for the step-down timestamp API and @ref error_handling for
 rollback handling.
 
+@subpage arch-disagg-step-down-concurrency
+
 */
