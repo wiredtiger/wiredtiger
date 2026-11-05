@@ -1004,6 +1004,54 @@ __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
+ * __session_dhandle_open_write_lock --
+ *     Return whether a handle must be opened under the schema write lock. Handles with special
+ *     flags stay exclusive and need the write lock to close. A live ingest constituent without a
+ *     metadata entry is created on open, and schema creation needs the write lock; a layered table
+ *     open opens its ingest constituent. The metadata check runs without the lock; the open repeats
+ *     it under the lock and only creates a table still missing.
+ */
+static int
+__session_dhandle_open_write_lock(
+  WT_SESSION_IMPL *session, const char *uri, uint32_t flags, bool *write_lockp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    char *cfg;
+
+    cfg = NULL;
+    *write_lockp = LF_ISSET(WT_BTREE_SPECIAL_FLAGS);
+    if (*write_lockp || !__wt_conn_is_disagg(session))
+        return (0);
+
+    if (WT_PREFIX_MATCH(uri, "layered:")) {
+        /* A missing layered table fails later in the open. */
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, uri, &cfg), false);
+        if (cfg == NULL)
+            goto err;
+        WT_ERR(__wt_config_getones(session, cfg, "ingest", &cval));
+        WT_ERR(__wt_scr_alloc(session, 0, &buf));
+        WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)cval.len, cval.str));
+        __wt_free(session, cfg);
+        uri = buf->data;
+    }
+
+    if (WT_URI_IS_INGEST(uri)) {
+        ret = __wt_metadata_search(session, uri, &cfg);
+        if (ret == WT_NOTFOUND) {
+            *write_lockp = true;
+            ret = 0;
+        }
+    }
+
+err:
+    __wt_free(session, cfg);
+    __wt_scr_free(session, &buf);
+    return (ret);
+}
+
+/*
  * __wt_session_get_dhandle --
  *     Get a data handle for the given name, set session->dhandle. Optionally if we opened a
  *     checkpoint return its checkpoint order number.
@@ -1065,7 +1113,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
              * FIXME-WT-16477: work around to ensure we always acquire the checkpoint lock before
              * the schema lock.
              */
-            bool checkpoint_lock_needed = false;
+            bool checkpoint_lock_needed = false, write_lock_needed = false;
             if (__wt_conn_is_disagg(session)) {
                 /*
                  * When reading checkpointed dhandles, we must hold the checkpoint lock. On
@@ -1083,12 +1131,11 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                 WT_WITH_CHECKPOINT_LOCK(session,
                   WT_WITH_SCHEMA_LOCK(
                     session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
-            } else if (LF_ISSET(WT_BTREE_SPECIAL_FLAGS))
-                /*
-                 * Open handles with special flags under the write lock. A bulk cursor keeps its
-                 * handle exclusive and needs the write lock to close it, and a thread holding the
-                 * read lock may wait for that handle.
-                 */
+                return (ret);
+            }
+
+            WT_ERR(__session_dhandle_open_write_lock(session, uri, flags, &write_lock_needed));
+            if (write_lock_needed)
                 WT_WITH_SCHEMA_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
             else
