@@ -292,6 +292,8 @@ int
 __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
+    WT_SESSION_IMPL *int_session = NULL;
+    uint64_t elapsed_us = 0, time_start = 0;
 
     WT_DATA_HANDLE *dhandle = session->dhandle;
     if (!WT_DHANDLE_BTREE(dhandle) || !WT_URI_IS_INGEST(dhandle->name) ||
@@ -329,8 +331,7 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
      * Use a separate session so schema creation cannot clear the caller's current data handle or
      * join its metadata tracking.
      */
-    uint64_t time_start = __wt_clock(session);
-    WT_SESSION_IMPL *int_session = NULL;
+    time_start = __wt_clock(session);
     WT_ERR(__wt_open_internal_session(S2C(session), "ingest-create-on-open", true,
       F_MASK(session, WT_SESSION_SAVE_ERRORS), session->lock_flags, &int_session));
     ret = __wti_layered_create_missing_ingest_table(int_session, ingest_uri, layered_cfg, false);
@@ -340,7 +341,7 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     WT_TRET(__wt_session_close_internal(int_session));
     WT_ERR(ret);
 
-    uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
+    elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
     WT_STAT_CONN_INCR(session, disagg_ingest_create_on_open);
     WT_STAT_CONN_INCRV(session, disagg_ingest_create_on_open_time, elapsed_us);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
