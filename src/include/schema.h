@@ -340,15 +340,16 @@ struct __wt_import_list {
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	WT_WITH_SCHEMA_READ_LOCK takes the lock for read, the others for write.
  *	If the session already holds the lock, the operation runs without locking
- *	again; the write variants check that the lock is not held for read.
+ *	again; the write variants abort if the lock is held for read.
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
  */
 #define WT_WITH_SCHEMA_LOCK(session, op)                                        \
     do {                                                                        \
-        WT_ASSERT(session,                                                      \
+        WT_ASSERT_ALWAYS(session,                                               \
           !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||          \
-            __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));    \
+            __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock),     \
+          "schema lock requested for write while held for read");               \
         WT_WITH_SCHEMA_LOCK_INT(session, __wt_writelock, __wt_writeunlock, op); \
     } while (0)
 #define WT_WITH_SCHEMA_READ_LOCK(session, op) \
@@ -360,9 +361,10 @@ struct __wt_import_list {
             !FLD_ISSET(session->lock_flags,                                                  \
               WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                    \
                 WT_SESSION_LOCKED_TABLE));                                                   \
-        WT_ASSERT(session,                                                                   \
+        WT_ASSERT_ALWAYS(session,                                                            \
           !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||                       \
-            __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));                 \
+            __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock),                  \
+          "schema lock requested for write while held for read");                            \
         int __schema_lock_ret = 0;                                                           \
         (ret) = 0;                                                                           \
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {                      \

@@ -65,6 +65,10 @@ NOTE: Some functions expect \c log_slot_lock to be acquired, then they temporari
 </table>
 
 <table class=lock-hierarchy>
+@row{READ \c schema_lock, &rarr;, WRITE \c table_lock}
+</table>
+
+<table class=lock-hierarchy>
 @row{\c checkpoint_lock, &rarr;, \c turtle_lock}
 </table>
 

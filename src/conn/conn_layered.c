@@ -652,12 +652,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     cursor = NULL;
     entry = NULL;
 
-    /*
-     * Ensure that the schema lock is held. We cannot check this via spinlock ownership, because
-     * this function might be called from an internal session, while the lock was acquired by its
-     * parent session.
-     */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
@@ -849,7 +844,7 @@ __wt_disagg_table_last_unpublished_op(WT_SESSION_IMPL *session, const char *tabl
 
     conn = S2C(session);
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (WT_SHARED_METADATA_NONE);
@@ -878,7 +873,7 @@ __wt_disagg_cancel_unpublished_op(
     WT_DISAGG_SCHEMA_OPS_STATS schema_stats = WT_DISAGG_SCHEMA_OPS_STATS_INIT;
 
     /* The schema lock serializes this against publish stamping the queued epochs. */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     __wt_spin_lock(session, &disagg->shared_metadata_queue_lock);
 

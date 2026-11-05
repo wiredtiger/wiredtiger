@@ -172,7 +172,7 @@ __create_next_file_id(WT_SESSION_IMPL *session, uint32_t *fileidp)
     WT_CONNECTION_IMPL *conn = S2C(session);
     *fileidp = 0;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /* FIXME-WT-18741: Widen file IDs to 64 bits to accommodate more files. */
     const uint32_t max_file_id = UINT32_MAX >> WT_BTREE_ID_NAMESPACE_BITS;
@@ -971,7 +971,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     cgname = filename = NULL;
     table = NULL;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     tablename = uri;
@@ -1103,7 +1103,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     tablecfg = NULL;
     meta_value = NULL;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     ret = __wt_config_getones(session, config, "log.enabled", &cval);
     WT_RET_NOTFOUND_OK(ret);
