@@ -78,6 +78,17 @@ buildvariants:
   tasks:
     - name: doc-update
 
+- name: atomic-review-notification
+  display_name: "Atomic reviewer notification"
+  tags: ["pull_request"]
+  run_on:
+  - ubuntu2004-arm64-small
+  expansions:
+    ENABLE_TCMALLOC: 0
+    num_jobs: 1
+  tasks:
+    - name: atomic-review-notification
+
 - name: code-statistics
   display_name: "Ubuntu2004 ARM64 Code statistics"
   run_on:
