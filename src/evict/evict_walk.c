@@ -127,11 +127,9 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_EVICT *evict;
-    uint64_t visited;
 
     conn = S2C(session);
     evict = conn->evict;
-    visited = 0;
 
     /*
      * Every walk point pins its page with a hazard pointer in the walk session, and between walks
@@ -142,7 +140,6 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (__wt_atomic_load_uint32_relaxed(&evict->walk_session->hazards.num_active) == 0)
             break;
-        ++visited;
         if (WT_DHANDLE_BTREE(dhandle)) {
             ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session, true)));
@@ -165,9 +162,6 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     if ((dhandle = evict->walk_tree) != NULL && WT_DHANDLE_BTREE(dhandle))
         ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
     __wti_evict_set_saved_walk_tree(session, NULL);
-
-    WT_STAT_CONN_INCR(session, eviction_server_clear_all_walks);
-    WT_STAT_CONN_INCRV(session, eviction_server_clear_all_walks_handles, visited);
     return (ret);
 }
 

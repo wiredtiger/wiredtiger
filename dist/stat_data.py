@@ -442,8 +442,6 @@ conn_stats = [
     EvictStat('eviction_restored_pos', 'eviction walk restored position'),
     EvictStat('eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     EvictStat('eviction_root_pages_skipped', 'eviction server skipped the root pages'),
-    EvictStat('eviction_server_clear_all_walks', 'eviction server cleared the walk points of all trees'),
-    EvictStat('eviction_server_clear_all_walks_handles', 'eviction server handles visited while clearing the walk points of all trees'),
     EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
     EvictStat('eviction_server_push_pages_failed_when_flaging', 'eviction server push pages to queue failed because of racing with setting flag'),
