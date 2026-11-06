@@ -108,7 +108,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconf
       session, &updates_trigger, "eviction updates trigger", conn->cache_size, shared));
     WT_RET(__wt_config_gets(session, cfg, "eviction.updates_trigger_auto_high", &cval));
     if (!explicit_updates_trigger && cval.val != 0 && !shared &&
-      conn->cache_size > 50ULL * WT_GIGABYTE)
+      conn->cache_size > 20ULL * WT_GIGABYTE)
         updates_trigger = 95;
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
