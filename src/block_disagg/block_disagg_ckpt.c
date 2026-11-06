@@ -102,7 +102,7 @@ __wti_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root
 
     WT_UNUSED(data_checksum);
 
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    block_disagg = __wt_block_as_disagg(session, bm->block);
 
     /*
      * Generate a checkpoint cookie used to find the checkpoint again (and distinguish it from a
@@ -133,7 +133,7 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
     char *stable_uri, *table_name;
     const char *md_value;
 
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    block_disagg = __wt_block_as_disagg(session, bm->block);
     conn = S2C(session);
 
     md_cursor = NULL;
@@ -243,11 +243,10 @@ __wti_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const ui
     WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
     uint8_t *endp;
 
-    WT_UNUSED(session);
     WT_UNUSED(addr_size);
     WT_UNUSED(checkpoint);
 
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    block_disagg = __wt_block_as_disagg(session, bm->block);
 
     *root_addr_sizep = 0;
 

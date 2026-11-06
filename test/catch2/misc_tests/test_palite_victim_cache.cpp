@@ -593,7 +593,7 @@ TEST_CASE("Layered skip-write retains the backing generation in the victim cache
     REQUIRE(cbt->ref->page == page);
     const WT_PAGE_BLOCK_META previous = page->disagg_info->block_meta;
     REQUIRE(previous.delta_count == 1);
-    auto *block_disagg = reinterpret_cast<WT_BLOCK_DISAGG *>(CUR2BT(cbt)->bm->block);
+    auto *block_disagg = __wt_block_as_disagg(CUR2S(cbt), CUR2BT(cbt)->bm->block);
     uint64_t durable_gen =
       victim_cache_durable_write_gen(read_session, block_disagg->plhandle, previous);
     REQUIRE(page->dsk->write_gen == original_gen);
@@ -792,8 +792,8 @@ TEST_CASE("Layered empty skip-write image with no delta chain is refused by the 
 
     /* The btree's own page log handle, to look the block's identity up in the cache. */
     WT_PAGE_LOG_HANDLE *plh;
-    WT_WITH_BTREE(
-      cursor_session, CUR2BT(cbt), plh = ((WT_BLOCK_DISAGG *)CUR2BT(cbt)->bm->block)->plhandle);
+    WT_WITH_BTREE(cursor_session, CUR2BT(cbt),
+      plh = __wt_block_as_disagg(cursor_session, CUR2BT(cbt)->bm->block)->plhandle);
     REQUIRE(plh != nullptr);
 
     /* The cache holds nothing for the block's identity. */
