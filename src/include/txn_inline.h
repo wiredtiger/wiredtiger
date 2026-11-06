@@ -1275,6 +1275,18 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __wt_time_window_obsolete_at --
+ *     Is a value time window obsolete at the given oldest timestamp? Transaction ids are not
+ *     comparable across connections sharing a disaggregated store, so only the timestamp counts.
+ */
+static WT_INLINE bool
+__wt_time_window_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
+{
+    return (oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
+      !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->durable_stop_ts <= oldest_ts);
+}
+
+/*
  * __wt_txn_ta_newest_stop_visible_all --
  *     Is the newest stop point of the given aggregated time window visible to all (possible)
  *     readers? A prepared time point is not visible to any reader, so exclude it first: the
