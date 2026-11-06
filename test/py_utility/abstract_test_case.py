@@ -80,12 +80,18 @@ class CapturedFd(object):
     sys.stderr behave normally (e.g. go to the tty), while the C stdout/stderr
     ends up in a file that we can verify.
     """
+    debug_config_notice = re.compile(
+        r'\[WT_VERB_CONFIGURATION\]\[NOTICE\]: wiredtiger_open debug_mode=.*$|'
+        r'"category":"WT_VERB_CONFIGURATION".*"verbose_level":"NOTICE".*'
+        r'"msg":"wiredtiger_open debug_mode=.*"}')
+
     def __init__(self, filename, desc):
         self.filename = filename
         self.desc = desc
         self.expectpos = 0
         self.file = None
         self.ignore_regex = None
+        self.noticepos = 0
 
     def setIgnorePattern(self, regex):
         self.ignore_regex = regex
@@ -97,7 +103,24 @@ class CapturedFd(object):
         """
         with open(filename, 'r') as f:
             f.seek(pos)
-            return shortenWithEllipsis(f.read(maxchars+1), maxchars)
+            if self.desc != 'standard output':
+                return shortenWithEllipsis(f.read(maxchars+1), maxchars)
+
+            # Forward debug configuration notices without changing the test's expected output.
+            chunks = []
+            size = 0
+            while size <= maxchars:
+                line = f.readline()
+                if not line:
+                    break
+                if self.debug_config_notice.search(line):
+                    if f.tell() > self.noticepos:
+                        AbstractWiredTigerTestCase.prout(line.rstrip())
+                        self.noticepos = f.tell()
+                else:
+                    chunks.append(line)
+                    size += len(line)
+            return shortenWithEllipsis(''.join(chunks), maxchars)
 
     def capture(self):
         """
@@ -145,7 +168,7 @@ class CapturedFd(object):
             self.file.flush()
         new_size = os.path.getsize(self.filename)
 
-        ignore = []
+        ignore = [self.debug_config_notice] if self.desc == 'standard output' else []
         if self.ignore_regex is not None:
             ignore.append(self.ignore_regex)
         if ignore_pat is not None:
@@ -181,6 +204,8 @@ class CapturedFd(object):
         """
         if self.file != None:
             self.file.flush()
+        if self.desc == 'standard output':
+            self.readFileFrom(self.filename, self.expectpos, os.path.getsize(self.filename))
         self.expectpos = os.path.getsize(self.filename)
 
     def checkAdditional(self, testcase, expect, ignore_pat=None):

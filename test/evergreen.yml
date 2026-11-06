@@ -1078,7 +1078,7 @@ functions:
         }
 
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} || fail
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} ${format_variant_args|} || fail
         done
   "format test predictable":
     command: shell.exec
@@ -1095,7 +1095,7 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
 
-        ../../../test/evergreen/format_test_predictable.sh ${times} ${test_format_extra_args}
+        ../../../test/evergreen/format_test_predictable.sh ${times} "${test_format_extra_args} ${format_variant_args|}"
   "format test script":
     command: shell.exec
     params:
@@ -1114,7 +1114,7 @@ functions:
         memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
         memory_max=$(( ($memory_max * 8) / (${num_jobs} * 1024 * 10) ))
         for i in $(seq ${times|1}); do
-          ./format.sh -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max 2>&1
+          ./format.sh -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max ${format_variant_args|} 2>&1
         done
   "format test disagg":
     command: shell.exec
@@ -1136,8 +1136,8 @@ functions:
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
           rm -rf RUNDIR
-          ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} || fail
-          ./t -R $format_args ${extra_args|} || fail
+          ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} ${format_variant_args|} || fail
+          ./t -R $format_args ${extra_args|} ${format_variant_args|} || fail
         done
   "many dbs test":
     command: shell.exec
@@ -1719,7 +1719,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
-          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
+          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false" debug.cursor_copy=1
 
   - &format-stress-asan-test
     exec_timeout_secs: 25200
@@ -1732,7 +1732,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360 -- debug.realloc_exact=0
+          format_test_script_args: -t 360 -- debug.realloc_exact=0 debug.cursor_copy=1
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -1745,7 +1745,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -R -t 360
+          format_test_script_args: -R -t 360 -- debug.cursor_copy=1
 
   - &recovery-stress-test
     exec_timeout_secs: 25200
@@ -4920,11 +4920,11 @@ tasks:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -S
+          format_test_script_args: -S -- debug.cursor_copy=1
       - func: "format test"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
+          test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)" debug.cursor_copy=1
 
   - name: format-stress-test-tsan
     tags: ["pull_request"]
@@ -7418,7 +7418,8 @@ buildvariants:
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     unit_test_ignore: test/suite/fail_lists/asan.fail
-    unit_test_variant_args: --asan
+    unit_test_variant_args: --asan --hook cursor_copy
+    format_variant_args: debug.cursor_copy=1
     ctest_extra_args: -E "wt12015_backup_corruption"
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
@@ -8229,7 +8230,8 @@ buildvariants:
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     unit_test_ignore: test/suite/fail_lists/asan.fail
-    unit_test_variant_args: --asan
+    unit_test_variant_args: --asan --hook cursor_copy
+    format_variant_args: debug.cursor_copy=1
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:

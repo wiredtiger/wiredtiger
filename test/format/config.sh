@@ -170,6 +170,8 @@ CONFIG configuration_list[] = {
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
+{"debug.cursor_copy", "copy cursor keys and values with the system allocator", C_BOOL, 0, 0, 0}
+
 {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
 
 /* FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate. */
