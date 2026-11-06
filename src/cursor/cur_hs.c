@@ -85,6 +85,7 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     WT_DECL_RET;
     uint64_t hash_value;
     const char *uri;
+    bool dhandle_lock_nowait;
 
     /* The caller must hold the eviction pass lock to use the returned btree without a reference. */
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_pass_lock);
@@ -93,6 +94,9 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     WT_HS_ID_TO_URI(session, hs_id, uri);
 
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    /* Sweep can hold the dhandle write lock while waiting for the eviction pass lock. */
+    dhandle_lock_nowait = FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
+    FLD_SET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
     /*
      * A cache-hit reopen leaves the dhandle on the session, matching normal cursor-open behavior.
      * This caller only borrows the cursor, so restore the caller's dhandle rather than retaining a
@@ -110,10 +114,14 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
          * history store dhandle is only swept after a step-down marks it outdated. Even then this
          * caller is safe: it reads the btree under the eviction pass lock, and sweep must close the
          * btree before freeing it, which waits for that lock.
+         *
+         * Closing the cursor can sweep the session's cached cursors, which reopens their handles.
          */
-        WT_RET(cursor->close(cursor));
+        ret = cursor->close(cursor);
     }
 
+    if (!dhandle_lock_nowait)
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT);
     return (ret);
 }
 

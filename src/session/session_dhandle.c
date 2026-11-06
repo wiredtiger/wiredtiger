@@ -230,6 +230,9 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         __wt_readunlock(session, &dhandle->rwlock);
     }
 
+    if (FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_LOCK_WAIT))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * Check that the handle is open. We've already incremented the reference count, so once the
      * handle is open it won't be closed by another thread.
