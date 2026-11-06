@@ -30,6 +30,7 @@ else()
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_clear_walks.cpp
         misc_tests/test_evict_disagg_cache_eligible.cpp
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
