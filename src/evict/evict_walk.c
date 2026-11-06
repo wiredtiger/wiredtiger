@@ -670,6 +670,17 @@ retry:
             if (!wanted) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree_early);
                 WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
+                /*
+                 * Skipping keeps the handle list lock across trees. Let a queued writer in rather
+                 * than make it wait out a run of skipped trees: a thread adding a handle may hold
+                 * the schema lock while it waits, and every other thread then waits behind it. The
+                 * saved walk tree keeps this handle alive and marks where to continue.
+                 */
+                if (__wt_rwlock_writer_waiting(&conn->dhandle_lock)) {
+                    __wti_evict_set_saved_walk_tree(session, dhandle);
+                    __wt_readunlock(session, &conn->dhandle_lock);
+                    dhandle_list_locked = false;
+                }
                 continue;
             }
         }

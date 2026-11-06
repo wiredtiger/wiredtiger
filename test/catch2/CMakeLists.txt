@@ -48,6 +48,7 @@ else()
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_ref_page_type.cpp
+        misc_tests/test_rwlock_writer_waiting.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_missing_stable.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
