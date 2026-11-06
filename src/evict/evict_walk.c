@@ -126,15 +126,48 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    WT_EVICT *evict;
+    uint64_t visited;
 
     conn = S2C(session);
+    evict = conn->evict;
+    visited = 0;
 
-    TAILQ_FOREACH (dhandle, &conn->dhqh, q)
+    /*
+     * Every walk point pins its page with a hazard pointer in the walk session, and between walks
+     * the walk session holds no other hazard pointer. Stop once none is left: visiting the rest of
+     * a long handle list clears nothing, and it holds the pass lock and the handle list lock that
+     * table opens and the sweep server wait for.
+     */
+    TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+        if (__wt_atomic_load_uint32_relaxed(&evict->walk_session->hazards.num_active) == 0)
+            break;
+        ++visited;
         if (WT_DHANDLE_BTREE(dhandle)) {
             ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session, true)));
         }
+    }
+
+#ifdef HAVE_DIAGNOSTIC
+    if (ret == 0)
+        TAILQ_FOREACH (dhandle, &conn->dhqh, q)
+            WT_ASSERT(session,
+              !WT_DHANDLE_BTREE(dhandle) ||
+                __wt_atomic_load_ptr_relaxed(&((WT_BTREE *)dhandle->handle)->evict_ref) == NULL);
+#endif
+
+    /*
+     * The scan resets a tree's end count when it moves on from it, and only reads the count when it
+     * resumes the saved walk tree, so the saved walk tree is the only one that needs its count
+     * reset.
+     */
+    if ((dhandle = evict->walk_tree) != NULL && WT_DHANDLE_BTREE(dhandle))
+        ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
     __wti_evict_set_saved_walk_tree(session, NULL);
+
+    WT_STAT_CONN_INCR(session, eviction_server_clear_all_walks);
+    WT_STAT_CONN_INCRV(session, eviction_server_clear_all_walks_handles, visited);
     return (ret);
 }
 
