@@ -603,10 +603,15 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WTI_CLAYERED_ROLE role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
+    WT_DECL_RET;
+    WTI_CLAYERED_ROLE role;
+    uint32_t flags;
+
+retry:
+    role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
       WTI_CLAYERED_ROLE_LEADER :
       WTI_CLAYERED_ROLE_FOLLOWER;
-    uint32_t flags = __clayered_enter_flags(clayered, mode, role);
+    flags = __clayered_enter_flags(clayered, mode, role);
 
     __clayered_assert_role_change(clayered, mode, role, flags);
 
@@ -632,8 +637,26 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
     WT_RET(__clayered_update_ingest(clayered, flags));
 
-    /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    WT_RET(__clayered_update_stable(clayered, flags, role));
+    /*
+     * Manage the stable: open it, advance to a newer checkpoint, or reopen on role change.
+     *
+     * A leader's open of the live stable table fails with EBUSY when a step-down wins the race to
+     * it. Restart under the follower role, as if the operation had started after the step-down:
+     * every role-dependent decision and check is redone, and a snapshot the follower cannot serve
+     * is still refused. The role re-read tells the refusal apart from other busy opens, such as a
+     * handle held for verify, which must not be retried; each retry requires a completed step-down,
+     * so it cannot spin.
+     */
+    ret = __clayered_update_stable(clayered, flags, role);
+    if (ret == EBUSY && !__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader)) {
+        WT_ASSERT(session, role == WTI_CLAYERED_ROLE_LEADER);
+        WT_ASSERT(session, session->err_info.sub_level_err == WT_CONFLICT_DISAGG);
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_stepdown_race);
+        /* Clear the refusal so it does not mask the outcome of the retry. */
+        __wt_session_reset_last_error(session);
+        goto retry;
+    }
+    WT_RET(ret);
 
     /*
      * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
@@ -1001,7 +1024,6 @@ err:
 static int
 __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
 {
-    WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
@@ -1015,20 +1037,8 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
     if (__clayered_stable_bind_check_needed(session))
         WT_RET(__clayered_stable_bind_check_role_change(session, true));
 
-    /*
-     * The open refuses with EBUSY and the disaggregated sub-error when a role change has happened
-     * since the operation was started. Convert it to a rollback: a cursor operation must not return
-     * EBUSY, and the application already retries a rollback, reopening the cursor for the current
-     * role. No other busy source is expected on this path.
-     */
-    ret = __clayered_open_stable_int(clayered, layered->stable_uri);
-    if (ret == EBUSY) {
-        WT_ASSERT(session, session->err_info.sub_level_err == WT_CONFLICT_DISAGG);
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_stepdown_race);
-        WT_RET_SUB(session, WT_ROLLBACK, WT_NONE,
-          "the live stable table open raced a step-down to the follower role");
-    }
-    return (ret);
+    /* A step-down racing the open refuses it with EBUSY; the caller retries for the new role. */
+    return (__clayered_open_stable_int(clayered, layered->stable_uri));
 }
 
 /*
