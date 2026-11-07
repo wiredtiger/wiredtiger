@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static int __layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
+  WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
@@ -102,6 +104,22 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     if (!stable_has_value && oldest != NULL && oldest->type == WT_UPDATE_TOMBSTONE &&
       !__wt_txn_upd_visible_all(session, oldest)) {
         ++*orphan_countp;
+
+        /*
+         * An in-flight prepared transaction was redirected to the stable btree when its update was
+         * read. Unless a newer update of the same transaction still reaches the stable btree, it
+         * must forget the key.
+         */
+        if (oldest->prepare_state == WT_PREPARE_INPROGRESS) {
+            for (upd = *updates_ptr; upd != oldest; upd = upd->next)
+                WT_ASSERT(session,
+                  upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == oldest->txnid &&
+                    upd->prepared_id == oldest->prepared_id);
+            /* Discard the operations for an orphan prepared delete when it is the newest update. */
+            if (*updates_ptr == oldest)
+                WT_ERR(__layered_drop_prepared_transaction_ops(
+                  session, key, CUR2BT(cbt), oldest->txnid, oldest->prepared_id));
+        }
 
         if (oldest_prev == NULL)
             *updates_ptr = NULL;
@@ -391,13 +409,14 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __layered_fix_prepared_transaction_callback --
- *     Callback for session walk to fix prepared transactions that may be active during the ingest
- *     btree drain.
+ *     Callback for session walk to redirect or drop a prepared transaction's operations on a key
+ *     during the ingest btree drain.
  */
 static int
 __layered_fix_prepared_transaction_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
+    WT_BTREE *btree;
     WT_FIX_PREPARED_COOKIE *cookie;
     WT_TXN *txn;
     bool patched;
@@ -406,6 +425,7 @@ __layered_fix_prepared_transaction_callback(
     txn = array_session->txn;
     *exit_walkp = false;
     patched = false;
+    btree = cookie->drop ? cookie->stable_btree : cookie->ingest_btree;
 
     if (!F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
@@ -431,10 +451,11 @@ __layered_fix_prepared_transaction_callback(
     for (size_t i = 0; i < txn->mod_count; i++) {
         WT_TXN_OP *op = &txn->mod[i];
 
-        if (op->type == WT_TXN_OP_NONE)
+        /* Other drain workers may redirect or free operations belonging to different tables. */
+        if (__wt_atomic_load_ptr_acquire(&op->btree) != btree)
             continue;
 
-        if (op->btree != cookie->ingest_btree)
+        if (op->type == WT_TXN_OP_NONE)
             continue;
 
         int cmp;
@@ -450,13 +471,27 @@ __layered_fix_prepared_transaction_callback(
         if (cmp > 0)
             break;
 
+        if (cookie->drop) {
+            /*
+             * Resolving the transaction searches the stable btree for the operation's key, which
+             * the skipped update never reached. Freeing the operation also releases the stable
+             * btree reference taken when it was redirected.
+             */
+            __wt_txn_op_free(session, op);
+#ifdef HAVE_DIAGNOSTIC
+            (void)__wt_atomic_sub_uint32_relaxed(&txn->prepare_count, 1);
+#endif
+            patched = true;
+            continue;
+        }
+
         /*
          * Mark the original update on the ingest btree as aborted. Otherwise, we may get a
          * WT_ROLLBACK error when we try to truncate the ingest btree.
          */
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
-        op->btree = cookie->stable_btree;
+        __wt_atomic_store_ptr_release(&op->btree, cookie->stable_btree);
         WT_ASSERT(
           session, __wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE);
 
@@ -513,6 +548,31 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
     cookie.stable_btree = stable_btree;
     cookie.txnid = txnid;
     cookie.prepared_id = prepared_id;
+    cookie.drop = false;
+
+    return (
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
+}
+
+/*
+ * __layered_drop_prepared_transaction_ops --
+ *     The drain skipped a key's update from an in-flight prepared transaction that had already been
+ *     redirected to the stable btree. Drop the transaction's operations on the key so committing or
+ *     rolling back the transaction does not look for the update. This assumes no concurrent
+ *     commit/rollback of the prepared transaction and no prepared fast-truncate operations.
+ */
+static int
+__layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
+  WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
+{
+    WT_FIX_PREPARED_COOKIE cookie;
+
+    cookie.key = key;
+    cookie.ingest_btree = NULL;
+    cookie.stable_btree = stable_btree;
+    cookie.txnid = txnid;
+    cookie.prepared_id = prepared_id;
+    cookie.drop = true;
 
     return (
       __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
