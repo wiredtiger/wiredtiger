@@ -78,6 +78,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
 {
     WT_DECL_RET;
     WT_UPDATE *oldest, *oldest_prev, *prev, *upd;
+    WT_UPDATE **rollbackp;
     bool stable_has_value;
 
     /*
@@ -90,16 +91,18 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /* We only need to check on the first pass. */
+    /* Rolled-back updates cannot supply a value for a subsequent remove. */
     oldest = oldest_prev = prev = NULL;
     stable_has_value = true;
     if (from_ts == WT_TS_NONE) {
         stable_has_value = __layered_stable_has_value(session, cbt);
-        for (upd = *updates_ptr; upd != NULL; prev = upd, upd = upd->next) {
-            oldest = upd;
-            oldest_prev = prev;
-        }
+        for (upd = *updates_ptr; upd != NULL; prev = upd, upd = upd->next)
+            if (upd->txnid != WT_TXN_ABORTED) {
+                oldest = upd;
+                oldest_prev = prev;
+            }
     }
+    rollbackp = oldest == NULL ? updates_ptr : &oldest->next;
     /* A globally visible tombstone may have already outlived its underlying value. */
     if (!stable_has_value && oldest != NULL && oldest->type == WT_UPDATE_TOMBSTONE &&
       !__wt_txn_upd_visible_all(session, oldest)) {
@@ -121,12 +124,25 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
                   session, key, CUR2BT(cbt), oldest->txnid, oldest->prepared_id));
         }
 
+        /* Preserve value-bearing rollback history below the orphan. */
         if (oldest_prev == NULL)
-            *updates_ptr = NULL;
+            *updates_ptr = oldest->next;
         else
-            oldest_prev->next = NULL;
+            oldest_prev->next = oldest->next;
+        rollbackp = oldest_prev == NULL ? updates_ptr : &oldest_prev->next;
         __wt_free(session, oldest);
     }
+
+    /* Aborted deletes in the older rollback history have no value to delete either. */
+    if (!stable_has_value)
+        while ((upd = *rollbackp) != NULL) {
+            WT_ASSERT(session, upd->txnid == WT_TXN_ABORTED);
+            if (upd->type == WT_UPDATE_TOMBSTONE) {
+                *rollbackp = upd->next;
+                __wt_free(session, upd);
+            } else
+                rollbackp = &upd->next;
+        }
     if (*updates_ptr == NULL)
         goto err;
     for (last_upd = *updates_ptr; last_upd->next != NULL; last_upd = last_upd->next)
