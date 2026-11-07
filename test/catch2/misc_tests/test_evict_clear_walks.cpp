@@ -227,7 +227,9 @@ TEST_CASE("Releasing walk points stops after the last walk point", "[evict]")
     for (WT_DATA_HANDLE *dhandle : walked) {
         t.make_walk_point(dhandle);
         btree_of(dhandle)->evict_walk_ends = 1;
-        last = std::max(last, t.position(dhandle));
+        int64_t pos = t.position(dhandle);
+        if (pos > last)
+            last = pos;
     }
     REQUIRE(t.hazards() == walked.size());
 
