@@ -126,14 +126,41 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    WT_EVICT *evict;
 
     conn = S2C(session);
+    evict = conn->evict;
 
-    TAILQ_FOREACH (dhandle, &conn->dhqh, q)
+    /*
+     * Every walk point pins its page with a hazard pointer in the walk session, and between walks
+     * the walk session holds no other hazard pointer. Stop once none is left: visiting the rest of
+     * a long handle list clears nothing, and it holds the pass lock and the handle list lock that
+     * table opens and the sweep server wait for.
+     */
+    TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+        if (__wt_atomic_load_uint32_relaxed(&evict->walk_session->hazards.num_active) == 0)
+            break;
         if (WT_DHANDLE_BTREE(dhandle)) {
             ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session, true)));
         }
+    }
+
+#ifdef HAVE_DIAGNOSTIC
+    if (ret == 0)
+        TAILQ_FOREACH (dhandle, &conn->dhqh, q)
+            WT_ASSERT(session,
+              !WT_DHANDLE_BTREE(dhandle) ||
+                __wt_atomic_load_ptr_relaxed(&((WT_BTREE *)dhandle->handle)->evict_ref) == NULL);
+#endif
+
+    /*
+     * The scan resets a tree's end count when it moves on from it, and only reads the count when it
+     * resumes the saved walk tree, so the saved walk tree is the only one that needs its count
+     * reset.
+     */
+    if ((dhandle = evict->walk_tree) != NULL && WT_DHANDLE_BTREE(dhandle))
+        ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
     __wti_evict_set_saved_walk_tree(session, NULL);
     return (ret);
 }
@@ -328,6 +355,24 @@ __evict_disagg_btree_skip_count(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __evict_btree_has_interest --
+ *     Return true if the btree in the session's data handle has bytes of interest for the current
+ *     eviction mode: evictable bytes (excluding the root page) when looking for clean pages, dirty
+ *     leaf bytes when looking for dirty pages, update bytes when looking for pages with updates.
+ */
+static WT_INLINE bool
+__evict_btree_has_interest(WT_SESSION_IMPL *session)
+{
+    WT_EVICT *evict;
+
+    evict = S2C(session)->evict;
+
+    return ((F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && __wt_btree_bytes_evictable(session) > 0) ||
+      (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && __wt_btree_dirty_leaf_inuse(session) > 0) ||
+      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __wt_btree_bytes_updates(session) > 0));
+}
+
+/*
  * __wti_evict_walk --
  *     Fill in the array by walking the next set of pages.
  */
@@ -345,7 +390,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool aggressive, covered, dhandle_list_locked, resume, shutdown, try_publish;
+    bool aggressive, covered, dhandle_list_locked, resume, shutdown, try_publish, wanted;
 
     WT_TRACK_OP_INIT(session);
 
@@ -603,6 +648,43 @@ retry:
 
         btree->evict_walk_skips = 0;
 
+        /*
+         * Skip a tree with no bytes of interest while still holding the handle list lock, which is
+         * far cheaper than releasing it, walking the tree to find that out and taking it again. The
+         * root page is only safe to read with the walk lock held, as that is what a closing thread
+         * takes before discarding it. A tree awaiting publication still has to reach the publish
+         * step.
+         *
+         * Only try to acquire the lock, never wait for it, and fall through to the full path if it
+         * is busy. A thread turning off eviction holds this lock while it waits for the eviction
+         * server to acknowledge that it has stopped using the tree, so waiting here could deadlock
+         * with it. Even without a deadlock, waiting would stall the eviction server, and keep the
+         * handle list lock held while it waits, to save work on a tree that the full path handles
+         * correctly anyway.
+         */
+        if (!try_publish && !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
+            wanted = true;
+            if (__wt_btree_eviction_enabled(btree) && btree->root.page != NULL)
+                WT_WITH_DHANDLE(session, dhandle, wanted = __evict_btree_has_interest(session));
+            __wt_spin_unlock(session, &evict->evict_walk_lock);
+            if (!wanted) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree_early);
+                WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
+                /*
+                 * Skipping keeps the handle list lock across trees. Let a queued writer in rather
+                 * than make it wait out a run of skipped trees: a thread adding a handle may hold
+                 * the schema lock while it waits, and every other thread then waits behind it. The
+                 * saved walk tree keeps this handle alive and marks where to continue.
+                 */
+                if (__wt_rwlock_writer_waiting(&conn->dhandle_lock)) {
+                    __wti_evict_set_saved_walk_tree(session, dhandle);
+                    __wt_readunlock(session, &conn->dhandle_lock);
+                    dhandle_list_locked = false;
+                }
+                continue;
+            }
+        }
+
         __wti_evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
         dhandle_list_locked = false;
@@ -754,11 +836,9 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     WT_EVICT *evict;
     uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_per_slot, cache_inuse;
     uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
-    bool want_tree;
 
     cache = S2C(session)->cache;
     evict = S2C(session)->evict;
-    btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
@@ -803,15 +883,9 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * them use enough of the cache to be allocated slots. Only skip a tree if it has no bytes of
      * interest.
      */
-    if (target_pages == 0) {
-        want_tree = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && (btree_clean_inuse > 0)) ||
-          (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && (btree_dirty_inuse > 0)) ||
-          (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && (btree_updates_inuse > 0));
-
-        if (!want_tree) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
-            return (0);
-        }
+    if (target_pages == 0 && !__evict_btree_has_interest(session)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
+        return (0);
     }
 
     /*
@@ -1614,6 +1688,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
               (WT_REF_GET_STATE(ref) != WT_REF_MEM ||
                 __wti_evict_readgen_is_soon_or_wont_need(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
+
+            /*
+             * Moving on can end on the root, which the walk returns without a hazard pointer: clear
+             * it as above, so that every saved walk point holds one.
+             */
+            if (ref != NULL && __wt_ref_is_root(ref))
+                ref = NULL;
         }
         /*
          * The current ref is obtained from tree walk and is protected by a hazard pointer, so there
