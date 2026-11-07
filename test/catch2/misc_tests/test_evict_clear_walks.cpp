@@ -7,10 +7,12 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <catch2/catch.hpp>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "wt_internal.h"
@@ -21,7 +23,8 @@
  * release directly with the eviction pass lock held, so the eviction server cannot run alongside
  * them, and check the state it leaves behind: no walk point, no hazard pointer in the walk session,
  * no end count on the saved walk tree, no saved walk tree, and no tree visited after the last walk
- * point.
+ * point. With the same lock held, the last test runs the eviction scan itself over idle trees and
+ * checks that it lets a waiting writer take the handle list lock.
  */
 
 namespace {
@@ -83,7 +86,7 @@ struct walk_test {
     /* Declared last so it is released first, including when the constructor fails. */
     std::unique_ptr<pass_lock> locked;
 
-    walk_test()
+    explicit walk_test(int ntables = NTABLES)
     {
         WT_SESSION *wt_session;
         WT_CONNECTION *wt_conn = conn_wrapper.get_wt_connection();
@@ -93,7 +96,7 @@ struct walk_test {
         evict = conn->evict;
 
         /* Small trees with a resident leaf page under the root, each kept open by a cursor. */
-        for (int i = 0; i < NTABLES; ++i) {
+        for (int i = 0; i < ntables; ++i) {
             std::string uri = "file:test_evict_clear_walks" + std::to_string(i) + ".wt";
             WT_CURSOR *cursor;
             REQUIRE(
@@ -244,4 +247,66 @@ TEST_CASE("Releasing walk points stops after the last walk point", "[evict]")
     }
     CHECK(t.hazards() == 0);
     CHECK(btree_of(beyond)->evict_walk_ends == 1);
+}
+
+TEST_CASE("Skipping idle trees lets a waiting writer take the handle list lock", "[evict]")
+{
+    /* Enough idle trees that skipping them usually outlasts the writer queueing. */
+    walk_test t(50);
+    WT_CONNECTION *wt_conn = t.conn_wrapper.get_wt_connection();
+    WT_SESSION *wt_writer;
+    REQUIRE(wt_conn->open_session(wt_conn, nullptr, nullptr, &wt_writer) == 0);
+    WT_SESSION_IMPL *writer = (WT_SESSION_IMPL *)wt_writer;
+    WT_RWLOCK *dhandle_lock = &t.conn->dhandle_lock;
+
+    /* Target no dimension, so the scan finds nothing of interest and skips every tree early. */
+    uint32_t saved_flags = t.evict->flags;
+    FLD_CLR(t.evict->flags, WT_EVICT_CACHE_ALL);
+
+    /*
+     * Run a scan and, once it holds the handle list lock for reading, queue for the lock as a
+     * writer. Return whether the writer got the lock while the scan was still running and had saved
+     * one of the test's tables: the scan saves the tree it skips when it lets a writer in. The only
+     * other place the scan saves a tree and releases the lock is before walking a tree it wants,
+     * and the test's tables have a root page and nothing of interest, so the scan never wants them.
+     * A scan that never lets the writer in fails every attempt.
+     */
+    auto writer_got_in_during_scan = [&]() {
+        std::atomic<bool> scanning{false}, scan_done{false};
+        bool done_when_locked = true;
+        WT_DATA_HANDLE *saved_when_locked = nullptr;
+
+        t.clear_all();
+        std::thread writer_thread([&] {
+            while (!scanning)
+                std::this_thread::yield();
+            for (;;) {
+                WT_RWLOCK lock;
+                lock.u.v = __wt_atomic_load_uint64_v_relaxed(&dhandle_lock->u.v);
+                if (lock.u.s.readers_active != 0 || scan_done)
+                    break;
+            }
+            __wt_writelock(writer, dhandle_lock);
+            done_when_locked = scan_done;
+            saved_when_locked = __wt_atomic_load_ptr_relaxed(&t.evict->walk_tree);
+            __wt_writeunlock(writer, dhandle_lock);
+        });
+
+        scanning = true;
+        int ret = __wti_evict_walk(t.evict->walk_session, t.evict->evict_fill_queue);
+        scan_done = true;
+        writer_thread.join();
+
+        /* No page was queued for eviction. */
+        CHECK(ret == WT_NOTFOUND);
+        return (!done_when_locked &&
+          std::find(t.dhandles.begin(), t.dhandles.end(), saved_when_locked) != t.dhandles.end());
+    };
+
+    /* The writer queueing in time is a race, so give it several scans. */
+    bool got_in = false;
+    for (int attempt = 0; attempt < 20 && !got_in; ++attempt)
+        got_in = writer_got_in_during_scan();
+    t.evict->flags = saved_flags;
+    CHECK(got_in);
 }
