@@ -1688,6 +1688,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
               (WT_REF_GET_STATE(ref) != WT_REF_MEM ||
                 __wti_evict_readgen_is_soon_or_wont_need(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
+
+            /*
+             * Moving on can end on the root, which the walk returns without a hazard pointer: clear
+             * it as above, so that every saved walk point holds one.
+             */
+            if (ref != NULL && __wt_ref_is_root(ref))
+                ref = NULL;
         }
         /*
          * The current ref is obtained from tree walk and is protected by a hazard pointer, so there
