@@ -179,17 +179,22 @@ class test_schema_lock01(wttest.WiredTigerTestCase):
             t.start()
 
         # Each table has a table and a file handle. More expired closes than there are handles
-        # means at least one handle was swept, reopened and swept again.
+        # means at least one handle was swept, reopened and swept again. Each drop waits for a
+        # checkpoint, so also wait for the schema worker and checkpointer to make progress.
         target = 2 * self.ntables + 1
         try:
             while True:
                 closed = self.get_stat(stat.conn.dh_sweep_expired_close) - close_base
                 elapsed = time.monotonic() - start
-                if (closed >= target and elapsed >= self.min_run_secs) or self.failures:
+                progress = self.schema_ops > 0 and (
+                    not self.checkpoint_thread or self.checkpoints > 0)
+                if (closed >= target and progress and elapsed >= self.min_run_secs) or \
+                    self.failures:
                     break
                 self.assertLess(elapsed, self.deadline_secs,
-                    'seed %d: %d expired closes after %d seconds, expected %d' %
-                    (self.seed, closed, elapsed, target))
+                    'seed %d: after %d seconds %d expired closes (expected %d), '
+                    '%d schema ops, %d checkpoints' %
+                    (self.seed, elapsed, closed, target, self.schema_ops, self.checkpoints))
                 time.sleep(0.5)
         finally:
             self.stop.set()
