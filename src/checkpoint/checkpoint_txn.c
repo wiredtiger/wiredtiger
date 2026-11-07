@@ -281,7 +281,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     conn = S2C(session);
     dhandle = session->dhandle;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
     WT_ASSERT(session, dhandle->handle == btree);
 
     ckpt_epoch = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_disagg_schema_epoch);
@@ -363,7 +363,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* The schema lock prevents metadata changes while checkpoint reads the file. */
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /*
      * Decide whether the tree needs to be included in the checkpoint and if so, acquire the
@@ -950,7 +950,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp)
 
     API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         /* Precise checkpoint doesn't support non-timestamped checkpoint. */
