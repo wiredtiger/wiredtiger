@@ -3439,7 +3439,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (ret != 0 && ret != WT_NOTFOUND)
         WT_ERR(ret);
     conn->eviction_updates_trigger_configured = ret == 0;
-    ret = 0;
 
     /*
      * Merge the full configuration stack and save it for reconfiguration.
