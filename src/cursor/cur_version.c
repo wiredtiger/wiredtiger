@@ -280,12 +280,10 @@ __curversion_walk_to_next_update(
             first_globally_visible = next_upd;
 
         if (next_upd != upd) {
-            /*
-             * The previously returned update is not globally visible: snapshot isolation plus the
-             * pinned global timestamp guarantee this. Aborted updates are never globally visible.
-             */
+            /* Prepared and aborted updates are never globally visible. */
             WT_ASSERT(session,
-              version_cursor->upd_stop_txnid == WT_TXN_ABORTED ||
+              version_cursor->upd_stop_prepared ||
+                version_cursor->upd_stop_txnid == WT_TXN_ABORTED ||
                 !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
                   version_cursor->curversion_durable_stop_ts));
             break;
