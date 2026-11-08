@@ -303,9 +303,9 @@ struct __wt_import_list {
 
 /*
  * WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED --
- *	Assert that the session holds the schema lock for write. The lock does not
- *	record its owner, so check the session's lock flag, which an internal
- *	session inherits from the session that holds the lock.
+ *	Assert that the schema lock is held for write and the session has the
+ *	schema lock flag. The lock does not record its owner. An internal session
+ *	gets the flag from the session that holds the lock.
  */
 #define WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session)                  \
     WT_ASSERT(session,                                              \
@@ -339,8 +339,8 @@ struct __wt_import_list {
  * WT_WITH_SCHEMA_LOCK, WT_WITH_SCHEMA_READ_LOCK, WT_WITH_SCHEMA_LOCK_NOWAIT --
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	WT_WITH_SCHEMA_READ_LOCK takes the lock for read, the others for write.
- *	If the session already holds the lock, the operation runs without locking
- *	again; the write variants abort if the lock is held for read.
+ *	If the session already holds the lock, run the operation without locking
+ *	again. The write variants abort if the session holds the lock for read.
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
  */

@@ -327,7 +327,7 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     if (ret == WT_NOTFOUND)
         WT_ERR(__wt_set_return(session, ENOENT));
 
-    /* The handle open path takes the write lock when the ingest table is missing. */
+    /* Opening a handle takes the schema lock for write when the ingest table does not exist. */
     WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /*

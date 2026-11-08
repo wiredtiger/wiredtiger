@@ -130,8 +130,8 @@ __rwlock_wake_writer(WT_RWLOCK *l, uint8_t ticket)
     WT_FUTEX_WORD *slot, seq;
 
     /*
-     * Bump the word after the lock word has changed: a writer reads the word before checking the
-     * lock word, so it either sees its turn or fails its futex wait on the new value.
+     * Call this after the lock state changes. A waiting writer reads its slot before it checks the
+     * lock state, so it either sees its turn or its futex wait returns at once.
      */
     slot = (WT_FUTEX_WORD *)&l->writer_wait[ticket % WT_RWLOCK_WRITER_SLOTS];
     seq = __atomic_add_fetch(slot, 1, __ATOMIC_SEQ_CST);
@@ -421,6 +421,10 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * writers could be granted the lock simultaneously.
          */
         if (new.u.s.current == new.u.s.next) {
+            /*
+             * Unlock does not signal this wait: waking all of these writers on every unlock is
+             * slower than the timeout.
+             */
             __wt_cond_wait(session, l->cond_writers, 10 * WT_THOUSAND, NULL);
             continue;
         }
@@ -447,8 +451,8 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
             __wt_yield();
         else {
             /*
-             * Read the wait word before checking the lock word again, so a handoff between the
-             * check and the futex wait changes the word and the wait returns at once.
+             * Read the slot before checking the lock state. If the lock passes to this writer after
+             * the check, the slot changes and the futex wait returns at once.
              */
             seq = __atomic_load_n(slot, __ATOMIC_SEQ_CST);
             (void)__atomic_add_fetch(&l->writers_sleeping, 1, __ATOMIC_SEQ_CST);
@@ -560,8 +564,7 @@ __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 /*
  * __wt_rwlock_iswritelocked --
- *     Return if a read/write lock is currently locked for writing. The lock does not record its
- *     owner, so the writer can be any session.
+ *     Return whether a writer holds the lock. The lock does not record which session holds it.
  */
 bool
 __wt_rwlock_iswritelocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)

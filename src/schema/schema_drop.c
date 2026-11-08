@@ -523,8 +523,8 @@ __wt_schema_drop(
     WT_SESSION_IMPL *int_session;
 
     /*
-     * The schema lock must be held for write, possibly by the outer session when this runs on an
-     * internal session. The lock does not record its owner, so only the write mode is checked.
+     * The schema lock must be held for write. On an internal session the outer session holds it,
+     * and the lock does not record its owner, so only check that a writer holds it.
      */
     WT_ASSERT(session, __wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock));
 

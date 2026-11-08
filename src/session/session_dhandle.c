@@ -1005,11 +1005,12 @@ __session_dhandle_stable_delay_stress(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __session_dhandle_open_write_lock --
- *     Return whether a handle must be opened under the schema write lock. Handles with special
- *     flags stay exclusive and need the write lock to close. A live ingest constituent without a
- *     metadata entry is created on open, and schema creation needs the write lock; a layered table
- *     open opens its ingest constituent. The metadata check runs without the lock; the open repeats
- *     it under the lock and only creates a table still missing.
+ *     Return whether a handle must be opened under the schema write lock. A handle with special
+ *     flags is opened exclusive, and closing it needs the write lock. An ingest table without a
+ *     metadata entry is created on open, and creating a table needs the write lock. Opening a
+ *     layered table opens its ingest table, so the same check applies. The metadata is checked
+ *     here without the lock; the open checks it again under the lock and creates the table only if
+ *     it is still missing.
  */
 static int
 __session_dhandle_open_write_lock(
@@ -1026,7 +1027,7 @@ __session_dhandle_open_write_lock(
         return (0);
 
     if (WT_PREFIX_MATCH(uri, "layered:")) {
-        /* A missing layered table fails later in the open. */
+        /* If the layered table does not exist, the open fails later. */
         WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, uri, &cfg), false);
         if (cfg == NULL)
             goto err;
@@ -1140,10 +1141,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
             else
                 /*
-                 * Operations that need exclusive access to a tree, such as drop and verify, take
-                 * the schema lock for write. A read lock is enough to exclude them and lets threads
-                 * open different handles in parallel. Opens of the same handle are serialized by
-                 * the handle's exclusive lock.
+                 * Drop, verify and other operations that need exclusive access to a tree take the
+                 * schema lock for write, so the read lock keeps them out. Threads can open
+                 * different handles at the same time. Two opens of the same handle wait on the
+                 * handle's own lock.
                  */
                 WT_WITH_SCHEMA_READ_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));

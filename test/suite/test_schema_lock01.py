@@ -116,8 +116,9 @@ class test_schema_lock01(wttest.WiredTigerTestCase):
                 except wiredtiger.WiredTigerError as e:
                     if not self.schema_error(e):
                         raise
-                # A drop fails with EBUSY while the table has updates that are not yet globally
-                # visible or a reader has it open; a checkpoint clears the former.
+                # A drop fails with EBUSY while a reader has the table open or while the table has
+                # updates that are not yet globally visible. After a checkpoint only the first case
+                # remains.
                 while not self.stop.is_set():
                     try:
                         session.drop(uri)
