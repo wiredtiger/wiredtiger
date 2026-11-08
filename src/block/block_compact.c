@@ -28,8 +28,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
      */
     compact_session_id = __wt_atomic_load_uint32_acquire(&block->compact_session_id);
     if (compact_session_id != WT_SESSION_ID_INVALID) {
-        bool is_bg_compact =
-          (compact_session_id == S2C(session)->background_compact.session->id);
+        bool is_bg_compact = (compact_session_id == S2C(session)->background_compact.session->id);
 
         WT_RET_MSG(session, EBUSY,
           "%s compaction already happening on data handle %s by session %" PRIu32,
