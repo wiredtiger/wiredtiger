@@ -733,6 +733,7 @@ checkpointer(void *arg)
         t1 = now_ns();
         printf("checkpoint t=%.1f duration_ms=%.1f\n", (double)(t0 - start_ns) / 1e9,
           (double)(t1 - t0) / 1e6);
+        (void)fflush(stdout);
         if (__atomic_load_n(&measuring, __ATOMIC_RELAXED)) {
             ++ckpt_count;
             if (t1 - t0 > ckpt_max_ns)
@@ -759,6 +760,7 @@ conn_open(bool create)
       "close_handle_minimum=2000)%s",
       create ? "create," : "", cfg.cache_mb, cfg.idle, cfg.direct_io ? ",direct_io=(data)" : "");
     printf("config %s\n", cfg.conn_config);
+    (void)fflush(stdout);
     t0 = now_ns();
     CHK(wiredtiger_open(cfg.home, NULL, cfg.conn_config, &conn));
     return (now_ns() - t0);
@@ -802,6 +804,7 @@ create_tables(void)
         if ((i + 1) % 10000 == 0) {
             CHK(session->checkpoint(session, NULL));
             printf("created %d tables, %.1f s\n", i + 1, (double)(now_ns() - t0) / 1e9);
+            (void)fflush(stdout);
         }
     }
     CHK(session->checkpoint(session, NULL));
@@ -887,6 +890,7 @@ run(void)
                 ops += __atomic_load_n(&workers[i].ops, __ATOMIC_RELAXED);
             printf("progress t=%" PRIu64 " ops=%" PRIu64 " ops_per_s=%.0f\n",
               (t - start_ns) / NSEC_PER_SEC, ops, (double)(ops - last_ops) / 10);
+            (void)fflush(stdout);
             last_ops = ops;
             report_ns += 10 * NSEC_PER_SEC;
         }
@@ -1076,7 +1080,6 @@ main(int argc, char *argv[])
     int i;
     bool load, restart, steady;
 
-    (void)setvbuf(stdout, NULL, _IOLBF, 0);
     if (argc < 3)
         usage();
     cfg.mode = argv[1];
