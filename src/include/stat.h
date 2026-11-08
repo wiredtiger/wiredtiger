@@ -572,6 +572,7 @@ struct __wt_connection_stats {
     int64_t eviction_queue_not_empty;
     int64_t eviction_dhandle_complete_walk;
     int64_t eviction_server_push_pages_failed_when_flaging;
+    int64_t eviction_server_refills;
     int64_t eviction_server_refill_end_lap_complete;
     int64_t eviction_server_refill_end_interrupted;
     int64_t eviction_server_refill_end_shutdown;
@@ -605,6 +606,12 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_trees_eviction_disabled;
     int64_t eviction_server_skip_trees_not_useful_before;
     int64_t eviction_server_slept;
+    int64_t eviction_server_pass_time;
+    int64_t eviction_server_refill_time;
+    int64_t eviction_server_slept_time;
+    int64_t eviction_server_refill_post_walk_time;
+    int64_t eviction_server_oldest_id_time;
+    int64_t eviction_server_refill_tree_walk_time;
     int64_t eviction_slow;
     int64_t eviction_walk_leaf_notfound;
     int64_t eviction_server_walk_one_page_target_unproductive;
