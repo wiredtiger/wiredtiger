@@ -17,12 +17,12 @@ class file_id_fixture {
 public:
     file_id_fixture()
     {
-        REQUIRE(__wt_spin_init(session, &connection->schema_lock, "schema") == 0);
+        REQUIRE(__wt_rwlock_init(session, &connection->schema_lock) == 0);
     }
 
     ~file_id_fixture()
     {
-        __wt_spin_destroy(session, &connection->schema_lock);
+        __wt_rwlock_destroy(session, &connection->schema_lock);
     }
 
 private:

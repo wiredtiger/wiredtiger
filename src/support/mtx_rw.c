@@ -96,6 +96,8 @@ int
 __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
     __wt_atomic_store_uint64_v_relaxed(&l->u.v, 0);
+    memset((void *)l->writer_wait, 0, sizeof(l->writer_wait));
+    l->writers_sleeping = 0;
     l->stat_read_count_off = l->stat_write_count_off = -1;
     l->stat_app_usecs_off = l->stat_int_usecs_off = -1;
     /* FIXME-WT-18860: Initialize the rwlock session statistics offset to -1. */
@@ -116,6 +118,25 @@ __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
     __wt_cond_destroy(session, &l->cond_readers);
     __wt_cond_destroy(session, &l->cond_writers);
+}
+
+/*
+ * __rwlock_wake_writer --
+ *     Wake the writer holding the given ticket.
+ */
+static void
+__rwlock_wake_writer(WT_RWLOCK *l, uint8_t ticket)
+{
+    WT_FUTEX_WORD *slot, seq;
+
+    /*
+     * Call this after the lock state changes. A waiting writer reads its slot before it checks the
+     * lock state, so it either sees its turn or its futex wait returns at once.
+     */
+    slot = (WT_FUTEX_WORD *)&l->writer_wait[ticket % WT_RWLOCK_WRITER_SLOTS];
+    seq = __atomic_add_fetch(slot, 1, __ATOMIC_SEQ_CST);
+    if (__atomic_load_n(&l->writers_sleeping, __ATOMIC_SEQ_CST) != 0)
+        WT_IGNORE_RET(__wt_futex_wake(slot, WT_FUTEX_WAKE_ALL, seq));
 }
 
 /*
@@ -320,7 +341,7 @@ __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     } while (!__wt_atomic_cas_uint64_v(&l->u.v, old.u.v, new.u.v));
 
     if (new.u.s.readers_active == 0 && new.u.s.current != new.u.s.next)
-        __wt_cond_signal(session, l->cond_writers);
+        __rwlock_wake_writer(l, new.u.s.current);
 }
 
 /*
@@ -373,26 +394,13 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 }
 
 /*
- * __write_blocked --
- *     Check whether the current write lock request should keep waiting.
- */
-static bool
-__write_blocked(WT_SESSION_IMPL *session)
-{
-    WT_RWLOCK *l;
-
-    l = session->current_rwlock;
-    return (session->current_rwticket != __wt_atomic_load_uint8_v_relaxed(&l->u.s.current) ||
-      __wt_atomic_load_uint32_v_relaxed(&l->u.s.readers_active) != 0);
-}
-
-/*
  * __wt_writelock --
  *     Wait to get an exclusive lock.
  */
 void
 __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
+    WT_FUTEX_WORD *slot, seq, wake_val;
     WT_RWLOCK new, old;
     uint64_t time_diff, time_start, time_stop;
     int64_t *session_stats, **stats;
@@ -413,6 +421,10 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * writers could be granted the lock simultaneously.
          */
         if (new.u.s.current == new.u.s.next) {
+            /*
+             * Unlock does not signal this wait: waking all of these writers on every unlock is
+             * slower than the timeout.
+             */
             __wt_cond_wait(session, l->cond_writers, 10 * WT_THOUSAND, NULL);
             continue;
         }
@@ -427,6 +439,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      * not guaranteed to be ordered and we could see no readers active from a different batch and
      * decide that we have the lock.
      */
+    slot = (WT_FUTEX_WORD *)&l->writer_wait[ticket % WT_RWLOCK_WRITER_SLOTS];
     time_start =
       l->stat_write_count_off != -1 && WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     for (pause_cnt = 0, old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
@@ -437,9 +450,16 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
         else if (pause_cnt < 1200)
             __wt_yield();
         else {
-            session->current_rwlock = l;
-            session->current_rwticket = ticket;
-            __wt_cond_wait(session, l->cond_writers, 10 * WT_THOUSAND, __write_blocked);
+            /*
+             * Read the slot before checking the lock state. If the lock passes to this writer after
+             * the check, the slot changes and the futex wait returns at once.
+             */
+            seq = __atomic_load_n(slot, __ATOMIC_SEQ_CST);
+            (void)__atomic_add_fetch(&l->writers_sleeping, 1, __ATOMIC_SEQ_CST);
+            old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
+            if (ticket != old.u.s.current || old.u.s.readers_active != 0)
+                WT_IGNORE_RET(__wt_futex_wait(slot, seq, WT_MILLION, &wake_val));
+            (void)__atomic_sub_fetch(&l->writers_sleeping, 1, __ATOMIC_SEQ_CST);
         }
     }
     if (time_start != 0) {
@@ -522,7 +542,7 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     if (new.u.s.readers_active != 0)
         __wt_cond_signal(session, l->cond_readers);
     else if (new.u.s.current != new.u.s.next)
-        __wt_cond_signal(session, l->cond_writers);
+        __rwlock_wake_writer(l, new.u.s.current);
 
     WT_DIAGNOSTIC_YIELD;
 }
@@ -540,4 +560,19 @@ __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
     old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
     return (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0);
+}
+
+/*
+ * __wt_rwlock_iswritelocked --
+ *     Return whether a writer holds the lock. The lock does not record which session holds it.
+ */
+bool
+__wt_rwlock_iswritelocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_RWLOCK old;
+
+    WT_UNUSED(session);
+
+    old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
+    return (old.u.s.current != old.u.s.next && old.u.s.readers_active == 0);
 }

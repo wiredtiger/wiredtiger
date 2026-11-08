@@ -181,7 +181,7 @@ static void
 __disagg_btree_stamp_create_epoch(
   WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t schema_epoch)
 {
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     WT_SAVE_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
@@ -205,7 +205,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session, uint64_t
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /*
      * Clear all existing queue entries: the legacy path rebuilds shared metadata by scanning local
@@ -312,7 +312,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session, uint64_t
 
     conn = S2C(session);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /*
      * Use the legacy method whenever this node is not gating schema operations. A checkpoint can
@@ -652,12 +652,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     cursor = NULL;
     entry = NULL;
 
-    /*
-     * Ensure that the schema lock is held. We cannot check this via spinlock ownership, because
-     * this function might be called from an internal session, while the lock was acquired by its
-     * parent session.
-     */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
@@ -849,7 +844,7 @@ __wt_disagg_table_last_unpublished_op(WT_SESSION_IMPL *session, const char *tabl
 
     conn = S2C(session);
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (WT_SHARED_METADATA_NONE);
@@ -878,7 +873,7 @@ __wt_disagg_cancel_unpublished_op(
     WT_DISAGG_SCHEMA_OPS_STATS schema_stats = WT_DISAGG_SCHEMA_OPS_STATS_INIT;
 
     /* The schema lock serializes this against publish stamping the queued epochs. */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     __wt_spin_lock(session, &disagg->shared_metadata_queue_lock);
 
@@ -1415,7 +1410,7 @@ __wt_disagg_shared_metadata_queue_process(
      * related to the given shared table, e.g., the various file, colgroup, table, and layered
      * entries.
      */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1539,7 +1534,7 @@ __wt_disagg_btree_publish_if_covered(
 {
     wt_timestamp_t create_epoch;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     if (publishedp != NULL)
         *publishedp = false;
@@ -1577,7 +1572,7 @@ __wt_disagg_btree_publish_for_eviction(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     conn = S2C(session);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /* Only the leader publishes, and only outside a role transition. */
     if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
@@ -1612,7 +1607,7 @@ __wt_disagg_shared_metadata_queue_publish(
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
     found = false;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /*
      * Checkpoint pickup records its epoch and prunes the queue under the schema lock, so this sees
@@ -2236,7 +2231,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");

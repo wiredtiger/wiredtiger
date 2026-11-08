@@ -76,7 +76,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
               "deferred checkpoint queue") == 0);
     TAILQ_INIT(&conn_impl->disaggregated_storage.deferred_ckpt_qh);
     REQUIRE(__wt_spin_init(session, &conn_impl->api_lock, "api") == 0);
-    REQUIRE(__wt_spin_init(session, &conn_impl->schema_lock, "schema") == 0);
+    REQUIRE(__wt_rwlock_init(session, &conn_impl->schema_lock) == 0);
 
     /* Setup the page log queue. */
     setup_page_log_queue(session);
@@ -131,4 +131,5 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
     __wt_spin_destroy(session, &conn_impl->disaggregated_storage.shared_metadata_queue_lock);
     __wt_spin_destroy(session, &conn_impl->disaggregated_storage.deferred_ckpt_lock);
     __wt_spin_destroy(session, &conn_impl->api_lock);
+    __wt_rwlock_destroy(session, &conn_impl->schema_lock);
 }
