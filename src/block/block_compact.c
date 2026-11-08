@@ -17,13 +17,23 @@ static void __block_dump_file_stat(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 int
 __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    if (block->compact_session_id != WT_SESSION_ID_INVALID) {
+    uint32_t compact_session_id;
+
+    /*
+     * The block handle is the compaction lock for the file: only the session that claimed it in
+     * this function may compact it, and it releases the claim in the matching end call. The claim
+     * is acquired under the schema lock, but the release races with it, so use acquire/release
+     * ordering: the release publishes the completion of the previous pass, including the reads of
+     * the per-file compaction counters that the next pass resets.
+     */
+    compact_session_id = __wt_atomic_load_uint32_acquire(&block->compact_session_id);
+    if (compact_session_id != WT_SESSION_ID_INVALID) {
         bool is_bg_compact =
-          (block->compact_session_id == S2C(session)->background_compact.session->id);
+          (compact_session_id == S2C(session)->background_compact.session->id);
 
         WT_RET_MSG(session, EBUSY,
           "%s compaction already happening on data handle %s by session %" PRIu32,
-          is_bg_compact ? "Background" : "Foreground", block->name, block->compact_session_id);
+          is_bg_compact ? "Background" : "Foreground", block->name, compact_session_id);
     }
 
     /*
@@ -50,7 +60,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pct_tenths = 0;
     block->compact_prev_pages_rewritten = 0;
     block->compact_prev_size = 0;
-    block->compact_session_id = session->id;
+    __wt_atomic_store_uint32_release(&block->compact_session_id, session->id);
 
     return (0);
 }
@@ -62,12 +72,13 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 int
 __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
+    WT_DECL_RET;
+
     /* Restore the original allocation plan. */
     __wti_block_configure_first_fit(block, false);
 
     /* Ensure this the same session that started compaction. */
     WT_ASSERT(session, block->compact_session_id == session->id);
-    block->compact_session_id = WT_SESSION_ID_INVALID;
 
     /* Dump the results of the compaction pass. */
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1)) {
@@ -76,10 +87,16 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
         __wt_spin_unlock(session, &block->live_lock);
     }
 
+    /*
+     * Finish the background bookkeeping before releasing the claim: it reads the per-file
+     * compaction counters that the next compaction pass resets.
+     */
     if (session == S2C(session)->background_compact.session)
-        WT_RET(__wt_background_compact_end(session));
+        WT_TRET(__wt_background_compact_end(session));
 
-    return (0);
+    __wt_atomic_store_uint32_release(&block->compact_session_id, WT_SESSION_ID_INVALID);
+
+    return (ret);
 }
 
 /*
