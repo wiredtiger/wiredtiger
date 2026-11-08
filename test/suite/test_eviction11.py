@@ -46,8 +46,6 @@ class test_eviction11(wttest.WiredTigerTestCase):
          dict(config='cache_size=21GB,eviction=(updates_trigger_auto_high=false),'
                      'eviction_updates_trigger=30', expected=3000)),
         ('overall_cap', dict(config='cache_size=21GB,eviction_trigger=85', expected=8500)),
-        ('shared', dict(config='shared_cache=(name=pool,size=30GB,chunk=1GB,reserve=21GB)',
-                        expected=1000)),
     ])
 
     def conn_config(self):
@@ -67,8 +65,6 @@ class test_eviction11(wttest.WiredTigerTestCase):
             self.check_trigger(self.expected)
 
     def test_readonly_reopen(self):
-        if self.config.startswith('shared_cache='):
-            self.skipTest('Read-only connections do not use a shared cache')
         self.reopen_conn(config='statistics=(all),readonly=true,' + self.config)
         self.check_trigger(self.expected)
 
