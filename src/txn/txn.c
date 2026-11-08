@@ -299,7 +299,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t current_id, id, pinned_id, prev_oldest_id, snapshot_gen;
-    uint32_t i, n, session_cnt;
+    uint32_t i, n, session_cnt, spins;
     bool record_disagg;
 
     conn = S2C(session);
@@ -395,6 +395,7 @@ retry:
          *    this case, we ignore this transaction because it would
          *    not be visible to the current snapshot.
          */
+        spins = 0;
         while (s != txn_shared && (id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
           (prev_oldest_id <= id) && (id < current_id)) {
             /*
@@ -417,7 +418,13 @@ retry:
                     break;
                 }
             }
-            WT_PAUSE();
+            /* After a long spin the allocating thread is probably not running, so let it run. */
+            if (++spins < WT_THOUSAND)
+                WT_PAUSE();
+            else {
+                spins = 0;
+                __wt_yield();
+            }
         }
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
