@@ -170,7 +170,7 @@ CONFIG configuration_list[] = {
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
-{"debug.cursor_copy", "copy cursor keys and values with the system allocator", C_BOOL, 0, 0, 0}
+{"debug.cursor_copy", "use heap copies of returned cursor keys and values to expose invalid references masked by direct btree memory access", C_BOOL, 0, 0, 0}
 
 {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
 

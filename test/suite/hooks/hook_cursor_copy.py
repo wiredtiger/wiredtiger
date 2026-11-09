@@ -30,7 +30,9 @@
 # ignored_file
 # [END_TAGS]
 
-# Enable cursor-copy debugging for Python tests: python run.py --hook cursor_copy.
+# Use heap copies of returned cursor keys and values to expose invalid references that direct access
+# to btree memory can mask.
+# Usage: python run.py --hook cursor_copy.
 
 import wthooks
 
