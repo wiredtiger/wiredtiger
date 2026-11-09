@@ -2272,9 +2272,17 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
+            /* FIXME-WT-17277: allow once a prepared fast truncate can be written to disk. */
+            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
+              "a prepared transaction cannot include a fast truncate when preserve_prepared is "
+              "configured");
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
+              "a prepared transaction cannot include a truncate entry when preserve_prepared is "
+              "configured");
+            break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
@@ -2297,6 +2305,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         __txn_remove_from_global_table(session);
+
+    /* New snapshots now see the prepared updates, so cached snapshots have to be refreshed. */
+    __wt_gen_next(session, WT_GEN_HAS_SNAPSHOT, NULL);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
@@ -2671,11 +2682,15 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     /* Fetch the global timestamp values for debugging purposes.*/
     WT_STAT_CONN_SET(session, txn_global_checkpoint_timestamp, checkpoint_timestamp);
     WT_STAT_CONN_SET(session, txn_global_durable_timestamp, durable_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_last_checkpoint_schema_epoch,
+      __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_disaggregated_schema_epoch));
     WT_STAT_CONN_SET(session, txn_global_last_running_timestamp, oldest_active_read_timestamp);
     WT_STAT_CONN_SET(session, txn_global_newest_timestamp,
       __wt_atomic_load_uint64_relaxed(&txn_global->newest_seen_timestamp));
     WT_STAT_CONN_SET(session, txn_global_oldest_timestamp, oldest_timestamp);
     WT_STAT_CONN_SET(session, txn_global_pinned_timestamp, pinned_timestamp);
+    WT_STAT_CONN_SET(
+      session, txn_global_stable_schema_epoch, __wt_get_stable_disaggregated_schema_epoch(session));
     WT_STAT_CONN_SET(session, txn_global_stable_timestamp,
       __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp));
 

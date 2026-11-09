@@ -178,9 +178,11 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
          * Closing the handle of a table that was never checkpointed loses the data it holds, so
          * refuse the drop as a regular table holding uncheckpointed data would.
          */
-        if (__wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+        if (__wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE) {
+            WT_STAT_CONN_INCR(session, disagg_drop_refused_unpublished_data);
             WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
               "the table has unpublished data and must be checkpointed before it can be dropped");
+        }
     }
 
     if (page_log == NULL)
@@ -260,7 +262,11 @@ __drop_layered(
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
-    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
+    /*
+     * The initial checkpoint pickup defers ingest creation until first access, so dropping an
+     * untouched layered table must tolerate missing ingest metadata.
+     */
+    WT_ERR_ERROR_OK(__wt_schema_drop(session, ingest_uri, cfg, check_visibility), ENOENT, true);
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(

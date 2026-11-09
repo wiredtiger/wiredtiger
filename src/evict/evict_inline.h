@@ -9,6 +9,23 @@
 #pragma once
 
 /*
+ * __evict_wake_waiters --
+ *     Wake threads waiting for eviction candidates: n of them if bounded wake is configured, else
+ *     all of them.
+ */
+static WT_INLINE void
+__evict_wake_waiters(WT_SESSION_IMPL *session, uint32_t n)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    if (F_ISSET_ATOMIC_32(&conn->cache->cache_eviction_controls, WT_CACHE_BOUNDED_WAKE))
+        __wt_cond_signal_n(session, conn->evict_config.threads.wait_cond, n);
+    else
+        __wt_cond_signal(session, conn->evict_config.threads.wait_cond);
+}
+
+/*
  * __evict_bounded_wait_limit_us --
  *     Return how long a bounded caller may wait.
  */
@@ -978,17 +995,12 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
             return (0);
     }
 
-    /*
-     * If the cache tolerance is configured, check if the session can be tolerant. if tolerant,
-     * don't involve in eviction.
-     */
-    if (pct_full <= evict->eviction_trigger) {
-        uint8_t cache_tolerance = __wt_atomic_load_uint8_relaxed(
-          &conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
-        if ((cache_tolerance != 0) &&
-          (__evict_is_session_cache_trigger_tolerant(session, cache_tolerance)))
-            return (0);
-    }
+    /* Cache tolerance covers the dirty and updates triggers, not the eviction trigger. */
+    uint8_t cache_tolerance = __wt_atomic_load_uint8_relaxed(
+      &conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
+    if (cache_tolerance != 0 && !__wt_evict_clean_needed(session, NULL) &&
+      __evict_is_session_cache_trigger_tolerant(session, cache_tolerance))
+        return (0);
 
     /*
      * Some callers (those waiting for slow operations), will sleep if there was no cache work to

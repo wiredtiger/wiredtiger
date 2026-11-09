@@ -156,6 +156,23 @@ struct stub_page_log {
 
 stub_page_log *g_page_log = nullptr;
 
+/*
+ * A corrupt read dumps each page through the error handler, so a counting handler installed on the
+ * connection confirms every result is dumped rather than only the one that failed.
+ */
+int g_corrupt_dump_count = 0;
+
+int
+counting_handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *message)
+{
+    if (strstr(message, "corrupt dump:") != nullptr)
+        g_corrupt_dump_count++;
+    return (0);
+}
+
+WT_EVENT_HANDLER g_counting_event_handler = {
+  counting_handle_error, nullptr, nullptr, nullptr, nullptr};
+
 int
 stub_plh_get(WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, uint64_t, WT_PAGE_LOG_GET_ARGS *args,
   WT_ITEM *results_array, uint32_t *results_count)
@@ -211,7 +228,9 @@ struct read_checksum_fixture {
     static constexpr uint64_t LSN = 100;
     static constexpr uint64_t BASE_LSN = 50;
 
-    read_checksum_fixture() : conn_wrapper("WT_TEST.block_disagg_read_checksum", "create")
+    read_checksum_fixture()
+        : conn_wrapper("WT_TEST.block_disagg_read_checksum", "create,statistics=(all)",
+            &g_counting_event_handler)
     {
         memset(results, 0, sizeof(results));
 
@@ -387,6 +406,35 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: checksum validation"
     }
 
     /*
+     * A corrupt read should dump every block it received, not just the one that failed. Build a
+     * base page with three deltas, break the link between two of them, and confirm all four blocks
+     * are dumped and the read still fails without a panic.
+     */
+    SECTION("a corrupt delta chain dumps every page and is rejected under verify")
+    {
+        build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
+        blocks[2].relink(blocks[1].checksum ^ 1);
+        blocks[3].relink(blocks[2].checksum);
+
+        /*
+         * The read dumps the blocks only while this flag is clear, and verify mode turns the
+         * corruption into an error return instead of a panic.
+         */
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+        block_disagg.verify = true;
+
+        g_corrupt_dump_count = 0;
+
+        REQUIRE(read_multiple(blocks[3].checksum) == WT_ERROR);
+
+        CHECK(corruption_flagged());
+        CHECK_FALSE(F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC));
+
+        /* The whole base-plus-delta chain is dumped, not only the block that failed. */
+        CHECK(g_corrupt_dump_count == static_cast<int>(blocks.size()));
+    }
+
+    /*
      * Without a data checksum the stored checksum covers only the leading bytes, so damage past
      * that point is outside what the block manager promises to detect.
      */
@@ -488,5 +536,92 @@ TEST_CASE_METHOD(
 
         REQUIRE(read_multiple(blocks[0].checksum) == WT_ERROR);
         CHECK(corruption_flagged());
+    }
+}
+
+/*
+ * The byte-read statistics describe what the read actually returned. The address cookie records the
+ * cumulative size of the chain as written, which matches the sum of the returned blocks for an
+ * ordinary read, but a page rewritten offline is served as a compressed image whose size is
+ * unrelated to the cookie, so the statistic must follow the returned image rather than the cookie.
+ */
+TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: byte-read statistics", "[block_disagg]")
+{
+    auto block_byte_read = [&]() { return (WT_STAT_CONN_READ(conn->stats, block_byte_read)); };
+    auto hs_byte_read = [&]() {
+        return (WT_STAT_CONN_READ(conn->stats, disagg_block_hs_byte_read));
+    };
+
+    /*
+     * A non-cache read is asserted to return exactly the cookie size, so this pins the accounting
+     * to that sum but cannot tell the sum apart from the cookie value;
+     */
+    SECTION("a delta chain counts the base image plus every delta")
+    {
+        uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
+
+        int64_t before = block_byte_read();
+        REQUIRE(read_multiple(cookie_checksum) == 0);
+        CHECK(block_byte_read() - before == static_cast<int64_t>(cumulative_size()));
+    }
+
+    SECTION("an offline-modified page counts the returned image, not the cookie size")
+    {
+        const uint32_t original_checksum = 0xabcd1234;
+        blocks = {make_offline_modified_page(original_checksum)};
+        page_log.delta_count = 2;
+
+        int64_t before = block_byte_read();
+        /* The cookie size is unrelated to the image the read hands back. */
+        REQUIRE(read_multiple(original_checksum, 4096) == 0);
+        CHECK(block_byte_read() - before == static_cast<int64_t>(blocks[0].size()));
+        CHECK(blocks[0].size() != 4096);
+    }
+
+    /*
+     * The statistic follows the returned image in both directions, so an implementation that clamps
+     * to the smaller of the cookie and the returned size cannot pass.
+     */
+    SECTION("a cookie smaller than the returned image does not cap the count")
+    {
+        const uint32_t original_checksum = 0xabcd1234;
+        blocks = {make_offline_modified_page(original_checksum)};
+        page_log.delta_count = 2;
+
+        int64_t before = block_byte_read();
+        REQUIRE(read_multiple(original_checksum, 128) == 0);
+        REQUIRE(blocks[0].size() > 128);
+        CHECK(block_byte_read() - before == static_cast<int64_t>(blocks[0].size()));
+    }
+
+    /* A shared history store read uses the same accounting as an ordinary read. */
+    SECTION("a shared history store read counts the returned image too")
+    {
+        const uint32_t original_checksum = 0xabcd1234;
+        blocks = {make_offline_modified_page(original_checksum)};
+        page_log.delta_count = 2;
+        F_SET(&block_disagg, WT_BLOCK_DISAGG_HS);
+
+        int64_t before = block_byte_read();
+        int64_t hs_before = hs_byte_read();
+        REQUIRE(read_multiple(original_checksum, 4096) == 0);
+        CHECK(block_byte_read() - before == static_cast<int64_t>(blocks[0].size()));
+        CHECK(hs_byte_read() - hs_before == static_cast<int64_t>(blocks[0].size()));
+    }
+
+    /*
+     * A failed read has nothing to account for: the base page is corrupt, so the chain fails after
+     * the deltas have already been walked, and neither byte statistic moves.
+     */
+    SECTION("a failed read counts no bytes")
+    {
+        uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM);
+        blocks[0].corrupt_body(300);
+
+        int64_t before = block_byte_read();
+        int64_t hs_before = hs_byte_read();
+        REQUIRE(read_multiple(cookie_checksum) == WT_ERROR);
+        CHECK(block_byte_read() == before);
+        CHECK(hs_byte_read() == hs_before);
     }
 }
