@@ -30,6 +30,7 @@ import os, re, struct
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from helper import WiredTigerCursor
+from helper_wt_corruption import corrupt_btree_file_at, parse_verify_leaves
 
 # Utilities: wt verify
 class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
@@ -99,24 +100,35 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(position)
         return fp
 
-    def corrupt_table(self, tablename):
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
+    def live_leaf_offset(self, tablename):
         """
-        Corrupt a table's file and confirm that verify can detect the corruption.
-        Corruption that lands on a stale (freed) page is never read by verify and
-        stays invisible, so retry at a different offset until verify reports it.
+        Return the offset of a live leaf page in the table's file.
+
+        A size-relative offset can land on a block freed by an earlier page split. Verify
+        only walks pages reachable from the checkpoint, so corruption in a freed block is
+        invisible. Ask verify where the live pages are instead.
         """
-        for pct in (25, 50, 75):
-            with self.open_and_position(tablename, pct) as f:
-                for i in range(0, 4096):
-                    f.write(struct.pack('B', 0))
-            try:
-                self.runWt(["-p", "verify", "table:" + tablename],
-                    outfilename="probe.out", errfilename="probe.err", failure=True)
-                return
-            except AssertionError:
-                # Verify passed: the corruption is invisible, retry at another offset.
-                self.pr('corruption of ' + tablename + ' at ' + str(pct) + '% not detected')
-        self.skipTest('could not produce corruption that verify can detect in ' + tablename)
+        self.runWt(["verify", "-d", "dump_address", "table:" + tablename],
+            outfilename="dump.out")
+        with open("dump.out") as f:
+            leaves = parse_verify_leaves(f.read(), disagg=False)
+        self.assertTrue(leaves, "no live leaf page found in " + tablename)
+        return leaves[len(leaves) // 2]
+
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
+    def corrupt_file_at(self, tablename, offset):
+        """
+        Write a corrupting pattern into the table's file.
+        """
+        # Close the connection to guarantee everything is flushed and
+        # closed from the WT point of view.
+        if self.conn != None:
+            self.conn.close()
+            self.conn = None
+        corrupt_btree_file_at(self.file_name(tablename), offset)
 
     # FIXME-WT-15064:
     @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
@@ -455,9 +467,13 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["verify"])
 
         # Purposely corrupt the last two tables. Verifying all tables reports every corrupted
-        # table by default, and stops after the first one with the abort option.
-        for i in range(1, ntables):
-            self.corrupt_table(self.tablename + str(i))
+        # table by default, and stops after the first one with the abort option. Locate every
+        # live page before writing to any file, so a corrupted table cannot disturb the dump
+        # of the next one.
+        targets = [(self.tablename + str(i), self.live_leaf_offset(self.tablename + str(i)))
+            for i in range(1, ntables)]
+        for name, offset in targets:
+            self.corrupt_file_at(name, offset)
 
         self.runWt(["-p", "verify"], outfilename="verifyerr.out", errfilename="verifyerr.err", failure=True)
         self.assertNotEqual(self.count_file_contains("verifyerr.err",
