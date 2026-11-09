@@ -411,9 +411,7 @@ __wt_spin_trylock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
 /*
  * __wt_rwlock_writer_waiting --
- *     Return if a writer is waiting for a read/write lock the caller holds for reading. A writer
- *     takes the next ticket and waits for it to become current, so while a reader holds the lock,
- *     differing tickets mean a writer is queued.
+ *     Return if a writer is queued on a read/write lock the caller holds for reading.
  */
 static WT_INLINE bool
 __wt_rwlock_writer_waiting(WT_RWLOCK *l)

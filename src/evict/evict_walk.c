@@ -132,10 +132,8 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     evict = conn->evict;
 
     /*
-     * Every walk point pins its page with a hazard pointer in the walk session, and between walks
-     * the walk session holds no other hazard pointer. Stop once none is left: visiting the rest of
-     * a long handle list clears nothing, and it holds the pass lock and the handle list lock that
-     * table opens and the sweep server wait for.
+     * Every walk point holds a hazard pointer in the walk session, so stop once none is left rather
+     * than visit the rest of the handle list with both locks held.
      */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (__wt_atomic_load_uint32_relaxed(&evict->walk_session->hazards.num_active) == 0)
@@ -155,9 +153,8 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
 #endif
 
     /*
-     * The scan resets a tree's end count when it moves on from it, and only reads the count when it
-     * resumes the saved walk tree, so the saved walk tree is the only one that needs its count
-     * reset.
+     * The scan resets a tree's end count when it moves on from the tree. The saved walk tree is
+     * dropped here without the scan moving on, so reset its count.
      */
     if ((dhandle = evict->walk_tree) != NULL && WT_DHANDLE_BTREE(dhandle))
         ((WT_BTREE *)dhandle->handle)->evict_walk_ends = 0;
@@ -649,18 +646,13 @@ retry:
         btree->evict_walk_skips = 0;
 
         /*
-         * Skip a tree with no bytes of interest while still holding the handle list lock, which is
-         * far cheaper than releasing it, walking the tree to find that out and taking it again. The
-         * root page is only safe to read with the walk lock held, as that is what a closing thread
-         * takes before discarding it. A tree awaiting publication still has to reach the publish
-         * step.
+         * Skip a tree with nothing to evict for the current eviction mode without releasing the
+         * handle list lock. A tree awaiting publication takes the full path.
          *
-         * Only try to acquire the lock, never wait for it, and fall through to the full path if it
-         * is busy. A thread turning off eviction holds this lock while it waits for the eviction
-         * server to acknowledge that it has stopped using the tree, so waiting here could deadlock
-         * with it. Even without a deadlock, waiting would stall the eviction server, and keep the
-         * handle list lock held while it waits, to save work on a tree that the full path handles
-         * correctly anyway.
+         * Looking for clean content counts the tree's evictable bytes, which reads the root page to
+         * leave out its size, and a closing thread takes the walk lock before discarding the root.
+         * Only try for the lock: a thread disabling eviction holds it while waiting for the
+         * eviction server.
          */
         if (!try_publish && !__wt_spin_trylock(session, &evict->evict_walk_lock)) {
             wanted = true;
@@ -671,10 +663,8 @@ retry:
                 WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree_early);
                 WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
                 /*
-                 * Skipping keeps the handle list lock across trees. Let a queued writer in rather
-                 * than make it wait out a run of skipped trees: a thread adding a handle may hold
-                 * the schema lock while it waits, and every other thread then waits behind it. The
-                 * saved walk tree keeps this handle alive and marks where to continue.
+                 * Let a queued writer in, as it may hold the schema lock. The saved walk tree keeps
+                 * this handle alive and marks where to resume.
                  */
                 if (__wt_rwlock_writer_waiting(&conn->dhandle_lock)) {
                     __wti_evict_set_saved_walk_tree(session, dhandle);
@@ -1689,10 +1679,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
                 __wti_evict_readgen_is_soon_or_wont_need(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
 
-            /*
-             * Moving on can end on the root, which the walk returns without a hazard pointer: clear
-             * it as above, so that every saved walk point holds one.
-             */
+            /* The root holds no hazard pointer, so never save it as the walk point. */
             if (ref != NULL && __wt_ref_is_root(ref))
                 ref = NULL;
         }
