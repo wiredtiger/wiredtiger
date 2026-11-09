@@ -3,10 +3,15 @@
 set -o errexit
 set -o verbose
 
-tag="${task_name}-willk"
-# if [ "${is_patch}" = "true" ]; then
-#     tag="${task_name}-patch"
-# fi
+# Determine the image tag from the Evergreen expansions: mainline builds use the
+# commit's git hash, patch builds use the Evergreen patch (version) ID so that
+# images from concurrent patches don't collide. This mirrors the SLS convention
+# (see ds-services/storage/etc/evergreen_antithesis.yml).
+if [ "${is_patch:-}" = "true" ]; then
+    tag="evg-patch-${version_id}"
+else
+    tag="${revision}"
+fi
 
 if [ -n "${antithesis_image_tag:-}" ]; then
     echo "Using provided tag: '$antithesis_image_tag' for docker pushes"
