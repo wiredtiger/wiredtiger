@@ -1719,7 +1719,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
-          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false" debug.cursor_copy=1
+          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
 
   - &format-stress-asan-test
     exec_timeout_secs: 25200
@@ -1732,7 +1732,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360 -- debug.realloc_exact=0 debug.cursor_copy=1
+          format_test_script_args: -t 360 -- debug.realloc_exact=0
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -1745,7 +1745,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -R -t 360 -- debug.cursor_copy=1
+          format_test_script_args: -R -t 360
 
   - &recovery-stress-test
     exec_timeout_secs: 25200
@@ -4920,11 +4920,11 @@ tasks:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -S -- debug.cursor_copy=1
+          format_test_script_args: -S
       - func: "format test"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)" debug.cursor_copy=1
+          test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-stress-test-tsan
     tags: ["pull_request"]
@@ -7418,8 +7418,7 @@ buildvariants:
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     unit_test_ignore: test/suite/fail_lists/asan.fail
-    unit_test_variant_args: --asan --hook cursor_copy
-    format_variant_args: debug.cursor_copy=1
+    unit_test_variant_args: --asan
     ctest_extra_args: -E "wt12015_backup_corruption"
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
@@ -8212,11 +8211,12 @@ buildvariants:
     - name: ".cppsuite-stress-test"
       batchtime: 720 # twice a day
 
-- name: amazon2023-arm64-asan
+- &amazon2023-arm64-asan
+  name: amazon2023-arm64-asan
   display_name: "! Amazon2023 ARM64 ASAN"
   run_on:
   - amazon2023.3-arm64-small
-  expansions:
+  expansions: &amazon2023-arm64-asan-expansions
     REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
@@ -8230,8 +8230,7 @@ buildvariants:
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     unit_test_ignore: test/suite/fail_lists/asan.fail
-    unit_test_variant_args: --asan --hook cursor_copy
-    format_variant_args: debug.cursor_copy=1
+    unit_test_variant_args: --asan
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
@@ -8255,6 +8254,16 @@ buildvariants:
     - name: ".unit_test"
     - name: ".unit_test_disagg"
     - name: ".unit_test_long"
+
+- <<: *amazon2023-arm64-asan
+  name: amazon2023-arm64-asan-cursor-copy
+  display_name: "! Amazon2023 ARM64 ASAN Cursor Copy"
+  batchtime: 1440 # Once a day.
+  expansions:
+    <<: *amazon2023-arm64-asan-expansions
+    unit_test_variant_args: --asan --hook cursor_copy
+    format_variant_args: debug.cursor_copy=1
+  tags: ["sanitizer"]
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for TSAN.

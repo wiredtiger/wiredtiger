@@ -543,9 +543,9 @@ functions:
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
           rm -rf RUNDIR
-          ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} ${format_variant_args|} || fail
+          ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} || fail
           if [ ${reopen|true} = true ]; then
-            ./t -R $format_args ${extra_args|} ${format_variant_args|} || fail
+            ./t -R $format_args ${extra_args|} || fail
           fi
         done
 
@@ -631,7 +631,6 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     disagg_run: true
-    format_variant_args: debug.cursor_copy=1
     <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tasks:
