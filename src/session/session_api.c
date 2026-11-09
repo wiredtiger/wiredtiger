@@ -1902,7 +1902,6 @@ static int
 __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
 
     if (uri == NULL) {
         /*

@@ -1573,8 +1573,10 @@ struct __wt_session {
      * that fails verification; by default all tables are verified\, with every failure logged as it
      * is found\, and the return value reports the first failure., a boolean flag; default \c
      * false.}
-     * @config{check_btree_ids_only, when no URI is given\, only run the database-wide unique btree
-     * ID check without verifying any table., a boolean flag; default \c false.}
+     * @config{check_btree_ids_only, when no URI is given\, run only the database-wide unique btree
+     * ID check without verifying any table.  When false (the default)\, a NULL URI runs the check
+     * first and then verifies all tables.  This configuration has no effect when a specific URI is
+     * given., a boolean flag; default \c false.}
      * @config{do_not_clear_txn_id, Turn off transaction id clearing\, intended for debugging and
      * better diagnosis of crashes or failures.  Note: History store validation is disabled when the
      * configuration is set as visibility rules may not work correctly because the transaction ids
