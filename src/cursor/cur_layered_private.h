@@ -52,19 +52,18 @@ struct __wti_cursor_layered {
     uint32_t txn_mod_count;                    /* Transaction modification count on last access */
     uint64_t stable_checkpoint_meta_lsn;       /* Checkpoint LSN stable cursor is on */
     WTI_CLAYERED_STABLE_MODE last_stable_mode; /* Mode the stable cursor was last opened in */
-    WT_ITEM stopped_key; /* Key a walk stalled on a prepared update stopped at */
+    WT_ITEM stopped_key; /* Prepare-blocked stable key awaiting restoration after a reopen */
+    bool stopped_next;   /* Stopped key was blocked by next, not prev */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_CLAYERED_ACTIVE 0x001u             /* Incremented the session count */
-#define WTI_CLAYERED_ITERATE_NEXT 0x002u       /* Forward iteration */
-#define WTI_CLAYERED_ITERATE_PREV 0x004u       /* Backward iteration */
-#define WTI_CLAYERED_ITERATE_RETRY_NEXT 0x008u /* Walk stalled on a prepared update by next */
-#define WTI_CLAYERED_ITERATE_RETRY_PREV 0x010u /* Walk stalled on a prepared update by prev */
-#define WTI_CLAYERED_RANDOM 0x020u             /* Random cursor operations only */
-#define WTI_CLAYERED_SIZE_STAT 0x040u          /* Accumulate the size summary on the active btree */
-#define WTI_CLAYERED_STALL_MOVED_INGEST 0x080u /* A reversal moved ingest off the stopped key */
-#define WTI_CLAYERED_STALL_MOVED_STABLE 0x100u /* A reversal moved stable off the stopped key */
-                                               /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WTI_CLAYERED_ACTIVE 0x01u             /* Incremented the session count */
+#define WTI_CLAYERED_ITERATE_NEXT 0x02u       /* Forward iteration */
+#define WTI_CLAYERED_ITERATE_PREV 0x04u       /* Backward iteration */
+#define WTI_CLAYERED_ITERATE_RETRY_NEXT 0x08u /* Forward positioning retry */
+#define WTI_CLAYERED_ITERATE_RETRY_PREV 0x10u /* Backward positioning retry */
+#define WTI_CLAYERED_RANDOM 0x20u             /* Random cursor operations only */
+#define WTI_CLAYERED_SIZE_STAT 0x40u          /* Accumulate the size summary on the active btree */
+                                              /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 

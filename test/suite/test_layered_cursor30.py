@@ -216,10 +216,9 @@ class test_layered_cursor30_prepare_stall(LayeredFastTruncateConfigMixin,
                     actual.append((cursor.get_key(), cursor.get_value()))
                 self.assertEqual(actual, remaining)
 
-    # Ingest blocks past the stable key the walk would return next, and the walk's own transaction
-    # inserts an ingest key between the two. Reversing returns only keys before that stable key,
-    # where the walk stopped, so the insert is not returned.
-    def test_reverse_after_insert_past_stop(self):
+    # After returning every available key before a prepared key, the walk's own transaction inserts
+    # another key before the blocked position; reversing returns the inserted key first.
+    def test_reverse_after_insert_before_blocked(self):
         key = (lambda k: k) if self.forward else (lambda k: 1000 - k)
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.write(self.session, [key(100), key(300)], 10)
@@ -240,7 +239,7 @@ class test_layered_cursor30_prepare_stall(LayeredFastTruncateConfigMixin,
             with self.transaction(session=self.session_follow, rollback=True):
                 step = cursor.next if self.forward else cursor.prev
                 step_back = cursor.prev if self.forward else cursor.next
-                for k in (100, 200):
+                for k in (100, 200, 300):
                     self.assertEqual(step(), 0)
                     self.assertEqual(cursor.get_key(), key(k))
                 self.assertRaisesException(wiredtiger.WiredTigerError, step,
@@ -251,7 +250,7 @@ class test_layered_cursor30_prepare_stall(LayeredFastTruncateConfigMixin,
                 actual = []
                 while step_back() == 0:
                     actual.append(cursor.get_key())
-                self.assertEqual(actual, [key(200), key(100)])
+                self.assertEqual(actual, [key(400), key(300), key(200), key(100)])
         prep_session.rollback_transaction()
         prep_session.close()
 

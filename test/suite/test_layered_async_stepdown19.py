@@ -30,11 +30,8 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# A walk that is blocked on a prepared update and then reverses direction resumes from the last key
-# it returned, returning it again as a btree cursor does. The constituent that was not blocked was
-# left positioned for the old direction, past a key between the last returned key and the blocked
-# one: the reversal must not return that key out of order, nor skip any key before the last one
-# returned. Both constituents can be the blocked one, so both are covered.
+# A walk returns every available key before a prepared key, then blocks. Reversing returns the last
+# key again, followed by all earlier keys, whichever constituent holds the prepared update.
 @disagg_test_class
 class test_layered_async_stepdown19(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
@@ -65,9 +62,7 @@ class test_layered_async_stepdown19(wttest.WiredTigerTestCase):
                                  ',stable_timestamp=' + self.timestamp_str(1))
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Even keys on stable, odd keys on ingest. The prepared key is the first key past the last
-        # one the forward walk returns, and the other constituent gets an extra key wedged between
-        # the last returned key and the prepared one -- exactly the key a bad reversal returns.
+        # Interleave the keys and place another available key close to the prepared key.
         stable = {f'key{i:04d}': 'v' for i in range(0, 40, 2)}
         ingest = {f'key{i:04d}': 'v' for i in range(1, 40, 2)}
         if self.prepare_on_stable:
@@ -109,7 +104,7 @@ class test_layered_async_stepdown19(wttest.WiredTigerTestCase):
                 'prepare_timestamp=' + self.timestamp_str(30))
 
         all_keys = sorted(set(stable) | set(ingest))
-        last_before_block = all_keys[all_keys.index(extra_key) - 1]
+        before_block = [key for key in all_keys if key < prepared_key]
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
@@ -129,8 +124,7 @@ class test_layered_async_stepdown19(wttest.WiredTigerTestCase):
                 break
             forward.append(cursor.get_key())
         self.assertTrue(blocked, 'the prepared update never blocked the forward walk')
-        self.assertEqual(forward[-1], last_before_block,
-            'the forward walk did not stop where the prepared key was expected to block it')
+        self.assertEqual(forward, before_block)
 
         # Reverse while still blocked. As with a btree cursor, the walk returns the last key it
         # returned again, then everything before it in reverse.
@@ -151,7 +145,7 @@ class test_layered_async_stepdown19(wttest.WiredTigerTestCase):
         prepare_cursor.close()
         prepare_session.close()
 
-        expected = list(reversed(all_keys[:all_keys.index(extra_key)]))
+        expected = list(reversed(before_block))
         self.assertEqual(backward, expected)
 
 if __name__ == '__main__':

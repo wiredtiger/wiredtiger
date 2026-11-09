@@ -51,9 +51,7 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # key1 and key5 (stable) frame the walk. key3, prepared on stable, blocks the walk once it
-        # passes key1: this prepare begins and prepares before the step-down timestamp is announced,
-        # so it lands on stable, like every write that precedes the announcement.
+        # Prepare key3 before announcing the step-down, between the committed keys key1 and key5.
         self.write_at(self.uri, {'key1': 'v', 'key5': 'v'}, 10)
         self.set_global_ts(1, 10)
 
@@ -63,9 +61,7 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
         stable_prep_cursor['key3'] = 'v'
         stable_prep_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(12))
 
-        # key2a lands on ingest once the step-down window opens, giving the walk a second key to
-        # return between the two blocks. key2b, prepared on ingest, blocks the walk a second time
-        # once it passes key2a; key4 lands on ingest after that.
+        # The walk returns key2a before blocking on key2b, then blocks on key3 after key2b resolves.
         self.set_step_down_ts(15)
         self.write_at(self.uri, {'key2a': 'v'}, 18)
 
@@ -93,18 +89,17 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
                     wiredtiger.wiredtiger_strerror(wiredtiger.WT_PREPARE_CONFLICT), str(e))
                 conflicts += 1
                 self.assertLess(conflicts, 10, 'the walk never resumed past a blocking key')
-                # Resolve the stable-side block first, so the walk must recover from it and reach
-                # the ingest-side block afterward rather than only ever seeing one at a time.
-                if not stable_resolved and len(seen) >= 1:
-                    stable_prep_session.rollback_transaction()
-                    stable_prep_cursor.close()
-                    stable_prep_session.close()
-                    stable_resolved = True
-                elif not ingest_resolved:
+                # Resolve the prepared keys in the order the walk reaches them.
+                if not ingest_resolved:
                     ingest_prep_session.rollback_transaction()
                     ingest_prep_cursor.close()
                     ingest_prep_session.close()
                     ingest_resolved = True
+                elif not stable_resolved:
+                    stable_prep_session.rollback_transaction()
+                    stable_prep_cursor.close()
+                    stable_prep_session.close()
+                    stable_resolved = True
                 continue
             seen.append(cursor.get_key())
 
