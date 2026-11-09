@@ -59,6 +59,14 @@ macro(define_wiredtiger_library target type)
         target_link_libraries(${target} PRIVATE wt::memkind)
     endif()
 
+    # Link against the Antithesis instrumentation runtime (libvoidstar) so that the
+    # __sanitizer_cov_trace_pc_guard symbols referenced by the instrumented objects are
+    # resolved by the library itself, rather than relying on the linking executable.
+    # PUBLIC so consumers of the static library also inherit the dependency.
+    if(ENABLE_ANTITHESIS)
+        target_link_libraries(${target} PUBLIC wt::voidstar)
+    endif()
+
     # We want to capture any transitive dependencies associated with the builtin library
     # target and ensure we are explicitly linking the 3rd party libraries.
     if(HAVE_BUILTIN_EXTENSION_LZ4)
