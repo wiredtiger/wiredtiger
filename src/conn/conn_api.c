@@ -3647,7 +3647,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     ret = __wt_config_getones(session, config, "debug_mode", &cval);
     if (ret == 0) {
         WT_ERR(__wt_config_getones(session, conn->cfg, "debug_mode", &cval));
-        __wt_verbose_notice(session, WT_VERB_CONFIGURATION, "wiredtiger_open debug_mode=%.*s",
+        __wt_verbose_info(session, WT_VERB_CONFIGURATION, "wiredtiger_open debug_mode=%.*s",
           (int)cval.len, cval.str);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
