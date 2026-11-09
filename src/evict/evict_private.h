@@ -139,8 +139,6 @@ static WT_INLINE bool __wti_evict_restored_page_unchanged(WT_SESSION_IMPL *sessi
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wti_evict_walk_missed_target(uint64_t pages_queued, uint32_t target_pages)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE double __wti_evict_dirty_target(WT_EVICT *evict)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE double __wti_evict_threshold_pct(double pct_clean, double pct_dirty,

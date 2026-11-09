@@ -582,19 +582,6 @@ __wti_evict_threshold_pct(double pct_clean, double pct_dirty, double pct_updates
           updates_trigger - pct_updates)));
 }
 
-/*
- * __wti_evict_walk_missed_target --
- *     Return whether an eviction walk queued fewer than half of the pages it was looking for, in
- *     which case the tree should be walked less often. The half is rounded up: truncating it would
- *     make a one-page target unmissable, so a walk that queued nothing would never back off. Kept
- *     separate from the walk, as pure arithmetic, so it can be unit tested without a live tree.
- */
-static WT_INLINE bool
-__wti_evict_walk_missed_target(uint64_t pages_queued, uint32_t target_pages)
-{
-    return (pages_queued < ((uint64_t)target_pages + 1) / 2);
-}
-
 /* !!!
  * __wt_evict_needed --
  *     Check whether the configured clean/dirty/update eviction trigger thresholds for the cache
