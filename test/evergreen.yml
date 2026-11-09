@@ -7341,6 +7341,7 @@ tasks:
       - func: "format test"
         vars:
           test_format_extra_args: runs.rows=1000:2500
+      - func: "run antithesis container"
 
   - name: release-with-debug-have-diagnostic
     tags: ["antithesis"]

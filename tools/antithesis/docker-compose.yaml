@@ -6,35 +6,24 @@ services:
     hostname: wiredtiger
     image: wt-test-format:wt-willk
     entrypoint:
-        - /bin/sh
-        - -c
-        - |
-          env
-          # The name of this environment variable is "magic" in the sense that the Antithesis
-          # folk have customised it on their end. In other words -- there is nowhere in the code
-          # that does a mapping from `custom.compose_env` to this name.
-          echo "format test script args?: $FORMAT_TEST_SCRIPT_ARGS"
-          echo '{"antithesis_setup": { "status": "complete", "details": {"message": "Set up complete - ready for testing!" }}}' >> $ANTITHESIS_OUTPUT_DIR/sdk.jsonl
-          memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
-          memory_max=$(( ($memory_max * 8) / (${num_jobs} * 1024 * 10) ))
-          /opt/bin/test.sh -c CONFIG.antithesis -h /data/RUNDIR -T bulk,txn,retain=50 ${FORMAT_TEST_SCRIPT_ARGS}
+          - /bin/sh
+          - -c
+          - |
+            env
+            echo "format test script args?: $FORMAT_TEST_SCRIPT_ARGS"
+            echo '{"antithesis_setup": { "status": "complete", "details": {"message": "Set up complete - ready for testing!" }}}' >> $ANTITHESIS_OUTPUT_DIR/sdk.jsonl
+            # memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
+            # memory_max=$(( ($memory_max * 8) / (${num_jobs} * 1024 * 10) ))
+            /opt/bin/test.sh -c CONFIG.antithesis -h /data/RUNDIR -T bulk,txn,retain=50
     environment:
-      FORMAT_TEST_SCRIPT_ARGS: "${FORMAT_TEST_SCRIPT_ARGS}"
+        FORMAT_TEST_SCRIPT_ARGS: "${FORMAT_TEST_SCRIPT_ARGS}"
     volumes:
       - ./data/wiredtiger:/data/
       - type: bind
-      source: ./CONFIG.antithesis
-      target: /opt/bin/test/format/CONFIG.antithesis
+        source: ./CONFIG.antithesis
+        target: /opt/bin/test/format/CONFIG.antithesis
     networks:
       antithesis-net:
         ipv4_address: 10.20.20.6
         # Set the an IPv4 with an address of 10.20.20.130 or higher
         # to be ignored by the fault injector
-
-
-networks:
-  antithesis-net:
-    driver: bridge
-    ipam:
-      config:
-      - subnet: 10.20.20.0/24
