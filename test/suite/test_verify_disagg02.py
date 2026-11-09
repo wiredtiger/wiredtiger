@@ -92,6 +92,12 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
             lambda: session_follow.verify(None, 'check_ids_only=true'), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('metadata corruption')
 
+        # A plain NULL URI runs the check before verifying all tables, so it detects the
+        # duplicate too.
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: session_follow.verify(None), '/WT_ERROR/')
+        self.ignoreStderrPatternIfExists('metadata corruption')
+
         # Remove the fake entry so teardown verification passes.
         raw_cursor = session_follow.open_cursor('file:WiredTiger.wt', None, None)
         raw_cursor.set_key('file:fake_duplicate.wt_stable')
@@ -131,3 +137,8 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         with self.expectedStderrPattern('metadata corruption.*dup_entry'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.verify(None, 'check_ids_only=true'), '/WT_ERROR/')
+
+        # A plain NULL URI runs the check before verifying all tables.
+        with self.expectedStderrPattern('metadata corruption.*dup_entry'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.verify(None), '/WT_ERROR/')

@@ -1902,12 +1902,18 @@ static int
 __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
 
     if (uri == NULL) {
-        /* With check_ids_only set, only run the database-wide checks, don't verify any table. */
+        /*
+         * A NULL URI runs the database-wide checks before verifying every table, with
+         * check_ids_only set, return early without verifying any table.
+         */
         WT_RET(__wt_config_gets(session, cfg, "check_ids_only", &cval));
+        ret = __wt_verify_metadata_consistency(session);
+        WT_RET(ret);
         if (cval.val != 0)
-            return (__wt_verify_metadata_consistency(session));
+            return (0);
         return (__session_verify_all(session, cfg));
     }
 

@@ -1565,9 +1565,9 @@ struct __wt_session {
      * @exclusive
      *
      * @param session the session handle
-     * @param name the URI of the table or file to verify; if NULL, verify all tables in the
-     * database. With the \c check_ids_only configuration set, a NULL URI runs only the
-     * database-wide unique btree ID check without verifying any table
+     * @param name the URI of the table or file to verify; if NULL, run the database-wide unique
+     * btree ID check and verify all tables in the database. With the \c check_ids_only
+     * configuration set, a NULL URI runs only the check, without verifying any table
      * @configstart{WT_SESSION.verify, see dist/api_data.py}
      * @config{abort_on_error, when verifying all tables (no URI given)\, stop at the first table
      * that fails verification; by default all tables are verified\, with every failure logged as it
