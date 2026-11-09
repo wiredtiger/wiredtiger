@@ -567,6 +567,20 @@ variables:
           format_args: disagg.mode=switch debug.disagg_slow_truncate_follower=off runs.timer=10:15 ops.prepare=0 ops.verify=1 runs.mirror=1
           times: 5
 
+  # A lagging materialization frontier leaves pages that exist only in the cache ineligible for
+  # eviction and discard, which slows the run down; use a shorter run than the switch variant. It
+  # must be a diagnostic build: the read path's "only readable copy" invariant is enforced by
+  # asserts that compile out in release.
+  - &format-stress-test-disagg-frontier-lag
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader disagg.frontier_lag=on runs.timer=5 ops.prepare=0 ops.verify=1 runs.mirror=1
+          times: 2
+
   # Configure flags for builtins.
   - &configure_flags_with_builtins
     HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
@@ -600,6 +614,11 @@ tasks:
   - <<: *format-stress-test-disagg-switch-fast-truncate
     name: format-stress-test-disagg-switch-fast-truncate-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+
+  # Only in the ASan build variant, which is the diagnostic build.
+  - <<: *format-stress-test-disagg-frontier-lag
+    name: format-stress-test-disagg-frontier-lag
+    tags: ["stress-test-disagg-san-fail"]
 
 #######################################
 #            Buildvariants            #
