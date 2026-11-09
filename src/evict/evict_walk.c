@@ -1576,7 +1576,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
     /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
     evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
-    if (pages_queued < target_pages / 2 && !urgent_queued)
+    if (__wti_evict_walk_missed_target(pages_queued, target_pages) && !urgent_queued)
         __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period,
           WT_MIN(WT_MAX(1, 2 * evict_walk_period), WTI_EVICT_WALK_PERIOD_MAX));
     else if (pages_queued == target_pages) {
