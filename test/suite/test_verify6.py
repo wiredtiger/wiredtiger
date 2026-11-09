@@ -52,5 +52,5 @@ class test_verify6(wttest.WiredTigerTestCase):
         # Verifying a single table still works alongside the NULL URI form.
         self.assertEqual(self.session.verify(f'{self.uri}_0'), 0)
 
-        # A NULL URI with check_ids_only runs the duplicate ID check and skips verify any object.
-        self.assertEqual(self.session.verify(None, 'check_ids_only=true'), 0)
+        # A NULL URI with check_btree_ids_only runs the duplicate ID check and skips verify any object.
+        self.assertEqual(self.session.verify(None, 'check_btree_ids_only=true'), 0)

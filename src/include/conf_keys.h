@@ -100,7 +100,7 @@
 #define WT_CONF_ID_cache_tolerance_for_app_eviction 268ULL
 #define WT_CONF_ID_cache_top 196ULL
 #define WT_CONF_ID_capacity 345ULL
-#define WT_CONF_ID_check_ids_only 158ULL
+#define WT_CONF_ID_check_btree_ids_only 158ULL
 #define WT_CONF_ID_checkpoint 53ULL
 #define WT_CONF_ID_checkpoint_backup_info 54ULL
 #define WT_CONF_ID_checkpoint_cleanup 186ULL
@@ -687,7 +687,7 @@ static const struct {
     uint64_t cache_size;
     uint64_t cache_stuck_timeout_ms;
     uint64_t cache_top;
-    uint64_t check_ids_only;
+    uint64_t check_btree_ids_only;
     uint64_t checkpoint;
     uint64_t checkpoint_backup_info;
     uint64_t checkpoint_lsn;
@@ -1118,7 +1118,7 @@ static const struct {
   WT_CONF_ID_cache_size,
   WT_CONF_ID_cache_stuck_timeout_ms,
   WT_CONF_ID_cache_top,
-  WT_CONF_ID_check_ids_only,
+  WT_CONF_ID_check_btree_ids_only,
   WT_CONF_ID_checkpoint,
   WT_CONF_ID_checkpoint_backup_info,
   WT_CONF_ID_checkpoint_lsn,

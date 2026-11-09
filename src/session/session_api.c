@@ -1907,9 +1907,9 @@ __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char 
     if (uri == NULL) {
         /*
          * A NULL URI runs the database-wide checks before verifying every table, with
-         * check_ids_only set, return early without verifying any table.
+         * check_btree_ids_only set, return early without verifying any table.
          */
-        WT_RET(__wt_config_gets(session, cfg, "check_ids_only", &cval));
+        WT_RET(__wt_config_gets(session, cfg, "check_btree_ids_only", &cval));
         ret = __wt_verify_metadata_consistency(session);
         WT_RET(ret);
         if (cval.val != 0)

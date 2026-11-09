@@ -1946,7 +1946,7 @@ methods = {
         verification; by default all tables are verified, with every failure logged as it is
         found, and the return value reports the first failure''',
         type='boolean'),
-    Config('check_ids_only', 'false', r'''
+    Config('check_btree_ids_only', 'false', r'''
         when no URI is given, only run the database-wide unique btree ID check without
         verifying any table''',
         type='boolean'),

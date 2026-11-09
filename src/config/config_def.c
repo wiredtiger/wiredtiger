@@ -1879,8 +1879,8 @@ static const uint8_t confchk_WT_SESSION_timestamp_transaction_jump[WT_CONFIG_JUM
 static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
   {"abort_on_error", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 157,
     INT64_MIN, INT64_MAX, NULL},
-  {"check_ids_only", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 158,
-    INT64_MIN, INT64_MAX, NULL},
+  {"check_btree_ids_only", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
+    158, INT64_MIN, INT64_MAX, NULL},
   {"do_not_clear_txn_id", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     159, INT64_MIN, INT64_MAX, NULL},
   {"dump_address", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 160,
@@ -3992,7 +3992,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"WT_SESSION.timestamp_transaction_uint", "", NULL, 0, NULL, 41, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.truncate", "", NULL, 0, NULL, 42, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.verify",
-    "abort_on_error=false,check_ids_only=false,"
+    "abort_on_error=false,check_btree_ids_only=false,"
     "do_not_clear_txn_id=false,dump_address=false,dump_all_data=false"
     ",dump_blocks=false,dump_key_data=false,dump_layout=false,"
     "dump_offsets=,dump_pages=false,dump_tree_shape=false,"
