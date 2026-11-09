@@ -32,28 +32,9 @@
 
 # Enable cursor-copy debugging for Python tests: python run.py --hook cursor_copy.
 
-import wthooks, wttest
-
-debug_config_pattern = (
-    r'\[WT_VERB_CONFIGURATION\]\[INFO\]: wiredtiger_open debug_mode=.*$|'
-    r'"category":"WT_VERB_CONFIGURATION".*"verbose_level":"INFO".*'
-    r'"msg":"wiredtiger_open debug_mode=.*"}')
-
-def ignore_debug_config_output():
-    testcase = wttest.WiredTigerTestCase.getCurrentTestCase()
-    if testcase is None:
-        return
-    pattern = debug_config_pattern
-    flags = 0
-    if testcase.ignore_regex is not None:
-        if pattern in testcase.ignore_regex.pattern:
-            return
-        pattern = testcase.ignore_regex.pattern + '|' + pattern
-        flags = testcase.ignore_regex.flags
-    testcase.ignoreStdoutPattern(pattern, flags)
+import wthooks
 
 def wiredtiger_open_args(ignored_self, args):
-    ignore_debug_config_output()
     args = list(args)
     if len(args) == 1:
         args.append('')
@@ -61,16 +42,12 @@ def wiredtiger_open_args(ignored_self, args):
     args[1] = (args[1] or '') + ',debug_mode=(cursor_copy=true)'
     return args
 
-def wiredtiger_open_notify(ignored_ret, ignored_self, *args):
-    ignore_debug_config_output()
-
 class CursorCopyHookCreator(wthooks.WiredTigerHookCreator):
     def get_platform_api(self):
         return wthooks.WiredTigerHookPlatformAPI()
 
     def setup_hooks(self):
         self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_args)
-        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_NOTIFY, wiredtiger_open_notify)
 
 def initialize(arg):
     return [CursorCopyHookCreator()]

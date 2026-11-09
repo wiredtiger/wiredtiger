@@ -3643,14 +3643,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * is set up.
      */
     WT_ERR(__wti_debug_mode_config(session, cfg));
-    /* Only log debug settings explicitly supplied by the caller. */
-    ret = __wt_config_getones(session, config, "debug_mode", &cval);
-    if (ret == 0) {
-        WT_ERR(__wt_config_getones(session, conn->cfg, "debug_mode", &cval));
-        __wt_verbose_info(session, WT_VERB_CONFIGURATION, "wiredtiger_open debug_mode=%.*s",
-          (int)cval.len, cval.str);
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Parse the heuristic_controls configuration. */
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
