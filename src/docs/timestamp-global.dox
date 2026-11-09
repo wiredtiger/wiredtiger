@@ -40,6 +40,7 @@ WT_CONNECTION::set_timestamp method, including constraints.
 |-----------|-------------|-------------|
 | durable_timestamp | none | temporarily set the system's maximum durable timestamp, bounding the timestamp returned by \c all_durable. |
 | oldest_timestamp | <= stable; may not move backward, set to the value as of the last checkpoint during recovery | Inform the system future reads and writes will never be earlier than the specified timestamp. |
+| stable_disaggregated_schema_epoch | may not move backward; on a leader, >= the schema epoch of the last checkpoint; not restored on restart | Inform the system checkpoints should not include schema operations published at a later schema epoch. Disaggregated storage only. |
 | stable_timestamp | may not move backward, set to the stable timestamp during rollback-to-stable and recovery | Inform the system checkpoints should not include commits newer than the specified timestamp. |
 
 @subsection timestamp_global_set_api_durable_timestamp Setting the global "durable_timestamp" timestamp
@@ -101,6 +102,64 @@ be useful for backup scenarios where rolling back to a stable timestamp
 isn't possible and it's useful for a checkpoint to contain the most recent
 possible data.
 
+@subsection timestamp_global_set_api_stable_schema_epoch Setting the "stable_disaggregated_schema_epoch" timestamp
+
+In disaggregated storage, creates and drops of layered tables reach other nodes
+through the shared metadata that the leader writes with each checkpoint. Schema
+epochs order these operations independently of commit timestamps: the
+application assigns each operation a schema epoch, and the
+\c stable_disaggregated_schema_epoch selects the operations a checkpoint
+includes. Schema epochs use the same format as timestamps.
+
+Every node queues creates and drops of layered tables. A queued operation is
+unpublished until the application assigns it a schema epoch with
+WT_SESSION::publish, for example <tt>disaggregated=(schema_epoch=20)</tt>.
+When a checkpoint starts, it reads the current stable schema epoch. The
+checkpoint includes the operations published at or below that epoch, and
+records the epoch. Operations published above it, and unpublished operations,
+stay queued for a later checkpoint.
+
+The application runs the same schema operations on followers and publishes
+them at the same schema epochs as on the leader. When a follower picks up a
+checkpoint, it removes the queued operations at or below the schema epoch
+recorded in that checkpoint. After a step-up, the queue on the new leader
+holds the operations that the shared metadata does not include yet.
+
+WT_SESSION::publish applies to \c table: and \c layered: URIs and assigns the
+given schema epoch to every unpublished operation queued for the table. The
+schema epoch must be later than the stable schema epoch and the schema epoch of
+the last checkpoint; otherwise, or if nothing is queued for the table, it fails
+with \c EINVAL. WiredTiger panics if the stable schema epoch is not set,
+or if the table was created before it was set. Dropping a table whose create is
+still unpublished removes the create from the queue, and neither operation is
+published.
+
+A layered table created while the stable schema epoch is set stays in memory
+until a checkpoint includes the create. A checkpoint fails with \c EINVAL if
+the stable timestamp covers a commit to a table that the checkpoint does not
+include. Therefore, publish the table at a schema epoch, and advance the stable
+schema epoch to at least that epoch, before the stable timestamp reaches the
+first commit to the table.
+
+The stable schema epoch has these constraints:
+- It may not move backward, even with <tt>force=true</tt>. Setting the current
+value again has no effect.
+- On a leader, it may not be set below the schema epoch of the last checkpoint
+(see @ref timestamp_global_query_api_last_schema_epoch).
+- Once set, it cannot be unset. It is not saved across restarts: the
+application must set it again after a restart.
+- For a planned step-down, the application sets
+\c step_down_disaggregated_schema_epoch with \c step_down_timestamp.
+Operations issued before the step-down timestamp was set must be published at
+or below the step-down schema epoch, and operations issued after it above. The
+stable schema epoch may not pass the step-down schema epoch, and must equal it
+when the node steps down.
+
+If the stable schema epoch is not set, schema operations are not gated: each
+checkpoint includes the operations queued before it started, and
+WT_SESSION::publish is not used. Such a checkpoint keeps the schema epoch of
+the previous checkpoint.
+
 @section timestamp_global_querying_timestamps Querying global timestamps
 
 The following table lists the global timestamps an application can query using
@@ -113,10 +172,12 @@ or \c oldest_reader if there are no active transactions.
 |-----------|-------------|-------------|
 | all_durable | None | The largest timestamp such that all timestamps up to that value have been made durable, bounded by the \c durable timestamp. |
 | last_checkpoint | <= stable | The stable timestamp at which the last checkpoint ran. |
+| last_disaggregated_schema_epoch | None | The schema epoch of the last checkpoint this node wrote or picked up. |
 | oldest_reader | None | The timestamp of the oldest currently active read transaction. |
 | oldest_timestamp | <= stable | The current application-set \c oldest_timestamp value. |
 | pinned | <= oldest | The minimum of the \c oldest_timestamp and the oldest active reader. |
 | recovery | <= stable | The stable timestamp used in the most recent checkpoint prior to the last shutdown. |
+| stable_disaggregated_schema_epoch | None | The current application-set \c stable_disaggregated_schema_epoch value. |
 | stable_timestamp | None | The current application-set \c stable_timestamp value. |
 
 @subsection timestamp_global_query_api_all_durable Reading the "all_durable" timestamp
@@ -167,6 +228,15 @@ of the \c recovery timestamp. Generally, applications are expected to use the
 
 The \c last_checkpoint timestamp is read-only.
 
+@subsection timestamp_global_query_api_last_schema_epoch Reading the "last_disaggregated_schema_epoch" timestamp
+
+The \c last_disaggregated_schema_epoch is the schema epoch of the last
+checkpoint this node wrote or picked up, or 0 after a checkpoint with
+<tt>use_timestamp=false</tt>. After a restart, a leader must set the stable schema epoch to at
+least this value.
+
+The \c last_disaggregated_schema_epoch timestamp is read-only.
+
 @subsection timestamp_global_query_api_oldest_reader Reading the "oldest_reader" timestamp
 
 The \c oldest_reader timestamp is the oldest transaction read timestamp active,
@@ -196,6 +266,12 @@ performed on startup. Applications can use the \c recovery timestamp to
 retrieve the value the stable timestamp had at system startup.
 
 The \c recovery timestamp is read-only.
+
+@subsection timestamp_global_query_api_stable_schema_epoch Reading the "stable_disaggregated_schema_epoch" timestamp
+
+The \c stable_disaggregated_schema_epoch is the current
+\c stable_disaggregated_schema_epoch as set by the application, or 0 if it is
+not set.
 
 @subsection timestamp_global_query_api_stable_timestamp Reading the "stable_timestamp" timestamp
 
