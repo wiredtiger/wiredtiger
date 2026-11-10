@@ -67,19 +67,16 @@ __layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 /*
  * __layered_move_updates --
- *     Move the updates of a key to the stable table, skipping orphan removes and counting the key
- *     once. Any unresolved prepared update on the stable table should now have been resolved. On
- *     success the caller's update list is consumed and cleared; on error it holds what remains to
- *     free.
+ *     Move the updates of a key to the stable table, dropping removes with nothing to delete. Any
+ *     unresolved prepared update on the stable table should now have been resolved. On success the
+ *     update list is consumed; on error it holds what remains to free.
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE **updates_ptr, WT_UPDATE *last_upd, wt_timestamp_t from_ts, uint64_t *orphan_countp)
+  WT_UPDATE **updates_ptr, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
-    WT_UPDATE *oldest, *oldest_prev, *prev, *upd;
-    WT_UPDATE **rollbackp;
-    bool stable_has_value;
+    WT_UPDATE *last_upd;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -91,58 +88,58 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /* Rolled-back updates cannot supply a value for a subsequent remove. */
-    oldest = oldest_prev = prev = NULL;
-    stable_has_value = true;
-    if (from_ts == WT_TS_NONE) {
-        stable_has_value = __layered_stable_has_value(session, cbt);
-        for (upd = *updates_ptr; upd != NULL; prev = upd, upd = upd->next)
-            if (upd->txnid != WT_TXN_ABORTED) {
-                oldest = upd;
-                oldest_prev = prev;
-            }
-    }
-    rollbackp = oldest == NULL ? updates_ptr : &oldest->next;
-    /* A globally visible tombstone may have already outlived its underlying value. */
-    if (!stable_has_value && oldest != NULL && oldest->type == WT_UPDATE_TOMBSTONE &&
-      !__wt_txn_upd_visible_all(session, oldest)) {
-        ++*orphan_countp;
+    /*
+     * With no stable value, starting from the oldest update that was not rolled back:
+     *
+     * 1. If it is a remove, drop it: it has nothing to delete and cannot be reconciled.
+     * 2. If an older rolled-back update is a remove, drop it for the same reason.
+     * 3. If an older rolled-back update is a value, keep it: a checkpoint between its prepare and
+     * rollback must still write it as prepared.
+     */
+    if (from_ts == WT_TS_NONE && !__layered_stable_has_value(session, cbt)) {
+        WT_UPDATE *upd;
+        WT_UPDATE **oldestp, **updp;
 
-        /*
-         * An in-flight prepared transaction was redirected to the stable btree when its update was
-         * read. Unless a newer update of the same transaction still reaches the stable btree, it
-         * must forget the key.
-         */
-        if (oldest->prepare_state == WT_PREPARE_INPROGRESS) {
-            for (upd = *updates_ptr; upd != oldest; upd = upd->next)
-                WT_ASSERT(session,
-                  upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == oldest->txnid &&
-                    upd->prepared_id == oldest->prepared_id);
-            /* Discard the operations for an orphan prepared delete when it is the newest update. */
-            if (*updates_ptr == oldest)
-                WT_ERR(__layered_drop_prepared_transaction_ops(
-                  session, key, CUR2BT(cbt), oldest->txnid, oldest->prepared_id));
+        oldestp = NULL;
+        for (updp = updates_ptr; (upd = *updp) != NULL; updp = &upd->next)
+            if (upd->txnid != WT_TXN_ABORTED)
+                oldestp = updp;
+
+        updp = oldestp == NULL ? updates_ptr : &(*oldestp)->next;
+        if (oldestp != NULL && (*oldestp)->type == WT_UPDATE_TOMBSTONE) {
+            WT_UPDATE *orphan = *oldestp;
+
+            ++*orphan_countp;
+
+            /*
+             * The prepared transaction resolves this key in the stable btree, so it must forget the
+             * key unless one of its newer updates still moves there.
+             */
+            if (orphan->prepare_state == WT_PREPARE_INPROGRESS) {
+                for (upd = *updates_ptr; upd != orphan; upd = upd->next)
+                    WT_ASSERT(session,
+                      upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == orphan->txnid &&
+                        upd->prepared_id == orphan->prepared_id);
+                if (updates_ptr == oldestp)
+                    WT_ERR(__layered_drop_prepared_transaction_ops(
+                      session, key, CUR2BT(cbt), orphan->txnid, orphan->prepared_id));
+            }
+
+            *oldestp = orphan->next;
+            __wt_free(session, orphan);
+            updp = oldestp;
         }
 
-        /* Preserve value-bearing rollback history below the orphan. */
-        if (oldest_prev == NULL)
-            *updates_ptr = oldest->next;
-        else
-            oldest_prev->next = oldest->next;
-        rollbackp = oldest_prev == NULL ? updates_ptr : &oldest_prev->next;
-        __wt_free(session, oldest);
-    }
-
-    /* Aborted deletes in the older rollback history have no value to delete either. */
-    if (!stable_has_value)
-        while ((upd = *rollbackp) != NULL) {
+        while ((upd = *updp) != NULL) {
             WT_ASSERT(session, upd->txnid == WT_TXN_ABORTED);
             if (upd->type == WT_UPDATE_TOMBSTONE) {
-                *rollbackp = upd->next;
+                *updp = upd->next;
                 __wt_free(session, upd);
             } else
-                rollbackp = &upd->next;
+                updp = &upd->next;
         }
+    }
+
     if (*updates_ptr == NULL)
         goto err;
     for (last_upd = *updates_ptr; last_upd->next != NULL; last_upd = last_upd->next)
@@ -649,7 +646,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
-    WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
+    WT_UPDATE *prev_upd, *upd, *upds;
     wt_timestamp_t cursor_start_ts, last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
       stop_ts;
@@ -663,7 +660,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
     bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
-    last_upd = prev_upd = upd = upds = NULL;
+    prev_upd = upd = upds = NULL;
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
@@ -704,8 +701,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, key, &upds, last_upd, from_ts, orphan_countp));
+                  ret = __layered_move_updates(session, cbt, key, &upds, from_ts, orphan_countp));
                 WT_ERR(ret);
             } else
                 ret = 0;
@@ -723,8 +719,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, key, &upds, last_upd, from_ts, orphan_countp));
+                  ret = __layered_move_updates(session, cbt, key, &upds, from_ts, orphan_countp));
                 WT_ERR(ret);
             }
 
@@ -877,7 +872,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
                 }
                 /* This is for debugging purpose and it is not checked in the code. */
                 F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
-                last_upd = upd;
 
                 if (prepare && !prepare_txn_fixed) {
                     WT_ASSERT(session, upds == NULL);

@@ -479,3 +479,116 @@ class test_layered_stepup17_stacked(wttest.WiredTigerTestCase):
         self.check_reads()
         self.reopen_conn()
         self.check_reads()
+
+# A prepared transaction writes a key several times on the follower and is resolved before or
+# after step-up. A first write that removes a key with no value in the stable table is an orphan.
+@disagg_test_class
+class test_layered_stepup17_same_txn(wttest.WiredTigerTestCase):
+    uri = 'layered:test_layered_stepup17_same_txn'
+    read_ts = (15, 22, 25, 30, None)
+
+    writes = [
+        ('remove_insert', dict(writes=['remove', 'insert'])),
+        ('insert_remove', dict(writes=['insert', 'remove'])),
+        ('remove_insert_remove', dict(writes=['remove', 'insert', 'remove'])),
+        ('insert_update', dict(writes=['insert', 'update'])),
+    ]
+    stable_states = [
+        ('absent', dict(stable_state='absent')),
+        ('present', dict(stable_state='present')),
+    ]
+    resolutions = [
+        ('commit_after', dict(commit=True, resolve_before=False)),
+        ('rollback_after', dict(commit=False, resolve_before=False)),
+        ('commit_before', dict(commit=True, resolve_before=True)),
+        ('rollback_before', dict(commit=False, resolve_before=True)),
+    ]
+    scenarios = make_scenarios(
+        gen_disagg_storages(disagg_only=True), writes, stable_states, resolutions)
+
+    def conn_config(self):
+        return self.extensionsConfig() + ',create,statistics=(all),precise_checkpoint=true,' \
+            'preserve_prepared=true,disaggregated=(role="leader")'
+
+    def resolve(self, session):
+        if self.commit:
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(25) +
+                ',durable_timestamp=' + self.timestamp_str(25))
+        else:
+            session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(25))
+
+    def expected(self, ts):
+        if self.commit and ts >= 25:
+            last = self.writes[-1]
+            return None if last == 'remove' else last.encode()
+        return b'old' if self.stable_state == 'present' else None
+
+    def check_reads(self):
+        for read_ts in self.read_ts:
+            with self.transaction(read_timestamp=read_ts, rollback=True):
+                cursor = self.session.open_cursor(self.uri)
+                cursor.set_key('k')
+                value = self.expected(100 if read_ts is None else read_ts)
+                if value is None:
+                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                else:
+                    self.assertEqual(cursor.search(), 0)
+                    self.assertEqual(cursor.get_value(), value)
+                self.assertEqual(cursor['anchor'], b'anchor')
+                cursor.close()
+
+    def test_same_txn_writes_then_step_up(self):
+        self.session.create(self.uri, 'key_format=S,value_format=u')
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        with self.transaction(commit_timestamp=5):
+            cursor = self.session.open_cursor(self.uri)
+            cursor['anchor'] = b'anchor'
+            if self.stable_state == 'present':
+                cursor['k'] = b'old'
+            cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.session.checkpoint()
+
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        writer = self.conn.open_session()
+        writer.begin_transaction()
+        for write in self.writes:
+            if write == 'remove':
+                cursor = writer.open_cursor(self.uri, None, 'blind_remove=true')
+                cursor.set_key('k')
+                self.assertEqual(cursor.remove(), 0)
+            else:
+                cursor = writer.open_cursor(self.uri)
+                cursor['k'] = write.encode()
+            cursor.close()
+        writer.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
+            ',prepared_id=' + self.prepared_id_str(1))
+        if self.resolve_before:
+            self.resolve(writer)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(22))
+
+        # FIXME-WT-19038: a transaction still prepared at step-up should count by its first write.
+        counted = self.writes[0] if self.resolve_before else self.writes[-1]
+        # Removes rolled back before step-up are not counted.
+        orphans = 1 if self.stable_state == 'absent' and counted == 'remove' and not (
+            self.resolve_before and not self.commit) else 0
+        warnings = [f'{self.uri}: step-up drain skipped orphan removes for 1 key(s) with no value '
+            'in the stable table'] if orphans else []
+        before = self.get_stat(wiredtiger.stat.conn.disagg_step_up_ingest_drain_orphan_remove)
+        with self.customStdoutPattern(check_drain_warnings(self, warnings)):
+            self.conn.reconfigure('disaggregated=(role="leader")')
+        self.assertEqual(self.get_stat(
+            wiredtiger.stat.conn.disagg_step_up_ingest_drain_orphan_remove) - before, orphans)
+
+        # Checkpoint while the transaction may still be prepared, then resolve it.
+        self.session.checkpoint()
+        if not self.resolve_before:
+            self.resolve(writer)
+        writer.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+
+        self.check_reads()
+        self.session.checkpoint()
+        self.check_reads()
+        self.reopen_conn()
+        self.check_reads()
