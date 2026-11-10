@@ -284,6 +284,35 @@ done:
 }
 
 /*
+ * timestamp_advance_stable_for_shutdown --
+ *     Advance stable for eviction after the workers and timestamp thread stop.
+ */
+static void
+timestamp_advance_stable_for_shutdown(WT_SESSION *session)
+{
+    if (!GV(RUNS_PREDICTABLE_REPLAY))
+        timestamp_sync_threads_commit_ts();
+
+    wt_timestamp_t stable_timestamp = timestamp_minimum_committed();
+
+    /* Respect the predictable replay endpoint. */
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        wt_timestamp_t stop_timestamp = __wt_atomic_load_uint64_acquire(&g.stop_timestamp);
+        if (stop_timestamp != WT_TS_NONE)
+            stable_timestamp = WT_MIN(stable_timestamp, stop_timestamp);
+    }
+
+    /* Advance stable while retaining oldest for historical reads. */
+    WT_CONNECTION *conn = g.wts_conn;
+    char config[WT_TS_HEX_STRING_SIZE + 32];
+    testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, stable_timestamp);
+    lock_writelock(session, &g.prepare_commit_lock);
+    testutil_check(conn->set_timestamp(conn, config));
+    lock_writeunlock(session, &g.prepare_commit_lock);
+    g.stable_timestamp = stable_timestamp;
+}
+
+/*
  * operations --
  *     Perform a number of operations in a set of threads.
  */
@@ -532,27 +561,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Advance stable so eviction can make progress while background threads finish. */
     if (g.transaction_timestamps_config &&
-      F_ISSET((WT_CONNECTION_IMPL *)conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        /* Calculate the final stable timestamp. */
-        if (!GV(RUNS_PREDICTABLE_REPLAY))
-            timestamp_sync_threads_commit_ts();
-        wt_timestamp_t stable_timestamp = timestamp_minimum_committed();
-
-        /* Respect the predictable replay endpoint. */
-        if (GV(RUNS_PREDICTABLE_REPLAY)) {
-            wt_timestamp_t stop_timestamp = __wt_atomic_load_uint64_acquire(&g.stop_timestamp);
-            if (stop_timestamp != WT_TS_NONE)
-                stable_timestamp = WT_MIN(stable_timestamp, stop_timestamp);
-        }
-
-        /* Advance stable while retaining oldest for historical reads. */
-        char config[WT_TS_HEX_STRING_SIZE + 32];
-        testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, stable_timestamp);
-        lock_writelock(session, &g.prepare_commit_lock);
-        testutil_check(conn->set_timestamp(conn, config));
-        lock_writeunlock(session, &g.prepare_commit_lock);
-        g.stable_timestamp = stable_timestamp;
-    }
+      F_ISSET((WT_CONNECTION_IMPL *)conn, WT_CONN_PRECISE_CHECKPOINT))
+        timestamp_advance_stable_for_shutdown(session);
 
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_join(NULL, &alter_tid));
