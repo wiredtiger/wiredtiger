@@ -1009,22 +1009,33 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
  *     Calculate the minimum pages to visit.
  */
 static WT_INLINE uint64_t
-__evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
+__evict_get_min_pages(
+  WT_SESSION_IMPL *session, uint32_t target_pages, uint64_t *max_pages_per_candidatep)
 {
+    WT_CACHE *cache;
     WT_EVICT *evict;
-    uint64_t min_pages;
+    uint64_t cache_inuse, min_pages, tree_inuse;
+    bool clean, enabled;
 
+    cache = S2C(session)->cache;
     evict = S2C(session)->evict;
+    clean = F_ISSET(evict, WT_EVICT_CACHE_CLEAN);
+    enabled = __wt_atomic_load_bool_relaxed(&S2C(session)->evict_config.cache_share_walk_budget);
 
     /*
      * Examine at least a reasonable number of pages before deciding whether to give up. When we are
      * not looking for clean pages, search the tree for longer.
      */
-    min_pages = 10 * (uint64_t)target_pages;
-    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+    tree_inuse = cache_inuse = 0;
+    if (clean)
         WT_STAT_CONN_INCR(session, eviction_target_strategy_clean);
-    else
-        min_pages *= 10;
+    if (clean && enabled) {
+        cache_inuse = __wt_cache_bytes_inuse(cache);
+        if (cache_inuse != 0)
+            tree_inuse = __wt_btree_bytes_evictable(session);
+    }
+    min_pages = __evict_min_walk_pages(
+      target_pages, clean, enabled, tree_inuse, cache_inuse, max_pages_per_candidatep);
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
         WT_STAT_CONN_INCR(session, eviction_target_strategy_updates);
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
@@ -1162,7 +1173,7 @@ rand_next:
  */
 static WT_INLINE bool
 __evict_should_give_up_walk(WT_SESSION_IMPL *session, uint64_t pages_seen, uint64_t pages_queued,
-  uint64_t min_pages, uint32_t target_pages)
+  uint64_t min_pages, uint64_t max_pages_per_candidate)
 {
     WT_BTREE *btree;
     bool give_up;
@@ -1176,7 +1187,7 @@ __evict_should_give_up_walk(WT_SESSION_IMPL *session, uint64_t pages_seen, uint6
      */
     give_up = !__wt_evict_aggressive(session) && !WT_IS_HS(btree->dhandle) &&
       pages_seen > min_pages &&
-      (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
+      (pages_queued == 0 || (pages_seen / pages_queued) > max_pages_per_candidate);
     if (give_up) {
         /*
          * Try a different walk start point next time if a walk gave up.
@@ -1406,7 +1417,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     WT_REF *ref;
     WT_TXN *txn;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
-    uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
+    uint64_t max_pages_per_candidate, min_pages, pages_already_queued, pages_queued, pages_seen;
+    uint64_t refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
     uint64_t root_pages_skipped;
     uint32_t evict_walk_period, target_pages, walk_flags;
@@ -1432,7 +1444,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
     end = start + target_pages;
 
-    min_pages = __evict_get_min_pages(session, target_pages);
+    min_pages = __evict_get_min_pages(session, target_pages, &max_pages_per_candidate);
 
     WT_RET_NOTFOUND_OK(__evict_walk_prepare(session, &walk_flags));
 
@@ -1473,7 +1485,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
 
         if ((give_up = __evict_should_give_up_walk(
-               session, pages_seen, pages_queued, min_pages, target_pages)))
+               session, pages_seen, pages_queued, min_pages, max_pages_per_candidate)))
             break;
 
         if (ref == NULL) {
