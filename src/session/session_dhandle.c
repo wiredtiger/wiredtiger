@@ -321,6 +321,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
             WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
             return (0);
         }
+        /* Only retry a busy handle if the caller is allowed to wait for it. */
         if (ret != EBUSY || (is_open && want_exclusive) || LF_ISSET(WT_DHANDLE_LOCK_ONLY) ||
           no_wait)
             return (ret);
