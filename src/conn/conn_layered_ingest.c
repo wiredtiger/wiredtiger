@@ -146,7 +146,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
                 *upd_pointerp = upd->next;
                 __wt_free(session, upd);
             } else {
-                /* The layered cursor never removes a key twice in one transaction. */
+                /* The layered cursor never writes a remove over its own transaction's remove. */
                 WT_ASSERT(session,
                   upd->type != WT_UPDATE_TOMBSTONE || upd->next->type != WT_UPDATE_TOMBSTONE);
                 upd_pointerp = &upd->next;
