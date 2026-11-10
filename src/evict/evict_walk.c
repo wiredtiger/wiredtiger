@@ -132,8 +132,9 @@ __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     evict = conn->evict;
 
     /*
-     * Every walk point holds a hazard pointer in the walk session, so stop once none is left rather
-     * than visit the rest of the handle list with both locks held.
+     * The walk session's hazard pointers are all held by walk points, one each, and clearing a walk
+     * point releases its own. Stop once none is left: either no tree had a walk point, or the last
+     * one was cleared.
      */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         if (__wt_atomic_load_uint32_relaxed(&evict->walk_session->hazards.num_active) == 0)
