@@ -92,22 +92,23 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      * With no stable value, starting from the oldest update that was not rolled back:
      *
      * 1. If it is a remove, drop it: it has nothing to delete and cannot be reconciled.
-     * 2. If an older rolled-back update is a remove, drop it for the same reason.
+     * 2. If an older rolled-back update is a remove, drop it for the same reason, unless it removes
+     * a value written by its own transaction.
      * 3. If an older rolled-back update is a value, keep it: a checkpoint between its prepare and
      * rollback must still write it as prepared.
      */
     if (from_ts == WT_TS_NONE && !__layered_stable_has_value(session, cbt)) {
         WT_UPDATE *upd;
-        WT_UPDATE **oldestp, **updp;
+        WT_UPDATE **linkp, **oldest_linkp;
 
-        oldestp = NULL;
-        for (updp = updates_ptr; (upd = *updp) != NULL; updp = &upd->next)
+        oldest_linkp = NULL;
+        for (linkp = updates_ptr; (upd = *linkp) != NULL; linkp = &upd->next)
             if (upd->txnid != WT_TXN_ABORTED)
-                oldestp = updp;
+                oldest_linkp = linkp;
 
-        updp = oldestp == NULL ? updates_ptr : &(*oldestp)->next;
-        if (oldestp != NULL && (*oldestp)->type == WT_UPDATE_TOMBSTONE) {
-            WT_UPDATE *orphan = *oldestp;
+        linkp = oldest_linkp == NULL ? updates_ptr : &(*oldest_linkp)->next;
+        if (oldest_linkp != NULL && (*oldest_linkp)->type == WT_UPDATE_TOMBSTONE) {
+            WT_UPDATE *orphan = *oldest_linkp;
 
             ++*orphan_countp;
 
@@ -120,23 +121,31 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
                     WT_ASSERT(session,
                       upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == orphan->txnid &&
                         upd->prepared_id == orphan->prepared_id);
-                if (updates_ptr == oldestp)
+                if (updates_ptr == oldest_linkp)
                     WT_ERR(__layered_drop_prepared_transaction_ops(
                       session, key, CUR2BT(cbt), orphan->txnid, orphan->prepared_id));
             }
 
-            *oldestp = orphan->next;
+            *oldest_linkp = orphan->next;
             __wt_free(session, orphan);
-            updp = oldestp;
+            linkp = oldest_linkp;
         }
 
-        while ((upd = *updp) != NULL) {
+        while ((upd = *linkp) != NULL) {
             WT_ASSERT(session, upd->txnid == WT_TXN_ABORTED);
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                *updp = upd->next;
+            /*
+             * Keep a rolled-back remove that deletes a value from its own transaction, such as a
+             * rolled-back insert then remove. A transaction's updates to a key are adjacent, so the
+             * value it removes is its next.
+             */
+            if (upd->type == WT_UPDATE_TOMBSTONE &&
+              (upd->next == NULL || upd->next->type == WT_UPDATE_TOMBSTONE ||
+                upd->next->prepared_id != upd->prepared_id ||
+                upd->next->upd_saved_txnid != upd->upd_saved_txnid)) {
+                *linkp = upd->next;
                 __wt_free(session, upd);
             } else
-                updp = &upd->next;
+                linkp = &upd->next;
         }
     }
 
