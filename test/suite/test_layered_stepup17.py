@@ -255,12 +255,15 @@ class test_layered_stepup17_rollback(wttest.WiredTigerTestCase):
         ('remove_insert', dict(rolled_back=['remove', 'insert'])),
     ]
     finals = [
-        ('no_remove', dict(final=None, insert_in_txn=False)),
-        ('committed', dict(final='commit', insert_in_txn=False)),
-        ('prepared_commit', dict(final='prepared_commit', insert_in_txn=False)),
-        ('prepared_rollback', dict(final='prepared_rollback', insert_in_txn=False)),
-        ('prepared_insert_commit', dict(final='prepared_commit', insert_in_txn=True)),
-        ('prepared_insert_rollback', dict(final='prepared_rollback', insert_in_txn=True)),
+        ('no_remove', dict(final=None, insert_in_txn=False, reinsert=False)),
+        ('committed', dict(final='commit', insert_in_txn=False, reinsert=False)),
+        ('committed_reinsert', dict(final='commit', insert_in_txn=False, reinsert=True)),
+        ('prepared_commit', dict(final='prepared_commit', insert_in_txn=False, reinsert=False)),
+        ('prepared_rollback', dict(final='prepared_rollback', insert_in_txn=False, reinsert=False)),
+        ('prepared_insert_commit', dict(final='prepared_commit', insert_in_txn=True,
+            reinsert=False)),
+        ('prepared_insert_rollback', dict(final='prepared_rollback', insert_in_txn=True,
+            reinsert=False)),
     ]
     checkpoint_timestamps = [
         ('rollback_pending', dict(checkpoint_ts=11)),
@@ -285,8 +288,9 @@ class test_layered_stepup17_rollback(wttest.WiredTigerTestCase):
             with self.transaction(read_timestamp=read_ts, rollback=True):
                 cursor = self.session.open_cursor(self.uri)
                 cursor.set_key('k')
-                if self.insert_in_txn and self.final == 'prepared_commit' and (
-                    read_ts is None or read_ts >= 25):
+                ts = 100 if read_ts is None else read_ts
+                if (self.insert_in_txn and self.final == 'prepared_commit' and ts >= 25) or (
+                    self.reinserted and ts >= 22):
                     self.assertEqual(cursor.search(), 0)
                     self.assertEqual(cursor.get_value(), b'new')
                 else:
@@ -305,6 +309,7 @@ class test_layered_stepup17_rollback(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.conn.reconfigure('disaggregated=(role="follower")')
+        self.reinserted = self.reinsert
         writer = self.conn.open_session()
         for i, op in enumerate(self.rolled_back):
             ts = 11 + 2 * i
@@ -330,6 +335,12 @@ class test_layered_stepup17_rollback(wttest.WiredTigerTestCase):
             else:
                 writer.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
                     ',prepared_id=' + self.prepared_id_str(len(self.rolled_back) + 1))
+        if self.reinsert:
+            writer.begin_transaction()
+            cursor = writer.open_cursor(self.uri)
+            cursor['k'] = b'new'
+            cursor.close()
+            writer.commit_transaction('commit_timestamp=' + self.timestamp_str(22))
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.checkpoint_ts))
         orphans = 0 if self.final is None or self.insert_in_txn else 1
@@ -356,6 +367,8 @@ class test_layered_stepup17_rollback(wttest.WiredTigerTestCase):
         if self.checkpoint_ts != 19 and self.final in (None, 'commit'):
             restart_dir = 'RESTART'
             simulate_crash_restart(self, '.', restart_dir)
+            # The reinsert is newer than the last checkpoint.
+            self.reinserted = False
             discover = self.session.open_cursor('prepared_discover:')
             recovered = []
             while discover.next() == 0:
