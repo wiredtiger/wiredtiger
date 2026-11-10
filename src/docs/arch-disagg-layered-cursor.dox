@@ -44,4 +44,22 @@ guarantee: the `current_cursor` pointer must reference the constituent cursor fr
 value was obtained. This constituent cursor is expected to be positioned on the equal key/value pair
 as the `iface` cursor within its respective B-tree.
 
+@subsection layered-cursor-prepare Iteration over prepared updates
+
+A constituent blocked on a prepared update retains its key and page reference, with a B-tree
+iteration retry flag recording the direction. Although its internal-key flag is cleared, that key
+participates in the ordinary merge. Ingest wins equal keys, and the layered cursor reports a prepare
+conflict only when the winning constituent is blocked. Readable keys before a blocked key are
+returned first, and an ingest value or deletion marker hides the same key on stable.
+
+Continuing or reversing a blocked walk uses the constituent's B-tree iteration behavior. A conflict
+during initial bounded positioning that retains no key instead resets the walk for a fresh retry.
+Repositioning an alternate with `search_near()` can also conflict on a prepared key outside the
+requested direction; retrying after resolution preserves the result order.
+
+Reopening blocked stable on a role change closes the cursor retaining its key. If ingest holds the
+last returned key, invalidating the iteration flags makes stable reposition from ingest. Otherwise,
+the layered cursor saves the blocked key and direction until both constituents can be restored.
+Resetting or starting a different cursor operation clears this saved walk state.
+
 */
