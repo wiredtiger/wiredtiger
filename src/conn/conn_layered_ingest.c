@@ -99,16 +99,16 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      */
     if (from_ts == WT_TS_NONE && !__layered_stable_has_value(session, cbt)) {
         WT_UPDATE *upd;
-        WT_UPDATE **linkp, **oldest_linkp;
+        WT_UPDATE **oldest_pointerp, **upd_pointerp;
 
-        oldest_linkp = NULL;
-        for (linkp = updates_ptr; (upd = *linkp) != NULL; linkp = &upd->next)
+        oldest_pointerp = NULL;
+        for (upd_pointerp = updates_ptr; (upd = *upd_pointerp) != NULL; upd_pointerp = &upd->next)
             if (upd->txnid != WT_TXN_ABORTED)
-                oldest_linkp = linkp;
+                oldest_pointerp = upd_pointerp;
 
-        linkp = oldest_linkp == NULL ? updates_ptr : &(*oldest_linkp)->next;
-        if (oldest_linkp != NULL && (*oldest_linkp)->type == WT_UPDATE_TOMBSTONE) {
-            WT_UPDATE *orphan = *oldest_linkp;
+        upd_pointerp = oldest_pointerp == NULL ? updates_ptr : &(*oldest_pointerp)->next;
+        if (oldest_pointerp != NULL && (*oldest_pointerp)->type == WT_UPDATE_TOMBSTONE) {
+            WT_UPDATE *orphan = *oldest_pointerp;
 
             ++*orphan_countp;
 
@@ -121,17 +121,18 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
                     WT_ASSERT(session,
                       upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == orphan->txnid &&
                         upd->prepared_id == orphan->prepared_id);
-                if (updates_ptr == oldest_linkp)
+                if (updates_ptr == oldest_pointerp)
                     WT_ERR(__layered_drop_prepared_transaction_ops(
                       session, key, CUR2BT(cbt), orphan->txnid, orphan->prepared_id));
             }
 
-            *oldest_linkp = orphan->next;
+            /* The pointer to the orphan now points past it. */
+            *oldest_pointerp = orphan->next;
             __wt_free(session, orphan);
-            linkp = oldest_linkp;
+            upd_pointerp = oldest_pointerp;
         }
 
-        while ((upd = *linkp) != NULL) {
+        while ((upd = *upd_pointerp) != NULL) {
             WT_ASSERT(session, upd->txnid == WT_TXN_ABORTED);
             /*
              * Keep a rolled-back remove that deletes a value from its own transaction, such as a
@@ -142,10 +143,11 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
               (upd->next == NULL || upd->next->type == WT_UPDATE_TOMBSTONE ||
                 upd->next->prepared_id != upd->prepared_id ||
                 upd->next->upd_saved_txnid != upd->upd_saved_txnid)) {
-                *linkp = upd->next;
+                /* The pointer to the remove now points past it. */
+                *upd_pointerp = upd->next;
                 __wt_free(session, upd);
             } else
-                linkp = &upd->next;
+                upd_pointerp = &upd->next;
         }
     }
 
