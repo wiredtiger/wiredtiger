@@ -11,7 +11,13 @@
  * the caller had it. The lookup holds no reference to the history store dhandle once the cursor
  * closes, so a dhandle left on the session can be freed by sweep while the session still points at
  * it.
+ *
+ * The lookup runs under the eviction pass lock, so it must not wait for the history store dhandle
+ * lock, which sweep holds while waiting for the pass lock.
  */
+
+#include <chrono>
+#include <future>
 
 #include <catch2/catch.hpp>
 
@@ -61,4 +67,42 @@ TEST_CASE("session->dhandle is unchanged after a cached history store lookup", "
         session->dhandle = dhandle;
         REQUIRE(__wt_session_release_dhandle(session) == 0);
     }
+}
+
+TEST_CASE("Cached history store lookup does not wait on a write-locked dhandle", "[dhandle]")
+{
+    connection_wrapper conn("WT_TEST.dhandle_hs_lookup_nowait");
+    auto *session = conn.create_session();
+    auto *locker = conn.create_session();
+
+    // Cache a history store cursor in the session, as eviction threads do.
+    REQUIRE(__wt_curhs_cache(session) == 0);
+
+    // Find the history store dhandle; the locker's dhandle cache keeps it referenced.
+    REQUIRE(__wt_session_get_dhandle(locker, WT_HS_URI, nullptr, nullptr, 0) == 0);
+    auto *hs_dhandle = locker->dhandle;
+    REQUIRE(__wt_session_release_dhandle(locker) == 0);
+
+    // Look up the history store btree the way eviction does, holding the pass lock.
+    auto lookup_cached_hs = [session]() {
+        auto *pass_lock = &S2C(session)->evict->evict_pass_lock;
+        WT_BTREE *hs_btree = nullptr;
+
+        __wt_spin_lock(session, pass_lock);
+        const int ret = __wt_curhs_get_cached(session, WT_HS_ID, &hs_btree);
+        __wt_spin_unlock(session, pass_lock);
+        return ret;
+    };
+
+    // Hold the dhandle write lock as sweep does. On timeout, release it so a blocked lookup can
+    // finish and the test fails.
+    __wt_writelock(locker, &hs_dhandle->rwlock);
+    auto lookup = std::async(std::launch::async, lookup_cached_hs);
+    const bool finished = lookup.wait_for(std::chrono::seconds(30)) == std::future_status::ready;
+    __wt_writeunlock(locker, &hs_dhandle->rwlock);
+    const int ret = lookup.get();
+
+    INFO("The cached history store lookup waited on the write-locked dhandle");
+    REQUIRE(finished);
+    CHECK(ret == WT_NOTFOUND);
 }
