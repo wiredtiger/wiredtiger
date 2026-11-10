@@ -502,7 +502,13 @@ if(WT_WIN)
 endif()
 
 if(ENABLE_ANTITHESIS)
-    foreach(lang C CXX)
-        add_cmake_flag(CMAKE_${lang}_FLAGS -fsanitize-coverage=trace-pc-guard)
-    endforeach()
+    # The coverage flag must be compile-only: if it also appears on the link line (as it
+    # would via CMAKE_<LANG>_FLAGS, which CMake passes to the linker), Clang links its own
+    # no-op sanitizer coverage runtime and the libvoidstar callbacks never fire, leaving
+    # the binaries effectively uninstrumented.
+    add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize-coverage=trace-pc-guard>)
+    if(WT_LINUX)
+        # LLVM-instrumented binaries need GNU build ids for Antithesis symbolization.
+        add_link_options(-Wl,--build-id)
+    endif()
 endif()

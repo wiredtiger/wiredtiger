@@ -17,11 +17,18 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 {
     WT_DECL_RET;
     WT_DLH *dlh;
+    int flags;
+
+    flags = RTLD_LAZY;
+#ifdef ENABLE_ANTITHESIS
+    /* Instrumented libraries must stay loaded, or the coverage runtime reports stale addresses. */
+    flags |= RTLD_NODELETE;
+#endif
 
     WT_RET(__wt_calloc_one(session, &dlh));
     WT_ERR(__wt_strdup(session, path == NULL ? "local" : path, &dlh->name));
 
-    if ((dlh->handle = dlopen(path, RTLD_LAZY)) == NULL)
+    if ((dlh->handle = dlopen(path, flags)) == NULL)
         WT_ERR_MSG(session, __wt_errno(), "dlopen(%s): %s", path, dlerror());
 
     *dlhp = dlh;

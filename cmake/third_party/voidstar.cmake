@@ -16,3 +16,12 @@ link_directories(${CMAKE_SOURCE_DIR}/tools/voidstar/lib)
 set_target_properties(wt::voidstar PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/tools/voidstar/include
 )
+
+# With the coverage instrumentation being a compile-only flag, every instrumented
+# executable and shared library must link libvoidstar to resolve the
+# __sanitizer_cov_trace_pc_guard symbols. Link it into all targets created after this
+# point so standalone binaries that don't link libwiredtiger (e.g. the sqlite3 shell)
+# are covered too.
+if(ENABLE_ANTITHESIS)
+    link_libraries(wt::voidstar)
+endif()
