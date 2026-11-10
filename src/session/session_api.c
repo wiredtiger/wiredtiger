@@ -381,6 +381,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     WT_TRET(__session_close_cached_cursors(session));
 
     WT_ASSERT(session, session->ncursors == 0);
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&session->open_cursor_count) == 0);
 
     /* Discard cached handles. */
     __wt_session_close_cache(session);
@@ -2561,7 +2562,10 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
-    /* Skip running checkpoint for standby. */
+    /*
+     * A follower has nothing to checkpoint: only the leader writes shared objects, and a follower
+     * writes nothing local either. Succeed without doing any work.
+     */
     if (__wt_conn_is_disagg(session) &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
         goto done;
