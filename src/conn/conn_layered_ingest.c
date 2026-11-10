@@ -140,14 +140,17 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
              * value it removes is its next.
              */
             if (upd->type == WT_UPDATE_TOMBSTONE &&
-              (upd->next == NULL || upd->next->type == WT_UPDATE_TOMBSTONE ||
-                upd->next->prepared_id != upd->prepared_id ||
+              (upd->next == NULL || upd->next->prepared_id != upd->prepared_id ||
                 upd->next->upd_saved_txnid != upd->upd_saved_txnid)) {
                 /* The pointer to the remove now points past it. */
                 *upd_pointerp = upd->next;
                 __wt_free(session, upd);
-            } else
+            } else {
+                /* The layered cursor never removes a key twice in one transaction. */
+                WT_ASSERT(session,
+                  upd->type != WT_UPDATE_TOMBSTONE || upd->next->type != WT_UPDATE_TOMBSTONE);
                 upd_pointerp = &upd->next;
+            }
         }
     }
 
