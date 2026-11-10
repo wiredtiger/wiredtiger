@@ -159,12 +159,12 @@ begins with N set and writes to the ingest tables.
 
 @subsection disagg-step-down-reads Reads during step-down
 
-Reads follow the same decision made at transaction begin. A transaction that began after N was
-set reads the ingest table layered over the still-live stable table. One that
-began earlier reads the stable table alone, which already holds everything its snapshot can
-see. The decision stays correct only while the transaction keeps reading the state it saw at
-begin. For that reason, layered-table operations must run in explicit snapshot-isolation
-transactions while N is set, and WT_SESSION::reset_snapshot is not allowed.
+Reads follow the same decision made at transaction begin. This is possible because layered-table
+operations always run in explicit snapshot-isolation transactions, and WT_SESSION::reset_snapshot
+is not allowed while the step-down timestamp is set. A transaction that began after N was set
+reads the ingest table layered over the still-live stable table. One that began earlier reads
+the stable table alone, which already holds everything its snapshot can see. The decision stays
+correct only while the transaction keeps reading the state it saw at begin.
 
 The step-down reconfiguration replaces each live stable table with a view of the concluding
 checkpoint. The checkpoint keeps older versions in the shared history store, which supports
