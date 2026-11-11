@@ -56,7 +56,7 @@ class test_stat14(wttest.WiredTigerTestCase):
         # eviction_dirty_target=5 -> 500
         # eviction_dirty_trigger=20 -> 2000
         # eviction_updates_target=0 (auto-set to dirty_target/2 = 2.5) -> 250
-        # eviction_updates_trigger is automatically set to 95 -> 9500
+        # eviction_updates_trigger=95 -> 9500
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_cache_full_target][2], 8000)
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_cache_full_trigger][2], 9500)
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_dirty_target][2], 500)

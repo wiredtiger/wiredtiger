@@ -48,28 +48,18 @@ __evict_config_abs_to_pct(
  *     Validate trigger and target values of given configs.
  */
 static int
-__evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_EVICT *evict;
-    bool explicit_updates_trigger, shared;
+    bool shared;
 
     conn = S2C(session);
     evict = conn->evict;
 
     WT_RET(__wt_config_gets_none(session, cfg, "shared_cache.name", &cval));
     shared = cval.len != 0;
-    explicit_updates_trigger = conn->eviction_updates_trigger_configured;
-    if (reconfig) {
-        ret = __wt_config_gets(session, cfg + 1, "eviction_updates_trigger", &cval);
-        if (ret != 0 && ret != WT_NOTFOUND)
-            WT_RET(ret);
-        if (ret == 0)
-            explicit_updates_trigger = true;
-    }
-
     /* Debug flags are not yet set when this function runs during connection open. Set it now. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
     if (cval.val)
@@ -106,10 +96,6 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconf
     double updates_trigger = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
       session, &updates_trigger, "eviction updates trigger", conn->cache_size, shared));
-    WT_RET(__wt_config_gets(session, cfg, "eviction.updates_trigger_auto_high", &cval));
-    if (!explicit_updates_trigger && cval.val != 0 && !shared)
-        updates_trigger = 95;
-
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
     evict->eviction_checkpoint_target = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(session, &(evict->eviction_checkpoint_target),
@@ -215,7 +201,6 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconf
     __wt_atomic_store_double_relaxed(&evict->eviction_dirty_target, dirty_target);
     __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, dirty_trigger);
     __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, updates_trigger);
-    conn->eviction_updates_trigger_configured = explicit_updates_trigger;
     return (0);
 }
 
@@ -248,7 +233,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     WT_ASSERT(session, evict != NULL);
 
-    WT_RET(__evict_validate_config(session, cfg, reconfig));
+    WT_RET(__evict_validate_config(session, cfg));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
     WT_ASSERT(session, cval.val > 0);

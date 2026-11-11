@@ -3432,15 +3432,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_config_env(session, cfg, i3));
 
     /*
-     * The merged configuration includes defaults, so record whether the update trigger was
-     * explicitly configured before merging the stack.
-     */
-    ret = __wt_config_gets(session, cfg + 1, "eviction_updates_trigger", &cval);
-    if (ret != 0 && ret != WT_NOTFOUND)
-        WT_ERR(ret);
-    conn->eviction_updates_trigger_configured = ret == 0;
-
-    /*
      * Merge the full configuration stack and save it for reconfiguration.
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));

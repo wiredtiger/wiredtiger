@@ -829,11 +829,6 @@ connection_runtime_config = [
                 as it will re-introduce a bug where eviction can fail to find older cache
                 content.''',
                 type='boolean'),
-            Config('updates_trigger_auto_high', 'true', r'''
-                automatically use a 95 percent update eviction trigger for a non-shared cache when
-                eviction_updates_trigger is not explicitly configured. Set to false to use the
-                existing automatic update trigger calculation''',
-                type='boolean'),
             Config('app_eviction_min_cache_fill_ratio', '0', r'''
                 This setting establishes a minimum cache fill ratio that must be met before
                 application threads can start assisting with eviction. The value is a percentage
@@ -907,13 +902,11 @@ connection_runtime_config = [
         eviction_dirty_target. The value is not allowed to exceed the \c cache_size and has to be
         lower than its counterpart \c eviction_updates_trigger''',
         min=0, max='10TB'),
-    Config('eviction_updates_trigger', '0', r'''
+    Config('eviction_updates_trigger', '95', r'''
         trigger application threads to perform eviction when the cache contains at least this
         many bytes of updates. It is a percentage of the cache size if the value is within
-        the range of 1 to 100 or an absolute size when greater than 100\. When omitted, the
-        trigger is 95 percent for a non-shared cache if \c eviction.updates_trigger_auto_high is
-        enabled. Otherwise, or if explicitly set to 0, the trigger is calculated from \c
-        eviction_dirty_trigger and \c eviction_updates_target.
+        the range of 1 to 100 or an absolute size when greater than 100\. If set to 0, the
+        trigger is calculated from \c eviction_dirty_trigger and \c eviction_updates_target.
         The value is not allowed to exceed the \c cache_size and has to be greater than its
         counterpart \c eviction_updates_target. This setting only alters behavior if it is lower
         than \c eviction_trigger''',

@@ -37,15 +37,10 @@ class test_eviction12(wttest.WiredTigerTestCase):
         ('below', dict(config='cache_size=19GB', expected=9500)),
         ('boundary', dict(config='cache_size=20GB', expected=9500)),
         ('above', dict(config='cache_size=21474836481', expected=9500)),
-        ('opt_out', dict(config='cache_size=1GB,eviction=(updates_trigger_auto_high=false)',
-                         expected=1000)),
         ('explicit_zero', dict(config='cache_size=1GB,eviction_updates_trigger=0',
                                expected=1000)),
         ('explicit_value', dict(config='cache_size=21GB,eviction_updates_trigger=30',
                                 expected=3000)),
-        ('explicit_with_opt_out',
-         dict(config='cache_size=21GB,eviction=(updates_trigger_auto_high=false),'
-                     'eviction_updates_trigger=30', expected=3000)),
         ('overall_cap', dict(config='cache_size=21GB,eviction_trigger=85', expected=8500)),
     ])
 
@@ -82,11 +77,11 @@ class test_eviction12_reconfigure(wttest.WiredTigerTestCase):
         self.check_trigger(9500)
         self.conn.reconfigure('cache_size=21GB')
         self.check_trigger(9500)
-        self.conn.reconfigure('eviction=(updates_trigger_auto_high=false)')
+        self.conn.reconfigure('eviction_updates_trigger=0')
         self.check_trigger(1000)
         self.conn.reconfigure('eviction_dirty_trigger=30')
         self.check_trigger(1500)
-        self.conn.reconfigure('eviction=(updates_trigger_auto_high=true)')
+        self.conn.reconfigure('eviction_updates_trigger=95')
         self.check_trigger(9500)
         self.conn.reconfigure('cache_size=20GB')
         self.check_trigger(9500)
@@ -109,3 +104,19 @@ class test_eviction12_reconfigure(wttest.WiredTigerTestCase):
         self.check_trigger(1000)
         self.conn.reconfigure('cache_size=22GB')
         self.check_trigger(1000)
+
+
+class test_eviction12_shared_cache(wttest.WiredTigerTestCase):
+    conn_config = 'statistics=(all),shared_cache=(name=pool,size=200MB)'
+
+    def check_trigger(self, expected):
+        cursor = self.session.open_cursor('statistics:')
+        self.assertEqual(cursor[stat.conn.eviction_threshold_updates_trigger][2], expected)
+        cursor.close()
+
+    def test_shared_cache_trigger(self):
+        self.check_trigger(9500)
+        self.conn.reconfigure('eviction_updates_trigger=0')
+        self.check_trigger(1000)
+        self.conn.reconfigure('eviction_updates_trigger=30')
+        self.check_trigger(3000)
