@@ -177,11 +177,10 @@ __txn_insert_truncate_entry_helper(
 
     __wt_writelock(session, &truncate_list->lock);
 
-    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP),
-      "truncate list entries cannot be inserted during step-up");
     WT_ASSERT_ALWAYS(session,
-      !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader),
-      "truncate list entries cannot be inserted in leader mode");
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP) &&
+        !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader),
+      "truncate list entries cannot be inserted during step-up or leader mode");
 
     if (TAILQ_EMPTY(&truncate_list->qh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);

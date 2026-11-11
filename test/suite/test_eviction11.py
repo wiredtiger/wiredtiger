@@ -26,86 +26,60 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
 
 class test_eviction11(wttest.WiredTigerTestCase):
+    """Check the statistics that count how eviction refills end."""
+
+    cache_mb = 20
+    conn_config = f"cache_size={cache_mb}MB,eviction_target=50,eviction_trigger=95," \
+        "statistics=(all)"
+    uri = f"file:{__qualname__}"
+    value = "a" * 1000
+    timeout = 120
+
+    # filled: the table is twice the cache size, so there is plenty to evict.
+    # lap_complete: the table cannot be evicted and holds 70% of the cache, so eviction runs but
+    # finds nothing to queue.
     scenarios = make_scenarios([
-        ('small', dict(config='cache_size=1GB', expected=9500)),
-        ('below', dict(config='cache_size=19GB', expected=9500)),
-        ('boundary', dict(config='cache_size=20GB', expected=9500)),
-        ('above', dict(config='cache_size=21474836481', expected=9500)),
-        ('opt_out', dict(config='cache_size=1GB,eviction=(updates_trigger_auto_high=false)',
-                         expected=1000)),
-        ('explicit_zero', dict(config='cache_size=1GB,eviction_updates_trigger=0',
-                               expected=1000)),
-        ('explicit_value', dict(config='cache_size=21GB,eviction_updates_trigger=30',
-                                expected=3000)),
-        ('explicit_with_opt_out',
-         dict(config='cache_size=21GB,eviction=(updates_trigger_auto_high=false),'
-                     'eviction_updates_trigger=30', expected=3000)),
-        ('overall_cap', dict(config='cache_size=21GB,eviction_trigger=85', expected=8500)),
+        ("filled", dict(cache_resident=False, nrows=40 * 1024,
+            counter=stat.conn.eviction_server_refill_end_filled)),
+        ("lap_complete", dict(cache_resident=True, nrows=13 * 1024,
+            counter=stat.conn.eviction_server_refill_end_lap_complete)),
     ])
 
-    def conn_config(self):
-        return 'statistics=(all),' + self.config
+    def scan(self):
+        with wttest.open_cursor(self.session, self.uri) as cursor:
+            self.assertEqual(sum(1 for _ in cursor), self.nrows)
 
-    def check_trigger(self, expected):
-        cursor = self.session.open_cursor('statistics:')
-        self.assertEqual(cursor[stat.conn.eviction_threshold_updates_trigger][2], expected)
-        cursor.close()
-
-    def test_initial_and_reopen(self):
-        self.check_trigger(self.expected)
+    def test_refill_end(self):
+        # Write the table with a large cache, then reopen with the small cache.
+        self.conn.reconfigure("cache_size=200MB")
+        self.session.create(self.uri,
+            f"key_format=i,value_format=S,cache_resident={str(self.cache_resident).lower()}")
+        with wttest.open_cursor(self.session, self.uri) as cursor:
+            for i in range(self.nrows):
+                cursor[i] = self.value
+        self.session.checkpoint()
         self.reopen_conn()
-        self.check_trigger(self.expected)
-        if ',eviction_updates_trigger=' in self.config:
-            self.reopen_conn(config='statistics=(all),' + self.config.split(',')[0])
-            self.check_trigger(self.expected)
 
-    def test_readonly_reopen(self):
-        self.reopen_conn(config='statistics=(all),readonly=true,' + self.config)
-        self.check_trigger(self.expected)
+        self.scan()
+        if self.cache_resident:
+            inuse = self.get_stat(stat.conn.cache_bytes_inuse)
+            self.assertGreater(inuse, self.cache_mb * 1024 * 1024 * 0.5,
+                "cache usage is below the eviction target")
+
+        # Keep reading the table so eviction keeps running.
+        deadline = time.time() + self.timeout
+        while self.get_stat(self.counter) == 0:
+            self.assertLess(time.time(), deadline, "no refill ended this way")
+            self.scan()
+            time.sleep(0.1)
 
 
-class test_eviction11_reconfigure(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),cache_size=20GB'
-
-    def check_trigger(self, expected):
-        cursor = self.session.open_cursor('statistics:')
-        self.assertEqual(cursor[stat.conn.eviction_threshold_updates_trigger][2], expected)
-        cursor.close()
-
-    def test_reconfigure(self):
-        self.check_trigger(9500)
-        self.conn.reconfigure('cache_size=21GB')
-        self.check_trigger(9500)
-        self.conn.reconfigure('eviction=(updates_trigger_auto_high=false)')
-        self.check_trigger(1000)
-        self.conn.reconfigure('eviction_dirty_trigger=30')
-        self.check_trigger(1500)
-        self.conn.reconfigure('eviction=(updates_trigger_auto_high=true)')
-        self.check_trigger(9500)
-        self.conn.reconfigure('cache_size=20GB')
-        self.check_trigger(9500)
-        self.conn.reconfigure('cache_size=21GB,eviction_updates_trigger=0')
-        self.check_trigger(1500)
-        self.conn.reconfigure('cache_size=19GB')
-        self.conn.reconfigure('cache_size=21GB')
-        self.check_trigger(1500)
-        self.conn.reconfigure('eviction_updates_trigger=30')
-        self.check_trigger(3000)
-        self.conn.reconfigure('cache_size=19GB')
-        self.conn.reconfigure('cache_size=21GB')
-        self.check_trigger(3000)
-
-    def test_user_config_file(self):
-        self.close_conn()
-        with open('WiredTiger.config', 'w') as config:
-            config.write('eviction_updates_trigger=0\n')
-        self.open_conn(config='statistics=(all),cache_size=21GB')
-        self.check_trigger(1000)
-        self.conn.reconfigure('cache_size=22GB')
-        self.check_trigger(1000)
+if __name__ == "__main__":
+    wttest.run()
