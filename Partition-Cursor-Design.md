@@ -168,6 +168,7 @@ Rules:
 #define WT_POSITION_CACHE_ONLY    0x01u  /* Never read from disk, never wait for a locked page. */
 #define WT_POSITION_KEY_ONLY      0x02u  /* Set the page boundary key; do not read the leaf. */
 #define WT_POSITION_PREV          0x04u  /* Walk backwards to a visible record; default forwards. */
+#define WT_POSITION_INSERT_LIST   0x08u  /* Select among the records of a page with no cells. */
 
 #define WT_POSITION_ANCHOR_EXACT  0x00u  /* Default: the page remainder selects the slot. */
 #define WT_POSITION_ANCHOR_FIRST  0x10u  /* First slot on the page. */
@@ -283,9 +284,16 @@ visiting.
    if the tree has no usable leaf, and the count in `pages_skipped`.
 5. Pick the starting slot from the anchor: `0`, `entries - 1`, `entries / 2`, or
    `floor(remainder * entries)` for `EXACT`, where `remainder` is the fraction left after the
-   descent and `entries` is the count of on-disk cells on the page. Insert-list records are not
-   indexed (the same simplification the random cursor makes for its disk sampling); they are
-   still returned by the walk in step 6.
+   descent and `entries` is the count of on-disk cells on the page. A page with no on-disk cells
+   keeps every record on its smallest-key insert list, and by default the walk starts at the
+   first entry of that list (the last with `PREV`) whatever the position. With `INSERT_LIST` the
+   list is the page's slot space, and the anchor or the remainder selects an entry in it. The
+   remainder indexes the highest
+   skip-list level holding more than 500 entries rather than the whole list, plus the first entry
+   of the list, so a position resolves to within a few hundred records of the exact one at a cost
+   that does not grow with the page. Records on the per-cell
+   insert lists of a page that does have on-disk cells are not indexed (the same simplification
+   the random cursor makes for its disk sampling); they are still returned by the walk in step 6.
 6. Walk from that slot in the requested direction to the first visible record, using the
    existing `__wt_btcur_next` / `__wt_btcur_prev` machinery so visibility, prepared updates,
    and deleted pages are handled exactly as in iteration. The walk may leave the page. Pages
@@ -353,14 +361,17 @@ case, no value, no per-call allocation once the key buffer has grown to the larg
 
 1. Validate: cursor positioned (`WT_CURSOR_IS_POSITIONED`), otherwise `EINVAL`. A cursor in
    the key-only state after `set_position` is not positioned and fails the same way.
-2. Compute the leaf remainder as `(slot + 0.5) / entries`. A record on an insert list uses the
-   slot of the on-disk cell it is attached to.
+2. Compute the leaf remainder as `(slot + 0.5) / entries`. On a page with no on-disk cells it is
+   `(index + 0.5) / records`, the record's index in the page's insert list. A record on the insert
+   list of a page that has on-disk cells uses the slot of the cell it is attached to.
 3. Call `__wt_page_npos` with that remainder and return the clamped result.
 
 Round trip: with an unchanged tree, `set_position` with the value returned by `get_position`
 lands on the same on-disk slot because `floor(((slot + 0.5) / entries) * entries) == slot`.
 Records on insert lists round-trip to the nearest on-disk cell and then walk forward, so they
-may land on a neighbour. This is documented.
+may land on a neighbour. On a page with no on-disk cells the round trip needs `INSERT_LIST` and
+lands on a nearby entry of the skip-list level that `set_position` indexes; without the flag it
+lands on the first record of the page. This is documented.
 
 Ordering: for any two positioned cursors on an unchanged tree, key order implies position
 order (non-strict). This is the property sampling relies on and the property the tests check.
@@ -432,7 +443,11 @@ This needs a new `WTI_CLAYERED_MODE_POSITION` operation mode alongside
   `WT_NOTFOUND` if nothing remains. Key-only mode still returns a boundary key.
 - Concurrent splits: the descent restarts from the root on `WT_RESTART`, as today.
 - Cost: one root-to-leaf descent plus one leaf read in the common case in the default mode;
-  the walk to a visible record may continue onto neighbouring pages, tables with several
+  on a page whose records are all on its insert list, `set_position` with `INSERT_LIST` walks
+  one upper skip-list level, at most a few thousand entries whatever the list length (without
+  the flag it walks nothing), while `get_position` walks
+  the list itself and is linear in its length; the walk to a visible record may
+  continue onto neighbouring pages, tables with several
   column groups search each of them, and layered tables re-resolve through the constituents.
   Internal pages only in key-only mode. The scan for a usable page is unbounded and, in the
   worst case (a long run of deleted or locked pages), proportional to tree width;
@@ -440,8 +455,8 @@ This needs a new `WTI_CLAYERED_MODE_POSITION` operation mode alongside
 - Cache-only mode governs page reads during the descent and the walk. The returned record's
   overflow items, if any, are still read, and on tables with several column groups the other
   column groups are searched with ordinary reads.
-- Anchors select an on-disk slot; a page with no on-disk entries starts on its smallest-key
-  insert list.
+- Anchors select an on-disk slot; a page with no on-disk entries starts at the first entry of
+  its smallest-key insert list, or at the anchored entry with `INSERT_LIST`.
 
 ## 7. Implementation plan
 

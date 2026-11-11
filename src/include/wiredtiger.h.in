@@ -197,8 +197,9 @@ struct __wt_position {
     double pos;
 
     /*!
-     * In: ::WT_POSITION_CACHE_ONLY, ::WT_POSITION_KEY_ONLY, ::WT_POSITION_PREV
-     * and one of the WT_POSITION_ANCHOR values; 0 selects the defaults.
+     * In: ::WT_POSITION_CACHE_ONLY, ::WT_POSITION_KEY_ONLY, ::WT_POSITION_PREV,
+     * ::WT_POSITION_INSERT_LIST and one of the WT_POSITION_ANCHOR values; 0
+     * selects the defaults.
      * Unknown bits are ignored.
      */
     uint32_t flags;
@@ -218,6 +219,8 @@ struct __wt_position {
 #define WT_POSITION_KEY_ONLY    0x02u
 /*! Walk backwards to a visible record; the default walks forwards. */
 #define WT_POSITION_PREV        0x04u
+/*! Select among the records of a page that has none written to it yet. */
+#define WT_POSITION_INSERT_LIST 0x08u
 
 /*! Anchor: the remainder of the position selects the slot on the page. */
 #define WT_POSITION_ANCHOR_EXACT    0x00u
@@ -775,10 +778,15 @@ struct __wt_cursor {
      * ::WT_POSITION_PREV walks backwards instead of forwards, and the anchor
      * flags select which on-disk slot of the page the walk starts from; records
      * not yet written to a page are visited by the walk but never selected as a
-     * starting slot, unless the page has no on-disk slots at all, in which case
-     * the walk starts on its insert list. The anchor and the direction are
-     * independent: the last visible on-disk slot of the addressed page is
-     * ::WT_POSITION_ANCHOR_LAST combined with ::WT_POSITION_PREV.
+     * starting slot. A page with no on-disk slots at all, the usual state of a
+     * never-checkpointed object, therefore yields its first record, or its last
+     * with ::WT_POSITION_PREV, for every position that addresses it. With
+     * ::WT_POSITION_INSERT_LIST the anchor or the remainder of the position
+     * instead selects among the records of such a page, to within a few
+     * hundred records, at the cost of walking part of the page's insert list.
+     * The anchor and the direction are independent: the last visible on-disk
+     * slot of the addressed page is ::WT_POSITION_ANCHOR_LAST combined with
+     * ::WT_POSITION_PREV.
      *
      * ::WT_POSITION_CACHE_ONLY confines the call to pages already in memory;
      * ::WT_NOTFOUND is returned when nothing usable is in memory. Overflow
