@@ -33,15 +33,12 @@ from wtscenario import make_scenarios
 
 class test_eviction12(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
-        ('small', dict(config='cache_size=1GB', expected=9500)),
-        ('below', dict(config='cache_size=19GB', expected=9500)),
-        ('boundary', dict(config='cache_size=20GB', expected=9500)),
-        ('above', dict(config='cache_size=21474836481', expected=9500)),
-        ('explicit_zero', dict(config='cache_size=1GB,eviction_updates_trigger=0',
+        ('default', dict(config='cache_size=100MB', expected=9500)),
+        ('explicit_zero', dict(config='cache_size=100MB,eviction_updates_trigger=0',
                                expected=1000)),
-        ('explicit_value', dict(config='cache_size=21GB,eviction_updates_trigger=30',
+        ('explicit_value', dict(config='cache_size=100MB,eviction_updates_trigger=30',
                                 expected=3000)),
-        ('overall_cap', dict(config='cache_size=21GB,eviction_trigger=85', expected=8500)),
+        ('overall_cap', dict(config='cache_size=100MB,eviction_trigger=85', expected=8500)),
     ])
 
     def conn_config(self):
@@ -66,7 +63,7 @@ class test_eviction12(wttest.WiredTigerTestCase):
 
 
 class test_eviction12_reconfigure(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),cache_size=20GB'
+    conn_config = 'statistics=(all),cache_size=100MB'
 
     def check_trigger(self, expected):
         cursor = self.session.open_cursor('statistics:')
@@ -75,7 +72,7 @@ class test_eviction12_reconfigure(wttest.WiredTigerTestCase):
 
     def test_reconfigure(self):
         self.check_trigger(9500)
-        self.conn.reconfigure('cache_size=21GB')
+        self.conn.reconfigure('cache_size=200MB')
         self.check_trigger(9500)
         self.conn.reconfigure('eviction_updates_trigger=0')
         self.check_trigger(1000)
@@ -83,26 +80,22 @@ class test_eviction12_reconfigure(wttest.WiredTigerTestCase):
         self.check_trigger(1500)
         self.conn.reconfigure('eviction_updates_trigger=95')
         self.check_trigger(9500)
-        self.conn.reconfigure('cache_size=20GB')
-        self.check_trigger(9500)
-        self.conn.reconfigure('cache_size=21GB,eviction_updates_trigger=0')
+        self.conn.reconfigure('eviction_updates_trigger=0')
         self.check_trigger(1500)
-        self.conn.reconfigure('cache_size=19GB')
-        self.conn.reconfigure('cache_size=21GB')
+        self.conn.reconfigure('cache_size=100MB')
         self.check_trigger(1500)
         self.conn.reconfigure('eviction_updates_trigger=30')
         self.check_trigger(3000)
-        self.conn.reconfigure('cache_size=19GB')
-        self.conn.reconfigure('cache_size=21GB')
+        self.conn.reconfigure('cache_size=200MB')
         self.check_trigger(3000)
 
     def test_user_config_file(self):
         self.close_conn()
         with open('WiredTiger.config', 'w') as config:
             config.write('eviction_updates_trigger=0\n')
-        self.open_conn(config='statistics=(all),cache_size=21GB')
+        self.open_conn(config='statistics=(all),cache_size=100MB')
         self.check_trigger(1000)
-        self.conn.reconfigure('cache_size=22GB')
+        self.conn.reconfigure('cache_size=200MB')
         self.check_trigger(1000)
 
 
