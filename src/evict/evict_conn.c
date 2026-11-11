@@ -60,6 +60,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets_none(session, cfg, "shared_cache.name", &cval));
     shared = cval.len != 0;
+
     /* Debug flags are not yet set when this function runs during connection open. Set it now. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
     if (cval.val)
@@ -96,6 +97,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     double updates_trigger = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
       session, &updates_trigger, "eviction updates trigger", conn->cache_size, shared));
+
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
     evict->eviction_checkpoint_target = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(session, &(evict->eviction_checkpoint_target),
