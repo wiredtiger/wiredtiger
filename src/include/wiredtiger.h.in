@@ -8841,7 +8841,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_SUCCESS	1933
 /*! session: table verify failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_VERIFY_FAIL		1934
-/*! session: table verify number of keys checked against the history store */
+/*!
+ * session: table verify number of history store keys checked against the
+ * data store
+ */
 #define	WT_STAT_CONN_SESSION_TABLE_VERIFY_HS_KEYS_CHECKED	1935
 /*! session: table verify successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_VERIFY_SUCCESS	1936
