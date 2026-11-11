@@ -1941,7 +1941,8 @@ __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
 
 /*
  * __clayered_restore_walk --
- *     Recheck a reopened stable cursor's blocked key, or reverse to keys before it.
+ *     Position constituents from a reopened stable cursor's saved key, including that key when
+ *     continuing and excluding it when reversing.
  */
 static int
 __clayered_restore_walk(WTI_CLAYERED_OP *op, bool forward)
@@ -2051,9 +2052,14 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
  *     hit a prepare conflict without retaining a key.
  */
 static WT_INLINE int
-__clayered_iterate_finish(
-  WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool fresh_start, int ret)
+__clayered_iterate_finish(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool fresh_start, int ret)
 {
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+
+    /* A single constituent has no alternate position or direction to track. */
+    if (op->ingest == NULL || op->stable == NULL)
+        return (ret);
+
     if (ret == 0) {
         __clayered_clear_walk(clayered);
         F_SET(clayered, iter_flag);
@@ -2125,20 +2131,19 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
     /* Reopening blocked stable can leave only its saved key as the walk's anchor. */
     if (op->clayered->stopped_key.size != 0) {
         ret = __clayered_restore_walk(op, forward);
-        return (op->ingest == NULL || op->stable == NULL ?
-            ret :
-            __clayered_iterate_finish(op->clayered, iter_flag, false, ret));
+        return (__clayered_iterate_finish(op, iter_flag, false, ret));
     }
 
     /*
      * A layered cursor can legitimately have a single constituent: the ingest cursor is NULL when
      * accessing the stable table alone is sufficient (e.g. on the leader), and the stable cursor
-     * may likewise be absent. With only one constituent there is no alternate to track, so step it
-     * directly and return without touching the iteration flags.
+     * may likewise be absent. With only one constituent, step it directly.
      */
     WT_ASSERT(CUR2S(op->clayered), op->stable != NULL || op->ingest != NULL);
-    if (op->ingest == NULL || op->stable == NULL)
-        return (__clayered_step(op, op->ingest != NULL ? op->ingest : op->stable, forward));
+    if (op->ingest == NULL || op->stable == NULL) {
+        ret = __clayered_step(op, op->ingest != NULL ? op->ingest : op->stable, forward);
+        return (__clayered_iterate_finish(op, iter_flag, false, ret));
+    }
 
     /* When neither constituent is positioned, it is the start of the cursor walk. */
     fresh_start = !__clayered_any_constituent_positioned(op);
@@ -2147,7 +2152,7 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
     else
         ret = __clayered_advance_positioned(op, iter_flag, forward);
 
-    return (__clayered_iterate_finish(op->clayered, iter_flag, fresh_start, ret));
+    return (__clayered_iterate_finish(op, iter_flag, fresh_start, ret));
 }
 
 /*
