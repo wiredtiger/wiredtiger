@@ -5822,7 +5822,7 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
-/*! bypass any block cache when serving the read */
+/*! bypass the block cache when serving the read */
 #define WT_PAGE_LOG_CACHE_BYPASS 0x40u
 
 /*!
@@ -7579,7 +7579,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * checkpoint: total time (msecs) writing pages to stable storage during
  * checkpoint reconciliation
  */
-#define	WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE	1460
+#define	WT_STAT_CONN_CHECKPOINT_REC_STABLE_WRITE	1460
 /*! checkpoint: wait cycles while cache dirty level is decreasing */
 #define	WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY	1461
 /*! connection: auto adjusting condition resets */
