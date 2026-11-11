@@ -33,12 +33,13 @@ from wtscenario import make_scenarios
 
 class test_eviction11(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
-        ('below', dict(config='cache_size=19GB', expected=1000)),
-        ('boundary', dict(config='cache_size=20GB', expected=1000)),
+        ('small', dict(config='cache_size=1GB', expected=9500)),
+        ('below', dict(config='cache_size=19GB', expected=9500)),
+        ('boundary', dict(config='cache_size=20GB', expected=9500)),
         ('above', dict(config='cache_size=21474836481', expected=9500)),
-        ('opt_out', dict(config='cache_size=21GB,eviction=(updates_trigger_auto_high=false)',
+        ('opt_out', dict(config='cache_size=1GB,eviction=(updates_trigger_auto_high=false)',
                          expected=1000)),
-        ('explicit_zero', dict(config='cache_size=21GB,eviction_updates_trigger=0',
+        ('explicit_zero', dict(config='cache_size=1GB,eviction_updates_trigger=0',
                                expected=1000)),
         ('explicit_value', dict(config='cache_size=21GB,eviction_updates_trigger=30',
                                 expected=3000)),
@@ -60,8 +61,8 @@ class test_eviction11(wttest.WiredTigerTestCase):
         self.check_trigger(self.expected)
         self.reopen_conn()
         self.check_trigger(self.expected)
-        if self.config.startswith('cache_size=21GB,eviction_updates_trigger='):
-            self.reopen_conn(config='statistics=(all),cache_size=21GB')
+        if ',eviction_updates_trigger=' in self.config:
+            self.reopen_conn(config='statistics=(all),' + self.config.split(',')[0])
             self.check_trigger(self.expected)
 
     def test_readonly_reopen(self):
@@ -78,7 +79,7 @@ class test_eviction11_reconfigure(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_reconfigure(self):
-        self.check_trigger(1000)
+        self.check_trigger(9500)
         self.conn.reconfigure('cache_size=21GB')
         self.check_trigger(9500)
         self.conn.reconfigure('eviction=(updates_trigger_auto_high=false)')
@@ -88,7 +89,7 @@ class test_eviction11_reconfigure(wttest.WiredTigerTestCase):
         self.conn.reconfigure('eviction=(updates_trigger_auto_high=true)')
         self.check_trigger(9500)
         self.conn.reconfigure('cache_size=20GB')
-        self.check_trigger(1500)
+        self.check_trigger(9500)
         self.conn.reconfigure('cache_size=21GB,eviction_updates_trigger=0')
         self.check_trigger(1500)
         self.conn.reconfigure('cache_size=19GB')
