@@ -16,11 +16,11 @@ WT_STAT_COMPR_RATIO_READ_HIST_INCR_FUNC(ratio)
 WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC(ratio)
 
 /*
- * __block_read_corrupt --
+ * __bm_read_corrupt --
  *     Handle a failed read.
  */
 static int
-__block_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr, size_t addr_size,
+__bm_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr, size_t addr_size,
   const char *fail_msg) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_BM *bm;
@@ -48,14 +48,14 @@ __block_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr, s
 }
 
 /*
- * __block_read_decrypt --
+ * __bm_read_decrypt --
  *     Decrypt the content of one item into another.
  *
  * This uses the decryptor on the btree, and requires that the output item is already backed by a
  *     scratch buffer that can be grown as needed.
  */
 static int
-__block_read_decrypt(
+__bm_read_decrypt(
   WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size)
 {
     WT_BM *bm;
@@ -68,12 +68,12 @@ __block_read_decrypt(
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
 
     if (encryptor == NULL || encryptor->decrypt == NULL)
-        WT_RET(__block_read_corrupt(
+        WT_RET(__bm_read_corrupt(
           session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
 
     if ((ret = __wt_decrypt(
            session, encryptor, bm->encrypt_skip(bm, session, in->data), in, out)) != 0)
-        WT_RET(__block_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
+        WT_RET(__bm_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
 
     /* Clear the ENCRYPTED flag. */
     F_CLR(((WT_PAGE_HEADER *)out->data), WT_PAGE_ENCRYPTED);
@@ -130,7 +130,7 @@ __wt_bm_read_page(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *bl
     }
 
     /* Check for mapped blocks. */
-    WT_RET(__wti_block_map_read(session, ip, addr, addr_size, &found));
+    WT_RET(__wti_bm_map_read(session, ip, addr, addr_size, &found));
     if (found && !expect_conversion)
         goto verify;
 
@@ -170,7 +170,7 @@ __wt_bm_read_page(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *bl
          * Disallow reading an unencrypted block from original source when encryption is configured.
          */
         if (!F_ISSET(dsk, WT_PAGE_ENCRYPTED) && btree->kencryptor != NULL)
-            WT_ERR(__block_read_corrupt(session, WT_ERROR, addr, addr_size,
+            WT_ERR(__bm_read_corrupt(session, WT_ERROR, addr, addr_size,
               "read unencrypted block for which encryption configured"));
 
         /*
@@ -203,14 +203,14 @@ __wt_bm_read_page(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *bl
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
-        WT_ERR(__block_read_decrypt(session, ip, etmp, addr, addr_size));
+        WT_ERR(__bm_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
     }
 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         if (compressor == NULL || compressor->decompress == NULL) {
-            ret = __block_read_corrupt(session, WT_ERROR, addr, addr_size,
+            ret = __bm_read_corrupt(session, WT_ERROR, addr, addr_size,
               "compressed block for which no compression configured");
             /* Odd error handling structure to avoid static analyzer complaints. */
             WT_ERR(ret == 0 ? WT_ERROR : ret);
@@ -225,7 +225,7 @@ __wt_bm_read_page(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *bl
                 __wt_errx(session,
                   "%s: compressed block has an invalid in-memory size of %" PRIu32 "B",
                   btree->dhandle->name, dsk->mem_size);
-            WT_ERR(__block_read_corrupt(session, WT_ERROR, addr, addr_size,
+            WT_ERR(__bm_read_corrupt(session, WT_ERROR, addr, addr_size,
               "compressed block has an invalid in-memory size"));
         }
 
@@ -253,8 +253,7 @@ __wt_bm_read_page(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *bl
          * corrupted data, we'll end up here on corrupted data.
          */
         if (ret != 0)
-            WT_ERR(
-              __block_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
+            WT_ERR(__bm_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
         compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
         __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
@@ -322,14 +321,14 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t compressed_si
     compressor = btree->compressor;
 
     if (compressor == NULL || compressor->decompress == NULL)
-        WT_RET(__block_read_corrupt(session, WT_ERROR, addr, addr_size,
+        WT_RET(__bm_read_corrupt(session, WT_ERROR, addr, addr_size,
           "compressed block for which no compression configured"));
 
     if (mem_sz <= WT_BLOCK_COMPRESS_SKIP)
-        WT_RET(__block_read_corrupt(
+        WT_RET(__bm_read_corrupt(
           session, WT_ERROR, addr, addr_size, "compressed block has an invalid in-memory size"));
     if (compressed_size <= WT_BLOCK_COMPRESS_SKIP)
-        WT_RET(__block_read_corrupt(
+        WT_RET(__bm_read_corrupt(
           session, WT_ERROR, addr, addr_size, "compressed block has an invalid on-disk size"));
 
     WT_RET(__wt_buf_initsize(session, out, mem_sz));
@@ -347,7 +346,7 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t compressed_si
         WT_TRET(WT_ERROR);
 
     if (ret != 0)
-        WT_ERR(__block_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
+        WT_ERR(__bm_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
     compression_ratio = result_len / (compressed_size - WT_BLOCK_COMPRESS_SKIP);
     __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
@@ -428,7 +427,7 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
      * Disallow reading an unencrypted block from original source when encryption is configured.
      */
     if (!F_ISSET(dsk, WT_PAGE_ENCRYPTED) && btree->kencryptor != NULL)
-        WT_ERR(__block_read_corrupt(session, WT_ERROR, addr, addr_size,
+        WT_ERR(__bm_read_corrupt(session, WT_ERROR, addr, addr_size,
           "multi_read unencrypted block for which encryption configured"));
 
     /*
@@ -458,7 +457,7 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
     /* Decrypt. */
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
-        WT_ERR(__block_read_decrypt(session, ip, etmp, addr, addr_size));
+        WT_ERR(__bm_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
     }
 
@@ -517,7 +516,7 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
-            WT_ERR(__block_read_decrypt(session, ip, etmp, addr, addr_size));
+            WT_ERR(__bm_read_decrypt(session, ip, etmp, addr, addr_size));
             ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
@@ -569,7 +568,7 @@ err:
 }
 
 /*
- * __wt_block_compress --
+ * __wt_bm_compress --
  *     Optionally compress a buffer for writing.
  *
  * If compression is performed, the compressed buffer is returned via the output parameter. If
@@ -577,7 +576,7 @@ err:
  *     the output parameter is set to NULL. The caller is responsible for freeing the output buffer.
  */
 int
-__wt_block_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
+__wt_bm_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
   WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
 {
     WT_BM *bm;
@@ -705,7 +704,7 @@ __wt_bm_write_page(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
 
     /* Optionally compress the data. */
     WT_ERR_MSG_CHK(session,
-      __wt_block_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed),
+      __wt_bm_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed),
       "failed to compress block before writing");
     ip = (ctmp != NULL) ? ctmp : buf;
 

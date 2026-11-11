@@ -354,8 +354,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      * abandon the put. We deliberately don't propagate it - this is optional cache population, not
      * an operation worth failing.
      */
-    if ((ret = __wt_block_compress(session, &buf_orig, false, &cache_buf, NULL, &compressed)) !=
-      0) {
+    if ((ret = __wt_bm_compress(session, &buf_orig, false, &cache_buf, NULL, &compressed)) != 0) {
         __wt_err(session, ret,
           "victim cache: failed to compress block before caching, caching uncompressed");
         ret = 0;

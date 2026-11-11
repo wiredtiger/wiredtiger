@@ -174,7 +174,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
          * Read-only objects are optionally mapped into memory instead of being read into cache
          * buffers.
          */
-        WT_RET(__wti_block_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
+        WT_RET(__wti_bm_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
         /*
          * If this handle is for a checkpoint, that is, read-only, there isn't a lot you can do with
@@ -240,7 +240,7 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 
     /* Unmap any mapped segment. */
     if (bm->map != NULL)
-        WT_TRET(__wti_block_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
+        WT_TRET(__wti_bm_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
 
     /* Unload the checkpoint. */
     WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));

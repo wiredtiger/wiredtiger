@@ -463,7 +463,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
      * Only the new configuration is checked: the saved configuration always contains the block
      * cache category, and checking it would warn on every reconfigure.
      */
-    WT_ERR(__wti_blkcache_user_config_check(session, cfg[1], NULL));
+    WT_ERR(__wti_block_cache_user_config_check(session, cfg[1], NULL));
 
     /*
      * Reconfigure the system.

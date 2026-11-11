@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wti_block_map --
+ * __wti_bm_map --
  *     Map a segment of the file in, if possible.
  */
 int
-__wti_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void **mapped_regionp, size_t *lengthp,
+__wti_bm_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void **mapped_regionp, size_t *lengthp,
   void **mapped_cookiep)
 {
     WT_DECL_RET;
@@ -62,11 +62,11 @@ __wti_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void **mapped_regionp
 }
 
 /*
- * __wti_block_unmap --
+ * __wti_bm_unmap --
  *     Unmap any mapped-in segment of the file.
  */
 int
-__wti_block_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region, size_t length,
+__wti_bm_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region, size_t length,
   void *mapped_cookie)
 {
     WT_FILE_HANDLE *handle;
@@ -77,11 +77,11 @@ __wti_block_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region
 }
 
 /*
- * __wti_block_map_read --
+ * __wti_bm_map_read --
  *     Map address cookie referenced block into a buffer.
  */
 int
-__wti_block_map_read(
+__wti_bm_map_read(
   WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size, bool *foundp)
 {
     WT_BLOCK *block;
