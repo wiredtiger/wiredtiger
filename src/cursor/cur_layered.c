@@ -2413,11 +2413,17 @@ static int
 __clayered_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_COLLATOR *collator;
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR_BOUNDS_STATE saved_bounds;
+    WT_CURSOR_BTREE *ingest, *stable;
     WTI_CURSOR_LAYERED *clayered;
     WT_DECL_CONF(WT_CURSOR, bound, conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool restore_bounds;
 
+    WT_CLEAR(saved_bounds);
+    restore_bounds = false;
     clayered = (WTI_CURSOR_LAYERED *)cursor;
 
     /*
@@ -2429,6 +2435,17 @@ __clayered_bound(WT_CURSOR *cursor, const char *config)
     WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
       WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
 
+    /* A prepare conflict can retain a position without a public internal key. */
+    ingest = (WT_CURSOR_BTREE *)clayered->ingest_cursor;
+    stable = (WT_CURSOR_BTREE *)clayered->stable_cursor;
+    WT_ERR(__wt_conf_gets(session, conf, action, &cval));
+    if (WT_CONF_STRING_MATCH(set, cval) &&
+      ((ingest != NULL && WT_CURSOR_IS_POSITIONED(ingest)) ||
+        (stable != NULL && WT_CURSOR_IS_POSITIONED(stable))))
+        WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
+
+    WT_ERR(__wt_cursor_bounds_save(session, cursor, &saved_bounds));
+    restore_bounds = true;
     __clayered_get_collator(clayered, &collator);
     /* Setup bounds on this top level cursor */
     WT_ERR(__wti_cursor_bound(cursor, conf, collator));
@@ -2441,20 +2458,12 @@ __clayered_bound(WT_CURSOR *cursor, const char *config)
     WT_ERR(__clayered_copy_bounds(clayered));
 
 err:
-    if (ret != 0) {
-        /* Free any bounds we set on the top level cursor before the error */
-        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-            __wt_buf_free(session, &cursor->upper_bound);
-            WT_CLEAR(cursor->upper_bound);
-        }
-        if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-            __wt_buf_free(session, &cursor->lower_bound);
-            WT_CLEAR(cursor->lower_bound);
-        }
-        F_CLR(cursor, WT_CURSTD_BOUND_ALL);
-        /* Ensure the bounds are cleaned up on any constituents */
+    if (ret != 0 && restore_bounds) {
+        WT_TRET(__wt_cursor_bounds_restore(session, cursor, &saved_bounds));
         WT_TRET(__clayered_copy_bounds(clayered));
     }
+    __wt_scr_free(session, &saved_bounds.lower_bound);
+    __wt_scr_free(session, &saved_bounds.upper_bound);
     API_END_RET(session, ret);
 }
 

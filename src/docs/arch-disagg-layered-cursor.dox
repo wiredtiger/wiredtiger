@@ -57,6 +57,10 @@ during initial bounded positioning that retains no key instead resets the walk f
 Repositioning an alternate with `search_near()` can also conflict on a prepared key outside the
 requested direction; retrying after resolution preserves the result order.
 
+Setting bounds is rejected while either constituent retains a position, including after a prepare
+conflict; clearing bounds remains allowed. A failed bound change preserves the previous bounds on
+the layered cursor and its constituents.
+
 Reopening blocked stable on a role change closes the cursor retaining its key. If ingest holds the
 last returned key, invalidating the iteration flags makes stable reposition from ingest. Otherwise,
 the layered cursor saves the blocked key and direction until both constituents can be restored.

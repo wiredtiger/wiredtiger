@@ -36,8 +36,11 @@ from wtscenario import make_scenarios
 # no prepared update, so the walk returns the stopped key with its value from before the update.
 @disagg_test_class
 class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),precise_checkpoint=true,' \
-        'debug_mode=(disagg_stepdown_prepare=true),disaggregated=(role="leader")'
+    def conn_config(self):
+        return 'statistics=(all),precise_checkpoint=true,' \
+            'debug_mode=(disagg_stepdown_prepare=true),' \
+            'disaggregated=(role="leader",stepdown_write_mirroring=' + \
+            str(self.write_mirroring).lower() + ')'
 
     directions = [
         ('next', dict(forward=True)),
@@ -45,7 +48,11 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
     ]
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, directions)
+    mirroring_modes = [
+        ('unmirrored', dict(write_mirroring=False)),
+        ('mirrored', dict(write_mirroring=True)),
+    ]
+    scenarios = make_scenarios(disagg_storages, directions, mirroring_modes)
 
     uri = 'layered:test_layered_async_stepdown17'
 
