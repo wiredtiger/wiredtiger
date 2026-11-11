@@ -421,7 +421,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     timeline->image_build_finish = __wt_clock(session);
 
     if (F_ISSET(r, WT_REC_CHECKPOINT))
-        WT_STAT_CONN_SET(session, checkpoint_rec_page_write, r->page_write_time);
+        WT_STAT_CONN_SET(session, checkpoint_rec_stable_write, r->page_write_time);
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
