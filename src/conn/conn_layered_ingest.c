@@ -92,8 +92,10 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_BTREE 
     WT_ERR(ret);
 
     /*
-     * An in-flight prepared transaction holds the key, so its updates are the newest. All of them
-     * are read by now, so redirect it to the stable btree, which aborts them on the ingest btree.
+     * An in-flight prepared transaction holds the key, so the key's updates are the newest
+     * updates in the list. Redirect it here when the drain list holds all of the key's updates, as
+     * redirecting marks its updates aborted on the ingest btree, which would hide the older ones
+     * from the drain.
      */
     newest = *updates_ptr;
     if (newest->txnid != WT_TXN_ABORTED && newest->prepare_state == WT_PREPARE_INPROGRESS)
