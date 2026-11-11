@@ -2588,9 +2588,8 @@ void
 __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
-      {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
-      {"cache_top", WT_VERB_CACHE_TOP}, {"checkpoint", WT_VERB_CHECKPOINT},
-      {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
+      {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"cache_top", WT_VERB_CACHE_TOP},
+      {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
       {"cross_checkpoint_cache", WT_VERB_CROSS_CHECKPOINT_CACHE},
