@@ -21,10 +21,10 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /*
      * The block handle is the compaction lock for the file: only the session that claimed it in
-     * this function may compact it, and it releases the claim in the matching end call. The claim
-     * is acquired under the schema lock, but the release races with it, so use acquire/release
-     * ordering: the release publishes the completion of the previous pass, including the reads of
-     * the per-file compaction counters that the next pass resets.
+     * this function may compact it, and it releases the claim in the matching end call. Start is
+     * serialized by the schema lock, but the end path is not, so the handover is ordered
+     * explicitly: the end's release store publishes the previous pass's reads of the per-file
+     * compaction counters, and the acquire load here keeps the resets below after it.
      */
     compact_session_id = __wt_atomic_load_uint32_acquire(&block->compact_session_id);
     if (compact_session_id != WT_SESSION_ID_INVALID) {
