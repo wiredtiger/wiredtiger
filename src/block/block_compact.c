@@ -61,9 +61,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_prev_size = 0;
     /*
      * Relaxed is sufficient here: a session that observes the claim returns EBUSY without reading
-     * anything written above, and concurrent starts are serialized by the schema lock. The
-     * ordering that matters is in the acquire load above, which keeps these resets below the
-     * guard, and in the release store in the end path, which publishes the pass's counter reads.
+     * anything written above, and concurrent starts are serialized by the schema lock. The ordering
+     * that matters is in the acquire load above, which keeps these resets below the guard, and in
+     * the release store in the end path, which publishes the pass's counter reads.
      */
     __wt_atomic_store_uint32_relaxed(&block->compact_session_id, session->id);
 
