@@ -412,13 +412,6 @@ static int
 __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool is_root)
 {
     WT_UNUSED(is_root);
-    WT_BLKCACHE *blkcache;
-
-    blkcache = &S2C(session)->blkcache;
-
-    /* Evict the freed block from the block cache */
-    if (blkcache->type != WT_BLKCACHE_UNCONFIGURED)
-        __wt_blkcache_remove(session, addr, addr_size);
 
     /* We should never get here for salvage. */
     WT_ASSERT(session, session->salvage_track == NULL);
