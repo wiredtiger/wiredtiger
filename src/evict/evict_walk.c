@@ -372,10 +372,12 @@ __evict_btree_has_interest(WT_SESSION_IMPL *session)
 
 /*
  * __wti_evict_walk --
- *     Fill in the array by walking the next set of pages, and return the time spent walking trees.
+ *     Fill in the array by walking the next set of pages, and return the time spent walking trees
+ *     and waiting for the handle list lock.
  */
 int
-__wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, uint64_t *tree_walk_nsp)
+__wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, uint64_t *tree_walk_nsp,
+  uint64_t *lock_wait_nsp)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -393,7 +395,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, uint64_t *tre
 
     WT_TRACK_OP_INIT(session);
 
-    *tree_walk_nsp = 0;
+    *tree_walk_nsp = *lock_wait_nsp = 0;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -449,7 +451,13 @@ retry:
          */
         if (!dhandle_list_locked) {
             /* The lock attempt only gives up when the walk is interrupted. */
-            if ((ret = __wti_evict_lock_handle_list(session)) == EBUSY)
+            time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
+            ret = __wti_evict_lock_handle_list(session);
+            if (time_start != 0) {
+                time_stop = __wt_clock(session);
+                *lock_wait_nsp += WT_CLOCKDIFF_NS(time_stop, time_start);
+            }
+            if (ret == EBUSY)
                 WT_STAT_CONN_INCR(session, eviction_server_refill_end_interrupted);
             WT_ERR(ret);
             dhandle_list_locked = true;
