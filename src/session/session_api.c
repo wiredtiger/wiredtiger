@@ -61,7 +61,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     uint64_t now, sweep_max, sweep_min;
     uint32_t i, nbuckets, nclosed, nexamined, position;
     int t_ret;
-    bool productive;
+    bool no_wait, productive;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
         return (0);
@@ -106,8 +106,13 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     nbuckets = nclosed = nexamined = 0;
     saved_dhandle = session->dhandle;
 
-    /* Turn off caching so that cursor close doesn't try to cache. */
+    /*
+     * Turn off caching so that cursor close doesn't try to cache. Swept cursors are discarded, so
+     * don't wait for their dhandle locks: a busy handle is treated as dead.
+     */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
+    no_wait = FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
+    FLD_SET(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
     for (i = 0; i < sweep_max && productive; i++) {
         ++nbuckets;
         cached_list = &session->cursor_cache[position];
@@ -146,6 +151,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
 
     session->cursor_sweep_position = position;
     F_SET(session, WT_SESSION_CACHE_CURSORS);
+    if (!no_wait)
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
 
     WT_STAT_CONN_INCR(session, cursor_sweep);
     WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
@@ -381,6 +388,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     WT_TRET(__session_close_cached_cursors(session));
 
     WT_ASSERT(session, session->ncursors == 0);
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&session->open_cursor_count) == 0);
 
     /* Discard cached handles. */
     __wt_session_close_cache(session);
@@ -2573,7 +2581,10 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
-    /* Skip running checkpoint for standby. */
+    /*
+     * A follower has nothing to checkpoint: only the leader writes shared objects, and a follower
+     * writes nothing local either. Succeed without doing any work.
+     */
     if (__wt_conn_is_disagg(session) &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
         goto done;

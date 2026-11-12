@@ -302,7 +302,8 @@ struct __wt_session_impl {
 #define WT_SESSION_LOCKED_TABLE_READ 0x0400u
 #define WT_SESSION_LOCKED_TABLE_WRITE 0x0800u
 #define WT_SESSION_LOCKED_TURTLE 0x1000u
-#define WT_SESSION_NO_SCHEMA_LOCK 0x2000u
+#define WT_SESSION_NO_DHANDLE_WAIT 0x2000u
+#define WT_SESSION_NO_SCHEMA_LOCK 0x4000u
     /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t lock_flags;
 
@@ -370,6 +371,13 @@ struct __wt_session_impl {
      * supposedly uses a specially crafted seed suitable for skiplists.
      */
     wt_shared WT_RAND_STATE rnd_skiplist;
+
+    /*
+     * Count of cursors in this session's open list, written only by the owning thread and summed
+     * across sessions for statistics. It lives outside the cleared region so the summing load
+     * cannot race a closing session's non-atomic clear; cursor teardown returns it to zero first.
+     */
+    wt_shared uint32_t open_cursor_count;
 
     /*
      * Hash tables are allocated lazily as sessions are used to keep the size of this structure from
