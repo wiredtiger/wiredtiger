@@ -598,6 +598,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_trees_walk_complete;
     int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
+    int64_t eviction_server_skip_unwanted_tree_early;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
@@ -606,6 +607,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_slept;
     int64_t eviction_slow;
     int64_t eviction_walk_leaf_notfound;
+    int64_t eviction_server_walk_one_page_target_unproductive;
     int64_t eviction_server_walk_dominating_cache;
     int64_t eviction_server_walk_dominating_cache_unproductive;
     int64_t eviction_state;
@@ -1070,6 +1072,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_ingest_drain_bytes;
+    int64_t disagg_step_up_ingest_drain_orphan_remove;
     int64_t disagg_step_up_ingest_drain_time;
     int64_t disagg_step_up_ingest_tables_drained;
     int64_t disagg_step_up_missing_stable_create_time;
