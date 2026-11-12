@@ -1065,7 +1065,6 @@ functions:
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
       shell: bash
-      add_expansions_to_env: true
       script: |
         set -o errexit
         set -o verbose
@@ -7839,6 +7838,9 @@ buildvariants:
     REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
+    # Duration (in minutes) for Antithesis runs launched from this variant. Edit this
+    # value to customize run length for patches.
+    antithesis_duration: "60"
     CMAKE_PRESET: linux-clang
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
