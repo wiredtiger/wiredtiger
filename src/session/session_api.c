@@ -61,7 +61,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     uint64_t now, sweep_max, sweep_min;
     uint32_t i, nbuckets, nclosed, nexamined, position;
     int t_ret;
-    bool productive;
+    bool no_wait, productive;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
         return (0);
@@ -106,8 +106,13 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     nbuckets = nclosed = nexamined = 0;
     saved_dhandle = session->dhandle;
 
-    /* Turn off caching so that cursor close doesn't try to cache. */
+    /*
+     * Turn off caching so that cursor close doesn't try to cache. Swept cursors are discarded, so
+     * don't wait for their dhandle locks: a busy handle is treated as dead.
+     */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
+    no_wait = FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
+    FLD_SET(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
     for (i = 0; i < sweep_max && productive; i++) {
         ++nbuckets;
         cached_list = &session->cursor_cache[position];
@@ -146,6 +151,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
 
     session->cursor_sweep_position = position;
     F_SET(session, WT_SESSION_CACHE_CURSORS);
+    if (!no_wait)
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
 
     WT_STAT_CONN_INCR(session, cursor_sweep);
     WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
@@ -381,6 +388,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     WT_TRET(__session_close_cached_cursors(session));
 
     WT_ASSERT(session, session->ncursors == 0);
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&session->open_cursor_count) == 0);
 
     /* Discard cached handles. */
     __wt_session_close_cache(session);
@@ -1845,6 +1853,70 @@ err:
 }
 
 /*
+ * __session_verify_all --
+ *     Verify every table in the database. With the abort_on_error option set, stop at the first
+ *     failure.
+ */
+static int
+__session_verify_all(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    int first_error;
+    const char *key;
+    bool abort_on_error;
+
+    cursor = NULL;
+    first_error = 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "abort_on_error", &cval));
+    abort_on_error = cval.val != 0;
+
+    /*
+     * Iterate the metadata entries, verifying each table. Typically each table has multiple
+     * entries, so only verify table and layered entries; this skips the duplicate entries and any
+     * entries that are not supported with verify.
+     */
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &key));
+        if (!WT_PREFIX_MATCH(key, "table:") && !WT_PREFIX_MATCH(key, "layered:"))
+            continue;
+        ret = __wt_schema_worker(
+          session, key, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY);
+        if (ret == 0 || ret == ENOTSUP)
+            continue;
+        if (abort_on_error)
+            goto err;
+        if (first_error == 0)
+            first_error = ret;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+    ret = first_error;
+
+err:
+    if (cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __session_verify_dispatch --
+ *     Route a verify call: no URI verifies every table in the database, anything else verifies a
+ *     single object.
+ */
+static int
+__session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+    if (uri == NULL)
+        return (__session_verify_all(session, cfg));
+
+    return (__wt_schema_worker(
+      session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+}
+
+/*
  * __session_verify --
  *     WT_SESSION->verify method.
  */
@@ -1859,10 +1931,8 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
-    WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_LOCK(session,
-        ret = __wt_schema_worker(
-          session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+    WT_WITH_CHECKPOINT_LOCK(
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __session_verify_dispatch(session, uri, cfg)));
     WT_ERR(ret);
 err:
     if (ret != 0)
@@ -2499,7 +2569,10 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
-    /* Skip running checkpoint for standby. */
+    /*
+     * A follower has nothing to checkpoint: only the leader writes shared objects, and a follower
+     * writes nothing local either. Succeed without doing any work.
+     */
     if (__wt_conn_is_disagg(session) &&
       !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
         goto done;
