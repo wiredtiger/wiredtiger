@@ -233,7 +233,8 @@
  * its stop information is stale and must be replaced.
  *
  * A concurrent prepared commit or rollback can modify/free the live ref->page_del. Therefore, all
- * callers must pass a consistent, private copy of page_del.
+ * callers must pass a consistent, private copy of page_del, which is why plain reads are safe here.
+ * Page deletions never enter WT_PREPARE_LOCKED; the shared predicate covers it only defensively.
  */
 #define WT_TIME_AGGREGATE_MERGE_PAGE_DEL(ta, page_del)                                \
     do {                                                                              \
@@ -243,8 +244,7 @@
         (ta)->newest_stop_txn = (page_del)->txnid;                                    \
         if ((page_del)->txnid != WT_TXN_NONE)                                         \
             (ta)->oldest_stop_txn = WT_MIN((page_del)->txnid, (ta)->oldest_stop_txn); \
-        if ((page_del)->prepare_state == WT_PREPARE_INPROGRESS ||                     \
-          (page_del)->prepare_state == WT_PREPARE_LOCKED)                             \
+        if (__wt_prepare_state_unresolved((page_del)->prepare_state))                 \
             (ta)->prepare = 1;                                                        \
     } while (0)
 

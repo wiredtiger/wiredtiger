@@ -361,6 +361,7 @@ TEST_CASE("Cell Fast Truncate: deletion merge preserves prepared information",
     auto state_case = GENERATE(Catch::Generators::table<uint8_t, bool>({
       {WT_PREPARE_INIT, false},
       {WT_PREPARE_INPROGRESS, true},
+      /* Page deletions never enter this state; it is covered as a defensive guardrail. */
       {WT_PREPARE_LOCKED, true},
       {WT_PREPARE_RESOLVED, false},
     }));
@@ -384,15 +385,30 @@ TEST_CASE("Cell Fast Truncate: deletion merge preserves prepared information",
     CHECK(ta.prepare == static_cast<uint8_t>(aggregate_prepared || deletion_prepared));
 }
 
-TEST_CASE("Cell Fast Truncate: prepared deletion is not globally visible after aggregation",
+/* A mock session with a transaction, freed on scope exit so failed assertions do not leak it. */
+struct FastTruncateTxnFixture {
+    FastTruncateTxnFixture() : session_mock(setup_mock_session())
+    {
+        session = session_mock->get_wt_session_impl();
+        /* WT_TXN has a flexible array member; MSVC forbids stack-allocating such types. */
+        REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) == 0);
+    }
+
+    ~FastTruncateTxnFixture()
+    {
+        __wt_free(session, session->txn);
+    }
+
+    std::shared_ptr<mock_session> session_mock;
+    WT_SESSION_IMPL *session;
+};
+
+TEST_CASE_METHOD(FastTruncateTxnFixture,
+  "Cell Fast Truncate: prepared deletion is not globally visible after aggregation",
   "[cell][fast_truncate][time_aggregate][page_delete_prepare]")
 {
     bool prepared = GENERATE(false, true);
     CAPTURE(prepared);
-    auto session_mock = setup_mock_session();
-    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
-    /* WT_TXN has a flexible array member; MSVC forbids stack-allocating such types. */
-    REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) == 0);
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
     txn_global->oldest_id = 100;
     txn_global->pinned_timestamp = 100;
@@ -424,6 +440,4 @@ TEST_CASE("Cell Fast Truncate: prepared deletion is not globally visible after a
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &parent_ta, &effective_ta);
         CHECK(__wt_txn_ta_newest_stop_visible_all(session, &parent_ta) == !prepared);
     }
-
-    __wt_free(session, session->txn);
 }
