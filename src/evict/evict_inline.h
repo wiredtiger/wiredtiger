@@ -10,7 +10,10 @@
 
 /*
  * __evict_min_walk_pages --
- *     Calculate the minimum search threshold for an eviction walk.
+ *     Calculate the pages-seen threshold before abandoning a low-yield eviction walk.
+ *
+ * For enabled clean walks, raise the threshold based on the tree's evictable bytes as a share of
+ * cache in use, capped at 100%.
  */
 static WT_INLINE uint64_t
 __evict_min_walk_pages(
