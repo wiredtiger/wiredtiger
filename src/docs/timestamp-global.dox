@@ -31,6 +31,9 @@ Note that updating the stable timestamp does not itself trigger a database
 checkpoint or change data durability; updates before the new stable timestamp
 become stable (and thus visible after recovery) as part of the next checkpoint.
 
+For step-down timestamps and their application contract in disaggregated storage, see
+@ref disagg_role_management.
+
 @section timestamp_global_setting_timestamps Setting global timestamps
 
 The following table lists the global timestamps an application can set using the
