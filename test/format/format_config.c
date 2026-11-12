@@ -159,6 +159,13 @@ config_random(TABLE *table, bool table_only)
             continue;
 
         /*
+         * Non-layered tables don't support blind removes, so don't randomly turn them on. Skipping
+         * the random pick also keeps saved CONFIG files replaying the same way.
+         */
+        if (cp->off == V_TABLE_DISAGG_BLIND_REMOVE && !DATASOURCE(table, "layered"))
+            continue;
+
+        /*
          * Boolean flags are 0 or 1, where the variable's "min" value is the percent chance the flag
          * is "on" (so "on" if random rolled <= N, otherwise "off").
          */
