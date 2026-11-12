@@ -100,8 +100,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(position)
         return fp
 
-    # FIXME-WT-15064:
-    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def live_leaf_offset(self, tablename):
         """
         Return the offset of a live leaf page in the table's file.
@@ -117,8 +115,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTrue(leaves, "no live leaf page found in " + tablename)
         return leaves[len(leaves) // 2]
 
-    # FIXME-WT-15064:
-    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def corrupt_file_at(self, tablename, offset):
         """
         Write a corrupting pattern into the table's file.
@@ -451,6 +447,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_file_contains('verify_redacted.out', 'secret_key')
         self.check_file_contains('verify_redacted.out', '#hidden#')
 
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def test_verify_all(self):
         """
         Test verify in a 'wt' process without a specific table URI argument.
