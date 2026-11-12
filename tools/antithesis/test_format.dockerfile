@@ -22,7 +22,16 @@ COPY cmake_build/ext/compressors/zlib/libwiredtiger_zlib.so bin/ext/compressors/
 RUN mkdir -p bin/ext/compressors/zstd
 COPY cmake_build/ext/compressors/zstd/libwiredtiger_zstd.so bin/ext/compressors/zstd
 COPY tools/antithesis/test.sh bin/
+# Antithesis extracts symbol catalogs from /symbols at the image root: symlink every
+# unstripped instrumented binary there (the test binary, the library, and the dlopen'd
+# extension modules) so coverage can be mapped back to source. Antithesis follows symlinks.
+RUN mkdir -p /symbols \
+    && ln -s /opt/bin/test/format/t /symbols/t \
+    && for f in /opt/bin/libwiredtiger.so.* /opt/bin/ext/*/*/libwiredtiger_*.so; do \
+           ln -s "$f" "/symbols/$(basename "$f")"; \
+       done \
+    && for l in /symbols/*; do test -e "$l" || { echo "dangling symlink in /symbols: $l"; exit 1; }; done
 COPY cmake_build/VERSION /data/
 RUN apt-get update
-RUN apt-get install -y libsnappy-dev gdb lz4 zstd
+RUN apt-get install -y libsnappy-dev gdb lz4 zstd iputils-ping
 RUN echo "export LD_LIBRARY_PATH=/opt/bin:/opt/tools/voidstar/lib:$LD_LIBRARY_PATH" >> /root/.bashrc
