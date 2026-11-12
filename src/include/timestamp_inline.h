@@ -232,9 +232,10 @@
  * unpacked from a deleted-address cell describes the child page as it was before the truncate, so
  * its stop information is stale and must be replaced.
  *
- * A concurrent prepared commit or rollback can modify/free the live ref->page_del. Therefore, all
- * callers must pass a consistent, private copy of page_del, which is why plain reads are safe here.
- * Page deletions never enter WT_PREPARE_LOCKED; the shared predicate covers it only defensively.
+ * No prepared page deletion reaches this macro yet, so plain reads are sufficient. Once one can,
+ * callers must pass a private copy rather than the live ref->page_del, which a concurrent prepared
+ * commit or rollback can modify or free. Page deletions never enter WT_PREPARE_LOCKED; the shared
+ * predicate covers it only defensively.
  */
 #define WT_TIME_AGGREGATE_MERGE_PAGE_DEL(ta, page_del)                                \
     do {                                                                              \
