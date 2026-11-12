@@ -572,6 +572,10 @@ struct __wt_connection_stats {
     int64_t eviction_queue_not_empty;
     int64_t eviction_dhandle_complete_walk;
     int64_t eviction_server_push_pages_failed_when_flaging;
+    int64_t eviction_server_refill_end_lap_complete;
+    int64_t eviction_server_refill_end_interrupted;
+    int64_t eviction_server_refill_end_shutdown;
+    int64_t eviction_server_refill_end_filled;
     int64_t eviction_server_skip_intl_page_non_aggressive;
     int64_t eviction_server_skip_pages_already_in_urgent_queue;
     int64_t cache_eviction_blocked_prefetched;
@@ -594,14 +598,22 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_trees_walk_complete;
     int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
+    int64_t eviction_server_skip_unwanted_tree_early;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
     int64_t eviction_server_skip_trees_eviction_disabled;
     int64_t eviction_server_skip_trees_not_useful_before;
     int64_t eviction_server_slept;
+    int64_t eviction_server_pass_time;
+    int64_t eviction_server_refill_time;
+    int64_t eviction_server_slept_time;
+    int64_t eviction_server_oldest_id_time;
+    int64_t eviction_server_refill_handle_lock_time;
+    int64_t eviction_server_refill_tree_walk_time;
     int64_t eviction_slow;
     int64_t eviction_walk_leaf_notfound;
+    int64_t eviction_server_walk_one_page_target_unproductive;
     int64_t eviction_server_walk_dominating_cache;
     int64_t eviction_server_walk_dominating_cache_unproductive;
     int64_t eviction_state;
@@ -1040,6 +1052,7 @@ struct __wt_connection_stats {
     int64_t disagg_drop_refused_unpublished_data;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_victim_cache_put_failures;
+    int64_t disagg_ingest_create_on_open;
     int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_victim_cache_put_time_max;
     int64_t disagg_checkpoint_meta_lsn;
@@ -1066,6 +1079,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_clear_ingest_retry;
     int64_t disagg_step_up_ingest_drain_bytes;
+    int64_t disagg_step_up_ingest_drain_orphan_remove;
     int64_t disagg_step_up_ingest_drain_time;
     int64_t disagg_step_up_ingest_tables_drained;
     int64_t disagg_step_up_missing_stable_create_time;
@@ -1074,6 +1088,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_window_creates;
     int64_t disagg_victim_cache_app_thread_put_time;
     int64_t disagg_victim_cache_put_time;
+    int64_t disagg_ingest_create_on_open_time;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_schema_canceled;
     int64_t layered_curs_blind_remove_follower;
