@@ -31,6 +31,7 @@ else()
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_clear_walks.cpp
         misc_tests/test_evict_disagg_cache_eligible.cpp
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
@@ -50,6 +51,7 @@ else()
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_ref_page_type.cpp
+        misc_tests/test_rwlock_writer_waiting.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_missing_stable.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
@@ -59,6 +61,7 @@ else()
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_timestamp_validation.cpp
         misc_tests/test_txn_config.cpp
         misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
