@@ -117,7 +117,7 @@ class test_eviction12_shared_cache(wttest.WiredTigerTestCase):
 
 
 class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
-    scenarios = make_scenarios([
+    update_triggers = [
         ('default', dict(trigger_config='', expected=9500, during_checkpoint=9500)),
         ('low', dict(trigger_config=',eviction_updates_trigger=10',
                      expected=1000, during_checkpoint=2000)),
@@ -127,10 +127,18 @@ class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
                         expected=4000, during_checkpoint=4000)),
         ('above_cap', dict(trigger_config=',eviction_updates_trigger=60',
                            expected=6000, during_checkpoint=6000)),
-    ])
+    ]
+    dirty_triggers = [
+        ('dirty_low', dict(dirty_trigger=20, dirty_during_checkpoint=2600)),
+        ('dirty_capped', dict(dirty_trigger=35, dirty_during_checkpoint=4000)),
+        ('dirty_at_cap', dict(dirty_trigger=40, dirty_during_checkpoint=4000)),
+        ('dirty_above_cap', dict(dirty_trigger=60, dirty_during_checkpoint=6000)),
+    ]
+    scenarios = make_scenarios(update_triggers, dirty_triggers)
 
     def conn_config(self):
-        return ('cache_size=100MB,statistics=(all),precise_checkpoint=true' +
+        return ('cache_size=100MB,statistics=(all),precise_checkpoint=true,'
+                'eviction_dirty_trigger=%d' % self.dirty_trigger +
                 self.trigger_config)
 
     def test_checkpoint_trigger(self):
@@ -152,11 +160,13 @@ class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
                 time.sleep(0.1)
             self.assertEqual(self.get_stat(stat.conn.eviction_threshold_updates_trigger),
                              self.during_checkpoint)
-            self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger), 2600)
+            self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger),
+                             self.dirty_during_checkpoint)
         finally:
             done.set()
             ckpt.join()
             self.conn.reconfigure('timing_stress_for_test=[]')
         self.assertEqual(ckpt.checkpoint_count, 1)
         self.assertEqual(self.get_stat(stat.conn.eviction_threshold_updates_trigger), self.expected)
-        self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger), 2000)
+        self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger),
+                         self.dirty_trigger * 100)

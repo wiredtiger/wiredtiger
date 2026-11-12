@@ -448,9 +448,11 @@ __checkpoint_update_evict_triggers_start(
      * modified and read.
      */
 
-    /* Update the dirty trigger first and cap the update trigger increase at 40%. */
+    /* Cap trigger increases at 40%, without lowering an already higher trigger. */
     saved_triggers->new_dirty_trigger =
       WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) * 1.3);
+    saved_triggers->new_dirty_trigger =
+      WT_MAX(saved_triggers->original_dirty_trigger, saved_triggers->new_dirty_trigger);
     saved_triggers->new_updates_trigger =
       WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) * 2.0);
     saved_triggers->new_updates_trigger =
