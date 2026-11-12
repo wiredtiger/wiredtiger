@@ -27,3 +27,10 @@ services:
         ipv4_address: 10.20.20.6
         # Set the an IPv4 with an address of 10.20.20.130 or higher
         # to be ignored by the fault injector
+
+networks:
+  antithesis-net:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 10.20.20.0/24
