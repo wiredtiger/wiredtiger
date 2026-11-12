@@ -307,7 +307,7 @@ table_cursor(TINFO *tinfo, u_int id)
     --id;
 
     if (tinfo->cursors[id] == NULL) {
-        /* Column stores append when inserting new rows, row stores may use blind removes. */
+        /* Column stores append when inserting new rows. */
         if (table->type != ROW)
             config = "append";
         else
