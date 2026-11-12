@@ -302,6 +302,14 @@ config_table(TABLE *table, void *arg)
     /* Fill in random values for the rest of the run. */
     config_random(table, true);
 
+    /* Only layered tables support blind removes. */
+    if (!DATASOURCE(table, "layered")) {
+        if (config_explicit(table, "disagg.blind_remove") && TV(DISAGG_BLIND_REMOVE))
+            WARN("turning off disagg.blind_remove for table%" PRIu32 " as it isn't layered",
+              table->id);
+        config_off(table, "disagg.blind_remove");
+    }
+
     /* Page sizes are configured using powers-of-two or megabytes, convert them. */
     table->max_intl_page = 1U << TV(BTREE_INTERNAL_PAGE_MAX);
     table->max_leaf_page = 1U << TV(BTREE_LEAF_PAGE_MAX);
