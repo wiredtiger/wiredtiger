@@ -1905,13 +1905,14 @@ __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char 
 
     if (uri == NULL) {
         /*
-         * A NULL URI runs the database-wide checks before verifying every table, with
-         * check_btree_ids_only set, return early without verifying any table.
+         * With verify_internals set, run only the database-wide checks and return, without
+         * verifying any table. Otherwise verify every table; the checks never run implicitly.
          */
-        WT_RET(__wt_config_gets(session, cfg, "check_btree_ids_only", &cval));
-        WT_RET(__wt_verify_metadata_consistency(session));
-        if (cval.val != 0)
+        WT_RET(__wt_config_gets(session, cfg, "verify_internals", &cval));
+        if (cval.val != 0) {
+            WT_RET(__wt_verify_metadata_consistency(session));
             return (0);
+        }
         return (__session_verify_all(session, cfg));
     }
 

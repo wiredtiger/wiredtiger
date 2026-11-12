@@ -100,7 +100,6 @@
 #define WT_CONF_ID_cache_tolerance_for_app_eviction 268ULL
 #define WT_CONF_ID_cache_top 196ULL
 #define WT_CONF_ID_capacity 345ULL
-#define WT_CONF_ID_check_btree_ids_only 158ULL
 #define WT_CONF_ID_checkpoint 53ULL
 #define WT_CONF_ID_checkpoint_backup_info 54ULL
 #define WT_CONF_ID_checkpoint_cleanup 186ULL
@@ -162,19 +161,19 @@
 #define WT_CONF_ID_disagg_commit_ts_optional 242ULL
 #define WT_CONF_ID_disagg_slow_truncate_follower 243ULL
 #define WT_CONF_ID_disagg_stepdown_prepare 244ULL
-#define WT_CONF_ID_do_not_clear_txn_id 159ULL
+#define WT_CONF_ID_do_not_clear_txn_id 158ULL
 #define WT_CONF_ID_drain_threads 65ULL
 #define WT_CONF_ID_drop 190ULL
 #define WT_CONF_ID_dryrun 85ULL
 #define WT_CONF_ID_dump 139ULL
-#define WT_CONF_ID_dump_address 160ULL
-#define WT_CONF_ID_dump_all_data 161ULL
-#define WT_CONF_ID_dump_blocks 162ULL
-#define WT_CONF_ID_dump_key_data 163ULL
-#define WT_CONF_ID_dump_layout 164ULL
-#define WT_CONF_ID_dump_offsets 165ULL
-#define WT_CONF_ID_dump_pages 166ULL
-#define WT_CONF_ID_dump_tree_shape 167ULL
+#define WT_CONF_ID_dump_address 159ULL
+#define WT_CONF_ID_dump_all_data 160ULL
+#define WT_CONF_ID_dump_blocks 161ULL
+#define WT_CONF_ID_dump_key_data 162ULL
+#define WT_CONF_ID_dump_layout 163ULL
+#define WT_CONF_ID_dump_offsets 164ULL
+#define WT_CONF_ID_dump_pages 165ULL
+#define WT_CONF_ID_dump_tree_shape 166ULL
 #define WT_CONF_ID_durable_timestamp 3ULL
 #define WT_CONF_ID_early_load 326ULL
 #define WT_CONF_ID_enable 296ULL
@@ -205,7 +204,7 @@
 #define WT_CONF_ID_file_max 290ULL
 #define WT_CONF_ID_file_metadata 93ULL
 #define WT_CONF_ID_file_wait_ms 223ULL
-#define WT_CONF_ID_fix_btree_size 168ULL
+#define WT_CONF_ID_fix_btree_size 167ULL
 #define WT_CONF_ID_flushed_data_cache_insertion 348ULL
 #define WT_CONF_ID_force 122ULL
 #define WT_CONF_ID_force_stop 143ULL
@@ -309,7 +308,7 @@
 #define WT_CONF_ID_raw 150ULL
 #define WT_CONF_ID_raw_key_value 134ULL
 #define WT_CONF_ID_read 182ULL
-#define WT_CONF_ID_read_corrupt 169ULL
+#define WT_CONF_ID_read_corrupt 168ULL
 #define WT_CONF_ID_read_once 151ULL
 #define WT_CONF_ID_read_size 363ULL
 #define WT_CONF_ID_read_timestamp 4ULL
@@ -342,7 +341,7 @@
 #define WT_CONF_ID_size 208ULL
 #define WT_CONF_ID_size_stats 138ULL
 #define WT_CONF_ID_skip_checkpoint 192ULL
-#define WT_CONF_ID_skip_per_key_hs 170ULL
+#define WT_CONF_ID_skip_per_key_hs 169ULL
 #define WT_CONF_ID_skip_sort_check 152ULL
 #define WT_CONF_ID_skip_update_obsolete_check 271ULL
 #define WT_CONF_ID_slow_checkpoint 251ULL
@@ -355,7 +354,7 @@
 #define WT_CONF_ID_src_id 145ULL
 #define WT_CONF_ID_stable 74ULL
 #define WT_CONF_ID_stable_disaggregated_schema_epoch 334ULL
-#define WT_CONF_ID_stable_timestamp 171ULL
+#define WT_CONF_ID_stable_timestamp 170ULL
 #define WT_CONF_ID_start_generation 109ULL
 #define WT_CONF_ID_start_timestamp 132ULL
 #define WT_CONF_ID_statistics 153ULL
@@ -365,7 +364,7 @@
 #define WT_CONF_ID_storage_path 347ULL
 #define WT_CONF_ID_storage_tier 22ULL
 #define WT_CONF_ID_stress_skiplist 253ULL
-#define WT_CONF_ID_strict 172ULL
+#define WT_CONF_ID_strict 171ULL
 #define WT_CONF_ID_strict_checkpoint_metadata 70ULL
 #define WT_CONF_ID_suffix 110ULL
 #define WT_CONF_ID_sync 125ULL
@@ -391,6 +390,7 @@
 #define WT_CONF_ID_use_timestamp 191ULL
 #define WT_CONF_ID_value_format 52ULL
 #define WT_CONF_ID_verbose 10ULL
+#define WT_CONF_ID_verify_internals 172ULL
 #define WT_CONF_ID_verify_metadata 382ULL
 #define WT_CONF_ID_version 61ULL
 #define WT_CONF_ID_visible_only 131ULL
@@ -687,7 +687,6 @@ static const struct {
     uint64_t cache_size;
     uint64_t cache_stuck_timeout_ms;
     uint64_t cache_top;
-    uint64_t check_btree_ids_only;
     uint64_t checkpoint;
     uint64_t checkpoint_backup_info;
     uint64_t checkpoint_lsn;
@@ -835,6 +834,7 @@ static const struct {
     uint64_t use_timestamp;
     uint64_t value_format;
     uint64_t verbose;
+    uint64_t verify_internals;
     uint64_t verify_metadata;
     uint64_t version;
     uint64_t write_through;
@@ -1118,7 +1118,6 @@ static const struct {
   WT_CONF_ID_cache_size,
   WT_CONF_ID_cache_stuck_timeout_ms,
   WT_CONF_ID_cache_top,
-  WT_CONF_ID_check_btree_ids_only,
   WT_CONF_ID_checkpoint,
   WT_CONF_ID_checkpoint_backup_info,
   WT_CONF_ID_checkpoint_lsn,
@@ -1266,6 +1265,7 @@ static const struct {
   WT_CONF_ID_use_timestamp,
   WT_CONF_ID_value_format,
   WT_CONF_ID_verbose,
+  WT_CONF_ID_verify_internals,
   WT_CONF_ID_verify_metadata,
   WT_CONF_ID_version,
   WT_CONF_ID_write_through,

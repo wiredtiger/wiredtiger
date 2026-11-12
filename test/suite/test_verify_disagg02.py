@@ -86,16 +86,10 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         # duplicate.
         session_follow.verify(self.uri)
 
-        # A NULL URI with check_btree_ids_only skips the per-table verification and only runs the check
+        # A NULL URI with verify_internals skips the per-table verification and only runs the check
         # for duplicate IDs.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session_follow.verify(None, 'check_btree_ids_only=true'), '/WT_ERROR/')
-        self.ignoreStderrPatternIfExists('metadata corruption')
-
-        # A plain NULL URI runs the check before verifying all tables, so it detects the
-        # duplicate too.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: session_follow.verify(None), '/WT_ERROR/')
+            lambda: session_follow.verify(None, 'verify_internals=true'), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('metadata corruption')
 
         # Remove the fake entry so teardown verification passes.
@@ -133,12 +127,11 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         # database-wide checks.
         self.session.verify(self.uri)
 
-        # A NULL URI with check_btree_ids_only verifies nothing but the database-wide checks.
+        # A NULL URI with verify_internals verifies nothing but the database-wide checks.
         with self.expectedStderrPattern('metadata corruption.*dup_entry'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.verify(None, 'check_btree_ids_only=true'), '/WT_ERROR/')
+                lambda: self.session.verify(None, 'verify_internals=true'), '/WT_ERROR/')
 
-        # A plain NULL URI runs the check before verifying all tables.
-        with self.expectedStderrPattern('metadata corruption.*dup_entry'):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.verify(None), '/WT_ERROR/')
+        # A plain NULL URI verifies all tables without running the check, so the duplicate is
+        # not detected.
+        self.session.verify(None)

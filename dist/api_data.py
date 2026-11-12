@@ -1946,11 +1946,11 @@ methods = {
         verification; by default all tables are verified, with every failure logged as it is
         found, and the return value reports the first failure''',
         type='boolean'),
-    Config('check_btree_ids_only', 'false', r'''
-        when no URI is given, run only the database-wide unique btree ID check without
-        verifying any table. When false (the default), a NULL URI runs the check first and
-        then verifies all tables. This configuration has no effect when a specific URI is
-        given''',
+    Config('verify_internals', 'false', r'''
+        when no URI is given, run only the internal database-wide checks (currently the unique
+        btree ID check, which scans the metadata for duplicates) without verifying any table.
+        When false (the default), a NULL URI verifies all tables without running the checks.
+        This configuration has no effect when a specific URI is given''',
         type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
