@@ -118,8 +118,15 @@ class test_eviction12_shared_cache(wttest.WiredTigerTestCase):
 
 class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
-        ('default', dict(trigger_config='', expected=9500)),
-        ('explicit', dict(trigger_config=',eviction_updates_trigger=10', expected=1000)),
+        ('default', dict(trigger_config='', expected=9500, during_checkpoint=9500)),
+        ('low', dict(trigger_config=',eviction_updates_trigger=10',
+                     expected=1000, during_checkpoint=2000)),
+        ('capped', dict(trigger_config=',eviction_updates_trigger=30',
+                        expected=3000, during_checkpoint=4000)),
+        ('at_cap', dict(trigger_config=',eviction_updates_trigger=40',
+                        expected=4000, during_checkpoint=4000)),
+        ('above_cap', dict(trigger_config=',eviction_updates_trigger=60',
+                           expected=6000, during_checkpoint=6000)),
     ])
 
     def conn_config(self):
@@ -144,7 +151,7 @@ class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
                 self.assertLess(time.monotonic(), deadline, 'checkpoint did not reach stop')
                 time.sleep(0.1)
             self.assertEqual(self.get_stat(stat.conn.eviction_threshold_updates_trigger),
-                             self.expected)
+                             self.during_checkpoint)
             self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger), 2600)
         finally:
             done.set()
