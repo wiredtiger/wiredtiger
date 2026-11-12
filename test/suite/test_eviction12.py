@@ -118,28 +118,32 @@ class test_eviction12_shared_cache(wttest.WiredTigerTestCase):
 
 class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
     update_triggers = [
-        ('default', dict(trigger_config='', expected=9500, during_checkpoint=9500)),
-        ('low', dict(trigger_config=',eviction_updates_trigger=10',
-                     expected=1000, during_checkpoint=2000)),
-        ('capped', dict(trigger_config=',eviction_updates_trigger=30',
-                        expected=3000, during_checkpoint=4000)),
-        ('at_cap', dict(trigger_config=',eviction_updates_trigger=40',
-                        expected=4000, during_checkpoint=4000)),
-        ('above_cap', dict(trigger_config=',eviction_updates_trigger=60',
-                           expected=6000, during_checkpoint=6000)),
+        ('default', dict(updates_config='', updates_expected=9500,
+                         updates_during_checkpoint=9500)),
+        ('low', dict(updates_config=',eviction_updates_trigger=10', updates_expected=1000,
+                     updates_during_checkpoint=2000)),
+        ('capped', dict(updates_config=',eviction_updates_trigger=30', updates_expected=3000,
+                        updates_during_checkpoint=4000)),
+        ('at_cap', dict(updates_config=',eviction_updates_trigger=40', updates_expected=4000,
+                        updates_during_checkpoint=4000)),
+        ('above_cap', dict(updates_config=',eviction_updates_trigger=60', updates_expected=6000,
+                           updates_during_checkpoint=6000)),
     ]
     dirty_triggers = [
-        ('dirty_low', dict(dirty_trigger=20, dirty_during_checkpoint=2600)),
-        ('dirty_capped', dict(dirty_trigger=35, dirty_during_checkpoint=4000)),
-        ('dirty_at_cap', dict(dirty_trigger=40, dirty_during_checkpoint=4000)),
-        ('dirty_above_cap', dict(dirty_trigger=60, dirty_during_checkpoint=6000)),
+        ('dirty_low', dict(dirty_config=',eviction_dirty_trigger=20', dirty_expected=2000,
+                           dirty_during_checkpoint=2600)),
+        ('dirty_capped', dict(dirty_config=',eviction_dirty_trigger=35', dirty_expected=3500,
+                              dirty_during_checkpoint=4000)),
+        ('dirty_at_cap', dict(dirty_config=',eviction_dirty_trigger=40', dirty_expected=4000,
+                              dirty_during_checkpoint=4000)),
+        ('dirty_above_cap', dict(dirty_config=',eviction_dirty_trigger=60', dirty_expected=6000,
+                                 dirty_during_checkpoint=6000)),
     ]
     scenarios = make_scenarios(update_triggers, dirty_triggers)
 
     def conn_config(self):
-        return ('cache_size=100MB,statistics=(all),precise_checkpoint=true,'
-                'eviction_dirty_trigger=%d' % self.dirty_trigger +
-                self.trigger_config)
+        return ('cache_size=100MB,statistics=(all),precise_checkpoint=true' +
+                self.dirty_config + self.updates_config)
 
     def test_checkpoint_trigger(self):
         self.session.create('table:checkpoint_trigger', 'key_format=S,value_format=S')
@@ -159,7 +163,7 @@ class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
                 self.assertLess(time.monotonic(), deadline, 'checkpoint did not reach stop')
                 time.sleep(0.1)
             self.assertEqual(self.get_stat(stat.conn.eviction_threshold_updates_trigger),
-                             self.during_checkpoint)
+                             self.updates_during_checkpoint)
             self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger),
                              self.dirty_during_checkpoint)
         finally:
@@ -167,6 +171,7 @@ class test_eviction12_checkpoint(wttest.WiredTigerTestCase):
             ckpt.join()
             self.conn.reconfigure('timing_stress_for_test=[]')
         self.assertEqual(ckpt.checkpoint_count, 1)
-        self.assertEqual(self.get_stat(stat.conn.eviction_threshold_updates_trigger), self.expected)
+        self.assertEqual(self.get_stat(stat.conn.eviction_threshold_updates_trigger),
+                         self.updates_expected)
         self.assertEqual(self.get_stat(stat.conn.eviction_threshold_dirty_trigger),
-                         self.dirty_trigger * 100)
+                         self.dirty_expected)
