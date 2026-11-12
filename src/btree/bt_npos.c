@@ -619,6 +619,102 @@ __npos_cursor_start(WT_CURSOR_BTREE *cbt, uint32_t slot, bool prev)
     F_SET(cbt, prev ? WT_CBT_ITERATE_RETRY_PREV : WT_CBT_ITERATE_RETRY_NEXT);
 }
 
+/* An insert list level with this many entries divides its page finely enough to select from. */
+#define WT_NPOS_SKIP_ENOUGH 500
+
+/*
+ * __npos_insert_select --
+ *     Return the insert list entry at an anchor or at a fraction of the list.
+ */
+static WT_INSERT *
+__npos_insert_select(WT_INSERT_HEAD *ins_head, double remainder, uint32_t flags)
+{
+    WT_INSERT *ins;
+    uint32_t candidates, entries, index;
+    int level;
+
+    switch (flags & WT_POSITION_ANCHOR_MASK) {
+    case WT_POSITION_ANCHOR_FIRST:
+        return (WT_SKIP_FIRST(ins_head));
+    case WT_POSITION_ANCHOR_LAST:
+        return (WT_SKIP_LAST(ins_head));
+    case WT_POSITION_ANCHOR_MIDDLE:
+        remainder = WT_NPOS_MID;
+        break;
+    default:
+        break;
+    }
+
+    /*
+     * Walking the whole list for each position costs as much as scanning the page. The entries of
+     * a higher level are an evenly spread sample of the list, so index the highest level holding
+     * enough of them. The first entry of the list stands in for the records that precede the first
+     * entry of that level, which keeps the start of the page addressable.
+     */
+    for (level = WT_SKIP_MAXDEPTH - 1;; --level) {
+        for (entries = 0, ins = ins_head->head[level]; ins != NULL; ins = ins->next[level])
+            ++entries;
+        if (level == 0 || entries > WT_NPOS_SKIP_ENOUGH)
+            break;
+    }
+    if (entries == 0)
+        return (NULL);
+
+    candidates = level == 0 ? entries : entries + 1;
+    index = (uint32_t)(remainder * candidates);
+    if (index >= candidates)
+        index = candidates - 1;
+    if (level != 0) {
+        if (index == 0)
+            return (WT_SKIP_FIRST(ins_head));
+        --index;
+    }
+
+    /* The list only grows while the page is pinned, so the entry counted is still there. */
+    for (ins = ins_head->head[level]; index > 0 && ins != NULL; --index)
+        ins = ins->next[level];
+    return (ins == NULL ? WT_SKIP_FIRST(ins_head) : ins);
+}
+
+/*
+ * __npos_insert_remainder --
+ *     Return the fraction of an insert list at which an entry lies.
+ */
+static double
+__npos_insert_remainder(WT_INSERT_HEAD *ins_head, WT_INSERT *target)
+{
+    WT_INSERT *ins;
+    uint32_t entries, index;
+
+    index = UINT32_MAX;
+    for (entries = 0, ins = WT_SKIP_FIRST(ins_head); ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        if (ins == target)
+            index = entries;
+        ++entries;
+    }
+    if (index == UINT32_MAX || entries == 0)
+        return (WT_NPOS_MID);
+    return ((index + 0.5) / entries);
+}
+
+/*
+ * __npos_cursor_start_insert --
+ *     Arrange for the next cursor movement to evaluate the given insert list entry of the pinned
+ *     page first, instead of stepping past it.
+ */
+static void
+__npos_cursor_start_insert(
+  WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT *ins, bool prev)
+{
+    __cursor_pos_clear(cbt);
+    cbt->slot = UINT32_MAX;
+    cbt->ins_head = ins_head;
+    cbt->ins = ins;
+    cbt->iter_retry = WT_CBT_RETRY_INSERT;
+    __wti_btcur_iterate_setup(cbt);
+    F_SET(cbt, prev ? WT_CBT_ITERATE_RETRY_PREV : WT_CBT_ITERATE_RETRY_NEXT);
+}
+
 /*
  * __wt_btcur_set_position --
  *     Position the cursor at a normalized position in the tree.
@@ -628,6 +724,8 @@ __wt_btcur_set_position(WT_CURSOR_BTREE *cbt, WT_POSITION *position)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_INSERT *ins;
+    WT_INSERT_HEAD *ins_head;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     double npos, remainder;
@@ -703,28 +801,41 @@ __wt_btcur_set_position(WT_CURSOR_BTREE *cbt, WT_POSITION *position)
 
     page = cbt->ref->page;
     entries = page->entries;
-    switch (flags & WT_POSITION_ANCHOR_MASK) {
-    case WT_POSITION_ANCHOR_FIRST:
-        slot = 0;
-        break;
-    case WT_POSITION_ANCHOR_MIDDLE:
-        slot = entries / 2;
-        break;
-    case WT_POSITION_ANCHOR_LAST:
-        slot = entries == 0 ? 0 : entries - 1;
-        break;
-    default:
-        slot = (uint32_t)(remainder * entries);
-        break;
+
+    /*
+     * A page with no on-disk cells keeps every record on its in-memory insert list. That list is
+     * the page's only slot space, so on request select a position within it rather than the first
+     * entry that selecting slot zero would always yield.
+     */
+    ins_head =
+      entries == 0 && LF_ISSET(WT_POSITION_INSERT_LIST) ? WT_ROW_INSERT_SMALLEST(page) : NULL;
+    ins = ins_head == NULL ? NULL : __npos_insert_select(ins_head, remainder, flags);
+    if (ins != NULL) {
+        __npos_cursor_start_insert(cbt, ins_head, ins, prev);
+    } else {
+        switch (flags & WT_POSITION_ANCHOR_MASK) {
+        case WT_POSITION_ANCHOR_FIRST:
+            slot = 0;
+            break;
+        case WT_POSITION_ANCHOR_MIDDLE:
+            slot = entries / 2;
+            break;
+        case WT_POSITION_ANCHOR_LAST:
+            slot = entries == 0 ? 0 : entries - 1;
+            break;
+        default:
+            slot = (uint32_t)(remainder * entries);
+            break;
+        }
+        if (entries != 0 && slot >= entries)
+            slot = entries - 1;
+
+        /* Walking backwards through prefix-compressed keys is quadratic unless some are built. */
+        if (prev)
+            WT_ERR(__wt_row_leaf_key_instantiate(session, page));
+
+        __npos_cursor_start(cbt, slot, prev);
     }
-    if (entries != 0 && slot >= entries)
-        slot = entries - 1;
-
-    /* Walking backwards through prefix-compressed keys is quadratic unless some are built. */
-    if (prev)
-        WT_ERR(__wt_row_leaf_key_instantiate(session, page));
-
-    __npos_cursor_start(cbt, slot, prev);
 
     if (cache_only)
         F_SET(cbt, WT_CBT_WALK_CACHE_ONLY);
@@ -744,6 +855,7 @@ err:
 void
 __wt_btcur_get_position(WT_CURSOR_BTREE *cbt, double *posp)
 {
+    WT_INSERT_HEAD *ins_head;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     double remainder;
@@ -756,9 +868,14 @@ __wt_btcur_get_position(WT_CURSOR_BTREE *cbt, double *posp)
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_get_position);
 
-    if (entries == 0)
-        remainder = WT_NPOS_MID;
-    else {
+    if (entries == 0) {
+        /* A page with no on-disk cells is positioned within its insert list. */
+        ins_head = WT_ROW_INSERT_SMALLEST(page);
+        if (ins_head != NULL && cbt->ins != NULL)
+            remainder = __npos_insert_remainder(ins_head, cbt->ins);
+        else
+            remainder = WT_NPOS_MID;
+    } else {
         /* Insert-list records before the first or after the last cell have no slot of their own. */
         if (slot >= entries)
             slot = cbt->ins_head == WT_ROW_INSERT_SMALLEST(page) ? 0 : entries - 1;

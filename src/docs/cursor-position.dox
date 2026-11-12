@@ -59,12 +59,19 @@ The starting slot is chosen by the anchor flags: by default
 (::WT_POSITION_ANCHOR_EXACT) the remainder of the position selects a slot
 within the page, ::WT_POSITION_ANCHOR_FIRST selects the first slot,
 ::WT_POSITION_ANCHOR_MIDDLE the middle slot and ::WT_POSITION_ANCHOR_LAST
-the last. Only records already written to the page are indexed this way;
-records still on the page's insert list are visited by the walk but are
-never selected as a starting slot. A page with no records written to it
-yet, which is the usual state of a never-checkpointed object, has no
-slots to select: the walk starts on its insert list, at the smallest key
-or, with ::WT_POSITION_PREV, the largest.
+the last. Records already written to the page are indexed by slot this way;
+records on the insert lists of such a page are visited by the walk but
+are never selected as a starting slot. A page with no records written to
+it yet, which is the usual state of a never-checkpointed object, has no
+slots: every position that addresses it starts the walk at its first
+record, or at its last with ::WT_POSITION_PREV. Applications that need to
+divide such a page, for example to partition a small object that has never
+been written, set ::WT_POSITION_INSERT_LIST: the anchor, or the remainder
+of the position, then selects an entry in the page's insert list and the
+walk starts there. The remainder resolves to within a few hundred records
+of the exact position, so that positioning stays cheap however many
+records the page holds; the flag has no effect on pages that have records
+written to them.
 
 ::WT_POSITION_PREV walks backwards instead of forwards. The anchor and
 the direction are independent: ::WT_POSITION_ANCHOR_LAST alone starts at
@@ -90,9 +97,11 @@ key-only positioning, is not positioned.
 
 The two methods are consistent with each other. For an unchanged object,
 positioning at the value WT_CURSOR::get_position returned for a record
-written to a page returns the same record. A record that is still on a
-page's insert list maps to the nearest slot written to the page, so the
-round trip may return a neighboring record instead.
+written to a page returns the same record. A record on a page's insert
+list maps to its index in the list when the page has no records written
+to it, and otherwise to the nearest slot written to the page. Positioning
+resolves such a record only approximately, so in both cases the round
+trip may return a nearby record instead.
 
 @section cursor_position_key_only Key-only positioning
 
