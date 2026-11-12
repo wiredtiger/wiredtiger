@@ -104,48 +104,53 @@ possible data.
 
 @subsection timestamp_global_set_api_stable_schema_epoch Setting the "stable_disaggregated_schema_epoch" timestamp
 
-In disaggregated storage, creates and drops of layered tables reach other nodes
-through the shared metadata that the leader writes with each checkpoint. Schema
-epochs order these operations independently of commit timestamps: the
-application assigns each operation a schema epoch, and the
-\c stable_disaggregated_schema_epoch selects the operations a checkpoint
-includes. Schema epochs use the same format as timestamps.
+In disaggregated storage, the leader writes the creates and drops of layered
+tables to the shared metadata with each checkpoint, and other nodes learn about
+them from there. Schema epochs determine which of these operations a checkpoint
+includes: the application assigns each operation a schema epoch, and a
+checkpoint includes the operations at or below the
+\c stable_disaggregated_schema_epoch. Schema epochs use the same format as
+timestamps, but advance independently of the commit and stable timestamps.
 
-Every node queues creates and drops of layered tables. A queued operation is
-unpublished until the application assigns it a schema epoch with
-WT_SESSION::publish, for example <tt>disaggregated=(schema_epoch=20)</tt>.
-When a checkpoint starts, it reads the current stable schema epoch. The
-checkpoint includes the operations published at or below that epoch, and
-records the epoch. Operations published above it, and unpublished operations,
-stay queued for a later checkpoint.
+On every node, a create or drop of a layered table is pending until the shared
+metadata includes it. A pending operation is unpublished until the application
+assigns it a schema epoch with WT_SESSION::publish, for example
+<tt>disaggregated=(schema_epoch=20)</tt>. When a checkpoint starts, it reads the
+current stable schema epoch. The checkpoint includes the pending operations
+published at or below that epoch and records the epoch. Operations published
+above it, and unpublished operations, stay pending for a later checkpoint.
 
-The application runs the same schema operations on followers and publishes
-them at the same schema epochs as on the leader. When a follower picks up a
-checkpoint, it removes the queued operations at or below the schema epoch
-recorded in that checkpoint. After a step-up, the queue on the new leader
-holds the operations that the shared metadata does not include yet.
+The application runs the same schema operations on followers and publishes them
+at the same schema epochs as on the leader. When a follower picks up a
+checkpoint, it discards its pending operations at or below the schema epoch
+recorded in that checkpoint. After a step-up, the new leader's pending
+operations are those the shared metadata does not include yet.
 
 WT_SESSION::publish applies to \c table: and \c layered: URIs and assigns the
-given schema epoch to every unpublished operation queued for the table. The
-schema epoch must be later than the stable schema epoch and the schema epoch of
-the last checkpoint; otherwise, or if nothing is queued for the table, it fails
-with \c EINVAL. WiredTiger panics if the stable schema epoch is not set,
-or if the table was created before it was set. Dropping a table whose create is
-still unpublished removes the create from the queue, and neither operation is
-published.
+given schema epoch to every unpublished operation for the table. It fails with
+\c EINVAL if:
+- the schema epoch is not later than the stable schema epoch;
+- the schema epoch is not later than the schema epoch of the last checkpoint
+(see @ref timestamp_global_query_api_last_schema_epoch);
+- the table has no pending operations.
+
+WiredTiger panics if the stable schema epoch is not set, or if the table was
+created before it was set. Dropping a table whose create is still unpublished
+cancels the create, and neither operation is published.
 
 A layered table created while the stable schema epoch is set stays in memory
-until a checkpoint includes the create. A checkpoint fails with \c EINVAL if
-the stable timestamp covers a commit to a table that the checkpoint does not
-include. Therefore, publish the table at a schema epoch, and advance the stable
-schema epoch to at least that epoch, before the stable timestamp reaches the
-first commit to the table.
+until a checkpoint includes the create. A checkpoint that does not include a
+table's create fails with \c EINVAL if the table holds data with a durable
+timestamp at or below the stable timestamp. Therefore, before the stable
+timestamp reaches the durable timestamp of the first update to the table:
+- publish the table at a schema epoch;
+- advance the stable schema epoch to at least that epoch.
 
 The stable schema epoch has these constraints:
 - It may not move backward, even with <tt>force=true</tt>. Setting the current
 value again has no effect.
-- On a leader, it may not be set below the schema epoch of the last checkpoint
-(see @ref timestamp_global_query_api_last_schema_epoch).
+- On a leader, it may not be set below the schema epoch recorded in the shared
+metadata by the last checkpoint.
 - Once set, it cannot be unset. It is not saved across restarts: the
 application must set it again after a restart.
 - For a planned step-down, the application sets
@@ -156,9 +161,11 @@ stable schema epoch may not pass the step-down schema epoch, and must equal it
 when the node steps down.
 
 If the stable schema epoch is not set, schema operations are not gated: each
-checkpoint includes the operations queued before it started, and
-WT_SESSION::publish is not used. Such a checkpoint keeps the schema epoch of
-the previous checkpoint.
+checkpoint includes the operations pending when it started, and
+WT_SESSION::publish is not used. A checkpoint with <tt>use_timestamp=false</tt>
+is not gated either, even when the stable schema epoch is set: it also includes
+unpublished operations. In both cases, the checkpoint keeps the schema epoch of
+the previous checkpoint in the shared metadata.
 
 @section timestamp_global_querying_timestamps Querying global timestamps
 
@@ -232,8 +239,8 @@ The \c last_checkpoint timestamp is read-only.
 
 The \c last_disaggregated_schema_epoch is the schema epoch of the last
 checkpoint this node wrote or picked up, or 0 after a checkpoint with
-<tt>use_timestamp=false</tt>. After a restart, a leader must set the stable schema epoch to at
-least this value.
+<tt>use_timestamp=false</tt>. Read after a restart, before the first
+checkpoint, it is the minimum a leader may set the stable schema epoch to.
 
 The \c last_disaggregated_schema_epoch timestamp is read-only.
 
