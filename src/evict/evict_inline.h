@@ -19,10 +19,10 @@ __evict_min_walk_pages(uint32_t target_pages, bool clean, bool enabled, uint64_t
     uint64_t min_pages;
 
     min_pages = (clean ? 10 : 100) * (uint64_t)target_pages;
-    *max_pages_per_candidatep = min_pages / target_pages;
     if (clean && enabled && cache_inuse != 0)
         min_pages = WT_MAX(min_pages,
           100 + (uint64_t)(900.0 * WT_MIN((double)tree_inuse / (double)cache_inuse, 1.0)));
+    *max_pages_per_candidatep = min_pages / target_pages;
     return (min_pages);
 }
 

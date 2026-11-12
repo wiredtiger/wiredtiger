@@ -11,7 +11,7 @@
 #include "wt_internal.h"
 #include "../wrappers/connection_wrapper.h"
 
-TEST_CASE("Eviction walk budget scales independently of candidate yield", "[evict_walk_budget]")
+TEST_CASE("Eviction walk budget and candidate yield scale with cache share", "[evict_walk_budget]")
 {
     struct {
         uint32_t target;
@@ -20,12 +20,14 @@ TEST_CASE("Eviction walk budget scales independently of candidate yield", "[evic
     } cases[] = {
       {1, true, false, 100, 100, 10, 10},
       {20, true, false, 100, 100, 200, 10},
-      {1, true, true, 0, 100, 100, 10},
-      {1, true, true, 1, 100, 109, 10},
-      {1, true, true, 20, 100, 280, 10},
-      {1, true, true, 50, 100, 550, 10},
-      {1, true, true, 100, 100, 1000, 10},
-      {1, true, true, 200, 100, 1000, 10},
+      {1, true, true, 0, 100, 100, 100},
+      {1, true, true, 1, 100, 109, 109},
+      {1, true, true, 20, 100, 280, 280},
+      {1, true, true, 50, 100, 550, 550},
+      {1, true, true, 100, 100, 1000, 1000},
+      {1, true, true, 200, 100, 1000, 1000},
+      {50, true, true, 50, 100, 550, 11},
+      {50, true, true, 55, 100, 595, 11},
       {1, true, true, 100, 0, 10, 10},
       {200, true, true, 20, 100, 2000, 10},
       {1, false, true, 50, 100, 100, 100},
