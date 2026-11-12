@@ -28,19 +28,28 @@
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # Eviction must preserve reads after a prepared rollback when older values become obsolete.
 @disagg_test_class
 class test_layered_prepare12(wttest.WiredTigerTestCase):
     uri = 'layered:test_layered_prepare12'
-    base_config = 'statistics=(all),precise_checkpoint=true,preserve_prepared=false,'
-    conn_config = base_config + 'disaggregated=(role="leader")'
-    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True))
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
+        ('preserve', dict(preserve_prepared=True)),
+        ('no_preserve', dict(preserve_prepared=False)),
+    ])
+
+    def base_config(self):
+        return 'statistics=(all),precise_checkpoint=true,' + \
+            f'preserve_prepared={str(self.preserve_prepared).lower()},'
+
+    def conn_config(self):
+        return self.base_config() + 'disaggregated=(role="leader")'
 
     def test_prepared_rollback_after_prunable_update(self):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
-            self.base_config + 'disaggregated=(role="follower")')
+            self.base_config() + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session()
         for session in (self.session, session_follow):
             session.create(self.uri, 'key_format=i,value_format=S')
@@ -85,7 +94,15 @@ class test_layered_prepare12(wttest.WiredTigerTestCase):
             f"oldest_timestamp={self.timestamp_str(30)}")
         self.disagg_advance_checkpoint_and_wait(conn_follow)
 
+        restored_before = self.get_stat(
+            stat.conn.cache_write_restore_invisible, session=session_follow)
         evict_follower("value2")
+        restored_after = self.get_stat(
+            stat.conn.cache_write_restore_invisible, session=session_follow)
+        if self.preserve_prepared:
+            self.assertGreater(restored_after, restored_before)
+        else:
+            self.assertEqual(restored_after, restored_before)
 
         cursor = session_follow.open_cursor(self.uri)
         self.assertEqual(cursor[1], "value2")
