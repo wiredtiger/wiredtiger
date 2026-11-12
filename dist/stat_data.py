@@ -444,8 +444,7 @@ conn_stats = [
     EvictStat('eviction_root_pages_skipped', 'eviction server skipped the root pages'),
     EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
-    EvictStat('eviction_server_evict_time', 'eviction server time evicting pages itself (usecs)'),
-    EvictStat('eviction_server_oldest_id_time', 'eviction server time updating the oldest transaction ID (usecs)'),
+    EvictStat('eviction_server_oldest_id_time', 'eviction server time updating the pinned timestamp and oldest transaction ID (usecs)'),
     EvictStat('eviction_server_pass_time', 'eviction server time in eviction passes, including backoff waits and server-driven eviction (usecs)'),
     EvictStat('eviction_server_push_pages_failed_when_flaging', 'eviction server push pages to queue failed because of racing with setting flag'),
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
@@ -456,7 +455,6 @@ conn_stats = [
     EvictStat('eviction_server_refill_handle_lock_time', 'eviction server time waiting for the handle list lock during queue refills (usecs)'),
     EvictStat('eviction_server_refill_time', 'eviction server time refilling eviction queues (usecs)'),
     EvictStat('eviction_server_refill_tree_walk_time', 'eviction server time walking trees during queue refills (usecs)'),
-    EvictStat('eviction_server_refills', 'eviction server queue refills attempted'),
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
     EvictStat('eviction_server_skip_disagg_trees_checkpointed', 'eviction server skips disaggregated trees already visited by the ongoing checkpoint'),

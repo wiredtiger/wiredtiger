@@ -50,20 +50,18 @@ class test_eviction12(wttest.WiredTigerTestCase):
         self.conn.reconfigure("cache_size=10GB")
         self.verifyUntilSuccess()
 
-        refills = self.get_stat(stat.conn.eviction_server_refills)
         refill = self.get_stat(stat.conn.eviction_server_refill_time)
         tree_walk = self.get_stat(stat.conn.eviction_server_refill_tree_walk_time)
         handle_lock = self.get_stat(stat.conn.eviction_server_refill_handle_lock_time)
         slept = self.get_stat(stat.conn.eviction_server_slept_time)
         oldest_id = self.get_stat(stat.conn.eviction_server_oldest_id_time)
-        server_evict = self.get_stat(stat.conn.eviction_server_evict_time)
         # Idle passes keep adding pass time, so read it last.
         pass_time = self.get_stat(stat.conn.eviction_server_pass_time)
 
-        self.assertGreater(refills, 0)
+        self.assertGreater(refill, 0)
         self.assertGreater(tree_walk, 0)
         self.assertLessEqual(tree_walk + handle_lock, refill)
-        self.assertLessEqual(refill + slept + oldest_id + server_evict, pass_time)
+        self.assertLessEqual(refill + slept + oldest_id, pass_time)
 
 
 if __name__ == "__main__":

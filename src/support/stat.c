@@ -2911,7 +2911,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server completed walks of all dhandles",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
-  "cache: eviction server queue refills attempted",
   "cache: eviction server refills that ended after visiting every handle",
   "cache: eviction server refills that ended because a handle operation interrupted the walk",
   "cache: eviction server refills that ended for shutdown or cache pool reconfiguration",
@@ -2954,12 +2953,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips trees that disable eviction",
   "cache: eviction server skips trees that were not useful before",
   "cache: eviction server slept, because we did not make progress with eviction",
-  "cache: eviction server time evicting pages itself (usecs)",
   "cache: eviction server time in eviction passes, including backoff waits and server-driven "
   "eviction (usecs)",
   "cache: eviction server time refilling eviction queues (usecs)",
   "cache: eviction server time sleeping because eviction made no progress (usecs)",
-  "cache: eviction server time updating the oldest transaction ID (usecs)",
+  "cache: eviction server time updating the pinned timestamp and oldest transaction ID (usecs)",
   "cache: eviction server time waiting for the handle list lock during queue refills (usecs)",
   "cache: eviction server time walking trees during queue refills (usecs)",
   "cache: eviction server unable to reach eviction goal",
@@ -4142,7 +4140,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY,
   WT_STAT_CONN_EVICTION_DHANDLE_COMPLETE_WALK,
   WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING,
-  WT_STAT_CONN_EVICTION_SERVER_REFILLS,
   WT_STAT_CONN_EVICTION_SERVER_REFILL_END_LAP_COMPLETE,
   WT_STAT_CONN_EVICTION_SERVER_REFILL_END_INTERRUPTED,
   WT_STAT_CONN_EVICTION_SERVER_REFILL_END_SHUTDOWN,
@@ -4176,7 +4173,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_EVICTION_DISABLED,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_NOT_USEFUL_BEFORE,
   WT_STAT_CONN_EVICTION_SERVER_SLEPT,
-  WT_STAT_CONN_EVICTION_SERVER_EVICT_TIME,
   WT_STAT_CONN_EVICTION_SERVER_PASS_TIME,
   WT_STAT_CONN_EVICTION_SERVER_REFILL_TIME,
   WT_STAT_CONN_EVICTION_SERVER_SLEPT_TIME,
@@ -5359,7 +5355,6 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_queue_not_empty = 0;
     /* not clearing eviction_dhandle_complete_walk */
     stats->eviction_server_push_pages_failed_when_flaging = 0;
-    stats->eviction_server_refills = 0;
     stats->eviction_server_refill_end_lap_complete = 0;
     stats->eviction_server_refill_end_interrupted = 0;
     stats->eviction_server_refill_end_shutdown = 0;
@@ -5393,7 +5388,6 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_trees_eviction_disabled = 0;
     stats->eviction_server_skip_trees_not_useful_before = 0;
     stats->eviction_server_slept = 0;
-    stats->eviction_server_evict_time = 0;
     stats->eviction_server_pass_time = 0;
     stats->eviction_server_refill_time = 0;
     stats->eviction_server_slept_time = 0;
@@ -6570,7 +6564,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
     to->eviction_server_push_pages_failed_when_flaging +=
       WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
-    to->eviction_server_refills += WT_STAT_CONN_READ(from, eviction_server_refills);
     to->eviction_server_refill_end_lap_complete +=
       WT_STAT_CONN_READ(from, eviction_server_refill_end_lap_complete);
     to->eviction_server_refill_end_interrupted +=
@@ -6636,7 +6629,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_server_skip_trees_not_useful_before +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_not_useful_before);
     to->eviction_server_slept += WT_STAT_CONN_READ(from, eviction_server_slept);
-    to->eviction_server_evict_time += WT_STAT_CONN_READ(from, eviction_server_evict_time);
     to->eviction_server_pass_time += WT_STAT_CONN_READ(from, eviction_server_pass_time);
     to->eviction_server_refill_time += WT_STAT_CONN_READ(from, eviction_server_refill_time);
     to->eviction_server_slept_time += WT_STAT_CONN_READ(from, eviction_server_slept_time);

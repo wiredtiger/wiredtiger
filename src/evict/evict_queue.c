@@ -340,7 +340,6 @@ err:
     /* Add the walk times here, with the refill time, so they never read as exceeding it. */
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCR(session, eviction_server_refills);
         WT_STAT_CONN_INCRV(
           session, eviction_server_refill_time, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_INCRV(

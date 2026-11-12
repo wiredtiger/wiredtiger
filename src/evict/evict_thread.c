@@ -725,16 +725,8 @@ __evict_pass(WT_SESSION_IMPL *session)
          */
         if (!WT_EVICT_HAS_WORKERS(session) &&
           (evict->evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
-            !__evict_queue_empty(evict->evict_urgent_queue, false))) {
-            time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
+            !__evict_queue_empty(evict->evict_urgent_queue, false)))
             WT_RET(__wti_evict_lru_pages(session, true));
-            if (time_start != 0) {
-                time_stop = __wt_clock(session);
-                WT_STAT_CONN_INCRV(
-                  session, eviction_server_evict_time, WT_CLOCKDIFF_US(time_stop, time_start));
-                __evict_pass_charge(session, &time_last);
-            }
-        }
 
         if (__wt_atomic_load_uint32_v_relaxed(&evict->pass_intr) != 0)
             break;
