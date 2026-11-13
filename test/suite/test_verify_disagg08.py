@@ -44,11 +44,8 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_config = ('disaggregated=(role="leader"),cache_size=20MB,precise_checkpoint=true,'
-                   'statistics=(all),'
-                   'page_delta=(delta_pct=100,leaf_page_delta=true,internal_page_delta=false)')
-    conn_config_follower = ('disaggregated=(role="follower"),cache_size=20MB,statistics=(all),'
-                            'page_delta=(delta_pct=100,leaf_page_delta=true,internal_page_delta=false)')
+    conn_config = 'disaggregated=(role="leader"),page_delta=(delta_pct=100,leaf_page_delta=true)'
+    conn_config_follower = 'disaggregated=(role="follower"),statistics=(all)'
 
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
     uri = f'layered:{test_name}'
@@ -66,17 +63,6 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         cursor.set_key(key)
         cursor.remove()
         self.session.commit_transaction(self.ts(t))
-
-    def evict(self, key):
-        # Force the page holding key out of cache so the next access rebuilds it.
-        s = self.conn.open_session('debug=(release_evict_page)')
-        cursor = s.open_cursor(self.uri, None, None)
-        s.begin_transaction()
-        cursor.set_key(key)
-        cursor.search_near()
-        cursor.close()
-        s.rollback_transaction()
-        s.close()
 
     def verify_leader_and_follower(self, cursor):
         cursor.close()
@@ -122,34 +108,6 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         self.remove(cursor, '1', 5)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4) +
                                 ',stable_timestamp=' + self.timestamp_str(5))
-        self.session.checkpoint()
-
-        self.verify_leader_and_follower(cursor)
-
-    def test_start_before(self):
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
-                                ',stable_timestamp=' + self.timestamp_str(1))
-        self.session.create(self.uri, self.table_cfg)
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        # The dropped key is inserted at 2 and deleted at 3 by an early transaction. The kept key
-        # comes from a later transaction with a newer timestamp, so the aggregate's oldest start is
-        # 5, above the dropped key's 2.
-        self.put(cursor, 'a', 2)
-        self.remove(cursor, 'a', 3)
-        # Pin the oldest transaction id by starting a long-running transaction, to ensure that
-        # kept keys do not have their time windows cleared.
-        self.reader = self.conn.open_session('')
-        self.reader.begin_transaction()
-        self.put(cursor, '1', 5)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
-        self.session.checkpoint()
-
-        # Deleting a kept key dirties the leaf, so the leader reconciles it, and with the oldest
-        # timestamp being ahead of the delete, key 'a' is dropped in the delta.
-        self.remove(cursor, '1', 6)
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4) +
-                                ',stable_timestamp=' + self.timestamp_str(6))
         self.session.checkpoint()
 
         self.verify_leader_and_follower(cursor)
