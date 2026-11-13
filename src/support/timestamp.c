@@ -424,6 +424,25 @@ __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
 }
 
 /*
+ * __time_value_start_obsolete_at_checkpoint --
+ *     Was the start of a value time window already visible to everyone at the checkpoint's own
+ *     oldest timestamp? The checkpoint's writer clears such a start from the cells it keeps, so the
+ *     parent aggregate does not cover it, while a page rebuilt from a base image and deltas can
+ *     still hold the original start. Only the timestamp half of the writer's rule can be checked
+ *     here, as transaction ids are not comparable across connections.
+ */
+static WT_INLINE bool
+__time_value_start_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
+        return (false);
+
+    wt_timestamp_t oldest = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
+    return (oldest != WT_TS_NONE && tw->durable_start_ts <= oldest);
+}
+
+/*
  * __time_value_validate_parent --
  *     Value time window validation against a parent.
  */
@@ -432,17 +451,21 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
   WT_TIME_AGGREGATE *parent, bool from_delta, bool silent)
 {
     char time_string[2][WT_TIME_STRING_SIZE];
-    bool obsolete_at_checkpoint;
 
     /*
      * A page rebuilt from a delta chain can hold a cell the checkpoint's own writer had already
-     * treated as obsolete when it built this aggregate; a full image has no such rebuild step, so a
-     * mismatch there stays a real failure.
+     * dropped as obsolete, so the parent aggregate does not cover it. Skip such cells; a full image
+     * has no such rebuild step, so a mismatch there stays a real failure.
      */
-    obsolete_at_checkpoint = from_delta && __time_value_obsolete_at_checkpoint(session, tw);
+    if (from_delta && __time_value_obsolete_at_checkpoint(session, tw))
+        return (0);
+
+    /* The writer clears a kept cell's start once visible to all, so skip the durable start check.
+     */
+    bool start_obsolete = from_delta && __time_value_start_obsolete_at_checkpoint(session, tw);
 
     if (parent->newest_start_durable_ts != WT_TS_NONE &&
-      tw->durable_start_ts > parent->newest_start_durable_ts && !obsolete_at_checkpoint)
+      tw->durable_start_ts > parent->newest_start_durable_ts && !start_obsolete)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its parent's newest durable start "
           "time; time window %s, parent %s",
@@ -457,8 +480,7 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
               "%s, parent %s",
               __wt_time_window_to_string(tw, time_string[0]),
               __wt_time_aggregate_to_string(parent, time_string[1]));
-    } else if (tw->start_ts != WT_TS_NONE && tw->start_ts < parent->oldest_start_ts &&
-      !obsolete_at_checkpoint)
+    } else if (tw->start_ts != WT_TS_NONE && tw->start_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time before its parent's oldest start time; time window "
           "%s, parent %s",
@@ -473,7 +495,7 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (parent->newest_stop_durable_ts != WT_TS_NONE &&
-      tw->durable_stop_ts > parent->newest_stop_durable_ts && !obsolete_at_checkpoint)
+      tw->durable_stop_ts > parent->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable stop time after its parent's newest durable stop time; "
           "time window %s, parent %s",
@@ -488,7 +510,7 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
               "parent %s",
               __wt_time_window_to_string(tw, time_string[0]),
               __wt_time_aggregate_to_string(parent, time_string[1]));
-    } else if (tw->stop_ts > parent->newest_stop_ts && !obsolete_at_checkpoint)
+    } else if (tw->stop_ts > parent->newest_stop_ts)
         /* Stop time point is never cleared. No need to check against WT_TS_NONE. */
         WT_TIME_VALIDATE_RET(session,
           "value time window has a stop time after its parent's newest stop time; time window %s, "

@@ -1282,8 +1282,11 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static WT_INLINE bool
 __wt_time_window_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
 {
-    return (oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
-      !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->durable_stop_ts <= oldest_ts);
+    /* Prepared pages are never obsolete. */
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
+        return (false);
+    return (
+      oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) && tw->durable_stop_ts <= oldest_ts);
 }
 
 /*
