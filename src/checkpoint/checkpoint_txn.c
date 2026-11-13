@@ -118,6 +118,7 @@ __checkpoint_init(WT_SESSION_IMPL *session)
     WT_CLEAR(conn->ckpt.progress);
 
     /* Initialize the checkpoint time accumulators. */
+    __wt_atomic_store_uint64_relaxed(&conn->ckpt.parallel_wait_ticks, 0);
     __wt_atomic_store_uint64_relaxed(&conn->ckpt.reconcile_time_ticks, 0);
     __wt_atomic_store_uint64_relaxed(&conn->ckpt.sync_time_ticks, 0);
     __wt_atomic_store_uint64_relaxed(&conn->ckpt.walk_ticks, 0);

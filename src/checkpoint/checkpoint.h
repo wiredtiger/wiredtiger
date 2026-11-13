@@ -82,9 +82,10 @@ struct __wt_ckpt_connection {
 
     /*
      * Per-checkpoint time accumulators, in clock ticks across all files. Reconcile and sync time
-     * feed the reconciliation percentage; the other is the checkpoint thread's own walk, measured
-     * directly rather than derived.
+     * feed the reconciliation percentage; the other two are the checkpoint thread's own wait and
+     * walk, measured directly rather than derived.
      */
+    wt_shared uint64_t parallel_wait_ticks;
     wt_shared uint64_t reconcile_time_ticks;
     wt_shared uint64_t sync_time_ticks;
     wt_shared uint64_t walk_ticks;

@@ -292,7 +292,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_PAGE_MODIFY *mod;
     WT_REF *prev, *walk;
     WT_TXN *txn;
-    uint64_t walk_start, walk_time;
+    uint64_t walk_start, walk_time, wait_start, wait_time;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
     uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
     uint64_t saved_pinned_id, t, time_start, time_stop;
@@ -316,7 +316,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
-    walk_time = 0;
+    walk_time = wait_time = 0;
     reconcile_time = 0;
     saved_pinned_id = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->pinned_id);
     time_start = __wt_clock(session);
@@ -463,7 +463,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
                 if (WT_SESSION_IS_CHECKPOINT(session) && is_internal) {
+                    wait_start = __wt_clock(session);
                     WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
+                    wait_time += __wt_clock(session) - wait_start;
                     reconcile_time += t;
                 }
 
@@ -582,7 +584,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
         if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session)) {
+            wait_start = __wt_clock(session);
             WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
+            wait_time += __wt_clock(session) - wait_start;
             reconcile_time += t;
         }
 
@@ -635,6 +639,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
           WT_CLOCKDIFF_MS(reconcile_time, 0), WT_PARALLEL_CHECKPOINTS_NUM_THREADS(session),
           reconcile_time_pct);
         __wt_checkpoint_rec_time_stats(session, reconcile_time, time_stop - time_start);
+        (void)__wt_atomic_add_uint64(&conn->ckpt.parallel_wait_ticks, wait_time);
         (void)__wt_atomic_add_uint64(&conn->ckpt.walk_ticks, walk_time);
     }
 
