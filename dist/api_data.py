@@ -902,15 +902,13 @@ connection_runtime_config = [
         eviction_dirty_target. The value is not allowed to exceed the \c cache_size and has to be
         lower than its counterpart \c eviction_updates_trigger''',
         min=0, max='10TB'),
-    Config('eviction_updates_trigger', '95', r'''
+    Config('eviction_updates_trigger', '0', r'''
         trigger application threads to perform eviction when the cache contains at least this
         many bytes of updates. It is a percentage of the cache size if the value is within
-        the range of 1 to 100 or an absolute size when greater than 100\. If set to 0, the
-        trigger is half of \c eviction_dirty_trigger. With precise checkpoints, if that would be
-        less than \c eviction_updates_target, the trigger is set to \c eviction_dirty_trigger
-        instead. The value is not allowed to exceed the \c cache_size and has to be greater than
-        its counterpart \c eviction_updates_target. This setting only alters behavior if it is
-        lower than \c eviction_trigger''',
+        the range of 1 to 100 or an absolute size when greater than 100\. Calculated as half
+        of \c eviction_dirty_trigger by default. The value is not allowed to exceed the \c
+        cache_size and has to be greater than its counterpart \c eviction_updates_target. This
+        setting only alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
     Config('extra_diagnostics', '[]', r'''
         enable additional diagnostics in WiredTiger. These additional diagnostics include
