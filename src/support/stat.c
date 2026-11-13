@@ -3278,6 +3278,9 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: stop timing stress active",
   "checkpoint: the percentage of checkpoint sync time spent in reconciliation across all threads",
   "checkpoint: time spent on per-tree checkpoint work (usecs)",
+  "checkpoint: time the checkpoint thread spent waiting for parallel reconciliation workers "
+  "(usecs)",
+  "checkpoint: time the checkpoint thread spent walking trees during checkpoint (usecs)",
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
   "checkpoint: total time (msecs)",
@@ -4476,6 +4479,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINT_STOP_STRESS_ACTIVE,
   WT_STAT_CONN_CHECKPOINT_SYNC_REC_PCT,
   WT_STAT_CONN_CHECKPOINT_TREE_DURATION,
+  WT_STAT_CONN_CHECKPOINT_PARALLEL_WAIT_TIME,
+  WT_STAT_CONN_CHECKPOINT_WALK_TIME,
   WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED,
   WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED,
   WT_STAT_CONN_CHECKPOINT_TIME_TOTAL,
@@ -5691,6 +5696,8 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_sync_rec_pct */
     stats->checkpoint_tree_duration = 0;
+    /* not clearing checkpoint_parallel_wait_time */
+    /* not clearing checkpoint_walk_time */
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
@@ -7022,6 +7029,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_stop_stress_active += WT_STAT_CONN_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_sync_rec_pct += WT_STAT_CONN_READ(from, checkpoint_sync_rec_pct);
     to->checkpoint_tree_duration += WT_STAT_CONN_READ(from, checkpoint_tree_duration);
+    to->checkpoint_parallel_wait_time += WT_STAT_CONN_READ(from, checkpoint_parallel_wait_time);
+    to->checkpoint_walk_time += WT_STAT_CONN_READ(from, checkpoint_walk_time);
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);
