@@ -69,7 +69,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
     def evict_metadata(self):
         metadata_uri = "file:WiredTiger.wt"
-        evict_cursor = self.session.open_cursor(metadata_uri, None, "debug=(release_evict)")
+        self.session.reconfigure('debug=(allow_internal_access=true)')
+        try:
+            evict_cursor = self.session.open_cursor(metadata_uri, None, "debug=(release_evict)")
+        finally:
+            self.session.reconfigure('debug=(allow_internal_access=false)')
         self.session.begin_transaction()
         # Because the evict cursor hook does evictions on reset, it's not possible to just
         # iterate through and evict every Nth key. In most test uses this is ok because we're

@@ -135,32 +135,35 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
 }
 
 /*
- * __wt_str_name_check --
- *     Disallow any use of the WiredTiger name space.
+ * __wt_uri_name --
+ *     Return the object name after all URI prefixes.
+ */
+const char *
+__wt_uri_name(const char *uri)
+{
+    const char *sep;
+
+    if (uri == NULL)
+        return (NULL);
+    sep = strrchr(uri, ':');
+    return (sep == NULL ? uri : sep + 1);
+}
+
+/*
+ * __wt_uri_name_check --
+ *     Validate a URI against WiredTiger namespaces and reserved internal names.
  */
 int
-__wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
+__wt_uri_name_check(WT_SESSION_IMPL *session, const char *uri)
 {
-    int skipped;
     const char *name, *sep;
-    bool skip;
 
-    /*
-     * Check if name is somewhere in the WiredTiger name space: it would be "bad" if the application
-     * truncated the metadata file. Skip any leading URI prefix if needed, check and then skip over
-     * a table name.
-     */
-    name = str;
-    skip = false;
-    for (skipped = 0; skipped < 2; skipped++) {
-        if ((sep = strchr(name, ':')) == NULL) {
-            skip = true;
-            break;
-        }
+    name = __wt_uri_name(uri);
+    WT_RET(__wt_session_check_internal_uri(session, uri,
+      __wt_session_is_layered_internal(session, name) || __wt_session_is_global_internal(name)));
 
-        name = sep + 1;
-    }
-    return (__str_name_check(session, name, skip));
+    sep = strchr(uri, ':');
+    return (__str_name_check(session, name, sep == NULL || name == sep + 1));
 }
 
 /*
@@ -177,8 +180,7 @@ __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool chec
 
     WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)len, str));
 
-    /* If we want to skip the URI check call the internal function directly. */
-    ret = check_uri ? __wt_str_name_check(session, tmp->data) :
+    ret = check_uri ? __wt_uri_name_check(session, tmp->data) :
                       __str_name_check(session, tmp->data, false);
 
 err:

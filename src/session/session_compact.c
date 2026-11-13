@@ -387,6 +387,8 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, compact, config, cfg, false);
 
+    if (uri != NULL)
+        WT_ERR(__wt_uri_name_check(session, uri));
     if (__wt_conn_is_disagg(session))
         WT_ERR_MSG(session, ENOTSUP, "Compaction does not work with disaggregated storage.");
 
@@ -448,9 +450,6 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
      * Disallow in all contexts, and check now so the error message isn't confusing.
      */
     WT_ERR(__wt_txn_context_check(session, false));
-
-    /* Disallow objects in the WiredTiger name space. */
-    WT_ERR(__wt_str_name_check(session, uri));
 
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "table:")) {

@@ -67,13 +67,15 @@ class test_layered_fast_truncate08(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.populate(keys)
 
     def get_values(self, uri, start_key, stop_key):
-        # Return values of any keys between start and stop inclusive that exist.
+        # Return values of any keys between start and stop inclusive that exist. Use a
+        # dedicated session as the URI may be an internal constituent table.
         values = []
-        with closing(self.session.open_cursor(uri)) as cursor:
-            for i in range(start_key, stop_key + 1):
-                cursor.set_key(i)
-                if cursor.search() == 0:
-                    values.append(cursor.get_value())
+        with closing(self.conn.open_session('debug=(allow_internal_access=true)')) as debug_session:
+            with closing(debug_session.open_cursor(uri)) as cursor:
+                for i in range(start_key, stop_key + 1):
+                    cursor.set_key(i)
+                    if cursor.search() == 0:
+                        values.append(cursor.get_value())
         return values
 
     def test_follower_truncate_writes_tombstone_to_ingest(self):

@@ -125,14 +125,13 @@ class test_layered_schema20(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         self.check_rows()
 
-    def test_verify_unpublished_stable_constituent(self):
+    def test_verify_unpublished_layered_table(self):
         """
-        Verify the stable constituent file directly rather than through the layered URI. It is
-        awaiting publication, so verify skips it and the data survives.
+        Verify an unpublished layered table through its logical URI and ensure the data survives.
         """
         self.create_unpublished_table_with_data()
 
-        self.session.verify(self.stable_uri, None)
+        self.session.verify(self.uri, None)
 
         self.check_rows()
 

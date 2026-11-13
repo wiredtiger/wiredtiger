@@ -131,12 +131,16 @@ class test_layered_schema34(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
         # Uncovered, so the pages stay in memory.
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
         self.assertEqual(
-            self.get_stat(stat.dsrc.cache_eviction_pages_seen, uri=self.stable_uri(uri)), 0)
+            self.get_stat(stat.dsrc.cache_eviction_pages_seen, uri=self.stable_uri(uri),
+                session=debug_session), 0)
 
         self.set_stable_epoch(20)
         self.assertStatGreaterSoon(
-            stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), timeout=60)
+            stat.dsrc.cache_eviction_pages_seen, 0, uri=self.stable_uri(uri), session=debug_session,
+            timeout=60)
+        debug_session.close()
         self.assertGreater(self.get_stat(stat.conn.eviction_disagg_publish_cleared), 0)
 
         with wttest.open_cursor(self.session, uri) as cursor:

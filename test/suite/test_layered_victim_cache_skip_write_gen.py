@@ -100,7 +100,7 @@ class test_layered_victim_cache_skip_write_gen(DisaggSizeTestMixin, wttest.Wired
         # Verify the checkpoint and read the original values after switching roles.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.conn.reconfigure('disaggregated=(role="leader")')
-        self.retryEBUSY(self.session, lambda: self.session.verify(self.stable_uri))
+        self.retryEBUSY(self.session, lambda: self.session.verify(self.uri))
 
         for i in range(self.nrows):
             c = self.session.open_cursor(self.uri)
