@@ -290,8 +290,13 @@ done:
 static void
 timestamp_advance_stable_for_shutdown(WT_SESSION *session)
 {
-    if (!GV(RUNS_PREDICTABLE_REPLAY))
-        timestamp_sync_threads_commit_ts();
+    const bool precise_checkpoint =
+      F_ISSET((WT_CONNECTION_IMPL *)g.wts_conn, WT_CONN_PRECISE_CHECKPOINT);
+
+    if (!g.transaction_timestamps_config || GV(RUNS_PREDICTABLE_REPLAY) || !precise_checkpoint)
+        return;
+
+    timestamp_sync_threads_commit_ts();
 
     /* Preserve history for the saved snapshot checks. */
     timestamp_once_internal(session, false, false, TIMESTAMP_STABLE);
@@ -544,10 +549,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     if (g.transaction_timestamps_config && !stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
 
-    /* Advance stable so eviction can make progress while background threads finish. */
-    if (g.transaction_timestamps_config &&
-      F_ISSET((WT_CONNECTION_IMPL *)conn, WT_CONN_PRECISE_CHECKPOINT))
-        timestamp_advance_stable_for_shutdown(session);
+    /* Advance stable as needed for eviction while background threads finish. */
+    timestamp_advance_stable_for_shutdown(session);
 
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_join(NULL, &alter_tid));
