@@ -87,11 +87,10 @@ class test_checkpoint_parallel_stats(wttest.WiredTigerTestCase):
         self.assertGreater(stats['tree'], 0,
             'Per-tree checkpoint duration was expected to be set')
 
-        # The two measured times sit inside the per-tree duration. Allow for the metadata tree,
-        # which is checkpointed outside that window and is far smaller than the trees measured
-        # here, so a small relative allowance covers it on any build.
-        self.assertLessEqual(
-            stats['walk'] + stats['wait'], stats['tree'] + stats['tree'] // 10,
+        # Both times are intervals inside the per-tree wall time. The metadata tree, checkpointed
+        # outside this window, adds a few pages to the two timers, far fewer than the remainder
+        # they do not account for.
+        self.assertLessEqual(stats['walk'] + stats['wait'], stats['tree'],
             'Walk and worker wait should fit inside the per-tree duration')
 
 if __name__ == '__main__':
