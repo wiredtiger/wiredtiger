@@ -234,6 +234,29 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __sweep_expire_table --
+ *     Mark an idle table dead, unless the file handle of a simple table is open again.
+ */
+static int
+__sweep_expire_table(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+{
+    WT_DECL_RET;
+
+    /*
+     * Cursors on a simple table only use the file handle, so reopening the file after the table is
+     * marked doesn't clear its time of death.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      session, ret = __sweep_file_dhandle_check_and_reset_tod(session, dhandle));
+    if (ret == 0)
+        return (EBUSY);
+    WT_ASSERT_ALWAYS(session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
+
+    WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session));
+    return (ret);
+}
+
+/*
  * __sweep_expire --
  *     Mark trees dead if they are clean and haven't been accessed recently, until we have reached
  *     the configured minimum number of handles.
@@ -296,8 +319,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
          */
         if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
-            WT_WITH_TABLE_WRITE_LOCK(
-              session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session)));
+            WT_WITH_TABLE_WRITE_LOCK(session, ret = __sweep_expire_table(session, dhandle));
         else
             WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session));
 
