@@ -496,6 +496,8 @@ skip_disk_read:
     WT_ASSERT(
       session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) || !__wt_page_is_modified(page));
 
+    __wt_cache_read_incr(session, page);
+
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
