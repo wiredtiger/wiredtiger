@@ -467,7 +467,7 @@ __time_value_validate_parent_stable(
  *     but confirm that once the other fix lands rather than assuming it here.
  */
 static WT_INLINE bool
-__time_value_obsolete_at_checkpoint(WT_TIME_WINDOW *tw, wt_timestamp_t checkpoint_oldest_ts)
+__time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     return (__wt_time_window_obsolete_at(tw,
       __wt_atomic_load_uint64_acquire(
@@ -497,7 +497,6 @@ static int
 __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
   WT_TIME_AGGREGATE *parent, bool from_delta_known, bool from_delta, bool silent)
 {
-    wt_timestamp_t checkpoint_oldest_ts;
     char time_string[2][WT_TIME_STRING_SIZE];
 
     /*
