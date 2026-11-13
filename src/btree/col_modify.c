@@ -309,6 +309,18 @@ err:
 }
 
 /*
+ * __wt_col_leaf_attach_upd --
+ *     Attach an update chain to a record of a pinned column-store leaf page.
+ */
+int
+__wt_col_leaf_attach_upd(
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, uint64_t recno, WT_UPDATE **updp, bool restore)
+{
+    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
+    return (__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, restore));
+}
+
+/*
  * __col_insert_alloc --
  *     Column-store insert: allocate a WT_INSERT structure and fill it in.
  */

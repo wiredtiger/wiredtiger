@@ -246,68 +246,28 @@ err:
 }
 
 /*
- * __rts_btree_col_modify --
- *     Add the provided update to the head of the update list.
+ * __rts_btree_attach_upd --
+ *     Add the provided update to the head of the on-page key's update list: the row slot if one is
+ *     given, otherwise the column-store record.
  */
 static WT_INLINE int
-__rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, uint64_t recno)
+__rts_btree_attach_upd(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno, WT_UPDATE **updp)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
-    bool dryrun;
 
-    dryrun = S2C(session)->rts->dryrun;
+    if (S2C(session)->rts->dryrun)
+        return (0);
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    /* Search the page. */
-    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
+    if (rip != NULL)
+        ret = __wt_row_leaf_attach_upd(&cbt, ref, rip, updp, false);
+    else
+        ret = __wt_col_leaf_attach_upd(&cbt, ref, recno, updp, false);
 
-    /* Apply the modification. */
-    if (!dryrun)
-        WT_ERR(__wt_col_modify(&cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, false));
-
-err:
-    /* Free any resources that may have been cached in the cursor. */
-    WT_TRET(__wt_btcur_close(&cbt, true));
-
-    return (ret);
-}
-
-/*
- * __rts_btree_row_modify --
- *     Add the provided update to the head of the update list. The caller supplies the row slot via
- *     rip; the cursor is positioned directly without a page search.
- */
-static WT_INLINE int
-__rts_btree_row_modify(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, WT_UPDATE **updp, WT_ITEM *key)
-{
-    WT_CURSOR_BTREE cbt;
-    WT_DECL_RET;
-    bool dryrun;
-
-    dryrun = S2C(session)->rts->dryrun;
-
-    __wt_btcur_init(session, &cbt);
-    __wt_btcur_open(&cbt);
-
-    /*
-     * The caller already holds the slot, so position the cursor directly instead of searching the
-     * page for the key. cbt.ins is NULL because __wt_btcur_init zeroes the struct; with compare ==
-     * 0 and ins == NULL, __wt_row_modify targets mod_row_update[slot] directly and never reaches
-     * the insert path that needs the key argument.
-     */
-    cbt.ref = ref;
-    cbt.slot = WT_ROW_SLOT(ref->page, rip);
-    cbt.compare = 0;
-
-    /* Apply the modification. */
-    if (!dryrun)
-        WT_ERR(__wt_row_modify(&cbt, key, NULL, updp, WT_UPDATE_INVALID, true, false));
-
-err:
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 
@@ -643,10 +603,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
           WT_RTS_VERB_TAG_KEY_REMOVED "%s", "key removed");
     }
 
-    if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, rip, &upd, key));
-    else
-        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
+    WT_ERR(__rts_btree_attach_upd(session, ref, rip, recno, &upd));
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
@@ -850,10 +807,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
-    if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, rip, &upd, key));
-    else
-        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
+    WT_ERR(__rts_btree_attach_upd(session, ref, rip, recno, &upd));
 
     if (S2C(session)->rts->dryrun) {
 err:
