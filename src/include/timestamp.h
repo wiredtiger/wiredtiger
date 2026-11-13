@@ -44,8 +44,12 @@ struct __wt_time_window {
 /*
  * The time points that define an aggregated time window and associated prepare information.
  *
- * - newest_start_durable_ts - Newest valid start durable/commit timestamp
- * - newest_stop_durable_ts  - Newest valid stop durable/commit timestamp doesn't include WT_TS_MAX
+ * - newest_durable_ts - Newest valid durable timestamp across all modifications (inserts,
+ *                       updates, and deletes)
+ * - newest_page_stop_durable_ts - Newest durable stop timestamp; non-zero only when all entries
+ *                                 in the aggregate are deleted, either via a fast page delete or
+ *                                 because every individual key has a tombstone. Does not include
+ *                                 WT_TS_MAX
  * - oldest_start_ts         - Oldest start commit timestamp
  * - newest_txn              - Newest valid start/stop commit transaction doesn't include
  *                             WT_TXN_MAX
@@ -54,8 +58,8 @@ struct __wt_time_window {
  * - prepare                 - Prepared updates
  */
 struct __wt_time_aggregate {
-    wt_timestamp_t newest_start_durable_ts; /* default value: WT_TS_NONE */
-    wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
+    wt_timestamp_t newest_durable_ts;           /* default value: WT_TS_NONE */
+    wt_timestamp_t newest_page_stop_durable_ts; /* default value: WT_TS_NONE */
 
     wt_timestamp_t oldest_start_ts; /* default value: WT_TS_NONE */
     uint64_t newest_txn;            /* default value: WT_TXN_NONE */

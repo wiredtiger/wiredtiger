@@ -139,8 +139,8 @@ TEST_CASE(
     if (aggregate) {
         WT_TIME_AGGREGATE ta;
         WT_TIME_AGGREGATE_INIT(&ta);
-        ta.newest_start_durable_ts = checkpoint_timestamp + 1;
-        reason = "has a newest start durable time after the stable point";
+        ta.newest_durable_ts = checkpoint_timestamp + 1;
+        reason = "has a newest durable time after the stable point";
         REQUIRE(
           __wt_time_aggregate_validate(session, &ta, &parent, true, from_delta, false) == EINVAL);
     } else {
@@ -189,7 +189,7 @@ TEST_CASE("Validation errors report unset connection timestamps", "[timestamp]")
     ta.newest_stop_ts = 10;
     REQUIRE(__wt_time_aggregate_validate(session, &ta, nullptr, false, false, false) == EINVAL);
     check_message(session_mock->get_last_message(),
-      "has an oldest start time after its newest stop time", nullptr, expected_stable,
+      "has the oldest start time after its newest stop time", nullptr, expected_stable,
       expected_oldest);
 }
 
@@ -224,7 +224,7 @@ TEST_CASE("Aggregate validation handles unset checkpoint timestamps", "[timestam
     REQUIRE(__wt_time_aggregate_validate(session, &ta, nullptr, false, false, true) == EINVAL);
     REQUIRE(__wt_time_aggregate_validate(session, &ta, nullptr, false, false, false) == EINVAL);
     check_message(session_mock->get_last_message(),
-      "has an oldest start time after its newest stop time", nullptr, stable_timestamp,
+      "has the oldest start time after its newest stop time", nullptr, stable_timestamp,
       oldest_timestamp, expected_checkpoint, expected_checkpoint_oldest);
 }
 
@@ -237,41 +237,42 @@ TEST_CASE("Aggregate validation reports internal consistency errors", "[timestam
     SECTION("Oldest start after newest stop")
     {
         ta.oldest_start_ts = 20;
-        ta.newest_start_durable_ts = 20;
+        ta.newest_durable_ts = 20;
         ta.newest_stop_ts = 10;
-        reason = "has an oldest start time after its newest stop time";
+        reason = "has the oldest start time after its newest stop time";
     }
     SECTION("Newest transaction after newest stop transaction")
     {
         ta.newest_txn = 20;
         ta.newest_stop_txn = 10;
-        reason = "has a newest transaction after its newest stop transaction";
+        reason = "has the newest transaction after its newest stop transaction";
     }
     SECTION("Oldest start after newest durable start")
     {
         ta.oldest_start_ts = 20;
-        ta.newest_start_durable_ts = 10;
-        reason = "has an oldest start time after its newest start durable time";
+        ta.newest_durable_ts = 10;
+        reason = "has the oldest start time after its newest start durable time";
     }
     SECTION("Newest stop after newest durable stop")
     {
         ta.newest_stop_ts = 20;
-        ta.newest_stop_durable_ts = 10;
-        reason = "has a newest stop time after its newest stop durable time";
+        ta.newest_page_stop_durable_ts = 10;
+        ta.newest_durable_ts = 20;
+        reason = "has the newest stop time after its newest page stop durable time";
     }
     SECTION("Newest durable start after newest durable stop")
     {
-        ta.newest_start_durable_ts = 30;
+        ta.newest_durable_ts = 30;
         ta.newest_stop_ts = 10;
-        ta.newest_stop_durable_ts = 20;
-        reason = "has a newest start durable time after its newest stop durable time";
+        ta.newest_page_stop_durable_ts = 20;
+        reason = "has the newest page stop durable time after its newest durable time";
     }
     SECTION("Newest durable stop before oldest start")
     {
         ta.oldest_start_ts = 20;
-        ta.newest_start_durable_ts = 20;
-        ta.newest_stop_durable_ts = 10;
-        reason = "has a newest stop durable time before its oldest start time";
+        ta.newest_durable_ts = 20;
+        ta.newest_page_stop_durable_ts = 10;
+        reason = "has the newest page stop durable time before its oldest start time";
     }
     check_aggregate_failure(&ta, nullptr, reason);
 }
@@ -281,43 +282,38 @@ TEST_CASE("Aggregate validation reports parent containment errors", "[timestamp]
     WT_TIME_AGGREGATE ta, parent;
     WT_TIME_AGGREGATE_INIT(&ta);
     ta.oldest_start_ts = 10;
-    ta.newest_start_durable_ts = 20;
+    ta.newest_durable_ts = 40;
+    ta.newest_page_stop_durable_ts = 40;
     ta.newest_stop_ts = 30;
-    ta.newest_stop_durable_ts = 40;
     ta.newest_txn = 10;
     ta.newest_stop_txn = 20;
     WT_TIME_AGGREGATE_COPY(&parent, &ta);
     std::string reason;
 
-    SECTION("Newest durable start after parent")
+    SECTION("Newest durable time after parent")
     {
-        parent.newest_start_durable_ts = 19;
-        reason = "has a newest start durable time after its parent's";
-    }
-    SECTION("Newest durable stop after parent")
-    {
-        parent.newest_stop_durable_ts = 39;
-        reason = "has a newest stop durable time after its parent's";
+        parent.newest_durable_ts = 39;
+        reason = "has the newest durable time after its parent's";
     }
     SECTION("Oldest start before parent")
     {
         parent.oldest_start_ts = 11;
-        reason = "has an oldest start time before its parent's";
+        reason = "has the oldest start time before its parent's";
     }
     SECTION("Newest transaction after parent")
     {
         parent.newest_txn = 9;
-        reason = "has a newest transaction after its parent's";
+        reason = "has the newest transaction after its parent's";
     }
     SECTION("Newest stop after parent")
     {
         parent.newest_stop_ts = 29;
-        reason = "has a newest stop time after its parent's";
+        reason = "has the newest stop time after its parent's";
     }
     SECTION("Newest stop transaction after parent")
     {
         parent.newest_stop_txn = 19;
-        reason = "has a newest stop transaction after its parent's";
+        reason = "has the newest stop transaction after its parent's";
     }
     SECTION("Prepared aggregate with unprepared parent")
     {
@@ -325,6 +321,30 @@ TEST_CASE("Aggregate validation reports parent containment errors", "[timestamp]
         reason = "is prepared but its parent is not";
     }
     check_aggregate_failure(&ta, &parent, reason);
+}
+
+TEST_CASE("Aggregate page stop durable time is bounded by the parent's overall durable time",
+  "[timestamp]")
+{
+    auto session_mock = setup_session();
+    WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+    WT_TIME_AGGREGATE ta, parent;
+    WT_TIME_AGGREGATE_INIT(&ta);
+    WT_TIME_AGGREGATE_INIT(&parent);
+
+    ta.newest_durable_ts = 40;
+    ta.newest_page_stop_durable_ts = 40;
+    ta.oldest_start_ts = 10;
+    ta.newest_txn = 20;
+    ta.newest_stop_ts = 30;
+    ta.newest_stop_txn = 20;
+    parent.newest_durable_ts = 40;
+    parent.oldest_start_ts = 10;
+    parent.newest_txn = 20;
+    parent.newest_stop_ts = 30;
+    parent.newest_stop_txn = 20;
+
+    CHECK(__wt_time_aggregate_validate(session, &ta, &parent, false, false, true) == 0);
 }
 
 TEST_CASE("Aggregate validation reports stable point errors", "[timestamp]")
@@ -336,13 +356,13 @@ TEST_CASE("Aggregate validation reports stable point errors", "[timestamp]")
 
     SECTION("Newest durable start after stable")
     {
-        ta.newest_start_durable_ts = stable_timestamp + 1;
-        reason = "has a newest start durable time after";
+        ta.newest_durable_ts = stable_timestamp + 1;
+        reason = "has a newest durable time after";
     }
     SECTION("Newest durable stop after stable")
     {
-        ta.newest_stop_durable_ts = stable_timestamp + 1;
-        reason = "has a newest stop durable time after";
+        ta.newest_page_stop_durable_ts = stable_timestamp + 1;
+        reason = "has a newest page stop durable time after";
     }
     check_aggregate_failure(
       &ta, &parent, reason + " the stable point with an empty parent aggregate time window");
@@ -483,16 +503,15 @@ TEST_CASE("Value validation reports parent containment errors", "[timestamp]")
     WT_TIME_AGGREGATE parent;
     WT_TIME_AGGREGATE_INIT(&parent);
     parent.oldest_start_ts = 10;
-    parent.newest_start_durable_ts = 20;
+    parent.newest_durable_ts = 40;
     parent.newest_stop_ts = 30;
-    parent.newest_stop_durable_ts = 40;
     parent.newest_txn = 10;
     parent.newest_stop_txn = 20;
     std::string reason;
 
     SECTION("Durable start after parent")
     {
-        parent.newest_start_durable_ts = 19;
+        parent.newest_durable_ts = 19;
         reason = "has a durable start time after its parent's newest durable start time";
     }
     SECTION("Start prepare before parent")
@@ -516,8 +535,8 @@ TEST_CASE("Value validation reports parent containment errors", "[timestamp]")
     }
     SECTION("Durable stop after parent")
     {
-        parent.newest_stop_durable_ts = 39;
-        reason = "has a durable stop time after its parent's newest durable stop time";
+        parent.newest_durable_ts = 39;
+        reason = "has a durable stop time after its parent's newest durable time";
     }
     SECTION("Stop prepare after parent")
     {
