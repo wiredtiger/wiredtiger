@@ -112,6 +112,7 @@ Levyx
 LibFuzzer
 LoadLoad
 LoadStore
+MCP
 MERCHANTABILITY
 MSAN
 MSVC
@@ -271,6 +272,7 @@ ckp
 ckpt
 clickable
 cmake
+cmp
 colgroup
 colgroups
 colspan
@@ -733,6 +735,7 @@ strftime
 strget
 struct
 structs
+subcommands
 subdatabases
 subdirectory
 suboptimal

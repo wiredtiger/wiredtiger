@@ -40,6 +40,7 @@ each of which is ordered by one or more columns.
 - @subpage message_handling
 - @subpage verbose_messaging
 - @subpage debugging
+- @subpage internal_table_access
 - @subpage threads
 - @subpage namespace
 - @subpage readonly

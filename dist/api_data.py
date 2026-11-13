@@ -1361,6 +1361,10 @@ session_config = [
         configure debug specific behavior on a session. Generally only used for internal testing
         purposes.''',
         type='category', subconfig=[
+        Config('allow_internal_access', 'false', r'''
+            bypass direct internal file access checks for different internal tables which are
+            not supposed to be accessed directly by users.''',
+            type='boolean'),
         Config('checkpoint_fail_before_turtle_update', 'false', r'''
             Fail before writing a turtle file at the end of a checkpoint.''',
             type='boolean'),

@@ -65,6 +65,7 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
         self.create_populated_table(self.uri)
         self.leader_checkpoint(1)
         self.conn_follow, self.session_follow = self.open_follower()
+        self.session_follow.reconfigure('debug=(allow_internal_access=true)')
 
     def follower_metadata(self, uri):
         with WiredTigerCursor(self.session_follow, 'metadata:') as cursor:
@@ -109,6 +110,7 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
 
         self.close_follower(self.conn_follow, self.session_follow)
         self.conn_follow, self.session_follow = self.open_follower()
+        self.session_follow.reconfigure('debug=(allow_internal_access=true)')
         self.session_follow.open_cursor(self.ingest_uri).close()
         self.assertEqual(get_table_id(self.session_follow, self.ingest_uri), ingest_id)
         self.assertEqual(self.lazy_ingest_creation_count(), 0)

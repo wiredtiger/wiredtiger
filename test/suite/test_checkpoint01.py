@@ -319,13 +319,15 @@ class test_checkpoint_illegal_name(wttest.WiredTigerTestCase):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.checkpoint(conf), msg)
         msg = '/the prefix.*is reserved/'
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
         for conf in (
             'checkpoint=WiredTigerCheckpoint.',
             'checkpoint=WiredTigerCheckpointX'):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.open_cursor(uri, None, conf), msg)
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.session.open_cursor("file:WiredTigerHS.wt", None, conf), msg)
+                    lambda: debug_session.open_cursor("file:WiredTigerHS.wt", None, conf), msg)
+        debug_session.close()
 
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 class test_checkpoint_empty(wttest.WiredTigerTestCase):
