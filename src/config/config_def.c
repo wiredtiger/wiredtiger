@@ -721,7 +721,6 @@ static const char *confchk_timing_stress_for_test_choices[] = {
 const char __WT_CONFIG_CHOICE_api[] = "api";
 const char __WT_CONFIG_CHOICE_backup[] = "backup";
 const char __WT_CONFIG_CHOICE_block[] = "block";
-const char __WT_CONFIG_CHOICE_block_cache[] = "block_cache";
 const char __WT_CONFIG_CHOICE_cache_top[] = "cache_top";
 const char __WT_CONFIG_CHOICE_checkpoint[] = "checkpoint";
 const char __WT_CONFIG_CHOICE_checkpoint_cleanup[] = "checkpoint_cleanup";
@@ -767,10 +766,10 @@ const char __WT_CONFIG_CHOICE_version[] = "version";
 const char __WT_CONFIG_CHOICE_write[] = "write";
 
 static const char *confchk_verbose_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
-  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
-  __WT_CONFIG_CHOICE_cache_top, __WT_CONFIG_CHOICE_checkpoint,
-  __WT_CONFIG_CHOICE_checkpoint_cleanup, __WT_CONFIG_CHOICE_checkpoint_progress,
-  __WT_CONFIG_CHOICE_compact, __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_cache_top,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
   __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
   __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
   __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
@@ -918,19 +917,19 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_timing_stress_for_test_choices},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
-    "\"block_cache\",\"cache_top\",\"checkpoint\","
-    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"configuration\","
-    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
-    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
-    "\"generation\",\"handleops\",\"history_store\","
-    "\"history_store_activity\",\"layered\",\"live_restore\","
-    "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
-    "\"out_of_order\",\"overflow\",\"page_delta\",\"prefetch\","
-    "\"read\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"schema_epoch\",\"shared_cache\",\"split\","
-    "\"sweep\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"cache_top\",\"checkpoint\",\"checkpoint_cleanup\","
+    "\"checkpoint_progress\",\"compact\",\"compact_progress\","
+    "\"configuration\",\"cross_checkpoint_cache\","
+    "\"disaggregated_storage\",\"error_returns\",\"eviction\","
+    "\"extension\",\"fileops\",\"generation\",\"handleops\","
+    "\"history_store\",\"history_store_activity\",\"layered\","
+    "\"live_restore\",\"live_restore_progress\",\"log\",\"metadata\","
+    "\"mutex\",\"out_of_order\",\"overflow\",\"page_delta\","
+    "\"prefetch\",\"read\",\"reconcile\",\"recovery\","
+    "\"recovery_progress\",\"rts\",\"salvage\",\"schema_epoch\","
+    "\"shared_cache\",\"split\",\"sweep\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX, confchk_verbose_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2654,10 +2653,10 @@ static const uint8_t
     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const char *confchk_verbose10_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
-  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
-  __WT_CONFIG_CHOICE_cache_top, __WT_CONFIG_CHOICE_checkpoint,
-  __WT_CONFIG_CHOICE_checkpoint_cleanup, __WT_CONFIG_CHOICE_checkpoint_progress,
-  __WT_CONFIG_CHOICE_compact, __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_cache_top,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
   __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
   __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
   __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
@@ -2882,19 +2881,19 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     381, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
-    "\"block_cache\",\"cache_top\",\"checkpoint\","
-    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"configuration\","
-    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
-    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
-    "\"generation\",\"handleops\",\"history_store\","
-    "\"history_store_activity\",\"layered\",\"live_restore\","
-    "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
-    "\"out_of_order\",\"overflow\",\"page_delta\",\"prefetch\","
-    "\"read\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"schema_epoch\",\"shared_cache\",\"split\","
-    "\"sweep\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"cache_top\",\"checkpoint\",\"checkpoint_cleanup\","
+    "\"checkpoint_progress\",\"compact\",\"compact_progress\","
+    "\"configuration\",\"cross_checkpoint_cache\","
+    "\"disaggregated_storage\",\"error_returns\",\"eviction\","
+    "\"extension\",\"fileops\",\"generation\",\"handleops\","
+    "\"history_store\",\"history_store_activity\",\"layered\","
+    "\"live_restore\",\"live_restore_progress\",\"log\",\"metadata\","
+    "\"mutex\",\"out_of_order\",\"overflow\",\"page_delta\","
+    "\"prefetch\",\"read\",\"reconcile\",\"recovery\","
+    "\"recovery_progress\",\"rts\",\"salvage\",\"schema_epoch\","
+    "\"shared_cache\",\"split\",\"sweep\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose10_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 382,
@@ -2953,10 +2952,10 @@ static const char *confchk_timing_stress_for_test3_choices[] = {
   __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, NULL};
 
 static const char *confchk_verbose11_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
-  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
-  __WT_CONFIG_CHOICE_cache_top, __WT_CONFIG_CHOICE_checkpoint,
-  __WT_CONFIG_CHOICE_checkpoint_cleanup, __WT_CONFIG_CHOICE_checkpoint_progress,
-  __WT_CONFIG_CHOICE_compact, __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_cache_top,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
   __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
   __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
   __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
@@ -3181,19 +3180,19 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     381, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
-    "\"block_cache\",\"cache_top\",\"checkpoint\","
-    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"configuration\","
-    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
-    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
-    "\"generation\",\"handleops\",\"history_store\","
-    "\"history_store_activity\",\"layered\",\"live_restore\","
-    "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
-    "\"out_of_order\",\"overflow\",\"page_delta\",\"prefetch\","
-    "\"read\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"schema_epoch\",\"shared_cache\",\"split\","
-    "\"sweep\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"cache_top\",\"checkpoint\",\"checkpoint_cleanup\","
+    "\"checkpoint_progress\",\"compact\",\"compact_progress\","
+    "\"configuration\",\"cross_checkpoint_cache\","
+    "\"disaggregated_storage\",\"error_returns\",\"eviction\","
+    "\"extension\",\"fileops\",\"generation\",\"handleops\","
+    "\"history_store\",\"history_store_activity\",\"layered\","
+    "\"live_restore\",\"live_restore_progress\",\"log\",\"metadata\","
+    "\"mutex\",\"out_of_order\",\"overflow\",\"page_delta\","
+    "\"prefetch\",\"read\",\"reconcile\",\"recovery\","
+    "\"recovery_progress\",\"rts\",\"salvage\",\"schema_epoch\","
+    "\"shared_cache\",\"split\",\"sweep\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose11_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 382,
@@ -3255,10 +3254,10 @@ static const char *confchk_timing_stress_for_test4_choices[] = {
   __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, NULL};
 
 static const char *confchk_verbose12_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
-  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
-  __WT_CONFIG_CHOICE_cache_top, __WT_CONFIG_CHOICE_checkpoint,
-  __WT_CONFIG_CHOICE_checkpoint_cleanup, __WT_CONFIG_CHOICE_checkpoint_progress,
-  __WT_CONFIG_CHOICE_compact, __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_cache_top,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
   __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
   __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
   __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
@@ -3469,19 +3468,19 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     379, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
-    "\"block_cache\",\"cache_top\",\"checkpoint\","
-    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"configuration\","
-    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
-    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
-    "\"generation\",\"handleops\",\"history_store\","
-    "\"history_store_activity\",\"layered\",\"live_restore\","
-    "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
-    "\"out_of_order\",\"overflow\",\"page_delta\",\"prefetch\","
-    "\"read\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"schema_epoch\",\"shared_cache\",\"split\","
-    "\"sweep\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"cache_top\",\"checkpoint\",\"checkpoint_cleanup\","
+    "\"checkpoint_progress\",\"compact\",\"compact_progress\","
+    "\"configuration\",\"cross_checkpoint_cache\","
+    "\"disaggregated_storage\",\"error_returns\",\"eviction\","
+    "\"extension\",\"fileops\",\"generation\",\"handleops\","
+    "\"history_store\",\"history_store_activity\",\"layered\","
+    "\"live_restore\",\"live_restore_progress\",\"log\",\"metadata\","
+    "\"mutex\",\"out_of_order\",\"overflow\",\"page_delta\","
+    "\"prefetch\",\"read\",\"reconcile\",\"recovery\","
+    "\"recovery_progress\",\"rts\",\"salvage\",\"schema_epoch\","
+    "\"shared_cache\",\"split\",\"sweep\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose12_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 382,
@@ -3543,10 +3542,10 @@ static const char *confchk_timing_stress_for_test5_choices[] = {
   __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, NULL};
 
 static const char *confchk_verbose13_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
-  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
-  __WT_CONFIG_CHOICE_cache_top, __WT_CONFIG_CHOICE_checkpoint,
-  __WT_CONFIG_CHOICE_checkpoint_cleanup, __WT_CONFIG_CHOICE_checkpoint_progress,
-  __WT_CONFIG_CHOICE_compact, __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_cache_top,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
   __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
   __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
   __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
@@ -3757,19 +3756,19 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     379, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
-    "\"block_cache\",\"cache_top\",\"checkpoint\","
-    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"configuration\","
-    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
-    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
-    "\"generation\",\"handleops\",\"history_store\","
-    "\"history_store_activity\",\"layered\",\"live_restore\","
-    "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
-    "\"out_of_order\",\"overflow\",\"page_delta\",\"prefetch\","
-    "\"read\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"schema_epoch\",\"shared_cache\",\"split\","
-    "\"sweep\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"cache_top\",\"checkpoint\",\"checkpoint_cleanup\","
+    "\"checkpoint_progress\",\"compact\",\"compact_progress\","
+    "\"configuration\",\"cross_checkpoint_cache\","
+    "\"disaggregated_storage\",\"error_returns\",\"eviction\","
+    "\"extension\",\"fileops\",\"generation\",\"handleops\","
+    "\"history_store\",\"history_store_activity\",\"layered\","
+    "\"live_restore\",\"live_restore_progress\",\"log\",\"metadata\","
+    "\"mutex\",\"out_of_order\",\"overflow\",\"page_delta\","
+    "\"prefetch\",\"read\",\"reconcile\",\"recovery\","
+    "\"recovery_progress\",\"rts\",\"salvage\",\"schema_epoch\","
+    "\"shared_cache\",\"split\",\"sweep\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose13_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 382,
