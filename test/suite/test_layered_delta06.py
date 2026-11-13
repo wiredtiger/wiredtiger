@@ -110,7 +110,10 @@ class test_layered_delta06(wttest.WiredTigerTestCase):
 
         # Assert that we have written no leaf page delta for the table. Read the statistic before
         # switching roles: a follower does not allow access to the stable table's handle.
-        self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, uri=self.stable_uri()), 0)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, uri=self.stable_uri(),
+            session=debug_session), 0)
+        debug_session.close()
 
         self.conn.reconfigure('disaggregated=(role="follower")')
 

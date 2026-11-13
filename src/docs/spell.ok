@@ -12,7 +12,7 @@ Atomicity
 Atomics
 BLOBs
 BLRrVv
-BLmRrSVv
+BiLmRrSVv
 CAS
 CFLAGS
 CMake
@@ -112,6 +112,7 @@ Levyx
 LibFuzzer
 LoadLoad
 LoadStore
+MCP
 MERCHANTABILITY
 MSAN
 MSVC
@@ -271,6 +272,7 @@ ckp
 ckpt
 clickable
 cmake
+cmp
 colgroup
 colgroups
 colspan

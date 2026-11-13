@@ -59,10 +59,12 @@ class test_layered_async_stepdown12(LayeredStepdownMixin, wttest.WiredTigerTestC
         # mark and the first operation goes to the stable constituent.
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        metadata = self.session.open_cursor('file:WiredTiger.wt')
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        metadata = debug_session.open_cursor('file:WiredTiger.wt')
         metadata.set_key(self.stable_uri(self.uri))
         self.assertEqual(metadata.remove(), 0)
         metadata.close()
+        debug_session.close()
 
         self.session.begin_transaction()
         self.set_step_down_ts(20)
