@@ -95,14 +95,14 @@ class test_layered_checkpoint06(checkpoint_util):
 
         # Check that the most recent checkpoint was not a disagg checkpoint, which we can quickly
         # determine by checking its timestamp.
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.pr(f'Checkpoint timestamp: {checkpoint_timestamp}')
         self.assertEqual(checkpoint_timestamp, 1)
 
         # Complete the checkpoint and check that the timestamp has been updated.
         self.conn.reconfigure('timing_stress_for_test=[]')
         self.session.checkpoint()
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.pr(f'Checkpoint timestamp: {checkpoint_timestamp}')
         self.assertEqual(checkpoint_timestamp, 2)
 
@@ -145,7 +145,7 @@ class test_layered_checkpoint06(checkpoint_util):
         self.conn.reconfigure('timing_stress_for_test=[]')
 
         # The most recent checkpoint was started as a leader; stepping down should not affect it.
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.pr(f'Checkpoint timestamp: {checkpoint_timestamp}')
         self.assertEqual(checkpoint_timestamp, 3)
 

@@ -64,7 +64,7 @@ follower_fetch_full_metadata(WT_SESSION *session, WT_PAGE_LOG *page_log,
     get_args.lsn = metadata_lsn;
     count = 1;
     WT_ERR(plh->plh_get(
-      plh, session, WT_DISAGG_METADATA_MAIN_PAGE_ID, 0, &get_args, full_metadata, &count));
+      plh, session, WT_DISAGG_METADATA_MAIN_PAGE_ID, &get_args, full_metadata, &count));
 
     if (count == 0) {
         ret = WT_NOTFOUND;

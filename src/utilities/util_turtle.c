@@ -150,8 +150,8 @@ fetch_turtle_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     count = 1;
-    WT_RET(plh->plh_get(
-      plh, &session->iface, WT_DISAGG_METADATA_MAIN_PAGE_ID, 0, &get_args, item, &count));
+    WT_RET(
+      plh->plh_get(plh, &session->iface, WT_DISAGG_METADATA_MAIN_PAGE_ID, &get_args, item, &count));
     if (count == 0)
         return (WT_NOTFOUND);
     return (0);

@@ -37,7 +37,7 @@ __disagg_get_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
      * FIXME-WT-18278 Distinguish "not found" from other error returns. count == 0 may be a
      * redundant not-found check, revisit later.
      */
-    WT_RET(page_log->plh_get(page_log, &session->iface, page_id, 0, &get_args, item, &count));
+    WT_RET(page_log->plh_get(page_log, &session->iface, page_id, &get_args, item, &count));
     WT_ASSERT(session, count <= 1); /* Corrupt data. */
 
     /* Found the data. */
@@ -68,7 +68,7 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
 
     put_args.backlink_lsn = last_page_lsn[page_id];
 
-    WT_RET(page_log->plh_put(page_log, &session->iface, page_id, 0, &put_args, item));
+    WT_RET(page_log->plh_put(page_log, &session->iface, page_id, &put_args, item));
     last_page_lsn[page_id] = put_args.lsn;
 
     if (lsnp != NULL)

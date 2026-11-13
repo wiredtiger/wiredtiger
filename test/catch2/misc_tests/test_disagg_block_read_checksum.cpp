@@ -150,7 +150,6 @@ struct stub_page_log {
     uint64_t lsn;
     uint64_t backlink_lsn;
     uint64_t base_lsn;
-    uint64_t base_checkpoint_id;
     uint64_t delta_count;
 };
 
@@ -174,7 +173,7 @@ WT_EVENT_HANDLER g_counting_event_handler = {
   counting_handle_error, nullptr, nullptr, nullptr, nullptr};
 
 int
-stub_plh_get(WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, uint64_t, WT_PAGE_LOG_GET_ARGS *args,
+stub_plh_get(WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, WT_PAGE_LOG_GET_ARGS *args,
   WT_ITEM *results_array, uint32_t *results_count)
 {
     uint32_t count = static_cast<uint32_t>(g_page_log->blocks->size());
@@ -192,7 +191,6 @@ stub_plh_get(WT_PAGE_LOG_HANDLE *, WT_SESSION *, uint64_t, uint64_t, WT_PAGE_LOG
     args->lsn = g_page_log->lsn;
     args->backlink_lsn = g_page_log->backlink_lsn;
     args->base_lsn = g_page_log->base_lsn;
-    args->base_checkpoint_id = g_page_log->base_checkpoint_id;
     args->delta_count = g_page_log->delta_count;
 
     return (0);

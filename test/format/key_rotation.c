@@ -204,8 +204,8 @@ disagg_read_kek_page(
 
     for (u_int retry = 0;; ++retry) {
         uint32_t count = 1;
-        testutil_check(plh->plh_get(
-          plh, session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, 0, &get_args, page, &count));
+        testutil_check(
+          plh->plh_get(plh, session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &get_args, page, &count));
         if (count == 1)
             break;
         testutil_assert(retry < 100);
