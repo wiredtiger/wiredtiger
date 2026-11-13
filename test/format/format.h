@@ -454,14 +454,15 @@ typedef struct {
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
 
-    bool ignore_prepare;      /* read with ignore_prepare */
-    bool repeatable_reads;    /* if read ops repeatable */
-    bool repeatable_wrap;     /* if circular buffer wrapped */
-    uint64_t opid;            /* Operation ID */
-    wt_timestamp_t commit_ts; /* commit timestamp */
-    wt_timestamp_t read_ts;   /* read timestamp */
-    wt_timestamp_t replay_ts; /* allocated timestamp for predictable replay */
-    wt_timestamp_t stable_ts; /* stable timestamp */
+    bool ignore_prepare;       /* read with ignore_prepare */
+    bool repeatable_reads;     /* if read ops repeatable */
+    bool repeatable_wrap;      /* if circular buffer wrapped */
+    uint64_t opid;             /* Operation ID */
+    wt_timestamp_t commit_ts;  /* commit timestamp */
+    wt_timestamp_t prepare_ts; /* prepare timestamp */
+    wt_timestamp_t read_ts;    /* read timestamp */
+    wt_timestamp_t replay_ts;  /* allocated timestamp for predictable replay */
+    wt_timestamp_t stable_ts;  /* stable timestamp */
     SNAP_STATE snap_states[2];
     SNAP_STATE *s; /* points to one of the snap_states */
 

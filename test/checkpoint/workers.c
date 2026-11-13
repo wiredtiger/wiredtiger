@@ -438,8 +438,8 @@ real_worker(THREAD_DATA *td)
                                 goto err;
                             }
                             testutil_snprintf(buf, sizeof(buf),
-                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64,
-                              base_ts + 2, base_ts);
+                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, base_ts,
+                              base_ts);
                             prepared = true;
                         } else
                             testutil_snprintf(

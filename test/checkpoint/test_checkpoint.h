@@ -48,8 +48,8 @@ typedef enum { MIX = 0, ROW, COL } table_type; /* File type */
  * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
  * the i-th key that a thread writes is given by the macro below. In a given iteration for each
  * thread, there are three timestamps available. We never use the second and only sometimes use the
- * third. The first is used as the commit and optionally as the prepared timestamp. The third as the
- * durable timestamp ahead of the commit timestamp.
+ * third. The first is used as the commit and durable timestamp, and optionally as the prepare
+ * timestamp. The third is the rollback timestamp of a prepared transaction.
  */
 #define RESERVED_TIMESTAMPS_FOR_ITERATION(threadcount, td, iter) \
     (((iter) * (uint64_t)(threadcount) + (uint64_t)((td)->info)) * 3 + 1)

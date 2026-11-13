@@ -1005,18 +1005,6 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
           __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[1]));
 
     /*
-     * With preserve_prepared configured, a prepared but not-yet-durable transaction must have a
-     * durable timestamp strictly after its prepare timestamp, so the two states remain distinct.
-     */
-    if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      durable_ts <= txn->time_point.prepare_timestamp)
-        WT_RET_MSG(session, EINVAL,
-          "durable timestamp %s must be greater than the prepare timestamp %s for this "
-          "transaction",
-          __wt_timestamp_to_string(durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
-
-    /*
      * A transaction that began after the step-down timestamp was set commits to the ingest
      * constituent, which lives strictly above that timestamp, so supplying a durable timestamp at
      * or below it is a contradiction.
@@ -1073,12 +1061,8 @@ __txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
 static int
 __txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
-    wt_timestamp_t last_checkpoint_ts;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    conn = S2C(session);
     txn = session->txn;
 
     if (!F_ISSET(txn, WT_TXN_PREPARE))
@@ -1089,24 +1073,13 @@ __txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
         WT_RET_MSG(
           session, EINVAL, "a commit timestamp is required before setting a durable timestamp");
 
-    WT_RET(__txn_check_follower_checkpoint_ts(session, "durable", durable_ts));
-
     /*
-     * When a transaction carries a prepared_id, the durable timestamp must be strictly after the
-     * last checkpoint timestamp. During step-up drain the version cursor skips ingest updates whose
-     * durable timestamp is <= last_checkpoint_timestamp, so a durable timestamp that falls at or
-     * before that boundary would prevent the corresponding preserved prepared cell on the stable
-     * btree from being resolved.
+     * The durable timestamp must be after the last checkpoint timestamp, or the step-up drain skips
+     * the update and leaves its preserved prepared cell unresolved. A follower checks this
+     * directly; a leader's checkpoint timestamp never exceeds stable, so the stable check covers
+     * it.
      */
-    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID)) {
-        last_checkpoint_ts =
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
-        WT_ASSERT_ALWAYS(session,
-          last_checkpoint_ts == WT_TS_NONE || durable_ts > last_checkpoint_ts,
-          "durable timestamp %s must be after the last checkpoint timestamp %s",
-          __wt_timestamp_to_string(durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(last_checkpoint_ts, ts_string[1]));
-    }
+    WT_RET(__txn_check_follower_checkpoint_ts(session, "durable", durable_ts));
 
     WT_RET(__txn_validate_durable_timestamp(session, durable_ts));
     txn->time_point.durable_timestamp = durable_ts;
