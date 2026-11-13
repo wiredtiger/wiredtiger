@@ -307,8 +307,11 @@ table_cursor(TINFO *tinfo, u_int id)
     --id;
 
     if (tinfo->cursors[id] == NULL) {
-        /* Configure "append", in the case of column stores, we append when inserting new rows. */
-        config = table->type == ROW ? NULL : "append";
+        /* Column stores append when inserting new rows. */
+        if (table->type != ROW)
+            config = "append";
+        else
+            config = TV(DISAGG_BLIND_REMOVE) ? "blind_remove=true" : NULL;
         wt_wrap_open_cursor(tinfo->session, table->uri, config, &tinfo->cursors[id]);
     }
     return (tinfo->cursors[id]);
@@ -409,6 +412,21 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
         __wt_writeunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
     else
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
+}
+
+/*
+ * lock_try_readlock --
+ *     Try to get a shared lock. Fail immediately if not available.
+ */
+static inline int
+lock_try_readlock(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(lock->lock_type != LOCK_NONE);
+
+    if (lock->lock_type == LOCK_WT)
+        return (__wt_try_readlock((WT_SESSION_IMPL *)session, &lock->l.wt));
+
+    return (pthread_rwlock_tryrdlock(&lock->l.pthread));
 }
 
 /*
