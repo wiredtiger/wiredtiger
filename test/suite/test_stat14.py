@@ -56,14 +56,18 @@ class test_stat14(wttest.WiredTigerTestCase):
         # eviction_dirty_target=5 -> 500
         # eviction_dirty_trigger=20 -> 2000
         # eviction_updates_target=0 (auto-set to dirty_target/2 = 2.5) -> 250
-        # eviction_updates_trigger=0 (auto-set to dirty_trigger/2 = 10) -> 1000
+        # eviction_updates_trigger=95 -> 9500
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_cache_full_target][2], 8000)
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_cache_full_trigger][2], 9500)
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_dirty_target][2], 500)
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_dirty_trigger][2], 2000)
         self.assertEqual(stat_cursor[stat.conn.eviction_threshold_updates_target][2], 250)
-        self.assertEqual(stat_cursor[stat.conn.eviction_threshold_updates_trigger][2], 1000)
+        self.assertEqual(stat_cursor[stat.conn.eviction_threshold_updates_trigger][2], 9500)
         stat_cursor.close()
+
+        self.conn.reconfigure("eviction_updates_trigger=0")
+        with WiredTigerCursor(self.session, statistic_uri()) as stat_cursor:
+            self.assertEqual(stat_cursor[stat.conn.eviction_threshold_updates_trigger][2], 1000)
 
         # Test with integer value: Reconfigure eviction_target to 70
         self.conn.reconfigure("eviction_target=70")
