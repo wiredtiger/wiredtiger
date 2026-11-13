@@ -138,6 +138,47 @@ class test_block_cache_deprecate(wttest.WiredTigerTestCase):
             conn = self.wiredtiger_open('D', '')
         conn.close()
 
+    # Test that the WIREDTIGER_CONFIG environment variable is treated as a user-supplied
+    # source: enablement there is rejected, disabled settings are ignored.
+    def test_block_cache_env_config(self):
+        self.close_conn()
+
+        # Create a database.
+        os.mkdir('E')
+        conn = self.wiredtiger_open('E', 'create')
+        conn.close()
+
+        saved = os.environ.pop('WIREDTIGER_CONFIG', None)
+        try:
+            # Enabling through the environment is rejected.
+            os.environ['WIREDTIGER_CONFIG'] = 'block_cache=(enabled=true)'
+            self.assertRaisesWithMessage(
+                wiredtiger.WiredTigerError, lambda: self.wiredtiger_open('E', ''), self.msg)
+
+            # A disabled setting is ignored with a warning.
+            os.environ['WIREDTIGER_CONFIG'] = 'block_cache=(enabled=false)'
+            with self.expectedStdoutPattern(
+                'block cache has been deprecated and is no longer supported'):
+                conn = self.wiredtiger_open('E', '')
+            conn.close()
+        finally:
+            if saved is None:
+                del os.environ['WIREDTIGER_CONFIG']
+            else:
+                os.environ['WIREDTIGER_CONFIG'] = saved
+
+    # Test that the removed block cache verbose category is rejected as an invalid choice.
+    def test_block_cache_verbose(self):
+        self.close_conn()
+
+        config = 'create,verbose=[block_cache]'
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError, lambda: self.wiredtiger_open('.', config),
+            '/not a permitted choice for key .verbose./')
+
+        # Reopen normally so tearDown can close cleanly.
+        self.open_conn()
+
     # Test that reconfiguring with block cache settings is ignored or rejected.
     def test_block_cache_reconfigure(self):
         # Enabling is rejected.
