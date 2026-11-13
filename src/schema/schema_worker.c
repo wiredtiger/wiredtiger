@@ -74,6 +74,44 @@ __wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
 }
 
 /*
+ * __verify_stable_config --
+ *     Check that shared stable metadata retains the table's file configuration.
+ */
+static int
+__verify_stable_config(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+
+    /* Open shared metadata. */
+    WT_CURSOR *cursor = NULL;
+    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+    WT_WITHOUT_DHANDLE(
+      session, ret = __wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, open_cfg, &cursor));
+    WT_ERR(ret);
+
+    /* Find the stable configuration. Note that this may not be published yet. */
+    cursor->set_key(cursor, uri);
+    WT_ERR(cursor->search(cursor));
+    const char *config;
+    WT_ERR(cursor->get_value(cursor, &config));
+
+    /* Check the block manager as a proxy for preserved file settings. */
+    WT_CONFIG_ITEM cval;
+    WT_ERR_MSG_CHK(session, __wt_config_getones(session, config, "block_manager", &cval),
+      "Missing or malformed block_manager in shared stable metadata for \"%s\"", uri);
+
+    if (!WT_CONFIG_LIT_MATCH("disagg", cval))
+        WT_ERR_MSG(session, EINVAL,
+          "Shared stable metadata for \"%s\" has block_manager=\"%.*s\", expected \"disagg\"", uri,
+          (int)cval.len, cval.str);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
  * __schema_layered_stable_worker_verify --
  *     Verify the layered stable table.
  */
@@ -90,6 +128,7 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
     bool leader;
 
     WT_ASSERT(session, stable_uri != NULL);
+    WT_RET_NOTFOUND_OK(__verify_stable_config(session, stable_uri));
 
     /* Sample the role once so the open and the error message below agree if it changes. */
     leader = __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader);
