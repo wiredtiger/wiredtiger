@@ -292,10 +292,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_PAGE_MODIFY *mod;
     WT_REF *prev, *walk;
     WT_TXN *txn;
-    uint64_t walk_start, walk_time, wait_start, wait_time;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
     uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
     uint64_t saved_pinned_id, t, time_start, time_stop;
+    uint64_t walk_start, walk_time, wait_start, wait_time;
     uint32_t flags, rec_flags;
     bool checkpoint_scrub, dirty, is_hs, is_internal, tried_eviction;
 
