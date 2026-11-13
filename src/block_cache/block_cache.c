@@ -318,7 +318,12 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &conn->block_lock);
     for (bucket = 0; bucket < conn->hash_size; bucket++) {
         TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
-            size += (size_t)block->size;
+            /*
+             * Only local handles are backed by a file; a disagg handle's layout differs past the
+             * shared prefix.
+             */
+            if (WT_BLOCK_IS_LOCAL(block))
+                size += (size_t)block->size;
         }
     }
     blkcache->estimated_file_size = size;

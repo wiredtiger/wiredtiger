@@ -227,13 +227,10 @@ __evict_page_victim_cache_eligible(
         return (WTI_EVICT_VICTIM_ENCRYPTED);
 
     WT_BM *bm = S2BT(session)->bm;
-    if (bm == NULL)
+    if (bm == NULL || bm->block == NULL)
         return (WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
 
-    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-    if (block_disagg == NULL)
-        return (WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
-
+    WT_BLOCK_DISAGG *block_disagg = __wt_block_as_disagg(session, bm->block);
     WT_PAGE_LOG_HANDLE *plh = block_disagg->plhandle;
     if (plh == NULL || plh->plh_cache_put == NULL || plh->plh_cache_available == NULL)
         return (WTI_EVICT_VICTIM_NO_PAGE_LOG);
@@ -318,7 +315,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, disk_image != NULL);
 
     /* Eligibility has already confirmed the disagg page log handle exists. */
-    WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
+    WT_PAGE_LOG_HANDLE *plh = __wt_block_as_disagg(session, S2BT(session)->bm->block)->plhandle;
     WT_PAGE *page = ref->page;
     WT_PAGE_BLOCK_META *block_meta = &page->disagg_info->block_meta;
 

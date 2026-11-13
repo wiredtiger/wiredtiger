@@ -325,7 +325,7 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
      * existing block manager code, so for now just cheat and specialize inside the disagg block
      * code.
      */
-    block_disagg = (WT_BLOCK_DISAGG *)block;
+    block_disagg = __wt_block_as_disagg(session, block);
     /*
      * Ensure the page header is in little endian order; this doesn't belong here, but it's the best
      * place to catch all callers. After the write, swap values back to native order so callers

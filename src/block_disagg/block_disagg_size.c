@@ -67,7 +67,7 @@ uint64_t
 __wt_block_disagg_get_size(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    return (__wti_block_disagg_get_size((WT_BLOCK_DISAGG *)S2BT(session)->bm->block));
+    return (__wti_block_disagg_get_size(__wt_block_as_disagg(session, S2BT(session)->bm->block)));
 }
 
 /*
@@ -78,7 +78,8 @@ void
 __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    (void)__wt_atomic_store_uint64(&((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->size, size);
+    (void)__wt_atomic_store_uint64(
+      &__wt_block_as_disagg(session, S2BT(session)->bm->block)->size, size);
 }
 
 /*
@@ -90,7 +91,8 @@ void
 __wt_block_disagg_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    __wti_block_disagg_decrease_size(session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, size);
+    __wti_block_disagg_decrease_size(
+      session, __wt_block_as_disagg(session, S2BT(session)->bm->block), size);
 }
 
 /*
@@ -127,7 +129,7 @@ __wt_block_disagg_checkpoint_rollback(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return;
 
-    block_disagg = (WT_BLOCK_DISAGG *)btree->bm->block;
+    block_disagg = __wt_block_as_disagg(session, btree->bm->block);
     if (block_disagg->root_size_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
         return;
 

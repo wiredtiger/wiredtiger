@@ -202,10 +202,9 @@ __wti_block_disagg_verify_addr(
 int
 __wti_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session, bool verify_success)
 {
-    WT_UNUSED(session);
     WT_UNUSED(verify_success);
 
-    ((WT_BLOCK_DISAGG *)bm->block)->verify = false;
+    __wt_block_as_disagg(session, bm->block)->verify = false;
     return (0);
 }
 
@@ -217,11 +216,10 @@ int
 __wti_block_disagg_verify_start(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 {
-    WT_UNUSED(session);
     WT_UNUSED(ckptbase);
     WT_UNUSED(cfg);
 
     /* Don't panic if a page read sees corruption while verifying. */
-    ((WT_BLOCK_DISAGG *)bm->block)->verify = true;
+    __wt_block_as_disagg(session, bm->block)->verify = true;
     return (0);
 }

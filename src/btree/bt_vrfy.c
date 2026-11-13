@@ -548,7 +548,7 @@ __verify_one_checkpoint(
              * checkpoint metadata, so PALI doesn't "see" that discard, reports the page as live,
              * and gives us one more page than the btree thinks it has.
              */
-            WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+            WT_BLOCK_DISAGG *block_disagg = __wt_block_as_disagg(session, bm->block);
             if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL &&
               !F_ISSET(session->dhandle, WT_DHANDLE_DISAGG_META))
                 WT_ERR(__verify_page_discard(session, bm));
