@@ -1963,6 +1963,12 @@ methods = {
         verification; by default all tables are verified, with every failure logged as it is
         found, and the return value reports the first failure''',
         type='boolean'),
+    Config('verify_internals', 'false', r'''
+        when no URI is given, run only the internal database-wide checks (currently the unique
+        btree ID check, which scans the metadata for duplicates) without verifying any table.
+        When false (the default), a NULL URI verifies all tables without running the checks.
+        This configuration has no effect when a specific URI is given''',
+        type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as

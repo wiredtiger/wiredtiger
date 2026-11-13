@@ -1909,11 +1909,24 @@ err:
 static int
 __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
-    if (uri == NULL)
-        return (__session_verify_all(session, cfg));
+    WT_CONFIG_ITEM cval;
 
-    return (__wt_schema_worker(
-      session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+    /* A specific URI verifies that object. */
+    if (uri != NULL)
+        return (__wt_schema_worker(
+          session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+
+    /*
+     * With verify_internals set, run only the database-wide checks and return, without verifying
+     * any table. Otherwise verify every table; the checks never run implicitly.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "verify_internals", &cval));
+    if (cval.val != 0)
+        WT_RET(__wt_verify_metadata_consistency(session));
+    else
+        WT_RET(__session_verify_all(session, cfg));
+
+    return (0);
 }
 
 /*

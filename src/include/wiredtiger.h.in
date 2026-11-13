@@ -1571,7 +1571,8 @@ struct __wt_session {
      *
      * @param session the session handle
      * @param name the URI of the table or file to verify; if NULL, verify all tables in the
-     * database
+     * database. With the \c verify_internals configuration set, a NULL URI instead runs
+     * only the database-wide unique btree ID check, without verifying any table
      * @configstart{WT_SESSION.verify, see dist/api_data.py}
      * @config{abort_on_error, when verifying all tables (no URI given)\, stop at the first table
      * that fails verification; by default all tables are verified\, with every failure logged as it
@@ -1615,6 +1616,11 @@ struct __wt_session {
      * @config{strict, Treat any verification problem as an error; by default\, verify will warn\,
      * but not fail\, in the case of errors that won't affect future behavior (for example\, a
      * leaked block)., a boolean flag; default \c false.}
+     * @config{verify_internals, when no URI is given\, run only the internal database-wide checks
+     * (currently the unique btree ID check\, which scans the metadata for duplicates) without
+     * verifying any table.  When false (the default)\, a NULL URI verifies all tables without
+     * running the checks.  This configuration has no effect when a specific URI is given., a
+     * boolean flag; default \c false.}
      * @configend
      * @ebusy_errors
      */
