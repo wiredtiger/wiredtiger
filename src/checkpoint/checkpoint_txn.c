@@ -423,7 +423,8 @@ __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 
 /*
  * __checkpoint_update_evict_triggers_start --
- *     During checkpoint, adjust eviction triggers to reduce application eviction.
+ *     During checkpoint, update the eviction triggers to avoid pulling applications threads into
+ *     eviction work as the cache gets progressively more full.
  */
 static void
 __checkpoint_update_evict_triggers_start(
@@ -449,17 +450,14 @@ __checkpoint_update_evict_triggers_start(
      */
 
     /*
-     * Update the dirty trigger first. Cap trigger increases at 40%, without lowering an already
-     * higher trigger.
+     * Be careful of ordering, update the dirty trigger first. Only update the trigger (upper bound)
+     * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
+     * though these values can be absolute).
      */
     saved_triggers->new_dirty_trigger =
       WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) * 1.3);
-    saved_triggers->new_dirty_trigger =
-      WT_MAX(saved_triggers->original_dirty_trigger, saved_triggers->new_dirty_trigger);
     saved_triggers->new_updates_trigger =
       WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) * 2.0);
-    saved_triggers->new_updates_trigger =
-      WT_MAX(saved_triggers->original_updates_trigger, saved_triggers->new_updates_trigger);
     __wt_atomic_store_double_relaxed(
       &evict->eviction_dirty_trigger, saved_triggers->new_dirty_trigger);
     __wt_atomic_store_double_relaxed(
@@ -1774,8 +1772,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.scrub.timer_end);
 
     /*
-     * When operating in precise checkpoint mode, adjust eviction triggers to reduce the likelihood
-     * that workloads will stall.
+     * When operating in precise checkpoint mode, allow higher updates and eviction triggers. This
+     * allows work to accumulate while checkpoint is running, making it less likely that workloads
+     * will stall.
      */
     __checkpoint_update_evict_triggers_start(session, &precise_ckpt_saved_triggers);
 
@@ -2044,7 +2043,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
-    /* Now that checkpoint is finished, restore the eviction triggers. */
+    /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
     __checkpoint_update_evict_triggers_end(session, &precise_ckpt_saved_triggers);
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.

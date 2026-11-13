@@ -33,9 +33,8 @@ from wtdataset import SimpleDataSet
 
 # Test that the API returning a rollback error sets the reason for the rollback.
 class test_txn27(error_info_util):
-    # Keep the update trigger below the pinned content and prevent the log thread resetting the score.
-    conn_config = ('cache_size=1MB,eviction_updates_trigger=10,'
-        'statistics=(all),statistics_log=(wait=0)')
+    # statistics_log wait=0: the default log thread can reset the eviction stuck score.
+    conn_config = 'cache_size=1MB,statistics=(all),statistics_log=(wait=0)'
 
     # The oldest-for-eviction reason needs stalled eviction progress before it fires; the
     # newer updates/dirty-trigger check needs no such stall and can win the race instead. Locally
