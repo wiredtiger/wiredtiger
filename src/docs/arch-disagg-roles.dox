@@ -188,4 +188,6 @@ when it starts, including drops issued after N was set. With schema epochs, the 
 divides schema operations the same way N divides data. See @ref disagg_role_management_schema
 for the schema-epoch contract.
 
+@subpage arch-disagg-step-down-concurrency
+
 */
