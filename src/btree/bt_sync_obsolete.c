@@ -298,8 +298,11 @@ __wt_checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *paren
 
     time_stop = __wt_clock(session);
     WT_STAT_CONN_DATA_INCRV(session, cc_pages_visited, pindex->entries);
-    /* The cleanup thread reports the duration of one full pass. */
-    if (!S2C(session)->cc_cleanup.use_thread)
+    /*
+     * Inline cleanup accumulates its duration across the checkpoint, which resets the statistic at
+     * the start. Metadata checkpoints also run this code but never reset it, so ignore them.
+     */
+    if (!S2C(session)->cc_cleanup.use_thread && !WT_IS_METADATA(S2BT(session)->dhandle))
         WT_STAT_CONN_INCRV(session, cc_duration, WT_CLOCKDIFF_US(time_stop, time_start));
 
     return (0);
