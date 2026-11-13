@@ -275,7 +275,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
-        if (internal_cleanup)
+        if (internal_cleanup && !WT_IS_METADATA(btree->dhandle))
             WT_STAT_CONN_INCR(session, cc_handle_processed);
 
         for (;;) {

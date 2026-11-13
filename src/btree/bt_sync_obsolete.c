@@ -295,7 +295,12 @@ __wt_checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *paren
 
     time_stop = __wt_clock(session);
     WT_STAT_CONN_DATA_INCRV(session, cc_pages_visited, pindex->entries);
-    WT_STAT_CONN_INCRV(session, cc_duration, WT_CLOCKDIFF_US(time_stop, time_start));
+    /*
+     * Inline cleanup accumulates its duration across the checkpoint, which resets the statistic at
+     * the start. Metadata checkpoints also run this code but never reset it, so ignore them.
+     */
+    if (!S2C(session)->cc_cleanup.use_thread && !WT_IS_METADATA(S2BT(session)->dhandle))
+        WT_STAT_CONN_INCRV(session, cc_duration, WT_CLOCKDIFF_US(time_stop, time_start));
 
     return (0);
 }
@@ -420,8 +425,6 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
      */
     if (btree->type == BTREE_COL_FIX)
         goto err;
-
-    WT_STAT_CONN_INCR(session, cc_handle_processed);
 
     /* Walk the tree. */
     while ((ret = __wt_tree_walk_custom_skip(
@@ -565,6 +568,9 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(uri);
     WT_DECL_RET;
 
+    uint32_t tables_processed = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
+
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
@@ -577,6 +583,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             continue;
         }
         WT_ERR(ret);
+        ++tables_processed;
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
@@ -585,6 +592,15 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup full iteration completed (ret=%d), tables_processed=%" PRIu32
+      ", elapsed_us=%" PRIu64,
+      ret, tables_processed, elapsed_us);
+    WT_STAT_CONN_SET(session, cc_duration, elapsed_us);
+    WT_STAT_CONN_SET(session, cc_handle_processed, tables_processed);
+
     __wt_scr_free(session, &uri);
     return (ret);
 }
