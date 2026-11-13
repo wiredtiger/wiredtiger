@@ -603,6 +603,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
     /*
+     * Checkpoint waits for evictions only if the tree has one in progress. The full barrier makes
+     * sure checkpoint sees this eviction or this eviction sees the sync state. Entering the
+     * eviction generation already does this for a first-level eviction.
+     */
+    if (timeline.reentry_hs_eviction)
+        WT_FULL_BARRIER();
+
+    /*
      * Immediately increment the forcible eviction counter, we might do an in-memory split and not
      * an eviction, which skips the other statistics.
      */
