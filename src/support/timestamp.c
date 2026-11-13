@@ -428,18 +428,14 @@ __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
  *     Was the start of a value time window already visible to everyone at the checkpoint's own
  *     oldest timestamp? The checkpoint's writer clears such a start from the cells it keeps, so the
  *     parent aggregate does not cover it, while a page rebuilt from a base image and deltas can
- *     still hold the original start. Only the timestamp half of the writer's rule can be checked
- *     here, as transaction ids are not comparable across connections.
+ *     still hold the original start.
  */
 static WT_INLINE bool
 __time_value_start_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
-        return (false);
-
-    wt_timestamp_t oldest = __wt_atomic_load_uint64_acquire(
-      &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
-    return (oldest != WT_TS_NONE && tw->durable_start_ts <= oldest);
+    return (__wt_time_window_start_obsolete_at(tw,
+      __wt_atomic_load_uint64_acquire(
+        &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp)));
 }
 
 /*
