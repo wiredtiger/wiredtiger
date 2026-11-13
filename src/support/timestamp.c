@@ -450,7 +450,7 @@ __time_value_validate_parent_stable(
 }
 
 /*
- * __time_value_obsolete_at_checkpoint --
+ * __time_value_stop_obsolete_at_checkpoint --
  *     Is a value time window already obsolete against the checkpoint's own oldest timestamp, rather
  *     than the reading connection's? Rebuilding a page from a base image and deltas keeps only the
  *     cells still live under whoever is doing the rebuilding, which need not match what the
@@ -467,9 +467,9 @@ __time_value_validate_parent_stable(
  *     but confirm that once the other fix lands rather than assuming it here.
  */
 static WT_INLINE bool
-__time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+__time_value_stop_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (__wt_time_window_obsolete_at(tw,
+    return (__wt_time_window_stop_obsolete_at(tw,
       __wt_atomic_load_uint64_acquire(
         &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp)));
 }
@@ -504,7 +504,7 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
      * dropped as obsolete, so the parent aggregate does not cover it. Skip such cells; a full image
      * has no such rebuild step, so a mismatch there stays a real failure.
      */
-    if (from_delta && __time_value_obsolete_at_checkpoint(session, tw))
+    if (from_delta && __time_value_stop_obsolete_at_checkpoint(session, tw))
         return (0);
 
     /* The writer clears a cell's start once visible to all, so skip the durable start check. */

@@ -1286,14 +1286,14 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
- * __wt_time_window_obsolete_at --
+ * __wt_time_window_stop_obsolete_at --
  *     Is a value time window obsolete at the given oldest timestamp? Transaction ids are not
  *     comparable across connections sharing a disaggregated store, so only the timestamp counts.
  */
 static WT_INLINE bool
-__wt_time_window_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
+__wt_time_window_stop_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
 {
-    /* Prepared pages are never obsolete. */
+    /* A prepared stop is never obsolete. */
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
         return (false);
     return (
@@ -1309,8 +1309,8 @@ __wt_time_window_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
 static WT_INLINE bool
 __wt_time_window_start_obsolete_at(WT_TIME_WINDOW *tw, wt_timestamp_t oldest_ts)
 {
-    /* Reconciliation never clears a time window with a prepare. */
-    if (WT_TIME_WINDOW_HAS_PREPARE(tw))
+    /* A prepared start is never cleared. */
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
         return (false);
     return (oldest_ts != WT_TS_NONE && tw->durable_start_ts <= oldest_ts);
 }

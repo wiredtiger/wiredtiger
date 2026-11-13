@@ -263,7 +263,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * checked key is left alone so that any remaining record for this key is judged on its own
          * window rather than excused by this one.
          */
-        if (!chain.exists && !__wt_time_window_obsolete_at(hs_tw, checkpoint_oldest_ts)) {
+        if (!chain.exists && !__wt_time_window_stop_obsolete_at(hs_tw, checkpoint_oldest_ts)) {
             WT_ERR(__hs_verify_ds_search(session, ds_cbt, &key, check_data_store, &chain));
             chain.searched = true;
 
