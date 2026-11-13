@@ -279,6 +279,17 @@ extern int __wt_btree_close(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_config_encryptor(WT_SESSION_IMPL *session, const char **cfg,
   WT_KEYED_ENCRYPTOR **kencryptorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btree_diff_close(WT_BTREE_DIFF **diffp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btree_diff_next(WT_BTREE_DIFF *diff, WT_BTREE_DIFF_ENTRY *entry)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btree_diff_open(WT_SESSION_IMPL *session, WT_DATA_HANDLE *old_dhandle,
+  WT_DATA_HANDLE *new_dhandle, const WT_ITEM *lower_bound, const WT_ITEM *upper_bound,
+  WT_BTREE_DIFF **diffp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btree_diff_open_checkpoints(WT_SESSION_IMPL *session, const char *uri,
+  const char *old_checkpoint, const char *new_checkpoint, const WT_ITEM *lower_bound,
+  const WT_ITEM *upper_bound, WT_BTREE_DIFF **diffp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
