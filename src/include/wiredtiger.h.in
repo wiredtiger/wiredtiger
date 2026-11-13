@@ -6592,7 +6592,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_BYTES_IMAGE_STABLE		1115
 /*! cache: bytes belonging to the history store table in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_HS			1116
-/*! cache: bytes currently in the cache */
+/*! cache: bytes currently in the cache, OTel type: otel_gauge */
 #define	WT_STAT_CONN_CACHE_BYTES_INUSE			1117
 /*! cache: bytes dirty in the cache cumulative */
 #define	WT_STAT_CONN_CACHE_BYTES_DIRTY_TOTAL		1118
@@ -6603,9 +6603,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * scrub
  */
 #define	WT_STAT_CONN_CACHE_SCRUB_IMAGE_BYTES		1120
-/*! cache: bytes read into cache */
+/*! cache: bytes read into cache, OTel type: otel_counter */
 #define	WT_STAT_CONN_CACHE_BYTES_READ			1121
-/*! cache: bytes written from cache */
+/*! cache: bytes written from cache, OTel type: otel_counter */
 #define	WT_STAT_CONN_CACHE_BYTES_WRITE			1122
 /*! cache: cache tolerance configured */
 #define	WT_STAT_CONN_CACHE_TOLERANCE_LEVEL		1123
@@ -6626,19 +6626,28 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_DISAGG_PUBLISH_CLEARED	1129
 /*! cache: evict page attempts by eviction server */
 #define	WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT	1130
-/*! cache: evict page attempts by eviction worker threads */
+/*!
+ * cache: evict page attempts by eviction worker threads, OTel type:
+ * otel_counter
+ */
 #define	WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT	1131
 /*! cache: evict page failures by eviction server */
 #define	WT_STAT_CONN_EVICTION_SERVER_EVICT_FAIL		1132
-/*! cache: evict page failures by eviction worker threads */
+/*!
+ * cache: evict page failures by eviction worker threads, OTel type:
+ * otel_counter
+ */
 #define	WT_STAT_CONN_EVICTION_WORKER_EVICT_FAIL		1133
-/*! cache: eviction calls to get a page found queue empty */
+/*!
+ * cache: eviction calls to get a page found queue empty, OTel type:
+ * otel_counter
+ */
 #define	WT_STAT_CONN_EVICTION_GET_REF_EMPTY		1134
 /*! cache: eviction calls to get a page found queue empty after locking */
 #define	WT_STAT_CONN_EVICTION_GET_REF_EMPTY2		1135
 /*! cache: eviction currently operating in aggressive mode */
 #define	WT_STAT_CONN_EVICTION_AGGRESSIVE_SET		1136
-/*! cache: eviction empty score */
+/*! cache: eviction empty score, OTel type: otel_gauge */
 #define	WT_STAT_CONN_EVICTION_EMPTY_SCORE		1137
 /*!
  * cache: eviction gave up due to detecting a disk value without a
@@ -6921,9 +6930,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_WALK_FROM_ROOT		1220
 /*! cache: eviction walks started from saved location in tree */
 #define	WT_STAT_CONN_EVICTION_WALK_SAVED_POS		1221
-/*! cache: eviction worker thread active */
+/*! cache: eviction worker thread active, OTel type: otel_gauge */
 #define	WT_STAT_CONN_EVICTION_ACTIVE_WORKERS		1222
-/*! cache: eviction worker thread stable number */
+/*! cache: eviction worker thread stable number, OTel type: otel_gauge */
 #define	WT_STAT_CONN_EVICTION_STABLE_STATE_WORKERS	1223
 /*!
  * cache: evictions that found no snapshot published by the running
@@ -7102,7 +7111,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * page
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	1280
-/*! cache: maximum bytes configured */
+/*! cache: maximum bytes configured, OTel type: otel_gauge */
 #define	WT_STAT_CONN_CACHE_BYTES_MAX			1281
 /*! cache: maximum clean page size seen at eviction per checkpoint */
 #define	WT_STAT_CONN_EVICTION_MAXIMUM_CLEAN_PAGE_SIZE_PER_CHECKPOINT	1282
@@ -7174,9 +7183,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	1306
 /*! cache: overflow pages read into cache */
 #define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1307
-/*! cache: page evict attempts by application threads */
+/*!
+ * cache: page evict attempts by application threads, OTel type:
+ * otel_counter
+ */
 #define	WT_STAT_CONN_EVICTION_APP_ATTEMPT		1308
-/*! cache: page evict failures by application threads */
+/*!
+ * cache: page evict failures by application threads, OTel type:
+ * otel_counter
+ */
 #define	WT_STAT_CONN_EVICTION_APP_FAIL			1309
 /*! cache: page eviction blocked due to materialization frontier */
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MATERIALIZATION	1310
@@ -7220,7 +7235,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * dirty content
  */
 #define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT_HS_DIRTY	1327
-/*! cache: pages read into cache */
+/*! cache: pages read into cache, OTel type: otel_counter */
 #define	WT_STAT_CONN_CACHE_READ				1328
 /*! cache: pages read into cache after truncate */
 #define	WT_STAT_CONN_CACHE_READ_DELETED			1329
@@ -7233,7 +7248,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * eviction
  */
 #define	WT_STAT_CONN_EVICTION_CLEAR_ORDINARY		1332
-/*! cache: pages requested from the cache */
+/*! cache: pages requested from the cache, OTel type: otel_counter */
 #define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1333
 /*! cache: pages requested from the cache due to pre-fetch */
 #define	WT_STAT_CONN_CACHE_PAGES_PREFETCH		1334
@@ -7400,7 +7415,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * stable btrees
  */
 #define	WT_STAT_CONN_CACHE_BYTES_LEAF_STABLE		1384
-/*! cache: tracked dirty bytes in the cache */
+/*! cache: tracked dirty bytes in the cache, OTel type: otel_gauge */
 #define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1385
 /*! cache: tracked dirty bytes in the cache from the ingest btrees */
 #define	WT_STAT_CONN_CACHE_BYTES_DIRTY_INGEST		1386
@@ -7552,7 +7567,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_HANDLE_SKIPPED		1447
 /*! checkpoint: most recent handles walked */
 #define	WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED		1448
-/*! checkpoint: most recent time (msecs) */
+/*! checkpoint: most recent time (msecs), OTel type: otel_counter */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1449
 /*! checkpoint: number of bytes reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES	1450
@@ -7905,7 +7920,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DH_CONN_HANDLE_CHECKPOINT_COUNT	1595
 /*! data-handle: connection data handle size */
 #define	WT_STAT_CONN_DH_CONN_HANDLE_SIZE		1596
-/*! data-handle: connection data handles currently active */
+/*!
+ * data-handle: connection data handles currently active, OTel type:
+ * otel_gauge
+ */
 #define	WT_STAT_CONN_DH_CONN_HANDLE_COUNT		1597
 /*! data-handle: connection sweep candidate became referenced */
 #define	WT_STAT_CONN_DH_SWEEP_REF			1598
@@ -9681,13 +9699,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * page
  */
 #define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE	2087
-/*! cache: bytes currently in the cache */
+/*! cache: bytes currently in the cache, OTel type: otel_gauge */
 #define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2088
 /*! cache: bytes dirty in the cache cumulative */
 #define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_TOTAL		2089
-/*! cache: bytes read into cache */
+/*! cache: bytes read into cache, OTel type: otel_counter */
 #define	WT_STAT_DSRC_CACHE_BYTES_READ			2090
-/*! cache: bytes written from cache */
+/*! cache: bytes written from cache, OTel type: otel_counter */
 #define	WT_STAT_DSRC_CACHE_BYTES_WRITE			2091
 /*! cache: checkpoint blocked page eviction */
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT	2092
@@ -9901,7 +9919,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2164
 /*! cache: pages evicted ahead of the page materialization frontier */
 #define	WT_STAT_DSRC_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	2165
-/*! cache: pages read into cache */
+/*! cache: pages read into cache, OTel type: otel_counter */
 #define	WT_STAT_DSRC_CACHE_READ				2166
 /*! cache: pages read into cache after truncate */
 #define	WT_STAT_DSRC_CACHE_READ_DELETED			2167
@@ -9909,7 +9927,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2168
 /*! cache: pages read into cache by checkpoint */
 #define	WT_STAT_DSRC_CACHE_READ_CHECKPOINT		2169
-/*! cache: pages requested from the cache */
+/*! cache: pages requested from the cache, OTel type: otel_counter */
 #define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2170
 /*! cache: pages requested from the cache due to pre-fetch */
 #define	WT_STAT_DSRC_CACHE_PAGES_PREFETCH		2171
@@ -9979,7 +9997,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_HS_INSERT_FULL_UPDATE	2191
 /*! cache: the number of times reverse modify inserted to history store */
 #define	WT_STAT_DSRC_CACHE_HS_INSERT_REVERSE_MODIFY	2192
-/*! cache: tracked dirty bytes in the cache */
+/*! cache: tracked dirty bytes in the cache, OTel type: otel_gauge */
 #define	WT_STAT_DSRC_CACHE_BYTES_DIRTY			2193
 /*! cache: tracked dirty internal page bytes in the cache */
 #define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_INTERNAL		2194
