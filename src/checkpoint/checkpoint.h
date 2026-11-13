@@ -80,9 +80,14 @@ struct __wt_ckpt_connection {
     WTI_CKPT_TIMER scrub;
     WTI_CKPT_TIMER stepdown;
 
-    /* Per-checkpoint reconciliation time accumulators (clock ticks, across all files). */
+    /*
+     * Per-checkpoint time accumulators, in clock ticks across all files. Reconcile and sync time
+     * feed the reconciliation percentage; the other is the checkpoint thread's own walk, measured
+     * directly rather than derived.
+     */
     wt_shared uint64_t reconcile_time_ticks;
     wt_shared uint64_t sync_time_ticks;
+    wt_shared uint64_t walk_ticks;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;

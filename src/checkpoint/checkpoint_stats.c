@@ -126,6 +126,9 @@ __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session)
     total_ticks = __wt_atomic_load_uint64_relaxed(&ckpt->sync_time_ticks);
     WT_STAT_CONN_SET(
       session, checkpoint_sync_rec_pct, total_ticks > 0 ? (rec_ticks * 100) / total_ticks : 0);
+
+    WT_STAT_CONN_SET(session, checkpoint_walk_time,
+      WT_CLOCKDIFF_US(__wt_atomic_load_uint64_relaxed(&ckpt->walk_ticks), 0));
 }
 
 /*
