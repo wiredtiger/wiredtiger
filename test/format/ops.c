@@ -293,26 +293,8 @@ timestamp_advance_stable_for_shutdown(WT_SESSION *session)
     if (!GV(RUNS_PREDICTABLE_REPLAY))
         timestamp_sync_threads_commit_ts();
 
-    wt_timestamp_t stable_timestamp = timestamp_minimum_committed();
-
-    /* Respect the predictable replay endpoint. */
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        const wt_timestamp_t stop_timestamp = __wt_atomic_load_uint64_acquire(&g.stop_timestamp);
-        if (stop_timestamp != WT_TS_NONE)
-            stable_timestamp = WT_MIN(stable_timestamp, stop_timestamp);
-    }
-
-    /* Advance stable while retaining oldest for historical reads. */
-    char config[WT_TS_HEX_STRING_SIZE + 32];
-    testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, stable_timestamp);
-    lock_writelock(session, &g.prepare_commit_lock);
-    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
-    lock_writeunlock(session, &g.prepare_commit_lock);
-    g.stable_timestamp = stable_timestamp;
-
-    if (FLD_ISSET(g.trace_flags, TRACE_TIMESTAMP))
-        trace_msg(session, "set ts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp,
-          g.stable_timestamp);
+    /* Preserve history for the saved snapshot checks. */
+    timestamp_once_internal(session, false, false, TIMESTAMP_STABLE);
 }
 
 /*
