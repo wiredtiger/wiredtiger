@@ -1917,11 +1917,10 @@ __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char 
          * verifying any table. Otherwise verify every table; the checks never run implicitly.
          */
         WT_RET(__wt_config_gets(session, cfg, "verify_internals", &cval));
-        if (cval.val != 0) {
+        if (cval.val != 0)
             WT_RET(__wt_verify_metadata_consistency(session));
-            return (0);
-        }
-        return (__session_verify_all(session, cfg));
+        else WT_RET(__session_verify_all(session, cfg));
+return (0);
     }
 
     return (__wt_schema_worker(
