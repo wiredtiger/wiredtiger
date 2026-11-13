@@ -1128,13 +1128,10 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
-    int64_t cc_duration;
-    int64_t cc_handle_processed;
     int64_t cc_pages_evict;
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
-    int64_t cc_success;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
     int64_t compress_read;

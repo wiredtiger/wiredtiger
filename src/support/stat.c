@@ -172,13 +172,10 @@ static const char *const __stats_dsrc_desc[] = {
   "cache_walk: Refs skipped during cache traversal",
   "cache_walk: Size of the root page",
   "cache_walk: Total number of pages currently in cache",
-  "checkpoint-cleanup: most recent duration on all eligible files (usecs)",
-  "checkpoint-cleanup: most recent handles processed",
   "checkpoint-cleanup: pages added for eviction",
   "checkpoint-cleanup: pages removed",
   "checkpoint-cleanup: pages skipped during tree walk",
   "checkpoint-cleanup: pages visited",
-  "checkpoint-cleanup: successful calls",
   "compression: compressed page maximum internal page size prior to compression",
   "compression: compressed page maximum leaf page size prior to compression ",
   "compression: compressed pages read",
@@ -524,13 +521,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_state_refs_skipped */
     /* not clearing cache_state_root_size */
     /* not clearing cache_state_pages */
-    /* not clearing cc_duration */
-    stats->cc_handle_processed = 0;
     stats->cc_pages_evict = 0;
     stats->cc_pages_removed = 0;
     stats->cc_pages_walk_skipped = 0;
     stats->cc_pages_visited = 0;
-    stats->cc_success = 0;
     /* not clearing compress_precomp_intl_max_page_size */
     /* not clearing compress_precomp_leaf_max_page_size */
     stats->compress_read = 0;
@@ -864,13 +858,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += from->cache_state_refs_skipped;
     to->cache_state_root_size += from->cache_state_root_size;
     to->cache_state_pages += from->cache_state_pages;
-    to->cc_duration += from->cc_duration;
-    to->cc_handle_processed += from->cc_handle_processed;
     to->cc_pages_evict += from->cc_pages_evict;
     to->cc_pages_removed += from->cc_pages_removed;
     to->cc_pages_walk_skipped += from->cc_pages_walk_skipped;
     to->cc_pages_visited += from->cc_pages_visited;
-    to->cc_success += from->cc_success;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
     to->compress_precomp_leaf_max_page_size += from->compress_precomp_leaf_max_page_size;
     to->compress_read += from->compress_read;
@@ -1211,13 +1202,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += WT_STAT_READ(from, cache_state_refs_skipped);
     to->cache_state_root_size += WT_STAT_READ(from, cache_state_root_size);
     to->cache_state_pages += WT_STAT_READ(from, cache_state_pages);
-    to->cc_duration += WT_STAT_READ(from, cc_duration);
-    to->cc_handle_processed += WT_STAT_READ(from, cc_handle_processed);
     to->cc_pages_evict += WT_STAT_READ(from, cc_pages_evict);
     to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
     to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
     to->cc_pages_visited += WT_STAT_READ(from, cc_pages_visited);
-    to->cc_success += WT_STAT_READ(from, cc_success);
     to->compress_precomp_intl_max_page_size +=
       WT_STAT_READ(from, compress_precomp_intl_max_page_size);
     to->compress_precomp_leaf_max_page_size +=

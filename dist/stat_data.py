@@ -343,6 +343,13 @@ conn_stats = [
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
+    # Checkpoint Cleanup statistics
+    ##########################################
+    CheckpointCleanupStat('cc_duration', 'most recent duration on all eligible files (usecs)', 'no_clear,no_scale'),
+    CheckpointCleanupStat('cc_handle_processed', 'most recent handles processed'),
+    CheckpointCleanupStat('cc_success', 'successful calls'),
+
+    ##########################################
     # Cursor operations
     ##########################################
     CursorStat('cursor_bulk_count', 'bulk cursor count', 'no_clear,no_scale'),
@@ -988,13 +995,10 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint cleanup statistics
     ##########################################
-    CheckpointCleanupStat('cc_duration', 'most recent duration on all eligible files (usecs)', 'no_clear,no_scale'),
-    CheckpointCleanupStat('cc_handle_processed', 'most recent handles processed'),
     CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
     CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
     CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
-    CheckpointCleanupStat('cc_success', 'successful calls'),
 
     ##########################################
     # LSM statistics
