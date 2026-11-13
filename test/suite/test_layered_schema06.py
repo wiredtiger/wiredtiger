@@ -63,7 +63,7 @@ class test_layered_schema06(wttest.WiredTigerTestCase):
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
                                                 self.conn_config_follower)
-        self.session_follow = self.conn_follow.open_session('')
+        self.session_follow = self.conn_follow.open_session('debug=(allow_internal_access=true)')
 
     def check_prohibited_ids(self, file_id):
         """

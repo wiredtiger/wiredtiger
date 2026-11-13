@@ -40,6 +40,7 @@ class test_layered_stepdown_dirty_outdated(wttest.WiredTigerTestCase):
 
     uri = 'layered:test_layered_stepdown_dirty_outdated'
     stable_uri = 'file:test_layered_stepdown_dirty_outdated.wt_stable'
+    session_config = 'debug=(allow_internal_access=true)'
 
     # Half the keys are deleted: the deleted-key heuristic needs strictly more than
     # WT_BTREE_DELETE_THRESHOLD (1000) tombstones on a single page pass to fire.
@@ -81,7 +82,7 @@ class test_layered_stepdown_dirty_outdated(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.cache_bytes_dirty), 0)
 
         # Keep a cursor on the live stable tree across the step-down and scan it afterwards.
-        scan_session = self.conn.open_session('')
+        scan_session = self.conn.open_session(self.session_config)
         scan_cursor = scan_session.open_cursor(self.stable_uri)
         self.conn.reconfigure('disaggregated=(role="follower")')
         while scan_cursor.next() == 0:

@@ -120,7 +120,9 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
             self.publish(self.uri, epoch=5)
 
         ingest_uri = "file:" + self.uri.split(":", 1)[1] + ".wt_ingest"
-        self.session.alter(ingest_uri, self.ingest_marker)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.alter(ingest_uri, self.ingest_marker)
+        debug_session.close()
 
         self.step_up()
 

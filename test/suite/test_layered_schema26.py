@@ -74,9 +74,11 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         )
 
         # No page of the table should have been seen by eviction.
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
         pages_seen = self.get_stat(
             wiredtiger.stat.dsrc.cache_eviction_pages_seen,
             self.stable_uri(self.uri),
+            session=debug_session,
         )
         self.assertEqual(pages_seen, 0)
 
@@ -86,9 +88,10 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # The stable checkpoint should contain every row written before publication.
         with wttest.open_cursor(
-            self.session,
+            debug_session,
             self.stable_uri(self.uri),
             config="checkpoint=WiredTigerCheckpoint",
         ) as cursor:
             count = sum(1 for _ in cursor)
+        debug_session.close()
         self.assertEqual(count, self.nrows)

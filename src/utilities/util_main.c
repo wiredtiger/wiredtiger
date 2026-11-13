@@ -227,6 +227,7 @@ main(int argc, char *argv[])
     size_t len;
     int ch, disagg_bad_flag, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
+    char session_cfg_buf[256];
     const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *rec_config,
       *session_config;
     bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
@@ -530,6 +531,15 @@ open:
     /* If we only want to verify the metadata, that is done in wiredtiger_open. We're done. */
     if (func == NULL && meta_verify)
         goto done;
+
+    /* The utility is a debugging tool and needs unrestricted internal-object access. */
+    if ((ret = __wt_snprintf(session_cfg_buf, sizeof(session_cfg_buf),
+           "debug=(allow_internal_access=true)%s%s", session_config == NULL ? "" : ",",
+           session_config == NULL ? "" : session_config)) != 0) {
+        (void)util_err(NULL, ret, NULL);
+        goto err;
+    }
+    session_config = session_cfg_buf;
 
     if ((ret = conn->open_session(conn, NULL, session_config, &session)) != 0) {
         (void)util_err(NULL, ret, NULL);

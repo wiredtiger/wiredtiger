@@ -31,6 +31,7 @@ import wiredtiger, wttest
 # Test startup cleanup on reopen.
 class test_chunkcache_cleanup(wttest.WiredTigerTestCase):
     uri = 'file:WiredTigerCC.wt'
+    session_config = 'debug=(allow_internal_access=true)'
 
     def metadata_search(self):
         meta = self.session.open_cursor('metadata:', None, None)

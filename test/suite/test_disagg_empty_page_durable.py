@@ -84,13 +84,15 @@ class test_disagg_empty_page_durable(wttest.WiredTigerTestCase):
 
     # Evict the stable leaf holding the key from the application thread.
     def evict(self, key):
-        c = self.session.open_cursor(self.stable_uri, None, 'debug=(release_evict)')
-        self.session.begin_transaction()
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.stable_uri, None, 'debug=(release_evict)')
+        debug_session.begin_transaction()
         c.set_key(key)
         c.search()
         c.reset()
         c.close()
-        self.session.rollback_transaction()
+        debug_session.rollback_transaction()
+        debug_session.close()
 
     # Start a checkpoint and return once it has published its snapshot. Checkpoint_slow then holds
     # it for ten seconds before it visits any tree.
