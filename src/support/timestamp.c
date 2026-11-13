@@ -425,10 +425,10 @@ __time_value_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
 
 /*
  * __time_value_start_obsolete_at_checkpoint --
- *     Was the start of a value time window already visible to everyone at the checkpoint's own
- *     oldest timestamp? The checkpoint's writer clears such a start from the cells it keeps, so the
- *     parent aggregate does not cover it, while a page rebuilt from a base image and deltas can
- *     still hold the original start.
+ *     Is the start of a value time window already visible to everyone at the checkpoint's own
+ *     oldest timestamp? The checkpoint's writer clears that from the cells, so the parent aggregate
+ *     does not cover it, while a page rebuilt from a base image and deltas can still hold the
+ *     original start.
  */
 static WT_INLINE bool
 __time_value_start_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
@@ -456,8 +456,7 @@ __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
     if (from_delta && __time_value_obsolete_at_checkpoint(session, tw))
         return (0);
 
-    /* The writer clears a kept cell's start once visible to all, so skip the durable start check.
-     */
+    /* The writer clears a cell's start once visible to all, so skip the durable start check. */
     bool start_obsolete = from_delta && __time_value_start_obsolete_at_checkpoint(session, tw);
 
     if (parent->newest_start_durable_ts != WT_TS_NONE &&
