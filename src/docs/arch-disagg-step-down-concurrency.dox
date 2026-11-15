@@ -15,8 +15,8 @@ These are the situations in which a transaction is rolled back:
 
 Schema operations also change their behavior after the step-down timestamp is set.
 
-Setting the step-down timestamp can run concurrently with cursor and schema operations, so these
-decisions require synchronization.
+Setting the step-down timestamp can happen concurrently with transactions, cursor operations, 
+and schema operations, so these interactions require synchronization.
 
 # Terminology and scope
 
