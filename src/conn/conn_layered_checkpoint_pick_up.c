@@ -1079,10 +1079,10 @@ __disagg_check_layered_stable_file(
 /*
  * __disagg_pick_up_new_layered_table --
  *     Copy the shared entries of a layered table that the local metadata does not have into the
- *     local metadata, creating the table's ingest table if needed after startup. The per-scheme
- *     keys and values are the shared entries for the table, NULL where the shared metadata has
- *     none. The caller has checked the "file:" entry, that this node did not drop the table, and
- *     that the local metadata has no entries for the table.
+ *     local metadata, leaving ingest table creation until first open. The per-scheme keys and
+ *     values are the shared entries for the table, NULL where the shared metadata has none. The
+ *     caller has checked the "file:" entry, that this node did not drop the table, and that the
+ *     local metadata has no entries for the table.
  */
 static int
 __disagg_pick_up_new_layered_table(WT_SESSION_IMPL *session, const char *const *sh_keys,
