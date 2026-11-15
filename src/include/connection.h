@@ -222,6 +222,28 @@ struct __wt_disagg_metadata_op {
 };
 
 /*
+ * WT_DISAGG_QUEUE_VIEW_ENTRY --
+ *     A table's latest queued CREATE or REMOVE, keyed by the queue entry's table name. The entry is
+ *     borrowed, so a view is only valid while the schema lock, which queue mutations also require,
+ *     is held.
+ */
+typedef struct {
+    WT_DISAGG_METADATA_OP *entry; /* The queued operation. */
+    size_t seq;                   /* Queue position, to keep the latest operation for a name. */
+} WT_DISAGG_QUEUE_VIEW_ENTRY;
+
+/*
+ * WT_DISAGG_QUEUE_VIEW --
+ *     The shared metadata queue sorted by table name, for callers that resolve many tables against
+ *     it. A short queue is left as a plain list: resolving one table scans it instead.
+ */
+typedef struct {
+    WT_DISAGG_QUEUE_VIEW_ENTRY *entries;
+    size_t entries_count; /* Tables in the sorted list; zero when the queue was not sorted. */
+    size_t queue_count;   /* CREATE/REMOVE entries in the queue when the view was built. */
+} WT_DISAGG_QUEUE_VIEW;
+
+/*
  * WT_DISAGG_PENDING_CRYPT_KEY --
  *      A pushed key waiting to be persisted at the next checkpoint.
  */

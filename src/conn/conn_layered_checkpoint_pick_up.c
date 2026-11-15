@@ -911,19 +911,39 @@ err:
 
 /*
  * __disagg_queued_create_remove --
- *     Return the latest create or remove queued for a table, and its schema epoch.
+ *     Return the latest create or remove queued for a table, and its schema epoch. Resolve it from
+ *     the queue view when it holds a sorted list, and from a single scan of the short queue
+ *     otherwise.
  */
 static void
-__disagg_queued_create_remove(WT_SESSION_IMPL *session, const char *name,
-  WT_SHARED_METADATA_OP *latest_opp, wt_timestamp_t *latest_epochp)
+__disagg_queued_create_remove(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view,
+  const char *name, WT_SHARED_METADATA_OP *latest_opp, wt_timestamp_t *latest_epochp)
 {
-    WT_DISAGG_METADATA_OP *latest_entry;
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *latest;
 
-    __wt_spin_lock(session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
-    latest_entry = __wt_disagg_table_latest_create_remove(session, name);
-    *latest_opp = latest_entry == NULL ? WT_SHARED_METADATA_NONE : latest_entry->metadata_op;
-    *latest_epochp = latest_entry == NULL ? WT_SCHEMA_EPOCH_NONE : latest_entry->schema_epoch;
-    __wt_spin_unlock(session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
+    conn = S2C(session);
+
+    *latest_opp = WT_SHARED_METADATA_NONE;
+    *latest_epochp = WT_SCHEMA_EPOCH_NONE;
+
+    if (view->queue_count == 0)
+        return;
+
+    if (view->entries_count != 0) {
+        if ((latest = __wti_disagg_queue_view_latest(view, name)) != NULL) {
+            *latest_opp = latest->metadata_op;
+            *latest_epochp = latest->schema_epoch;
+        }
+        return;
+    }
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    if ((latest = __wt_disagg_table_latest_create_remove(session, name)) != NULL) {
+        *latest_opp = latest->metadata_op;
+        *latest_epochp = latest->schema_epoch;
+    }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
 
 /*
@@ -932,8 +952,8 @@ __disagg_queued_create_remove(WT_SESSION_IMPL *session, const char *name,
  *     metadata has.
  */
 static bool
-__disagg_stable_file_pickup_deferred(
-  WT_SESSION_IMPL *session, const char *name, wt_timestamp_t ckpt_schema_epoch)
+__disagg_stable_file_pickup_deferred(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view,
+  const char *name, wt_timestamp_t ckpt_schema_epoch)
 {
     WT_SHARED_METADATA_OP latest_op;
     wt_timestamp_t latest_epoch;
@@ -943,7 +963,7 @@ __disagg_stable_file_pickup_deferred(
      * stable component is a dropped incarnation's; defer adopting it to a checkpoint that covers
      * the local create.
      */
-    __disagg_queued_create_remove(session, name, &latest_op, &latest_epoch);
+    __disagg_queued_create_remove(session, view, name, &latest_op, &latest_epoch);
     return (ckpt_schema_epoch != WT_SCHEMA_EPOCH_NONE && latest_op == WT_SHARED_METADATA_CREATE &&
       latest_epoch > ckpt_schema_epoch);
 }
@@ -955,15 +975,15 @@ __disagg_stable_file_pickup_deferred(
  *     mode, panic unless a queued remove above the checkpoint's schema epoch explains the table.
  */
 static int
-__disagg_check_shared_only_table(
-  WT_SESSION_IMPL *session, const char *name, wt_timestamp_t ckpt_schema_epoch, bool *local_dropp)
+__disagg_check_shared_only_table(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view,
+  const char *name, wt_timestamp_t ckpt_schema_epoch, bool *local_dropp)
 {
     WT_SHARED_METADATA_OP latest_op;
     wt_timestamp_t latest_epoch;
 
     *local_dropp = false;
 
-    __disagg_queued_create_remove(session, name, &latest_op, &latest_epoch);
+    __disagg_queued_create_remove(session, view, name, &latest_op, &latest_epoch);
     if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA) &&
       (latest_op != WT_SHARED_METADATA_REMOVE || latest_epoch <= ckpt_schema_epoch))
         WT_RET_PANIC(session, EINVAL,
@@ -1026,8 +1046,8 @@ err:
  *     mode, panic unless a queued create above the checkpoint's schema epoch explains the table.
  */
 static int
-__disagg_check_local_only_table(
-  WT_SESSION_IMPL *session, const char *name, wt_timestamp_t ckpt_schema_epoch)
+__disagg_check_local_only_table(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view,
+  const char *name, wt_timestamp_t ckpt_schema_epoch)
 {
     WT_SHARED_METADATA_OP latest_op;
     wt_timestamp_t latest_epoch;
@@ -1035,7 +1055,7 @@ __disagg_check_local_only_table(
     if (!F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA))
         return (0);
 
-    __disagg_queued_create_remove(session, name, &latest_op, &latest_epoch);
+    __disagg_queued_create_remove(session, view, name, &latest_op, &latest_epoch);
     if (latest_op != WT_SHARED_METADATA_CREATE || latest_epoch <= ckpt_schema_epoch)
         WT_RET_PANIC(session, EINVAL,
           "strict checkpoint metadata validation failed: table \"%s\" is present in the local "
@@ -1244,6 +1264,7 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
     WT_DECL_RET;
     WT_DISAGG_FILE_ENTRY file_entry;
     WT_DISAGG_META_SCAN md, sh;
+    WT_DISAGG_QUEUE_VIEW view;
     WT_DISAGG_STABLE_BTREE_IDS stable_btree_ids;
     WT_PREFETCH_SCAN prefetch_scan;
     int i;
@@ -1256,6 +1277,7 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
     md_write_cursor = NULL;
     WT_CLEAR(prefetch_scan);
     WT_CLEAR(stable_btree_ids);
+    WT_CLEAR(view);
 
     /*
      * The walk below is a bounded, forward-only scan of the shared metadata, where crossing a page
@@ -1264,6 +1286,9 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
      * the prefetch heuristics recognizes it.
      */
     __wti_prefetch_scan_begin(session, &prefetch_scan);
+
+    /* Resolve every table's queued CREATE/REMOVE state from one snapshot of the queue. */
+    WT_ERR(__wti_disagg_queue_view_init(session, &view));
 
     /*
      * !!!
@@ -1366,7 +1391,8 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
                  * Skip the shared "file:" entry if a queued local create defers it. The merge sees
                  * the local entry missing at every pickup, so the deferral is rechecked each time.
                  */
-                if (__disagg_stable_file_pickup_deferred(session, current, ckpt_schema_epoch))
+                if (__disagg_stable_file_pickup_deferred(
+                      session, &view, current, ckpt_schema_epoch))
                     continue;
                 /*
                  * We already have the layered table in the local metadata; we are just picking up
@@ -1391,8 +1417,8 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
             }
 
             /* Do not recreate a table that this node dropped. */
-            WT_ERR(
-              __disagg_check_shared_only_table(session, current, ckpt_schema_epoch, &local_drop));
+            WT_ERR(__disagg_check_shared_only_table(
+              session, &view, current, ckpt_schema_epoch, &local_drop));
             if (local_drop)
                 continue;
 
@@ -1417,7 +1443,7 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
              * recreate of the same name both published below the checkpoint keep the layered: entry
              * on both sides, so that sequence does not reach here.
              */
-            WT_ERR(__disagg_check_local_only_table(session, current, ckpt_schema_epoch));
+            WT_ERR(__disagg_check_local_only_table(session, &view, current, ckpt_schema_epoch));
         } else {
             /*
              * Neither the local nor the shared metadata has a layered: entry for this table name.
@@ -1513,6 +1539,7 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
 
 err:
     __wti_prefetch_scan_end(session, &prefetch_scan);
+    __wti_disagg_queue_view_free(session, &view);
 
     __wt_free(session, stable_btree_ids.ids);
     __wt_scr_free(session, &current_buf);
