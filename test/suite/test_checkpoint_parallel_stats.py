@@ -26,6 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
+
 import wttest
 from wiredtiger import stat
 
@@ -80,18 +82,23 @@ class test_checkpoint_parallel_stats(wttest.WiredTigerTestCase):
 
         self.assertGreater(stats['pages'], 0,
             'Parallel checkpoint workers were expected to reconcile pages')
-        self.assertGreater(stats['walk'], 0,
-            'The checkpoint thread was expected to spend time walking trees')
-        self.assertGreater(stats['wait'], 0,
-            'The checkpoint thread was expected to wait for parallel workers')
-        self.assertGreater(stats['tree'], 0,
-            'Per-tree checkpoint duration was expected to be set')
 
-        # Both times are intervals inside the per-tree wall time. The metadata tree, checkpointed
-        # outside this window, adds a few pages to the two timers, far fewer than the remainder
-        # they do not account for.
-        self.assertLessEqual(stats['walk'] + stats['wait'], stats['tree'],
-            'Walk and worker wait should fit inside the per-tree duration')
+        # WiredTiger reads the clock from the system time on Windows, which only advances once per
+        # timer tick, so intervals this short read as zero. Checking the timers there would need a
+        # tree large enough for the walk to span several ticks.
+        if os.name != 'nt':
+            self.assertGreater(stats['walk'], 0,
+                'The checkpoint thread was expected to spend time walking trees')
+            self.assertGreater(stats['wait'], 0,
+                'The checkpoint thread was expected to wait for parallel workers')
+            self.assertGreater(stats['tree'], 0,
+                'Per-tree checkpoint duration was expected to be set')
+
+            # Both times are intervals inside the per-tree wall time. The metadata tree,
+            # checkpointed outside this window, adds a few pages to the two timers, far fewer than
+            # the remainder they do not account for.
+            self.assertLessEqual(stats['walk'] + stats['wait'], stats['tree'],
+                'Walk and worker wait should fit inside the per-tree duration')
 
 if __name__ == '__main__':
     wttest.run()
