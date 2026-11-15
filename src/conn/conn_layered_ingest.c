@@ -319,12 +319,12 @@ __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, W
 }
 
 /*
- * __wti_layered_create_missing_ingest_table --
+ * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from its layered table's configuration, opening its handle if
  *     requested. An existing ingest table is left unchanged.
  */
-int
-__wti_layered_create_missing_ingest_table(
+static int
+__layered_create_missing_ingest_table(
   WT_SESSION_IMPL *session, const char *ingest_uri, const char *layered_cfg, bool open_dhandle)
 {
     WT_CONFIG_ITEM key_format, value_format;
@@ -406,7 +406,7 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     time_start = __wt_clock(session);
     WT_ERR(__wt_open_internal_session(S2C(session), "ingest-create-on-open", true,
       F_MASK(session, WT_SESSION_SAVE_ERRORS), session->lock_flags, &int_session));
-    ret = __wti_layered_create_missing_ingest_table(int_session, ingest_uri, layered_cfg, false);
+    ret = __layered_create_missing_ingest_table(int_session, ingest_uri, layered_cfg, false);
     if (int_session->err_info.err != 0)
         __wt_session_set_last_error(session, int_session->err_info.err,
           int_session->err_info.sub_level_err, "%s", int_session->err_info.err_msg);
