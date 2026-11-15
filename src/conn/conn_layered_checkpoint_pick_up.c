@@ -927,10 +927,7 @@ __disagg_queued_create_remove(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VI
     *latest_opp = WT_SHARED_METADATA_NONE;
     *latest_epochp = WT_SCHEMA_EPOCH_NONE;
 
-    if (view->queue_count == 0)
-        return;
-
-    if (view->entries_count != 0) {
+    if (view->built) {
         if ((latest = __wti_disagg_queue_view_latest(view, name)) != NULL) {
             *latest_opp = latest->metadata_op;
             *latest_epochp = latest->schema_epoch;

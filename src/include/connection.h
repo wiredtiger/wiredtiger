@@ -239,8 +239,8 @@ typedef struct {
  */
 typedef struct {
     WT_DISAGG_QUEUE_VIEW_ENTRY *entries;
-    size_t entries_count; /* Tables in the sorted list; zero when the queue was not sorted. */
-    size_t queue_count;   /* CREATE/REMOVE entries in the queue when the view was built. */
+    size_t entries_count; /* Tables in the sorted list. */
+    bool built;           /* The queue was long enough to index; otherwise callers scan it. */
 } WT_DISAGG_QUEUE_VIEW;
 
 /*

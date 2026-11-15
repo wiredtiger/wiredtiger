@@ -890,7 +890,7 @@ __wti_disagg_queue_view_free(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
  * __wti_disagg_queue_view_init --
  *     Sort the queue's CREATE/REMOVE operations by name, keeping one per table. The caller holds
  *     the schema lock and does not hold the queue lock. A short or empty queue is left as a plain
- *     list and only its size is recorded.
+ *     list and its callers scan it.
  */
 int
 __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *view)
@@ -898,7 +898,7 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    size_t count, i, out;
+    size_t alloc_bytes, i, out;
 
     conn = S2C(session);
     WT_CLEAR(*view);
@@ -908,24 +908,23 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    count = 0;
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE)
-            ++count;
-    view->queue_count = count;
-    if (count <= WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES)
-        goto err;
-
-    WT_ERR(__wt_calloc_def(session, count, &view->entries));
-
-    i = 0;
+    alloc_bytes = 0;
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
         if (entry->metadata_op != WT_SHARED_METADATA_UPDATE) {
-            view->entries[i].entry = entry;
-            view->entries[i].seq = i;
-            ++i;
+            WT_ERR(
+              __wt_realloc_def(session, &alloc_bytes, view->entries_count + 1, &view->entries));
+            view->entries[view->entries_count].entry = entry;
+            view->entries[view->entries_count].seq = view->entries_count;
+            ++view->entries_count;
         }
-    view->entries_count = count;
+
+    /* A short queue is not worth a sorted copy: its callers scan it instead. */
+    if (view->entries_count <= WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES) {
+        __wt_free(session, view->entries);
+        view->entries_count = 0;
+        goto err;
+    }
+    view->built = true;
 
     __wt_qsort(view->entries, view->entries_count, sizeof(WT_DISAGG_QUEUE_VIEW_ENTRY),
       __disagg_queue_view_cmp);
@@ -947,8 +946,8 @@ err:
 
 /*
  * __wti_disagg_queue_view_latest --
- *     Return the latest CREATE or REMOVE queued for a table, or NULL if it has none. Only valid
- *     when the view holds a sorted list: callers check the entry count first.
+ *     Return the latest CREATE or REMOVE queued for a table, or NULL if it has none. The callers
+ *     use it only for a built view.
  */
 WT_DISAGG_METADATA_OP *
 __wti_disagg_queue_view_latest(const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
@@ -2086,9 +2085,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL)
             continue;
-        latest = view.entries_count != 0 ?
-          __wti_disagg_queue_view_latest(&view, entry->table_name) :
-          __wt_disagg_table_latest_create_remove(session, entry->table_name);
+        latest = view.built ? __wti_disagg_queue_view_latest(&view, entry->table_name) :
+                              __wt_disagg_table_latest_create_remove(session, entry->table_name);
         if (latest != entry)
             continue;
 
