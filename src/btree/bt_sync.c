@@ -639,8 +639,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
           WT_CLOCKDIFF_MS(reconcile_time, 0), WT_PARALLEL_CHECKPOINTS_NUM_THREADS(session),
           reconcile_time_pct);
         __wt_checkpoint_rec_time_stats(session, reconcile_time, time_stop - time_start);
-        (void)__wt_atomic_add_uint64(&conn->ckpt.parallel_wait_ticks, wait_time);
-        (void)__wt_atomic_add_uint64(&conn->ckpt.walk_ticks, walk_time);
     }
 
 err:
@@ -652,8 +650,17 @@ err:
      * Wait for the workers to finish, as they may be still doing work if we got here because of an
      * error.
      */
-    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session)) {
+        wait_start = __wt_clock(session);
         WT_TRET(__wt_checkpoint_parallel_finish(session, NULL));
+        wait_time += __wt_clock(session) - wait_start;
+    }
+
+    /* Accumulate the per-tree times even when the tree failed. */
+    if (WT_SESSION_IS_CHECKPOINT(session)) {
+        (void)__wt_atomic_add_uint64(&conn->ckpt.parallel_wait_ticks, wait_time);
+        (void)__wt_atomic_add_uint64(&conn->ckpt.walk_ticks, walk_time);
+    }
 
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
