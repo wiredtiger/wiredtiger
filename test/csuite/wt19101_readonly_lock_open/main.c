@@ -29,8 +29,8 @@
 
 /*
  * A read-only connection opens the lock file for writing to detect another process using the
- * database, and ignores the failure when it cannot. Some read-only file systems fail that open with
- * EPERM instead of EACCES, so use the fail file system to inject it.
+ * database, and ignores the failure when it cannot. Read-only file systems fail that open with
+ * EPERM or EROFS rather than EACCES, so use the fail file system to inject both errors.
  */
 
 #ifndef WT_FAIL_FS_LIB
@@ -39,6 +39,53 @@
 
 #define MAX_KV 100
 
+/*
+ * check_lock_open_failure --
+ *     Check that a read-only connection opens the database and a read-write connection fails when
+ *     opening the lock file returns the given error.
+ */
+static void
+check_lock_open_failure(TEST_OPTS *opts, const char *build_dir, int error, const char *error_name)
+{
+    WT_CONNECTION *conn;
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
+    int count, ret;
+    char config[1024], value[128];
+
+    testutil_snprintf(value, sizeof(value), "%d|WiredTiger.lock", error);
+    testutil_check(setenv("WT_FAIL_FS_OPEN_ERROR", value, 1));
+
+    /*
+     * A read-only connection must ignore the lock file failure and be able to read the data.
+     */
+    testutil_snprintf(config, sizeof(config), "readonly=true,extensions=(%s/%s=(early_load=true))",
+      build_dir, WT_FAIL_FS_LIB);
+    if ((ret = wiredtiger_open(opts->home, NULL, config, &conn)) != 0)
+        testutil_die(ret, "read-only open, lock file open failed with %s", error_name);
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+    count = 0;
+    while (cursor->next(cursor) == 0)
+        ++count;
+    testutil_assert(count == MAX_KV);
+    testutil_check(cursor->close(cursor));
+    testutil_check(session->close(session, NULL));
+    testutil_check(conn->close(conn, NULL));
+
+    /*
+     * A read-write connection must still fail: the error can only be ignored when the connection
+     * cannot modify the database. This also confirms the lock file open was failed.
+     */
+    testutil_snprintf(
+      config, sizeof(config), "extensions=(%s/%s=(early_load=true))", build_dir, WT_FAIL_FS_LIB);
+    ret = wiredtiger_open(opts->home, NULL, config, &conn);
+    if (ret != error)
+        testutil_die(ret, "read-write open, expected %s on the lock file", error_name);
+
+    testutil_check(unsetenv("WT_FAIL_FS_OPEN_ERROR"));
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -46,8 +93,8 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_SESSION *session;
-    int i, ret;
-    char config[1024], flib[1024];
+    int i;
+    char flib[1024];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -69,33 +116,8 @@ main(int argc, char *argv[])
     testutil_check(conn->close(conn, NULL));
 
     testutil_build_dir(opts, flib, sizeof(flib));
-    testutil_check(setenv("WT_FAIL_FS_OPEN_EPERM", "WiredTiger.lock", 1));
+    check_lock_open_failure(opts, flib, EPERM, "EPERM");
+    check_lock_open_failure(opts, flib, EROFS, "EROFS");
 
-    /*
-     * A read-only connection must ignore the lock file failure and be able to read the data.
-     */
-    testutil_snprintf(config, sizeof(config), "readonly=true,extensions=(%s/%s=(early_load=true))",
-      flib, WT_FAIL_FS_LIB);
-    testutil_check(wiredtiger_open(opts->home, NULL, config, &conn));
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
-    i = 0;
-    while (cursor->next(cursor) == 0)
-        ++i;
-    testutil_assert(i == MAX_KV);
-    testutil_check(cursor->close(cursor));
-    testutil_check(session->close(session, NULL));
-    testutil_check(conn->close(conn, NULL));
-
-    /*
-     * A read-write connection must still fail: the error can only be ignored when the connection
-     * cannot modify the database. This also confirms the lock file open was failed.
-     */
-    testutil_snprintf(
-      config, sizeof(config), "extensions=(%s/%s=(early_load=true))", flib, WT_FAIL_FS_LIB);
-    ret = wiredtiger_open(opts->home, NULL, config, &conn);
-    testutil_assert(ret == EPERM);
-
-    testutil_check(unsetenv("WT_FAIL_FS_OPEN_EPERM"));
     return (0);
 }
