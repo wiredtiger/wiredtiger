@@ -264,7 +264,7 @@ struct __wt_cursor_btree {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CBT_ACTIVE 0x001u             /* Active in the tree */
-#define WT_CBT_APPEND_HISTORY 0x002u     /* Cursor has appended to the tree */
+#define WT_CBT_APPEND_TREE 0x002u        /* Cursor has appended to the tree */
 #define WT_CBT_CACHEABLE_RLE_CELL 0x004u /* Col-store: value in RLE cell valid for its keys */
 #define WT_CBT_ITERATE_APPEND 0x008u     /* Col-store: iterating append list */
 #define WT_CBT_ITERATE_NEXT 0x010u       /* Next iteration configuration */
