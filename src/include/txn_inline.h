@@ -187,6 +187,17 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 }
 
 /*
+ * __wt_prepare_state_unresolved --
+ *     Return if a prepare state describes an unresolved prepared operation. The caller is
+ *     responsible for loading the state with the ordering its context requires.
+ */
+static WT_INLINE bool
+__wt_prepare_state_unresolved(uint8_t prepare_state)
+{
+    return (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
+}
+
+/*
  * __txn_apply_prepare_state_update --
  *     Change the prepared state of an update using the provided time point.
  */
@@ -2107,7 +2118,7 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
         (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
           txn->isolation == WT_ISO_SNAPSHOT));
 
-    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->stepdown_ts_set)
+    if (!is_writer || stepdown_ts == WT_TS_NONE || F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET))
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
@@ -2157,7 +2168,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
-    txn->stepdown_ts_set = false;
+    F_CLR(txn, WT_TXN_STEPDOWN_TS_SET);
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -2210,8 +2221,11 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      */
     if (__wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
-                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
+        if (__wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) !=
+          WT_TS_NONE)
+            F_SET(txn, WT_TXN_STEPDOWN_TS_SET);
+        else
+            F_CLR(txn, WT_TXN_STEPDOWN_TS_SET);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     }
 

@@ -61,7 +61,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     uint64_t now, sweep_max, sweep_min;
     uint32_t i, nbuckets, nclosed, nexamined, position;
     int t_ret;
-    bool productive;
+    bool no_wait, productive;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
         return (0);
@@ -106,8 +106,13 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     nbuckets = nclosed = nexamined = 0;
     saved_dhandle = session->dhandle;
 
-    /* Turn off caching so that cursor close doesn't try to cache. */
+    /*
+     * Turn off caching so that cursor close doesn't try to cache. Swept cursors are discarded, so
+     * don't wait for their dhandle locks: a busy handle is treated as dead.
+     */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
+    no_wait = FLD_ISSET(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
+    FLD_SET(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
     for (i = 0; i < sweep_max && productive; i++) {
         ++nbuckets;
         cached_list = &session->cursor_cache[position];
@@ -146,6 +151,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
 
     session->cursor_sweep_position = position;
     F_SET(session, WT_SESSION_CACHE_CURSORS);
+    if (!no_wait)
+        FLD_CLR(session->lock_flags, WT_SESSION_NO_DHANDLE_WAIT);
 
     WT_STAT_CONN_INCR(session, cursor_sweep);
     WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
@@ -1902,11 +1909,22 @@ err:
 static int
 __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
-    if (uri == NULL)
-        return (__session_verify_all(session, cfg));
+    WT_CONFIG_ITEM cval;
 
-    return (__wt_schema_worker(
-      session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+    /* A specific URI verifies that object. */
+    if (uri != NULL)
+        return (__wt_schema_worker(
+          session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+
+    /*
+     * With verify_internals set, run only the database-wide checks and return, without verifying
+     * any table. Otherwise verify every table; the checks never run implicitly.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "verify_internals", &cval));
+    if (cval.val != 0)
+        return (__wt_verify_metadata_consistency(session));
+    else
+        return (__session_verify_all(session, cfg));
 }
 
 /*
@@ -2054,7 +2072,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
      * is set. This check is the guarantee: under the step-down lock it always observes a set
      * timestamp, so no straddler commits after the timestamp is in place.
      */
-    if (txn->mod_count != 0 && !txn->stepdown_ts_set && __wt_conn_is_disagg(session)) {
+    if (txn->mod_count != 0 && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
+      __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
         ret = __wt_txn_stepdown_straddler_check(session, true);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
