@@ -1197,8 +1197,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_btree_syncing_by_other_sessions(session))
         return (0);
 
-    /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */
-    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+    /* The checkpoint cursor dhandle is read-only and outdated pages are discarded. Do not dirty. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) || __wt_btree_is_outdated_disagg(session))
         return (0);
 
     /*
