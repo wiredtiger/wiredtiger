@@ -43,29 +43,79 @@ require_get_key_value(WT_CURSOR *cursor, const char *expected_key, const char *e
 static void
 insert_sample_values(WT_CURSOR *cursor)
 {
-    REQUIRE(insert_key_value(cursor, "key1", "value1") == 0);
-    REQUIRE(insert_key_value(cursor, "key2", "value2") == 0);
-    REQUIRE(insert_key_value(cursor, "key3", "value3") == 0);
-    REQUIRE(insert_key_value(cursor, "key4", "value4") == 0);
-    REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
+    REQUIRE(insert_key_value(cursor, "k1", "v1") == 0);
+    REQUIRE(insert_key_value(cursor, "k2", "v2") == 0);
+    REQUIRE(insert_key_value(cursor, "k3", "v3") == 0);
+    REQUIRE(insert_key_value(cursor, "k4", "v4") == 0);
+    REQUIRE(insert_key_value(cursor, "k5", "v5") == 0);
 }
 
-TEST_CASE("Cursor: next_raw_key_value_batch", "[cursor]")
+static void
+check_next_raw_key_value_batch(WT_SESSION *session, const char *uri)
+{
+    WT_CURSOR *cursor = nullptr;
+    REQUIRE(session->open_cursor(session, uri, nullptr, nullptr, &cursor) == 0);
+    REQUIRE(session->begin_transaction(session, nullptr) == 0);
+    insert_sample_values(cursor);
+    REQUIRE(session->commit_transaction(session, "commit_timestamp=10") == 0);
+    REQUIRE(cursor->reset(cursor) == 0);
+
+    WT_ITEM key{}, value{};
+    size_t n = 0;
+
+    /* Reject invalid arguments. */
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, &key, &value, 0, &n) == EINVAL);
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, nullptr, nullptr, 1, &n) == EINVAL);
+
+    const char *keys[] = {"k1", "k2", "k3", "k4", "k5"};
+    const char *values[] = {"v1", "v2", "v3", "v4", "v5"};
+    for (int i = 0; i < 5; i++) {
+        n = 0;
+        REQUIRE(cursor->next_raw_key_value_batch(cursor, &key, &value, 1, &n) == 0);
+        REQUIRE(n >= 1);
+        REQUIRE(strcmp(static_cast<const char *>(key.data), keys[i]) == 0);
+        REQUIRE(strcmp(static_cast<const char *>(value.data), values[i]) == 0);
+        REQUIRE(require_get_key_value(cursor, keys[i], values[i]));
+    }
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, &key, &value, 1, &n) == WT_NOTFOUND);
+
+    /* Only keys, and only values, are both acceptable. */
+    REQUIRE(cursor->reset(cursor) == 0);
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, &key, nullptr, 1, &n) == 0);
+    REQUIRE(strcmp(static_cast<const char *>(key.data), "k1") == 0);
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, nullptr, &value, 1, &n) == 0);
+    REQUIRE(strcmp(static_cast<const char *>(value.data), "v2") == 0);
+
+    REQUIRE(cursor->close(cursor) == 0);
+}
+
+TEST_CASE("next_raw_key_value_batch_table", "[cursor]")
 {
     connection_wrapper conn(DB_HOME);
     WT_SESSION *session = &conn.create_session()->iface;
     REQUIRE(session->create(session, "table:t", "key_format=S,value_format=S") == 0);
-    WT_CURSOR *cursor = nullptr;
-    REQUIRE(session->open_cursor(session, "table:t", nullptr, nullptr, &cursor) == 0);
-    insert_sample_values(cursor);
-    REQUIRE(cursor->reset(cursor) == 0);
-
-    WT_ITEM key, value;
-    size_t n = 0;
-    REQUIRE(cursor->next_raw_key_value_batch(cursor, &key, &value, 1, &n) == 0);
-    REQUIRE(n == 1);
-    REQUIRE(require_get_key_value(cursor, "key1", "value1"));
-
-    REQUIRE(cursor->close(cursor) == 0);
+    check_next_raw_key_value_batch(session, "table:t");
     REQUIRE(session->close(session, nullptr) == 0);
 }
+
+TEST_CASE("next_raw_key_value_batch_file", "[cursor]")
+{
+    connection_wrapper conn(DB_HOME);
+    WT_SESSION *session = &conn.create_session()->iface;
+    REQUIRE(session->create(session, "file:f.wt", "key_format=S,value_format=S") == 0);
+    check_next_raw_key_value_batch(session, "file:f.wt");
+    REQUIRE(session->close(session, nullptr) == 0);
+}
+
+#ifndef _WIN32
+#include "../../misc_tests/layered_disagg_utils.h"
+
+TEST_CASE("next_raw_key_value_batch_layered", "[cursor]")
+{
+    connection_wrapper conn(DB_HOME, layered_disagg_build_cfg("leader").c_str());
+    WT_SESSION *session = &conn.create_session()->iface;
+    REQUIRE(session->create(session, "layered:l", "key_format=S,value_format=S, block_manager=disagg,type=layered") == 0);
+    check_next_raw_key_value_batch(session, "layered:l");
+    REQUIRE(session->close(session, nullptr) == 0);
+}
+#endif
