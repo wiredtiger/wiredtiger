@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 # in both scan directions.
 @wttest.skip_for_hook('disagg', 'requires an ordinary non-layered reference connection')
 @disagg_test_class
-class test_layered_prepare12(wttest.WiredTigerTestCase):
+class test_layered_prepare13(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
         ('layered', dict(layered=True)), ('plain', dict(layered=False))], [
         ('next', dict(forward=True)), ('prev', dict(forward=False))])
