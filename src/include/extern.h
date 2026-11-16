@@ -6,8 +6,9 @@ extern WT_DATA_SOURCE *__wt_schema_get_source(WT_SESSION_IMPL *session, const ch
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_DISAGG_METADATA_OP *__wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session,
   const char *table_name) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_DISAGG_METADATA_OP *__wti_disagg_queue_view_latest(const WT_DISAGG_QUEUE_VIEW *view,
-  const char *table_name) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_DISAGG_METADATA_OP *__wti_disagg_queue_view_latest(
+  WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_EXT *__wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_HAZARD *__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref,

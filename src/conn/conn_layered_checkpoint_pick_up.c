@@ -913,7 +913,7 @@ err:
  * __disagg_queued_create_remove --
  *     Return the latest create or remove queued for a table, and its schema epoch. Resolve it from
  *     the queue view when it holds a sorted list, and from a single scan of the short queue
- *     otherwise.
+ *     otherwise. A missing view takes the scan, which is safe without the schema lock.
  */
 static void
 __disagg_queued_create_remove(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view,
@@ -927,8 +927,8 @@ __disagg_queued_create_remove(WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VI
     *latest_opp = WT_SHARED_METADATA_NONE;
     *latest_epochp = WT_SCHEMA_EPOCH_NONE;
 
-    if (view->built) {
-        if ((latest = __wti_disagg_queue_view_latest(view, name)) != NULL) {
+    if (view != NULL && view->built) {
+        if ((latest = __wti_disagg_queue_view_latest(session, view, name)) != NULL) {
             *latest_opp = latest->metadata_op;
             *latest_epochp = latest->schema_epoch;
         }

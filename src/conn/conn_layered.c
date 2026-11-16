@@ -836,9 +836,7 @@ __wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *tab
 }
 
 /*
- * How many queued operations make building the queue view worth it. The build costs about twenty
- * times a single scan, so a caller that resolves one table is better off scanning; the bar is set
- * for the callers that resolve a table for every entry in a walk.
+ * For small queues, building a sorted view is not worth the cost.
  */
 #define WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES 50
 
@@ -863,7 +861,7 @@ __disagg_queue_view_cmp(const void *a, const void *b)
 
 /*
  * __disagg_queue_view_name_cmp --
- *     Compare a table name key against an entry, to search a view reduced to one entry per name.
+ *     Compare a table name key against an entry, to search a view ordered by table name.
  */
 static int WT_CDECL
 __disagg_queue_view_name_cmp(const void *a, const void *b)
@@ -888,9 +886,8 @@ __wti_disagg_queue_view_free(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
 
 /*
  * __wti_disagg_queue_view_init --
- *     Sort the queue's CREATE/REMOVE operations by name, keeping one per table. The caller holds
- *     the schema lock and does not hold the queue lock. A short or empty queue is left as a plain
- *     list and its callers scan it.
+ *     Sort the queue's CREATE/REMOVE operations by table name, then by queue position. A short or
+ *     empty queue is left as a plain list and its callers scan it.
  */
 int
 __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *view)
@@ -909,9 +906,8 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /*
-     * Stop counting at the bar: a short queue is not worth a sorted copy, and its callers scan it
-     * instead. Every entry counts, UPDATE included: a resolving scan walks the whole queue either
-     * way, and only the comparison is skipped.
+     * Stop counting at the bar: a short queue is not worth a sorted copy, and its callers scan it.
+     * Every entry counts, UPDATE included, because a scan walks the whole queue either way.
      */
     count = 0;
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
@@ -948,9 +944,13 @@ err:
  *     use it only for a built view.
  */
 WT_DISAGG_METADATA_OP *
-__wti_disagg_queue_view_latest(const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
+__wti_disagg_queue_view_latest(
+  WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
 {
     WT_DISAGG_QUEUE_VIEW_ENTRY *end, *result;
+
+    WT_ASSERT(session, view != NULL && view->built);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
     if (view->entries_count == 0)
         return (NULL);
@@ -2092,7 +2092,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL)
             continue;
-        latest = view.built ? __wti_disagg_queue_view_latest(&view, entry->table_name) :
+        latest = view.built ? __wti_disagg_queue_view_latest(session, &view, entry->table_name) :
                               __wt_disagg_table_latest_create_remove(session, entry->table_name);
         if (latest != entry)
             continue;
