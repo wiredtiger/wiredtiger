@@ -163,7 +163,7 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      * The required maximum and minimum cannot be set via reconfigure and they are meaningless on a
      * newly created database. We're done in those cases.
      */
-    if (reconfig || conn->is_new ||
+    if (reconfig || F_ISSET(conn, WT_CONN_IS_NEW) ||
       (!__wt_version_defined(min_compat) && !__wt_version_defined(max_compat)))
         goto done;
 
