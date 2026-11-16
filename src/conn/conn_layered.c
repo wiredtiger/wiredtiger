@@ -898,7 +898,7 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    size_t alloc_bytes, i, out;
+    size_t alloc_bytes, count, i, out;
 
     conn = S2C(session);
     WT_CLEAR(*view);
@@ -907,6 +907,18 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    /*
+     * Stop counting at the bar: a short queue is not worth a sorted copy, and its callers scan it
+     * instead. Every entry counts, UPDATE included: a resolving scan walks the whole queue either
+     * way, and only the comparison is skipped.
+     */
+    count = 0;
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (++count > WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES)
+            break;
+    if (count <= WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES)
+        goto err;
 
     alloc_bytes = 0;
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
@@ -917,13 +929,6 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
             view->entries[view->entries_count].seq = view->entries_count;
             ++view->entries_count;
         }
-
-    /* A short queue is not worth a sorted copy: its callers scan it instead. */
-    if (view->entries_count <= WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES) {
-        __wt_free(session, view->entries);
-        view->entries_count = 0;
-        goto err;
-    }
     view->built = true;
 
     __wt_qsort(view->entries, view->entries_count, sizeof(WT_DISAGG_QUEUE_VIEW_ENTRY),
