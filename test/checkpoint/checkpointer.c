@@ -388,7 +388,8 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 
         if (should_commit) {
             /* Use timestamps greater than current stable */
-            commit_ts = durable_ts = current_stable + 1;
+            commit_ts = current_stable + 1;
+            durable_ts = commit_ts + __wt_random(&td->data_rnd) % 2;
 
             testutil_snprintf(buf, sizeof(buf),
               "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts, commit_ts);

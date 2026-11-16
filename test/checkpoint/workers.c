@@ -311,7 +311,7 @@ real_worker(THREAD_DATA *td)
 {
     WT_CURSOR **cursors;
     WT_SESSION *session;
-    wt_timestamp_t base_ts;
+    wt_timestamp_t base_ts, durable_ts;
     uint64_t prepared_id;
     u_int i, keyno, next_rnd;
     int j, ret, t_ret;
@@ -437,8 +437,9 @@ real_worker(THREAD_DATA *td)
                                 (void)log_print_err("real_worker:prepare_transaction", ret, 1);
                                 goto err;
                             }
+                            durable_ts = base_ts + (__wt_random(&td->data_rnd) % 2 == 0 ? 0 : 2);
                             testutil_snprintf(buf, sizeof(buf),
-                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, base_ts,
+                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts,
                               base_ts);
                             prepared = true;
                         } else
