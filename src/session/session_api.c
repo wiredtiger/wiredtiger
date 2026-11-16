@@ -545,6 +545,14 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
+    if ((ret = __wt_conf_getones(session, conf, Debug.allow_internal_access, &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
     /*
      * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
      * is completed.
@@ -835,6 +843,57 @@ err:
 }
 
 /*
+ * __wt_session_is_layered_internal --
+ *     Check whether an object name identifies an ingest or stable constituent.
+ */
+bool
+__wt_session_is_layered_internal(WT_SESSION_IMPL *session, const char *name)
+{
+    return (name != NULL && __wt_conn_is_disagg(session) &&
+      (WT_URI_IS_INGEST(name) || WT_URI_IS_STABLE(name)));
+}
+
+/*
+ * __wt_session_is_global_internal --
+ *     Check an object name for metadata or history store files, including checkpoint views.
+ */
+bool
+__wt_session_is_global_internal(const char *name)
+{
+    size_t len;
+
+    if (name == NULL)
+        return (false);
+
+    len = strcspn(name, "/");
+    return (WT_STRING_LIT_MATCH(WT_METAFILE, name, len) ||
+      WT_STRING_LIT_MATCH(WT_HS_FILE, name, len) ||
+      WT_STRING_LIT_MATCH(WT_DISAGG_METADATA_FILE, name, len) ||
+      WT_STRING_LIT_MATCH(WT_HS_FILE_SHARED, name, len));
+}
+
+/*
+ * __wt_session_check_internal_uri --
+ *     Reject an internal file access selected by the caller's policy unless the session is exempt.
+ */
+int
+__wt_session_check_internal_uri(WT_SESSION_IMPL *session, const char *uri, bool condition)
+{
+    if (F_ISSET(session, WT_SESSION_INTERNAL | WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS))
+        return (0);
+    /* Nested API calls may access internal files on behalf of a logical table operation. */
+    if (!(API_USER_ENTRY(session)))
+        return (0);
+    if (!condition)
+        return (0);
+
+    WT_RET_MSG(session, EINVAL,
+      "%s: direct access to an internal table is not allowed; configure the session with "
+      "debug=(allow_internal_access=true) for debugging/repairing.",
+      uri);
+}
+
+/*
  * __session_open_cursor --
  *     WT_SESSION->open_cursor method.
  */
@@ -849,6 +908,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     bool dup_backup;
 #ifdef HAVE_DIAGNOSTIC
     struct timespec end_time, start_time;
+    size_t check_uri_len;
+    const char *check_uri;
     bool cursor_timing;
 
     cursor_timing = false;
@@ -884,6 +945,16 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     if ((to_dup == NULL && uri == NULL) || (to_dup != NULL && uri != NULL))
         WT_ERR_MSG(
           session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
+
+#ifdef HAVE_DIAGNOSTIC
+    check_uri = to_dup == NULL ? uri : to_dup->uri;
+    if (WT_PREFIX_MATCH(check_uri, "statistics:"))
+        check_uri += strlen("statistics:");
+    check_uri_len = strlen(check_uri);
+    if (WT_PREFIX_MATCH(check_uri, "table:") || WT_PREFIX_MATCH(check_uri, "index:"))
+        check_uri_len = strcspn(check_uri, "(");
+    WT_ERR(__wt_name_check(session, check_uri, check_uri_len, true));
+#endif
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
@@ -964,12 +1035,11 @@ __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *
 {
     WT_DECL_RET;
 
+    WT_ERR(__wt_uri_name_check(session, uri));
+
     /* In-memory ignores alter operations. */
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         goto err;
-
-    /* Disallow objects in the WiredTiger name space. */
-    WT_ERR(__wt_str_name_check(session, uri));
 
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_alter(session, uri, cfg)));
@@ -1127,10 +1197,11 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     is_import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
     SESSION_API_CALL(session, ret, create, config, cfg, false);
-    WT_UNUSED(cfg);
 
-    /* Disallow objects in the WiredTiger name space. */
-    WT_ERR(__wt_str_name_check(session, uri));
+    WT_ERR(__wt_uri_name_check(session, uri));
+    WT_ERR(__wt_config_gets(session, cfg, "source", &cval));
+    if (cval.len != 0)
+        WT_ERR(__wt_name_check(session, cval.str, cval.len, true));
 
     /* Type configuration only applies to tables, column groups and indexes. */
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "index:") &&
@@ -1359,8 +1430,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, drop, config, cfg, true);
 
-    /* Disallow objects in the WiredTiger name space. */
-    WT_ERR(__wt_str_name_check(session, uri));
+    WT_ERR(__wt_uri_name_check(session, uri));
 
     WT_ERR(__wt_config_gets_def(session, cfg, "checkpoint_wait", 1, &cval));
     checkpoint_wait = cval.val != 0;
@@ -1495,11 +1565,15 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    const char *name;
 
     session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL(session, ret, salvage, config, cfg, false);
 
+    name = __wt_uri_name(uri);
+    WT_ERR(__wt_session_check_internal_uri(session, uri,
+      __wt_session_is_layered_internal(session, name) && !__wt_session_is_global_internal(name)));
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /*
@@ -1789,8 +1863,7 @@ __session_truncate(
           "the truncate method should be passed either a URI or start/stop cursors, but not both");
 
     if (uri != NULL) {
-        /* Disallow objects in the WiredTiger name space. */
-        WT_ERR(__wt_str_name_check(session, uri));
+        WT_ERR(__wt_uri_name_check(session, uri));
 
         if (WT_PREFIX_MATCH(uri, "log:")) {
             /*
@@ -1925,9 +1998,13 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    const char *name;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, verify, config, cfg, false);
+    name = __wt_uri_name(uri);
+    WT_ERR(__wt_session_check_internal_uri(session, uri,
+      __wt_session_is_layered_internal(session, name) && !__wt_session_is_global_internal(name)));
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */

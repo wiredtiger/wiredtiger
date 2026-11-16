@@ -153,18 +153,18 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
                 f"Opening the post-rollback checkpoint as a follower "
                 f"failed ({e}); the rollback was not durable.")
 
-        read_session = conn_follow.open_session()
+        debug_session = conn_follow.open_session('debug=(allow_internal_access=true)')
         # Read the stable constituent directly so the assertion does not
         # depend on the ingest constituent masking the stale state. A follower cannot
         # open the live stable table: read its checkpoint view.
-        meta_cursor = read_session.open_cursor('metadata:')
+        meta_cursor = debug_session.open_cursor('metadata:')
         meta_cursor.set_key(self.stable_uri)
         self.assertEqual(meta_cursor.search(), 0)
         ckpt_name = re.search(
             r'checkpoint=\((WiredTigerCheckpoint\.\d+)=', meta_cursor.get_value()).group(1)
         meta_cursor.close()
-        read_session.begin_transaction('read_timestamp=' + self.timestamp_str(300))
-        read_cursor = read_session.open_cursor(f'{self.stable_uri}/{ckpt_name}')
+        debug_session.begin_transaction('read_timestamp=' + self.timestamp_str(300))
+        read_cursor = debug_session.open_cursor(f'{self.stable_uri}/{ckpt_name}')
         read_cursor.set_key(target_key)
         try:
             ret = read_cursor.search()
@@ -178,5 +178,5 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
             "committed value, not WT_NOTFOUND.")
         self.assertEqual(read_cursor.get_value(), 'committed_value')
         read_cursor.close()
-        read_session.rollback_transaction()
+        debug_session.rollback_transaction()
         conn_follow.close()

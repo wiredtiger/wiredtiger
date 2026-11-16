@@ -76,7 +76,7 @@ class test_live_restore05(backup_base):
         self.close_conn()
         self.open_conn(config="log=(enabled),statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=0)")
 
-        self.runWt(['-l', 'SOURCE', 'dump', "file:WiredTiger.wt"],
+        self.runWt(['-i', '-l', 'SOURCE', 'dump', "file:WiredTiger.wt"],
             outfilename="WiredTiger_out.txt",
             reopensession=False,
             failure=False)

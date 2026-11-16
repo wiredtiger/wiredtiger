@@ -1,0 +1,119 @@
+/*! @page internal_table_access Direct access to internal files
+
+Applications should use logical \c table: or \c layered: URIs rather than the internal files
+that implement them. Direct access can bypass the logical view or corrupt internal state.
+
+@section internal_table_access_targets Protected files
+
+- Local metadata: \c file:WiredTiger.wt, used in both ordinary and disaggregated databases.
+- Local history store: \c file:WiredTigerHS.wt, protected in both database modes.
+- Shared metadata: \c file:WiredTigerShared.wt_stable.
+- Shared history store: \c file:WiredTigerSharedHS.wt_stable.
+- Disaggregated ingest and stable constituent naming patterns: \c *.wt_ingest and \c *.wt_stable.
+
+Metadata and history store object names and their checkpoint views are reserved in every database
+mode after URI prefixes and table-name qualifiers have been removed.
+Lookalike prefixes are not classified as metadata or history stores. Constituent naming patterns
+are checked independently in disaggregated databases regardless of the URI prefix, including
+\c table:, \c layered:, \c colgroup: and \c index:.
+The public read-only \c metadata: and \c metadata:create cursors remain available.
+
+@section internal_table_access_checks Access checks
+
+The following checks reject access to reserved internal names with \c EINVAL:
+
+<table>
+@hrow{API, Ingest/stable constituents, Metadata/history store files, Builds}
+@row{WT_SESSION::open_cursor, Rejected, Rejected, Diagnostic only}
+@row{WT_SESSION::create\, WT_SESSION::drop\, WT_SESSION::alter\,
+    WT_SESSION::truncate (URI form)\, WT_SESSION::compact (URI form), Rejected, Rejected, All}
+@row{WT_SESSION::verify\, WT_SESSION::salvage, Rejected, Not rejected by these checks, All}
+</table>
+
+Cursor checks include statistics cursors on protected names, checkpoint cursors, checkpoint-view
+URIs, duplicated cursors, and cached cursor opens. Truncate checks apply only when a URI is supplied;
+ranges specified by existing cursors are not checked again. Internal cursor opens and nested API
+calls used to implement logical tables are unaffected.
+
+Schema APIs use the standard object-name validation. Diagnostic cursor checks use the same URI
+validation for every prefix, excluding table and index projection lists from the object name.
+Create also checks an explicit \c source URI, preventing aliases to protected internal data sources.
+
+Allowing a metadata or history store file through the verify/salvage check does not guarantee that
+the operation is supported or succeeds: its usual configuration, storage and handle restrictions
+still apply. Non-diagnostic builds omit the cursor check, not the schema or maintenance checks.
+
+@section internal_table_access_defaults Default inspection and maintenance access
+
+The following interfaces deliberately retain internal access without an application session opt-in:
+
+<table>
+@hrow{Interface, Default access, Limits}
+@row{WT_SESSION::verify / WT_SESSION::salvage and corresponding \c wt commands,
+    Metadata and history store files,
+    Direct ingest/stable targets still require the bypass. Verify dump options follow the same rule.}
+@row{<code>wt dump</code> / <code>wt read</code> / <code>wt stat</code>, All protected data sources,
+    The utility session opts in automatically. Read requires string/record-number keys and string values.}
+@row{<code>tools/wt_cmp_uri.py</code> / <code>tools/wt_cmp_dir</code>, Read-only comparisons of protected data sources,
+    Comparison sessions opt in automatically; connection and data-format restrictions still apply.}
+@row{<code>metadata:</code> / <code>metadata:create</code> cursors and <code>wt list -v</code> / <code>wt list -c</code>,
+    Read-only local metadata and checkpoint information,
+    These interfaces do not expose direct writes or the contents of the shared metadata table.}
+@row{<code>wt page</code>, Disaggregated page inspection through a URI or raw table ID,
+    Requires a diagnostic build and page-log-backed data. This path does not open a public table cursor.}
+@row{<code>wt turtle</code>, Shared turtle page and checkpoint metadata,
+    Requires disaggregated storage; uses the connection's page log directly.}
+@row{WT_CONNECTION::debug_info with <code>metadata=true</code>\, or handle/cache inspection,
+    Local metadata and internal connection state,
+    Does not grant application cursors access to internal table records.}
+@row{<code>wiredtiger_open</code> with <code>verify_metadata=true</code> or <code>salvage=true</code>\,
+    including <code>wt -m</code> / <code>wt -S</code>,
+    Metadata verification or salvage during connection open,
+    Normal recovery and database-mode restrictions apply.}
+@row{<code>wiredtiger_repair</code>: <code>fetch_metadata</code> / <code>fetch_database_size</code>,
+    Metadata or database-size inspection through internal paths,
+    Shared metadata and database-size commands require a valid disaggregated checkpoint.}
+@row{<code>wiredtiger_repair</code>: <code>fix_btree_size</code>,
+    Constituent verification and size repair using an opted-in temporary session,
+    Requires a valid disaggregated checkpoint. An all-file scan skips shared metadata and shared HS.}
+</table>
+
+Logical-table operations, checkpoint, backup, recovery, rollback-to-stable, history store cleanup
+and background compaction use internal paths or internal sessions as needed. They are unaffected
+by the direct-name checks; this does not authorize direct application access to their internal files.
+Verify without a URI visits logical table/layered entries, not every standalone internal file.
+Background compaction can consider the history store through its internal session, unlike a direct
+application compact call on that file.
+
+Database-mode restrictions remain independent: for example, the \c wt utility does not support the
+salvage command or \c -S in disaggregated mode. Log inspection (<code>wt printlog</code> / <code>log:</code>),
+timestamp queries and offline file decoders are outside these protected-table cursor checks.
+
+@section internal_table_access_other_tools Tools retaining the normal guards
+
+- Schema-changing commands (<code>wt create</code>, <code>alter</code>, <code>drop</code>,
+  <code>truncate</code>, <code>compact</code> and <code>load</code>) retain their production checks.
+  Record writes through cursors (<code>wt write</code> / <code>loadtext</code>) follow the diagnostic
+  cursor-open rule; they are not automatically opted in.
+- <code>tools/wt_verify/wt_verify.py</code> inherits the verify access policy, including its dump modes.
+  Its \c -i option names an input file, not the \c wt internal-access flag; it can consume output
+  obtained separately with <code>wt -i verify</code>.
+- The WiredTiger MCP server (<code>tools/wt-mcp/server.py</code>) uses an ordinary session for cursor
+  and statistics tools. Its metadata tools use the public metadata interface; verify-based tools
+  inherit the verify exemption. It currently exposes no session-level internal-access configuration.
+
+A read-only connection or cursor does not itself bypass these checks. The named inspection utilities
+opt in explicitly; schema-changing commands and the server's ordinary session are not automatically
+exempted.
+
+@section internal_table_access_bypass Debugging bypass
+
+Configure an individual session with <code>debug=(allow_internal_access=true)</code>, either when opening it
+with WT_CONNECTION::open_session or later with WT_SESSION::reconfigure. This bypasses all checks
+above; <code>debug=(allow_internal_access=false)</code> restores them. The \c wt utility provides the same
+opt-in through its global \c -i option. Internal WiredTiger sessions are exempt.
+
+The bypass is intended for deliberate debugging, testing and repair, not normal application use.
+It does not remove other API restrictions. These checks are guardrails, not a security boundary.
+
+*/

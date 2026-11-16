@@ -149,12 +149,14 @@ class test_disagg_bug01(wttest.WiredTigerTestCase):
 
         # Force eviction of the follower's ingest pages so entries at or below the prune timestamp
         # are dropped from the ingest table.
-        evict_cursor = session_follow.open_cursor(self.ingest_uri, None, 'debug=(release_evict)')
+        debug_session = conn_follow.open_session('debug=(allow_internal_access=true)')
+        evict_cursor = debug_session.open_cursor(self.ingest_uri, None, 'debug=(release_evict)')
         for i in range(self.nitems):
             evict_cursor.set_key(f'key{i:06d}')
             evict_cursor.search()
             evict_cursor.reset()
         evict_cursor.close()
+        debug_session.close()
 
         reader_thread.join(30)
         self.assertFalse(reader_thread.is_alive(),

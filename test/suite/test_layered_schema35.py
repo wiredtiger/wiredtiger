@@ -81,15 +81,18 @@ class test_layered_schema35(test_prepare_preserve_prepare_base, DisaggSchemaEpoc
     def evicted_pages(self):
         """Return the number of pages evicted from the stable file."""
         uri = self.stable_uri(self.uri)
-        clean = self.get_stat(wiredtiger.stat.dsrc.cache_eviction_clean, uri)
-        dirty = self.get_stat(wiredtiger.stat.dsrc.cache_eviction_dirty, uri)
+        with closing(self.conn.open_session('debug=(allow_internal_access=true)')) as debug_session:
+            clean = self.get_stat(wiredtiger.stat.dsrc.cache_eviction_clean, uri, session=debug_session)
+            dirty = self.get_stat(wiredtiger.stat.dsrc.cache_eviction_dirty, uri, session=debug_session)
         return clean + dirty
 
     def prepared_records_written(self):
         """Return the number of records with prepare state written to the stable file."""
-        return self.get_stat(
-            wiredtiger.stat.dsrc.rec_time_window_prepared, self.stable_uri(self.uri)
-        )
+        with closing(self.conn.open_session('debug=(allow_internal_access=true)')) as debug_session:
+            return self.get_stat(
+                wiredtiger.stat.dsrc.rec_time_window_prepared, self.stable_uri(self.uri),
+                session=debug_session
+            )
 
     def test_prepared_insert_rollback_before_publication(self):
         # Create a table that is awaiting publication.

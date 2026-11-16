@@ -78,7 +78,7 @@ class CompareCursor:
 
 # Open a cursor at a timestamp
 def wt_open(conn, timestamp, uri):
-    session = conn.open_session()
+    session = conn.open_session('debug=(allow_internal_access=true)')
     if timestamp != None:
         config = 'read_timestamp=' + timestamp
         verbose('begin_transaction config: ' + config)

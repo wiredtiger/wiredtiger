@@ -216,13 +216,15 @@ class test_layered_tombstone_upgrade_new_database(tombstone_upgrade_base):
 
         # The colliding value is stored raw: reading the stable constituent directly, bypassing the
         # layered decode, returns the original bytes with no escape byte appended.
-        c = self.session.open_cursor(self.stable_uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.stable_uri)
+        debug_session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
         c.set_key(1)
         self.assertEqual(c.search(), 0)
         self.assertEqual(c.get_value(), self.collide)
-        self.session.rollback_transaction()
+        debug_session.rollback_transaction()
         c.close()
+        debug_session.close()
 
         # A follower in automatic mode adopts the unescaped mode and round-trips the value.
         conn_follow = self.wiredtiger_open('follower', self.follower_config())

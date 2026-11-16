@@ -56,7 +56,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
     def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts,
                       expected_hs_stop_ts, expect_prepared_in_datastore = False):
-        session = self.conn.open_session(self.session_config)
+        session = self.conn.open_session(self.session_config + ',debug=(allow_internal_access=true)')
         session.checkpoint()
         # Check the data file value.
         cursor = session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint')

@@ -44,7 +44,7 @@ class test_prepare36(test_prepare_preserve_prepare_base):
 
     def check_ckpt_hs(self, expected_hs_value, expected_hs_start_ts,
                       expected_hs_stop_ts, expect_prepared_in_datastore = False):
-        session = self.conn.open_session(self.session_config)
+        session = self.conn.open_session(self.session_config + ',debug=(allow_internal_access=true)')
         session.checkpoint()
         count = 0
         # Check the history store file value.
@@ -149,7 +149,7 @@ class test_prepare36(test_prepare_preserve_prepare_base):
         # Since the committed `prepared_value_21` is in the data store,
         # value_a is in the history store
         conn_backup = self.wiredtiger_open(self.home)
-        backup_session = conn_backup.open_session(self.session_config)
+        backup_session = conn_backup.open_session(self.session_config + ',debug=(allow_internal_access=true)')
         backup_session.begin_transaction('read_timestamp='+ self.timestamp_str(10))
         cursor = backup_session.open_cursor("file:WiredTigerHS.wt", None,None)
         count = 0

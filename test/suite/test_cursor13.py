@@ -57,9 +57,10 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         hs_stats_uri = 'statistics:file:WiredTigerHS.wt'
         max_tries = 100
         for i in range(max_tries):
-            hs_stats_before = self.session.open_cursor(hs_stats_uri, None, None)
+            debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+            hs_stats_before = debug_session.open_cursor(hs_stats_uri, None, None)
             conn_stats = self.session.open_cursor('statistics:', None, None)
-            hs_stats_after = self.session.open_cursor(hs_stats_uri, None, None)
+            hs_stats_after = debug_session.open_cursor(hs_stats_uri, None, None)
 
             totals = [ conn_stats [stat.conn.cursor_cache][2],
                          conn_stats [stat.conn.cursor_reopen][2] ]
@@ -69,9 +70,11 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
                          hs_stats_after[stat.dsrc.cursor_reopen][2]]
 
             if self.runningHook('disagg'):
+                # Statistics on the shared history store constituent require a session
+                # allowed to access internal layered tables.
                 hs_disagg_uri = 'statistics:file:WiredTigerSharedHS.wt_stable'
-                hs_disagg_stat_before = self.session.open_cursor(hs_disagg_uri, None, None)
-                hs_disagg_stat_after = self.session.open_cursor(hs_disagg_uri, None, None)
+                hs_disagg_stat_before = debug_session.open_cursor(hs_disagg_uri, None, None)
+                hs_disagg_stat_after = debug_session.open_cursor(hs_disagg_uri, None, None)
                 hs_before[0] += hs_disagg_stat_before[stat.dsrc.cursor_cache][2]
                 hs_before[1] += hs_disagg_stat_before[stat.dsrc.cursor_reopen][2]
 
@@ -79,10 +82,13 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
                 hs_after[1] += hs_disagg_stat_after[stat.dsrc.cursor_reopen][2]
 
                 self.pr(str(totals[0]) + " " + str(hs_before[0]) + " " + str(hs_disagg_stat_before[stat.dsrc.cursor_cache][2]) + " " + str(hs_stats_before[stat.dsrc.cursor_cache][2]))
+                hs_disagg_stat_before.close()
+                hs_disagg_stat_after.close()
 
             hs_stats_before.close()
             hs_stats_after.close()
             conn_stats.close()
+            debug_session.close()
 
             if totals[0] - hs_after[0] < self.stat_cursor_cache:
                 continue

@@ -46,7 +46,7 @@ class test_layered_config16(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     def local_config(self, uri):
-        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        cursor = self.session.open_cursor('metadata:')
         cursor.set_key(uri)
         self.assertEqual(cursor.search(), 0)
         value = cursor.get_value()
@@ -56,11 +56,13 @@ class test_layered_config16(wttest.WiredTigerTestCase):
     def make_legacy(self, uri):
         value = self.local_config(uri)
         self.assertIn('block_manager=disagg', value)
-        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor('file:WiredTiger.wt')
         cursor.set_key(uri)
         cursor.set_value(value.replace('block_manager=disagg', 'block_manager=default'))
         self.assertEqual(cursor.insert(), 0)
         cursor.close()
+        debug_session.close()
         self.assertNotIn('block_manager=disagg', self.local_config(uri))
 
     def populate_table(self):
@@ -95,7 +97,7 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         self.check_read()
         self.session.checkpoint()
         self.assertEqual(self.session.verify(self.shared_metadata_uri), 0)
-        self.assertEqual(self.session.verify(self.stable_uri), 0)
+        self.assertEqual(self.session.verify(self.uri), 0)
 
     def test_legacy_follower(self):
         checkpoint_meta = self.populate()
@@ -105,9 +107,11 @@ class test_layered_config16(wttest.WiredTigerTestCase):
 
     def test_new_shared_files_have_disagg_block_manager(self):
         self.populate_table()
-        self.session.create('file:test_layered_config16_plain.wt_stable',
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        debug_session.create('file:test_layered_config16_plain.wt_stable',
             'key_format=S,value_format=S')
-        cursor = self.session.open_cursor('file:WiredTiger.wt')
+        debug_session.close()
+        cursor = self.session.open_cursor('metadata:')
         shared = {}
         while cursor.next() == 0:
             key = cursor.get_key()

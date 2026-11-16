@@ -48,7 +48,7 @@ class test_drop01(wttest.WiredTigerTestCase, suite_subprocess):
         # Opening a cursor directly on the history store file isn't a supported
         # operation, so use the dump utility to inspect its contents instead.
         dump_file = 'hs_dump.out'
-        self.runWt(['dump', 'file:WiredTigerHS.wt'], outfilename=dump_file)
+        self.runWt(['-i', 'dump', 'file:WiredTigerHS.wt'], outfilename=dump_file)
         lines = open(dump_file).readlines()
         data_start = lines.index(self.dump_data_header)
         os.remove(dump_file)

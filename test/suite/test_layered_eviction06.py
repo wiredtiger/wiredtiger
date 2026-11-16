@@ -119,13 +119,13 @@ class test_layered_eviction06(wttest.WiredTigerTestCase):
         # wrongly discarded by the skip-write eviction, this faults it in from storage at an LSN
         # ahead of the materialization frontier.
         stable_uri = 'file:' + self.uri.split(':', 1)[1] + '.wt_stable'
-        read_session = self.conn.open_session()
-        read_cursor = read_session.open_cursor(stable_uri)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        read_cursor = debug_session.open_cursor(stable_uri)
         read_cursor.set_key(1)
         self.assertEqual(read_cursor.search(), 0)
         self.assertEqual(read_cursor.get_value(), 'first')
         read_cursor.close()
-        read_session.close()
+        debug_session.close()
 
         # The page should have stayed in cache: no read ahead of the frontier should occur.
         self.assertEqual(self.get_stat(stat.conn.disagg_block_read_ahead_frontier), read_ahead_before)
