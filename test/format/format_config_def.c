@@ -127,6 +127,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
 
+  {"debug.cursor_copy",
+    "use heap copies of returned cursor keys and values to expose invalid references masked by "
+    "direct btree memory access",
+    C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_CURSOR_COPY},
+
   {"debug.cursor_reposition",
     "cursor temporarily releases any page requiring forced eviction and then repositions back to "
     "the page for further operations",
@@ -163,6 +168,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"debug.update_restore_evict",
     "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0,
     V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
+
+  {"disagg.blind_remove", "open layered table cursors with blind_remove",
+    C_BOOL | C_TABLE | C_TYPE_ROW, 50, 0, 0, V_TABLE_DISAGG_BLIND_REMOVE},
 
   {"disagg.internal_page_delta", "writing deltas for internal pages", C_BOOL, 95, 0, 0,
     V_GLOBAL_DISAGG_INTERNAL_PAGE_DELTA},

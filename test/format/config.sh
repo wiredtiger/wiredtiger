@@ -170,6 +170,8 @@ CONFIG configuration_list[] = {
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
+{"debug.cursor_copy", "use heap copies of returned cursor keys and values to expose invalid references masked by direct btree memory access", C_BOOL, 0, 0, 0}
+
 {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
 
 /* FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate. */
@@ -190,6 +192,8 @@ CONFIG configuration_list[] = {
 {"debug.table_logging", "write transaction related information to the log for all operations", C_BOOL, 2, 0, 0}
 
 {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0}
+
+{"disagg.blind_remove", "open layered table cursors with blind_remove", C_BOOL | C_TABLE | C_TYPE_ROW, 50, 0, 0}
 
 {"disagg.internal_page_delta", "writing deltas for internal pages", C_BOOL, 95, 0, 0}
 
