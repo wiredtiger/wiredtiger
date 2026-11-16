@@ -2546,6 +2546,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
+          test_config: eviction_updates_trigger=0
           test_config_filename: configs/operations_test_stress.txt
           test_name: operations_test
   # This is a perf test and as such doesn't run under the stress test tag. This name seems excessive
