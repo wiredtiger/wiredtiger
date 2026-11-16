@@ -44,7 +44,7 @@
 #define FAIL_FS_GIGABYTE (1024 * 1024 * 1024)
 
 #define FAIL_FS_ENV_ENABLE "WT_FAIL_FS_ENABLE"
-#define FAIL_FS_ENV_OPEN_EPERM "WT_FAIL_FS_OPEN_EPERM"
+#define FAIL_FS_ENV_OPEN_ERROR "WT_FAIL_FS_OPEN_ERROR"
 #define FAIL_FS_ENV_WRITE_ALLOW "WT_FAIL_FS_WRITE_ALLOW"
 #define FAIL_FS_ENV_READ_ALLOW "WT_FAIL_FS_READ_ALLOW"
 
@@ -533,7 +533,9 @@ fail_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     FAIL_FILE_SYSTEM *fail_fs;
     WT_EXTENSION_API *wtext;
     WT_FILE_HANDLE *file_handle;
-    const char *eperm;
+    const char *open_error;
+    char *endptr;
+    long error;
     int fd, open_flags, ret;
 
     (void)session; /* Unused */
@@ -546,11 +548,15 @@ fail_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     ret = 0;
 
     /*
-     * Test hook: fail opens of matching files with EPERM, the error some read-only file systems
-     * return instead of EACCES. This cannot be produced with file permissions alone.
+     * Test hook: fail opens of matching files with the given error, for example EPERM or EROFS
+     * returned by read-only file systems. This cannot be produced with file permissions alone. The
+     * value is "<errno>|<substring>".
      */
-    if ((eperm = getenv(FAIL_FS_ENV_OPEN_EPERM)) != NULL && strstr(name, eperm) != NULL)
-        return (EPERM);
+    if ((open_error = getenv(FAIL_FS_ENV_OPEN_ERROR)) != NULL) {
+        error = strtol(open_error, &endptr, 10);
+        if (endptr != open_error && *endptr == '|' && error > 0 && strstr(name, endptr + 1) != NULL)
+            return ((int)error);
+    }
 
     if (fail_fs->verbose) {
         wtext = fail_fs->wtext;

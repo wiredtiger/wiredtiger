@@ -464,12 +464,12 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt19101_readonly_eperm
-    SOURCES wt19101_readonly_eperm/main.c
-    DIR_NAME wt19101_readonly_eperm
+    TARGET test_wt19101_readonly_lock_open
+    SOURCES wt19101_readonly_lock_open/main.c
+    DIR_NAME wt19101_readonly_lock_open
     # We need to manually specify the location of the fail fs library
     # and build directory as the build path is more dynamic.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
-    ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt19101_readonly_eperm>/WT_HOME>
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt19101_readonly_lock_open>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
