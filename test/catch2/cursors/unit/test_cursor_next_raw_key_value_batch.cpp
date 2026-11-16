@@ -98,6 +98,30 @@ TEST_CASE("next_raw_key_value_batch_table", "[cursor]")
     REQUIRE(session->close(session, nullptr) == 0);
 }
 
+TEST_CASE("next_raw_key_value_batch_table_multiple_colgroups", "[cursor]")
+{
+    connection_wrapper conn(DB_HOME);
+    WT_SESSION *session = &conn.create_session()->iface;
+    REQUIRE(session->create(session, "table:cg", "key_format=S,value_format=SS,columns=(k,a,b),colgroups=(g1,g2)") == 0);
+    REQUIRE(session->create(session, "colgroup:cg:g1", "columns=(a)") == 0);
+    REQUIRE(session->create(session, "colgroup:cg:g2", "columns=(b)") == 0);
+
+    WT_CURSOR *cursor = nullptr;
+    REQUIRE(session->open_cursor(session, "table:cg", nullptr, nullptr, &cursor) == 0);
+    cursor->set_key(cursor, "k1");
+    cursor->set_value(cursor, "a1", "b1");
+    REQUIRE(cursor->insert(cursor) == 0);
+    REQUIRE(cursor->reset(cursor) == 0);
+
+    /* The API currently only supports one colgroup. */
+    WT_ITEM key{}, value{};
+    size_t n = 0;
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, &key, &value, 1, &n) == ENOTSUP);
+
+    REQUIRE(cursor->close(cursor) == 0);
+    REQUIRE(session->close(session, nullptr) == 0);
+}
+
 TEST_CASE("next_raw_key_value_batch_file", "[cursor]")
 {
     connection_wrapper conn(DB_HOME);
