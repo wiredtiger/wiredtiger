@@ -624,6 +624,7 @@ begin_transaction_ts(TINFO *tinfo)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
+    u_int retries = 0;
     const char *config;
 
     session = tinfo->session;
@@ -650,20 +651,34 @@ begin_transaction_ts(TINFO *tinfo)
             tinfo->ignore_prepare = false;
         }
 
-        wt_wrap_begin_transaction(session, config);
+        for (;;) {
+            wt_wrap_begin_transaction(session, config);
 
-        /*
-         * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
-         * That kills the transaction, we have to restart.
-         */
-        ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts);
-        if (ret == 0) {
-            snap_op_init(tinfo, ts, true);
-            trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
-            return;
+            /*
+             * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
+             * That kills the transaction, we have to restart.
+             */
+            ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts);
+            if (ret == 0) {
+                snap_op_init(tinfo, ts, true);
+                trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
+                return;
+            }
+            testutil_assert(ret == EINVAL);
+            testutil_check(session->rollback_transaction(session, NULL));
+
+            /*
+             * Predictable replay needs every run to choose the same operation. The fallback below
+             * would change that choice, so retry after re-sampling the read timestamp.
+             */
+            if (!GV(RUNS_PREDICTABLE_REPLAY))
+                break;
+
+            /* Do not allow infinite retries. */
+            testutil_assert(retries < WT_THOUSAND);
+            ++retries;
+            ts = replay_read_ts(tinfo);
         }
-        testutil_assert(ret == EINVAL);
-        testutil_check(session->rollback_transaction(session, NULL));
     }
 
     wt_wrap_begin_transaction(session, NULL);
