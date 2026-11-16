@@ -1922,11 +1922,9 @@ __session_verify_dispatch(WT_SESSION_IMPL *session, const char *uri, const char 
      */
     WT_RET(__wt_config_gets(session, cfg, "verify_internals", &cval));
     if (cval.val != 0)
-        WT_RET(__wt_verify_metadata_consistency(session));
+        return (__wt_verify_metadata_consistency(session));
     else
-        WT_RET(__session_verify_all(session, cfg));
-
-    return (0);
+        return (__session_verify_all(session, cfg));
 }
 
 /*
