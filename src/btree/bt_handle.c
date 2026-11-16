@@ -264,7 +264,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     lr_fh_meta.allocsize = btree->allocsize;
 
     /* Connect to the underlying block manager. */
-    WT_ERR(__wt_blkcache_open(session, dhandle_name, dhandle->cfg, forced_salvage, false,
+    WT_ERR(__wt_bm_open(session, dhandle_name, dhandle->cfg, forced_salvage, false,
       btree->allocsize, &lr_fh_meta, &btree->bm));
 
     bm = btree->bm;
@@ -941,7 +941,7 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    if ((ret = __wt_blkcache_read(session, &dsk, &block_meta, addr, addr_size)) == 0)
+    if ((ret = __wt_bm_read_page(session, &dsk, &block_meta, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);
     /*
      * Flag any failed read or verification: if we're in startup, it may be fatal.
@@ -1135,7 +1135,7 @@ __btree_preload(WT_SESSION_IMPL *session)
              * FIXME-WT-14612: If we want to use prefetch with disaggregated storage we will need to
              * supply block metadata.
              */
-            WT_ERR(__wt_blkcache_read(session, tmp, NULL, addr.addr, addr.size));
+            WT_ERR(__wt_bm_read_page(session, tmp, NULL, addr.addr, addr.size));
             ++block_preload;
         }
     WT_INTL_FOREACH_END;
