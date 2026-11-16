@@ -437,7 +437,12 @@ real_worker(THREAD_DATA *td)
                                 (void)log_print_err("real_worker:prepare_transaction", ret, 1);
                                 goto err;
                             }
-                            durable_ts = base_ts + (__wt_random(&td->data_rnd) % 2 == 0 ? 0 : 2);
+                            /* Occasionally make the durable timestamp equal to commit. */
+                            if (__wt_random(&td->data_rnd) % 10 == 0)
+                                durable_ts = base_ts;
+                            else
+                                durable_ts = base_ts + 1 +
+                                  __wt_random(&td->data_rnd) % PREPARE_DURABLE_MAX_GAP;
                             testutil_snprintf(buf, sizeof(buf),
                               "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts,
                               base_ts);

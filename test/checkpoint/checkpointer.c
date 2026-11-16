@@ -341,7 +341,6 @@ done:
 void
 prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 {
-    WT_UNUSED(td);
     /*
      * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
      * all pending prepared transactions. When precise checkpoint is not configure, there's no need
@@ -388,8 +387,8 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 
         if (should_commit) {
             /* Use timestamps greater than current stable */
-            commit_ts = current_stable + 1;
-            durable_ts = commit_ts + __wt_random(&td->data_rnd) % 2;
+            durable_ts = current_stable + PREPARE_DURABLE_MAX_GAP;
+            commit_ts = current_stable + 1 + __wt_random(&td->data_rnd) % PREPARE_DURABLE_MAX_GAP;
 
             testutil_snprintf(buf, sizeof(buf),
               "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts, commit_ts);
@@ -412,7 +411,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     if (discover_count > 0) {
         /* Only modify stable timestamp if not in predictable replay mode */
         if (!g.predictable_replay) {
-            g.ts_stable = current_stable + 3;
+            g.ts_stable = current_stable + PREPARE_DURABLE_MAX_GAP;
             printf("Final: setting stable to %" PRIu64, g.ts_stable);
             set_stable(g.ts_stable);
         }
