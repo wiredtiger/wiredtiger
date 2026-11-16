@@ -55,7 +55,7 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         ('prev', dict(forward=False)),
     ]
 
-    # Prepopulate stable with the keys immediately beside the blocked key to exercise ties even
+    # Populate stable with the keys immediately beside the blocked key to exercise ties even
     # without mirroring. With mirroring enabled, ingest writes also create ties on stable.
     tie_scenarios = [
         ('no_tie', dict(with_tie=False)),
