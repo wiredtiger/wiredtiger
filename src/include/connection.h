@@ -994,10 +994,6 @@ struct __wt_connection_impl {
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
 
-#ifndef WT_STANDALONE_BUILD
-    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
-#endif
-
     WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
     WT_VERSION compat_req_max; /* Maximum allowed version of WiredTiger for compatibility checks */
     WT_VERSION compat_req_min; /* Minimum allowed version of WiredTiger for compatibility checks */
@@ -1375,6 +1371,9 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING_STEP_UP 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+#ifndef WT_STANDALONE_BUILD
+    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
+#endif
 
     /*
      * Repair arguments and memory holder.
