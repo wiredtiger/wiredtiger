@@ -92,7 +92,7 @@ __recovery_cursor(
          * than metadata.
          */
         if (!metadata_op)
-            F_SET(S2C(session), WT_CONN_UNCLEAN_SHUTDOWN);
+            S2C(session)->unclean_shutdown = true;
 #endif
     }
 
@@ -1293,8 +1293,7 @@ done:
      * that can properly upgrade from 10.0.0 without hitting the problem but only from a clean
      * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
      */
-    if (F_ISSET(conn, WT_CONN_UNCLEAN_SHUTDOWN) &&
-      __wt_version_eq(conn->recovery_version, (WT_VERSION){10, 0, 0}))
+    if (conn->unclean_shutdown && __wt_version_eq(conn->recovery_version, (WT_VERSION){10, 0, 0}))
         WT_ERR_MSG(session, WT_ERROR,
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");

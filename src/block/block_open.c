@@ -175,7 +175,7 @@ __block_open_file(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_BLOCK *
      * header so that the header gets copied.
      */
     if (block->size == allocsize && F_ISSET_ATOMIC_32(conn, WT_CONN_INCR_BACKUP))
-        F_SET(block, WT_BLOCK_CREATED_DURING_BACKUP);
+        block->created_during_backup = true;
 
     /*
      * Read the description information from the first block.

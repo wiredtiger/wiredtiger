@@ -3639,7 +3639,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
 #ifndef WT_STANDALONE_BUILD
     /* Explicitly set the flag to indicate whether the database that was not shutdown cleanly. */
-    F_CLR(conn, WT_CONN_UNCLEAN_SHUTDOWN);
+    conn->unclean_shutdown = false;
 #endif
 
 #ifdef HAVE_CALL_LOG

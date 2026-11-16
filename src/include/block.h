@@ -288,6 +288,37 @@ struct __wt_block {
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
 
+    /*
+     * Small fields written by different threads stay in separate bytes, so no two writers share a
+     * memory location. The open-time flags are written before the handle is shared, apart from the
+     * sync flag which is cleared when the handle is closed. The verify flags are written only by
+     * the thread verifying the file.
+     */
+    bool created_during_backup; /* Created during incremental backup */
+    bool live_open;             /* Live system is open */
+    bool compact_estimated;     /* If compaction work has been estimated */
+
+/*
+ * The in-memory flag means the file was created with the in_memory configuration, so there isn't a
+ * backing file. It stays clear when only the connection is opened as in-memory: connection-level
+ * in-memory replaces the file system with an in-memory variant and the backing file is synthetic,
+ * but a file descriptor still exists.
+ */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BLOCK_IN_MEMORY 0x1u          /* File has no backing file */
+#define WT_BLOCK_READONLY 0x2u           /* Underlying file was opened only for reading */
+#define WT_BLOCK_SYNC_ON_CHECKPOINT 0x4u /* fsync the handle after the next checkpoint */
+                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BLOCK_DUMP_TREE_SHAPE 0x1u /* Print out tree shape */
+#define WT_BLOCK_VERIFY 0x2u          /* Performing verification */
+#define WT_BLOCK_VERIFY_LAYOUT 0x4u   /* Print out file layout information */
+#define WT_BLOCK_VERIFY_STRICT 0x8u   /* Fail hard on any error */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t verify_flags;
+
     /* Configuration information, set when the file is opened. */
     wt_shared uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;            /* Allocation size */
@@ -330,25 +361,6 @@ struct __wt_block {
     wt_off_t slvg_off; /* Salvage file offset */
 
     /* Verification support */
-/*
- * The in-memory flag means the file was created with the in_memory configuration, so there isn't a
- * backing file. It stays clear when only the connection is opened as in-memory: connection-level
- * in-memory replaces the file system with an in-memory variant and the backing file is synthetic,
- * but a file descriptor still exists.
- */
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_BLOCK_COMPACT_ESTIMATED 0x001u     /* Compaction work has been estimated */
-#define WT_BLOCK_CREATED_DURING_BACKUP 0x002u /* Created during incremental backup */
-#define WT_BLOCK_DUMP_TREE_SHAPE 0x004u       /* Print out tree shape */
-#define WT_BLOCK_IN_MEMORY 0x008u             /* File has no backing file */
-#define WT_BLOCK_LIVE_OPEN 0x010u             /* Live system is open */
-#define WT_BLOCK_READONLY 0x020u              /* Underlying file was opened only for reading */
-#define WT_BLOCK_SYNC_ON_CHECKPOINT 0x040u    /* fsync the handle after the next checkpoint */
-#define WT_BLOCK_VERIFY 0x080u                /* Performing verification */
-#define WT_BLOCK_VERIFY_LAYOUT 0x100u         /* Print out file layout information */
-#define WT_BLOCK_VERIFY_STRICT 0x200u         /* Fail hard on any error */
-                                              /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t flags;
     wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
     wt_off_t verify_size;          /* Checkpoint's file size */
     WT_EXTLIST verify_alloc;       /* Verification allocation list */

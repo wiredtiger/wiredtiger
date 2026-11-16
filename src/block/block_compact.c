@@ -50,7 +50,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
     block->compact_bytes_rewritten_expected = 0;
-    F_CLR(block, WT_BLOCK_COMPACT_ESTIMATED);
+    block->compact_estimated = false;
     block->compact_internal_pages_reviewed = 0;
     block->compact_pages_reviewed = 0;
     block->compact_pages_rewritten = 0;
@@ -244,7 +244,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
      * Skip files that have failed to make progress on previous compact iterations. Use
      * compact_estimated to avoid this check on the first pass.
      */
-    if (F_ISSET(block, WT_BLOCK_COMPACT_ESTIMATED) && !*skipp) {
+    if (block->compact_estimated && !*skipp) {
         if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
             __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
               "%s: compaction failed to make progress, no new pages rewritten", block->name);
@@ -278,7 +278,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     /* Assume that we have already checked whether this file can be skipped. */
     WT_ASSERT(session, block->compact_pct_tenths > 0);
     /* We should estimate the work only once. */
-    WT_ASSERT(session, !F_ISSET(block, WT_BLOCK_COMPACT_ESTIMATED));
+    WT_ASSERT(session, !block->compact_estimated);
 
     /* Output the estimation logs as info if we're in dryrun mode. */
     if (session->compact->dryrun)
@@ -455,7 +455,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     __wt_spin_unlock(session, &block->live_lock);
 
-    F_SET(block, WT_BLOCK_COMPACT_ESTIMATED);
+    block->compact_estimated = true;
     block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
     block->compact_bytes_rewritten_expected =
       block->compact_pages_rewritten_expected * (uint64_t)avg_block_size;
@@ -613,8 +613,7 @@ __compact_page_skip(
      * We must have reviewed at least some interesting number of pages for any estimates below to be
      * worthwhile.
      */
-    if (!F_ISSET(block, WT_BLOCK_COMPACT_ESTIMATED) &&
-      block->compact_pages_reviewed >= WT_THOUSAND) {
+    if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
         /* If we're in dry run mode, exit compaction. */
         if (session->compact->dryrun)

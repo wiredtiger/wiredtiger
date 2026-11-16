@@ -31,7 +31,7 @@ __wti_blkcache_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void **mapped_regi
      * Turn off mapping when verifying the file, because we can't perform checksum validation of
      * mapped segments, and verify has to checksum pages.
      */
-    if (F_ISSET(block, WT_BLOCK_VERIFY))
+    if (FLD_ISSET(block->verify_flags, WT_BLOCK_VERIFY))
         return (0);
 
     /*

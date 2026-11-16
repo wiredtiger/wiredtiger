@@ -68,7 +68,7 @@ validate_block(std::shared_ptr<mock_session> session, WT_BLOCK *block, config_pa
     CHECK(block->compact_session_id == WT_SESSION_ID_INVALID);
     CHECK(block->ref == expected_ref);
     CHECK(F_ISSET(block, WT_BLOCK_READONLY) == readonly);
-    CHECK(!F_ISSET(block, WT_BLOCK_CREATED_DURING_BACKUP));
+    CHECK(!block->created_during_backup);
     CHECK(block->extend_len == 0);
 
     // Test block file handle members.
