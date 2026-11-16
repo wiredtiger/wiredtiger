@@ -898,7 +898,7 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    size_t alloc_bytes, count, i, out;
+    size_t alloc_bytes, count;
 
     conn = S2C(session);
     WT_CLEAR(*view);
@@ -934,13 +934,6 @@ __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *vie
     __wt_qsort(view->entries, view->entries_count, sizeof(WT_DISAGG_QUEUE_VIEW_ENTRY),
       __disagg_queue_view_cmp);
 
-    /* Keep the last, highest queue position, operation of each run of the same name. */
-    for (i = out = 0; i < view->entries_count; ++i)
-        if (i + 1 == view->entries_count ||
-          strcmp(view->entries[i].entry->table_name, view->entries[i + 1].entry->table_name) != 0)
-            view->entries[out++] = view->entries[i];
-    view->entries_count = out;
-
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -957,14 +950,23 @@ err:
 WT_DISAGG_METADATA_OP *
 __wti_disagg_queue_view_latest(const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
 {
-    WT_DISAGG_QUEUE_VIEW_ENTRY *result;
+    WT_DISAGG_QUEUE_VIEW_ENTRY *end, *result;
 
     if (view->entries_count == 0)
         return (NULL);
 
     result = bsearch(table_name, view->entries, view->entries_count,
       sizeof(WT_DISAGG_QUEUE_VIEW_ENTRY), __disagg_queue_view_name_cmp);
-    return (result == NULL ? NULL : result->entry);
+    if (result == NULL)
+        return (NULL);
+
+    /* A name's entries sort together: the last of them is its latest queued operation. */
+    end = view->entries + view->entries_count;
+    for (result = result + 1; result < end; ++result)
+        if (strcmp(result->entry->table_name, table_name) != 0)
+            break;
+    --result;
+    return (result->entry);
 }
 
 /*
