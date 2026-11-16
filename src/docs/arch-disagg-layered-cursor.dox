@@ -61,10 +61,6 @@ Repositioning an alternate with `search_near()` can encounter a prepared key out
 scan direction. After that prepared transaction commits or rolls back, retrying the cursor operation
 completes the repositioning before the scan continues.
 
-Setting bounds is rejected while either constituent retains a position, including after a prepare
-conflict; clearing bounds remains allowed. A failed bound change preserves the previous bounds on
-the layered cursor and its constituents.
-
 Reopening blocked stable on a role change closes the cursor retaining its key. If ingest holds the
 last returned key, invalidating the iteration flags makes stable reposition from ingest. Otherwise,
 the layered cursor saves the blocked key and direction until both constituents can be restored.

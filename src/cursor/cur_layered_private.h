@@ -38,6 +38,7 @@ struct __wti_cursor_layered {
     WT_CURSOR *ingest_cursor;  /* The ingest table */
     WT_CURSOR *stable_cursor;  /* The stable table */
 
+    /* FIXME-WT-19102: Group the 32-bit fields to reduce padding. */
     uint64_t next_random_seed;
     u_int next_random_sample_size;
 
@@ -46,18 +47,18 @@ struct __wti_cursor_layered {
     uint32_t txn_mod_count;              /* Transaction modification count on last access */
     uint64_t stable_checkpoint_meta_lsn; /* Checkpoint LSN stable cursor is on */
     WTI_CLAYERED_ROLE last_role;         /* Last-observed leader/follower role (change-detection) */
-    WT_ITEM stopped_key; /* Prepare-blocked stable key awaiting restoration after a reopen */
-    bool stopped_next;   /* Stopped key was blocked by next, not prev */
+    WT_ITEM prepare_blocked_key;         /* Prepare-blocked stable key saved across reopening */
+    bool prepare_blocked_next;           /* Saved key was blocked by next, not prev */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_CLAYERED_ACTIVE 0x01u             /* Incremented the session count */
-#define WTI_CLAYERED_ITERATE_NEXT 0x02u       /* Forward iteration */
-#define WTI_CLAYERED_ITERATE_PREV 0x04u       /* Backward iteration */
-#define WTI_CLAYERED_ITERATE_RETRY_NEXT 0x08u /* Forward positioning retry */
-#define WTI_CLAYERED_ITERATE_RETRY_PREV 0x10u /* Backward positioning retry */
-#define WTI_CLAYERED_RANDOM 0x20u             /* Random cursor operations only */
-#define WTI_CLAYERED_SIZE_STAT 0x40u          /* Accumulate the size summary on the active btree */
-                                              /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WTI_CLAYERED_ACTIVE 0x01u                   /* Incremented the session count */
+#define WTI_CLAYERED_ITERATE_ALT_BLOCKED_NEXT 0x02u /* Forward alternate blocked */
+#define WTI_CLAYERED_ITERATE_ALT_BLOCKED_PREV 0x04u /* Backward alternate blocked */
+#define WTI_CLAYERED_ITERATE_NEXT 0x08u             /* Forward iteration */
+#define WTI_CLAYERED_ITERATE_PREV 0x10u             /* Backward iteration */
+#define WTI_CLAYERED_RANDOM 0x20u                   /* Random cursor operations only */
+#define WTI_CLAYERED_SIZE_STAT 0x40u /* Accumulate the size summary on the active btree */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
