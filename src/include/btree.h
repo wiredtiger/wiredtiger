@@ -217,7 +217,7 @@ struct __wt_btree {
     wt_shared uint8_t original; /* Newly created: bulk-load possible
                          (want a bool but needs atomic cas) */
 
-    bool hs_entries; /* Has entries in the history store table */
+    wt_shared bool hs_entries; /* Has entries in the history store table */
 
     WT_BM *bm;                     /* Block manager reference */
     u_int block_header_write_size; /* The size of a block header when writing a new page */
@@ -362,8 +362,8 @@ struct __wt_btree {
     u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
     u_int evict_walk_skips;                    /* Number of walks skipped */
     wt_shared int32_t evict_disabled;          /* Eviction disabled count */
-    bool evict_disabled_open;                  /* Eviction disabled on open */
-    bool evict_walk_dominating;                /* Current walk overrode the walk period */
+    wt_shared bool evict_disabled_open;        /* Eviction disabled on open */
+    wt_shared bool evict_walk_dominating;      /* Current walk overrode the walk period */
     wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
     wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;

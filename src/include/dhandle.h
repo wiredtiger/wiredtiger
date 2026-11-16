@@ -222,8 +222,8 @@ struct __wt_data_handle {
      * Checkpoint pickup and step-down set it while another thread may concurrently read it, so it
      * must be atomic.
      */
-    wt_shared bool outdated; /* Handle's metadata has been superseded */
-    bool compact_skip;       /* If the handle failed to compact */
+    wt_shared bool outdated;     /* Handle's metadata has been superseded */
+    wt_shared bool compact_skip; /* If the handle failed to compact */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_TS_ASSERT_READ_ALWAYS 0x1u /* Assert read always checking. */

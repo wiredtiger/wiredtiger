@@ -1213,8 +1213,8 @@ struct __wt_connection_impl {
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t write_through;      /* FILE_FLAG_WRITE_THROUGH */
 
-    bool modified; /* Data/schema change requiring a checkpoint */
-    int page_size; /* OS page size for mmap alignment */
+    wt_shared bool modified; /* Data/schema change requiring a checkpoint */
+    int page_size;           /* OS page size for mmap alignment */
 
     WT_CONN_DEBUG debug; /* Debug-mode configuration */
 
