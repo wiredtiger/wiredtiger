@@ -24,14 +24,14 @@ __wti_blkcache_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void **mapped_regi
     *mapped_cookiep = NULL;
 
     /* Map support is configurable. */
-    if (!S2C(session)->mmap)
+    if (!F_ISSET(S2C(session), WT_CONN_MMAP))
         return (0);
 
     /*
      * Turn off mapping when verifying the file, because we can't perform checksum validation of
      * mapped segments, and verify has to checksum pages.
      */
-    if (block->verify)
+    if (F_ISSET(block, WT_BLOCK_VERIFY))
         return (0);
 
     /*

@@ -34,15 +34,24 @@ __wt_block_verify_start(
 
     /* Configuration: strict behavior on any error. */
     WT_RET(__wt_config_gets(session, cfg, "strict", &cval));
-    block->verify_strict = cval.val != 0;
+    if (cval.val != 0)
+        F_SET(block, WT_BLOCK_VERIFY_STRICT);
+    else
+        F_CLR(block, WT_BLOCK_VERIFY_STRICT);
 
     /* Configuration: dump the file's layout. */
     WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));
-    block->verify_layout = cval.val != 0;
+    if (cval.val != 0)
+        F_SET(block, WT_BLOCK_VERIFY_LAYOUT);
+    else
+        F_CLR(block, WT_BLOCK_VERIFY_LAYOUT);
 
     /* Configuration: dump the file's layout. */
     WT_RET(__wt_config_gets(session, cfg, "dump_tree_shape", &cval));
-    block->dump_tree_shape = cval.val != 0;
+    if (cval.val != 0)
+        F_SET(block, WT_BLOCK_DUMP_TREE_SHAPE);
+    else
+        F_CLR(block, WT_BLOCK_DUMP_TREE_SHAPE);
 
     /*
      * Find the last checkpoint in the list: if there are none, or the only checkpoint we have is
@@ -93,7 +102,7 @@ __wt_block_verify_start(
     /*
      * Set this before reading any extent lists: don't panic if we see corruption.
      */
-    block->verify = true;
+    F_SET(block, WT_BLOCK_VERIFY);
 
     /*
      * We maintain an allocation list that is rolled forward through the set of checkpoints.
@@ -154,7 +163,7 @@ __verify_set_file_size(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
     WT_RET(__wti_block_ckpt_init(session, ci, ckpt->name));
     WT_ERR(__wti_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
 
-    if (block->verify_layout) {
+    if (F_ISSET(block, WT_BLOCK_VERIFY_LAYOUT)) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         __wt_verbose_notice(session, WT_VERB_VERIFY, "%s: physical size %s", block->name,
           __wt_buf_set_size(session, (uint64_t)block->size, true, tmp));
@@ -188,8 +197,7 @@ __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block, bool verify_suc
         /* Confirm we verified every file block. */
         ret = __verify_filefrag_chk(session, block);
 
-    block->verify = false;
-    block->verify_strict = false;
+    F_CLR(block, WT_BLOCK_VERIFY | WT_BLOCK_VERIFY_STRICT);
     block->verify_size = 0;
 
     /* Discard the accumulated allocation list. */
@@ -439,7 +447,7 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wti_block_extlist_dump_all(session, block);
 
-    return (block->verify_strict ? WT_ERROR : 0);
+    return (F_ISSET(block, WT_BLOCK_VERIFY_STRICT) ? WT_ERROR : 0);
 }
 
 /*
@@ -525,5 +533,5 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wti_block_extlist_dump_all(session, block);
 
-    return (block->verify_strict ? WT_ERROR : 0);
+    return (F_ISSET(block, WT_BLOCK_VERIFY_STRICT) ? WT_ERROR : 0);
 }

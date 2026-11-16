@@ -99,8 +99,8 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
          * system in two handles, or salvage, truncate or verify the live/running file.
          */
         __wt_spin_lock(session, &block->live_lock);
-        live_open = block->live_open;
-        block->live_open = true;
+        live_open = F_ISSET(block, WT_BLOCK_LIVE_OPEN);
+        F_SET(block, WT_BLOCK_LIVE_OPEN);
         __wt_spin_unlock(session, &block->live_lock);
         WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, live_open == false, EBUSY,
           "%s: attempt to re-open live file", block->name);
@@ -114,13 +114,13 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
      * object. In-memory block handles don't have a backing file thus size is zero.
      */
     if (addr == NULL || addr_size == 0)
-        ci->file_size = block->in_memory ? 0 : block->allocsize;
+        ci->file_size = F_ISSET(block, WT_BLOCK_IN_MEMORY) ? 0 : block->allocsize;
     else {
         /* Crack the checkpoint cookie. */
         WT_ERR(__wti_block_ckpt_unpack(session, block, addr, addr_size, ci));
 
         /* Verify sets up next. */
-        if (block->verify) {
+        if (F_ISSET(block, WT_BLOCK_VERIFY)) {
             WT_ASSERT(session, block->objectid == 0 && ci->root_objectid == 0);
             WT_ERR(__wti_verify_ckpt_load(session, block, ci));
         }
@@ -168,7 +168,7 @@ err:
          * early enough that the checkpoint information isn't correct, bad things would happen. The
          * only allocated memory was in the service of verify, clean that up.
          */
-        if (block->verify)
+        if (F_ISSET(block, WT_BLOCK_VERIFY))
             WT_TRET(__wti_verify_ckpt_unload(session, block, true));
     }
 
@@ -189,7 +189,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
     WT_DECL_RET;
 
     /* Verify cleanup. */
-    if (block->verify)
+    if (F_ISSET(block, WT_BLOCK_VERIFY))
         WT_TRET(__wti_verify_ckpt_unload(session, block, false));
 
     /*
@@ -202,7 +202,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 
         __wt_spin_lock(session, &block->live_lock);
         __wti_block_ckpt_destroy(session, &block->live);
-        block->live_open = false;
+        F_CLR(block, WT_BLOCK_LIVE_OPEN);
         __wt_spin_unlock(session, &block->live_lock);
     }
 
@@ -523,7 +523,7 @@ __ckpt_live_blkmods(
             continue;
 
         if (set) {
-            if (block->created_during_backup)
+            if (F_ISSET(block, WT_BLOCK_CREATED_DURING_BACKUP))
                 WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true));
             WT_EXT_FOREACH (ext, ci->alloc.off) {
                 WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true));
@@ -535,7 +535,7 @@ __ckpt_live_blkmods(
             }
         }
     }
-    block->created_during_backup = false;
+    F_CLR(block, WT_BLOCK_CREATED_DURING_BACKUP);
     return (0);
 }
 

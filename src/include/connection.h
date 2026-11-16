@@ -994,10 +994,6 @@ struct __wt_connection_impl {
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
 
-#ifndef WT_STANDALONE_BUILD
-    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
-#endif
-
     WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
     WT_VERSION compat_req_max; /* Maximum allowed version of WiredTiger for compatibility checks */
     WT_VERSION compat_req_min; /* Minimum allowed version of WiredTiger for compatibility checks */
@@ -1217,11 +1213,8 @@ struct __wt_connection_impl {
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t write_through;      /* FILE_FLAG_WRITE_THROUGH */
 
-    bool mmap;              /* use mmap when reading checkpoints */
-    bool mmap_all;          /* use mmap for all I/O on data files */
-    bool modified;          /* Data/schema change requiring a checkpoint */
-    bool preserve_prepared; /* Preserve prepared updates */
-    int page_size;          /* OS page size for mmap alignment */
+    bool modified; /* Data/schema change requiring a checkpoint */
+    int page_size; /* OS page size for mmap alignment */
 
     WT_CONN_DEBUG debug; /* Debug-mode configuration */
 
@@ -1338,22 +1331,26 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x0001u
-#define WT_CONN_CACHE_CURSORS 0x0002u
-#define WT_CONN_CALL_LOG_ENABLED 0x0004u
-#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x0008u
-#define WT_CONN_CKPT_SYNC 0x0010u
-#define WT_CONN_IN_MEMORY 0x0020u
-#define WT_CONN_KEY_PROVIDER_PUSH 0x0040u
-#define WT_CONN_LIVE_RESTORE_FS 0x0080u
-#define WT_CONN_PRECISE_CHECKPOINT 0x0100u
-#define WT_CONN_PRESERVE_PREPARED 0x0200u
-#define WT_CONN_READONLY 0x0400u
-#define WT_CONN_RECOVERING 0x0800u
-#define WT_CONN_RECOVERING_METADATA 0x1000u
-#define WT_CONN_RECOVERY_COMPLETE 0x2000u
-#define WT_CONN_SALVAGE 0x4000u
-#define WT_CONN_WAS_BACKUP 0x8000u
+#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x00001u
+#define WT_CONN_CACHE_CURSORS 0x00002u
+#define WT_CONN_CALL_LOG_ENABLED 0x00004u
+#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x00008u
+#define WT_CONN_CKPT_SYNC 0x00010u
+#define WT_CONN_IN_MEMORY 0x00020u
+#define WT_CONN_IS_NEW 0x00040u /* Connection created database */
+#define WT_CONN_KEY_PROVIDER_PUSH 0x00080u
+#define WT_CONN_LIVE_RESTORE_FS 0x00100u
+#define WT_CONN_MMAP 0x00200u     /* Use mmap when reading checkpoints */
+#define WT_CONN_MMAP_ALL 0x00400u /* Use mmap for all I/O on data files */
+#define WT_CONN_PRECISE_CHECKPOINT 0x00800u
+#define WT_CONN_PRESERVE_PREPARED 0x01000u
+#define WT_CONN_READONLY 0x02000u
+#define WT_CONN_RECOVERING 0x04000u
+#define WT_CONN_RECOVERING_METADATA 0x08000u
+#define WT_CONN_RECOVERY_COMPLETE 0x10000u
+#define WT_CONN_SALVAGE 0x20000u
+#define WT_CONN_UNCLEAN_SHUTDOWN 0x40000u /* Earlier shutdown was not clean */
+#define WT_CONN_WAS_BACKUP 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
@@ -1376,7 +1373,6 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING_STEP_UP 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
-    int is_new; /* Connection created database */
 
     /*
      * Repair arguments and memory holder.
