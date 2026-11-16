@@ -450,22 +450,6 @@ struct __wt_txn {
     wt_timestamp_t first_commit_timestamp;
 
     /*
-     * True if the step-down timestamp was set when this transaction began. Used to redirect the
-     * transaction's writes to the ingest constituent (or mirrored to both stable and ingest when
-     * write mirroring is enabled), to include ingest in its reads, and to detect straddlers.
-     */
-    bool stepdown_ts_set;
-    /*
-     * The disaggregated role observed when the snapshot was established; the role-change generation
-     * it was established under is published in the session's generation slot. A snapshot
-     * established under one role must not bind a layered table's stable content under another. A
-     * bind compares both: the role catches a transition racing the bind without needing a lock (the
-     * dispatch and the comparison use one read of one variable), and the generation catches a role
-     * that changed away and back.
-     */
-    bool disagg_role_leader;
-
-    /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and
      * the current oldest/pinned timestamp, respectively.
      */
@@ -493,9 +477,7 @@ struct __wt_txn {
 
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;
-    uint32_t ckpt_nsnapshot;
     WT_ITEM *ckpt_snapshot;
-    bool full_ckpt;
 
     /* Timeout */
     uint64_t operation_timeout_us;
@@ -529,7 +511,25 @@ struct __wt_txn {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
+    uint32_t ckpt_nsnapshot;
     uint16_t modify_block_count;
+    bool full_ckpt;
+
+    /*
+     * True if the step-down timestamp was set when this transaction began. Used to redirect the
+     * transaction's writes to the ingest constituent (or mirrored to both stable and ingest when
+     * write mirroring is enabled), to include ingest in its reads, and to detect straddlers.
+     */
+    bool stepdown_ts_set;
+    /*
+     * The disaggregated role observed when the snapshot was established; the role-change generation
+     * it was established under is published in the session's generation slot. A snapshot
+     * established under one role must not bind a layered table's stable content under another. A
+     * bind compares both: the role catches a transition racing the bind without needing a lock (the
+     * dispatch and the comparison use one read of one variable), and the generation catches a role
+     * that changed away and back.
+     */
+    bool disagg_role_leader;
 
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_TXN structure. We use a

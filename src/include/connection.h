@@ -991,7 +991,6 @@ struct __wt_connection_impl {
     const char *error_prefix; /* Database error prefix */
     uint64_t dh_hash_size;    /* Data handle hash bucket array size */
     uint64_t hash_size;       /* General hash bucket array size */
-    int is_new;               /* Connection created database */
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
 
@@ -1094,6 +1093,7 @@ struct __wt_connection_impl {
     uint64_t recovery_ckpt_snap_min, recovery_ckpt_snap_max;
     uint64_t *recovery_ckpt_snapshot;
     uint32_t recovery_ckpt_snapshot_count;
+    uint32_t stat_flags; /* Options declared in flags.py */
 
     WT_CONN_BACKUP backup; /* Hot backup subsystem */
 
@@ -1145,8 +1145,6 @@ struct __wt_connection_impl {
      */
     wt_shared uint64_t max_write_gen;
 
-    uint32_t stat_flags; /* Options declared in flags.py */
-
     /* Connection statistics */
     uint64_t rec_maximum_hs_wrapup_milliseconds; /* Maximum milliseconds moving updates to history
                                                     store took. */
@@ -1183,19 +1181,12 @@ struct __wt_connection_impl {
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
     WT_PAGE_HISTORY page_history;
 
-    bool preserve_prepared; /* Preserve prepared updates */
-
     WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
 
     WT_LOG_MANAGER log_mgr;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
-
-    /*
-     * Is there a data/schema change that needs to be the part of a checkpoint.
-     */
-    bool modified;
 
     WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
 
@@ -1226,9 +1217,11 @@ struct __wt_connection_impl {
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t write_through;      /* FILE_FLAG_WRITE_THROUGH */
 
-    bool mmap;     /* use mmap when reading checkpoints */
-    bool mmap_all; /* use mmap for all I/O on data files */
-    int page_size; /* OS page size for mmap alignment */
+    bool mmap;              /* use mmap when reading checkpoints */
+    bool mmap_all;          /* use mmap for all I/O on data files */
+    bool modified;          /* Data/schema change requiring a checkpoint */
+    bool preserve_prepared; /* Preserve prepared updates */
+    int page_size;          /* OS page size for mmap alignment */
 
     WT_CONN_DEBUG debug; /* Debug-mode configuration */
 
@@ -1383,6 +1376,7 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING_STEP_UP 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+    int is_new; /* Connection created database */
 
     /*
      * Repair arguments and memory holder.

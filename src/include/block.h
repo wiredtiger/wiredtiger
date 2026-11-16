@@ -118,10 +118,9 @@ struct __wt_size {
  */
 typedef struct {
     WT_EXT *ext_cache;   /* List of WT_EXT handles */
+    WT_SIZE *sz_cache;   /* List of WT_SIZE handles */
     u_int ext_cache_cnt; /* Count */
-
-    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
-    u_int sz_cache_cnt; /* Count */
+    u_int sz_cache_cnt;  /* Count */
 } WT_BLOCK_MGR_SESSION;
 
 /*
@@ -301,6 +300,8 @@ struct __wt_block {
      * file is synthetic, but a file descriptor still exists.
      */
     bool in_memory;
+    bool live_open;         /* Live system is open */
+    bool compact_estimated; /* If compaction work has been estimated */
 
     /* Configuration information, set when the file is opened. */
     wt_shared uint32_t allocfirst; /* Allocation is first-fit */
@@ -310,6 +311,12 @@ struct __wt_block {
     size_t os_cache_dirty_max;
 
     u_int block_header; /* Header length */
+    enum {              /* Live checkpoint status */
+        WT_CKPT_NONE = 0,
+        WT_CKPT_INPROGRESS,
+        WT_CKPT_PANIC_ON_FAILURE,
+        WT_CKPT_SALVAGE
+    } ckpt_state;
 
     /*
      * There is only a single checkpoint in a file that can be written; stored here, only accessed
@@ -317,19 +324,12 @@ struct __wt_block {
      */
     WT_SPINLOCK live_lock; /* Live checkpoint lock */
     WT_BLOCK_CKPT live;    /* Live checkpoint */
-    bool live_open;        /* Live system is open */
-    enum {                 /* Live checkpoint status */
-        WT_CKPT_NONE = 0,
-        WT_CKPT_INPROGRESS,
-        WT_CKPT_PANIC_ON_FAILURE,
-        WT_CKPT_SALVAGE
-    } ckpt_state;
 
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 
     /* Compaction support */
-    bool compact_estimated;                    /* If compaction work has been estimated */
     int compact_pct_tenths;                    /* Percent to compact */
+    uint32_t compact_session_id;               /* Session compacting */
     uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
     uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
     uint64_t compact_bytes_rewritten_expected; /* The expected number of bytes to rewrite */
@@ -340,24 +340,21 @@ struct __wt_block {
     uint64_t compact_pages_skipped;            /* Pages skipped */
     uint64_t compact_prev_pages_rewritten;     /* Pages rewritten during the previous iteration */
     wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
-    uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
 
     /* Verification support */
-    bool verify;             /* If performing verification */
-    bool verify_layout;      /* Print out file layout information */
-    bool dump_tree_shape;    /* Print out tree shape */
-    bool verify_strict;      /* Fail hard on any error */
-    wt_off_t verify_size;    /* Checkpoint's file size */
-    WT_EXTLIST verify_alloc; /* Verification allocation list */
-    uint64_t frags;          /* Maximum frags in the file */
-    uint8_t *fragfile;       /* Per-file frag tracking list */
-    uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
-
-    /* Multi-file support */
+    bool verify;                   /* If performing verification */
+    bool verify_layout;            /* Print out file layout information */
+    bool dump_tree_shape;          /* Print out tree shape */
+    bool verify_strict;            /* Fail hard on any error */
     wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
+    wt_off_t verify_size;          /* Checkpoint's file size */
+    WT_EXTLIST verify_alloc;       /* Verification allocation list */
+    uint64_t frags;                /* Maximum frags in the file */
+    uint8_t *fragfile;             /* Per-file frag tracking list */
+    uint8_t *fragckpt;             /* Per-checkpoint frag tracking list */
 };
 
 /*

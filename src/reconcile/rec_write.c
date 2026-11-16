@@ -956,7 +956,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * Prefix compression discards repeated prefix bytes from row-store leaf page keys.
      */
     r->key_pfx_compress_conf = false;
-    if (btree->prefix_compression && page->type == WT_PAGE_ROW_LEAF)
+    if (F_ISSET(btree, WT_BTREE_PREFIX_COMPRESSION) && page->type == WT_PAGE_ROW_LEAF)
         r->key_pfx_compress_conf = true;
 
     /*
@@ -969,7 +969,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * turns on suffix compression.
      */
     r->key_sfx_compress_conf = false;
-    if (btree->collator == NULL && btree->internal_key_truncate)
+    if (btree->collator == NULL && F_ISSET(btree, WT_BTREE_INTERNAL_KEY_TRUNCATE))
         r->key_sfx_compress_conf = true;
 
     r->is_bulk_load = false;
@@ -2911,10 +2911,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     multi->addr.block_cookie_size = (uint8_t)addr_size;
 
     /* Adjust the pre-compression page size based on compression results. */
-    if (WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->intlpage_compadjust)
+    if (WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 &&
+      F_ISSET(btree, WT_BTREE_INTL_COMPADJUST))
         __rec_compression_adjust(
           session, btree->maxintlpage, compressed_size, last_block, &btree->maxintlpage_precomp);
-    if (!WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->leafpage_compadjust)
+    if (!WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 &&
+      F_ISSET(btree, WT_BTREE_LEAF_COMPADJUST))
         __rec_compression_adjust(
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 

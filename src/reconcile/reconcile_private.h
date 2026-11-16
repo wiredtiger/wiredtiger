@@ -161,7 +161,6 @@ struct __wti_delete_hs_upd {
 struct __wti_reconcile {
     WT_REF *ref; /* Page being reconciled */
     WT_PAGE *page;
-    uint32_t flags; /* Caller's configuration */
 
     /* Track the pinned id for the reconciliation if without a snapshot. */
     uint64_t rec_start_pinned_id;
@@ -253,6 +252,7 @@ struct __wti_reconcile {
      */
     uint32_t split_size;     /* Split page size */
     uint32_t min_split_size; /* Minimum split page size */
+    uint32_t flags;          /* Caller's configuration */
 
     /*
      * We maintain two split chunks in the memory during reconciliation to be written out as pages.
@@ -320,18 +320,6 @@ struct __wti_reconcile {
     uint32_t bytes_prefix_compression_delta;
     uint32_t bytes_prefix_compression_full;
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
-#define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
-#define WTI_REC_TIME_NEWEST_STOP_TS 0x04u
-#define WTI_REC_TIME_NEWEST_STOP_TXN 0x08u
-#define WTI_REC_TIME_NEWEST_TXN 0x10u
-#define WTI_REC_TIME_OLDEST_START_TS 0x20u
-#define WTI_REC_TIME_PREPARE 0x40u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t ts_usage_flags;
-    uint16_t delta_ts_usage_flags;
-
     /*
      * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each
      * page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks are
@@ -350,12 +338,12 @@ struct __wti_reconcile {
      * after we have built the disk image.
      */
     WTI_DELETE_HS_UPD *delete_hs_upd; /* Updates to delete from history store */
-    uint32_t delete_hs_upd_next;
     size_t delete_hs_upd_allocated;
 
     /* List of pages we've written so far. */
     WT_MULTI *multi;
     uint32_t multi_next;
+    uint32_t delete_hs_upd_next;
     size_t multi_allocated;
 
     /*
@@ -364,14 +352,6 @@ struct __wti_reconcile {
      */
     WT_ITEM *wrapup_checkpoint;
     WT_PAGE_BLOCK_META wrapup_checkpoint_block_meta;
-    bool wrapup_checkpoint_compressed;
-
-    /*
-     * We don't need to keep the 0th key around on internal pages, the search code ignores them as
-     * nothing can sort less by definition. There's some trickiness here, see the code for comments
-     * on how these fields work.
-     */
-    bool cell_zero; /* Row-store internal page 0th key */
 
     WTI_REC_DICTIONARY **dictionary;         /* Dictionary */
     u_int dictionary_next, dictionary_slots; /* Next, max entries */
@@ -391,6 +371,14 @@ struct __wti_reconcile {
     bool key_sfx_compress_conf; /* If suffix compression configured */
 
     bool is_bulk_load; /* If it's a bulk load */
+    bool wrapup_checkpoint_compressed;
+
+    /*
+     * We don't need to keep the 0th key around on internal pages, the search code ignores them as
+     * nothing can sort less by definition. There's some trickiness here, see the code for comments
+     * on how these fields work.
+     */
+    bool cell_zero; /* Row-store internal page 0th key */
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
@@ -420,6 +408,19 @@ struct __wti_reconcile {
      * whether this is appropriate, and a cached history store cursor for doing it.
      */
     bool hs_clear_on_tombstone;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
+#define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
+#define WTI_REC_TIME_NEWEST_STOP_TS 0x04u
+#define WTI_REC_TIME_NEWEST_STOP_TXN 0x08u
+#define WTI_REC_TIME_NEWEST_TXN 0x10u
+#define WTI_REC_TIME_OLDEST_START_TS 0x20u
+#define WTI_REC_TIME_PREPARE 0x40u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t ts_usage_flags;
+    uint16_t delta_ts_usage_flags;
+
     WT_CURSOR *hs_cursor;
 };
 

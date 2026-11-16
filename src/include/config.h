@@ -57,8 +57,8 @@ struct __wt_config_entry {
     const char *base; /* configuration base */
 
     const WT_CONFIG_CHECK *checks; /* check array */
-    u_int checks_entries;
     const uint8_t *checks_jump;
+    u_int checks_entries;
     u_int method_id;
     size_t conf_total_size; /* total size of the structures needed for precompiling */
     u_int conf_count;       /* number of WT_CONF structures needed for precompiling */
