@@ -317,6 +317,18 @@ struct __wti_reconcile {
 
     uint8_t key_pfx_last; /* Last prefix compression */
 
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
+#define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
+#define WTI_REC_TIME_NEWEST_STOP_TS 0x04u
+#define WTI_REC_TIME_NEWEST_STOP_TXN 0x08u
+#define WTI_REC_TIME_NEWEST_TXN 0x10u
+#define WTI_REC_TIME_OLDEST_START_TS 0x20u
+#define WTI_REC_TIME_PREPARE 0x40u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t ts_usage_flags;
+    uint8_t delta_ts_usage_flags;
+
 /*
  * Reconciliation state flags:
  *
@@ -379,18 +391,6 @@ struct __wti_reconcile {
      * violation and fragile, we need a better solution.
      */
     WT_CURSOR_BTREE update_modify_cbt;
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
-#define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
-#define WTI_REC_TIME_NEWEST_STOP_TS 0x04u
-#define WTI_REC_TIME_NEWEST_STOP_TXN 0x08u
-#define WTI_REC_TIME_NEWEST_TXN 0x10u
-#define WTI_REC_TIME_OLDEST_START_TS 0x20u
-#define WTI_REC_TIME_PREPARE 0x40u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t ts_usage_flags;
-    uint16_t delta_ts_usage_flags;
 
     WT_CURSOR *hs_cursor;
 };

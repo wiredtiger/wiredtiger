@@ -2061,7 +2061,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
      * is set. This check is the guarantee: under the step-down lock it always observes a set
      * timestamp, so no straddler commits after the timestamp is in place.
      */
-    if (txn->mod_count != 0 && !txn->stepdown_ts_set && __wt_conn_is_disagg(session)) {
+    if (txn->mod_count != 0 && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
+      __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
         ret = __wt_txn_stepdown_straddler_check(session, true);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
