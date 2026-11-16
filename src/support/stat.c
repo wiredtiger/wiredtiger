@@ -312,6 +312,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor next calls that skip greater than 1 and fewer than 100 entries",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next random calls that return an error",
+  "cursor: cursor next raw kv batch calls that return an error",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
@@ -352,6 +353,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "layered: Layered table cursor TODO better description",
   "layered: Layered table cursor blind remove operations on a follower",
   "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
@@ -812,6 +814,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100,
   WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100,
   WT_STAT_DSRC_CURSOR_NEXT_RANDOM_ERROR,
+  WT_STAT_DSRC_CURSOR_NEXT_RAW_KV_BATCH_ERROR,
   WT_STAT_DSRC_CURSOR_PREV_ERROR,
   WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE,
   WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100,
@@ -852,6 +855,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_UPDATE,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_DSRC_LAYERED_CURS_NEXT_RAW_KV_BATCH,
   WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
   WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_DSRC_LAYERED_CURS_INSERT,
@@ -1347,6 +1351,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_random_error = 0;
+    stats->cursor_next_raw_kv_batch_error = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
@@ -1387,6 +1392,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->layered_curs_next_raw_kv_batch = 0;
     stats->layered_curs_blind_remove_follower = 0;
     stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
@@ -1897,6 +1903,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
     to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
     to->cursor_next_random_error += from->cursor_next_random_error;
+    to->cursor_next_raw_kv_batch_error += from->cursor_next_raw_kv_batch_error;
     to->cursor_prev_error += from->cursor_prev_error;
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
@@ -1940,6 +1947,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->layered_curs_next_raw_kv_batch += from->layered_curs_next_raw_kv_batch;
     to->layered_curs_blind_remove_follower += from->layered_curs_blind_remove_follower;
     to->layered_curs_blind_remove_ingest_deleted += from->layered_curs_blind_remove_ingest_deleted;
     to->layered_curs_insert += from->layered_curs_insert;
@@ -2488,6 +2496,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_skip_lt_100 += WT_STAT_DSRC_READ(from, cursor_next_skip_lt_100);
     to->cursor_next_skip_ge_100 += WT_STAT_DSRC_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_random_error += WT_STAT_DSRC_READ(from, cursor_next_random_error);
+    to->cursor_next_raw_kv_batch_error += WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch_error);
     to->cursor_prev_error += WT_STAT_DSRC_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_DSRC_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_DSRC_READ(from, cursor_prev_skip_ge_100);
@@ -2534,6 +2543,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->layered_curs_next_raw_kv_batch += WT_STAT_DSRC_READ(from, layered_curs_next_raw_kv_batch);
     to->layered_curs_blind_remove_follower +=
       WT_STAT_DSRC_READ(from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=
@@ -3353,6 +3363,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor next calls that skip greater than 1 and fewer than 100 entries",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next random calls that return an error",
+  "cursor: cursor next raw kv batch calls that return an error",
   "cursor: cursor operation restarted",
   "cursor: cursor prev calls",
   "cursor: cursor prev calls that return an error",
@@ -3465,6 +3476,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "disagg: unpublished schema operations canceled by a drop",
+  "layered: Layered table cursor TODO better description",
   "layered: Layered table cursor blind remove operations on a follower",
   "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
@@ -4547,6 +4559,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100,
   WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100,
   WT_STAT_CONN_CURSOR_NEXT_RANDOM_ERROR,
+  WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_ERROR,
   WT_STAT_CONN_CURSOR_RESTART,
   WT_STAT_CONN_CURSOR_PREV,
   WT_STAT_CONN_CURSOR_PREV_ERROR,
@@ -4652,6 +4665,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_INGEST_CREATE_ON_OPEN_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_SCHEMA_CANCELED,
+  WT_STAT_CONN_LAYERED_CURS_NEXT_RAW_KV_BATCH,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
@@ -5762,6 +5776,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_random_error = 0;
+    stats->cursor_next_raw_kv_batch_error = 0;
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
     stats->cursor_prev_error = 0;
@@ -5867,6 +5882,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_ingest_create_on_open_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->disagg_schema_canceled = 0;
+    stats->layered_curs_next_raw_kv_batch = 0;
     stats->layered_curs_blind_remove_follower = 0;
     stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
@@ -7102,6 +7118,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next_skip_lt_100 += WT_STAT_CONN_READ(from, cursor_next_skip_lt_100);
     to->cursor_next_skip_ge_100 += WT_STAT_CONN_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_random_error += WT_STAT_CONN_READ(from, cursor_next_random_error);
+    to->cursor_next_raw_kv_batch_error += WT_STAT_CONN_READ(from, cursor_next_raw_kv_batch_error);
     to->cursor_restart += WT_STAT_CONN_READ(from, cursor_restart);
     to->cursor_prev += WT_STAT_CONN_READ(from, cursor_prev);
     to->cursor_prev_error += WT_STAT_CONN_READ(from, cursor_prev_error);
@@ -7250,6 +7267,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_schema_canceled += WT_STAT_CONN_READ(from, disagg_schema_canceled);
+    to->layered_curs_next_raw_kv_batch += WT_STAT_CONN_READ(from, layered_curs_next_raw_kv_batch);
     to->layered_curs_blind_remove_follower +=
       WT_STAT_CONN_READ(from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=

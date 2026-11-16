@@ -258,6 +258,8 @@ extern int __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentr
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_next_batch(WT_CURSOR_BTREE *cbt, WT_ITEM *keys, WT_ITEM *values, size_t count,
+  size_t *returned_countp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
@@ -527,6 +529,8 @@ extern int __wt_cursor_lookup_str(WT_CURSOR *cursor, const char *key, const char
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_next_raw_kv_batch_notsup(WT_CURSOR *cursor, WT_ITEM *keys, WT_ITEM *values,
+  size_t count, size_t *returned_countp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_notsup(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_prepared_discover_open(WT_SESSION_IMPL *session, const char *uri,
   WT_CURSOR *other, const char *cfg[], WT_CURSOR **cursorp)
