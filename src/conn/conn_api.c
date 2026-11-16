@@ -2092,13 +2092,13 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * If this is a read-only connection and we cannot grab the lock file, check if it is because
-     * there's no write permission or if the file does not exist. If so, then ignore the error. XXX
-     * Ignoring the error does allow multiple read-only connections to exist at the same time on a
-     * read-only directory.
+     * there's no write permission, the underlying file system does not permit the write (EPERM), or
+     * if the file does not exist. If so, then ignore the error. XXX Ignoring the error does allow
+     * multiple read-only connections to exist at the same time on a read-only directory.
      *
      * If we got an expected permission or non-existence error then skip the byte lock.
      */
-    if (F_ISSET(conn, WT_CONN_READONLY) && (ret == EACCES || ret == ENOENT)) {
+    if (F_ISSET(conn, WT_CONN_READONLY) && (ret == EACCES || ret == ENOENT || ret == EPERM)) {
         bytelock = false;
         ret = 0;
     }
