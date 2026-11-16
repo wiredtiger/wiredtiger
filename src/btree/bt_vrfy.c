@@ -345,8 +345,8 @@ err:
 
 /*
  * __wt_verify_metadata_consistency --
- *     Run the database-wide metadata consistency checks, confirming that no two stable
- *     files share a btree ID, in both the local and the shared metadata.
+ *     Run the database-wide metadata consistency checks, confirming that no two stable files share
+ *     a btree ID, in both the local and the shared metadata.
  */
 int
 __wt_verify_metadata_consistency(WT_SESSION_IMPL *session)
