@@ -986,6 +986,7 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, page, btree->type != BTREE_ROW);
+    __wt_cache_read_incr(session, page);
 
 err:
     __wt_buf_free(session, &dsk);
