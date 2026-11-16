@@ -86,6 +86,10 @@ check_lock_open_failure(TEST_OPTS *opts, const char *build_dir, int error, const
     testutil_check(unsetenv("WT_FAIL_FS_OPEN_ERROR"));
 }
 
+/*
+ * main --
+ *     Run the read-only lock file open tests.
+ */
 int
 main(int argc, char *argv[])
 {
