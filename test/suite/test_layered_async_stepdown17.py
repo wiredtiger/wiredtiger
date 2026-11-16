@@ -48,13 +48,15 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
     ]
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
+    # Vary the mirroring configuration; all writes precede the step-down window.
     mirroring_modes = [
         ('unmirrored', dict(write_mirroring=False)),
         ('mirrored', dict(write_mirroring=True)),
     ]
     scenarios = make_scenarios(disagg_storages, directions, mirroring_modes)
 
-    uri = 'layered:test_layered_async_stepdown17'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     def test_walk_blocked_across_step_down(self):
         self.set_global_ts(1, 1)

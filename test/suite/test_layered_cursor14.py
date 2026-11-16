@@ -28,6 +28,7 @@
 
 import random, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from suite_random import suite_random
 from wtscenario import make_scenarios
 
 # Test cursor iteration and iteration after search/search_near on layered cursors
@@ -374,6 +375,11 @@ class test_layered_cursor14(wttest.WiredTigerTestCase):
 
     def test_direction_zigzag_overlapping(self):
         """Random direction switches over shared, removed and one-sided keys match a model."""
+        seedw, seedz = wttest.getseed()
+        seed = suite_random().rand32()
+        self.prhead(f'Model seed {seed}; reproduce with --seed {seedw}.{seedz}')
+        rng = random.Random(seed)
+
         stable = list(range(0, 150, 2))
         ingest_only = list(range(51, 200, 2))
         shared = list(range(50, 150, 10))
@@ -397,8 +403,6 @@ class test_layered_cursor14(wttest.WiredTigerTestCase):
             del values[k]
         model = sorted(values)
 
-        seed = random.randrange(1 << 32)
-        rng = random.Random(seed)
         cursor = self.open_cursor()
         pos = None
         forward = True

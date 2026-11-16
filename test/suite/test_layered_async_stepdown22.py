@@ -48,7 +48,8 @@ class test_layered_async_stepdown22(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, directions)
 
-    uri = 'layered:test_layered_async_stepdown22'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     def test_tie_from_context_change_with_stable_current(self):
         self.set_global_ts(1, 1)

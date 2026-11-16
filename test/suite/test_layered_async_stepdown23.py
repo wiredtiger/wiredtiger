@@ -30,11 +30,8 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 
-# A walk can block on a prepared update on each constituent in turn, at two different points along
-# the same walk, with the two prepared transactions resolved independently and in either order. The
-# walk must recover cleanly from each block on its own, switching which constituent leads as the
-# blocking key on one side is passed, without conflating the two conflicts or skipping a key while
-# a block is being resolved on the other side.
+# A forward scan blocks first on ingest, then on stable. Roll back each prepared transaction when
+# its conflict is reported and verify that the scan returns the remaining keys and values in order.
 @disagg_test_class
 class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
@@ -45,7 +42,8 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     scenarios = gen_disagg_storages(disagg_only=True)
 
-    uri = 'layered:test_layered_async_stepdown23'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     def test_two_independent_blocks_on_opposite_constituents(self):
         self.set_global_ts(1, 1)
@@ -101,7 +99,7 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
                     stable_prep_session.close()
                     stable_resolved = True
                 continue
-            seen.append(cursor.get_key())
+            seen.append((cursor.get_key(), cursor.get_value()))
 
         self.session.rollback_transaction()
         cursor.close()
@@ -117,7 +115,7 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
         # Both prepared transactions are rolled back, so neither key3 nor key2b ever existed as a
         # visible value: every other key is returned exactly once, in order.
         self.assertEqual(conflicts, 2, 'expected exactly one block per constituent')
-        self.assertEqual(seen, ['key1', 'key2a', 'key4', 'key5'])
+        self.assertEqual(seen, [(key, 'v') for key in ('key1', 'key2a', 'key4', 'key5')])
 
 if __name__ == '__main__':
     wttest.run()

@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from functools import partial
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
@@ -35,13 +36,6 @@ from wtscenario import make_scenarios
 # constituent holding it: the walk keeps that position while the key it would return is withheld.
 # Both constituents can carry prepared content, so both can block a walk, and either way the walk
 # must report the conflict and then resume from where it stopped once the conflict is resolved.
-#
-# Prepared transactions are ordinarily rejected while the step-down timestamp is set, so this test
-# uses the debug_mode.disagg_stepdown_prepare knob to bypass that ban and exercise the walk logic
-# directly; that knob is temporary and goes away once prepared transactions are supported across a
-# step-down for real. It resolves the blocking transaction by rollback rather than commit: the
-# knob does not affect the step-down straddler check, so a straddling prepared transaction can
-# still only commit into a panic.
 @disagg_test_class
 class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
@@ -50,8 +44,10 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
     # Where the blocking prepared update lives. Content written before the step-down timestamp is
     # announced goes to the stable constituent; content written after it goes to ingest.
     prepare_targets = [
-        ('prepare_on_stable', dict(prepare_before_step_down=True)),
-        ('prepare_on_ingest', dict(prepare_before_step_down=False)),
+        # Prepared transactions that straddle the announcement cannot commit.
+        ('prepare_on_stable_rollback', dict(prepare_before_step_down=True, commit_prepared=False)),
+        ('prepare_on_ingest_rollback', dict(prepare_before_step_down=False, commit_prepared=False)),
+        ('prepare_on_ingest_commit', dict(prepare_before_step_down=False, commit_prepared=True)),
     ]
 
     directions = [
@@ -59,9 +55,8 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         ('prev', dict(forward=False)),
     ]
 
-    # Whether the keys immediately next to the blocked key also exist in both constituents, so the
-    # walk ties on them just before reaching the blocked key. Every other key in this test belongs
-    # to exactly one constituent, so without this a tie is never part of the walk.
+    # Prepopulate stable with the keys immediately beside the blocked key to exercise ties even
+    # without mirroring. With mirroring enabled, ingest writes also create ties on stable.
     tie_scenarios = [
         ('no_tie', dict(with_tie=False)),
         ('with_tie', dict(with_tie=True)),
@@ -112,10 +107,7 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
-    # Walk the whole table, tolerating the prepare conflict on the blocked key. Resolve the
-    # blocking transaction by rollback on the first conflict, then keep walking: this is what
-    # exercises resuming from a blocked position. Committing a straddling prepared transaction
-    # panics the process by design, so this test resolves via rollback instead.
+    # Resolve the blocking transaction on the first conflict, then continue on the same cursor.
     def walk_resolving_conflict(self, cursor, resolve):
         step = cursor.next if self.forward else cursor.prev
         seen = []
@@ -139,9 +131,17 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
                     resolve()
                     resolved = True
                 continue
-            seen.append(cursor.get_key())
+            seen.append((cursor.get_key(), cursor.get_value()))
 
         return seen, conflicts
+
+    def early_setup(self):
+        # Scenario copies must not share teardown actions bound to another test instance.
+        self.teardown_actions = []
+
+    def finish_step_down_for_teardown(self):
+        self.complete_step_down(15)
+        return (0, '')
 
     # Build the table with the prepared update on the blocked key. Returns the blocked key, the
     # prepared session and cursor, and a function that resolves the prepared transaction.
@@ -185,14 +185,17 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         # keys are among these, now duplicated on stable above: whichever constituent the walk
         # consults for one of them, the other still holds a copy too.
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(step_down_ts))
+        if self.mirroring:
+            self.addTearDownAction(self.finish_step_down_for_teardown)
         self.write_at(self.uri, {k: 'v-initial' for k in self.ingest_keys()}, 20)
 
         if not self.prepare_before_step_down:
             prepare()
 
-        def resolve():
-            prepare_session.rollback_transaction()
-
+        resolve = partial(prepare_session.commit_transaction,
+            'commit_timestamp=' + self.timestamp_str(32) +
+            ',durable_timestamp=' + self.timestamp_str(32)) if self.commit_prepared else \
+            prepare_session.rollback_transaction
         return blocked_key, prepare_session, prepare_cursor, resolve
 
     def test_walk_over_prepared_key(self):
@@ -212,21 +215,13 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
             prepare_cursor.close()
             prepare_session.close()
 
-        # Verification needs the step-down completed when writes are mirrored.
-        if self.mirroring:
-            self.complete_step_down(15)
+        self.assertEqual(conflicts, 1,
+            'the walk must conflict once, before the prepared transaction resolves')
 
-        # The prepared key must have blocked the walk; otherwise the scenario never arose and the
-        # rest of the assertions prove nothing.
-        self.assertGreater(conflicts, 0,
-            'the prepared update never blocked the walk')
-
-        # The prepared transaction is rolled back rather than committed, uncovering the original
-        # value underneath: every key is returned exactly once, in order, including the blocked one.
-        # The tie keys are already members of the full key list, so the expected sequence does not
-        # change; only how each of them is produced (from one constituent or both) does.
         expected = keys if self.forward else list(reversed(keys))
-        self.assertEqual(seen, expected)
+        self.assertEqual(seen, [(key,
+            'v-prepared' if self.commit_prepared and key == blocked_key else 'v-initial')
+            for key in expected])
 
     # A bounded walk whose first key has a prepared update: the btree cursor resets itself on the
     # prepare conflict while it is first positioned, so there is no blocked position to resume
@@ -243,26 +238,25 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         step = cursor.next if self.forward else cursor.prev
 
         try:
-            for _ in range(3):
+            # Retrying the reset cursor must still conflict while the prepare is unresolved.
+            for _ in range(2):
                 self.assertRaisesException(wiredtiger.WiredTigerError, step,
                     '/conflict with a prepared update/')
             resolve()
             seen = []
             while step() == 0:
-                seen.append(cursor.get_key())
+                seen.append((cursor.get_key(), cursor.get_value()))
         finally:
             self.session.rollback_transaction()
             cursor.close()
             prepare_cursor.close()
             prepare_session.close()
 
-        # Verification needs the step-down completed when writes are mirrored.
-        if self.mirroring:
-            self.complete_step_down(15)
-
         expected = keys[self.blocked_index:] if self.forward else \
             list(reversed(keys[:self.blocked_index + 1]))
-        self.assertEqual(seen, expected)
+        self.assertEqual(seen, [(key,
+            'v-prepared' if self.commit_prepared and key == blocked_key else 'v-initial')
+            for key in expected])
 
 if __name__ == '__main__':
     wttest.run()

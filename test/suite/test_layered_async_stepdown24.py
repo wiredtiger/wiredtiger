@@ -45,8 +45,6 @@ class BlockedWalkMixin(LayeredStepdownMixin):
         ('prev', dict(forward=False)),
     ]
 
-    uri = 'layered:test_layered_async_stepdown24'
-
     # Keys are named by rank in walk order, so one layout serves both directions.
     def key(self, rank):
         return f'key{rank if self.forward else 10 - rank}'
@@ -100,9 +98,9 @@ class BlockedWalkMixin(LayeredStepdownMixin):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: step(cursor),
                                    '/conflict with a prepared update/')
 
-    def assert_returns(self, cursor, rank):
+    def assert_returns(self, cursor, rank, value):
         self.assertEqual(self.step(cursor), 0)
-        self.assertEqual(cursor.get_key(), self.key(rank))
+        self.assertEqual((cursor.get_key(), cursor.get_value()), (self.key(rank), value))
 
     def rest_of_walk(self, cursor):
         actual = []
@@ -112,6 +110,8 @@ class BlockedWalkMixin(LayeredStepdownMixin):
 
 @disagg_test_class
 class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
 
     def test_deleted_alternate_preserves_readable_key(self):
@@ -168,7 +168,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 1, 'v')
         self.assert_conflict(cursor)
         self.resolve(ingest_prepare)
         actual = self.rest_of_walk(cursor)
@@ -223,9 +223,9 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 1, 'v')
         if 2 in ingest:
-            self.assert_returns(cursor, 2)
+            self.assert_returns(cursor, 2, 'v')
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
@@ -279,7 +279,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         for rank in (1, 2, 3):
-            self.assert_returns(cursor, rank)
+            self.assert_returns(cursor, rank, 'v-ingest' if rank == 3 else 'v')
         self.assert_conflict(cursor)
         actual = self.walk_back(cursor)
         self.session.rollback_transaction()
@@ -301,7 +301,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         for rank in (1, 2, 3, 4):
-            self.assert_returns(cursor, rank)
+            self.assert_returns(cursor, rank, 'v')
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
@@ -330,8 +330,8 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         # Rank 2 is in both constituents, so stepping stable off it blocks on the prepared rank 3.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
-        self.assert_returns(cursor, 1)
-        self.assert_returns(cursor, 2)
+        self.assert_returns(cursor, 1, 'v')
+        self.assert_returns(cursor, 2, 'v-ingest')
         self.assert_conflict(cursor)
 
         ingest_prepare = self.prepare(2, 22)
@@ -362,7 +362,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
         for rank in (1, 2, 3):
-            self.assert_returns(cursor, rank)
+            self.assert_returns(cursor, rank, 'v-ingest' if rank in (1, 3) else 'v')
         self.assert_conflict(cursor)
 
         ingest_prepare = self.prepare(3, 22)
@@ -442,8 +442,8 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
-        self.assert_returns(cursor, 2)
+        self.assert_returns(cursor, 1, 'v-ingest')
+        self.assert_returns(cursor, 2, 'v-ingest')
         self.assert_conflict(cursor)
 
         late_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40))
@@ -483,8 +483,8 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
-        self.assert_returns(cursor, 2)
+        self.assert_returns(cursor, 1, 'vi')
+        self.assert_returns(cursor, 2, 'v')
         self.assert_conflict(cursor)
 
         late_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40))
@@ -522,8 +522,8 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
-        self.assert_returns(cursor, 1)
-        self.assert_returns(cursor, 2)
+        self.assert_returns(cursor, 1, 'v')
+        self.assert_returns(cursor, 2, 'v-ingest')
         self.assert_conflict(cursor)
         return cursor, stable_prepare
 
@@ -563,7 +563,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 1, 'v-ingest')
         self.assert_conflict(cursor)
         actual = self.walk_back(cursor)
         self.session.rollback_transaction()
@@ -588,7 +588,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
             self.assertEqual(cursor.get_key(), self.key(rank))
         for _ in range(2):
             self.assert_conflict(cursor, back=True)
-            self.assert_returns(cursor, 2)
+            self.assert_returns(cursor, 2, 'v')
         actual = self.rest_of_walk(cursor)
         self.session.rollback_transaction()
         self.resolve(stable_prepare)
@@ -608,7 +608,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 1, 'v')
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
@@ -633,7 +633,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 1, 'v')
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
@@ -687,14 +687,19 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         for rank in (1, 2, 3):
-            self.assert_returns(cursor, rank)
+            self.assert_returns(cursor, rank, 'v')
         self.assert_conflict(cursor)
 
         self.complete_step_down(15)
         self.assertEqual(self.step_back(cursor), 0)
         self.assertEqual(cursor.get_key(), self.key(3))
         cursor.set_value('new')
-        cursor.update()
+        self.assertEqual(cursor.update(), 0)
+        read_cursor = self.session.open_cursor(self.uri)
+        read_cursor.set_key(self.key(3))
+        self.assertEqual(read_cursor.search(), 0)
+        self.assertEqual((read_cursor.get_key(), read_cursor.get_value()), (self.key(3), 'new'))
+        read_cursor.close()
         self.session.rollback_transaction()
         cursor.close()
         try:
@@ -717,7 +722,7 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         for rank in (1, 2, 3, 4):
-            self.assert_returns(cursor, rank)
+            self.assert_returns(cursor, rank, 'v')
 
         self.complete_step_down(15)
         actual = self.walk_back(cursor) if reverse else self.rest_of_walk(cursor)
@@ -777,6 +782,8 @@ class test_layered_async_stepdown24(BlockedWalkMixin, wttest.WiredTigerTestCase)
 
 @disagg_test_class
 class test_layered_async_stepdown24_mirrored(BlockedWalkMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
     conn_config = BlockedWalkMixin.conn_config.replace(
         'stepdown_write_mirroring=false', 'stepdown_write_mirroring=true')
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), BlockedWalkMixin.directions)
@@ -795,7 +802,7 @@ class test_layered_async_stepdown24_mirrored(BlockedWalkMixin, wttest.WiredTiger
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 2)
+        self.assert_returns(cursor, 2, 'v')
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
@@ -830,8 +837,8 @@ class test_layered_async_stepdown24_mirrored(BlockedWalkMixin, wttest.WiredTiger
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         if earlier_key:
-            self.assert_returns(cursor, 1)
-        self.assert_returns(cursor, 2)
+            self.assert_returns(cursor, 1, 'v')
+        self.assert_returns(cursor, 2, 'v-ingest')
         self.assert_conflict(cursor)
 
         writer = self.session.open_cursor(self.uri, None, None)
@@ -896,7 +903,7 @@ class test_layered_async_stepdown24_mirrored(BlockedWalkMixin, wttest.WiredTiger
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        self.assert_returns(cursor, 1)
+        self.assert_returns(cursor, 1, 'v')
         self.write_own(1, 'new')
         self.assert_conflict(cursor)
         actual = self.walk_back(cursor)

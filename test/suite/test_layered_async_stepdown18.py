@@ -59,7 +59,8 @@ class test_layered_async_stepdown18(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, directions, entry_points)
 
-    uri = 'layered:test_layered_async_stepdown18'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     nrows = 40
     blocked_index = nrows // 2
@@ -138,7 +139,7 @@ class test_layered_async_stepdown18(wttest.WiredTigerTestCase):
                     prepare_session.rollback_transaction()
                     resolved = True
                 continue
-            seen.append(cursor.get_key())
+            seen.append((cursor.get_key(), cursor.get_value()))
 
         self.session.rollback_transaction()
         cursor.close()
@@ -148,12 +149,13 @@ class test_layered_async_stepdown18(wttest.WiredTigerTestCase):
         # Walking toward the prepared key, the conflict is on the walk's own path; walking away
         # from it, the search's own repositioning of the untouched constituent still probes toward
         # the prepared key and conflicts on it, even though the walk itself never reaches that key.
-        self.assertGreater(conflicts, 0, 'the prepared update never blocked the walk')
+        self.assertEqual(conflicts, 1,
+            'the walk must conflict once, before the prepared transaction rolls back')
         if self.forward:
             expected = keys[self.blocked_index:]
         else:
             expected = list(reversed(keys[:self.blocked_index - 1]))
-        self.assertEqual(seen, expected)
+        self.assertEqual(seen, [(key, 'v-initial') for key in expected])
 
 if __name__ == '__main__':
     wttest.run()

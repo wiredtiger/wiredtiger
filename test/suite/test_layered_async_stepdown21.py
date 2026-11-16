@@ -51,7 +51,8 @@ class test_layered_async_stepdown21(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, directions)
 
-    uri = 'layered:test_layered_async_stepdown21'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     def test_stale_value_after_resuming_onto_shared_key(self):
         self.set_global_ts(1, 1)
@@ -96,6 +97,7 @@ class test_layered_async_stepdown21(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(step(), 0)
         self.assertEqual((cursor.get_key(), cursor.get_value()), (shared_key, 'NEW'))
+        self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
 
         self.session.commit_transaction()
         cursor.close()

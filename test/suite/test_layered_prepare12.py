@@ -31,6 +31,8 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 
+# Check cursor-bound behavior after prepare conflicts, comparing layered and ordinary cursors
+# in both scan directions.
 @wttest.skip_for_hook('disagg', 'requires an ordinary non-layered reference connection')
 @disagg_test_class
 class test_layered_prepare12(wttest.WiredTigerTestCase):
@@ -91,6 +93,7 @@ class test_layered_prepare12(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.step(cursor), '/WT_PREPARE_CONFLICT/')
 
+    # Setting bounds must fail while a prepare conflict retains the cursor's position.
     def test_bound_set_rejects_retained_position(self):
         reader, prepared = self.open_reader([1])
         self.write(reader, [1], 3)
@@ -111,6 +114,7 @@ class test_layered_prepare12(wttest.WiredTigerTestCase):
         reader.close()
         prepared.close()
 
+    # A rejected bound change must preserve the existing range when the scan resumes.
     def test_rejected_bound_preserves_existing_range(self):
         reader, prepared = self.open_reader([1, 3])
         self.prepare(prepared, 3)
@@ -133,6 +137,7 @@ class test_layered_prepare12(wttest.WiredTigerTestCase):
         reader.close()
         prepared.close()
 
+    # Clearing bounds during a prepare conflict must allow the resumed scan beyond the old range.
     def test_clear_bounds_on_retained_position(self):
         reader, prepared = self.open_reader([1])
         self.write(reader, [1, 3], 3)

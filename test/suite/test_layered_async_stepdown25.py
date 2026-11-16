@@ -32,9 +32,12 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 
+# Verify that a scan resumes with exact keys and values after a prepared update rolls back,
+# including step-down while blocked, both scan directions, and write mirroring on or off.
 @disagg_test_class
 class test_layered_async_stepdown25(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    uri = 'layered:test_layered_async_stepdown25'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
         ('next', dict(forward=True)), ('prev', dict(forward=False))], [
         ('unmirrored', dict(write_mirroring=False)), ('mirrored', dict(write_mirroring=True))], [
