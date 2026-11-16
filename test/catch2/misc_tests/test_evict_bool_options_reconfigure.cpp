@@ -40,3 +40,20 @@ TEST_CASE("Boolean eviction options can be reconfigured on and off", "[evict]")
         REQUIRE(!F_ISSET_ATOMIC_32(controls, option.flag));
     }
 }
+
+/* A reconfigure that does not name a boolean eviction option must leave its current value alone. */
+TEST_CASE("Unrelated reconfigure preserves boolean eviction options", "[evict]")
+{
+    connection_wrapper conn_wrapper =
+      connection_wrapper(".", "create,eviction=[prefer_scrub_eviction=true]");
+    WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
+    WT_CACHE_EVICTION_CONTROLS *controls =
+      &conn_wrapper.get_wt_connection_impl()->cache->cache_eviction_controls;
+
+    REQUIRE(conn->reconfigure(conn, "eviction=[incremental_app_eviction=true]") == 0);
+    REQUIRE(conn->reconfigure(conn, "eviction_dirty_target=6") == 0);
+    REQUIRE(conn->reconfigure(conn, "eviction=[app_eviction_min_cache_fill_ratio=10]") == 0);
+
+    REQUIRE(F_ISSET_ATOMIC_32(controls, WT_CACHE_PREFER_SCRUB_EVICTION));
+    REQUIRE(F_ISSET_ATOMIC_32(controls, WT_CACHE_EVICT_INCREMENTAL_APP));
+}
