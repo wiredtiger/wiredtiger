@@ -154,7 +154,7 @@ __txn_get_all_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp)
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    if (!__wt_atomic_load_bool_acquire(&txn_global->has_durable_timestamp)) {
+    if (!__wt_atomic_load_bool_relaxed(&txn_global->has_durable_timestamp)) {
         *tsp = WT_TS_NONE;
         return (0);
     }
