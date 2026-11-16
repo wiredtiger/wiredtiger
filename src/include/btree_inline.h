@@ -69,19 +69,6 @@ __wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
     return (__wt_btree_dhandle_is_outdated_disagg(session->dhandle, S2BT(session)));
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * WT_BTREE_DISAGG_DIRTY_ALLOWED --
- *     Return whether the current btree may be dirtied. A disaggregated btree may only be dirtied by
- *     the leader, except that an outdated one can still be dirtied, for example when resolving
- *     prepared updates; eviction discards its dirty pages without writing them.
- */
-#define WT_BTREE_DISAGG_DIRTY_ALLOWED(session)                                      \
-    (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||                             \
-      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) || \
-      __wt_btree_is_outdated_disagg(session))
-#endif
-
 /*
  * __wt_page_is_empty --
  *     Return if the page is empty.
