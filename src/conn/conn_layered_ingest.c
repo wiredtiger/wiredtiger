@@ -28,10 +28,9 @@ __layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     if (cbt->compare != 0)
         has_value = false;
     else {
-        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
-          "The stable btree should not contain inserts prior to draining");
-
-        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         else
             upd = NULL;
@@ -76,7 +75,7 @@ __layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_BTREE *ingest_btree,
-  WT_ITEM *key, WT_UPDATE **updates_ptr, wt_timestamp_t from_ts, uint64_t *orphan_countp)
+  WT_ITEM *key, WT_UPDATE **updates_ptr, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
     WT_UPDATE *last_upd, *newest;
@@ -103,6 +102,8 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_BTREE 
           session, key, ingest_btree, CUR2BT(cbt), newest->txnid, newest->prepared_id));
 
     /*
+     * Recheck stable in every drain pass, including those after replaying a truncate.
+     *
      * With no stable value, starting from the oldest update that was not rolled back:
      *
      * 1. If it is a remove, drop it: it has nothing to delete and cannot be reconciled.
@@ -111,7 +112,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_BTREE 
      * 3. If an older rolled-back update is a value, keep it: a checkpoint between its prepare and
      * rollback must still write it as prepared.
      */
-    if (from_ts == WT_TS_NONE && !__layered_stable_has_value(session, cbt)) {
+    if (!__layered_stable_has_value(session, cbt)) {
         WT_UPDATE *upd;
         WT_UPDATE **oldest_pointerp, **upd_pointerp;
 
@@ -729,8 +730,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, ingest_btree, key, &upds, from_ts, orphan_countp));
+                  ret =
+                    __layered_move_updates(session, cbt, ingest_btree, key, &upds, orphan_countp));
                 WT_ERR(ret);
             } else
                 ret = 0;
@@ -748,8 +749,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, ingest_btree, key, &upds, from_ts, orphan_countp));
+                  ret =
+                    __layered_move_updates(session, cbt, ingest_btree, key, &upds, orphan_countp));
                 WT_ERR(ret);
             }
 
