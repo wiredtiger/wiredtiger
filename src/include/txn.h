@@ -513,6 +513,12 @@ struct __wt_txn {
 
     uint32_t ckpt_nsnapshot;
     uint16_t modify_block_count;
+
+    /*
+     * Set from the checkpoint's log prepare until its log stop or cleanup. This outlives the
+     * checkpoint transaction, which clears the transaction flags when it is released, so it cannot
+     * be one of them.
+     */
     bool full_ckpt;
 
     /*
