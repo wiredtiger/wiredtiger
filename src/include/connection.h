@@ -333,6 +333,12 @@ struct __wt_disaggregated_storage {
     /* Updates are protected by the checkpoint lock. */
     char *last_checkpoint_root;             /* The root config of the last checkpoint. */
     uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */
+    /*
+     * The LSN at which the last checkpoint completed, recorded when this node completes one or when
+     * the application installs one; WT_DISAGG_LSN_NONE if unknown. Distinct from the metadata page
+     * LSN kept in last_checkpoint_meta_lsn.
+     */
+    uint64_t last_checkpoint_lsn;
 
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */

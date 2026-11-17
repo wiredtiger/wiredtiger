@@ -1750,6 +1750,40 @@ __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
 }
 
 /*
+ * __disagg_config_get_checkpoint_lsn --
+ *     Get the LSN of the checkpoint installed with checkpoint metadata; 0 if unknown. An unset
+ *     integer configuration has a zero length but a non-zero value, so the length decides whether
+ *     the application named the LSN.
+ */
+static int
+__disagg_config_get_checkpoint_lsn(WT_SESSION_IMPL *session, const char **cfg, uint64_t *lsnp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    *lsnp = WT_DISAGG_LSN_NONE;
+    ret = __wt_config_gets(session, cfg, "disaggregated.checkpoint_lsn", &cval);
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+    if (cval.len > 0 && cval.val > 0)
+        *lsnp = (uint64_t)cval.val;
+    return (0);
+}
+
+/*
+ * __disagg_set_last_checkpoint_lsn --
+ *     Record the LSN at which the latest checkpoint completed.
+ */
+static void
+__disagg_set_last_checkpoint_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+
+    S2C(session)->disaggregated_storage.last_checkpoint_lsn = lsn;
+}
+
+/*
  * __disagg_abandon_checkpoint --
  *     Abandon the current incomplete checkpoint.
  *
@@ -1764,9 +1798,11 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
+    WT_PAGE_LOG_ABANDON_CHECKPOINT_ARGS abandon_args;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+    WT_CLEAR(abandon_args);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -1776,13 +1812,18 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
         WT_RET(EINVAL);
 
     /*
-     * Call the PALI function to abandon the checkpoint. Since we are not specifying the latest
-     * complete checkpoint, the implementation of this function would identify the LSN of the last
-     * checkpoint completion record and drop all later records. If there are no more updates after
-     * the last complete checkpoint, the function would have no effect.
+     * Call the PALI function to abandon the checkpoint, telling it the LSN of the last completed
+     * checkpoint so that it can drop everything after that record. If there are no more updates
+     * after the last complete checkpoint, the function would have no effect. An implementation
+     * without the extended interface determines the boundary itself.
      */
-    ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface);
+    abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
+    if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL)
+        ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
+          disagg->npage_log->page_log, &session->iface, &abandon_args);
+    else
+        ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
+          disagg->npage_log->page_log, &session->iface);
 
     if (ret == 0)
         WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
@@ -2193,6 +2234,13 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
     __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, false);
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+
+    /*
+     * The recorded LSN belongs to the last checkpoint this node completed while leading. Another
+     * node may complete a newer checkpoint before this node leads again, and the value a later
+     * install carries is authoritative, so forget the old one instead of risking a stale boundary.
+     */
+    __disagg_set_last_checkpoint_lsn(session, WT_DISAGG_LSN_NONE);
     return (0);
 }
 
@@ -2522,7 +2570,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
-    uint64_t time_start, time_stop;
+    uint64_t last_checkpoint_lsn, time_start, time_stop;
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
@@ -2574,6 +2622,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                 WT_ERR_MSG_CHK(session,
                   __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len, false),
                   "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
+                /*
+                 * An installed checkpoint without its LSN leaves WT unable to name it, so record
+                 * the value as unknown rather than keeping the LSN of an earlier checkpoint.
+                 */
+                WT_ERR(__disagg_config_get_checkpoint_lsn(session, cfg, &last_checkpoint_lsn));
+                WT_WITH_CHECKPOINT_LOCK(
+                  session, __disagg_set_last_checkpoint_lsn(session, last_checkpoint_lsn));
             }
         }
     }
@@ -2709,6 +2764,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len, true),
               "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             picked_up = true;
+
+            /*
+             * An installed checkpoint without its LSN leaves WT unable to name it, so record the
+             * value as unknown rather than keeping the LSN of an earlier checkpoint.
+             */
+            WT_ERR(__disagg_config_get_checkpoint_lsn(session, cfg, &last_checkpoint_lsn));
+            WT_WITH_CHECKPOINT_LOCK(
+              session, __disagg_set_last_checkpoint_lsn(session, last_checkpoint_lsn));
         }
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
@@ -3127,6 +3190,9 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           disagg->npage_log->page_log->pl_complete_checkpoint(
             disagg->npage_log->page_log, &session->iface, &complete_args),
           "Failed to complete checkpoint");
+
+        if (complete_args.lsn != WT_DISAGG_LSN_NONE)
+            __disagg_set_last_checkpoint_lsn(session, complete_args.lsn);
 
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);

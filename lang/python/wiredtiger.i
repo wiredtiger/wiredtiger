@@ -749,6 +749,8 @@ NOTFOUND_OK(__wt_cursor::largest_key)
 ANY_OK(__wt_cursor::checkpoint_id)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
+ANY_OK(__wt_page_log_abandon_checkpoint_args::__wt_page_log_abandon_checkpoint_args)
+ANY_OK(__wt_page_log_abandon_checkpoint_args::~__wt_page_log_abandon_checkpoint_args)
 ANY_OK(__wt_page_log_discard_args::__wt_page_log_discard_args)
 ANY_OK(__wt_page_log_discard_args::~__wt_page_log_discard_args)
 ANY_OK(__wt_page_log_complete_checkpoint_args::__wt_page_log_complete_checkpoint_args)
@@ -1246,6 +1248,10 @@ SIDESTEP_METHOD(__wt_page_log, pl_abandon_checkpoint,
   (WT_SESSION *session),
   ($self, session))
 
+SIDESTEP_METHOD(__wt_page_log, pl_abandon_checkpoint_ext,
+  (WT_SESSION *session, WT_PAGE_LOG_ABANDON_CHECKPOINT_ARGS *args),
+  ($self, session, args))
+
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (WT_SESSION *session, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args),
   ($self, session, args))
@@ -1508,6 +1514,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(KeyProvider) __wt_key_provider;
 %rename(CryptKeys) __wt_crypt_keys;
 %rename(PageLog) __wt_page_log;
+%rename(PageLogAbandonCheckpointArgs) __wt_page_log_abandon_checkpoint_args;
 %rename(PageLogCompleteCheckpointArgs) __wt_page_log_complete_checkpoint_args;
 %rename(PageLogDiscardArgs) __wt_page_log_discard_args;
 %rename(PageLogGetArgs) __wt_page_log_get_args;
@@ -1529,6 +1536,16 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
     }
     ~__wt_crypt_keys() {
         (void)cryptKeysClearKeys($self);
+        free($self);
+    }
+}
+
+%extend __wt_page_log_abandon_checkpoint_args {
+    __wt_page_log_abandon_checkpoint_args() {
+        return (struct __wt_page_log_abandon_checkpoint_args *)calloc(
+          1, sizeof(struct __wt_page_log_abandon_checkpoint_args));
+    }
+    ~__wt_page_log_abandon_checkpoint_args() {
         free($self);
     }
 }

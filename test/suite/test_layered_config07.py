@@ -163,4 +163,25 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page22_lsn)), [21])
         self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt2_lsn)
 
+        # A third checkpoint with a page above it, so an explicit older checkpoint can name a
+        # boundary the newest checkpoint would not produce.
+        put_args_main.backlink_lsn = 0
+        put_args_main.base_lsn = 0
+        handle.plh_put(session, 23, 2, put_args_main, encode_bytes('Hello23'))
+        ckpt_complete_args.checkpoint_id = 3
+        ckpt_complete_args.checkpoint_timestamp = 6
+        ckpt_complete_args.checkpoint_metadata = 'Checkpoint3'
+        ckpt_complete_args.lsn = 0
+        page_log.pl_complete_checkpoint(session, ckpt_complete_args)
+        ckpt3_lsn = ckpt_complete_args.lsn
+        handle.plh_put(session, 24, 2, put_args_main, encode_bytes('Hello24'))
+
+        # Abandoning to the second checkpoint drops everything above it, including the newer
+        # complete checkpoint and the pages written above that.
+        abandon_args = wiredtiger.PageLogAbandonCheckpointArgs()
+        abandon_args.last_checkpoint_lsn = ckpt2_lsn
+        page_log.pl_abandon_checkpoint_ext(session, abandon_args)
+        self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt2_lsn)
+        self.assertEqual(sorted(handle.plh_get_page_ids(session, ckpt3_lsn)), [21])
+
         page_log.terminate(session) # dereference
