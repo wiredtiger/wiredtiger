@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading, time, wiredtiger, wtthread, wttest
-from contextlib import closing
+import wiredtiger, wttest
 from helper import WiredTigerCursor
 from helper_disagg import disagg_test_class, DisaggSchemaEpochMixin, gen_disagg_storages
 from metadata_helper import get_table_id
@@ -149,15 +148,17 @@ class test_layered_schema37(DisaggSchemaEpochMixin, wttest.WiredTigerTestCase):
 
     def test_steady_state_pickup_creates_ingest_lazily(self):
         self.create_table_and_start_follower()
-        layered_uri = self.layered_uri + '_new'
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri))
 
         self.create_populated_table(self.uri + '_new', timestamp=2)
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint_and_wait(self.conn_follow)
-        self.assertFalse(self.follower_has_ingest_metadata(layered_uri))
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri))
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri + '_new'))
         self.assertEqual(self.lazy_ingest_creation_count(), 0)
 
-        with WiredTigerCursor(self.session_follow, layered_uri) as cursor:
+        with WiredTigerCursor(self.session_follow, self.uri + '_new') as cursor:
             self.assertEqual(cursor[self.key], self.value)
-        self.assertTrue(self.follower_has_ingest_metadata(layered_uri))
+        self.assertFalse(self.follower_has_ingest_metadata(self.layered_uri))
+        self.assertTrue(self.follower_has_ingest_metadata(self.layered_uri + '_new'))
         self.assertEqual(self.lazy_ingest_creation_count(), 1)
