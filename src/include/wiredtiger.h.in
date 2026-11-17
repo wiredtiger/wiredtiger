@@ -396,7 +396,7 @@ struct __wt_cursor {
      *
      * At least one of <code>keys</code> or <code>values</code> must be non-NULL.
      *
-     * TODO snippet ex_all.c
+     * @snippet ex_all.c Return multiple records
      *
      * @param cursor the cursor handle
      * @param keys array of <code>count</code> WT_ITEMs to fill with raw key bytes, or NULL
