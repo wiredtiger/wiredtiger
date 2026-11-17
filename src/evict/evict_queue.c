@@ -164,7 +164,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     WTI_EVICT_ENTRY *evict_entry;
     WTI_EVICT_QUEUE *other_queue, *queue;
     WT_TRACK_OP_DECL;
-    uint64_t read_gen_oldest;
+    uint64_t lock_wait_ns, read_gen_oldest, time_start, time_stop, tree_walk_ns;
     uint32_t candidates, entries;
     int waiters;
     bool reinserted;
@@ -172,6 +172,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
     evict = conn->evict;
+    lock_wait_ns = time_start = tree_walk_ns = 0;
 
     /* Age out the score of how much the queue has been empty recently. */
     if (evict->evict_empty_score > 0)
@@ -191,6 +192,8 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
         goto err;
     }
+    time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
+
     /*
      * If the queue we are filling is empty, pages are being requested faster than they are being
      * queued.
@@ -211,7 +214,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
      * If the walk is interrupted, we still need to sort the queue: the next walk assumes there are
      * no entries beyond WTI_EVICT_WALK_BASE.
      */
-    if ((ret = __wti_evict_walk(evict->walk_session, queue)) == EBUSY)
+    if ((ret = __wti_evict_walk(evict->walk_session, queue, &tree_walk_ns, &lock_wait_ns)) == EBUSY)
         ret = 0;
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -351,6 +354,16 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     __evict_wake_waiters(session, candidates);
 
 err:
+    /* Add the walk times here, with the refill time, so they never read as exceeding it. */
+    if (time_start != 0) {
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_INCRV(
+          session, eviction_server_refill_time, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_INCRV(
+          session, eviction_server_refill_tree_walk_time, tree_walk_ns / WT_THOUSAND);
+        WT_STAT_CONN_INCRV(
+          session, eviction_server_refill_handle_lock_time, lock_wait_ns / WT_THOUSAND);
+    }
     WT_TRACK_OP_END(session);
     return (ret);
 }

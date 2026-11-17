@@ -58,10 +58,6 @@ class BackupStat(Stat):
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, BackupStat.prefix, desc, flags, otel_type)
 
-class BlockCacheStat(Stat):
-    prefix = 'block-cache'
-    def __init__(self, name, desc, flags='', otel_type='otel_none'):
-        Stat.__init__(self, name, BlockCacheStat.prefix, desc, flags, otel_type)
 class BlockDisaggStat(Stat):
     prefix = 'block-disagg'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
@@ -245,32 +241,6 @@ conn_stats = [
     BackupStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
 
     ##########################################
-    # Block cache statistics
-    ##########################################
-    BlockCacheStat('block_cache_blocks', 'total blocks'),
-    BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
-    BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
-    BlockCacheStat('block_cache_blocks_insert_write', 'total blocks inserted on write path'),
-    BlockCacheStat('block_cache_blocks_removed', 'removed blocks'),
-    BlockCacheStat('block_cache_blocks_removed_blocked', 'time sleeping to remove block (usecs)'),
-    BlockCacheStat('block_cache_blocks_update', 'cached blocks updated'),
-    BlockCacheStat('block_cache_bypass_chkpt', 'number of put bypasses on checkpoint I/O'),
-    BlockCacheStat('block_cache_bypass_filesize', 'file size causing bypass'),
-    BlockCacheStat('block_cache_bypass_get', 'number of bypasses on get'),
-    BlockCacheStat('block_cache_bypass_overhead_put', 'number of bypasses due to overhead on put'),
-    BlockCacheStat('block_cache_bypass_put', 'number of bypasses on put because file is too small'),
-    BlockCacheStat('block_cache_bypass_writealloc', 'number of bypasses because no-write-allocate setting was on'),
-    BlockCacheStat('block_cache_bytes', 'total bytes'),
-    BlockCacheStat('block_cache_bytes_insert_read', 'total bytes inserted on read path'),
-    BlockCacheStat('block_cache_bytes_insert_write', 'total bytes inserted on write path'),
-    BlockCacheStat('block_cache_bytes_update', 'cached bytes updated'),
-    BlockCacheStat('block_cache_eviction_passes', 'number of eviction passes'),
-    BlockCacheStat('block_cache_hits', 'number of hits'),
-    BlockCacheStat('block_cache_lookups', 'lookups'),
-    BlockCacheStat('block_cache_misses', 'number of misses'),
-    BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
-
-    ##########################################
     # Block manager statistics
     ##########################################
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
@@ -446,8 +416,17 @@ conn_stats = [
     EvictStat('eviction_root_pages_skipped', 'eviction server skipped the root pages'),
     EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
+    EvictStat('eviction_server_oldest_id_time', 'eviction server time updating the pinned timestamp and oldest transaction ID (usecs)'),
+    EvictStat('eviction_server_pass_time', 'eviction server time in eviction passes, including backoff waits and server-driven eviction (usecs)'),
     EvictStat('eviction_server_push_pages_failed_when_flaging', 'eviction server push pages to queue failed because of racing with setting flag'),
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
+    EvictStat('eviction_server_refill_end_filled', 'eviction server refills that ended with the queue filled'),
+    EvictStat('eviction_server_refill_end_interrupted', 'eviction server refills that ended because a handle operation interrupted the walk'),
+    EvictStat('eviction_server_refill_end_lap_complete', 'eviction server refills that ended after visiting every handle'),
+    EvictStat('eviction_server_refill_end_shutdown', 'eviction server refills that ended for shutdown or cache pool reconfiguration'),
+    EvictStat('eviction_server_refill_handle_lock_time', 'eviction server time waiting for the handle list lock during queue refills (usecs)'),
+    EvictStat('eviction_server_refill_time', 'eviction server time refilling eviction queues (usecs)'),
+    EvictStat('eviction_server_refill_tree_walk_time', 'eviction server time walking trees during queue refills (usecs)'),
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
     EvictStat('eviction_server_skip_disagg_trees_checkpointed', 'eviction server skips disaggregated trees already visited by the ongoing checkpoint'),
@@ -474,9 +453,12 @@ conn_stats = [
     EvictStat('eviction_server_skip_trees_walk_complete', 'eviction server skips resuming trees whose walk already traversed the whole tree'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
     EvictStat('eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
+    EvictStat('eviction_server_skip_unwanted_tree_early', 'eviction server skips tree that we do not want to evict before releasing the handle list lock'),
     EvictStat('eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
+    EvictStat('eviction_server_slept_time', 'eviction server time sleeping because eviction made no progress (usecs)'),
     EvictStat('eviction_server_walk_dominating_cache', 'eviction server walks trees within their walk period because they dominate the cache'),
     EvictStat('eviction_server_walk_dominating_cache_unproductive', 'eviction server walks trees within their walk period because they dominate the cache but queues no pages'),
+    EvictStat('eviction_server_walk_one_page_target_unproductive', 'eviction server walks trees that queue no pages for a one-page target'),
     EvictStat('eviction_slow', 'eviction server unable to reach eviction goal'),
     EvictStat('eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
     EvictStat('eviction_state', 'eviction state', 'no_clear,no_scale'),
@@ -571,7 +553,7 @@ conn_stats = [
     CheckpointStat('checkpoint_prep_running', 'prepare currently running', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_total', 'prepare total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_presync', 'number of handles visited after writes complete'),
-    CheckpointStat('checkpoint_rec_blkcache_write', 'total time (msecs) writing pages to stable storage during checkpoint reconciliation'),
+    CheckpointStat('checkpoint_rec_stable_write', 'total time (msecs) writing pages to stable storage during checkpoint reconciliation'),
     CheckpointStat('checkpoint_scrub_max', 'scrub max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_min', 'scrub min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_recent', 'scrub most recent time (msecs)', 'no_clear,no_scale'),
@@ -659,6 +641,8 @@ conn_stats = [
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_drop_refused_unpublished_data', 'drops refused because the table holds unpublished data'),
+    DisaggStat('disagg_ingest_create_on_open', 'ingest tables created on first open'),
+    DisaggStat('disagg_ingest_create_on_open_time', 'time spent creating ingest tables on first open (usecs)'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
@@ -686,6 +670,7 @@ conn_stats = [
     DisaggStat('disagg_step_up_deferred_pickup_retry_time', 'step up deferred checkpoint pickup retry most recent time (msecs)'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_up_ingest_drain_bytes', 'step up ingest table drain bytes moved to stable tables'),
+    DisaggStat('disagg_step_up_ingest_drain_orphan_remove', 'step up ingest table drain keys with orphan removes skipped'),
     DisaggStat('disagg_step_up_ingest_drain_time', 'step up ingest table drain most recent time (msecs)'),
     DisaggStat('disagg_step_up_ingest_tables_drained', 'step up ingest tables drained'),
     DisaggStat('disagg_step_up_missing_stable_create_time', 'step up missing stable table create most recent time (msecs)'),

@@ -2866,28 +2866,6 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks",
   "backup: total modified incremental blocks with compressed data",
   "backup: total modified incremental blocks without compressed data",
-  "block-cache: cached blocks updated",
-  "block-cache: cached bytes updated",
-  "block-cache: evicted blocks",
-  "block-cache: file size causing bypass",
-  "block-cache: lookups",
-  "block-cache: number of blocks not evicted due to overhead",
-  "block-cache: number of bypasses because no-write-allocate setting was on",
-  "block-cache: number of bypasses due to overhead on put",
-  "block-cache: number of bypasses on get",
-  "block-cache: number of bypasses on put because file is too small",
-  "block-cache: number of eviction passes",
-  "block-cache: number of hits",
-  "block-cache: number of misses",
-  "block-cache: number of put bypasses on checkpoint I/O",
-  "block-cache: removed blocks",
-  "block-cache: time sleeping to remove block (usecs)",
-  "block-cache: total blocks",
-  "block-cache: total blocks inserted on read path",
-  "block-cache: total blocks inserted on write path",
-  "block-cache: total bytes",
-  "block-cache: total bytes inserted on read path",
-  "block-cache: total bytes inserted on write path",
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
   "block-disagg: Disaggregated block manager get",
@@ -3029,6 +3007,10 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server completed walks of all dhandles",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
+  "cache: eviction server refills that ended after visiting every handle",
+  "cache: eviction server refills that ended because a handle operation interrupted the walk",
+  "cache: eviction server refills that ended for shutdown or cache pool reconfiguration",
+  "cache: eviction server refills that ended with the queue filled",
   "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
@@ -3061,14 +3043,24 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips resuming trees whose walk already traversed the whole tree",
   "cache: eviction server skips stable btrees in disagg",
   "cache: eviction server skips tree that we do not want to evict",
+  "cache: eviction server skips tree that we do not want to evict before releasing the handle list "
+  "lock",
   "cache: eviction server skips trees because there are too many active walks",
   "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
   "cache: eviction server skips trees that disable eviction",
   "cache: eviction server skips trees that were not useful before",
   "cache: eviction server slept, because we did not make progress with eviction",
+  "cache: eviction server time in eviction passes, including backoff waits and server-driven "
+  "eviction (usecs)",
+  "cache: eviction server time refilling eviction queues (usecs)",
+  "cache: eviction server time sleeping because eviction made no progress (usecs)",
+  "cache: eviction server time updating the pinned timestamp and oldest transaction ID (usecs)",
+  "cache: eviction server time waiting for the handle list lock during queue refills (usecs)",
+  "cache: eviction server time walking trees during queue refills (usecs)",
   "cache: eviction server unable to reach eviction goal",
   "cache: eviction server waiting for a leaf page",
+  "cache: eviction server walks trees that queue no pages for a one-page target",
   "cache: eviction server walks trees within their walk period because they dominate the cache",
   "cache: eviction server walks trees within their walk period because they dominate the cache but "
   "queues no pages",
@@ -3528,6 +3520,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: drops refused because the table holds unpublished data",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
   "disagg: failed page inserts into the victim cache",
+  "disagg: ingest tables created on first open",
   "disagg: ingest-to-stable tombstone escape bytes stripped",
   "disagg: maximum time spent adding a single page to the victim cache, reset per checkpoint "
   "(usecs)",
@@ -3555,6 +3548,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step up in progress",
   "disagg: step up ingest table clear truncates retried after a conflict",
   "disagg: step up ingest table drain bytes moved to stable tables",
+  "disagg: step up ingest table drain keys with orphan removes skipped",
   "disagg: step up ingest table drain most recent time (msecs)",
   "disagg: step up ingest tables drained",
   "disagg: step up missing stable table create most recent time (msecs)",
@@ -3563,6 +3557,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: tables created without a stable constituent while the step-down timestamp is set",
   "disagg: time application threads spent adding pages to the victim cache (usecs)",
   "disagg: time spent adding pages to the victim cache (usecs)",
+  "disagg: time spent creating ingest tables on first open (usecs)",
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "disagg: unpublished schema operations canceled by a drop",
@@ -4119,28 +4114,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_BACKUP_BLOCKS,
   WT_STAT_CONN_BACKUP_BLOCKS_COMPRESSED,
   WT_STAT_CONN_BACKUP_BLOCKS_UNCOMPRESSED,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES_UPDATE,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_EVICTED,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE,
-  WT_STAT_CONN_BLOCK_CACHE_LOOKUPS,
-  WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT,
-  WT_STAT_CONN_BLOCK_CACHE_EVICTION_PASSES,
-  WT_STAT_CONN_BLOCK_CACHE_HITS,
-  WT_STAT_CONN_BLOCK_CACHE_MISSES,
-  WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED_BLOCKED,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_READ,
-  WT_STAT_CONN_BLOCK_CACHE_BLOCKS_INSERT_WRITE,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES_INSERT_READ,
-  WT_STAT_CONN_BLOCK_CACHE_BYTES_INSERT_WRITE,
   WT_STAT_CONN_DISAGG_BLOCK_HS_BYTE_READ,
   WT_STAT_CONN_DISAGG_BLOCK_HS_BYTE_WRITE,
   WT_STAT_CONN_DISAGG_BLOCK_GET,
@@ -4260,6 +4233,10 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY,
   WT_STAT_CONN_EVICTION_DHANDLE_COMPLETE_WALK,
   WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_LAP_COMPLETE,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_INTERRUPTED,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_SHUTDOWN,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_END_FILLED,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_ALREADY_IN_URGENT_QUEUE,
   WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PREFETCHED,
@@ -4283,14 +4260,22 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_WALK_COMPLETE,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_STABLE_TREES,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE,
+  WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_TOO_MANY_ACTIVE_WALKS,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_CHECKPOINTING_TREES,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_STICK_IN_CACHE,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_EVICTION_DISABLED,
   WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_NOT_USEFUL_BEFORE,
   WT_STAT_CONN_EVICTION_SERVER_SLEPT,
+  WT_STAT_CONN_EVICTION_SERVER_PASS_TIME,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_TIME,
+  WT_STAT_CONN_EVICTION_SERVER_SLEPT_TIME,
+  WT_STAT_CONN_EVICTION_SERVER_OLDEST_ID_TIME,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_HANDLE_LOCK_TIME,
+  WT_STAT_CONN_EVICTION_SERVER_REFILL_TREE_WALK_TIME,
   WT_STAT_CONN_EVICTION_SLOW,
   WT_STAT_CONN_EVICTION_WALK_LEAF_NOTFOUND,
+  WT_STAT_CONN_EVICTION_SERVER_WALK_ONE_PAGE_TARGET_UNPRODUCTIVE,
   WT_STAT_CONN_EVICTION_SERVER_WALK_DOMINATING_CACHE,
   WT_STAT_CONN_EVICTION_SERVER_WALK_DOMINATING_CACHE_UNPRODUCTIVE,
   WT_STAT_CONN_EVICTION_STATE,
@@ -4586,7 +4571,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CHECKPOINTS_TOTAL_FAILED,
   WT_STAT_CONN_CHECKPOINTS_TOTAL_SUCCEED,
   WT_STAT_CONN_CHECKPOINT_TIME_TOTAL,
-  WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE,
+  WT_STAT_CONN_CHECKPOINT_REC_STABLE_WRITE,
   WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY,
   WT_STAT_CONN_COND_AUTO_WAIT_RESET,
   WT_STAT_CONN_COND_AUTO_WAIT,
@@ -4724,6 +4709,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_DROP_REFUSED_UNPUBLISHED_DATA,
   WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED,
   WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_FAILURES,
+  WT_STAT_CONN_DISAGG_INGEST_CREATE_ON_OPEN,
   WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED,
   WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME_MAX,
   WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN,
@@ -4746,6 +4732,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS,
   WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY,
   WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES,
+  WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_ORPHAN_REMOVE,
   WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME,
   WT_STAT_CONN_DISAGG_STEP_UP_INGEST_TABLES_DRAINED,
   WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_CREATE_TIME,
@@ -4754,6 +4741,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES,
   WT_STAT_CONN_DISAGG_VICTIM_CACHE_APP_THREAD_PUT_TIME,
   WT_STAT_CONN_DISAGG_VICTIM_CACHE_PUT_TIME,
+  WT_STAT_CONN_DISAGG_INGEST_CREATE_ON_OPEN_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_SCHEMA_CANCELED,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
@@ -5337,28 +5325,6 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->backup_blocks = 0;
     stats->backup_blocks_compressed = 0;
     stats->backup_blocks_uncompressed = 0;
-    stats->block_cache_blocks_update = 0;
-    stats->block_cache_bytes_update = 0;
-    stats->block_cache_blocks_evicted = 0;
-    stats->block_cache_bypass_filesize = 0;
-    stats->block_cache_lookups = 0;
-    stats->block_cache_not_evicted_overhead = 0;
-    stats->block_cache_bypass_writealloc = 0;
-    stats->block_cache_bypass_overhead_put = 0;
-    stats->block_cache_bypass_get = 0;
-    stats->block_cache_bypass_put = 0;
-    stats->block_cache_eviction_passes = 0;
-    stats->block_cache_hits = 0;
-    stats->block_cache_misses = 0;
-    stats->block_cache_bypass_chkpt = 0;
-    stats->block_cache_blocks_removed = 0;
-    stats->block_cache_blocks_removed_blocked = 0;
-    stats->block_cache_blocks = 0;
-    stats->block_cache_blocks_insert_read = 0;
-    stats->block_cache_blocks_insert_write = 0;
-    stats->block_cache_bytes = 0;
-    stats->block_cache_bytes_insert_read = 0;
-    stats->block_cache_bytes_insert_write = 0;
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
     stats->disagg_block_get = 0;
@@ -5478,6 +5444,10 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_queue_not_empty = 0;
     /* not clearing eviction_dhandle_complete_walk */
     stats->eviction_server_push_pages_failed_when_flaging = 0;
+    stats->eviction_server_refill_end_lap_complete = 0;
+    stats->eviction_server_refill_end_interrupted = 0;
+    stats->eviction_server_refill_end_shutdown = 0;
+    stats->eviction_server_refill_end_filled = 0;
     stats->eviction_server_skip_intl_page_non_aggressive = 0;
     stats->eviction_server_skip_pages_already_in_urgent_queue = 0;
     stats->cache_eviction_blocked_prefetched = 0;
@@ -5501,14 +5471,22 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_trees_walk_complete = 0;
     stats->eviction_server_skip_stable_trees = 0;
     stats->eviction_server_skip_unwanted_tree = 0;
+    stats->eviction_server_skip_unwanted_tree_early = 0;
     stats->eviction_server_skip_trees_too_many_active_walks = 0;
     stats->eviction_server_skip_checkpointing_trees = 0;
     stats->eviction_server_skip_trees_stick_in_cache = 0;
     stats->eviction_server_skip_trees_eviction_disabled = 0;
     stats->eviction_server_skip_trees_not_useful_before = 0;
     stats->eviction_server_slept = 0;
+    stats->eviction_server_pass_time = 0;
+    stats->eviction_server_refill_time = 0;
+    stats->eviction_server_slept_time = 0;
+    stats->eviction_server_oldest_id_time = 0;
+    stats->eviction_server_refill_handle_lock_time = 0;
+    stats->eviction_server_refill_tree_walk_time = 0;
     stats->eviction_slow = 0;
     stats->eviction_walk_leaf_notfound = 0;
+    stats->eviction_server_walk_one_page_target_unproductive = 0;
     stats->eviction_server_walk_dominating_cache = 0;
     stats->eviction_server_walk_dominating_cache_unproductive = 0;
     /* not clearing eviction_state */
@@ -5804,7 +5782,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
-    stats->checkpoint_rec_blkcache_write = 0;
+    stats->checkpoint_rec_stable_write = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
@@ -5942,6 +5920,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_drop_refused_unpublished_data = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
     stats->disagg_victim_cache_put_failures = 0;
+    stats->disagg_ingest_create_on_open = 0;
     stats->disagg_ingest_stable_tombstone_stripped = 0;
     /* not clearing disagg_victim_cache_put_time_max */
     /* not clearing disagg_checkpoint_meta_lsn */
@@ -5964,6 +5943,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_ingest_drain_bytes = 0;
+    stats->disagg_step_up_ingest_drain_orphan_remove = 0;
     stats->disagg_step_up_ingest_drain_time = 0;
     stats->disagg_step_up_ingest_tables_drained = 0;
     stats->disagg_step_up_missing_stable_create_time = 0;
@@ -5972,6 +5952,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_step_down_window_creates = 0;
     stats->disagg_victim_cache_app_thread_put_time = 0;
     stats->disagg_victim_cache_put_time = 0;
+    stats->disagg_ingest_create_on_open_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->disagg_schema_canceled = 0;
     stats->layered_curs_blind_remove_follower = 0;
@@ -6515,30 +6496,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks += WT_STAT_CONN_READ(from, backup_blocks);
     to->backup_blocks_compressed += WT_STAT_CONN_READ(from, backup_blocks_compressed);
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
-    to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
-    to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
-    to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
-    to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
-    to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
-    to->block_cache_not_evicted_overhead +=
-      WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
-    to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
-    to->block_cache_bypass_overhead_put += WT_STAT_CONN_READ(from, block_cache_bypass_overhead_put);
-    to->block_cache_bypass_get += WT_STAT_CONN_READ(from, block_cache_bypass_get);
-    to->block_cache_bypass_put += WT_STAT_CONN_READ(from, block_cache_bypass_put);
-    to->block_cache_eviction_passes += WT_STAT_CONN_READ(from, block_cache_eviction_passes);
-    to->block_cache_hits += WT_STAT_CONN_READ(from, block_cache_hits);
-    to->block_cache_misses += WT_STAT_CONN_READ(from, block_cache_misses);
-    to->block_cache_bypass_chkpt += WT_STAT_CONN_READ(from, block_cache_bypass_chkpt);
-    to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
-    to->block_cache_blocks_removed_blocked +=
-      WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
-    to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
-    to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
-    to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
-    to->block_cache_bytes += WT_STAT_CONN_READ(from, block_cache_bytes);
-    to->block_cache_bytes_insert_read += WT_STAT_CONN_READ(from, block_cache_bytes_insert_read);
-    to->block_cache_bytes_insert_write += WT_STAT_CONN_READ(from, block_cache_bytes_insert_write);
     to->disagg_block_hs_byte_read += WT_STAT_CONN_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_CONN_READ(from, disagg_block_hs_byte_write);
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
@@ -6707,6 +6664,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
     to->eviction_server_push_pages_failed_when_flaging +=
       WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
+    to->eviction_server_refill_end_lap_complete +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_lap_complete);
+    to->eviction_server_refill_end_interrupted +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_interrupted);
+    to->eviction_server_refill_end_shutdown +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_shutdown);
+    to->eviction_server_refill_end_filled +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_end_filled);
     to->eviction_server_skip_intl_page_non_aggressive +=
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_non_aggressive);
     to->eviction_server_skip_pages_already_in_urgent_queue +=
@@ -6753,6 +6718,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_stable_trees);
     to->eviction_server_skip_unwanted_tree +=
       WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_tree);
+    to->eviction_server_skip_unwanted_tree_early +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_tree_early);
     to->eviction_server_skip_trees_too_many_active_walks +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_too_many_active_walks);
     to->eviction_server_skip_checkpointing_trees +=
@@ -6764,8 +6731,18 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_server_skip_trees_not_useful_before +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_not_useful_before);
     to->eviction_server_slept += WT_STAT_CONN_READ(from, eviction_server_slept);
+    to->eviction_server_pass_time += WT_STAT_CONN_READ(from, eviction_server_pass_time);
+    to->eviction_server_refill_time += WT_STAT_CONN_READ(from, eviction_server_refill_time);
+    to->eviction_server_slept_time += WT_STAT_CONN_READ(from, eviction_server_slept_time);
+    to->eviction_server_oldest_id_time += WT_STAT_CONN_READ(from, eviction_server_oldest_id_time);
+    to->eviction_server_refill_handle_lock_time +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_handle_lock_time);
+    to->eviction_server_refill_tree_walk_time +=
+      WT_STAT_CONN_READ(from, eviction_server_refill_tree_walk_time);
     to->eviction_slow += WT_STAT_CONN_READ(from, eviction_slow);
     to->eviction_walk_leaf_notfound += WT_STAT_CONN_READ(from, eviction_walk_leaf_notfound);
+    to->eviction_server_walk_one_page_target_unproductive +=
+      WT_STAT_CONN_READ(from, eviction_server_walk_one_page_target_unproductive);
     to->eviction_server_walk_dominating_cache +=
       WT_STAT_CONN_READ(from, eviction_server_walk_dominating_cache);
     to->eviction_server_walk_dominating_cache_unproductive +=
@@ -7148,7 +7125,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);
-    to->checkpoint_rec_blkcache_write += WT_STAT_CONN_READ(from, checkpoint_rec_blkcache_write);
+    to->checkpoint_rec_stable_write += WT_STAT_CONN_READ(from, checkpoint_rec_stable_write);
     to->checkpoint_wait_reduce_dirty += WT_STAT_CONN_READ(from, checkpoint_wait_reduce_dirty);
     to->cond_auto_wait_reset += WT_STAT_CONN_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
@@ -7312,6 +7289,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
     to->disagg_victim_cache_put_failures +=
       WT_STAT_CONN_READ(from, disagg_victim_cache_put_failures);
+    to->disagg_ingest_create_on_open += WT_STAT_CONN_READ(from, disagg_ingest_create_on_open);
     to->disagg_ingest_stable_tombstone_stripped +=
       WT_STAT_CONN_READ(from, disagg_ingest_stable_tombstone_stripped);
     to->disagg_victim_cache_put_time_max +=
@@ -7352,6 +7330,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_step_up_clear_ingest_retry);
     to->disagg_step_up_ingest_drain_bytes +=
       WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_bytes);
+    to->disagg_step_up_ingest_drain_orphan_remove +=
+      WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_orphan_remove);
     to->disagg_step_up_ingest_drain_time +=
       WT_STAT_CONN_READ(from, disagg_step_up_ingest_drain_time);
     to->disagg_step_up_ingest_tables_drained +=
@@ -7365,6 +7345,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_victim_cache_app_thread_put_time +=
       WT_STAT_CONN_READ(from, disagg_victim_cache_app_thread_put_time);
     to->disagg_victim_cache_put_time += WT_STAT_CONN_READ(from, disagg_victim_cache_put_time);
+    to->disagg_ingest_create_on_open_time +=
+      WT_STAT_CONN_READ(from, disagg_ingest_create_on_open_time);
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_schema_canceled += WT_STAT_CONN_READ(from, disagg_schema_canceled);

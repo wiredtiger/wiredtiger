@@ -43,7 +43,6 @@ BBBBBBBBBBBBBBBBBB
 BCcLlsvz
 BFGs
 BIGENDIAN
-BLKCACHE
 BLmpqRrSVv
 BOOL
 BSON
@@ -1056,6 +1055,7 @@ ejnprx
 el
 elif
 emp
+enablement
 encodings
 encryptor
 encryptor's
@@ -1366,7 +1366,6 @@ lexicographically
 lf
 libdatasource
 libmagic
-libmemkind
 libpthread
 libpython
 libs
@@ -1443,7 +1442,6 @@ memcmp
 memcpy
 memdup
 meminfo
-memkind
 memmove
 memset
 memsize
