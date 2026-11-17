@@ -1654,14 +1654,9 @@ variables:
       num_jobs: $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
       cmake_generator: "Unix Makefiles"
       additional_env_vars: |
-        export HOMEBREW_PREFIX="$(brew --prefix)"
-        export LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm"
-        export PATH="$LLVM_PREFIX/bin:$PATH"
         export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
         export CXXFLAGS="--sysroot=$SDKROOT"
         export CFLAGS="--sysroot=$SDKROOT"
-        export CPPFLAGS="-isystem $LLVM_PREFIX/include"
-        export LDFLAGS="-L$LLVM_PREFIX/lib -L$LLVM_PREFIX/lib/c++ -L$LLVM_PREFIX/lib/unwind -lunwind"
         export CC="clang"
         export CXX="clang++"
         export LD_LIBRARY_PATH=""
