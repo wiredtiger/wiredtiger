@@ -1814,14 +1814,26 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     /*
      * Call the PALI function to abandon the checkpoint, telling it the LSN of the last completed
      * checkpoint so that it can drop everything after that record. If there are no more updates
-     * after the last complete checkpoint, the function would have no effect. An implementation
-     * without the extended interface determines the boundary itself.
+     * after the last complete checkpoint, the function would have no effect. An implementation that
+     * sets the extended interface is only called through it, and only when the LSN is known: the
+     * value is a floor for the deletion, so an unknown one cannot be handed over, and the records
+     * stay in the page log. An implementation without the extended interface determines the
+     * boundary itself.
      */
-    abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
-    if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL)
+    if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL) {
+        if (disagg->last_checkpoint_lsn == WT_DISAGG_LSN_NONE) {
+            if (__wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) !=
+              WT_DISAGG_LSN_NONE)
+                __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Not abandoning the checkpoint on page log %s: the LSN of the last completed "
+                  "checkpoint is unknown, so the records cannot be discarded safely",
+                  disagg->npage_log->name);
+            return (0);
+        }
+        abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
         ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
           disagg->npage_log->page_log, &session->iface, &abandon_args);
-    else
+    } else
         ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
           disagg->npage_log->page_log, &session->iface);
 

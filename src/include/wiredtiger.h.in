@@ -5595,7 +5595,8 @@ struct __wt_page_log {
      * Abandon an incomplete checkpoint up to the last completed checkpoint's LSN.
      *
      * This is an optional function. When it is set, WiredTiger calls it instead of
-     * WT_PAGE_LOG::pl_abandon_checkpoint.
+     * WT_PAGE_LOG::pl_abandon_checkpoint, and only when it knows the LSN of the last completed
+     * checkpoint. When the LSN is unknown WiredTiger leaves the page log unchanged.
      *
      * @errors
      *
@@ -5855,7 +5856,7 @@ struct __wt_page_log_abandon_checkpoint_args {
         /*
          * Input arguments
          */
-        uint64_t last_checkpoint_lsn; /* The last completed checkpoint's LSN, or 0 if unknown. */
+        uint64_t last_checkpoint_lsn; /* The last completed checkpoint's LSN. */
 };
 
 /*!
