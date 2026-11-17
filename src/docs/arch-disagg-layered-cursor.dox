@@ -50,9 +50,10 @@ A constituent blocked on a prepared update retains its key and page reference, w
 iteration retry flag recording the direction. Although its internal-key flag is cleared, that key
 participates in the ordinary merge. When possible, the logic compares the two constituents to
 determine which key should be returned next and reports a prepare conflict if that key is blocked.
-Before reporting a conflict from a retained position, it rechecks the winning constituent: the
-prepared transaction may have resolved while keys from the other constituent were returned. If the
-recheck changes the constituent's position, the merge selects the next key again.
+A retained blocked position can report a prepare conflict even if the prepared transaction resolved
+while keys from the other constituent were returned. The next same-direction call retries that
+constituent through normal B-tree iteration; if both constituents retain blocked positions, each may
+report a conflict before being retried.
 
 When a prepare conflict leaves a constituent positioned, subsequent `next()` or `prev()` calls use
 that constituent's retained position to retry the blocked key or change direction. A conflict during

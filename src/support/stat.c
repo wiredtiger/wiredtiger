@@ -365,6 +365,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
   "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
+  "layered: Layered table cursor saved prepare-blocked key restoration attempts",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -865,6 +866,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE,
   WT_STAT_DSRC_LAYERED_CURS_REMOVE,
   WT_STAT_DSRC_LAYERED_CURS_REOPEN_STABLE,
+  WT_STAT_DSRC_LAYERED_CURS_RESTORE_WALK,
   WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR,
   WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST,
   WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE,
@@ -1400,6 +1402,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
     stats->layered_curs_reopen_stable = 0;
+    stats->layered_curs_restore_walk = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -1953,6 +1956,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_prev_stable += from->layered_curs_prev_stable;
     to->layered_curs_remove += from->layered_curs_remove;
     to->layered_curs_reopen_stable += from->layered_curs_reopen_stable;
+    to->layered_curs_restore_walk += from->layered_curs_restore_walk;
     to->layered_curs_search_near += from->layered_curs_search_near;
     to->layered_curs_search_near_ingest += from->layered_curs_search_near_ingest;
     to->layered_curs_search_near_stable += from->layered_curs_search_near_stable;
@@ -2549,6 +2553,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_prev_stable += WT_STAT_DSRC_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_DSRC_READ(from, layered_curs_remove);
     to->layered_curs_reopen_stable += WT_STAT_DSRC_READ(from, layered_curs_reopen_stable);
+    to->layered_curs_restore_walk += WT_STAT_DSRC_READ(from, layered_curs_restore_walk);
     to->layered_curs_search_near += WT_STAT_DSRC_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_DSRC_READ(from, layered_curs_search_near_stable);
@@ -3478,6 +3483,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
   "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
+  "layered: Layered table cursor saved prepare-blocked key restoration attempts",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -4665,6 +4671,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_LAYERED_CURS_PREV_STABLE,
   WT_STAT_CONN_LAYERED_CURS_REMOVE,
   WT_STAT_CONN_LAYERED_CURS_REOPEN_STABLE,
+  WT_STAT_CONN_LAYERED_CURS_RESTORE_WALK,
   WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR,
   WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST,
   WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE,
@@ -5880,6 +5887,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
     stats->layered_curs_reopen_stable = 0;
+    stats->layered_curs_restore_walk = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -7265,6 +7273,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_prev_stable += WT_STAT_CONN_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_CONN_READ(from, layered_curs_remove);
     to->layered_curs_reopen_stable += WT_STAT_CONN_READ(from, layered_curs_reopen_stable);
+    to->layered_curs_restore_walk += WT_STAT_CONN_READ(from, layered_curs_restore_walk);
     to->layered_curs_search_near += WT_STAT_CONN_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_CONN_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_CONN_READ(from, layered_curs_search_near_stable);

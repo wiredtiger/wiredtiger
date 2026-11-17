@@ -2007,34 +2007,32 @@ __clayered_select_current(WTI_CLAYERED_OP *op, WT_CURSOR **currentp, WT_CURSOR *
  * __clayered_advance_equal_alternate --
  *     Advance an equal alternate when the current key is readable or the walk reverses away from a
  *     blocked key.
- *
- * A constituent's retry flag makes a same-direction step retry its retained key instead of
- *     advancing. When current is blocked and retried in the same direction, leave the equal
- *     alternate in place: rollback of a prepared ingest insert may expose the stable value at that
- *     key.
- *
- * When current is readable or has a retry flag for the opposite direction, advance the equal
- *     alternate. Clear the alternate's retry flag for the requested direction so its step moves
- *     past the equal key rather than retrying it. After a read-context change, either constituent
- *     can be current, so this applies to both ingest and stable.
  */
 static int
 __clayered_advance_equal_alternate(
   WTI_CLAYERED_OP *op, WT_CURSOR *c_current, WT_CURSOR *c_alternate, bool forward)
 {
-    if (__clayered_constituent_positioned(c_alternate) &&
-      (F_ISSET(c_current, WT_CURSTD_KEY_INT) ||
-        F_ISSET((WT_CURSOR_BTREE *)c_current,
-          forward ? WT_CBT_ITERATE_RETRY_PREV : WT_CBT_ITERATE_RETRY_NEXT))) {
-        int cmp;
+    if (!__clayered_constituent_positioned(c_alternate))
+        return (0);
 
-        WT_RET(__clayered_cursor_compare(op, c_alternate, c_current, &cmp));
-        if (cmp == 0) {
-            F_CLR((WT_CURSOR_BTREE *)c_alternate,
-              forward ? WT_CBT_ITERATE_RETRY_NEXT : WT_CBT_ITERATE_RETRY_PREV);
-            WT_RET(__clayered_step(op, c_alternate, forward));
-        }
-    }
+    /*
+     * When current is blocked without an opposite-direction retry, retain the alternate: rollback
+     * of a prepared ingest insert may expose the stable value at that key.
+     */
+    if (!F_ISSET(c_current, WT_CURSTD_KEY_INT) &&
+      !F_ISSET((WT_CURSOR_BTREE *)c_current,
+        forward ? WT_CBT_ITERATE_RETRY_PREV : WT_CBT_ITERATE_RETRY_NEXT))
+        return (0);
+
+    int cmp;
+    WT_RET(__clayered_cursor_compare(op, c_alternate, c_current, &cmp));
+    if (cmp != 0)
+        return (0);
+
+    /* Clear the requested-direction retry so the alternate advances past the equal key. */
+    F_CLR((WT_CURSOR_BTREE *)c_alternate,
+      forward ? WT_CBT_ITERATE_RETRY_NEXT : WT_CBT_ITERATE_RETRY_PREV);
+    WT_RET(__clayered_step(op, c_alternate, forward));
 
     return (0);
 }
@@ -2160,6 +2158,7 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
 
     /* Reopening blocked stable can leave only its saved key as the walk's anchor. */
     if (op->clayered->prepare_blocked_key.size != 0) {
+        WT_STAT_CONN_DSRC_INCR(CUR2S(op->clayered), layered_curs_restore_walk);
         ret = __clayered_restore_walk(op, forward);
         return (__clayered_iterate_finish(op, iter_flag, false, ret));
     }
@@ -2200,14 +2199,7 @@ __clayered_iterate_int(WTI_CLAYERED_OP *op, uint32_t iter_flag)
 
     do {
         WT_ERR(__clayered_iterate_constituents(op, iter_flag));
-        while ((ret = __clayered_get_current(op, iter_flag == WTI_CLAYERED_ITERATE_NEXT)) ==
-          WT_PREPARE_CONFLICT) {
-            /* A parked winner may have resolved while the other constituent supplied keys. */
-            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, clayered->current_cursor,
-                                 iter_flag == WTI_CLAYERED_ITERATE_NEXT),
-              true);
-        }
-        WT_ERR(ret);
+        WT_ERR(__clayered_get_current(op, iter_flag == WTI_CLAYERED_ITERATE_NEXT));
         if (clayered->current_cursor == op->ingest)
             deleted = __wt_clayered_deleted(&clayered->current_cursor->value);
         else

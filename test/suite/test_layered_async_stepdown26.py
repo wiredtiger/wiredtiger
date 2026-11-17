@@ -79,11 +79,17 @@ class test_layered_async_stepdown26(LayeredStepdownMixin, wttest.WiredTigerTestC
             actual.append((cursor.get_key(), cursor.get_value()))
         self.assertEqual(actual, expected[:5])
 
-        if not self.resolve_early:
+        if self.resolve_early:
+            self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                '/conflict with a prepared update/')
+        else:
             for _ in range(2):
                 self.assertRaisesException(wiredtiger.WiredTigerError, step,
                     '/conflict with a prepared update/')
             prepared.rollback_transaction()
+            if self.mirroring:
+                self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                    '/conflict with a prepared update/')
 
         for item in expected[5:]:
             self.assertEqual(step(), 0)

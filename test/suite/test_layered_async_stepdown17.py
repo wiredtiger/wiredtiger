@@ -82,11 +82,13 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_step_down_ts(15)
         self.complete_step_down(15)
 
+        restore_before = self.get_stat(wiredtiger.stat.conn.layered_curs_restore_walk)
         resumed = []
         while step() == 0:
             resumed.append((cursor.get_key(), cursor.get_value()))
         self.assertEqual(resumed,
             [('key20', 'v'), ('key30', 'v')] if self.forward else [('key20', 'v'), ('key10', 'v')])
+        restore_after = self.get_stat(wiredtiger.stat.conn.layered_curs_restore_walk)
 
         # Resetting releases the position, which pins the live stable table. Resolving a straddling
         # prepared transaction on the follower is not supported yet (FIXME-WT-18422), so the
@@ -100,6 +102,7 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
             self.assertEqual(prepare_session.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
         prepare_cursor.close()
         prepare_session.close()
+        self.assertEqual(restore_after, restore_before + 1)
 
     # The walk blocks on a prepared update, then a reversal hits a prepare conflict on the key it
     # last returned, then the step-down completes. The walk then reverses on the follower, which
