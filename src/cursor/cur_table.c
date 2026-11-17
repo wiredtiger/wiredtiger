@@ -278,7 +278,7 @@ err:
 
 /*
  * __curtable_next_raw_kv_batch --
- *     TODO description
+ *     Read up to count keys and values, moving the cursor forward accordingly.
  */
 static int
 __curtable_next_raw_kv_batch(

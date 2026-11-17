@@ -935,7 +935,7 @@ err:
 
 /*
  * __wt_btcur_next_batch --
- *     TODO description.
+ *     Read up to count keys and values, moving the cursor forward accordingly.
  */
 int
 __wt_btcur_next_batch(
