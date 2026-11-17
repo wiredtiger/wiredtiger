@@ -159,6 +159,13 @@ config_random(TABLE *table, bool table_only)
             continue;
 
         /*
+         * Non-layered tables don't support blind removes, so don't randomly turn them on. Skipping
+         * the random pick also keeps saved CONFIG files replaying the same way.
+         */
+        if (cp->off == V_TABLE_DISAGG_BLIND_REMOVE && !DATASOURCE(table, "layered"))
+            continue;
+
+        /*
          * Boolean flags are 0 or 1, where the variable's "min" value is the percent chance the flag
          * is "on" (so "on" if random rolled <= N, otherwise "off").
          */
@@ -301,6 +308,14 @@ config_table(TABLE *table, void *arg)
 
     /* Fill in random values for the rest of the run. */
     config_random(table, true);
+
+    /* Only layered tables support blind removes. */
+    if (!DATASOURCE(table, "layered")) {
+        if (config_explicit(table, "disagg.blind_remove") && TV(DISAGG_BLIND_REMOVE))
+            WARN("turning off disagg.blind_remove for table%" PRIu32 " as it isn't layered",
+              table->id);
+        config_off(table, "disagg.blind_remove");
+    }
 
     /* Page sizes are configured using powers-of-two or megabytes, convert them. */
     table->max_intl_page = 1U << TV(BTREE_INTERNAL_PAGE_MAX);
@@ -683,7 +698,6 @@ config_backward_compatible(void)
     }
 
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
-    BC_CHECK("block_cache", BLOCK_CACHE);
     BC_CHECK("disagg.victim_cache", DISAGG_VICTIM_CACHE);
     BC_CHECK("disagg.victim_cache.size", DISAGG_VICTIM_CACHE_SIZE);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
@@ -789,10 +803,6 @@ config_cache(void)
         else
             GV(CACHE) = GV(CACHE_MAXIMUM);
     }
-
-    /* Give any block cache 20% of the total cache size, over and above the cache. */
-    if (GV(BLOCK_CACHE) != 0)
-        GV(BLOCK_CACHE_SIZE) = (GV(CACHE) + 4) / 5;
 
 dirty_eviction_config:
     /* Adjust the dirty eviction settings to reduce test driven cache stuck failures. */
@@ -1013,8 +1023,6 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "backup"))
         return;
-    if (config_explicit(NULL, "block_cache"))
-        return;
     if (config_explicit(NULL, "btree.compression"))
         return;
     if (config_explicit(NULL, "checkpoint"))
@@ -1069,8 +1077,6 @@ config_in_memory_reset(void)
         config_off(NULL, "background_compact");
     if (!config_explicit(NULL, "backup"))
         config_off(NULL, "backup");
-    if (!config_explicit(NULL, "block_cache"))
-        config_off(NULL, "block_cache");
     if (!config_explicit(NULL, "checkpoint"))
         config_off(NULL, "checkpoint");
     if (!config_explicit(NULL, "import"))
