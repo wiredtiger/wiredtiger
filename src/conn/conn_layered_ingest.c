@@ -23,47 +23,40 @@ static WT_INLINE bool
 __layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_UPDATE *upd;
-    bool has_value;
 
     if (cbt->compare != 0)
-        has_value = false;
-    else {
-        if (cbt->ins != NULL)
-            upd = cbt->ins->upd;
-        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
-            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-        else
-            upd = NULL;
+        return (false);
 
-        /*
-         * Walk the chain: assert no unresolved preserved prepared update exists, and advance past
-         * any rolled-back preserved prepared updates to find the first visible update.
-         */
-        for (; upd != NULL; upd = upd->next) {
-            if (upd->txnid == WT_TXN_ABORTED) {
-                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "During ingest drain, aborted updates on the stable btree must be "
-                  "rolled-back preserved prepared transactions");
-                continue;
-            }
+    if (cbt->ins != NULL)
+        upd = cbt->ins->upd;
+    else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+    else
+        upd = NULL;
 
-            WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
-              "During ingest drain, found an unresolved prepared update on the stable btree; "
-              "prepared transactions must be resolved before step-up");
-            break;
+    /*
+     * Walk the chain: assert no unresolved preserved prepared update exists, and advance past any
+     * rolled-back preserved prepared updates to find the first visible update.
+     */
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED) {
+            WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+              "During ingest drain, aborted updates on the stable btree must be "
+              "rolled-back preserved prepared transactions");
+            continue;
         }
 
-        if (upd != NULL)
-            has_value = upd->type != WT_UPDATE_TOMBSTONE;
-        else {
-            WT_TIME_WINDOW tw;
-            bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-            has_value =
-              tw_found && !WT_TIME_WINDOW_HAS_PREPARE(&tw) && !WT_TIME_WINDOW_HAS_STOP(&tw);
-        }
+        WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
+          "During ingest drain, found an unresolved prepared update on the stable btree; "
+          "prepared transactions must be resolved before step-up");
+
+        return (upd->type != WT_UPDATE_TOMBSTONE);
     }
 
-    return (has_value);
+    WT_TIME_WINDOW tw;
+    bool tw_found = __wt_read_cell_time_window(cbt, &tw);
+
+    return (tw_found && !WT_TIME_WINDOW_HAS_PREPARE(&tw) && !WT_TIME_WINDOW_HAS_STOP(&tw));
 }
 
 /*
