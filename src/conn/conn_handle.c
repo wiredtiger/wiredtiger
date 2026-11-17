@@ -28,6 +28,11 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->disaggregated_storage.pending_crypt_key_qh); /* Pending pushed crypt keys */
     TAILQ_INIT(&conn->disaggregated_storage.deferred_ckpt_qh);     /* Deferred checkpoints */
 
+    /* Table-name hash index of the shared metadata queue. */
+    conn->disaggregated_storage.shared_metadata_hash_slots = WT_DISAGG_QUEUE_HASH_BUCKETS;
+    WT_RET(__wt_calloc_def(
+      session, WT_DISAGG_QUEUE_HASH_BUCKETS, &conn->disaggregated_storage.shared_metadata_hash));
+
     /* Prefetch. */
     WT_RET(__wti_conn_prefetch_init(session));
 
@@ -140,6 +145,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_free(session, conn->blockhash);
     __wt_free(session, conn->dh_bucket_count);
     __wt_free(session, conn->dhhash);
+    __wt_free(session, conn->disaggregated_storage.shared_metadata_hash);
     __wt_free(session, conn->fhhash);
 
     /* Free allocated recovered checkpoint snapshot memory */
