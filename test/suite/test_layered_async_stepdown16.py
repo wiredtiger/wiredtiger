@@ -215,10 +215,7 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
             prepare_cursor.close()
             prepare_session.close()
 
-        expected_conflicts = 2 if self.mirroring and not self.prepare_before_step_down and \
-            not self.commit_prepared else 1
-        self.assertEqual(conflicts, expected_conflicts,
-            'a mirrored rollback can leave the other constituent parked on the resolved prepare')
+        self.assertEqual(conflicts, 1)
 
         expected = keys if self.forward else list(reversed(keys))
         self.assertEqual(seen, [(key,

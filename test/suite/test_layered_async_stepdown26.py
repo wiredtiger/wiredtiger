@@ -79,17 +79,11 @@ class test_layered_async_stepdown26(LayeredStepdownMixin, wttest.WiredTigerTestC
             actual.append((cursor.get_key(), cursor.get_value()))
         self.assertEqual(actual, expected[:5])
 
-        if self.resolve_early:
-            self.assertRaisesException(wiredtiger.WiredTigerError, step,
-                '/conflict with a prepared update/')
-        else:
+        if not self.resolve_early:
             for _ in range(2):
                 self.assertRaisesException(wiredtiger.WiredTigerError, step,
                     '/conflict with a prepared update/')
             prepared.rollback_transaction()
-            if self.mirroring:
-                self.assertRaisesException(wiredtiger.WiredTigerError, step,
-                    '/conflict with a prepared update/')
 
         for item in expected[5:]:
             self.assertEqual(step(), 0)
@@ -103,6 +97,102 @@ class test_layered_async_stepdown26(LayeredStepdownMixin, wttest.WiredTigerTestC
         prepared.close()
         if self.mirroring:
             self.complete_step_down(15)
+
+
+@disagg_test_class
+class test_layered_async_stepdown26_follower(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
+    base_config = 'statistics=(all),precise_checkpoint=true,preserve_prepared=true'
+    conn_config = base_config + ',disaggregated=(role="leader")'
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
+        ('next', dict(forward=True)), ('prev', dict(forward=False))], [
+        ('insert', dict(shared_key=False)), ('shared_key', dict(shared_key=True))], [
+        ('one_prepare', dict(second_prepare=False)), ('two_prepares', dict(second_prepare=True))], [
+        ('readable', dict(deleted=False)), ('deleted', dict(deleted=True))])
+
+    def key(self, rank):
+        return f'key{rank if self.forward else 20 - rank:02}'
+
+    def test_resolved_prepare_reselects_before_next_conflict(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        values = {rank: f'value{rank:02}' for rank in range(0, 20, 2)}
+        if self.shared_key:
+            values[9] = 'stable'
+        self.write_at(self.uri, {self.key(rank): value for rank, value in values.items()}, 10)
+        self.set_global_ts(1, 10)
+        self.session.checkpoint()
+
+        follower = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+            self.base_config + ',disaggregated=(role="follower")')
+        self.disagg_advance_checkpoint_and_wait(follower)
+        reader = follower.open_session()
+        cursor = reader.open_cursor(self.uri)
+        if self.deleted:
+            reader.begin_transaction()
+            cursor.set_key(self.key(10))
+            self.assertEqual(cursor.remove(), 0)
+            reader.commit_transaction('commit_timestamp=' + self.timestamp_str(18))
+            cursor.reset()
+            values.pop(10)
+
+        prepared_sessions = []
+        prepare_cursors = []
+        for prepared_id, rank in enumerate((9, 13) if self.second_prepare else (9,), 1):
+            prepared = follower.open_session()
+            prepare_cursor = prepared.open_cursor(self.uri)
+            prepared.begin_transaction()
+            prepare_cursor[self.key(rank)] = 'prepared'
+            prepared.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
+                ',prepared_id=' + self.prepared_id_str(prepared_id))
+            prepared_sessions.append(prepared)
+            prepare_cursors.append(prepare_cursor)
+
+        unresolved = list(prepared_sessions)
+        reader.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        step = cursor.next if self.forward else cursor.prev
+        expected = [(self.key(rank), value) for rank, value in sorted(values.items())]
+        prefix = [(self.key(rank), value) for rank, value in sorted(values.items())
+            if not self.second_prepare or rank < 13]
+        actual = []
+        try:
+            self.assertEqual(step(), 0)
+            actual.append((cursor.get_key(), cursor.get_value()))
+            self.assertEqual(actual, expected[:1])
+            unresolved[0].rollback_transaction(
+                'rollback_timestamp=' + self.timestamp_str(35))
+            unresolved.pop(0)
+            self.assertEqual(self.get_stat(wiredtiger.stat.conn.txn_prepare_active,
+                conn=follower), int(self.second_prepare))
+
+            for item in prefix[1:]:
+                self.assertEqual(step(), 0)
+                actual.append((cursor.get_key(), cursor.get_value()))
+                self.assertEqual(actual[-1], item)
+            if self.second_prepare:
+                for _ in range(2):
+                    self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                        '/conflict with a prepared update/')
+                unresolved[0].rollback_transaction(
+                    'rollback_timestamp=' + self.timestamp_str(35))
+                unresolved.pop(0)
+            for item in expected[len(prefix):]:
+                self.assertEqual(step(), 0)
+                actual.append((cursor.get_key(), cursor.get_value()))
+                self.assertEqual(actual[-1], item)
+            self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(actual, expected)
+        finally:
+            reader.rollback_transaction()
+            for prepared in unresolved:
+                prepared.rollback_transaction('rollback_timestamp=' + self.timestamp_str(35))
+            cursor.close()
+            reader.close()
+            for prepare_cursor in prepare_cursors:
+                prepare_cursor.close()
+            for prepared in prepared_sessions:
+                prepared.close()
 
 
 @disagg_test_class

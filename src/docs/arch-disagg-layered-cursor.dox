@@ -50,10 +50,10 @@ A constituent blocked on a prepared update retains its key and page reference, w
 iteration retry flag recording the direction. Although its internal-key flag is cleared, that key
 participates in the ordinary merge. When possible, the logic compares the two constituents to
 determine which key should be returned next and reports a prepare conflict if that key is blocked.
-A retained blocked position can report a prepare conflict even if the prepared transaction resolved
-while keys from the other constituent were returned. The next same-direction call retries that
-constituent through normal B-tree iteration; if both constituents retain blocked positions, each may
-report a conflict before being retried.
+A cached blocked winner is retried before reporting a prepare conflict, unless it has already been
+positioned or stepped in the current merge pass. The merge is repeated after the retry, so a later
+prepared key cannot hide a readable key in the other constituent. Each constituent needs at most one
+such retry per merge pass.
 
 When a prepare conflict leaves a constituent positioned, subsequent `next()` or `prev()` calls use
 that constituent's retained position to retry the blocked key or change direction. A conflict during
@@ -62,9 +62,10 @@ Repositioning an alternate with `search_near()` can encounter a prepared key out
 scan direction. After that prepared transaction commits or rolls back, retrying the cursor operation
 completes the repositioning before the scan continues.
 
-Reopening blocked stable on a role change closes the cursor retaining its key. If ingest holds the
-last returned key, invalidating the iteration flags makes stable reposition from ingest. Otherwise,
-the layered cursor saves the blocked key and direction until both constituents can be restored.
+Reopening blocked stable on a role change closes the cursor retaining its key. If ingest is current
+and retains a usable key, readable or prepare-blocked, invalidating the iteration flags makes stable
+reposition from ingest. Otherwise, the layered cursor saves the blocked key and direction until both
+constituents can be restored.
 Resetting or starting a different cursor operation clears this saved walk state, including any key
 saved while reopening stable for that operation.
 

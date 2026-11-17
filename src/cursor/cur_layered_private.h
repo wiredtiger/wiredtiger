@@ -91,4 +91,6 @@ struct __wti_clayered_op {
     WT_COLLATOR *collator;
     WTI_CLAYERED_WRITE_TARGET write_target;
     bool follower_blind_remove;
+    bool ingest_refreshed; /* Ingest positioned or stepped in this merge pass */
+    bool stable_refreshed; /* Stable positioned or stepped in this merge pass */
 };

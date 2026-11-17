@@ -581,6 +581,7 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
     op->follower_blind_remove = LF_ISSET(CLAYERED_ENTER_FOLLOWER_BLIND_REMOVE);
+    op->ingest_refreshed = op->stable_refreshed = false;
 
     /*
      * Every operation needs a constituent. A transaction older than a step-down-created table,
@@ -1854,6 +1855,11 @@ __clayered_position_constituent_at(
     WT_SESSION_IMPL *session = CUR2S(clayered);
     int cmp;
 
+    if (constituent == op->ingest)
+        op->ingest_refreshed = true;
+    else
+        op->stable_refreshed = true;
+
     constituent->set_key(constituent, key);
     WT_RET(constituent->search_near(constituent, &cmp));
 
@@ -1916,6 +1922,11 @@ __clayered_constituent_iter_helper(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, 
 {
     WT_DECL_RET;
 
+    if (constituent == op->ingest)
+        op->ingest_refreshed = true;
+    else
+        op->stable_refreshed = true;
+
     WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(constituent, forward), true);
     if (constituent == op->stable && ret == 0)
         WT_ERR_NOTFOUND_OK(__clayered_reposition_truncate_iterate(op, constituent, forward), true);
@@ -1936,6 +1947,26 @@ __clayered_step(WTI_CLAYERED_OP *op, WT_CURSOR *constituent, bool forward)
     if (ret == WT_NOTFOUND ||
       (ret == WT_PREPARE_CONFLICT && __clayered_constituent_positioned(constituent)))
         return (0);
+    return (ret);
+}
+
+/*
+ * __clayered_get_current_iterate --
+ *     Refresh cached blocked winners and re-merge before reporting a prepare conflict.
+ */
+static int
+__clayered_get_current_iterate(WTI_CLAYERED_OP *op, bool forward)
+{
+    WT_DECL_RET;
+
+    while ((ret = __clayered_get_current(op, forward)) == WT_PREPARE_CONFLICT) {
+        WT_CURSOR *current = op->clayered->current_cursor;
+        if (current == op->ingest ? op->ingest_refreshed : op->stable_refreshed)
+            break;
+
+        /* Re-merge if retrying reaches another prepared key beyond the alternate's key. */
+        WT_RET(__clayered_step(op, current, forward));
+    }
     return (ret);
 }
 
@@ -2155,6 +2186,7 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
     bool forward, fresh_start;
 
     forward = (iter_flag == WTI_CLAYERED_ITERATE_NEXT);
+    op->ingest_refreshed = op->stable_refreshed = false;
 
     /* Reopening blocked stable can leave only its saved key as the walk's anchor. */
     if (op->clayered->prepare_blocked_key.size != 0) {
@@ -2199,7 +2231,7 @@ __clayered_iterate_int(WTI_CLAYERED_OP *op, uint32_t iter_flag)
 
     do {
         WT_ERR(__clayered_iterate_constituents(op, iter_flag));
-        WT_ERR(__clayered_get_current(op, iter_flag == WTI_CLAYERED_ITERATE_NEXT));
+        WT_ERR(__clayered_get_current_iterate(op, iter_flag == WTI_CLAYERED_ITERATE_NEXT));
         if (clayered->current_cursor == op->ingest)
             deleted = __wt_clayered_deleted(&clayered->current_cursor->value);
         else
