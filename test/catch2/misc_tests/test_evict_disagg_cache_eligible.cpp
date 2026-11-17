@@ -262,6 +262,21 @@ TEST_CASE("Victim cache eligibility: every reason is produced by exactly its own
     }
 }
 
+TEST_CASE("Victim cache eligibility: a block manager without a block handle is rejected",
+  "[evict][disagg_cache]")
+{
+    /*
+     * The no-block-manager gate also covers a manager whose open failed far enough to leave no
+     * handle behind: the checked cast must never see one.
+     */
+    eligibility_fixture f;
+    f.bm.block = nullptr;
+
+    const WT_PAGE_HEADER *disk_image = f.dsk;
+    REQUIRE(f.check(&disk_image) == WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
+    REQUIRE(disk_image == nullptr);
+}
+
 TEST_CASE("Victim cache eligibility: a dirty page that was never reconciled is eligible",
   "[evict][disagg_cache]")
 {

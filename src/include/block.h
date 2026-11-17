@@ -262,12 +262,14 @@ struct __wt_bm {
 
 /*
  * WT_BLOCK_TYPE --
- *     The block handle type. Both handle structures begin with this field because they share the
- *     connection's block lists, so code that finds a handle there must check its type before
- *     casting.
+ *     The block handle type, carried in the prefix WT_BLOCK and WT_BLOCK_DISAGG share because both
+ *     are threaded through the connection's block lists as WT_BLOCK pointers. Handles are tagged at
+ *     open, before they join the lists. Zero is the state of a handle that was never tagged: it
+ *     matches no lookup and fails the checked cast, rather than silently passing as whichever
+ *     enumerator happened to be zero.
  */
 typedef enum {
-    WT_BLOCK_TYPE_INVALID = 0, /* Not a valid, opened handle */
+    WT_BLOCK_TYPE_INVALID = 0, /* A handle that was never tagged */
     WT_BLOCK_TYPE_LOCAL,       /* A local file block handle */
     WT_BLOCK_TYPE_DISAGG       /* A disaggregated block handle */
 } WT_BLOCK_TYPE;
@@ -287,10 +289,10 @@ struct __wt_block {
      */
 
     /* ===== Begin shared prefix with WT_BLOCK_DISAGG ===== */
-    WT_BLOCK_TYPE type; /* Handle type */
     const char *name;   /* Name */
     uint32_t objectid;  /* Object id */
     uint32_t ref;       /* References */
+    WT_BLOCK_TYPE type; /* Handle type */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -500,10 +502,10 @@ struct __wt_block_disagg {
      */
 
     /* ===== Begin shared prefix with WT_BLOCK ===== */
-    WT_BLOCK_TYPE type; /* Handle type */
     const char *name;   /* Name */
     uint32_t objectid;  /* Object id */
     uint32_t ref;       /* References */
+    WT_BLOCK_TYPE type; /* Handle type */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */

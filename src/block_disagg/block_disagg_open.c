@@ -94,7 +94,7 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
          * The list holds both handle types; only compare disagg fields on a disagg handle.
          */
         if (WT_BLOCK_IS_DISAGG(block) && strcmp(filename, block->name) == 0 &&
-          ((WT_BLOCK_DISAGG *)block)->tableid == tableid) {
+          __wt_block_as_disagg(session, block)->tableid == tableid) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
