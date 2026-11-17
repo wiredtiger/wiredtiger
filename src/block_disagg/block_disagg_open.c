@@ -110,8 +110,9 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     /*
      * Basic structure allocation, initialization.
      *
-     * The handle joins the connection's block lists only after its name is set: cleanup locates the
-     * handle's bucket from the name, and a handle that never joined the lists must not be removed.
+     * Note: set the block's name-hash value before any work that can fail because cleanup calls the
+     * block destroy code which uses that hash value to remove the block from the underlying linked
+     * lists.
      */
     WT_ERR(__wt_calloc_one(session, &block_disagg));
     block_disagg->ref = 1;
