@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+import wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -44,7 +45,8 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_config = 'disaggregated=(role="leader"),page_delta=(delta_pct=100,leaf_page_delta=true)'
+    conn_config = ('disaggregated=(role="leader"),statistics=(all),'
+                   'page_delta=(delta_pct=100,leaf_page_delta=true)')
     conn_config_follower = 'disaggregated=(role="follower"),statistics=(all)'
 
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
@@ -52,6 +54,12 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
 
     def ts(self, t):
         return 'commit_timestamp=' + self.timestamp_str(t)
+
+    def leaf_delta_count(self):
+        stats = self.session.open_cursor('statistics:' + self.uri)
+        count = stats[wiredtiger.stat.dsrc.rec_page_delta_leaf][2]
+        stats.close()
+        return count
 
     def put(self, cursor, key, t):
         self.session.begin_transaction()
@@ -65,6 +73,8 @@ class test_verify_disagg08(wttest.WiredTigerTestCase):
         self.session.commit_transaction(self.ts(t))
 
     def verify_leader_and_follower(self, cursor):
+        # The scenario is only meaningful if the follower rebuilds a page written as a delta.
+        self.assertGreater(self.leaf_delta_count(), 0)
         cursor.close()
 
         # A follower picks up only the latest checkpoint and has never set its oldest timestamp.

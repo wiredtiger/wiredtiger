@@ -450,46 +450,6 @@ __time_value_validate_parent_stable(
 }
 
 /*
- * __time_value_stop_obsolete_at_checkpoint --
- *     Is a value time window already obsolete against the checkpoint's own oldest timestamp, rather
- *     than the reading connection's? Rebuilding a page from a base image and deltas keeps only the
- *     cells still live under whoever is doing the rebuilding, which need not match what the
- *     checkpoint's own writer saw when it built the parent aggregate --
- *     a reader with no oldest timestamp of its own set yet, or one that has adopted a checkpoint
- *     whose oldest timestamp is ahead of its own, keeps a cell the writer had already dropped.
- *     Transaction ids are not comparable across connections sharing a disaggregated store, so only
- *     the timestamp counts.
- *
- * FIXME-WT-17968: revisit whether this is still needed once the checkpoint pick-up pinned-timestamp
- *     gate is restored. A reader with no oldest timestamp of its own set yet has a pinned timestamp
- *     of WT_TS_NONE, which makes that gate inert regardless, so this relaxation looks needed either
- *     way --
- *     but confirm that once the other fix lands rather than assuming it here.
- */
-static WT_INLINE bool
-__time_value_stop_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
-{
-    return (__wt_time_window_stop_obsolete_at(tw,
-      __wt_atomic_load_uint64_acquire(
-        &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp)));
-}
-
-/*
- * __time_value_start_obsolete_at_checkpoint --
- *     Is the start of a value time window already visible to everyone at the checkpoint's own
- *     oldest timestamp? The checkpoint's writer clears that from the cells, so the parent aggregate
- *     does not cover it, while a page rebuilt from a base image and deltas can still hold the
- *     original start.
- */
-static WT_INLINE bool
-__time_value_start_obsolete_at_checkpoint(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
-{
-    return (__wt_time_window_start_obsolete_at(tw,
-      __wt_atomic_load_uint64_acquire(
-        &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp)));
-}
-
-/*
  * __time_value_validate_parent --
  *     Value time window validation against a parent.
  */
@@ -497,18 +457,35 @@ static int
 __time_value_validate_parent(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw,
   WT_TIME_AGGREGATE *parent, bool from_delta_known, bool from_delta, bool silent)
 {
+    wt_timestamp_t checkpoint_oldest_ts;
     char time_string[2][WT_TIME_STRING_SIZE];
+    bool start_obsolete;
 
     /*
-     * A page rebuilt from a delta chain can hold a cell the checkpoint's own writer had already
-     * dropped as obsolete, so the parent aggregate does not cover it. Skip such cells; a full image
+     * A page rebuilt from a base image and deltas keeps only the cells still live under the reader
+     * doing the rebuilding, which need not match what the checkpoint's own writer saw when it built
+     * the parent aggregate: a reader with no oldest timestamp of its own set yet, or one that has
+     * adopted a checkpoint whose oldest timestamp is ahead of its own, keeps a cell the writer had
+     * already dropped. Such a cell was never an input to the aggregate, so skip it. A full image
      * has no such rebuild step, so a mismatch there stays a real failure.
+     *
+     * FIXME-WT-17968: revisit whether this is still needed once the checkpoint pick-up
+     *     pinned-timestamp gate is restored. A reader with no oldest timestamp of its own set yet
+     *     has a pinned timestamp of WT_TS_NONE, which makes that gate inert regardless -- but
+     *     confirm that once the other fix lands rather than assuming it here.
      */
-    if (from_delta && __time_value_stop_obsolete_at_checkpoint(session, tw))
+    checkpoint_oldest_ts = from_delta ?
+      __wt_atomic_load_uint64_acquire(
+        &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp) :
+      WT_TS_NONE;
+    if (__wt_time_window_stop_obsolete_at(tw, checkpoint_oldest_ts))
         return (0);
 
-    /* The writer clears a cell's start once visible to all, so skip the durable start check. */
-    bool start_obsolete = from_delta && __time_value_start_obsolete_at_checkpoint(session, tw);
+    /*
+     * The writer also clears a kept cell's start once it is visible to all, so a rebuilt cell can
+     * outrun the aggregate on its start even though the writer wrote it.
+     */
+    start_obsolete = __wt_time_window_start_obsolete_at(tw, checkpoint_oldest_ts);
 
     if (parent->newest_start_durable_ts != WT_TS_NONE &&
       tw->durable_start_ts > parent->newest_start_durable_ts && !start_obsolete)
