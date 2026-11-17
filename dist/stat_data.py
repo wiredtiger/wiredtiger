@@ -1535,7 +1535,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
-    LayeredStat('layered_curs_next_raw_kv_batch', 'Layered table cursor TODO better description'),
+    LayeredStat('layered_curs_next_raw_kv_batch', 'Layered table cursor next batch operations'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
     LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
     LayeredStat('layered_curs_open_stable_ckpt_pickup_race', 'Layered table cursor stable open raced a checkpoint pickup'),

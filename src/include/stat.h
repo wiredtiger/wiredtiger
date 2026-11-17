@@ -1091,11 +1091,11 @@ struct __wt_connection_stats {
     int64_t disagg_ingest_create_on_open_time;
     int64_t disagg_checkpoint_defer_adopt_wait;
     int64_t disagg_schema_canceled;
-    int64_t layered_curs_next_raw_kv_batch;
     int64_t layered_curs_blind_remove_follower;
     int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
+    int64_t layered_curs_next_raw_kv_batch;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;
@@ -1900,11 +1900,11 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
-    int64_t layered_curs_next_raw_kv_batch;
     int64_t layered_curs_blind_remove_follower;
     int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
+    int64_t layered_curs_next_raw_kv_batch;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;

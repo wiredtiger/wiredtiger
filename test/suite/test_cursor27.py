@@ -95,9 +95,9 @@ class test_cursor27(wttest.WiredTigerTestCase):
         for count in (0, -1):
             self.assertRaisesException(ValueError, lambda: cursor.next_raw_key_value_batch(count), '/positive integer/')
 
-# Slightly hacky way to get the above tests to run on a layered table. Can't mark the individual
-# tests as disagg, but we want the test helpers. So just override the conn config with a class
-# marked as a disagg test class, and the test framework automatically picks up the parent's tests
+# Slight hack to get the above tests to run on a layered table. Can't mark the individual tests as
+# disagg, but we want the test helpers. So just override the conn config with a class marked as a
+# disagg test class, and the test framework automatically picks up the parent's tests.
 @disagg_test_class
 class test_cursor27_layered(test_cursor27):
     uri = 'layered:test_cursor27'

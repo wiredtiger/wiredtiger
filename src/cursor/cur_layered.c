@@ -2208,7 +2208,7 @@ __clayered_next_raw_kv_batch(
 
     *returned_countp = 1;
 
-    /* TODO eventually need an INCRV, also how to allocate between ingest/stable? */
+    /* FIXME-WT-19064: We will need to increment by the returned count. */
     WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_next);
 
 err:

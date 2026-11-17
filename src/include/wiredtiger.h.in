@@ -8148,19 +8148,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT	1666
 /*! disagg: unpublished schema operations canceled by a drop */
 #define	WT_STAT_CONN_DISAGG_SCHEMA_CANCELED		1667
-/*! layered: Layered table cursor TODO better description */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT_RAW_KV_BATCH	1668
 /*! layered: Layered table cursor blind remove operations on a follower */
-#define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	1669
+#define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	1668
 /*!
  * layered: Layered table cursor blind remove operations on a key already
  * removed locally
  */
-#define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	1670
+#define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	1669
 /*! layered: Layered table cursor insert operations */
-#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1671
+#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1670
 /*! layered: Layered table cursor modify operations */
-#define	WT_STAT_CONN_LAYERED_CURS_MODIFY		1672
+#define	WT_STAT_CONN_LAYERED_CURS_MODIFY		1671
+/*! layered: Layered table cursor next batch operations */
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_RAW_KV_BATCH	1672
 /*! layered: Layered table cursor next operations */
 #define	WT_STAT_CONN_LAYERED_CURS_NEXT			1673
 /*! layered: Layered table cursor next operations from the ingest btrees */
@@ -10475,19 +10475,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2326
 /*! cursor: update value size change */
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2327
-/*! layered: Layered table cursor TODO better description */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_RAW_KV_BATCH	2328
 /*! layered: Layered table cursor blind remove operations on a follower */
-#define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	2329
+#define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	2328
 /*!
  * layered: Layered table cursor blind remove operations on a key already
  * removed locally
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	2330
+#define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	2329
 /*! layered: Layered table cursor insert operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2331
+#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2330
 /*! layered: Layered table cursor modify operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_MODIFY		2332
+#define	WT_STAT_DSRC_LAYERED_CURS_MODIFY		2331
+/*! layered: Layered table cursor next batch operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_RAW_KV_BATCH	2332
 /*! layered: Layered table cursor next operations */
 #define	WT_STAT_DSRC_LAYERED_CURS_NEXT			2333
 /*! layered: Layered table cursor next operations from the ingest btrees */

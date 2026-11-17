@@ -102,7 +102,8 @@ TEST_CASE("next_raw_key_value_batch_table_multiple_colgroups", "[cursor]")
 {
     connection_wrapper conn(DB_HOME);
     WT_SESSION *session = &conn.create_session()->iface;
-    REQUIRE(session->create(session, "table:cg", "key_format=S,value_format=SS,columns=(k,a,b),colgroups=(g1,g2)") == 0);
+    REQUIRE(session->create(session, "table:cg",
+              "key_format=S,value_format=SS,columns=(k,a,b),colgroups=(g1,g2)") == 0);
     REQUIRE(session->create(session, "colgroup:cg:g1", "columns=(a)") == 0);
     REQUIRE(session->create(session, "colgroup:cg:g2", "columns=(b)") == 0);
 
@@ -138,7 +139,8 @@ TEST_CASE("next_raw_key_value_batch_layered", "[cursor]")
 {
     connection_wrapper conn(DB_HOME, layered_disagg_build_cfg("leader").c_str());
     WT_SESSION *session = &conn.create_session()->iface;
-    REQUIRE(session->create(session, "layered:l", "key_format=S,value_format=S, block_manager=disagg,type=layered") == 0);
+    REQUIRE(session->create(session, "layered:l",
+              "key_format=S,value_format=S, block_manager=disagg,type=layered") == 0);
     check_next_raw_key_value_batch(session, "layered:l");
     REQUIRE(session->close(session, nullptr) == 0);
 }
