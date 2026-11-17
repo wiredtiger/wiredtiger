@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, struct
+import re, struct
 import wttest
 from helper import WiredTigerCursor
 
@@ -94,14 +94,17 @@ class test_log05(wttest.WiredTigerTestCase):
             # Salvage truncates the corrupt log at the corrupt record before
             # recovery returns. With ftruncate the file ends at the offset;
             # without it the remainder is zero-filled. Asynchronous log removal
-            # may have deleted the file instead.
-            if os.path.exists(self.corrupted_file):
+            # can delete the file at any time, including between checking for it
+            # and opening it, so treat a missing file as a valid outcome.
+            try:
                 with open(self.corrupted_file, 'rb') as f:
                     f.seek(self.corrupted_offset)
                     hdr = f.read(4)
-                self.assertTrue(len(hdr) == 0 or hdr == b'\x00' * 4,
-                    f"{self.corrupted_file}: corrupt record still present at "
-                    f"{self.corrupted_offset}: {hdr.hex()}")
+            except FileNotFoundError:
+                hdr = b''
+            self.assertTrue(len(hdr) == 0 or hdr == b'\x00' * 4,
+                f"{self.corrupted_file}: corrupt record still present at "
+                f"{self.corrupted_offset}: {hdr.hex()}")
 
         # Every injected corruption was truncated away, so reopening the
         # connection must not report one again. Recovery prints a notice when it
