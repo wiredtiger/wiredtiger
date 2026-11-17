@@ -320,12 +320,12 @@ __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, W
 
 /*
  * __layered_create_missing_ingest_table --
- *     Create a missing ingest table from its layered table's configuration, opening its handle if
- *     requested. An existing ingest table is left unchanged.
+ *     Create a missing ingest table from its layered table's configuration, leaving an existing
+ *     ingest table unchanged.
  */
 static int
 __layered_create_missing_ingest_table(
-  WT_SESSION_IMPL *session, const char *ingest_uri, const char *layered_cfg, bool open_dhandle)
+  WT_SESSION_IMPL *session, const char *ingest_uri, const char *layered_cfg)
 {
     WT_CONFIG_ITEM key_format, value_format;
     WT_DECL_ITEM(ingest_config);
@@ -342,8 +342,8 @@ __layered_create_missing_ingest_table(
       "disaggregated=(page_log=none,storage_source=none)",
       (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
 
-    WT_WITH_SCHEMA_LOCK(session,
-      ret = __wt_schema_create_internal(session, ingest_uri, ingest_config->data, open_dhandle));
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __wt_schema_create_internal(session, ingest_uri, ingest_config->data, false));
     WT_ERR(ret);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -406,7 +406,7 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     time_start = __wt_clock(session);
     WT_ERR(__wt_open_internal_session(S2C(session), "ingest-create-on-open", true,
       F_MASK(session, WT_SESSION_SAVE_ERRORS), session->lock_flags, &int_session));
-    ret = __layered_create_missing_ingest_table(int_session, ingest_uri, layered_cfg, false);
+    ret = __layered_create_missing_ingest_table(int_session, ingest_uri, layered_cfg);
     if (int_session->err_info.err != 0)
         __wt_session_set_last_error(session, int_session->err_info.err,
           int_session->err_info.sub_level_err, "%s", int_session->err_info.err_msg);

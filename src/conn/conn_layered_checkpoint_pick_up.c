@@ -1179,8 +1179,7 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
   wt_timestamp_t ckpt_schema_epoch, bool is_startup, uint32_t *existing_tablesp,
   uint32_t *new_tablesp)
 {
-    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
-      *sh_cursors[WT_DISAGG_CURSOR_COUNT];
+    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(md_file_buf);
     WT_DECL_ITEM(metadata_uri_buf);
@@ -1196,7 +1195,6 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
-    md_write_cursor = NULL;
     WT_CLEAR(prefetch_scan);
     WT_CLEAR(stable_btree_ids);
 
@@ -1229,7 +1227,6 @@ __disagg_apply_checkpoint_meta_merge(WT_SESSION_IMPL *session, const char *metad
      */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_cursors[i]));
-    WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_write_cursor));
 
     /* Open the cursors on the shared metadata table. */
     WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
@@ -1462,8 +1459,6 @@ err:
     __wt_scr_free(session, &md_file_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
-    if (md_write_cursor != NULL)
-        WT_TRET(md_write_cursor->close(md_write_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         if (md_cursors[i] != NULL)
             WT_TRET(md_cursors[i]->close(md_cursors[i]));
