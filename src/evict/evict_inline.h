@@ -571,12 +571,10 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 
 /*
  * __wti_evict_disagg_low_pressure_skip --
- *     Return true if a page in a tree the dirty-index ring targets has too few modifications to
- *     reconcile yet and cache pressure is not high enough to force the issue: letting pages that
- *     get random updates accumulate more changes makes better use of I/O. Uses the ring's producer
- *     gate rather than per-page disaggregated metadata, since ingest trees are ring targets without
- *     it. Shared by the candidacy filter, the ring producer and the ring drain, so it only decides;
- *     callers count the skip.
+ *     Return true if a page on a disaggregated connection has too few modifications to reconcile
+ *     yet and cache pressure is not high enough to force the issue: letting pages that get random
+ *     updates accumulate more changes makes better use of I/O. Shared by the candidacy filter, the
+ *     ring producer and the ring drain, so it only decides; callers count the skip.
  */
 static WT_INLINE bool
 __wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE *page)
@@ -586,7 +584,7 @@ __wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_BTREE *btree, 
     bool high_pressure;
 
     conn = S2C(session);
-    if (!WTI_DIRTY_INDEX_IS_DISAGG(btree) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
+    if (!__wt_conn_is_disagg(session) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
       __wt_atomic_load_uint32_relaxed(&page->modify->page_state) >= WT_EVICT_MODIFY_COUNT_MIN)
         return (false);
 
