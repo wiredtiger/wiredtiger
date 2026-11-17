@@ -1092,10 +1092,6 @@ __disagg_pick_up_new_layered_table(WT_SESSION_IMPL *session, const char *const *
       sh_values[WT_DISAGG_CURSOR_LAYERED] != NULL && sh_keys[WT_DISAGG_CURSOR_FILE] != NULL &&
         sh_values[WT_DISAGG_CURSOR_FILE] != NULL);
 
-    /*
-     * Startup cost scales with the number of tables, so the pickup leaves each ingest table to be
-     * created when it is first opened.
-     */
     WT_RET(__disagg_insert_meta(session, sh_keys[WT_DISAGG_CURSOR_LAYERED],
       sh_values[WT_DISAGG_CURSOR_LAYERED], stable_btree_ids));
     WT_RET(__disagg_insert_meta(
@@ -1952,8 +1948,7 @@ err:
 /*
  * __disagg_merge_checkpoint_meta --
  *     Merge the checkpoint's metadata into the local metadata as one tracked unit: on failure the
- *     tracking unrolls every update already made, including any ingest tables created along the
- *     way, so the merge either completes or leaves no trace.
+ *     tracking unrolls every update already made, so the merge either completes or leaves no trace.
  */
 static int
 __disagg_merge_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
