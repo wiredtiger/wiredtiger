@@ -2970,10 +2970,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty index inserts dropped due to full ring",
   "cache: dirty index largest capacity among rings that hit full",
   "cache: dirty index largest ring occupancy seen in slots",
+  "cache: dirty index ring searches to drop a retiring ref",
   "cache: dirty index slots deferred because a hazard pointer could not be acquired",
   "cache: dirty index slots dropped by drain because the ref was cleared, the page was clean or "
   "already queued",
   "cache: dirty index slots examined by drain",
+  "cache: dirty index slots examined by ring searches to drop a retiring ref",
   "cache: dirty index slots queued to ordinary or urgent eviction by drain",
   "cache: dirty index slots reinserted after the LRU sort trimmed them",
   "cache: dirty index slots reinserted by drain after candidacy filter miss",
@@ -4202,9 +4204,11 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL,
   WT_STAT_CONN_EVICTION_DIRTY_INDEX_RING_FULL_CAPACITY_MAX,
   WT_STAT_CONN_EVICTION_DIRTY_INDEX_RING_PEAK_OCCUPANCY,
+  WT_STAT_CONN_EVICTION_DIRTY_INDEX_SCAN_CLEAR,
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD,
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE,
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SCANNED,
+  WT_STAT_CONN_EVICTION_DIRTY_INDEX_SCAN_CLEAR_SLOTS,
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_QUEUED,
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_TRIM_REINSERTED,
   WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_REINSERTED,
@@ -5413,9 +5417,11 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty_index_insert_ring_full = 0;
     /* not clearing eviction_dirty_index_ring_full_capacity_max */
     /* not clearing eviction_dirty_index_ring_peak_occupancy */
+    stats->eviction_dirty_index_scan_clear = 0;
     stats->cache_eviction_dirty_index_drain_hazard = 0;
     stats->cache_eviction_dirty_index_drain_stale = 0;
     stats->cache_eviction_dirty_index_drain_scanned = 0;
+    stats->eviction_dirty_index_scan_clear_slots = 0;
     stats->cache_eviction_dirty_index_drain_queued = 0;
     stats->cache_eviction_dirty_index_trim_reinserted = 0;
     stats->cache_eviction_dirty_index_drain_reinserted = 0;
@@ -6617,12 +6623,15 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_dirty_index_ring_full_capacity_max);
     to->eviction_dirty_index_ring_peak_occupancy +=
       WT_STAT_CONN_READ(from, eviction_dirty_index_ring_peak_occupancy);
+    to->eviction_dirty_index_scan_clear += WT_STAT_CONN_READ(from, eviction_dirty_index_scan_clear);
     to->cache_eviction_dirty_index_drain_hazard +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_hazard);
     to->cache_eviction_dirty_index_drain_stale +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_stale);
     to->cache_eviction_dirty_index_drain_scanned +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_scanned);
+    to->eviction_dirty_index_scan_clear_slots +=
+      WT_STAT_CONN_READ(from, eviction_dirty_index_scan_clear_slots);
     to->cache_eviction_dirty_index_drain_queued +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_queued);
     to->cache_eviction_dirty_index_trim_reinserted +=

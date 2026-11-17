@@ -362,6 +362,8 @@ conn_stats = [
     EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
     EvictStat('eviction_dirty_index_ring_full_capacity_max', 'dirty index largest capacity among rings that hit full', 'no_clear,no_scale'),
     EvictStat('eviction_dirty_index_ring_peak_occupancy', 'dirty index largest ring occupancy seen in slots', 'no_clear,no_scale'),
+    EvictStat('eviction_dirty_index_scan_clear', 'dirty index ring searches to drop a retiring ref'),
+    EvictStat('eviction_dirty_index_scan_clear_slots', 'dirty index slots examined by ring searches to drop a retiring ref'),
     EvictStat('eviction_disagg_publish_cleared', 'disaggregated tables the eviction server published'),
     EvictStat('eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),

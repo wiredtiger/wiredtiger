@@ -77,6 +77,21 @@ class test_eviction08(wttest.WiredTigerTestCase):
                 if 'WT_ROLLBACK' not in str(e):
                     raise
 
+    # Poll until the condition holds, doing optional work each round to keep eviction pressure up.
+    def _wait_for(self, condition, msg, work=None, timeout=120):
+        deadline = time.monotonic() + timeout
+        while not condition():
+            self.assertLess(time.monotonic(), deadline, msg)
+            if work is not None:
+                work()
+            else:
+                time.sleep(0.1)
+
+    def _drain_consumed(self, uri):
+        return (self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) +
+                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_filtered, uri) +
+                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_stale, uri))
+
     def _write_rows(self, uri, start, count, value):
         cursor = self.session.open_cursor(uri)
         for batch_start in range(start, start + count, self.batch_size):
@@ -106,18 +121,9 @@ class test_eviction08(wttest.WiredTigerTestCase):
         self.conn.reconfigure('cache_size=20MB,'
                               'eviction_dirty_target=2,eviction_dirty_trigger=5')
 
-        for _ in range(40):
-            self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
-            drain_consumed = (
-                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) +
-                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_filtered, uri) +
-                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_stale, uri))
-            if drain_consumed > 0:
-                break
-            time.sleep(0.05)
-
+        self._wait_for(lambda: self._drain_consumed(uri) > 0, 'the drain never consumed a slot',
+            work=lambda: self._write_rows(uri, self.nrows, 500, 'z' * self.value_size))
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri), 0)
-        self.assertGreater(drain_consumed, 0)
 
     def test_dirty_index_split_retirement(self):
         # Retiring a ref has to drop it from the ring before the split stash frees it. The ref the
@@ -139,32 +145,22 @@ class test_eviction08(wttest.WiredTigerTestCase):
         value = 'x' * self.value_size
         baseline_drain_scanned = self.get_stat(
             stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
-        observation_deadline = time.monotonic() + 60
-        drain_progress_observed = False
-        total_batches = 3 * (self.nrows // self.batch_size)
-        batches_completed = 0
-        cursor = self.session.open_cursor(uri)
-        for pass_num in range(3):
-            range_start = pass_num * self.nrows
-            range_end = range_start + self.nrows
-            for batch_start in range(range_start, range_end, self.batch_size):
-                batch_end = min(batch_start + self.batch_size, range_end)
-                self._write_batch(cursor, batch_start, batch_end, value)
-                batches_completed += 1
-                if batches_completed % 10 == 0 or batch_end == range_end:
-                    if (batches_completed < total_batches and
-                          time.monotonic() < observation_deadline):
-                        scanned = self.get_stat(
-                            stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
-                        if scanned > baseline_drain_scanned:
-                            drain_progress_observed = True
-        cursor.close()
+        self._write_rows(uri, 0, 3 * self.nrows, value)
+
+        # Keep appending past the initial range until the drain is seen working alongside the splits.
+        next_key = [3 * self.nrows]
+        def append_more():
+            self._write_rows(uri, next_key[0], self.batch_size, value)
+            next_key[0] += self.batch_size
+        self._wait_for(
+            lambda: self.get_stat(
+                stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri) > baseline_drain_scanned,
+            'the drain never ran while pages were splitting', work=append_more)
 
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
         # The retiring refs the fix is about are the ones in-memory splits create, so a run that
         # never split would not be exercising this at all.
         self.assertGreater(self.get_stat(stat.dsrc.cache_inmem_split, uri), 0)
-        self.assertTrue(drain_progress_observed)
 
     def test_dirty_index_duplicate_suppression(self):
         uri = 'table:test_eviction08_duplicate'
@@ -182,12 +178,9 @@ class test_eviction08(wttest.WiredTigerTestCase):
                               'eviction_dirty_target=2,eviction_dirty_trigger=5')
         self._write_rows(uri, 2, 10000, 'z' * self.value_size)
 
-        for _ in range(40):
-            scanned = self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
-            if scanned > 1:
-                break
-            time.sleep(0.05)
-        self.assertGreater(scanned, 1)
+        self._wait_for(
+            lambda: self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri) > 1,
+            'the drain never scanned the ring')
 
     def test_dirty_index_column_insert(self):
         uri = 'table:test_eviction08_column'

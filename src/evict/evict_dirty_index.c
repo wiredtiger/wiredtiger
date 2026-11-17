@@ -254,7 +254,8 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
  *     stop at the first match.
  */
 static void
-__evict_dirty_index_scan_clear(WTI_DIRTY_INDEX *idx, WTI_DIRTY_INDEX_SLOT *slots, WT_REF *ref)
+__evict_dirty_index_scan_clear(
+  WT_SESSION_IMPL *session, WTI_DIRTY_INDEX *idx, WTI_DIRTY_INDEX_SLOT *slots, WT_REF *ref)
 {
     uint64_t head, pos, tail;
     uint32_t slot;
@@ -270,6 +271,9 @@ __evict_dirty_index_scan_clear(WTI_DIRTY_INDEX *idx, WTI_DIRTY_INDEX_SLOT *slots
           __wt_atomic_cas_ptr(&slots[slot].ref, ref, NULL))
             break;
     }
+
+    WT_STAT_CONN_INCR(session, eviction_dirty_index_scan_clear);
+    WT_STAT_CONN_INCRV(session, eviction_dirty_index_scan_clear_slots, pos - tail);
 }
 
 /*
@@ -292,14 +296,13 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     WT_REF *published_ref;
     uint32_t bp;
 
-    WT_UNUSED(session);
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       (slots = __wt_atomic_load_ptr_acquire(&idx->slots)) == NULL)
         return;
 
     /* A split can clear ref->page before retiring the ref, leaving no back-pointer to follow. */
     if (page == NULL) {
-        __evict_dirty_index_scan_clear(idx, slots, ref);
+        __evict_dirty_index_scan_clear(session, idx, slots, ref);
         return;
     }
 
@@ -307,7 +310,7 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
         bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);
         /* An earlier retirement already took the block, so the back-pointer names nothing. */
         if (bp == WTI_DIRTY_BP_BLOCKED) {
-            __evict_dirty_index_scan_clear(idx, slots, ref);
+            __evict_dirty_index_scan_clear(session, idx, slots, ref);
             return;
         }
         if (WTI_DIRTY_BP_IS_FREE(bp)) {
@@ -325,7 +328,7 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
                  * occupancy and these workloads run the ring at capacity.
                  */
                 if (bp != WTI_DIRTY_BP_NONE)
-                    __evict_dirty_index_scan_clear(idx, slots, ref);
+                    __evict_dirty_index_scan_clear(session, idx, slots, ref);
                 return;
             }
             WT_PAUSE();
@@ -350,7 +353,7 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
          * that the back-pointer never named.
          */
         if (!__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
-            __evict_dirty_index_scan_clear(idx, slots, ref);
+            __evict_dirty_index_scan_clear(session, idx, slots, ref);
         return;
     }
 }
@@ -457,7 +460,7 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 
     /* A retirement holds the block; the back-pointer no longer names a slot to follow. */
     if (bp == WTI_DIRTY_BP_BLOCKED) {
-        __evict_dirty_index_scan_clear(idx, slots, ref);
+        __evict_dirty_index_scan_clear(session, idx, slots, ref);
         return;
     }
     WT_ASSERT(session, WTI_DIRTY_BP_SLOT(bp) < idx->capacity);
@@ -467,5 +470,5 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
         (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_CLEARED);
     else
-        __evict_dirty_index_scan_clear(idx, slots, ref);
+        __evict_dirty_index_scan_clear(session, idx, slots, ref);
 }

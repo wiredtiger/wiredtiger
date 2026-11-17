@@ -538,9 +538,11 @@ struct __wt_connection_stats {
     int64_t cache_eviction_dirty_index_insert_ring_full;
     int64_t eviction_dirty_index_ring_full_capacity_max;
     int64_t eviction_dirty_index_ring_peak_occupancy;
+    int64_t eviction_dirty_index_scan_clear;
     int64_t cache_eviction_dirty_index_drain_hazard;
     int64_t cache_eviction_dirty_index_drain_stale;
     int64_t cache_eviction_dirty_index_drain_scanned;
+    int64_t eviction_dirty_index_scan_clear_slots;
     int64_t cache_eviction_dirty_index_drain_queued;
     int64_t cache_eviction_dirty_index_trim_reinserted;
     int64_t cache_eviction_dirty_index_drain_reinserted;

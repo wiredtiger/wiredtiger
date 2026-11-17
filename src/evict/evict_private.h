@@ -71,6 +71,33 @@ struct __wti_evict_entry {
  *
  *     A producer that finds the bounded ring full abandons the fast path. The eviction walker
  *     remains the source of truth, so the ring is best-effort, never authoritative.
+ *
+ *     Protocol overview. Producers are cursor modifies and drain reinserts; the single consumer is
+ *     the drain, run by the eviction server. Each slot moves through sequence values for position
+ *     pos as follows (see WTI_DIRTY_INDEX_SLOT):
+ *
+ *       pos            free: a producer may CAS head from pos to pos + 1 to reserve it
+ *       pos + 1        published: the drain may consume it; ref may be NULL if the producer
+ *                      abandoned the slot or a teardown path removed the ref
+ *       pos + capacity drained: free again for position pos + capacity on the next lap
+ *
+ *     Insert: reserve a slot via head, claim the page back-pointer (NONE/CLEARED -> slot) by CAS,
+ *     store the ref, recheck the back-pointer, ref->page and ref state, then publish the sequence.
+ *     Every failure after reservation still publishes pos + 1 with a NULL ref so the drain can
+ *     step over the slot.
+ *
+ *     Drain (__evict_dirty_index_drain_ring): inside a split generation, pop in tail order while
+ *     the sequence is pos + 1. Each non-NULL ref is pinned with a hazard pointer; a busy ref stops
+ *     the pass. The back-pointer is released (slot -> CLEARED) before the candidacy filter, then
+ *     the slot is emptied, its sequence set to pos + capacity and tail advanced. A filtered page is
+ *     reinserted at the head afterwards, still under the hazard pointer.
+ *
+ *     Teardown: page discard (__wt_dirty_index_clear_page) empties the slot the back-pointer names,
+ *     or searches the live span. Split retirement (__wt_dirty_index_block_page) moves the
+ *     back-pointer to BLOCKED so no producer can claim the page, removes the ref from the ring and
+ *     stashes it at __wt_dirty_index_retire_gen, which covers drains already holding the ref. A
+ *     block left in place because the named slot held another ref is released by the drain when it
+ *     consumes that slot, or by the split when it retains the page.
  */
 #define WTI_DIRTY_INDEX_MIN_CAPACITY (16 * 1024u)
 #define WTI_DIRTY_INDEX_MAX_CAPACITY (256 * 1024u)
@@ -121,8 +148,8 @@ struct __wti_evict_entry {
 #define WTI_DRAIN_FILLED_SKIP_MAX 32u
 
 typedef struct {
-    wt_shared WT_REF *ref;
-    wt_shared uint64_t sequence;
+    wt_shared WT_REF *ref;       /* Published ref, NULL if abandoned or removed */
+    wt_shared uint64_t sequence; /* Slot state relative to its ring position */
 } WTI_DIRTY_INDEX_SLOT;
 
 /*
