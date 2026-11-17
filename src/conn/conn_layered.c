@@ -1759,13 +1759,12 @@ static int
 __disagg_config_get_checkpoint_lsn(WT_SESSION_IMPL *session, const char **cfg, uint64_t *lsnp)
 {
     WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
 
     *lsnp = WT_DISAGG_LSN_NONE;
-    ret = __wt_config_gets(session, cfg, "disaggregated.checkpoint_lsn", &cval);
-    if (ret == WT_NOTFOUND)
-        return (0);
-    WT_RET(ret);
+
+    /* FIXME-WT-19115: The absent of LSN config can be not allowed. */
+    WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "disaggregated.checkpoint_lsn", &cval));
+
     if (cval.len > 0 && cval.val > 0)
         *lsnp = (uint64_t)cval.val;
     return (0);
@@ -1812,24 +1811,12 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
         WT_RET(EINVAL);
 
     /*
-     * Call the PALI function to abandon the checkpoint, telling it the LSN of the last completed
-     * checkpoint so that it can drop everything after that record. If there are no more updates
-     * after the last complete checkpoint, the function would have no effect. An implementation that
-     * sets the extended interface is only called through it, and only when the LSN is known: the
-     * value is a floor for the deletion, so an unknown one cannot be handed over, and the records
-     * stay in the page log. An implementation without the extended interface determines the
-     * boundary itself.
+     * Call the PALI function to abandon the checkpoint. If there are no more updates after the last
+     * complete checkpoint, the function would have no effect.
      */
     if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL) {
-        if (disagg->last_checkpoint_lsn == WT_DISAGG_LSN_NONE) {
-            if (__wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) !=
-              WT_DISAGG_LSN_NONE)
-                __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "Not abandoning the checkpoint on page log %s: the LSN of the last completed "
-                  "checkpoint is unknown, so the records cannot be discarded safely",
-                  disagg->npage_log->name);
-            return (0);
-        }
+        WT_ASSERT_ALWAYS(session, disagg->last_checkpoint_lsn != WT_DISAGG_LSN_NONE,
+          "The last checkpoint LSN must be known before abandoning a checkpoint");
         abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
         ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
           disagg->npage_log->page_log, &session->iface, &abandon_args);
