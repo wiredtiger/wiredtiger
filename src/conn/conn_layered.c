@@ -277,6 +277,7 @@ __layered_create_has_following_remove(
 {
     WT_DISAGG_METADATA_OP *tmp;
 
+    WT_UNUSED(conn); /* Only read by the assertion below. */
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     for (tmp = __wt_disagg_shared_metadata_queue_next(create_entry); tmp != NULL;
@@ -675,10 +676,10 @@ static void
 __disagg_schema_ops_stats_recount(WT_SESSION_IMPL *session)
 {
     WT_DISAGG_METADATA_OP *entry;
-    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
     WT_DISAGG_SCHEMA_OPS_STATS schema_stats = WT_DISAGG_SCHEMA_OPS_STATS_INIT;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &disagg->shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
     for (entry = __wt_disagg_shared_metadata_queue_first(session); entry != NULL;
       entry = __wt_disagg_shared_metadata_queue_next(entry))
@@ -1225,8 +1226,8 @@ __disagg_remove_is_checkpoint_violation(WT_SESSION_IMPL *session, WT_CONNECTION_
       entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
         return (false);
 
-    WT_DISAGGREGATED_STORAGE *disagg = &conn->disaggregated_storage;
-    WT_ASSERT_SPINLOCK_OWNED(session, &disagg->shared_metadata_queue_lock);
+    WT_UNUSED(conn); /* Only read by the assertion below. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /* Check whether a recreated table exists after considering all later operations. */
     WT_DISAGG_METADATA_OP *op;
@@ -1269,6 +1270,7 @@ __disagg_parked_create_drop_epoch(
 {
     WT_DISAGG_METADATA_OP *entry;
 
+    WT_UNUSED(conn); /* Only read by the assertion below. */
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     for (entry = __wt_disagg_shared_metadata_queue_first(session); entry != NULL;
@@ -1469,10 +1471,10 @@ static int
 __disagg_parked_creates_panic(WT_SESSION_IMPL *session,
   struct __wt_disagg_shared_metadata_qh *skipped_creates, wt_timestamp_t cur_schema_epoch)
 {
+    WT_CONNECTION_IMPL *conn = S2C(session);
     WT_DISAGG_METADATA_OP *skipped;
     wt_timestamp_t drop_epoch;
     char drop_desc[64];
-    WT_CONNECTION_IMPL *conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1508,12 +1510,10 @@ static void
 __disagg_requeue_skipped_creates(
   WT_SESSION_IMPL *session, struct __wt_disagg_shared_metadata_qh *skipped_creates)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *skipped;
 
-    conn = S2C(session);
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
     while (!TAILQ_EMPTY(skipped_creates)) {
         skipped = TAILQ_LAST(skipped_creates, __wt_disagg_shared_metadata_qh);
