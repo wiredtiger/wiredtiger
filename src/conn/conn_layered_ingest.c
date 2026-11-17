@@ -8,28 +8,26 @@
 
 #include "wt_internal.h"
 
+static int __layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
+  WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id);
+static int __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key,
+  WT_BTREE *ingest_btree, WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
- * __layered_assert_stable_btree_state --
- *     Assert stable btree invariants before applying ingest updates for a key: (1) no unresolved
- *     preserved prepared update exists; and (2) if the ingest chain ends with a tombstone, a
- *     corresponding value exists to delete.
+ * __layered_stable_has_value --
+ *     Check stable visibility and prepared-state invariants for this key.
  */
-static WT_INLINE void
-__layered_assert_stable_btree_state(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
+static WT_INLINE bool
+__layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_UPDATE *upd;
     bool has_value;
 
-    if (cbt->compare != 0) {
-        if (last_upd->type != WT_UPDATE_TOMBSTONE)
-            return;
-        /* No on-page value to check; rely solely on visibility. */
+    if (cbt->compare != 0)
         has_value = false;
-    } else {
+    else {
         WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
           "The stable btree should not contain inserts prior to draining");
 
@@ -56,9 +54,6 @@ __layered_assert_stable_btree_state(
             break;
         }
 
-        if (last_upd->type != WT_UPDATE_TOMBSTONE)
-            return;
-
         if (upd != NULL)
             has_value = upd->type != WT_UPDATE_TOMBSTONE;
         else {
@@ -69,24 +64,22 @@ __layered_assert_stable_btree_state(
         }
     }
 
-    /*
-     * If a globally visible tombstone is observed at the end, the update it deletes may have been
-     * removed during the obsolete check.
-     */
-    WT_ASSERT_ALWAYS(session, has_value || __wt_txn_upd_visible_all(session, last_upd),
-      "No corresponding value exists on the stable table to delete");
+    return (has_value);
 }
 
 /*
  * __layered_move_updates --
- *     Move the updates of a key to the stable table. Any unresolved prepared update on the stable
- *     table should now have been resolved.
+ *     Move the updates of a key to the stable table, redirecting an in-flight prepared transaction
+ *     there and dropping removes with nothing to delete. Any unresolved prepared update on the
+ *     stable table should now have been resolved. On success the update list is consumed; on error
+ *     it holds what remains to free.
  */
 static int
-__layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts)
+__layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_BTREE *ingest_btree,
+  WT_ITEM *key, WT_UPDATE **updates_ptr, wt_timestamp_t from_ts, uint64_t *orphan_countp)
 {
     WT_DECL_RET;
+    WT_UPDATE *last_upd, *newest;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -98,9 +91,87 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /* We only need to check on the first pass. */
-    if (from_ts == WT_TS_NONE)
-        __layered_assert_stable_btree_state(session, cbt, last_upd);
+    /*
+     * An in-flight prepared transaction holds the key, so the key's updates are the newest updates
+     * in the list. Redirect it here when the drain list holds all of the key's updates, as
+     * redirecting marks its updates aborted on the ingest btree, which would hide the older ones
+     * from the drain.
+     */
+    newest = *updates_ptr;
+    if (newest->txnid != WT_TXN_ABORTED && newest->prepare_state == WT_PREPARE_INPROGRESS)
+        WT_ERR(__layered_fix_prepared_transaction(
+          session, key, ingest_btree, CUR2BT(cbt), newest->txnid, newest->prepared_id));
+
+    /*
+     * With no stable value, starting from the oldest update that was not rolled back:
+     *
+     * 1. If it is a remove, drop it: it has nothing to delete and cannot be reconciled.
+     * 2. If an older rolled-back update is a remove, drop it for the same reason, unless it removes
+     * a value written by its own transaction.
+     * 3. If an older rolled-back update is a value, keep it: a checkpoint between its prepare and
+     * rollback must still write it as prepared.
+     */
+    if (from_ts == WT_TS_NONE && !__layered_stable_has_value(session, cbt)) {
+        WT_UPDATE *upd;
+        WT_UPDATE **oldest_pointerp, **upd_pointerp;
+
+        oldest_pointerp = NULL;
+        for (upd_pointerp = updates_ptr; (upd = *upd_pointerp) != NULL; upd_pointerp = &upd->next)
+            if (upd->txnid != WT_TXN_ABORTED)
+                oldest_pointerp = upd_pointerp;
+
+        upd_pointerp = oldest_pointerp == NULL ? updates_ptr : &(*oldest_pointerp)->next;
+        if (oldest_pointerp != NULL && (*oldest_pointerp)->type == WT_UPDATE_TOMBSTONE) {
+            WT_UPDATE *orphan = *oldest_pointerp;
+
+            ++*orphan_countp;
+
+            /*
+             * The prepared transaction resolves this key in the stable btree, so it must forget the
+             * key unless one of its newer updates still moves there.
+             */
+            if (orphan->prepare_state == WT_PREPARE_INPROGRESS) {
+                for (upd = *updates_ptr; upd != orphan; upd = upd->next)
+                    WT_ASSERT(session,
+                      upd->prepare_state == WT_PREPARE_INPROGRESS && upd->txnid == orphan->txnid &&
+                        upd->prepared_id == orphan->prepared_id);
+                if (updates_ptr == oldest_pointerp)
+                    WT_ERR(__layered_drop_prepared_transaction_ops(
+                      session, key, CUR2BT(cbt), orphan->txnid, orphan->prepared_id));
+            }
+
+            /* The pointer to the orphan now points past it. */
+            *oldest_pointerp = orphan->next;
+            __wt_free(session, orphan);
+            upd_pointerp = oldest_pointerp;
+        }
+
+        while ((upd = *upd_pointerp) != NULL) {
+            WT_ASSERT(session, upd->txnid == WT_TXN_ABORTED);
+            /*
+             * Keep a rolled-back remove that deletes a value from its own transaction, such as a
+             * rolled-back insert then remove. A transaction's updates to a key are adjacent, so the
+             * value it removes is its next.
+             */
+            if (upd->type == WT_UPDATE_TOMBSTONE &&
+              (upd->next == NULL || upd->next->prepared_id != upd->prepared_id ||
+                upd->next->upd_saved_txnid != upd->upd_saved_txnid)) {
+                /* The pointer to the remove now points past it. */
+                *upd_pointerp = upd->next;
+                __wt_free(session, upd);
+            } else {
+                /* The layered cursor never writes a remove over its own transaction's remove. */
+                WT_ASSERT(session,
+                  upd->type != WT_UPDATE_TOMBSTONE || upd->next->type != WT_UPDATE_TOMBSTONE);
+                upd_pointerp = &upd->next;
+            }
+        }
+    }
+
+    if (*updates_ptr == NULL)
+        goto err;
+    for (last_upd = *updates_ptr; last_upd->next != NULL; last_upd = last_upd->next)
+        ;
 
     /*
      * If the oldest update being moved is an aborted prepared update and the stable btree has no
@@ -117,8 +188,9 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
         last_upd->next = tombstone;
     }
 
-    /* Apply the modification. */
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
+    /* Apply the modification. The stable table owns the updates once it succeeds. */
+    WT_ERR(__wt_row_modify(cbt, key, NULL, updates_ptr, WT_UPDATE_INVALID, false, false));
+    *updates_ptr = NULL;
 
 err:
     WT_TRET(__wt_btcur_reset(cbt));
@@ -246,6 +318,113 @@ __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, W
     return (__wt_buf_fmt(session, buf, "layered:%.*s", (int)name_len, ingest_uri + prefix_len));
 }
 
+/*
+ * __wti_layered_create_missing_ingest_table --
+ *     Create a missing ingest table from its layered table's configuration, opening its handle if
+ *     requested. An existing ingest table is left unchanged.
+ */
+int
+__wti_layered_create_missing_ingest_table(
+  WT_SESSION_IMPL *session, const char *ingest_uri, const char *layered_cfg, bool open_dhandle)
+{
+    WT_CONFIG_ITEM key_format, value_format;
+    WT_DECL_ITEM(ingest_config);
+    WT_DECL_RET;
+
+    WT_RET(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
+    WT_RET(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
+
+    /* FIXME-WT-14728: Refactor this with __create_layered? */
+    WT_RET(__wt_scr_alloc(session, 0, &ingest_config));
+    WT_ERR(__wt_buf_fmt(session, ingest_config,
+      "key_format=\"%.*s\",value_format=\"%.*s\","
+      "in_memory=true,log=(enabled=false),"
+      "disaggregated=(page_log=none,storage_source=none)",
+      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
+
+    WT_WITH_SCHEMA_LOCK(session,
+      ret = __wt_schema_create_internal(session, ingest_uri, ingest_config->data, open_dhandle));
+    WT_ERR(ret);
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Created missing ingest table \"%s\" from \"%s\"", ingest_uri, layered_cfg);
+
+err:
+    __wt_scr_free(session, &ingest_config);
+    return (ret);
+}
+
+/*
+ * __wti_layered_ingest_create_on_open --
+ *     Ensure the session's handle, if it is the live ingest constituent of a layered table, has a
+ *     metadata entry to open, creating it from the layered table. Return ENOENT, as for any missing
+ *     object, if no layered table names it.
+ */
+int
+__wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *int_session = NULL;
+    uint64_t elapsed_us = 0, time_start = 0;
+
+    WT_DATA_HANDLE *dhandle = session->dhandle;
+    if (!WT_DHANDLE_BTREE(dhandle) || !WT_URI_IS_INGEST(dhandle->name) ||
+      !__wt_conn_is_disagg(session))
+        return (0);
+    const char *ingest_uri = dhandle->name;
+
+    /* The schema lock serializes the creation with checkpoint pickup and drop. */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+
+    char *ingest_cfg = NULL;
+    WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, ingest_uri, &ingest_cfg));
+    __wt_free(session, ingest_cfg);
+    if (ret == 0)
+        return (0);
+
+    if (WT_STREQ(ingest_uri, "file:.wt_ingest"))
+        return (__wt_set_return(session, ENOENT));
+
+    WT_DECL_ITEM(layered_uri_buf);
+    WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    char *layered_cfg = NULL;
+    WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, layered_uri_buf->data, &layered_cfg), true);
+    if (ret == 0) {
+        WT_CONFIG_ITEM cval;
+        WT_ERR(__wt_config_getones(session, layered_cfg, "ingest", &cval));
+        if (!WT_CONFIG_MATCH(ingest_uri, cval))
+            ret = WT_NOTFOUND;
+    }
+    if (ret == WT_NOTFOUND)
+        WT_ERR(__wt_set_return(session, ENOENT));
+
+    /*
+     * Use a separate session so schema creation cannot clear the caller's current data handle or
+     * join its metadata tracking.
+     */
+    time_start = __wt_clock(session);
+    WT_ERR(__wt_open_internal_session(S2C(session), "ingest-create-on-open", true,
+      F_MASK(session, WT_SESSION_SAVE_ERRORS), session->lock_flags, &int_session));
+    ret = __wti_layered_create_missing_ingest_table(int_session, ingest_uri, layered_cfg, false);
+    if (int_session->err_info.err != 0)
+        __wt_session_set_last_error(session, int_session->err_info.err,
+          int_session->err_info.sub_level_err, "%s", int_session->err_info.err_msg);
+    WT_TRET(__wt_session_close_internal(int_session));
+    WT_ERR(ret);
+
+    elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
+    WT_STAT_CONN_INCR(session, disagg_ingest_create_on_open);
+    WT_STAT_CONN_INCRV(session, disagg_ingest_create_on_open_time, elapsed_us);
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Created ingest table \"%s\" on first open in %" PRIu64 " usecs", ingest_uri, elapsed_us);
+
+err:
+    __wt_free(session, layered_cfg);
+    __wt_scr_free(session, &layered_uri_buf);
+    return (ret);
+}
+
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __layered_assert_ingest_table_empty --
@@ -271,13 +450,14 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __layered_fix_prepared_transaction_callback --
- *     Callback for session walk to fix prepared transactions that may be active during the ingest
- *     btree drain.
+ *     Callback for session walk to redirect or drop a prepared transaction's operations on a key
+ *     during the ingest btree drain.
  */
 static int
 __layered_fix_prepared_transaction_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
+    WT_BTREE *btree;
     WT_FIX_PREPARED_COOKIE *cookie;
     WT_TXN *txn;
     bool patched;
@@ -286,6 +466,7 @@ __layered_fix_prepared_transaction_callback(
     txn = array_session->txn;
     *exit_walkp = false;
     patched = false;
+    btree = cookie->drop ? cookie->stable_btree : cookie->ingest_btree;
 
     if (!F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
@@ -311,10 +492,11 @@ __layered_fix_prepared_transaction_callback(
     for (size_t i = 0; i < txn->mod_count; i++) {
         WT_TXN_OP *op = &txn->mod[i];
 
-        if (op->type == WT_TXN_OP_NONE)
+        /* Other drain workers may redirect or free operations belonging to different tables. */
+        if (__wt_atomic_load_ptr_acquire(&op->btree) != btree)
             continue;
 
-        if (op->btree != cookie->ingest_btree)
+        if (op->type == WT_TXN_OP_NONE)
             continue;
 
         int cmp;
@@ -330,13 +512,27 @@ __layered_fix_prepared_transaction_callback(
         if (cmp > 0)
             break;
 
+        if (cookie->drop) {
+            /*
+             * Resolving the transaction searches the stable btree for the operation's key, which
+             * the skipped update never reached. Freeing the operation also releases the stable
+             * btree reference taken when it was redirected.
+             */
+            __wt_txn_op_free(session, op);
+#ifdef HAVE_DIAGNOSTIC
+            (void)__wt_atomic_sub_uint32_relaxed(&txn->prepare_count, 1);
+#endif
+            patched = true;
+            continue;
+        }
+
         /*
          * Mark the original update on the ingest btree as aborted. Otherwise, we may get a
          * WT_ROLLBACK error when we try to truncate the ingest btree.
          */
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
-        op->btree = cookie->stable_btree;
+        __wt_atomic_store_ptr_release(&op->btree, cookie->stable_btree);
         WT_ASSERT(
           session, __wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE);
 
@@ -393,6 +589,31 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
     cookie.stable_btree = stable_btree;
     cookie.txnid = txnid;
     cookie.prepared_id = prepared_id;
+    cookie.drop = false;
+
+    return (
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
+}
+
+/*
+ * __layered_drop_prepared_transaction_ops --
+ *     The drain skipped a key's update from an in-flight prepared transaction that had already been
+ *     redirected to the stable btree. Drop the transaction's operations on the key so committing or
+ *     rolling back the transaction does not look for the update. This assumes no concurrent
+ *     commit/rollback of the prepared transaction and no prepared fast-truncate operations.
+ */
+static int
+__layered_drop_prepared_transaction_ops(WT_SESSION_IMPL *session, WT_ITEM *key,
+  WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
+{
+    WT_FIX_PREPARED_COOKIE cookie;
+
+    cookie.key = key;
+    cookie.ingest_btree = NULL;
+    cookie.stable_btree = stable_btree;
+    cookie.txnid = txnid;
+    cookie.prepared_id = prepared_id;
+    cookie.drop = true;
 
     return (
       __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
@@ -439,11 +660,11 @@ err:
 /*
  * __layered_copy_ingest_table --
  *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts) to the corresponding
- *     stable table.
+ *     stable table, adding any orphan removes found to the caller's count.
  */
 static int
-__layered_copy_ingest_table(
-  WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts, wt_timestamp_t to_ts)
+__layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
+  wt_timestamp_t from_ts, wt_timestamp_t to_ts, uint64_t *orphan_countp)
 {
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
@@ -453,7 +674,7 @@ __layered_copy_ingest_table(
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
-    WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
+    WT_UPDATE *prev_upd, *upd, *upds;
     wt_timestamp_t cursor_start_ts, last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
       stop_ts;
@@ -467,7 +688,7 @@ __layered_copy_ingest_table(
     bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
-    last_upd = prev_upd = upd = upds = NULL;
+    prev_upd = upd = upds = NULL;
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
@@ -508,9 +729,9 @@ __layered_copy_ingest_table(
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                  ret = __layered_move_updates(
+                    session, cbt, ingest_btree, key, &upds, from_ts, orphan_countp));
                 WT_ERR(ret);
-                upds = NULL;
             } else
                 ret = 0;
             break;
@@ -527,7 +748,8 @@ __layered_copy_ingest_table(
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                  ret = __layered_move_updates(
+                    session, cbt, ingest_btree, key, &upds, from_ts, orphan_countp));
                 WT_ERR(ret);
             }
 
@@ -680,14 +902,10 @@ __layered_copy_ingest_table(
                 }
                 /* This is for debugging purpose and it is not checked in the code. */
                 F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
-                last_upd = upd;
 
-                if (prepare && !prepare_txn_fixed) {
-                    WT_ASSERT(session, upds == NULL);
-                    WT_ERR(__layered_fix_prepared_transaction(
-                      session, key, ingest_btree, stable_btree, start_txn, start_prepared_id));
-                    prepare_txn_fixed = true;
-                }
+                WT_ASSERT(session,
+                  !prepare || upds == NULL ||
+                    (upds->txnid == start_txn && upds->prepared_id == start_prepared_id));
             }
         }
 
@@ -807,6 +1025,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_LAYERED_TABLE *layered_table = NULL;
     WT_TRUNCATE **sorted_truncates = NULL;
     wt_timestamp_t prev_ts = WT_TS_NONE;
+    uint64_t orphan_count = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
@@ -817,7 +1036,8 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "No layered handle found for ingest table \"%s\", only performing ingest drain",
           ingest_uri);
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX));
+        WT_ERR(
+          __layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX, &orphan_count));
         ret = 0;
         goto err;
     }
@@ -834,13 +1054,25 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     for (size_t i = 0; i < ntruncates; i++) {
         WT_TRUNCATE *t = sorted_truncates[i];
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
+        WT_ERR(
+          __layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts, &orphan_count));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
     }
-    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX));
+    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, &orphan_count));
 
 err:
+    /*
+     * Report here so both drain paths are covered, including orphan removes found before a failure.
+     */
+    if (orphan_count > 0) {
+        WT_STAT_CONN_INCRV(session, disagg_step_up_ingest_drain_orphan_remove, orphan_count);
+        __wt_verbose_warning(session, WT_VERB_LAYERED,
+          "%s: step-up drain skipped orphan removes for %" PRIu64
+          " key(s) with no value in the stable table",
+          (const char *)layered_uri_buf->data, orphan_count);
+    }
+
     if (layered_table != NULL)
         __wt_layered_table_truncate_clear(session, layered_table);
 
