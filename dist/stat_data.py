@@ -47,17 +47,14 @@ class AutoCommitStat(Stat):
     prefix = 'autocommit'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags, otel_type)
-
 class BackgroundCompactStat(Stat):
     prefix = 'background-compact'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags, otel_type)
-
 class BackupStat(Stat):
     prefix = 'backup'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, BackupStat.prefix, desc, flags, otel_type)
-
 class BlockDisaggStat(Stat):
     prefix = 'block-disagg'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
