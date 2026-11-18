@@ -1816,11 +1816,17 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * complete checkpoint, the function would have no effect.
      */
     if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL) {
-        WT_ASSERT_ALWAYS(session, disagg->last_checkpoint_lsn != WT_DISAGG_LSN_NONE,
-          "The last checkpoint LSN must be known before abandoning a checkpoint");
-        abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
-        ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
-          disagg->npage_log->page_log, &session->iface, &abandon_args);
+        /* A connection with no installed or written checkpoint has nothing to abandon. */
+        if (disagg->last_checkpoint_lsn == WT_DISAGG_LSN_NONE)
+            WT_ASSERT_ALWAYS(session,
+              __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) ==
+                WT_DISAGG_LSN_NONE,
+              "The last checkpoint LSN must be known before abandoning a checkpoint");
+        else {
+            abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
+            ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
+              disagg->npage_log->page_log, &session->iface, &abandon_args);
+        }
     } else
         ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
           disagg->npage_log->page_log, &session->iface);
