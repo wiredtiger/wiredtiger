@@ -258,7 +258,10 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 
     __wti_cache_top_destroy(session);
 
-    /* The cache should be empty at this point.  Complain if not. */
+    /*
+     * The cache should be empty after a normal close. With leak-memory enabled, page cleanup may
+     * skip operations that also release cache accounting.
+     */
     if (cache->pages_inmem != cache->pages_evicted)
         __wt_errx(session,
           "cache server:%s exiting with %" PRIu64 " pages in memory and %" PRIu64 " pages evicted",
@@ -283,9 +286,9 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
     /*
-     * Every page has been discarded and every dhandle closed by this point, so any image checkpoint
-     * scrub retained has been freed with its page. A non-zero count means a path freed an image
-     * without releasing its accounting.
+     * A normal close discards every page and closes every dhandle, freeing retained
+     * checkpoint-scrub images and their accounting. With leak-memory enabled, page cleanup skips
+     * that work, so the counters may remain non-zero.
      */
     if (__wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image) != 0 ||
       __wt_atomic_load_uint64_relaxed(&cache->pages_scrub_image) != 0)
