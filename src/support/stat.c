@@ -2896,6 +2896,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes belonging to the history store table in the cache",
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
+  "cache: bytes held by trees with leaf pages holding at least 16MB and less than 256MB in the "
+  "cache",
+  "cache: bytes held by trees with leaf pages holding at least 1MB and less than 16MB in the cache",
+  "cache: bytes held by trees with leaf pages holding at least 256MB in the cache",
+  "cache: bytes held by trees with leaf pages holding less than 1MB in the cache",
   "cache: bytes not belonging to page images in the cache",
   "cache: bytes of clean re-instantiation images retained by checkpoint scrub",
   "cache: bytes read into cache",
@@ -3213,6 +3218,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: tracked dirty pages in the cache",
   "cache: tracked dirty pages in the cache from the ingest btrees",
   "cache: tracked dirty pages in the cache from the stable btrees",
+  "cache: trees with dirty leaf pages in the cache",
+  "cache: trees with leaf pages holding at least 16MB and less than 256MB in the cache",
+  "cache: trees with leaf pages holding at least 1MB and less than 16MB in the cache",
+  "cache: trees with leaf pages holding at least 256MB in the cache",
+  "cache: trees with leaf pages holding less than 1MB in the cache",
+  "cache: trees with no leaf pages in the cache",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
   "cache: update bytes belonging to the history store table in the cache",
@@ -4131,6 +4142,10 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CACHE_BYTES_IMAGE_STABLE,
   WT_STAT_CONN_CACHE_BYTES_HS,
   WT_STAT_CONN_CACHE_BYTES_DIRTY_TOTAL,
+  WT_STAT_CONN_CACHE_TREES_BYTES_16MB_256MB,
+  WT_STAT_CONN_CACHE_TREES_BYTES_1MB_16MB,
+  WT_STAT_CONN_CACHE_TREES_BYTES_GE_256MB,
+  WT_STAT_CONN_CACHE_TREES_BYTES_LT_1MB,
   WT_STAT_CONN_CACHE_BYTES_OTHER,
   WT_STAT_CONN_CACHE_SCRUB_IMAGE_BYTES,
   WT_STAT_CONN_CACHE_TOLERANCE_LEVEL,
@@ -4400,6 +4415,12 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CACHE_PAGES_DIRTY,
   WT_STAT_CONN_CACHE_PAGES_DIRTY_INGEST,
   WT_STAT_CONN_CACHE_PAGES_DIRTY_STABLE,
+  WT_STAT_CONN_CACHE_TREES_DIRTY_LEAF,
+  WT_STAT_CONN_CACHE_TREES_16MB_256MB,
+  WT_STAT_CONN_CACHE_TREES_1MB_16MB,
+  WT_STAT_CONN_CACHE_TREES_GE_256MB,
+  WT_STAT_CONN_CACHE_TREES_LT_1MB,
+  WT_STAT_CONN_CACHE_TREES_NO_LEAF,
   WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE,
   WT_STAT_CONN_CACHE_EVICTION_CLEAN,
   WT_STAT_CONN_CACHE_BYTES_HS_UPDATES,
@@ -5330,6 +5351,10 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_image_stable */
     /* not clearing cache_bytes_hs */
     /* not clearing cache_bytes_dirty_total */
+    /* not clearing cache_trees_bytes_16mb_256mb */
+    /* not clearing cache_trees_bytes_1mb_16mb */
+    /* not clearing cache_trees_bytes_ge_256mb */
+    /* not clearing cache_trees_bytes_lt_1mb */
     /* not clearing cache_bytes_other */
     /* not clearing cache_scrub_image_bytes */
     /* not clearing cache_tolerance_level */
@@ -5599,6 +5624,12 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_dirty */
     /* not clearing cache_pages_dirty_ingest */
     /* not clearing cache_pages_dirty_stable */
+    /* not clearing cache_trees_dirty_leaf */
+    /* not clearing cache_trees_16mb_256mb */
+    /* not clearing cache_trees_1mb_16mb */
+    /* not clearing cache_trees_ge_256mb */
+    /* not clearing cache_trees_lt_1mb */
+    /* not clearing cache_trees_no_leaf */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
     /* not clearing cache_bytes_hs_updates */
@@ -6494,6 +6525,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_hs += WT_STAT_CONN_READ(from, cache_bytes_hs);
     to->cache_bytes_inuse += WT_STAT_CONN_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_CONN_READ(from, cache_bytes_dirty_total);
+    to->cache_trees_bytes_16mb_256mb += WT_STAT_CONN_READ(from, cache_trees_bytes_16mb_256mb);
+    to->cache_trees_bytes_1mb_16mb += WT_STAT_CONN_READ(from, cache_trees_bytes_1mb_16mb);
+    to->cache_trees_bytes_ge_256mb += WT_STAT_CONN_READ(from, cache_trees_bytes_ge_256mb);
+    to->cache_trees_bytes_lt_1mb += WT_STAT_CONN_READ(from, cache_trees_bytes_lt_1mb);
     to->cache_bytes_other += WT_STAT_CONN_READ(from, cache_bytes_other);
     to->cache_scrub_image_bytes += WT_STAT_CONN_READ(from, cache_scrub_image_bytes);
     to->cache_bytes_read += WT_STAT_CONN_READ(from, cache_bytes_read);
@@ -6890,6 +6925,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_pages_dirty += WT_STAT_CONN_READ(from, cache_pages_dirty);
     to->cache_pages_dirty_ingest += WT_STAT_CONN_READ(from, cache_pages_dirty_ingest);
     to->cache_pages_dirty_stable += WT_STAT_CONN_READ(from, cache_pages_dirty_stable);
+    to->cache_trees_dirty_leaf += WT_STAT_CONN_READ(from, cache_trees_dirty_leaf);
+    to->cache_trees_16mb_256mb += WT_STAT_CONN_READ(from, cache_trees_16mb_256mb);
+    to->cache_trees_1mb_16mb += WT_STAT_CONN_READ(from, cache_trees_1mb_16mb);
+    to->cache_trees_ge_256mb += WT_STAT_CONN_READ(from, cache_trees_ge_256mb);
+    to->cache_trees_lt_1mb += WT_STAT_CONN_READ(from, cache_trees_lt_1mb);
+    to->cache_trees_no_leaf += WT_STAT_CONN_READ(from, cache_trees_no_leaf);
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
