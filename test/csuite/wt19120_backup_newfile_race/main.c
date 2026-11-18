@@ -32,6 +32,22 @@
 #include <signal.h>
 #include <unistd.h>
 
+/*
+ * Opening a backup cursor forces the log into a new file and then waits for allocation to move past
+ * the file it captured. If another thread is already switching slots, that switch can publish its
+ * new file into alloc_lsn and consume the backup's force-new-file request without rolling past the
+ * captured file. The retry loop then has nothing to do and never returns. The log_newfile_slow
+ * timing stress pauses between publishing the new file and consuming the request, which makes that
+ * interleaving common enough to reproduce.
+ *
+ * Each attempt runs a writer for a short burst, stops it while a log file roll may still be in
+ * flight, then opens and closes a backup cursor. A healthy build completes every attempt; the test
+ * prints the number of attempts when it finishes. If an open has not returned within
+ * BACKUP_TIMEOUT_SECS the alarm handler exits with a failure, because the hanging call spins inside
+ * the library and there is nothing to unwind. Nothing is copied or compared: the test only asserts
+ * that opening the cursor returns.
+ */
+
 #define ENV_CONFIG                                                     \
     "create,log=(enabled,file_max=100KB,prealloc=false,remove=false)," \
     "timing_stress_for_test=[log_newfile_slow]"
