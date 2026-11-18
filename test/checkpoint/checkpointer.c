@@ -342,11 +342,11 @@ void
 prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 {
     /*
-     * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
-     * all pending prepared transactions. When precise checkpoint is not configure, there's no need
-     * to run prepare discover.
+     * Recovery doesn't run rollback to stable with precise checkpoint, so pending prepared
+     * transactions must be claimed through the prepare discover cursor. Check the connection rather
+     * than the command line, as precise checkpoint can also be enabled through other configuration.
      */
-    if (!g.precise_checkpoint)
+    if (!F_ISSET((WT_CONNECTION_IMPL *)conn, WT_CONN_PRECISE_CHECKPOINT))
         return;
 
     WT_CURSOR *cursor;
@@ -416,8 +416,9 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
             set_stable(g.ts_stable);
         }
         /* In both modes, do a checkpoint after processing prepared transactions */
-        session->checkpoint(session, NULL);
-        if ((ret = verify_consistency(session, WT_TS_NONE, true)) != 0)
+        testutil_check(session->checkpoint(session, NULL));
+        /* FIXME-WT-15357: Checkpoint cursors are not compatible with disagg for now. */
+        if ((ret = verify_consistency(session, WT_TS_NONE, !g.opts.disagg.is_enabled)) != 0)
             log_print_err("verify_consistency (post prepare-discover)", ret, 1);
     }
     testutil_check(session->close(session, NULL));
