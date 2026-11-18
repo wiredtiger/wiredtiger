@@ -284,6 +284,25 @@ done:
 }
 
 /*
+ * timestamp_advance_stable_for_shutdown --
+ *     Advance stable for eviction after the workers and timestamp thread stop.
+ */
+static void
+timestamp_advance_stable_for_shutdown(WT_SESSION *session)
+{
+    const bool precise_checkpoint =
+      F_ISSET((WT_CONNECTION_IMPL *)g.wts_conn, WT_CONN_PRECISE_CHECKPOINT);
+
+    if (!g.transaction_timestamps_config || GV(RUNS_PREDICTABLE_REPLAY) || !precise_checkpoint)
+        return;
+
+    timestamp_sync_threads_commit_ts();
+
+    /* Preserve history for the saved snapshot checks. */
+    timestamp_once_internal(session, false, false, TIMESTAMP_STABLE);
+}
+
+/*
  * operations --
  *     Perform a number of operations in a set of threads.
  */
@@ -525,6 +544,14 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Wait for the special-purpose threads. */
     g.workers_finished = true;
+    if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)
+        testutil_check(__wt_thread_join(NULL, &stepdown_tid));
+    if (g.transaction_timestamps_config && !stepdown_triggered)
+        testutil_check(__wt_thread_join(NULL, &timestamp_tid));
+
+    /* Advance stable as needed for eviction while background threads finish. */
+    timestamp_advance_stable_for_shutdown(session);
+
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_join(NULL, &alter_tid));
     if (GV(BACKGROUND_COMPACT))
@@ -539,8 +566,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
-    if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)
-        testutil_check(__wt_thread_join(NULL, &stepdown_tid));
     if (disagg_is_multi_node() && !g.disagg_leader) {
         testutil_check(__wt_thread_join(NULL, &follower_tid));
         if (GV(DISAGG_SNAPSHOT_READ))
@@ -555,8 +580,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &key_rotation_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
-    if (g.transaction_timestamps_config && !stepdown_triggered)
-        testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
     trace_msg(session, "%s", "=============== thread ops stop");
@@ -872,6 +895,10 @@ mirror_check(TINFO *tinfo, iso_level_t iso_level, thread_op op, int *expect_retp
      */
     if (op != MODIFY && op != REMOVE &&
       !(op == READ && iso_level == ISOLATION_SNAPSHOT && !tinfo->op_bound_read))
+        return;
+
+    /* A successful blind remove doesn't show whether the key existed. */
+    if (op == REMOVE && tinfo->op_ret == 0 && TV(DISAGG_BLIND_REMOVE))
         return;
 
     if (*expect_setp && tinfo->op_ret != *expect_retp)
@@ -2533,22 +2560,8 @@ row_remove(TINFO *tinfo, bool positioned)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    bool blind_remove;
 
     cursor = tinfo->cursor;
-
-    /*
-     * FIXME-WT-18043: Restore overwrite=true here once format can replay only leader-confirmed
-     * deletes on the follower.
-     *
-     * An unpositioned overwrite=true remove on a disagg follower asserts the caller already knows
-     * the key exists, so it never fails with WT_NOTFOUND -- correct only when the leader already
-     * confirmed the key before replicating the delete. This thread issues fresh, random removes of
-     * its own instead of replaying leader-confirmed ones, so drop overwrite for the call.
-     */
-    blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
 
     if (!positioned) {
         key_gen(tinfo->table, tinfo->key, tinfo->keyno);
@@ -2568,9 +2581,6 @@ row_remove(TINFO *tinfo, bool positioned)
      */
     ret = cursor->remove(cursor);
 
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=true"));
-
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
@@ -2589,27 +2599,14 @@ col_remove(TINFO *tinfo, bool positioned)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    bool blind_remove;
 
     cursor = tinfo->cursor;
-
-    /*
-     * FIXME-WT-18043: Restore overwrite=true here once format can replay only leader-confirmed
-     * deletes on the follower. See row_remove for the rationale behind temporarily dropping
-     * overwrite here.
-     */
-    blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
 
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
     /* See row_remove for the rationale behind calling cursor->remove() directly. */
     ret = cursor->remove(cursor);
-
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=true"));
 
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);

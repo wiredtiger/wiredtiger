@@ -344,6 +344,27 @@ err:
 }
 
 /*
+ * __wt_verify_metadata_consistency --
+ *     Run the database-wide metadata consistency checks, confirming that no two stable files share
+ *     a btree ID, in both the local and the shared metadata.
+ */
+int
+__wt_verify_metadata_consistency(WT_SESSION_IMPL *session)
+{
+    WT_RET(__verify_unique_btree_ids(session));
+
+    /*
+     * The shared metadata is only reachable on a disaggregated leader; followers rely on the
+     * equivalent check performed during checkpoint pickup.
+     */
+    if (__wt_conn_is_disagg(session) &&
+      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+        WT_RET(__verify_unique_shared_ids(session));
+
+    return (0);
+}
+
+/*
  * __wt_disagg_get_database_size --
  *     Recompute the disaggregated database size from scratch: walk the metadata and sum the most
  *     recent checkpoint size for every file. The fixed overhead for the KEK table and shared turtle
@@ -639,22 +660,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
 
     /*
-     * Check that no two shared files share the same btree ID. Only run for shared trees: the verify
-     * session's exclusive lock is on the shared file, not the metadata file, so a shared metadata
-     * cursor can be opened directly on the verify session.
-     *
-     * FIXME-WT-18582: Having these per-URI means we do a metadata scan for each verified URI.
-     */
-    if (__wt_dhandle_shared_btree_kind(btree->dhandle) != WT_SHARED_BTREE_NONE) {
-        WT_ERR(__verify_unique_btree_ids(session));
-
-        /* If we're already verifying shared metadata, don't manually perform this step. */
-        if (!WT_IS_DISAGG_META(session->dhandle) &&
-          __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
-            WT_ERR(__verify_unique_shared_ids(session));
-    }
-
-    /*
      * Get a list of the checkpoints for this file. Empty objects and ingest tables have no
      * checkpoints, in which case there's no work to do.
      */
@@ -849,11 +854,13 @@ err:
  *     Check an address block's timestamps.
  */
 static int
-__verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack, WT_VSTUFF *vs)
+__verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack,
+  bool from_delta, WT_VSTUFF *vs)
 {
     WT_DECL_RET;
 
-    if ((ret = __wt_time_aggregate_validate(session, &unpack->ta, NULL, false)) == 0)
+    if ((ret = __wt_time_aggregate_validate(session, &unpack->ta, NULL, true, from_delta, false)) ==
+      0)
         return (0);
 
     WT_RET_MSG(session, ret, "internal page reference at %s failed timestamp validation",
@@ -957,12 +964,14 @@ __verify_tree(
     WT_REF *child_ref;
     size_t my_stack_level, next_stack_level;
     uint32_t entry;
+    bool from_delta;
 
     btree = S2BT(session);
     bm = btree->bm;
     unpack = &_unpack;
     home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
     page = ref->page;
+    from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
 
     /*
      * The verify operation does not go through the same tree walk flow as other operations
@@ -1199,7 +1208,7 @@ celltype_err:
             __wt_cell_unpack_addr(session,
               ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&child_ref->home))->dsk, child_ref->addr,
               unpack);
-            WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+            WT_RET(__verify_addr_ts(session, child_ref, unpack, from_delta, vs));
 
             /*
              * Accumulate the block size from the disagg cookie. This is used to validate the
@@ -1269,7 +1278,7 @@ celltype_err:
             __wt_cell_unpack_addr(session,
               ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&child_ref->home))->dsk, child_ref->addr,
               unpack);
-            WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+            WT_RET(__verify_addr_ts(session, child_ref, unpack, from_delta, vs));
 
             /*
              * Accumulate the block size from the disagg cookie. This is used to validate the
@@ -1445,7 +1454,7 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
       __wt_addr_string(session, addr, addr_size, vs->tmp1));
 
     /* Read and verify the overflow item. */
-    WT_RET(__wt_blkcache_read(session, vs->tmp1, NULL, addr, addr_size));
+    WT_RET(__wt_bm_read_page(session, vs->tmp1, NULL, addr, addr_size));
 
     /*
      * The physical page has already been verified, but we haven't confirmed it was an overflow
@@ -1501,9 +1510,11 @@ __verify_page_content_int(
     const WT_PAGE_HEADER *dsk;
     WT_TIME_AGGREGATE effective_ta, *ta;
     uint32_t cell_num;
+    bool from_delta;
 
     page = ref->page;
     dsk = page->dsk;
+    from_delta = page->disagg_info != NULL && page->disagg_info->block_meta.delta_count > 0;
 
     /* Walk the page, verifying overflow pages and validating timestamps. */
     cell_num = 0;
@@ -1548,7 +1559,8 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            if ((ret = __wt_time_aggregate_validate(session, ta, &parent->ta, false)) != 0)
+            if ((ret = __wt_time_aggregate_validate(
+                   session, ta, &parent->ta, true, from_delta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
                   __verify_addr_string(session, ref, vs->tmp1));
@@ -1633,7 +1645,8 @@ __verify_page_content_leaf(
             __wt_verbose_debug3(session, WT_VERB_VERIFY, "cell num: %" PRIu32 ", time window: %s",
               cell_num - 1, __wt_time_window_to_string(tw, tw_string));
 
-            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, from_delta, false)) != 0)
+            if ((ret = __wt_time_value_validate(
+                   session, tw, &parent->ta, true, from_delta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
                   __verify_addr_string(session, ref, vs->tmp1));

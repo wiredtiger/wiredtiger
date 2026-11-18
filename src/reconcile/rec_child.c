@@ -62,7 +62,7 @@ __rec_child_deleted(
 
             if (visible) {
                 prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
-                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+                if (__wt_prepare_state_unresolved(prepare_state))
                     visible = false;
             }
 
@@ -119,7 +119,7 @@ __rec_child_deleted(
         if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
             return (__wt_set_return(session, EBUSY));
         cmsp->state = WTI_CHILD_ORIGINAL;
-        r->leave_dirty = true;
+        FLD_SET(r->state_flags, WTI_REC_LEAVE_DIRTY);
         return (0);
     }
 
@@ -146,13 +146,13 @@ __rec_child_deleted(
      * lost in hard-to-debug ways.
      */
     prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
-    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+    if (__wt_prepare_state_unresolved(prepare_state)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
           "In progress prepares should never be seen in eviction");
         WT_ASSERT(session, !visible_all);
 
         cmsp->state = WTI_CHILD_ORIGINAL;
-        r->leave_dirty = true;
+        FLD_SET(r->state_flags, WTI_REC_LEAVE_DIRTY);
         return (0);
     }
 

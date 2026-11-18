@@ -30,11 +30,13 @@ else()
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
+        misc_tests/test_evict_bool_options_reconfigure.cpp
         misc_tests/test_evict_bounded_wait.cpp
         misc_tests/test_evict_clear_walks.cpp
         misc_tests/test_evict_disagg_cache_eligible.cpp
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
+        misc_tests/test_evict_walk_budget.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_file_id.cpp
         misc_tests/test_futex.cpp
@@ -60,6 +62,7 @@ else()
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_timestamp_validation.cpp
         misc_tests/test_txn_config.cpp
         misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
