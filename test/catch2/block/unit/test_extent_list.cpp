@@ -11,7 +11,10 @@
  * __block_off_srch, __block_first_srch, and __block_size_srch.
  */
 
+#include <algorithm>
 #include <memory>
+#include <random>
+#include <vector>
 
 #include <catch2/catch.hpp>
 
@@ -312,43 +315,143 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
     WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     /*
-     * Note that we're not checking stack here, since __block_first_srch delegates most of its work
-     * to __block_off_srch, which we're testing elsewhere.
+     * Build these lists with __ut_block_off_insert so the by-offset and by-size skiplists that
+     * __block_first_srch reads are maintained together.
+     *
+     * Note that we're not checking stack contents here beyond the extent it resolves to, since
+     * __block_first_srch delegates that work to __block_off_srch, which we're testing elsewhere.
      */
+    auto insert = [&](WT_EXTLIST *extlist, const std::vector<off_size> &extents) {
+        extlist->track_size = 1;
+        for (const off_size &one : extents)
+            REQUIRE(__ut_block_off_insert(session, extlist, one.off, one.size) == 0);
+    };
 
     SECTION("empty list doesn't yield a chunk")
     {
-        std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
+        WT_EXTLIST extlist = {};
+        extlist.track_size = 1;
 
-        REQUIRE(__ut_block_first_srch(session, &head[0], 0, &stack[0]) == false);
+        REQUIRE(__ut_block_first_srch(session, &extlist, 0, &stack[0]) == false);
+
+        extlist_free(session, extlist);
     }
 
     SECTION("list with too-small chunks doesn't yield a larger chunk")
     {
-        auto wrapper = ExtentListWrapper();
-        auto &head = wrapper._raw_list;
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(3, 2), off_size(6, 3)});
 
-        create_default_test_extent_list(wrapper);
+        REQUIRE(__ut_block_first_srch(session, &extlist, 4, &stack[0]) == false);
 
-        head[0]->size = 1;
-        head[1]->size = 2;
-        head[2]->size = 3;
-
-        REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == false);
+        extlist_free(session, extlist);
     }
 
     SECTION("find an appropriate chunk")
     {
-        auto wrapper = ExtentListWrapper();
-        auto &head = wrapper._raw_list;
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 10), off_size(12, 20), off_size(33, 30)});
 
-        create_default_test_extent_list(wrapper);
+        REQUIRE(__ut_block_first_srch(session, &extlist, 4, &stack[0]) == true);
 
-        head[0]->size = 10;
-        head[1]->size = 20;
-        head[2]->size = 30;
+        /* The head of the by-offset list is large enough, so it is the first-fit answer. */
+        REQUIRE((*stack[0])->off == 1);
 
-        REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == true);
+        extlist_free(session, extlist);
+    }
+
+    SECTION("skip chunks at the front of the file that are too small")
+    {
+        /*
+         * This is the case the by-size lookup replaces: the lowest-offset extents cannot satisfy
+         * the request, so the answer has to come from the size buckets.
+         */
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(3, 1), off_size(5, 1), off_size(10, 8)});
+
+        REQUIRE(__ut_block_first_srch(session, &extlist, 2, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 10);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("lowest offset wins across several size buckets")
+    {
+        /*
+         * The qualifying extents live in different buckets and the lowest offset is not in the
+         * first one, so the search has to compare the head of every large-enough bucket.
+         */
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(50, 4), off_size(20, 16), off_size(80, 8)});
+
+        /* The extent at offset 20 is larger than the one at offset 50, but starts earlier. */
+        REQUIRE(__ut_block_first_srch(session, &extlist, 4, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 20);
+
+        /* First-fit is not best-fit: a lower offset wins over an exact size match. */
+        REQUIRE(__ut_block_first_srch(session, &extlist, 8, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 20);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("a bucket head is the lowest offset of its size")
+    {
+        /*
+         * Extents of the same size share a bucket and are sorted by offset. The search only looks
+         * at each bucket's head, so inserting the higher offset first must not leave it as head.
+         *
+         * The lowest-offset extent is too small for the request, otherwise the search answers from
+         * the head of the by-offset list without looking at the bucket.
+         */
+        WT_EXTLIST extlist = {};
+        insert(&extlist, {off_size(1, 1), off_size(90, 8), off_size(2, 8)});
+
+        REQUIRE(__ut_block_first_srch(session, &extlist, 8, &stack[0]) == true);
+        REQUIRE((*stack[0])->off == 2);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("randomized lists match the lowest-offset first-fit result")
+    {
+        constexpr wt_off_t unit = 4096;
+        std::uniform_int_distribution<int> size_units(1, 20);
+        std::uniform_int_distribution<int> gap_units(1, 5);
+
+        for (int iteration = 0; iteration < 10; ++iteration) {
+            INFO("iteration " << iteration);
+            std::mt19937 rng(99 + iteration);
+            std::vector<off_size> extents;
+            wt_off_t off = unit;
+            for (int i = 0; i < 100; ++i) {
+                wt_off_t size = size_units(rng) * unit;
+                extents.emplace_back(off, size);
+                off += size + gap_units(rng) * unit;
+            }
+            std::shuffle(extents.begin(), extents.end(), rng);
+
+            WT_EXTLIST extlist = {};
+            insert(&extlist, extents);
+            for (int units = 1; units <= 21; ++units) {
+                wt_off_t request = units * unit;
+                wt_off_t expected = -1;
+                INFO("request " << request);
+
+                /* Compute the answer from the input, independently of either skiplist. */
+                for (const off_size &one : extents)
+                    if (one.size >= request && (expected == -1 || one.off < expected))
+                        expected = one.off;
+
+                REQUIRE(
+                  __ut_block_first_srch(session, &extlist, request, &stack[0]) == (expected != -1));
+                if (expected != -1) {
+                    REQUIRE((*stack[0])->off == expected);
+                    REQUIRE((*stack[0])->size >= request);
+                }
+            }
+            extlist_free(session, extlist);
+        }
     }
 }
 

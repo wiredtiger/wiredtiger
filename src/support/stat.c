@@ -2868,8 +2868,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
-  "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
-  "allocation",
+  "block-manager: time spent(usecs) on the most recent search of available extents during "
+  "first-fit allocation",
   "cache: application eviction assists stopped when the bounded wait was exhausted",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
