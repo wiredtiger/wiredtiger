@@ -259,6 +259,91 @@ class test_layered_async_stepdown26_reversal(LayeredStepdownMixin, wttest.WiredT
 
 
 @disagg_test_class
+class test_layered_async_stepdown26_reversal_write(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
+        ('next', dict(forward=True)), ('prev', dict(forward=False))], [
+        ('update', dict(remove=False)), ('remove', dict(remove=True))])
+    conn_config = 'statistics=(all),precise_checkpoint=true,' \
+        'debug_mode=(disagg_stepdown_prepare=true),' \
+        'disaggregated=(role="leader",stepdown_write_mirroring=false)'
+
+    def key(self, rank):
+        return f'key{rank if self.forward else 40 - rank:02}'
+
+    def test_reverse_observes_write_to_last_returned_key(self):
+        self.set_global_ts(1, 1)
+        ordinary_uri = 'table:reversal_write_reference'
+        uris = (ordinary_uri, self.uri)
+        for uri in uris:
+            self.session.create(uri, 'key_format=S,value_format=S')
+            self.write_at(uri, {self.key(rank): 'stable' for rank in (10, 30)}, 10)
+        self.set_global_ts(1, 10)
+
+        prepared_sessions = []
+        for uri in uris:
+            prepared = self.conn.open_session()
+            prepare_cursor = prepared.open_cursor(uri)
+            prepared.begin_transaction()
+            prepare_cursor[self.key(30)] = 'prepared'
+            prepared.prepare_transaction('prepare_timestamp=' + self.timestamp_str(12))
+            prepared_sessions.append(prepared)
+
+        self.set_step_down_ts(15)
+        for uri in uris:
+            self.write_at(uri, {self.key(20): 'original'}, 18)
+        cursors = [self.session.open_cursor(uri) for uri in uris]
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        try:
+            for rank, value in ((10, 'stable'), (20, 'original')):
+                for cursor in cursors:
+                    self.assertEqual(cursor.next() if self.forward else cursor.prev(), 0)
+                    self.assertEqual((cursor.get_key(), cursor.get_value()), (self.key(rank), value))
+
+            for uri in uris:
+                writer = self.session.open_cursor(uri)
+                writer.set_key(self.key(20))
+                if self.remove:
+                    self.assertEqual(writer.remove(), 0)
+                else:
+                    writer.set_value('updated')
+                    self.assertEqual(writer.update(), 0)
+                writer.close()
+
+            for cursor in cursors:
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    cursor.next if self.forward else cursor.prev,
+                    '/conflict with a prepared update/')
+
+            if self.forward:
+                # Repositioning can encounter the prepared key outside the reverse direction.
+                self.assertRaisesException(wiredtiger.WiredTigerError, cursors[1].prev,
+                    '/conflict with a prepared update/')
+                for prepared in prepared_sessions:
+                    prepared.rollback_transaction()
+                    prepared.close()
+                prepared_sessions.clear()
+
+            expected = [] if self.remove else [(self.key(20), 'updated')]
+            expected.append((self.key(10), 'stable'))
+            for item in expected:
+                for cursor in cursors:
+                    self.assertEqual(cursor.prev() if self.forward else cursor.next(), 0)
+                    self.assertEqual((cursor.get_key(), cursor.get_value()), item)
+            for cursor in cursors:
+                self.assertEqual(cursor.prev() if self.forward else cursor.next(),
+                    wiredtiger.WT_NOTFOUND)
+        finally:
+            self.session.rollback_transaction()
+            for cursor in cursors:
+                cursor.close()
+            for prepared in prepared_sessions:
+                prepared.rollback_transaction()
+                prepared.close()
+
+
+@disagg_test_class
 class test_layered_async_stepdown26_search(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
     uri = f'layered:{test_name}'

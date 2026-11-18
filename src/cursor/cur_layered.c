@@ -1984,8 +1984,8 @@ __clayered_any_constituent_positioned(WTI_CLAYERED_OP *op)
 
 /*
  * __clayered_restore_walk --
- *     Position constituents from a reopened stable cursor's saved key, including that key when
- *     continuing and excluding it when reversing.
+ *     Position constituents from a saved walk key, including that key when continuing and excluding
+ *     it when reversing.
  */
 static int
 __clayered_restore_walk(WTI_CLAYERED_OP *op, bool forward)
@@ -1993,6 +1993,7 @@ __clayered_restore_walk(WTI_CLAYERED_OP *op, bool forward)
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     const bool inclusive = forward == clayered->prepare_blocked_next;
 
+    WT_STAT_CONN_DSRC_INCR(CUR2S(clayered), layered_curs_restore_walk);
     if (op->stable != NULL)
         WT_RET_NOTFOUND_OK(__clayered_position_constituent_at(
           op, &clayered->prepare_blocked_key, op->stable, forward, inclusive));
@@ -2084,6 +2085,16 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
 
     __clayered_select_current(op, &c_current, &c_alternate);
 
+    /* Re-read the last returned key on reversal to observe writes through other cursors. */
+    if (F_ISSET(clayered,
+          forward ? WTI_CLAYERED_ITERATE_ALT_BLOCKED_PREV :
+                    WTI_CLAYERED_ITERATE_ALT_BLOCKED_NEXT)) {
+        WT_RET(__wt_buf_set(CUR2S(clayered), &clayered->prepare_blocked_key, c_current->key.data,
+          c_current->key.size));
+        clayered->prepare_blocked_next = forward;
+        return (__clayered_restore_walk(op, forward));
+    }
+
     /*
      * Reposition the alternate when its cached position cannot be trusted.
      *
@@ -2092,14 +2103,6 @@ __clayered_advance_positioned(WTI_CLAYERED_OP *op, uint32_t iter_flag, bool forw
      */
     if (!F_ISSET(clayered, iter_flag))
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(op, c_current, c_alternate, forward));
-
-    /*
-     * Reversing after an alternate-positioning conflict returns the last returned key again,
-     * matching a btree cursor.
-     */
-    if (F_ISSET(clayered,
-          forward ? WTI_CLAYERED_ITERATE_ALT_BLOCKED_PREV : WTI_CLAYERED_ITERATE_ALT_BLOCKED_NEXT))
-        return (0);
 
     WT_RET(__clayered_advance_equal_alternate(op, c_current, c_alternate, forward));
     return (__clayered_step(op, c_current, forward));
@@ -2188,9 +2191,8 @@ __clayered_iterate_constituents(WTI_CLAYERED_OP *op, uint32_t iter_flag)
     forward = (iter_flag == WTI_CLAYERED_ITERATE_NEXT);
     op->ingest_refreshed = op->stable_refreshed = false;
 
-    /* Reopening blocked stable can leave only its saved key as the walk's anchor. */
+    /* Retry a failed restore from its saved anchor before advancing either constituent. */
     if (op->clayered->prepare_blocked_key.size != 0) {
-        WT_STAT_CONN_DSRC_INCR(CUR2S(op->clayered), layered_curs_restore_walk);
         ret = __clayered_restore_walk(op, forward);
         return (__clayered_iterate_finish(op, iter_flag, false, ret));
     }

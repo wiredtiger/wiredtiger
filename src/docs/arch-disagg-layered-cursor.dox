@@ -61,6 +61,9 @@ initial bounded positioning that retains no key instead resets the walk for a fr
 Repositioning an alternate with `search_near()` can encounter a prepared key outside the requested
 scan direction. After that prepared transaction commits or rolls back, retrying the cursor operation
 completes the repositioning before the scan continues.
+Reversing after an alternate-positioning conflict re-reads both constituents inclusively from the
+last returned key, so updates and removals by the same transaction are visible. If this re-read
+conflicts, its saved key remains the anchor for the next attempt.
 
 Reopening blocked stable on a role change closes the cursor retaining its key. If ingest is current
 and retains a usable key, readable or prepare-blocked, invalidating the iteration flags makes stable
