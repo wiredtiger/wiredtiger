@@ -288,6 +288,7 @@ static int
 __sync_obsolete_cleanup_one(
   WT_SESSION_IMPL *session, WT_REF *ref, bool *deletedp, bool *visible_allp)
 {
+    WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
     bool ref_deleted;
@@ -325,7 +326,16 @@ __sync_obsolete_cleanup_one(
          * Use a parameter to allow the functions to request a state change.
          */
         new_state = previous_state;
-        if (previous_state == WT_REF_DELETED) {
+        if (previous_state == WT_REF_DELETED && ref->page_del == NULL &&
+          !__wt_ref_addr_copy(session, ref, &addr))
+            /*
+             * A reconciliation of the parent has already discarded the page and written no cell for
+             * it: there is nothing left to remove. The ref stays in the parent's index until the
+             * parent is evicted or split.
+             */
+            __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "%p: skipping removed deleted page", (void *)ref);
+        else if (previous_state == WT_REF_DELETED) {
             *deletedp = true;
             ret = __sync_obsolete_deleted_cleanup(session, ref, visible_allp);
         } else if (previous_state == WT_REF_DISK) {
