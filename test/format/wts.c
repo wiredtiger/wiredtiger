@@ -468,6 +468,9 @@ create_database(const char *home, WT_CONNECTION **connp)
       GV(CACHE), progname, GVS(STATISTICS_MODE));
 
     /* Eviction (dirty) configuration. */
+    CONFIG_APPEND(p, ",eviction_dirty_index=%s,eviction_dirty_index_disagg=%s",
+      GV(CACHE_EVICTION_DIRTY_INDEX) ? "true" : "false",
+      GV(CACHE_EVICTION_DIRTY_INDEX_DISAGG) ? "true" : "false");
     if (GV(CACHE_EVICTION_DIRTY_TARGET) != 0)
         CONFIG_APPEND(p, ",eviction_dirty_target=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TARGET));
     if (GV(CACHE_EVICTION_DIRTY_TRIGGER) != 0)

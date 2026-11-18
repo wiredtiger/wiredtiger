@@ -81,6 +81,13 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100,
     V_GLOBAL_CACHE_EVICT_MAX},
 
+  {"cache.eviction_dirty_index", "use the per-btree dirty-page index to supply eviction candidates",
+    C_BOOL, 80, 0, 0, V_GLOBAL_CACHE_EVICTION_DIRTY_INDEX},
+
+  {"cache.eviction_dirty_index_disagg",
+    "use the per-btree dirty-page index for disaggregated btrees", C_BOOL, 25, 0, 0,
+    V_GLOBAL_CACHE_EVICTION_DIRTY_INDEX_DISAGG},
+
   {"cache.eviction_dirty_target", "dirty content target for eviction", C_IGNORE, 0, 0, 100,
     V_GLOBAL_CACHE_EVICTION_DIRTY_TARGET},
 

@@ -136,6 +136,10 @@ CONFIG configuration_list[] = {
 
 {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100}
 
+{"cache.eviction_dirty_index", "use the per-btree dirty-page index to supply eviction candidates", C_BOOL, 80, 0, 0}
+
+{"cache.eviction_dirty_index_disagg", "use the per-btree dirty-page index for disaggregated btrees", C_BOOL, 25, 0, 0}
+
 {"cache.eviction_dirty_target", "dirty content target for eviction", C_IGNORE, 0, 0, 100}
 
 {"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100}
