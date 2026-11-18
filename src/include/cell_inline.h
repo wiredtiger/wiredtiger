@@ -254,8 +254,7 @@ __cell_pack_addr_validity(
     }
     if (ta->newest_page_stop_durable_ts != WT_TS_NONE) {
         WT_ASSERT(session,
-          ta->newest_stop_ts == WT_TS_MAX ||
-          ta->newest_stop_ts <= ta->newest_page_stop_durable_ts);
+          ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts <= ta->newest_page_stop_durable_ts);
 
         /*
          * Store differences, not absolutes.
@@ -266,8 +265,7 @@ __cell_pack_addr_validity(
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(
-          __wt_vpack_uint(pp, 0, ta->newest_page_stop_durable_ts - ta->newest_stop_ts));
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_page_stop_durable_ts - ta->newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     if (ta->prepare || is_prepared_fast_truncate)
@@ -1150,6 +1148,14 @@ __cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_
               pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->newest_page_stop_durable_ts));
             ta->newest_page_stop_durable_ts += ta->newest_stop_ts;
         }
+        ta->newest_durable_ts = WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts);
+        /*
+         * A leaf written by an older release records the stop time of partial deletes; an open stop
+         * aggregate means the leaf is not fully deleted. An internal page keeps the value as it
+         * marks a fully deleted page somewhere in the subtree.
+         */
+        if (unpack_addr->raw != WT_CELL_ADDR_INT && ta->newest_stop_ts == WT_TS_MAX)
+            ta->newest_page_stop_durable_ts = WT_TS_NONE;
         WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
     }
 
@@ -1595,14 +1601,11 @@ __cell_addr_window_cleanup(
 
             /*
              * The combination of newest stop timestamp being WT_TS_MAX while the newest stop
-             * transaction not being WT_TXN_MAX is possible only for the non-timestamped tables. In
-             * this scenario there shouldn't be any timestamp value as part of durable stop
-             * timestamp other than the default value WT_TS_NONE.
+             * transaction not being WT_TXN_MAX is possible only for the non-timestamped tables or
+             * when the remove operation is performed without a timestamp.
              */
-            if (ta->newest_stop_ts == WT_TS_MAX) {
+            if (ta->newest_stop_ts == WT_TS_MAX)
                 ta->newest_stop_ts = WT_TS_NONE;
-                WT_ASSERT(session, ta->newest_page_stop_durable_ts == WT_TS_NONE);
-            }
         } else
             WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX);
 
