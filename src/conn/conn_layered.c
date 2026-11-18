@@ -1761,6 +1761,7 @@ __disagg_config_get_checkpoint_lsn(WT_SESSION_IMPL *session, const char **cfg, u
     WT_CONFIG_ITEM cval;
 
     *lsnp = WT_DISAGG_LSN_NONE;
+    WT_CLEAR(cval);
 
     /* FIXME-WT-19115: The absent of LSN config can be not allowed. */
     WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "disaggregated.checkpoint_lsn", &cval));
