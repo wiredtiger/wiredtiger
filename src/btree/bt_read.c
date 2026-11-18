@@ -126,7 +126,10 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
     FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
 
-    /* Mark ourselves busy before doing any eviction work, so a disable waits for all of it. */
+    /*
+     * Mark ourselves busy before doing any eviction work, so that turning off eviction for the tree
+     * waits for all of it.
+     */
     if (!__wt_evict_busy_incr(session)) {
         WT_REF_SET_STATE(ref, previous_state);
         return (EBUSY);

@@ -123,7 +123,10 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             return (0);
         }
 
-        /* Mark ourselves busy before doing any eviction work, so a disable waits for all of it. */
+        /*
+         * Mark ourselves busy before doing any eviction work, so that turning off eviction for the
+         * tree waits for all of it.
+         */
         if (!__wt_evict_busy_incr(session)) {
             WT_REF_SET_STATE(ref, previous_state);
             __delete_page_fallback_stat(session, ref, true);

@@ -158,9 +158,9 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &evict->evict_queue_lock);
 
     /*
-     * We have disabled further eviction: wait for evictions already in progress to finish. The
-     * disable and this read must be sequentially consistent so that they pair with the busy count
-     * and disable check done when a page is evicted directly.
+     * We have turned off further eviction: wait for evictions already in progress to finish.
+     * Turning it off and this read must be sequentially consistent so that they pair with the busy
+     * count and eviction-off check done when a page is evicted directly.
      */
     while (__wt_atomic_load_uint32_v(&btree->evict_busy) > 0)
         __wt_yield();
