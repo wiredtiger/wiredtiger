@@ -1516,6 +1516,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
     LayeredStat('layered_curs_remove', 'Layered table cursor remove operations'),
     LayeredStat('layered_curs_reopen_stable', 'Layered table cursor reopens the stable btree (role change or checkpoint advance)'),
+    LayeredStat('layered_curs_restore_walk', 'Layered table cursor walk restoration attempts after prepare conflicts'),
     LayeredStat('layered_curs_search', 'Layered table cursor search operations'),
     LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from the ingest btrees'),
     LayeredStat('layered_curs_search_near', 'Layered table cursor search near operations'),
