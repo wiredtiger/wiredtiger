@@ -114,10 +114,11 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &evict->evict_walk_lock);
     /*
      * Turn eviction off before waiting for the busy count to reach zero. Waiting first would let a
-     * direct eviction start after we saw zero and keep running once we return. The add below and
-     * the busy count read in the wait loop are sequentially consistent, as are the busy count add
-     * and the eviction-off check done when a page is evicted directly, so at least one side always
-     * sees the other and exclusive access is safe.
+     * direct eviction start after we saw zero and keep running once we return. Direct eviction does
+     * not take the walk lock, so the add below and the busy count read in the wait loop are
+     * sequentially consistent, as are the busy count add and the eviction-off check done when a
+     * page is evicted directly. That guarantees at least one side sees the other: either the direct
+     * eviction backs out or we wait for it.
      */
     if (__wt_atomic_add_int32(&btree->evict_disabled, 1) > 1) {
         __wt_spin_unlock(session, &evict->evict_walk_lock);
