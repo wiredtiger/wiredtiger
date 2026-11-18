@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 from error_info_util import error_info_util
-from wtscenario import make_scenarios
 
 # test_txn33.py
 # A transaction that dirties more than the eviction updates trigger (or the dirty trigger, whichever
@@ -39,17 +38,12 @@ from wtscenario import make_scenarios
 class test_txn33(error_info_util):
     uri = "table:test_txn33"
 
-    scenarios = make_scenarios([
-        ("default_trigger", dict(trigger_config="")),
-        ("explicit_trigger", dict(trigger_config=",eviction_updates_trigger=10")),
-    ])
-
-    def conn_config(self):
-        return "cache_size=50MB,statistics=(all)" + self.trigger_config
-
-    # Keep values below leaf_value_max and insert enough to exceed either trigger.
+    # A 50MB cache with the default 10% updates trigger puts the threshold at ~5MB. Keep the values
+    # well under the default leaf_value_max so they are stored as ordinary items rather than
+    # overflow items, and insert enough of them to cross the threshold.
+    conn_config = "cache_size=50MB,statistics=(all)"
     value_size = 4 * 1024
-    max_inserts = 40000
+    max_inserts = 4000
 
     # FIXME-WT-15058
     @wttest.skip_for_hook("disagg", "Fails due to incorrect cursor logic.")
