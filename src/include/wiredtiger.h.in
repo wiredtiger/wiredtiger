@@ -8100,43 +8100,43 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * checkpoint advance)
  */
 #define	WT_STAT_CONN_LAYERED_CURS_REOPEN_STABLE		1657
-/*!
- * layered: Layered table cursor saved prepare-blocked key restoration
- * attempts
- */
-#define	WT_STAT_CONN_LAYERED_CURS_RESTORE_WALK		1658
 /*! layered: Layered table cursor search near operations */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1659
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1658
 /*!
  * layered: Layered table cursor search near operations from the ingest
  * btrees
  */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1660
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1659
 /*!
  * layered: Layered table cursor search near operations from the stable
  * btrees
  */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1661
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1660
 /*! layered: Layered table cursor search operations */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1662
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1661
 /*! layered: Layered table cursor search operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1663
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1662
 /*! layered: Layered table cursor search operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1664
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1663
 /*! layered: Layered table cursor stable open raced a checkpoint pickup */
-#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE	1665
+#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE	1664
 /*!
  * layered: Layered table cursor stable open refused to preserve a
  * transaction snapshot
  */
-#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED	1666
+#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED	1665
 /*!
  * layered: Layered table cursor stable open rolled back after racing a
  * step-down
  */
-#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE	1667
+#define	WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE	1666
 /*! layered: Layered table cursor update operations */
-#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1668
+#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1667
+/*!
+ * layered: Layered table cursor walk restoration attempts after prepare
+ * conflicts
+ */
+#define	WT_STAT_CONN_LAYERED_CURS_RESTORE_WALK		1668
 /*! layered: Layered table live stable open refused on a follower */
 #define	WT_STAT_CONN_LAYERED_STABLE_LIVE_OPEN_REFUSED	1669
 /*!
@@ -10428,43 +10428,43 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * checkpoint advance)
  */
 #define	WT_STAT_DSRC_LAYERED_CURS_REOPEN_STABLE		2339
-/*!
- * layered: Layered table cursor saved prepare-blocked key restoration
- * attempts
- */
-#define	WT_STAT_DSRC_LAYERED_CURS_RESTORE_WALK		2340
 /*! layered: Layered table cursor search near operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2341
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2340
 /*!
  * layered: Layered table cursor search near operations from the ingest
  * btrees
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2342
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2341
 /*!
  * layered: Layered table cursor search near operations from the stable
  * btrees
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2343
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2342
 /*! layered: Layered table cursor search operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2344
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2343
 /*! layered: Layered table cursor search operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2345
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2344
 /*! layered: Layered table cursor search operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2346
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2345
 /*! layered: Layered table cursor stable open raced a checkpoint pickup */
-#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE	2347
+#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE	2346
 /*!
  * layered: Layered table cursor stable open refused to preserve a
  * transaction snapshot
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED	2348
+#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED	2347
 /*!
  * layered: Layered table cursor stable open rolled back after racing a
  * step-down
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE	2349
+#define	WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE	2348
 /*! layered: Layered table cursor update operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2350
+#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2349
+/*!
+ * layered: Layered table cursor walk restoration attempts after prepare
+ * conflicts
+ */
+#define	WT_STAT_DSRC_LAYERED_CURS_RESTORE_WALK		2350
 /*! layered: Layered table live stable open refused on a follower */
 #define	WT_STAT_DSRC_LAYERED_STABLE_LIVE_OPEN_REFUSED	2351
 /*!

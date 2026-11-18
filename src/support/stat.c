@@ -365,7 +365,6 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
   "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
-  "layered: Layered table cursor saved prepare-blocked key restoration attempts",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -376,6 +375,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
   "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
+  "layered: Layered table cursor walk restoration attempts after prepare conflicts",
   "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
@@ -866,7 +866,6 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE,
   WT_STAT_DSRC_LAYERED_CURS_REMOVE,
   WT_STAT_DSRC_LAYERED_CURS_REOPEN_STABLE,
-  WT_STAT_DSRC_LAYERED_CURS_RESTORE_WALK,
   WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR,
   WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST,
   WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE,
@@ -877,6 +876,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_REFUSED,
   WT_STAT_DSRC_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE,
   WT_STAT_DSRC_LAYERED_CURS_UPDATE,
+  WT_STAT_DSRC_LAYERED_CURS_RESTORE_WALK,
   WT_STAT_DSRC_LAYERED_STABLE_LIVE_OPEN_REFUSED,
   WT_STAT_DSRC_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_PREFIX,
   WT_STAT_DSRC_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_SUFFIX,
@@ -1402,7 +1402,6 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
     stats->layered_curs_reopen_stable = 0;
-    stats->layered_curs_restore_walk = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -1413,6 +1412,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->layered_curs_open_stable_refused = 0;
     stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
+    stats->layered_curs_restore_walk = 0;
     stats->layered_stable_live_open_refused = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
@@ -1956,7 +1956,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_prev_stable += from->layered_curs_prev_stable;
     to->layered_curs_remove += from->layered_curs_remove;
     to->layered_curs_reopen_stable += from->layered_curs_reopen_stable;
-    to->layered_curs_restore_walk += from->layered_curs_restore_walk;
     to->layered_curs_search_near += from->layered_curs_search_near;
     to->layered_curs_search_near_ingest += from->layered_curs_search_near_ingest;
     to->layered_curs_search_near_stable += from->layered_curs_search_near_stable;
@@ -1968,6 +1967,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_open_stable_refused += from->layered_curs_open_stable_refused;
     to->layered_curs_open_stable_stepdown_race += from->layered_curs_open_stable_stepdown_race;
     to->layered_curs_update += from->layered_curs_update;
+    to->layered_curs_restore_walk += from->layered_curs_restore_walk;
     to->layered_stable_live_open_refused += from->layered_stable_live_open_refused;
     to->layered_curs_stable_value_tombstone_prefix +=
       from->layered_curs_stable_value_tombstone_prefix;
@@ -2553,7 +2553,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_prev_stable += WT_STAT_DSRC_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_DSRC_READ(from, layered_curs_remove);
     to->layered_curs_reopen_stable += WT_STAT_DSRC_READ(from, layered_curs_reopen_stable);
-    to->layered_curs_restore_walk += WT_STAT_DSRC_READ(from, layered_curs_restore_walk);
     to->layered_curs_search_near += WT_STAT_DSRC_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_DSRC_READ(from, layered_curs_search_near_stable);
@@ -2567,6 +2566,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_open_stable_stepdown_race +=
       WT_STAT_DSRC_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
+    to->layered_curs_restore_walk += WT_STAT_DSRC_READ(from, layered_curs_restore_walk);
     to->layered_stable_live_open_refused +=
       WT_STAT_DSRC_READ(from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
@@ -3461,7 +3461,6 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
   "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
-  "layered: Layered table cursor saved prepare-blocked key restoration attempts",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -3472,6 +3471,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
   "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
+  "layered: Layered table cursor walk restoration attempts after prepare conflicts",
   "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
@@ -4627,7 +4627,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_LAYERED_CURS_PREV_STABLE,
   WT_STAT_CONN_LAYERED_CURS_REMOVE,
   WT_STAT_CONN_LAYERED_CURS_REOPEN_STABLE,
-  WT_STAT_CONN_LAYERED_CURS_RESTORE_WALK,
   WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR,
   WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST,
   WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE,
@@ -4638,6 +4637,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED,
   WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_STEPDOWN_RACE,
   WT_STAT_CONN_LAYERED_CURS_UPDATE,
+  WT_STAT_CONN_LAYERED_CURS_RESTORE_WALK,
   WT_STAT_CONN_LAYERED_STABLE_LIVE_OPEN_REFUSED,
   WT_STAT_CONN_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_PREFIX,
   WT_STAT_CONN_LAYERED_CURS_STABLE_VALUE_TOMBSTONE_SUFFIX,
@@ -5821,7 +5821,6 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
     stats->layered_curs_reopen_stable = 0;
-    stats->layered_curs_restore_walk = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -5832,6 +5831,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->layered_curs_open_stable_refused = 0;
     stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
+    stats->layered_curs_restore_walk = 0;
     stats->layered_stable_live_open_refused = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
@@ -7183,7 +7183,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_prev_stable += WT_STAT_CONN_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_CONN_READ(from, layered_curs_remove);
     to->layered_curs_reopen_stable += WT_STAT_CONN_READ(from, layered_curs_reopen_stable);
-    to->layered_curs_restore_walk += WT_STAT_CONN_READ(from, layered_curs_restore_walk);
     to->layered_curs_search_near += WT_STAT_CONN_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_CONN_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_CONN_READ(from, layered_curs_search_near_stable);
@@ -7197,6 +7196,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_open_stable_stepdown_race +=
       WT_STAT_CONN_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
+    to->layered_curs_restore_walk += WT_STAT_CONN_READ(from, layered_curs_restore_walk);
     to->layered_stable_live_open_refused +=
       WT_STAT_CONN_READ(from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
