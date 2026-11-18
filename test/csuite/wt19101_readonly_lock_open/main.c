@@ -123,5 +123,6 @@ main(int argc, char *argv[])
     check_lock_open_failure(opts, flib, EPERM, "EPERM");
     check_lock_open_failure(opts, flib, EROFS, "EROFS");
 
+    testutil_cleanup(opts);
     return (0);
 }
