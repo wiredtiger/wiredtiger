@@ -47,17 +47,14 @@ class AutoCommitStat(Stat):
     prefix = 'autocommit'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags, otel_type)
-
 class BackgroundCompactStat(Stat):
     prefix = 'background-compact'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags, otel_type)
-
 class BackupStat(Stat):
     prefix = 'backup'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
         Stat.__init__(self, name, BackupStat.prefix, desc, flags, otel_type)
-
 class BlockDisaggStat(Stat):
     prefix = 'block-disagg'
     def __init__(self, name, desc, flags='', otel_type='otel_none'):
@@ -589,6 +586,8 @@ conn_stats = [
     CursorStat('cursor_modify_bytes', 'cursor modify key and value bytes affected', 'size'),
     CursorStat('cursor_modify_bytes_touch', 'cursor modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'cursor next calls'),
+    CursorStat('cursor_next_raw_kv_batch', 'cursor next raw key value batch calls'),
+    CursorStat('cursor_next_raw_kv_batch_result', 'number of results returned by cursor next raw key value batch'),
     CursorStat('cursor_prev', 'cursor prev calls'),
     CursorStat('cursor_remove', 'cursor remove calls'),
     CursorStat('cursor_remove_bytes', 'cursor remove key bytes removed', 'size'),
@@ -1236,6 +1235,8 @@ dsrc_stats = [
     CursorStat('cursor_modify_bytes', 'modify key and value bytes affected', 'size'),
     CursorStat('cursor_modify_bytes_touch', 'modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'next calls'),
+    CursorStat('cursor_next_raw_kv_batch', 'cursor next raw key value batch calls'),
+    CursorStat('cursor_next_raw_kv_batch_result', 'number of results returned by cursor next raw key value batch'),
     CursorStat('cursor_prev', 'prev calls'),
     CursorStat('cursor_remove', 'remove calls'),
     CursorStat('cursor_remove_bytes', 'remove key bytes removed', 'size'),
@@ -1470,6 +1471,7 @@ conn_dsrc_stats = [
     CursorErrorStat('cursor_modify_error', 'cursor modify calls that return an error'),
     CursorErrorStat('cursor_next_error', 'cursor next calls that return an error'),
     CursorErrorStat('cursor_next_random_error', 'cursor next random calls that return an error'),
+    CursorErrorStat('cursor_next_raw_kv_batch_error', 'cursor next raw kv batch calls that return an error'),
     CursorErrorStat('cursor_prev_error', 'cursor prev calls that return an error'),
     CursorErrorStat('cursor_reconfigure_error', 'cursor reconfigure calls that return an error'),
     CursorErrorStat('cursor_remove_error', 'cursor remove calls that return an error'),

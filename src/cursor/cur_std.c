@@ -117,6 +117,22 @@ __wti_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 }
 
 /*
+ * __wt_cursor_next_raw_kv_batch_notsup --
+ *     Unsupported cursor batch retrieval.
+ */
+int
+__wt_cursor_next_raw_kv_batch_notsup(
+  WT_CURSOR *cursor, WT_ITEM *keys, WT_ITEM *values, size_t count, size_t *returned_countp)
+{
+    WT_UNUSED(keys);
+    WT_UNUSED(values);
+    WT_UNUSED(count);
+    WT_UNUSED(returned_countp);
+
+    return (__wt_cursor_notsup(cursor));
+}
+
+/*
  * Cursor modify operation is supported only in limited cursor types and also the modify
  * operation is supported only with 'S' and 'u' value formats of the cursors. Because of
  * the conditional support of cursor modify operation, To provide a better error description
