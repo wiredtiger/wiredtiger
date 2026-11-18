@@ -398,9 +398,12 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
         /*
          * Extents of the same size share a bucket and are sorted by offset. The search only looks
          * at each bucket's head, so inserting the higher offset first must not leave it as head.
+         *
+         * The lowest-offset extent is too small for the request, otherwise the search answers from
+         * the head of the by-offset list without looking at the bucket.
          */
         WT_EXTLIST extlist = {};
-        insert(&extlist, {off_size(90, 8), off_size(2, 8)});
+        insert(&extlist, {off_size(1, 1), off_size(90, 8), off_size(2, 8)});
 
         REQUIRE(__ut_block_first_srch(session, &extlist, 8, 0, &stack[0]) == true);
         REQUIRE((*stack[0])->off == 2);

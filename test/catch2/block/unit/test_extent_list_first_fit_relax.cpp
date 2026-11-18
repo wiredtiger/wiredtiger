@@ -145,7 +145,7 @@ TEST_CASE("Extent Lists: first-fit bucket cap", "[extent_list]")
 
     /*
      * The cap only applies when the caller supplies a non-zero limit, which only happens while
-     * compaction is emptying the front of the file.
+     * compaction is emptying the end of the file.
      *
      * The lowest-offset extent must be too small for the request, otherwise the head fast path
      * answers without consulting the buckets at all. Beyond that, the qualifying extents sit in
@@ -417,12 +417,12 @@ TEST_CASE("Extent Lists: first-fit bucket cap", "[extent_list]")
 TEST_CASE("Extent Lists: relaxing is confined to active compaction", "[extent_list]")
 {
     /*
-     * A first-fit search may only stop early while compaction is emptying the front of a file, and
+     * A first-fit search may only stop early while compaction is emptying the end of a file, and
      * the region compaction chose is what says whether that is the case.
      *
-     * The compaction passes do not reset that region themselves -- a pass that stops because it
-     * made no progress leaves the last region it chose behind -- so the region has to be cleared
-     * when compaction ends. Otherwise a file left in first-fit mode would keep relaxing its
+     * Nothing clears that region at the end of a pass -- a pass that stops because it made no
+     * progress leaves the last region it chose behind -- so the region has to be cleared when
+     * compaction ends. Otherwise a file left in first-fit mode would keep relaxing its
      * searches long after compaction finished.
      */
     std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();

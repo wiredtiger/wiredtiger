@@ -42,7 +42,7 @@ from wtscenario import make_scenarios
 # verifies. They do not pin down which extent the lookup picks, nor whether a search stopped early
 # -- a table of this size does not produce enough distinct extent sizes to reach the bucket cap.
 # Those properties are covered deterministically by the block_first_srch unit tests in
-# test_extent_list.cpp.
+# test_extent_list.cpp, and the early stop by test_extent_list_first_fit_relax.cpp.
 class test_compact17(compact_util):
     # A small leaf page keeps each discarded page close to one allocation unit, so the available
     # list ends up holding many small extents instead of a few large ones. That is the shape the
