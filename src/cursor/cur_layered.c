@@ -377,13 +377,14 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
         return;
 
     /*
-     * A follower's stable constituent is always read-only: either a checkpoint view, or a live tree
-     * frozen by a step-down. Only this direction holds; a leader can inherit a read-only stable
+     * A follower's stable constituent is always either a read-only checkpoint view, or a live tree
+     * made outdated by a step-down. Only this direction holds; a leader can inherit such a stable
      * tree across a role change, and the next operation reopens it for the new role.
      */
     WT_ASSERT(CUR2S(clayered),
       clayered->last_role == WTI_CLAYERED_ROLE_LEADER ||
-        F_ISSET_ATOMIC_32(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
+        F_ISSET_ATOMIC_32(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY) ||
+        __wt_atomic_load_bool_relaxed(&CUR2BT(clayered->stable_cursor)->dhandle->outdated));
 }
 
 /* __clayered_enter() local flags. */

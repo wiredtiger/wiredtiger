@@ -3629,6 +3629,10 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (final && !metadata)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
+    /* An outdated disaggregated btree is never written, whether or not it was dirtied. */
+    if (__wt_btree_is_outdated_disagg(session))
+        return (__wt_evict_file(session, WT_SYNC_DISCARD));
+
     /* Closing an unmodified file. */
     modified = __wt_atomic_load_bool_relaxed(&btree->modified);
     if (!modified && !bulk)
