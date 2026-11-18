@@ -47,7 +47,7 @@ class checkpoint_cleanup_resolved_base(test_cc_base):
     re-dirtying it on every pass keeps it, and the references under it, in memory indefinitely.
     """
 
-    uri = "table:test_disagg_checkpoint_cleanup01"
+    uri = "table:cc12"
     nrows = 1000
     value = "a" * 50
     # The range ends partway through the key space so the internal pages around its end keep
@@ -179,7 +179,7 @@ class checkpoint_cleanup_resolved_base(test_cc_base):
 
 
 @disagg_test_class
-class test_disagg_checkpoint_cleanup01(checkpoint_cleanup_resolved_base):
+class test_cc12(checkpoint_cleanup_resolved_base):
     """
     Check that checkpoint cleanup does not keep reprocessing deleted child references it has
     already resolved, in a three-level tree.
@@ -193,7 +193,7 @@ class test_disagg_checkpoint_cleanup01(checkpoint_cleanup_resolved_base):
 
 
 @disagg_test_class
-class test_disagg_checkpoint_cleanup01_four_levels(checkpoint_cleanup_resolved_base):
+class test_cc12_four_levels(checkpoint_cleanup_resolved_base):
     """
     Same check in a four-level tree, so that the grandparent of the deleted leaves is not the
     root. The truncate covers several whole internal pages above the leaves, but no whole page
