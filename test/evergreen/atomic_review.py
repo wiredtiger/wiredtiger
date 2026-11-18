@@ -24,13 +24,13 @@ def needs_review(files):
         TOKENS.search(file.get('patch', '')) for file in files)
 
 
-def api(url, method='GET', body=None):
+def api(url, body=None):
     headers = {'Authorization': f"Bearer {os.environ['GITHUB_TOKEN']}",
         'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}
     data = json.dumps(body).encode() if body is not None else None
 
-    with urlopen(Request(url, data=data, headers=headers, method=method), timeout=30) as response:
-        if response.status != {'GET': 200, 'POST': 201, 'DELETE': 200}[method]:
+    with urlopen(Request(url, data=data, headers=headers), timeout=30) as response:
+        if response.status != (200 if body is None else 201):
             raise ValueError(f'Unexpected HTTP status: {response.status}')
 
         return json.load(response), response.headers.get('Link', '')
@@ -59,15 +59,15 @@ def run(number):
     requested = any(team['slug'] == TEAM for team in pr['requested_teams'])
     print(f'Expert review needed: {needed}; already requested: {requested}')
 
-    if needed != requested:
-        method = 'POST' if needed else 'DELETE'
-        pr, _ = api(f'{url}/requested_reviewers', method,
+    # Preserve existing requests because GitHub does not identify who requested the team here.
+    if needed and not requested:
+        pr, _ = api(f'{url}/requested_reviewers',
             body={'reviewers': [], 'team_reviewers': [TEAM]})
 
-        if any(team['slug'] == TEAM for team in pr['requested_teams']) != needed:
+        if not any(team['slug'] == TEAM for team in pr['requested_teams']):
             raise ValueError('GitHub did not apply the expected review request')
 
-        print(f'{method}: review request for @wiredtiger/{TEAM}')
+        print(f'POST: review request for @wiredtiger/{TEAM}')
 
 
 if __name__ == '__main__':
