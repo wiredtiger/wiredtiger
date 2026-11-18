@@ -1414,6 +1414,7 @@ err:
 int
 __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
 {
+    struct timespec tsp;
     WT_CONNECTION_IMPL *conn;
     WTI_LOG *log;
     bool created_log, log_to_close;
@@ -1438,6 +1439,14 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
      */
     if (F_ISSET(log, WTI_LOG_FORCE_NEWFILE) || !__log_size_fit(session, &log->alloc_lsn, recsize)) {
         WT_RET(__log_newfile(session, false, &created_log, &log_to_close));
+        /*
+         * Timing stress: pause with the new file published into alloc_lsn but before the
+         * force-new-file request is consumed, widening the window where a concurrent backup can
+         * capture this file and then lose its own request.
+         */
+        tsp.tv_sec = 0;
+        tsp.tv_nsec = 100 * WT_MILLION;
+        __wt_timing_stress(session, WT_TIMING_STRESS_LOG_NEWFILE_SLOW, &tsp);
         if (log_to_close)
             F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
         F_CLR(log, WTI_LOG_FORCE_NEWFILE);
