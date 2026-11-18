@@ -1481,7 +1481,6 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
             /* Restore the history store update to the update chain. */
             WT_ERR(__txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
         else {
-            ret = 0;
             /*
              * Append a globally visible tombstone to the end of the chain. When reconciliation
              * later drops the rolled-back prepared cell, the tombstone remains as the correct
