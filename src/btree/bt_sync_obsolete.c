@@ -60,9 +60,12 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (__sync_obsolete_limit_reached(session))
         return (false);
 
-    /* Ensure there is globally visible content. */
-    if (!__wt_txn_has_newest_and_visible_all(
-          session, ta.newest_txn, WT_MAX(ta.newest_durable_ts, ta.newest_page_stop_durable_ts)))
+    /*
+     * Ensure there is globally visible content. newest_durable_ts already captures the maximum
+     * durable timestamp across all modifications including deletes, so it is always >=
+     * newest_page_stop_durable_ts; no need for WT_MAX here.
+     */
+    if (!__wt_txn_has_newest_and_visible_all(session, ta.newest_txn, ta.newest_durable_ts))
         return (false);
 
     return (true);
@@ -474,10 +477,12 @@ __checkpoint_cleanup_page_skip(
         *skipp = true;
     else if (addr.ta.newest_page_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
-          !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-        if (!*skipp)
+        if (F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) &&
+          F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
+            *skipp = false;
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
+        } else
+            *skipp = true;
     }
 
     /*
@@ -494,6 +499,9 @@ __checkpoint_cleanup_page_skip(
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }
+
+    if (!*skipp)
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read);
 
     if (*skipp) {
         __wt_verbose_debug2(
