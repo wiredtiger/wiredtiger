@@ -112,7 +112,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 
     /* Hold the walk lock to turn off eviction. */
     __wt_spin_lock(session, &evict->evict_walk_lock);
-    if (++btree->evict_disabled > 1) {
+    if (__wt_atomic_add_int32(&btree->evict_disabled, 1) > 1) {
         __wt_spin_unlock(session, &evict->evict_walk_lock);
         return (0);
     }
@@ -158,14 +158,16 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &evict->evict_queue_lock);
 
     /*
-     * We have disabled further eviction: wait for concurrent LRU eviction activity to drain.
+     * We have disabled further eviction: wait for evictions already in progress to finish. The
+     * disable and this read must be sequentially consistent so that they pair with the busy count
+     * and disable check done when a page is evicted directly.
      */
-    while (__wt_tsan_suppress_load_uint32_v(&btree->evict_busy) > 0)
+    while (__wt_atomic_load_uint32_v(&btree->evict_busy) > 0)
         __wt_yield();
 
     if (0) {
 err:
-        --btree->evict_disabled;
+        (void)__wt_atomic_sub_int32(&btree->evict_disabled, 1);
     }
     __wt_spin_unlock(session, &evict->evict_walk_lock);
     return (ret);

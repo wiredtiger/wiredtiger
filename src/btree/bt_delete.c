@@ -123,12 +123,19 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             return (0);
         }
 
+        /* Mark ourselves busy before doing any eviction work, so a disable waits for all of it. */
+        if (!__wt_evict_busy_incr(session)) {
+            WT_REF_SET_STATE(ref, previous_state);
+            __delete_page_fallback_stat(session, ref, true);
+            return (0);
+        }
+
         ret = __wt_curhs_cache(session);
         if (ret != 0) {
             WT_REF_SET_STATE(ref, previous_state);
+            (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
             return (ret);
         }
-        (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
         ret = __wt_evict(session, ref, previous_state, 0);
         (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
         WT_RET_BUSY_OK(ret);

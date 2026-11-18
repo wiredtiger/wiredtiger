@@ -31,6 +31,37 @@ __evict_min_walk_pages(
 }
 
 /*
+ * __wt_evict_busy_incr --
+ *     Try to start evicting a page directly. Return false if eviction is disabled for the tree. On
+ *     success, the caller must decrement the busy count when the eviction attempt is finished.
+ */
+static WT_INLINE bool
+__wt_evict_busy_incr(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    /*
+     * Mark ourselves busy first, then check whether eviction is disabled. Whoever disables eviction
+     * waits for the busy count to reach zero, so either they wait for us or we see the disable and
+     * back out.
+     */
+    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
+    /*
+     * We write the busy count and then read the disable flag, while the other side writes the
+     * disable flag and then reads the busy count. These are two different variables, so only
+     * sequentially consistent operations guarantee that at least one side sees the other's write.
+     */
+    if (__wt_atomic_load_int32(&btree->evict_disabled) != 0) {
+        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+        return (false);
+    }
+
+    return (true);
+}
+
+/*
  * __evict_wake_waiters --
  *     Wake threads waiting for eviction candidates: n of them if bounded wake is configured, else
  *     all of them.
