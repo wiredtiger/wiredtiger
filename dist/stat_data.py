@@ -1405,7 +1405,6 @@ conn_dsrc_stats = [
     CheckpointCleanupStat('checkpoint_cleanup_pages_deleted_not_visible_all', 'internal pages whose deleted children were all still visible to some reader'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window'),
-    CheckpointCleanupStat('checkpoint_cleanup_pages_read', 'pages read into cache by checkpoint cleanup'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache due to obsolete time window'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache (reclaim_space)'),
     CheckpointCleanupStat('checkpoint_cleanup_pages_removed', 'pages removed'),

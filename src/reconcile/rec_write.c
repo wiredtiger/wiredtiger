@@ -1724,6 +1724,20 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t 
 }
 
 /*
+ * __rec_split_merge_ta --
+ *     Merge the time aggregate of a key range into a chunk. Unlike an internal page, a leaf only
+ *     has a page stop durable timestamp when every key in it is deleted.
+ */
+static WT_INLINE void
+__rec_split_merge_ta(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source)
+{
+    WT_TIME_AGGREGATE_MERGE(session, dest, source);
+    if (!WT_PAGE_IS_INTERNAL(r->page) && !WT_TIME_AGGREGATE_HAS_STOP(dest))
+        dest->newest_page_stop_durable_ts = WT_TS_NONE;
+}
+
+/*
  * __rec_split_finish_process_prev --
  *     If the two split chunks together fit in a single page, merge them into one. If they do not
  *     fit in a single page but the last is smaller than the minimum desired, move some data from
@@ -1758,7 +1772,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * boundaries and create a single chunk.
          */
         prev_ptr->entries += cur_ptr->entries;
-        WT_TIME_AGGREGATE_MERGE(session, &prev_ptr->ta, &cur_ptr->ta);
+        __rec_split_merge_ta(session, r, &prev_ptr->ta, &cur_ptr->ta);
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
           WT_PAGE_HEADER_WRITE_BYTE(btree, dsk),
@@ -1805,8 +1819,10 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_TIME_AGGREGATE_MERGE(session, &temp_ta, &prev_ptr->ta_after_split_boundary);
             /*
              * We track a bit more information than we need to because ta should always be a
-             * combination of the before split ta and after split ta. We can assert that here.
+             * combination of the before split ta and after split ta. The page stop durable
+             * timestamp is excluded because merging can retain the value of a fully deleted range.
              */
+            temp_ta.newest_page_stop_durable_ts = prev_ptr->ta.newest_page_stop_durable_ts;
             WT_ASSERT(session, memcmp(&prev_ptr->ta, &temp_ta, sizeof(WT_TIME_AGGREGATE)) == 0);
         }
 #endif
@@ -1816,7 +1832,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         cur_ptr->recno = prev_ptr->recno_at_split_boundary;
         WT_RET(__wt_buf_set(session, &cur_ptr->key, prev_ptr->key_at_split_boundary.data,
           prev_ptr->key_at_split_boundary.size));
-        WT_TIME_AGGREGATE_MERGE(session, &cur_ptr->ta, &prev_ptr->ta_after_split_boundary);
+        __rec_split_merge_ta(session, r, &cur_ptr->ta, &prev_ptr->ta_after_split_boundary);
         cur_ptr->image.size += len_to_move;
 
         prev_ptr->entries = prev_ptr->entries_before_split_boundary;
