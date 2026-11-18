@@ -62,7 +62,7 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
 
     /* Ensure there is globally visible content. */
     if (!__wt_txn_has_newest_and_visible_all(
-          session, ta.newest_txn, WT_MAX(ta.newest_start_durable_ts, ta.newest_stop_durable_ts)))
+          session, ta.newest_txn, WT_MAX(ta.newest_durable_ts, ta.newest_page_stop_durable_ts)))
         return (false);
 
     return (true);
@@ -471,7 +471,7 @@ __checkpoint_cleanup_page_skip(
      */
     if (addr.type == WT_ADDR_LEAF_NO)
         *skipp = true;
-    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+    else if (addr.ta.newest_page_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
         *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
