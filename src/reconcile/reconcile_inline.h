@@ -15,10 +15,10 @@
 static WT_INLINE void
 __rec_cell_addr_stats(WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 {
-    if (ta->newest_start_durable_ts != WT_TS_NONE)
-        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_START_DURABLE_TS);
-    if (ta->newest_stop_durable_ts != WT_TS_NONE)
-        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_DURABLE_TS);
+    if (ta->newest_durable_ts != WT_TS_NONE)
+        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_DURABLE_TS);
+    if (ta->newest_page_stop_durable_ts != WT_TS_NONE)
+        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_PAGE_STOP_DURABLE_TS);
     if (ta->oldest_start_ts != WT_TS_NONE)
         FLD_SET(r->ts_usage_flags, WTI_REC_TIME_OLDEST_START_TS);
     if (ta->newest_txn != WT_TXN_NONE)
@@ -38,10 +38,10 @@ __rec_cell_addr_stats(WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 static WT_INLINE void
 __rec_delta_cell_addr_stats(WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 {
-    if (ta->newest_start_durable_ts != WT_TS_NONE)
-        FLD_SET(r->delta_ts_usage_flags, WTI_REC_TIME_NEWEST_START_DURABLE_TS);
-    if (ta->newest_stop_durable_ts != WT_TS_NONE)
-        FLD_SET(r->delta_ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_DURABLE_TS);
+    if (ta->newest_durable_ts != WT_TS_NONE)
+        FLD_SET(r->delta_ts_usage_flags, WTI_REC_TIME_NEWEST_DURABLE_TS);
+    if (ta->newest_page_stop_durable_ts != WT_TS_NONE)
+        FLD_SET(r->delta_ts_usage_flags, WTI_REC_TIME_NEWEST_PAGE_STOP_DURABLE_TS);
     if (ta->oldest_start_ts != WT_TS_NONE)
         FLD_SET(r->delta_ts_usage_flags, WTI_REC_TIME_OLDEST_START_TS);
     if (ta->newest_txn != WT_TXN_NONE)
@@ -158,7 +158,7 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool is_delta)
 {
     uint32_t count_durable_start_ts, count_start_ts, count_start_txn, count_durable_stop_ts,
       count_stop_ts, count_stop_txn, count_prepare;
-    uint8_t ts_usage_flags;
+    uint16_t ts_usage_flags;
     if (is_delta) {
         count_durable_start_ts = r->count_delta_durable_start_ts;
         count_start_ts = r->count_delta_start_ts;
@@ -181,10 +181,10 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool is_delta)
 
     if (WT_PAGE_IS_INTERNAL(r->page)) {
         /* Time aggregate statistics */
-        if (FLD_ISSET(ts_usage_flags, WTI_REC_TIME_NEWEST_START_DURABLE_TS))
-            WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_start_durable_ts);
-        if (FLD_ISSET(ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_DURABLE_TS))
-            WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_stop_durable_ts);
+        if (FLD_ISSET(ts_usage_flags, WTI_REC_TIME_NEWEST_DURABLE_TS))
+            WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_durable_ts);
+        if (FLD_ISSET(ts_usage_flags, WTI_REC_TIME_NEWEST_PAGE_STOP_DURABLE_TS))
+            WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_page_stop_durable_ts);
         if (FLD_ISSET(ts_usage_flags, WTI_REC_TIME_OLDEST_START_TS))
             WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_oldest_start_ts);
         if (FLD_ISSET(ts_usage_flags, WTI_REC_TIME_NEWEST_TXN))

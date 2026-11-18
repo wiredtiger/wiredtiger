@@ -8951,15 +8951,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: pages eligible for delta generation */
 #define	WT_STAT_CONN_REC_PAGE_DELTA_ELIGIBLE		1950
 /*!
- * reconciliation: pages written including an aggregated newest start
- * durable timestamp
+ * reconciliation: pages written including an aggregated newest durable
+ * timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	1951
+#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_DURABLE_TS	1951
 /*!
- * reconciliation: pages written including an aggregated newest stop
+ * reconciliation: pages written including an aggregated newest page stop
  * durable timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	1952
+#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_PAGE_STOP_DURABLE_TS	1952
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
@@ -10717,15 +10717,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: pages eligible for delta generation */
 #define	WT_STAT_DSRC_REC_PAGE_DELTA_ELIGIBLE		2427
 /*!
- * reconciliation: pages written including an aggregated newest start
- * durable timestamp
+ * reconciliation: pages written including an aggregated newest durable
+ * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2428
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_DURABLE_TS	2428
 /*!
- * reconciliation: pages written including an aggregated newest stop
+ * reconciliation: pages written including an aggregated newest page stop
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2429
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_PAGE_STOP_DURABLE_TS	2429
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
