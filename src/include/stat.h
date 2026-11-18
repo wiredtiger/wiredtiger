@@ -959,6 +959,7 @@ struct __wt_connection_stats {
     int64_t cursor_next_skip_lt_100;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_random_error;
+    int64_t cursor_next_raw_kv_batch;
     int64_t cursor_next_raw_kv_batch_error;
     int64_t cursor_restart;
     int64_t cursor_prev;
@@ -991,6 +992,7 @@ struct __wt_connection_stats {
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
     int64_t cursor_reopen;
+    int64_t cursor_next_raw_kv_batch_result;
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
@@ -1073,7 +1075,6 @@ struct __wt_connection_stats {
     int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
-    int64_t layered_curs_next_raw_kv_batch;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;
@@ -1837,6 +1838,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_skip_lt_100;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_random_error;
+    int64_t cursor_next_raw_kv_batch;
     int64_t cursor_next_raw_kv_batch_error;
     int64_t cursor_prev_error;
     int64_t cursor_prev_hs_tombstone;
@@ -1856,6 +1858,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_modify_bytes;
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
+    int64_t cursor_next_raw_kv_batch_result;
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
@@ -1882,7 +1885,6 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
-    int64_t layered_curs_next_raw_kv_batch;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;

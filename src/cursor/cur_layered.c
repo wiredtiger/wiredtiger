@@ -2192,7 +2192,7 @@ __clayered_next_raw_kv_batch(
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_raw_kv_batch);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch);
 
     *returned_countp = 0;
 
@@ -2210,6 +2210,7 @@ __clayered_next_raw_kv_batch(
 
     /* FIXME-WT-19064: We will need to increment by the returned count. */
     WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_next);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_next_raw_kv_batch_result, *returned_countp);
 
 err:
     API_END_RET(session, ret);
