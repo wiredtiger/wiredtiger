@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 # abandons its incomplete checkpoint on step-up: the page log keeps the installed checkpoint and
 # drops the newer one.
 @disagg_test_class
-class test_layered_stepup18(wttest.WiredTigerTestCase):
+class test_layered_stepup19(wttest.WiredTigerTestCase):
     test_name = __qualname__
     uri = f'layered:{test_name}'
 
