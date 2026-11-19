@@ -127,15 +127,6 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
 
     /*
-     * Mark ourselves busy before doing any eviction work, so that turning off eviction for the tree
-     * waits for all of it.
-     */
-    if (!__wt_evict_busy_incr(session)) {
-        WT_REF_SET_STATE(ref, previous_state);
-        return (EBUSY);
-    }
-
-    /*
      * There is no need to cache a history store cursor if evicting a readonly page. That includes
      * pages from a checkpoint. Note that opening a history store cursor on a checkpoint page from
      * here will explode because the identity of the matching history store checkpoint isn't
@@ -147,9 +138,18 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         if (ret != 0) {
             WT_ASSERT(session, locked);
             WT_REF_SET_STATE(ref, previous_state);
-            (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
             return (ret);
         }
+    }
+
+    /*
+     * Mark ourselves busy only after caching the history store cursor: opening it can wait for the
+     * handle list lock, which a thread turning off eviction for the tree may hold while it waits
+     * for busy evictions to finish.
+     */
+    if (!__wt_evict_busy_incr(session)) {
+        WT_REF_SET_STATE(ref, previous_state);
+        return (EBUSY);
     }
     ret = __wt_evict(session, ref, previous_state, evict_flags);
     (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
