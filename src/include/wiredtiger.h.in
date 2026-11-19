@@ -5617,6 +5617,9 @@ struct __wt_page_log {
     /*!
      * Abandon an incomplete checkpoint.
      *
+     * FIXME-WT-19115: this interface is deprecated in favour of
+     * WT_PAGE_LOG::pl_abandon_checkpoint_ext and will be removed.
+     *
      * @errors
      *
      * @param page_log the WT_PAGE_LOG
@@ -5625,11 +5628,11 @@ struct __wt_page_log {
     int (*pl_abandon_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 
     /*!
-     * Abandon an incomplete checkpoint up to the last completed checkpoint's LSN.
+     * Abandon an incomplete checkpoint: drop the pages and checkpoint records written after the
+     * given checkpoint.
      *
-     * This is an optional function. When it is set, WiredTiger calls it instead of
-     * WT_PAGE_LOG::pl_abandon_checkpoint, and only when it knows the LSN of the last completed
-     * checkpoint. When the LSN is unknown, WiredTiger leaves the page log unchanged.
+     * When the last completed checkpoint's LSN is unknown, WiredTiger leaves the page log
+     * unchanged.
      *
      * @errors
      *
