@@ -13,7 +13,8 @@ static int __disagg_check_meta_fields(
   WT_SESSION_IMPL *, const char *, const char *, WT_CONFIG *, WT_CONFIG *);
 #endif
 
-static int __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *, const char *, size_t);
+static int __disagg_adopt_deferred_checkpoint_meta(
+  WT_SESSION_IMPL *, const char *, size_t, uint64_t);
 
 #define WT_DISAGG_URI_IS_SYSTEM(uri) (WT_IS_URI_METADATA(uri) || WT_IS_URI_HS(uri))
 
@@ -1613,7 +1614,8 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
  *     deliveries never wait behind an adoption.
  */
 static int
-__disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t lsn)
+__disagg_defer_checkpoint(
+  WT_SESSION_IMPL *session, char **meta_strp, uint64_t lsn, uint64_t complete_lsn)
 {
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *newest;
@@ -1633,6 +1635,7 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
      * an entry discards all older ones, which bounds the queue.
      */
     WT_ERR(__wt_calloc_one(session, &entry));
+    entry->complete_lsn = complete_lsn;
     entry->lsn = lsn;
     entry->queued_time = __wt_clock(session);
     entry->meta = *meta_strp;
@@ -1856,8 +1859,8 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
  *     behind an adoption. Returns WT_NOTFOUND when no entry may be adopted.
  */
 static int
-__disagg_deferred_copy(
-  WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp, uint64_t *wait_msp)
+__disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp,
+  uint64_t *complete_lsnp, uint64_t *wait_msp)
 {
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *selected;
@@ -1866,6 +1869,7 @@ __disagg_deferred_copy(
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
+    *complete_lsnp = WT_DISAGG_LSN_NONE;
     *wait_msp = 0;
 
     /*
@@ -1887,6 +1891,7 @@ __disagg_deferred_copy(
         ret = WT_NOTFOUND;
     else {
         *lsnp = selected->lsn;
+        *complete_lsnp = selected->complete_lsn;
         *wait_msp = WT_CLOCKDIFF_MS(__wt_clock(session), selected->queued_time);
         /*
          * Copy the metadata: the adoption runs without this lock, and a concurrent adoption's
@@ -1908,9 +1913,10 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 {
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    uint64_t deferred_lsn, wait_ms;
+    uint64_t complete_lsn, deferred_lsn, wait_ms;
     char *meta_copy = NULL;
 
+    complete_lsn = WT_DISAGG_LSN_NONE;
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
     /* Nothing queued means nothing to adopt, even when forced: skip the scan and the queue lock. */
@@ -1918,12 +1924,14 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
         return (0);
 
     /* Having nothing to adopt is the common case, not a failure. */
-    ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn, &wait_ms);
+    ret = __disagg_deferred_copy(
+      session, force, &meta_copy, &deferred_lsn, &complete_lsn, &wait_ms);
     if (ret == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
 
-    ret = __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy));
+    ret = __disagg_adopt_deferred_checkpoint_meta(
+      session, meta_copy, strlen(meta_copy), complete_lsn);
     if (ret == 0)
         WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, (int64_t)wait_ms);
 
@@ -1961,11 +1969,14 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     WT_CONNECTION_IMPL *conn = S2C(session);
 
     /*
-     * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
-     * updates are protected by the checkpoint lock.
+     * Update the checkpoint's LSNs: the metadata page's and the one at which the checkpoint
+     * completed. They are adopted together, so an abandon always names the checkpoint this node
+     * actually installed. This doesn't require further synchronization, because the updates are
+     * protected by the checkpoint lock.
      */
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
+    conn->disaggregated_storage.last_checkpoint_lsn = ckpt_meta->complete_lsn;
     /* Publish the adopted LSN as a statistic: adoption is asynchronous when deferred. */
     WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)ckpt_meta->metadata_lsn);
 
@@ -2307,7 +2318,7 @@ err:
  */
 static int
 __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
-  size_t meta_data_size, bool force, bool superseded_ok)
+  size_t meta_data_size, bool force, bool superseded_ok, uint64_t complete_lsn)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -2319,6 +2330,7 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     bool adopted_on_delivery, encoding, prev_adopted, prev_encoding;
 
     WT_CLEAR(ckpt_meta);
+    ckpt_meta.complete_lsn = complete_lsn;
     disagg = &S2C(session)->disaggregated_storage;
     meta_str = NULL;
     internal_session = NULL;
@@ -2400,7 +2412,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     if (!force &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn)) {
         if (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
-            WT_ERR(__disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn));
+            WT_ERR(__disagg_defer_checkpoint(
+              session, &meta_str, ckpt_meta.metadata_lsn, complete_lsn));
             /* Wake the pickup server: the delivery may already be adoptable. */
             __wt_disagg_deferred_pickup_signal(session, 0);
             goto err;
@@ -2447,10 +2460,11 @@ err:
  *     error here: nothing races this caller, so going backwards means the checkpoint is wrong.
  */
 int
-__wti_disagg_pick_up_checkpoint_meta(
-  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool force)
+__wti_disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
+  size_t meta_data_size, bool force, uint64_t complete_lsn)
 {
-    return (__disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, force, false));
+    return (__disagg_pick_up_checkpoint_meta(
+      session, meta_data, meta_data_size, force, false, complete_lsn));
 }
 
 /*
@@ -2462,9 +2476,10 @@ __wti_disagg_pick_up_checkpoint_meta(
  */
 static int
 __disagg_adopt_deferred_checkpoint_meta(
-  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size)
+  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, uint64_t complete_lsn)
 {
-    return (__disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, true, true));
+    return (__disagg_pick_up_checkpoint_meta(
+      session, meta_data, meta_data_size, true, true, complete_lsn));
 }
 
 #ifdef HAVE_UNITTEST

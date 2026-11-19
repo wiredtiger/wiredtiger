@@ -2189,25 +2189,15 @@ public:
     }
 
     void
-    abandon_checkpoint()
+    abandon_checkpoint(uint64_t last_checkpoint_lsn)
     {
-        uint64_t checkpoint_lsn = 0;
-
         /* Ensure exclusive access to storage since we update multiple tables. */
         std::unique_lock write_lock(store_access);
 
-        /* Request LSN = 0: get the most recent checkpoint. */
-        int ret =
-          checkpoints.get(0u, &checkpoint_lsn, nullptr, nullptr, Checkpoints::AccessMode::BYPASS);
-        if (ret == WT_NOTFOUND) {
-            LOG_DEBUG("No checkpoint found to abandon; lsn = {}", checkpoint_lsn);
-            return;
-        }
-
         /* Note: global LSN counter is not decremented. */
 
-        /* Proceed to delete records up to the checkpoint LSN. */
-        delete_records(checkpoint_lsn);
+        /* Delete the records above the checkpoint the caller named. */
+        delete_records(last_checkpoint_lsn);
     }
 };
 
@@ -2504,10 +2494,17 @@ public:
      * given LSN.
      */
     int
-    abandon_checkpoint()
+    abandon_checkpoint(uint64_t last_checkpoint_lsn)
     {
-        LOG_DEBUG("Abandoning checkpoint");
-        storage.abandon_checkpoint();
+        /*
+         * The caller names the last completed checkpoint; without a boundary there is nothing safe
+         * to discard, so refuse rather than guessing.
+         */
+        if (last_checkpoint_lsn == 0)
+            return EINVAL;
+
+        LOG_DEBUG("Abandoning checkpoint, last_checkpoint_lsn={}", last_checkpoint_lsn);
+        storage.abandon_checkpoint(last_checkpoint_lsn);
 
         return 0;
     }
@@ -2635,9 +2632,11 @@ palite_add_reference(WT_PAGE_LOG *page_log)
 }
 
 static int
-palite_abandon_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *sess)
+palite_abandon_checkpoint_ext(
+  WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_ABANDON_CHECKPOINT_ARGS *args)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::abandon_checkpoint);
+    return safe_call<Palite>(
+      sess, page_log, &Palite::abandon_checkpoint, args->last_checkpoint_lsn);
 }
 
 static int
@@ -2694,7 +2693,7 @@ void
 Palite::initialize_interface()
 {
     pl_add_reference = palite_add_reference;
-    pl_abandon_checkpoint = palite_abandon_checkpoint;
+    pl_abandon_checkpoint_ext = palite_abandon_checkpoint_ext;
     pl_complete_checkpoint = palite_complete_checkpoint;
     pl_get_complete_checkpoint = palite_get_complete_checkpoint;
     pl_get_last_lsn = palite_get_last_lsn;

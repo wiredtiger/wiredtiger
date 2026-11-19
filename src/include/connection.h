@@ -282,6 +282,7 @@ struct __wt_page_delta_config {
  *     Checkpoint metadata structure for disaggregated storage.
  */
 typedef struct __wt_disagg_checkpoint_meta {
+    uint64_t complete_lsn; /* The LSN at which the checkpoint completed. */
     uint64_t metadata_lsn; /* The LSN of the metadata page. */
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
@@ -316,6 +317,7 @@ struct __wt_repair {
  *      active.
  */
 struct __wt_disagg_deferred_ckpt {
+    uint64_t complete_lsn; /* LSN at which the checkpoint completed */
     uint64_t lsn;         /* Checkpoint metadata LSN */
     uint64_t queued_time; /* Clock reading when the checkpoint was deferred */
     char *meta;           /* Checkpoint metadata configuration */

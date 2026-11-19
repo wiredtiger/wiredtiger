@@ -5596,7 +5596,7 @@ struct __wt_page_log {
      *
      * This is an optional function. When it is set, WiredTiger calls it instead of
      * WT_PAGE_LOG::pl_abandon_checkpoint, and only when it knows the LSN of the last completed
-     * checkpoint.
+     * checkpoint. When the LSN is unknown, WiredTiger leaves the page log unchanged.
      *
      * @errors
      *
