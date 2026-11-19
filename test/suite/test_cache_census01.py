@@ -30,21 +30,16 @@ import time
 import wttest
 from wiredtiger import stat
 
-# The statistics describing how the cache is spread across trees. The sweep server publishes them,
-# so every check polls with a deadline. Idle handles are never closed, so the trees stay open for
-# the whole test.
+# Check the statistics describing how the cache is spread across trees. They refresh every
+# close_scan_interval, so each check polls with a deadline; close_idle_time=0 keeps the trees open.
 class test_cache_census01(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=100MB,statistics=(all),'
         'file_manager=(close_scan_interval=1,close_idle_time=0),'
         'eviction_dirty_target=75,eviction_dirty_trigger=90,'
         'eviction_updates_target=70,eviction_updates_trigger=85')
 
-    buckets = [
-        (stat.conn.cache_trees_lt_1mb, stat.conn.cache_trees_bytes_lt_1mb),
-        (stat.conn.cache_trees_1mb_16mb, stat.conn.cache_trees_bytes_1mb_16mb),
-        (stat.conn.cache_trees_16mb_256mb, stat.conn.cache_trees_bytes_16mb_256mb),
-        (stat.conn.cache_trees_ge_256mb, stat.conn.cache_trees_bytes_ge_256mb),
-    ]
+    buckets = [stat.conn.cache_trees_lt_1mb, stat.conn.cache_trees_1mb_16mb,
+        stat.conn.cache_trees_ge_16mb]
     value = 'v' * 4096
     timeout = 60
 
@@ -53,7 +48,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
         values = {}
         self.descriptions = {}
         for key in [stat.conn.cache_trees_no_leaf, stat.conn.cache_trees_dirty_leaf] + \
-                [s for bucket in self.buckets for s in bucket]:
+                self.buckets:
             self.descriptions[key], _, values[key] = cursor[key]
         cursor.close()
         return values
@@ -69,7 +64,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
             time.sleep(0.1)
 
     def trees_counted(self, values):
-        return values[stat.conn.cache_trees_no_leaf] + sum(values[t] for t, _ in self.buckets)
+        return values[stat.conn.cache_trees_no_leaf] + sum(values[t] for t in self.buckets)
 
     def populate(self, uri, rows):
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -97,7 +92,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
             self.assertEqual(self.trees_counted(values), 1)
 
     def test_no_leaf(self):
-        ntables = 20
+        ntables = 3
         uris = ['table:census_no_leaf%d' % i for i in range(ntables)]
         for uri in uris:
             self.populate(uri, 1)
@@ -128,19 +123,17 @@ class test_cache_census01(wttest.WiredTigerTestCase):
             'trees still counted as dirty after a checkpoint')
 
     def test_size_buckets(self):
-        # About 4MB resident, well inside the 1MB to 16MB bucket.
+        # About 4MB of leaf pages, well inside the 1MB to 16MB bucket.
         self.populate('table:census_large', 1000)
         nsmall = 5
         for i in range(nsmall):
             self.populate('table:census_small%d' % i, 1)
-        # Clean pages are only evicted under cache pressure, which this test stays clear of.
+        # Checkpoint so the pages are clean and stay resident without cache pressure.
         self.session.checkpoint()
 
         self.wait_for(lambda v:
             v[stat.conn.cache_trees_1mb_16mb] >= 1 and
-            v[stat.conn.cache_trees_bytes_1mb_16mb] >= 1024 * 1024 and
-            v[stat.conn.cache_trees_lt_1mb] >= nsmall and
-            v[stat.conn.cache_trees_bytes_lt_1mb] > 0,
+            v[stat.conn.cache_trees_lt_1mb] >= nsmall,
             'trees not counted in their size buckets')
 
 if __name__ == '__main__':

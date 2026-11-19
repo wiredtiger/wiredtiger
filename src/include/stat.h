@@ -522,10 +522,6 @@ struct __wt_connection_stats {
     int64_t cache_bytes_hs;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
-    int64_t cache_trees_bytes_16mb_256mb;
-    int64_t cache_trees_bytes_1mb_16mb;
-    int64_t cache_trees_bytes_ge_256mb;
-    int64_t cache_trees_bytes_lt_1mb;
     int64_t cache_bytes_other;
     int64_t cache_scrub_image_bytes;
     int64_t cache_bytes_read;
@@ -810,10 +806,9 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_pages_dirty_ingest;
     int64_t cache_pages_dirty_stable;
-    int64_t cache_trees_dirty_leaf;
-    int64_t cache_trees_16mb_256mb;
+    int64_t cache_trees_ge_16mb;
     int64_t cache_trees_1mb_16mb;
-    int64_t cache_trees_ge_256mb;
+    int64_t cache_trees_dirty_leaf;
     int64_t cache_trees_lt_1mb;
     int64_t cache_trees_no_leaf;
     int64_t cache_eviction_blocked_uncommitted_truncate;
