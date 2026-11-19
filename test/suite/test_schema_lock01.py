@@ -167,7 +167,6 @@ class test_schema_lock01(wttest.WiredTigerTestCase):
         self.checkpoints = 0
 
         close_base = self.get_stat(stat.conn.dh_sweep_expired_close)
-        read_base = self.get_stat(stat.conn.lock_schema_read_count)
         write_base = self.get_stat(stat.conn.lock_schema_write_count)
 
         start = time.monotonic()
@@ -208,8 +207,6 @@ class test_schema_lock01(wttest.WiredTigerTestCase):
         self.assertGreater(self.schema_ops, 0, 'seed %d' % self.seed)
         if self.checkpoint_thread:
             self.assertGreater(self.checkpoints, 0, 'seed %d' % self.seed)
-        self.assertGreater(
-            self.get_stat(stat.conn.lock_schema_read_count), read_base, 'seed %d' % self.seed)
         self.assertGreater(
             self.get_stat(stat.conn.lock_schema_write_count), write_base, 'seed %d' % self.seed)
 

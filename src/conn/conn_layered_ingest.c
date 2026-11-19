@@ -285,8 +285,8 @@ err:
 /*
  * __wti_layered_ingest_create_on_open --
  *     Ensure the session's handle, if it is the live ingest constituent of a layered table, has a
- *     metadata entry to open, creating it from the layered table. Return ENOENT, as for any missing
- *     object, if no layered table names it.
+ *     metadata entry to open, creating it from the layered table. Return WT_RESTART to retry under
+ *     the schema write lock, or ENOENT if no layered table names it.
  */
 int
 __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
@@ -327,7 +327,8 @@ __wti_layered_ingest_create_on_open(WT_SESSION_IMPL *session)
     if (ret == WT_NOTFOUND)
         WT_ERR(__wt_set_return(session, ENOENT));
 
-    /* Opening a handle takes the schema lock for write when the ingest table does not exist. */
+    if (!__wt_rwlock_iswritelocked(session, &S2C(session)->schema_lock))
+        WT_ERR(WT_RESTART);
     WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     /*
