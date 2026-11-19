@@ -44,10 +44,6 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values)
 
-    @wttest.skip_for_hook(
-        "disagg",
-        "app-thread eviction may not refresh its snapshot before deferred btree publication",
-        param="schema_epochs")
     def test_app_thread_evict01(self):
         format='key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, format)
@@ -55,19 +51,23 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         # For our target stat to be incremented we need our application thread to evict a page, but
         # this is probabilistic as the application thread is always racing against the internal
         # eviction threads. Give the application thread a few chances to beat the internal thread
-        for _ in range(0, 20):
+        for attempt in range(0, 20):
+            # Use a fresh key range on each attempt. With disaggregated storage, rewriting the same
+            # keys does not reliably reach the snapshot refresh.
+            base = attempt * 200000
+
             # Insert 40MB of data and perform lots of small inserts so we'll have a lot of
             # pages to evict. We are below target levels so no eviction takes place
             cursor = self.session.open_cursor(self.uri)
             for i in range(40 * 1024):
-                cursor[i+1] = 'a' * 1024
+                cursor[base + i + 1] = 'a' * 1024
 
             # Perform two large updates. The first causes us to exceed trigger levels,
             # and on the second insert the app thread is pulled into eviction since
             # trigger levels are exceeded.
             self.session.begin_transaction()
-            cursor[100001] = 'a' * 20 * 1024 * 1024
-            cursor[100002] = 'a' * 20 * 1024 * 1024
+            cursor[base + 100001] = 'a' * 20 * 1024 * 1024
+            cursor[base + 100002] = 'a' * 20 * 1024 * 1024
             self.session.commit_transaction()
 
             num_app_evict_snapshot_refreshed = self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed)
