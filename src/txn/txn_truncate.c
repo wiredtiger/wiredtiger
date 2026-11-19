@@ -326,8 +326,7 @@ __wt_layered_table_truncate_detect_write_conflict(WT_SESSION_IMPL *session,
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (0);
 
-    /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
-    __wt_readlock(session, &truncate_list->lock);
+    __wt_writelock(session, &truncate_list->lock);
 
     /*
      * The truncate entry has already been committed if it is visible to this transaction. We can
@@ -336,7 +335,7 @@ __wt_layered_table_truncate_detect_write_conflict(WT_SESSION_IMPL *session,
     ret = __truncate_search(
       session, truncate_list, collator, key, WT_TRUNCATE_SEARCH_NOT_VISIBLE, NULL, &is_found);
 
-    __wt_readunlock(session, &truncate_list->lock);
+    __wt_writeunlock(session, &truncate_list->lock);
     WT_RET(ret);
 
     if (is_found) {
@@ -368,7 +367,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
 
     WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_calls);
 
-    __wt_readlock(session, &truncate_list->lock);
+    __wt_writelock(session, &truncate_list->lock);
 
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
         ++walked;
@@ -401,7 +400,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
 err:
-    __wt_readunlock(session, &truncate_list->lock);
+    __wt_writeunlock(session, &truncate_list->lock);
     /* Batch statistics updates to reduce atomic operations and exclude failed searches. */
     if (is_found)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
@@ -460,8 +459,7 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *t
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (WT_NOTFOUND);
 
-    /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
-    __wt_readlock(session, &truncate_list->lock);
+    __wt_writelock(session, &truncate_list->lock);
 
     /*
      * Ignore all truncate entries that haven't been committed. They won't be visible to this
@@ -474,7 +472,7 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *t
         WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
 
 err:
-    __wt_readunlock(session, &truncate_list->lock);
+    __wt_writeunlock(session, &truncate_list->lock);
     WT_RET(ret);
     return (is_found ? 0 : WT_NOTFOUND);
 }

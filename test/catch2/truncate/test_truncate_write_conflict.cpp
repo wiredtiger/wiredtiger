@@ -585,7 +585,7 @@ SCENARIO("write conflict with overlapping committed and uncommitted ranges",
     }
 }
 
-SCENARIO("write conflict read lock is always released", "[truncate_list][write_conflict]")
+SCENARIO("write conflict truncate lock is always released", "[truncate_list][write_conflict]")
 {
     GIVEN("a layered table")
     {
@@ -820,7 +820,7 @@ SCENARIO("non-ingest write conflict does not trigger for the caller's own uncomm
 }
 
 SCENARIO(
-  "non-ingest write conflict read lock is always released", "[truncate_list][write_conflict]")
+  "non-ingest write conflict truncate lock is always released", "[truncate_list][write_conflict]")
 {
     GIVEN("a layered table")
     {

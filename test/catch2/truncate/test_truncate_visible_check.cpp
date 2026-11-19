@@ -16,7 +16,7 @@
  *   - multiple non-overlapping and overlapping ranges
  *   - start and stop key buffers are copied on a match
  *   - the feature flag early-return path
- *   - lock discipline: read lock is always released
+ *   - lock discipline: truncate lock is always released
  */
 
 #include <catch2/catch.hpp>
@@ -245,12 +245,8 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture,
 TEST_CASE_METHOD(
   TruncVisibleCheckFixture, "truncate_delete_visible_check: lock discipline", "[truncate]")
 {
-    /*
-     * Verify that the read lock on the truncate list is always released before the function
-     * returns. If the function leaked the read lock, a subsequent __wt_try_writelock would return
-     * EBUSY; a successful acquisition proves no reader holds the lock.
-     */
-    SECTION("read lock is released after a match")
+    /* Verify that the truncate lock is released on every return path. */
+    SECTION("truncate lock is released after a match")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key150");
@@ -262,7 +258,7 @@ TEST_CASE_METHOD(
         __wt_writeunlock(session, &layered_table->truncate_list.lock);
     }
 
-    SECTION("read lock is released after a miss")
+    SECTION("truncate lock is released after a miss")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key050");
@@ -274,7 +270,7 @@ TEST_CASE_METHOD(
         __wt_writeunlock(session, &layered_table->truncate_list.lock);
     }
 
-    SECTION("read lock is released when the truncate list is empty")
+    SECTION("truncate lock is released when the truncate list is empty")
     {
         WT_ITEM key = make_key("key150");
 
