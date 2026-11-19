@@ -2230,9 +2230,9 @@ __disagg_mark_btrees_readonly_and_outdated_then_step_down(WT_SESSION_IMPL *sessi
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 
     /*
-     * Keep the recorded LSN across a role change: it names the last checkpoint this node
-     * completed, which remains the boundary the log head sits at until this node installs a
-     * checkpoint. Installing one records the LSN the application supplies.
+     * Keep the recorded LSN across a role change: it names the last checkpoint this node completed,
+     * which remains the boundary the log head sits at until this node installs a checkpoint.
+     * Installing one records the LSN the application supplies.
      */
     return (0);
 }
@@ -2614,9 +2614,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              */
             if (!leader) {
                 /*
-                 * The LSN is applied with the checkpoint, in the same call and under the same
-                 * lock: an install without one records the checkpoint as unknown, so a later
-                 * abandon cannot name a boundary this node does not have.
+                 * The LSN is applied with the checkpoint, in the same call and under the same lock:
+                 * an install without one records the checkpoint as unknown, so a later abandon
+                 * cannot name a boundary this node does not have.
                  */
                 WT_ERR(__disagg_config_get_checkpoint_lsn(session, cfg, &last_checkpoint_lsn));
                 WT_ERR_MSG_CHK(session,
@@ -3186,8 +3186,8 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           "Failed to complete checkpoint");
 
         /*
-         * A successful completion names the checkpoint, and an abandon needs that LSN to bound
-         * what it discards.
+         * A successful completion names the checkpoint, and an abandon needs that LSN to bound what
+         * it discards.
          */
         WT_ASSERT_ALWAYS(session, complete_args.lsn != WT_DISAGG_LSN_NONE,
           "The page log must return the LSN at which the checkpoint completed");

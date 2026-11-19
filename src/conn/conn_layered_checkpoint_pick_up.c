@@ -1924,14 +1924,14 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
         return (0);
 
     /* Having nothing to adopt is the common case, not a failure. */
-    ret = __disagg_deferred_copy(
-      session, force, &meta_copy, &deferred_lsn, &complete_lsn, &wait_ms);
+    ret =
+      __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn, &complete_lsn, &wait_ms);
     if (ret == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
 
-    ret = __disagg_adopt_deferred_checkpoint_meta(
-      session, meta_copy, strlen(meta_copy), complete_lsn);
+    ret =
+      __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy), complete_lsn);
     if (ret == 0)
         WT_STAT_CONN_SET(session, disagg_checkpoint_defer_adopt_wait, (int64_t)wait_ms);
 
@@ -2412,8 +2412,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     if (!force &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn)) {
         if (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
-            WT_ERR(__disagg_defer_checkpoint(
-              session, &meta_str, ckpt_meta.metadata_lsn, complete_lsn));
+            WT_ERR(
+              __disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn, complete_lsn));
             /* Wake the pickup server: the delivery may already be adoptable. */
             __wt_disagg_deferred_pickup_signal(session, 0);
             goto err;
