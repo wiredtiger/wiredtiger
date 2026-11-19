@@ -941,21 +941,53 @@ int
 __wt_btcur_next_batch(
   WT_CURSOR_BTREE *cbt, WT_ITEM *keys, WT_ITEM *values, size_t count, size_t *returned_countp)
 {
+    WT_CURSOR *cursor = &cbt->iface;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(cbt);
     WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch);
     *returned_countp = 0;
 
     if (count == 0 || (keys == NULL && values == NULL))
         WT_RET(EINVAL);
+    if (CUR2BT(cbt)->type != BTREE_ROW)
+        WT_RET(EINVAL);
 
+    /* Reuse all of the cursor setup logic provided here. */
     WT_RET(__wt_btcur_next(cbt, false));
 
     if (keys != NULL)
-        WT_ITEM_SET(keys[0], cbt->iface.key);
+        WT_ITEM_SET(keys[0], cursor->key);
     if (values != NULL)
-        WT_ITEM_SET(values[0], cbt->iface.value);
+        WT_ITEM_SET(values[0], cursor->value);
 
-    *returned_countp = 1;
+    size_t i = 1;
+    while (i < count && cbt->ref != NULL && F_ISSET(cbt, WT_CBT_ITERATE_NEXT)) {
+        size_t skipped;
+        bool key_out_of_bounds;
+        ret = __cursor_row_next(cbt, false, false, &skipped, &key_out_of_bounds);
+        if (ret != 0)
+            break;
+
+#ifdef HAVE_DIAGNOSTIC
+        WT_RET(__wti_cursor_return_check(session, cbt, true, false, false));
+#endif
+
+        if (keys != NULL)
+            WT_ITEM_SET(keys[i], cursor->key);
+        if (values != NULL)
+            WT_ITEM_SET(values[i], cursor->value);
+        ++i;
+    }
+
+    if (ret == WT_PREPARE_CONFLICT)
+        /* The cursor was left on the conflicting key, so make the next call re-read it. */
+        F_SET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
+    else if (ret != 0 && ret != WT_NOTFOUND) {
+        WT_TRET(__cursor_reset(cbt));
+        WT_RET(ret);
+    }
+
+    *returned_countp = i;
     WT_STAT_CONN_DSRC_INCRV(session, cursor_next_raw_kv_batch_result, *returned_countp);
 
     return (0);
