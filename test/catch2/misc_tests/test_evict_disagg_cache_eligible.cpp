@@ -103,6 +103,7 @@ struct eligibility_fixture {
 
         /* Wire up the block manager -> block disagg -> page log chain. */
         block_disagg.plhandle = &plhandle;
+        block_disagg.type = WT_BLOCK_TYPE_DISAGG;
         bm.block = reinterpret_cast<WT_BLOCK *>(&block_disagg);
 
         /* Default to a valid, eligible disaggregated leaf page. */
@@ -259,6 +260,21 @@ TEST_CASE("Victim cache eligibility: every reason is produced by exactly its own
         else
             REQUIRE(disk_image == nullptr);
     }
+}
+
+TEST_CASE("Victim cache eligibility: a block manager without a block handle is rejected",
+  "[evict][disagg_cache]")
+{
+    /*
+     * The no-block-manager gate also covers a manager whose open failed far enough to leave no
+     * handle behind: the checked cast must never see one.
+     */
+    eligibility_fixture f;
+    f.bm.block = nullptr;
+
+    const WT_PAGE_HEADER *disk_image = f.dsk;
+    REQUIRE(f.check(&disk_image) == WTI_EVICT_VICTIM_NO_BLOCK_MANAGER);
+    REQUIRE(disk_image == nullptr);
 }
 
 TEST_CASE("Victim cache eligibility: a dirty page that was never reconciled is eligible",

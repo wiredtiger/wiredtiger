@@ -38,6 +38,9 @@ static_assert(
  * to silent struct-aliasing bugs. The asserts below pin the offsets of every shared field so any
  * reordering or insertion in either struct breaks the build.
  */
+static_assert(WT_BLOCK_TYPE_INVALID == 0, "WT_BLOCK_TYPE_INVALID must be zero");
+static_assert(offsetof(WT_BLOCK_DISAGG, type) == offsetof(WT_BLOCK, type),
+  "WT_BLOCK_DISAGG::type must alias WT_BLOCK::type");
 static_assert(offsetof(WT_BLOCK_DISAGG, name) == offsetof(WT_BLOCK, name),
   "WT_BLOCK_DISAGG::name must alias WT_BLOCK::name");
 static_assert(offsetof(WT_BLOCK_DISAGG, objectid) == offsetof(WT_BLOCK, objectid),

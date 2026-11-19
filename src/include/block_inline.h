@@ -78,6 +78,17 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
 }
 
 /*
+ * __wt_block_as_disagg --
+ *     Check a block handle is a disaggregated handle and return it as one.
+ */
+static WT_INLINE WT_BLOCK_DISAGG *
+__wt_block_as_disagg(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_ASSERT(session, block != NULL && WT_BLOCK_IS_DISAGG(block));
+    return ((WT_BLOCK_DISAGG *)block);
+}
+
+/*
  * __wt_block_header --
  *     Return the size of the block-specific header.
  */

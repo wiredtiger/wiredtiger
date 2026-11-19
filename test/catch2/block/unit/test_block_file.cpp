@@ -70,6 +70,7 @@ validate_block(std::shared_ptr<mock_session> session, WT_BLOCK *block, config_pa
     CHECK(F_ISSET(block, WT_BLOCK_READONLY) == readonly);
     CHECK(!block->created_during_backup);
     CHECK(block->extend_len == 0);
+    CHECK(WT_BLOCK_IS_LOCAL(block));
 
     // Test block file handle members.
     validate_block_fh(block, name);

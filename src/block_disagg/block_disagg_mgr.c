@@ -92,7 +92,9 @@ __bmd_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    ret = __wti_block_disagg_close(session, (WT_BLOCK_DISAGG *)bm->block);
+    /* A failed open can leave the block manager without a block handle. */
+    if (bm->block != NULL)
+        ret = __wti_block_disagg_close(session, __wt_block_as_disagg(session, bm->block));
 
     __wt_overwrite_and_free(session, bm);
     return (ret);
@@ -108,7 +110,7 @@ __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_DECL_RET;
 
     ret = __wti_block_disagg_page_discard(
-      session, (WT_BLOCK_DISAGG *)bm->block, addr, addr_size, is_root);
+      session, __wt_block_as_disagg(session, bm->block), addr, addr_size, is_root);
 
     return (ret);
 }
@@ -120,7 +122,7 @@ __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 static int
 __bmd_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 {
-    return (__wti_block_disagg_stat(session, (WT_BLOCK_DISAGG *)bm->block, stats));
+    return (__wti_block_disagg_stat(session, __wt_block_as_disagg(session, bm->block), stats));
 }
 
 /*
@@ -173,9 +175,8 @@ __bmd_get_page_ids(
 {
     WT_BLOCK_DISAGG *block_disagg;
 
-    /* FIXME-WT-15564: Check block is safe to cast as disagg block. */
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    block_disagg = __wt_block_as_disagg(session, bm->block);
 
     if (block_disagg->plhandle->plh_get_page_ids == NULL) {
         __wt_verbose_warning(
@@ -276,7 +277,8 @@ __wt_block_disagg_manager_open(WT_SESSION_IMPL *session, const char *uri, const 
 
     WT_ERR(__wti_block_disagg_open(session, uri, cfg, forced_salvage, readonly, &bm->block));
 
-    WT_ASSERT_ALWAYS(session, ((WT_BLOCK_DISAGG *)bm->block)->tableid == S2BT(session)->id,
+    WT_ASSERT_ALWAYS(session,
+      __wt_block_as_disagg(session, bm->block)->tableid == S2BT(session)->id,
       "block manager bound to a block handle for a different table");
 
     *bmp = bm;

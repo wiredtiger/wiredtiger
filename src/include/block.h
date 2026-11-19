@@ -261,6 +261,20 @@ struct __wt_bm {
 };
 
 /*
+ * WT_BLOCK_TYPE --
+ *     The block handle type, carried in the prefix WT_BLOCK and WT_BLOCK_DISAGG share because both
+ *     are threaded through the connection's block lists as WT_BLOCK pointers. Handles are tagged at
+ *     open, before they join the lists. Zero is the state of a handle that was never tagged: it
+ *     matches no lookup and fails the checked cast, rather than silently passing as whichever
+ *     enumerator happened to be zero.
+ */
+typedef enum {
+    WT_BLOCK_TYPE_INVALID = 0, /* A handle that was never tagged */
+    WT_BLOCK_TYPE_LOCAL,       /* A local file block handle */
+    WT_BLOCK_TYPE_DISAGG       /* A disaggregated block handle */
+} WT_BLOCK_TYPE;
+
+/*
  * WT_BLOCK --
  *	Block manager file handle.
  */
@@ -275,9 +289,10 @@ struct __wt_block {
      */
 
     /* ===== Begin shared prefix with WT_BLOCK_DISAGG ===== */
-    const char *name;  /* Name */
-    uint32_t objectid; /* Object id */
-    uint32_t ref;      /* References */
+    const char *name;   /* Name */
+    uint32_t objectid;  /* Object id */
+    uint32_t ref;       /* References */
+    WT_BLOCK_TYPE type; /* Handle type */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -487,9 +502,10 @@ struct __wt_block_disagg {
      */
 
     /* ===== Begin shared prefix with WT_BLOCK ===== */
-    const char *name;  /* Name */
-    uint32_t objectid; /* Object id */
-    uint32_t ref;      /* References */
+    const char *name;   /* Name */
+    uint32_t objectid;  /* Object id */
+    uint32_t ref;       /* References */
+    WT_BLOCK_TYPE type; /* Handle type */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -514,6 +530,18 @@ struct __wt_block_disagg {
     /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
+
+/*
+ * WT_BLOCK_IS_DISAGG --
+ *     Return whether a block handle references disaggregated storage.
+ */
+#define WT_BLOCK_IS_DISAGG(block) ((block)->type == WT_BLOCK_TYPE_DISAGG)
+
+/*
+ * WT_BLOCK_IS_LOCAL --
+ *     Return whether a block handle references a local file.
+ */
+#define WT_BLOCK_IS_LOCAL(block) ((block)->type == WT_BLOCK_TYPE_LOCAL)
 
 /*
  * WT_BLOCK_DISAGG_HEADER --

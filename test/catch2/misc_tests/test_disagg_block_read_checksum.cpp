@@ -242,6 +242,7 @@ struct read_checksum_fixture {
         block_disagg.name = "test_disagg";
         block_disagg.tableid = 42;
         block_disagg.plhandle = &plhandle;
+        block_disagg.type = WT_BLOCK_TYPE_DISAGG;
         bm.block = reinterpret_cast<WT_BLOCK *>(&block_disagg);
 
         btree.bm = &bm;

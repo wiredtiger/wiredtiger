@@ -464,7 +464,7 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
 
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    block_disagg = __wt_block_as_disagg(session, bm->block);
 
     /* Crack the cookie. */
     WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
@@ -490,7 +490,7 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
     WT_BLOCK_DISAGG *block_disagg;
     uint32_t tmp_count;
 
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    block_disagg = __wt_block_as_disagg(session, bm->block);
 
     WT_CLEAR(*get_args);
     get_args->lsn = lsn;
