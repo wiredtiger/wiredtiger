@@ -65,7 +65,7 @@ class test_layered_checkpoint07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Get the checkpoint metadata string and ensure that it contains a checksum.
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         self.pr(f'Checkpoint metadata: {checkpoint_meta}')
         self.assertTrue('metadata_checksum=' in checkpoint_meta)
 
@@ -82,7 +82,9 @@ class test_layered_checkpoint07(wttest.WiredTigerTestCase):
         # FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required
         checkpoint_meta_no_checksum = re.sub(r',metadata_checksum=[0-9a-fA-F]+', '', checkpoint_meta)
         self.pr(f'Checkpoint metadata without a checksum: {checkpoint_meta_no_checksum}')
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta_no_checksum}")')
+        self.conn.reconfigure(
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta_no_checksum}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         self.captureout.checkAdditionalPattern(self,
             'Missing metadata_checksum from metadata: ')
 
@@ -104,5 +106,6 @@ class test_layered_checkpoint07(wttest.WiredTigerTestCase):
         self.pr(f'Corrupted checkpoint metadata: {corrupted_checkpoint_meta}')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure(
-                f'disaggregated=(checkpoint_meta="{corrupted_checkpoint_meta}")'),
+                f'disaggregated=(checkpoint_meta="{corrupted_checkpoint_meta}",'
+                f'checkpoint_lsn={checkpoint_lsn})'),
             "/Checkpoint metadata corruption detected/")
