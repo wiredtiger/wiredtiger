@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading, wttest
+import threading, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -91,7 +91,28 @@ class test_layered_stepdown_open_race(wttest.WiredTigerTestCase):
         self.assertGreater(self.get_stat(stat.conn.layered_stable_live_open_refused), 0)
         self.assertEqual(self.get_stat(stat.conn.layered_curs_open_stable_stepdown_race), 1)
 
-        # The rest of the transaction, now on the follower, reads what the leader read.
+        # Write on the follower: a newer version of every key, and a new key.
+        writer = self.conn.open_session()
+        write_cursor = writer.open_cursor(self.uri)
+        writer.begin_transaction()
+        for i in range(self.nkeys):
+            write_cursor[str(i)] = self.value(i, 50)
+        write_cursor['new'] = 'new'
+        writer.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
+        write_cursor.close()
+        writer.close()
+
+        # The rest of the transaction, now on the follower, reads what the leader read and none of
+        # the follower's writes.
         self.assertEqual([cursor[str(i)] for i in range(self.nkeys)], on_leader)
+        cursor.set_key('new')
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+
+        # A later read sees the follower's writes.
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(50))
+        self.assertEqual([cursor[str(i)] for i in range(self.nkeys)],
+            [self.value(i, 50) for i in range(self.nkeys)])
+        self.assertEqual(cursor['new'], 'new')
         self.session.rollback_transaction()
         cursor.close()
