@@ -638,14 +638,19 @@ restart:
     WT_RET(__clayered_update_ingest(clayered, flags));
 
     /*
-     * Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. A
-     * leader's open that lost the race to a step-down asks for a restart: everything above depends
-     * on the role, so start again under the follower role, as if the operation had begun after the
-     * step-down. Each restart needs a completed step-down, so this cannot spin.
+     * Manage the stable: open it, advance to a newer checkpoint, or reopen on role change.
+     *
+     * A leader's first open of the live stable returns WT_RESTART when a step-down completed after
+     * the role was read above. The flags were computed for the leader role, so repeat the entry
+     * from the role read. The open takes the schema lock, which the step-down holds for the whole
+     * transition, so the repeated pass reads the follower role, opens the checkpoint instead and is
+     * not refused again.
      */
     ret = __clayered_update_stable(clayered, flags, role);
-    if (ret == WT_RESTART)
+    if (ret == WT_RESTART) {
+        WT_ASSERT(session, role == WTI_CLAYERED_ROLE_LEADER);
         goto restart;
+    }
     WT_RET(ret);
 
     /*
