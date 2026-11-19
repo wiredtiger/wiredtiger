@@ -933,13 +933,14 @@ struct __wt_conn_debug {
  *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
  */
 struct __wt_conn_evict_config {
-    bool server_running;             /* Eviction server operating */
-    WT_THREAD_GROUP threads;         /* Eviction thread group */
-    uint32_t threads_max;            /* Max eviction threads */
-    uint32_t threads_min;            /* Min eviction threads */
-    bool sample_inmem;               /* Sample in-memory pages */
-    wt_shared bool use_npos;         /* Use npos page visit strategy */
-    bool legacy_page_visit_strategy; /* Use legacy page visit strategy */
+    wt_shared bool cache_share_walk_budget; /* Scale clean walk budget by cache share */
+    bool server_running;                    /* Eviction server operating */
+    WT_THREAD_GROUP threads;                /* Eviction thread group */
+    uint32_t threads_max;                   /* Max eviction threads */
+    uint32_t threads_min;                   /* Min eviction threads */
+    bool sample_inmem;                      /* Sample in-memory pages */
+    wt_shared bool use_npos;                /* Use npos page visit strategy */
+    bool legacy_page_visit_strategy;        /* Use legacy page visit strategy */
 };
 
 /*
@@ -991,13 +992,8 @@ struct __wt_connection_impl {
     const char *error_prefix; /* Database error prefix */
     uint64_t dh_hash_size;    /* Data handle hash bucket array size */
     uint64_t hash_size;       /* General hash bucket array size */
-    int is_new;               /* Connection created database */
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
-
-#ifndef WT_STANDALONE_BUILD
-    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
-#endif
 
     WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
     WT_VERSION compat_req_max; /* Maximum allowed version of WiredTiger for compatibility checks */
@@ -1050,7 +1046,6 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
-    WT_BLKCACHE blkcache;             /* Block cache */
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
 
     uint64_t *dh_bucket_count;                   /* Locked: handles in each bucket */
@@ -1061,7 +1056,6 @@ struct __wt_connection_impl {
     wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
-    wt_shared uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
     wt_shared uint32_t version_cursor_count; /* Atomic: open version cursor count */
 
     /*
@@ -1095,6 +1089,7 @@ struct __wt_connection_impl {
     uint64_t recovery_ckpt_snap_min, recovery_ckpt_snap_max;
     uint64_t *recovery_ckpt_snapshot;
     uint32_t recovery_ckpt_snapshot_count;
+    uint32_t stat_flags; /* Options declared in flags.py */
 
     WT_CONN_BACKUP backup; /* Hot backup subsystem */
 
@@ -1146,8 +1141,6 @@ struct __wt_connection_impl {
      */
     wt_shared uint64_t max_write_gen;
 
-    uint32_t stat_flags; /* Options declared in flags.py */
-
     /* Connection statistics */
     uint64_t rec_maximum_hs_wrapup_milliseconds; /* Maximum milliseconds moving updates to history
                                                     store took. */
@@ -1184,19 +1177,12 @@ struct __wt_connection_impl {
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
     WT_PAGE_HISTORY page_history;
 
-    bool preserve_prepared; /* Preserve prepared updates */
-
     WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
 
     WT_LOG_MANAGER log_mgr;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
-
-    /*
-     * Is there a data/schema change that needs to be the part of a checkpoint.
-     */
-    bool modified;
 
     WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
 
@@ -1227,9 +1213,8 @@ struct __wt_connection_impl {
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t write_through;      /* FILE_FLAG_WRITE_THROUGH */
 
-    bool mmap;     /* use mmap when reading checkpoints */
-    bool mmap_all; /* use mmap for all I/O on data files */
-    int page_size; /* OS page size for mmap alignment */
+    wt_shared bool modified; /* Data/schema change requiring a checkpoint */
+    int page_size;           /* OS page size for mmap alignment */
 
     WT_CONN_DEBUG debug; /* Debug-mode configuration */
 
@@ -1346,22 +1331,25 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x0001u
-#define WT_CONN_CACHE_CURSORS 0x0002u
-#define WT_CONN_CALL_LOG_ENABLED 0x0004u
-#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x0008u
-#define WT_CONN_CKPT_SYNC 0x0010u
-#define WT_CONN_IN_MEMORY 0x0020u
-#define WT_CONN_KEY_PROVIDER_PUSH 0x0040u
-#define WT_CONN_LIVE_RESTORE_FS 0x0080u
-#define WT_CONN_PRECISE_CHECKPOINT 0x0100u
-#define WT_CONN_PRESERVE_PREPARED 0x0200u
-#define WT_CONN_READONLY 0x0400u
-#define WT_CONN_RECOVERING 0x0800u
-#define WT_CONN_RECOVERING_METADATA 0x1000u
-#define WT_CONN_RECOVERY_COMPLETE 0x2000u
-#define WT_CONN_SALVAGE 0x4000u
-#define WT_CONN_WAS_BACKUP 0x8000u
+#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x00001u
+#define WT_CONN_CACHE_CURSORS 0x00002u
+#define WT_CONN_CALL_LOG_ENABLED 0x00004u
+#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x00008u
+#define WT_CONN_CKPT_SYNC 0x00010u
+#define WT_CONN_IN_MEMORY 0x00020u
+#define WT_CONN_IS_NEW 0x00040u /* Connection created database */
+#define WT_CONN_KEY_PROVIDER_PUSH 0x00080u
+#define WT_CONN_LIVE_RESTORE_FS 0x00100u
+#define WT_CONN_MMAP 0x00200u     /* Use mmap when reading checkpoints */
+#define WT_CONN_MMAP_ALL 0x00400u /* Use mmap for all I/O on data files */
+#define WT_CONN_PRECISE_CHECKPOINT 0x00800u
+#define WT_CONN_PRESERVE_PREPARED 0x01000u
+#define WT_CONN_READONLY 0x02000u
+#define WT_CONN_RECOVERING 0x04000u
+#define WT_CONN_RECOVERING_METADATA 0x08000u
+#define WT_CONN_RECOVERY_COMPLETE 0x10000u
+#define WT_CONN_SALVAGE 0x20000u
+#define WT_CONN_WAS_BACKUP 0x40000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
@@ -1384,6 +1372,9 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING_STEP_UP 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+#ifndef WT_STANDALONE_BUILD
+    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
+#endif
 
     /*
      * Repair arguments and memory holder.

@@ -141,7 +141,16 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             return (ret);
         }
     }
-    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
+
+    /*
+     * Mark ourselves busy only after caching the history store cursor: opening it can wait for the
+     * handle list lock, which a thread turning off eviction for the tree may hold while it waits
+     * for busy evictions to finish.
+     */
+    if (!__wt_evict_busy_incr(session)) {
+        WT_REF_SET_STATE(ref, previous_state);
+        return (EBUSY);
+    }
     ret = __wt_evict(session, ref, previous_state, evict_flags);
     (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
 
@@ -342,7 +351,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
-    WT_ERR(__wt_blkcache_read_multi(session, &tmp, &count, &block_meta, addr.addr, addr.size));
+    WT_ERR(__wt_bm_read_multi(session, &tmp, &count, &block_meta, addr.addr, addr.size));
 
     WT_ASSERT(session, tmp != NULL && count > 0);
 

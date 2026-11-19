@@ -19,6 +19,7 @@ else()
         misc_tests/test_cond_signal_n.cpp
         misc_tests/test_config.cpp
         misc_tests/test_conn_api_name.cpp
+        misc_tests/test_conn_stat_open_cursor_count.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_close_action.cpp
         misc_tests/test_dhandle_ebusy.cpp
@@ -29,10 +30,13 @@ else()
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
+        misc_tests/test_evict_bool_options_reconfigure.cpp
         misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_clear_walks.cpp
         misc_tests/test_evict_disagg_cache_eligible.cpp
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
+        misc_tests/test_evict_walk_budget.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_file_id.cpp
         misc_tests/test_futex.cpp
@@ -48,6 +52,7 @@ else()
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_ref_page_type.cpp
+        misc_tests/test_rwlock_writer_waiting.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_missing_stable.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
@@ -57,6 +62,7 @@ else()
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_timestamp_validation.cpp
         misc_tests/test_txn_config.cpp
         misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
@@ -85,6 +91,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        cursors/unit/test_cursor_next_raw_key_value_batch.cpp
         cursors/unit/test_curstat_size.cpp
         cursors/unit/test_layered_op.cpp
         ext/test_key_provider.cpp

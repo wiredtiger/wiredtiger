@@ -258,6 +258,8 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",background_compact=true");
     if (GV(DEBUG_CHECKPOINT_RETENTION) != 0)
         CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
+    if (GV(DEBUG_CURSOR_COPY))
+        CONFIG_APPEND(*p, ",cursor_copy=true");
     if (GV(DEBUG_CURSOR_REPOSITION))
         CONFIG_APPEND(*p, ",cursor_reposition=true");
     if (GV(DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
@@ -487,16 +489,6 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* In-memory configuration. */
     if (GV(RUNS_IN_MEMORY) != 0)
         CONFIG_APPEND(p, ",in_memory=1");
-
-    /* Block cache configuration. */
-    if (GV(BLOCK_CACHE) != 0)
-        CONFIG_APPEND(p,
-          ",block_cache=(enabled=true,type=\"dram\""
-          ",cache_on_checkpoint=%s"
-          ",cache_on_writes=%s"
-          ",size=%" PRIu32 "MB)",
-          GV(BLOCK_CACHE_CACHE_ON_CHECKPOINT) == 0 ? "false" : "true",
-          GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
 
     /* Eviction configuration. */
     configure_eviction(&p, max);

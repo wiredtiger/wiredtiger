@@ -9,6 +9,60 @@
 #pragma once
 
 /*
+ * __evict_min_walk_pages --
+ *     Calculate the pages-seen threshold before abandoning a low-yield eviction walk.
+ *
+ * For enabled clean walks, scale a floor from 100 to 1,000 pages using the tree's share of cache in
+ *     use. The bounds match the original 10-times-target threshold for the usual minimum target of
+ *     10 pages and maximum refill of 100 pages. Cap the share at 100% because the tree and cache
+ *     sizes are sampled separately.
+ */
+static WT_INLINE uint64_t
+__evict_min_walk_pages(
+  uint32_t target_pages, bool clean, bool enabled, uint64_t tree_inuse, uint64_t cache_inuse)
+{
+    uint64_t min_pages;
+
+    min_pages = (clean ? 10 : 100) * (uint64_t)target_pages;
+    if (clean && enabled && cache_inuse != 0)
+        min_pages = WT_MAX(min_pages,
+          100 + (uint64_t)(900.0 * WT_MIN((double)tree_inuse / (double)cache_inuse, 1.0)));
+    return (min_pages);
+}
+
+/*
+ * __wt_evict_busy_incr --
+ *     Try to start evicting a page directly. Return false if eviction has been turned off for the
+ *     tree. On success, the caller must decrement the busy count when the eviction attempt is
+ *     finished.
+ */
+static WT_INLINE bool
+__wt_evict_busy_incr(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    /*
+     * Mark ourselves busy first, then check whether eviction has been turned off for the tree.
+     * Whoever turns it off waits for the busy count to reach zero, so either they wait for us or we
+     * see that eviction is off and back out.
+     */
+    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
+    /*
+     * We write the busy count and then read the flag that turns eviction off, while the other side
+     * writes that flag and then reads the busy count. These are two different variables, so only
+     * sequentially consistent operations guarantee that at least one side sees the other's write.
+     */
+    if (__wt_atomic_load_int32(&btree->evict_disabled) != 0) {
+        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+        return (false);
+    }
+
+    return (true);
+}
+
+/*
  * __evict_wake_waiters --
  *     Wake threads waiting for eviction candidates: n of them if bounded wake is configured, else
  *     all of them.
@@ -443,8 +497,9 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
     /* Eviction should be done if we hit the eviction clean trigger or come close to hitting it. */
     if (__wt_evict_clean_needed(session, &pct_full))
         return (true);
-    if (pct_full > evict->eviction_target &&
-      pct_full >= WT_EVICT_PRESSURE_THRESHOLD * evict->eviction_trigger)
+    if (pct_full > __wt_atomic_load_double_relaxed(&evict->eviction_target) &&
+      pct_full >=
+        WT_EVICT_PRESSURE_THRESHOLD * __wt_atomic_load_double_relaxed(&evict->eviction_trigger))
         return (true);
     return (false);
 }
@@ -478,7 +533,8 @@ __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
     if (pct_fullp != NULL)
         *pct_fullp = ((100.0 * bytes_inuse) / bytes_max);
 
-    return (bytes_inuse > (S2C(session)->evict->eviction_trigger * bytes_max) / 100);
+    return (bytes_inuse >
+      (__wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_trigger) * bytes_max) / 100);
 }
 
 /*
@@ -653,7 +709,9 @@ __wt_evict_needed(
           (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
             F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
             __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)) {
-            double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
+            double cache_full = (__wt_atomic_load_double_relaxed(&evict->eviction_target) +
+                                  __wt_atomic_load_double_relaxed(&evict->eviction_trigger)) /
+              2;
             if (pct_updates > cache_full)
                 __wt_verbose_debug1(
                   session, WT_VERB_EVICTION, "cache is full of updates: %f percent", pct_updates);
@@ -666,7 +724,8 @@ __wt_evict_needed(
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_app_threads_skip_updates_dirty_page);
 
             if (pct_fullp != NULL)
-                *pct_fullp = 100.0 - (evict->eviction_trigger - pct_full);
+                *pct_fullp =
+                  100.0 - (__wt_atomic_load_double_relaxed(&evict->eviction_trigger) - pct_full);
             return (clean_needed);
         }
     }
@@ -677,9 +736,9 @@ __wt_evict_needed(
      */
     dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
     if (pct_fullp != NULL)
-        *pct_fullp =
-          __wti_evict_threshold_pct(pct_full, pct_dirty, pct_updates, evict->eviction_trigger,
-            dirty_trigger, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
+        *pct_fullp = __wti_evict_threshold_pct(pct_full, pct_dirty, pct_updates,
+          __wt_atomic_load_double_relaxed(&evict->eviction_trigger), dirty_trigger,
+          __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
 
     /*
      * Only check the dirty trigger when the session is not busy.
@@ -990,7 +1049,7 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
     if (F_ISSET_ATOMIC_32(
           &(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP) &&
       !__wt_evict_clean_needed(session, &pct_full)) {
-        if (pct_full <= evict->eviction_target &&
+        if (pct_full <= __wt_atomic_load_double_relaxed(&evict->eviction_target) &&
           ((__wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score)) <= (session->id % 20)))
             return (0);
     }

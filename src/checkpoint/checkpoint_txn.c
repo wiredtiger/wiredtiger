@@ -117,9 +117,11 @@ __checkpoint_init(WT_SESSION_IMPL *session)
     /* Initialize the checkpoint progress tracking data. */
     WT_CLEAR(conn->ckpt.progress);
 
-    /* Initialize the checkpoint reconciliation and sync time accumulators. */
+    /* Initialize the checkpoint time accumulators. */
+    __wt_atomic_store_uint64_relaxed(&conn->ckpt.parallel_wait_ticks, 0);
     __wt_atomic_store_uint64_relaxed(&conn->ckpt.reconcile_time_ticks, 0);
     __wt_atomic_store_uint64_relaxed(&conn->ckpt.sync_time_ticks, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->ckpt.walk_ticks, 0);
 }
 
 /*
@@ -536,7 +538,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     __wt_epoch(session, &conn->ckpt.scrub.timer_start);
 
     /* Give up if scrubbing is disabled. */
-    if (evict->eviction_checkpoint_target < DBL_EPSILON)
+    if (__wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target) < DBL_EPSILON)
         return;
 
     bytes_written_start = __wt_atomic_load_uint64_relaxed(&cache->bytes_written);
@@ -550,14 +552,15 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
         return;
 
     current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-    if (current_dirty <= evict->eviction_checkpoint_target)
+    if (current_dirty <= __wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target))
         return;
 
     /* Stop if we write as much dirty data as is currently in cache. */
     max_write = __wt_cache_dirty_leaf_inuse(cache);
 
     /* Set the dirty trigger to the target value. */
-    __checkpoint_set_scrub_target(session, evict->eviction_checkpoint_target);
+    __checkpoint_set_scrub_target(
+      session, __wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target));
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -566,7 +569,8 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
         prev_dirty = current_dirty;
         current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-        if (current_dirty <= evict->eviction_checkpoint_target || current_dirty >= prev_dirty)
+        if (current_dirty <= __wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target) ||
+          current_dirty >= prev_dirty)
             break;
 
         /*
@@ -682,7 +686,8 @@ __checkpoint_scrub_progress(
           "Checkpoint scrub %s for %" PRIu64
           " seconds, cache dirty %.1f%% (target %.1f%%), wrote %" PRIu64 " MB while waiting",
           closing ? "ran" : "has been running", time_diff, current_dirty,
-          conn->evict->eviction_checkpoint_target, bytes_written / WT_MEGABYTE);
+          __wt_atomic_load_double_relaxed(&conn->evict->eviction_checkpoint_target),
+          bytes_written / WT_MEGABYTE);
         conn->ckpt.progress.msg_count++;
     }
 }
@@ -3624,6 +3629,10 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * are wasted effort. Discard the objects to validate exit accounting.
      */
     if (final && !metadata)
+        return (__wt_evict_file(session, WT_SYNC_DISCARD));
+
+    /* An outdated disaggregated btree is never written, whether or not it was dirtied. */
+    if (__wt_btree_is_outdated_disagg(session))
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /* Closing an unmodified file. */
