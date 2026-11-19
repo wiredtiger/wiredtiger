@@ -525,10 +525,12 @@ retry:
          * Skip a read-only btree on a pass that isn't looking for clean pages if it holds none of
          * the content the pass is looking for. Most read-only btrees are read-only from open and
          * never dirty, but can hold updates when a fast-truncated page is instantiated. A step-down
-         * can make a live btree read-only while it still holds dirty pages and updates that only
+         * can make a live btree outdated while it still holds dirty pages and updates that only
          * eviction can discard.
          */
-        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        if ((F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) ||
+              __wt_btree_dhandle_is_outdated_disagg(dhandle, btree)) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
             uint64_t bytes_dirty = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
               __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf);
             uint64_t bytes_updates = __wt_atomic_load_uint64_relaxed(&btree->bytes_updates);
@@ -978,13 +980,14 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
      * only for disaggregated storage.
      *
-     * A read-only tree is exempt. The only read-only tree that reaches here with dirty pages is a
-     * live btree that a step-down made read-only: nothing can modify its pages again, and eviction
-     * is the only way those pages are discarded.
+     * A read-only or outdated tree is exempt. The only such tree that reaches here with dirty pages
+     * is a live btree that a step-down made outdated: nothing will write its pages again, and
+     * eviction is the only way those pages are discarded.
      */
 #define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
     0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
     if (__wt_conn_is_disagg(session) && !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+      !__wt_btree_is_outdated_disagg(session) &&
       __wt_atomic_load_uint32_relaxed(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0, pct_updates = 0.0;
         bool high_pressure = false;
@@ -1094,20 +1097,29 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
 static WT_INLINE uint64_t
 __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
 {
+    WT_CACHE *cache;
     WT_EVICT *evict;
-    uint64_t min_pages;
+    uint64_t cache_inuse, min_pages, tree_inuse;
+    bool clean, enabled;
 
+    cache = S2C(session)->cache;
     evict = S2C(session)->evict;
+    clean = F_ISSET(evict, WT_EVICT_CACHE_CLEAN);
+    enabled = __wt_atomic_load_bool_relaxed(&S2C(session)->evict_config.cache_share_walk_budget);
 
     /*
      * Examine at least a reasonable number of pages before deciding whether to give up. When we are
      * not looking for clean pages, search the tree for longer.
      */
-    min_pages = 10 * (uint64_t)target_pages;
-    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+    tree_inuse = cache_inuse = 0;
+    if (clean)
         WT_STAT_CONN_INCR(session, eviction_target_strategy_clean);
-    else
-        min_pages *= 10;
+    if (clean && enabled) {
+        cache_inuse = __wt_cache_bytes_inuse(cache);
+        if (cache_inuse != 0)
+            tree_inuse = __wt_btree_bytes_evictable(session);
+    }
+    min_pages = __evict_min_walk_pages(target_pages, clean, enabled, tree_inuse, cache_inuse);
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
         WT_STAT_CONN_INCR(session, eviction_target_strategy_updates);
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY))

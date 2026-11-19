@@ -1074,7 +1074,7 @@ err:
 static int
 __conn_is_new(WT_CONNECTION *wt_conn)
 {
-    return (((WT_CONNECTION_IMPL *)wt_conn)->is_new);
+    return (F_ISSET((WT_CONNECTION_IMPL *)wt_conn, WT_CONN_IS_NEW) ? 1 : 0);
 }
 
 /*
@@ -2092,13 +2092,14 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * If this is a read-only connection and we cannot grab the lock file, check if it is because
-     * there's no write permission or if the file does not exist. If so, then ignore the error. XXX
-     * Ignoring the error does allow multiple read-only connections to exist at the same time on a
-     * read-only directory.
+     * there's no write permission, the underlying file system is read-only or does not permit the
+     * write (EROFS, EPERM), or if the file does not exist. If so, skip the byte lock.
      *
-     * If we got an expected permission or non-existence error then skip the byte lock.
+     * Skipping the byte lock means multiple read-only connections can exist on a read-only
+     * directory, and a writer can run concurrently if another user can write the directory.
      */
-    if (F_ISSET(conn, WT_CONN_READONLY) && (ret == EACCES || ret == ENOENT)) {
+    if (F_ISSET(conn, WT_CONN_READONLY) &&
+      (ret == EACCES || ret == ENOENT || ret == EPERM || ret == EROFS)) {
         bytelock = false;
         ret = 0;
     }
@@ -2151,7 +2152,10 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * doesn't exist, it's a create.
      */
     WT_ERR(__wt_turtle_exists(session, &exist));
-    conn->is_new = exist ? 0 : 1;
+    if (exist)
+        F_CLR(conn, WT_CONN_IS_NEW);
+    else
+        F_SET(conn, WT_CONN_IS_NEW);
 
     /*
      * Unless we are salvaging, if the turtle file exists then the WiredTiger file should exist as
@@ -2159,7 +2163,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     is_salvage = cval.val != 0;
-    if (!is_salvage && !conn->is_new) {
+    if (!is_salvage && !F_ISSET(conn, WT_CONN_IS_NEW)) {
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
             F_SET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
@@ -2205,7 +2209,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     if (fh != NULL) {
         WT_ERR(__wt_filesize(session, fh, &size));
         empty = size == 0;
-        if (!is_salvage && !conn->is_new && empty)
+        if (!is_salvage && !F_ISSET(conn, WT_CONN_IS_NEW) && empty)
             WT_ERR(__wt_msg(session, "WiredTiger version file is empty"));
     }
 
@@ -2213,7 +2217,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * Populate the WiredTiger file if this is a new connection or if the WiredTiger file is empty
      * and we are salvaging.
      */
-    if (conn->is_new || (is_salvage && empty)) {
+    if (F_ISSET(conn, WT_CONN_IS_NEW) || (is_salvage && empty)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_ERR_MSG(session, EINVAL,
               "The database directory is empty or needs recovery, cannot continue with a read only "
@@ -2886,7 +2890,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
      * The base configuration file is only written if creating the database, and even then, a base
      * configuration file is optional.
      */
-    if (!S2C(session)->is_new)
+    if (!F_ISSET(S2C(session), WT_CONN_IS_NEW))
         return (0);
     WT_RET(__wt_config_gets(session, cfg, "config_base", &cval));
     if (!cval.val)
@@ -3630,9 +3634,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->gen_drain_timeout_ms = (uint64_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
-    conn->mmap = cval.val != 0;
+    if (cval.val != 0)
+        F_SET(conn, WT_CONN_MMAP);
+    else
+        F_CLR(conn, WT_CONN_MMAP);
     WT_ERR(__wt_config_gets(session, cfg, "mmap_all", &cval));
-    conn->mmap_all = cval.val != 0;
+    if (cval.val != 0)
+        F_SET(conn, WT_CONN_MMAP_ALL);
+    else
+        F_CLR(conn, WT_CONN_MMAP_ALL);
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch.available = cval.val != 0;
