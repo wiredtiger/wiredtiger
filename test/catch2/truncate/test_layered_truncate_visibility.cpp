@@ -43,13 +43,13 @@ public:
 
         layered_table.iface.name = "layered:test_layered_truncate_visibility";
         TAILQ_INIT(&layered_table.truncate_list.qh);
-        REQUIRE(__wt_rwlock_init(session, &layered_table.truncate_list.lock) == 0);
+        REQUIRE(__wt_spin_init(session, &layered_table.truncate_list.lock, "truncate list") == 0);
     }
 
     ~layered_truncate_visibility_fixture()
     {
         __wt_layered_table_truncate_clear(session, &layered_table);
-        __wt_rwlock_destroy(session, &layered_table.truncate_list.lock);
+        __wt_spin_destroy(session, &layered_table.truncate_list.lock);
         __wt_free(session, session->txn);
         __wt_free(session, txn_shared_list);
     }

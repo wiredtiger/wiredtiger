@@ -178,7 +178,7 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
 /*
  * __wt_schema_close_layered --
  *     Close a layered handle. The dhandle may be reopened after this, so per-dhandle state (the
- *     truncate list and its rwlock) must remain intact.
+ *     truncate list and its mutex) must remain intact.
  */
 void
 __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
@@ -207,5 +207,5 @@ __wt_schema_destroy_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
 {
     __wt_schema_close_layered(session, layered);
     __wt_layered_table_truncate_clear(session, layered);
-    __wt_rwlock_destroy(session, &layered->truncate_list.lock);
+    __wt_spin_destroy(session, &layered->truncate_list.lock);
 }

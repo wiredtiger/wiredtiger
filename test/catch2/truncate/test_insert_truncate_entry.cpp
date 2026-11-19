@@ -11,7 +11,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <string_view>
+#include <thread>
 
 // External include:
 #include <catch2/catch.hpp>
@@ -429,5 +431,70 @@ SCENARIO("adding an entry releases the truncate lock", "[truncate_list][insert]"
                 REQUIRE(lock_is_released(connection.session(), connection.layered_table()));
             }
         }
+    }
+}
+
+TEST_CASE("uncommitted truncate ranges remain invisible during concurrent insertion",
+  "[truncate_list][insert][concurrent]")
+{
+    follower_connection connection;
+    auto *wt_conn = connection.session().iface.connection;
+    auto &table = connection.layered_table();
+    constexpr size_t worker_count = 4;
+    constexpr size_t iterations = 1000;
+    std::array<WT_SESSION *, worker_count> readers{}, writers{};
+    std::array<int, worker_count> insert_results{}, search_results{};
+    std::array<std::thread, worker_count> inserters, searchers;
+    const std::array<std::string_view, worker_count> keys{"a", "b", "c", "d"};
+
+    for (size_t i = 0; i < worker_count; ++i) {
+        REQUIRE(wt_conn->open_session(wt_conn, nullptr, nullptr, &readers[i]) == 0);
+        REQUIRE(readers[i]->begin_transaction(readers[i], "isolation=snapshot") == 0);
+        REQUIRE(wt_conn->open_session(wt_conn, nullptr, nullptr, &writers[i]) == 0);
+        REQUIRE(writers[i]->begin_transaction(writers[i], nullptr) == 0);
+        auto key = make_item(keys[i]);
+        REQUIRE(__wt_insert_truncate_entry(
+                  reinterpret_cast<WT_SESSION_IMPL *>(writers[i]), &table, &key, &key) == 0);
+    }
+    search_results.fill(WT_NOTFOUND);
+
+    std::mutex start_mutex;
+    std::unique_lock<std::mutex> start_lock(start_mutex);
+    for (size_t i = 0; i < worker_count; ++i) {
+        inserters[i] = std::thread([&, i] {
+            {
+                std::lock_guard<std::mutex> guard(start_mutex);
+            }
+            auto key = make_item(keys[i]);
+            for (size_t j = 0; j < iterations && insert_results[i] == 0; ++j)
+                insert_results[i] = __wt_insert_truncate_entry(
+                  reinterpret_cast<WT_SESSION_IMPL *>(writers[i]), &table, &key, &key);
+        });
+        searchers[i] = std::thread([&, i] {
+            {
+                std::lock_guard<std::mutex> guard(start_mutex);
+            }
+            auto key = make_item(keys[i]);
+            for (size_t j = 0; j < iterations && search_results[i] == WT_NOTFOUND; ++j)
+                search_results[i] = __wt_truncate_delete_visible_check(
+                  reinterpret_cast<WT_SESSION_IMPL *>(readers[i]), &table.truncate_list, nullptr,
+                  &key, nullptr, nullptr);
+        });
+    }
+
+    start_lock.unlock();
+    for (size_t i = 0; i < worker_count; ++i) {
+        inserters[i].join();
+        searchers[i].join();
+    }
+
+    CHECK(truncate_list_size(table) == worker_count * (iterations + 1));
+    for (size_t i = 0; i < worker_count; ++i) {
+        CHECK(insert_results[i] == 0);
+        CHECK(search_results[i] == WT_NOTFOUND);
+        REQUIRE(readers[i]->rollback_transaction(readers[i], nullptr) == 0);
+        REQUIRE(readers[i]->close(readers[i], nullptr) == 0);
+        REQUIRE(writers[i]->rollback_transaction(writers[i], nullptr) == 0);
+        REQUIRE(writers[i]->close(writers[i], nullptr) == 0);
     }
 }

@@ -16,7 +16,7 @@
  *   - multiple non-overlapping and overlapping ranges
  *   - start and stop key buffers are copied on a match
  *   - the feature flag early-return path
- *   - lock discipline: read lock is always released
+ *   - lock discipline: truncate lock is always released
  */
 
 #include <catch2/catch.hpp>
@@ -45,7 +45,7 @@ struct TruncVisibleCheckFixture {
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_LAYERED_TABLE), &layered_table) == 0);
         layered_table->iface.name = "layered:unit_test_table";
         TAILQ_INIT(&layered_table->truncate_list.qh);
-        REQUIRE(__wt_rwlock_init(session, &layered_table->truncate_list.lock) == 0);
+        REQUIRE(__wt_spin_init(session, &layered_table->truncate_list.lock, "truncate list") == 0);
         layered_table->collator = nullptr;
     }
 
@@ -58,7 +58,7 @@ struct TruncVisibleCheckFixture {
             __wt_free(session, t);
         }
 
-        __wt_rwlock_destroy(session, &layered_table->truncate_list.lock);
+        __wt_spin_destroy(session, &layered_table->truncate_list.lock);
         __wt_free(session, layered_table);
 
         __wt_free(session, session->txn);
@@ -245,12 +245,8 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture,
 TEST_CASE_METHOD(
   TruncVisibleCheckFixture, "truncate_delete_visible_check: lock discipline", "[truncate]")
 {
-    /*
-     * Verify that the read lock on the truncate list is always released before the function
-     * returns. If the function leaked the read lock, a subsequent __wt_try_writelock would return
-     * EBUSY; a successful acquisition proves no reader holds the lock.
-     */
-    SECTION("read lock is released after a match")
+    /* Verify that the truncate lock is released on every return path. */
+    SECTION("truncate lock is released after a match")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key150");
@@ -258,11 +254,11 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, &layered_table->truncate_list,
                 layered_table->collator, &key, nullptr, nullptr) == 0);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_list.lock);
+        CHECK(__wt_spin_trylock(session, &layered_table->truncate_list.lock) == 0);
+        __wt_spin_unlock(session, &layered_table->truncate_list.lock);
     }
 
-    SECTION("read lock is released after a miss")
+    SECTION("truncate lock is released after a miss")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key050");
@@ -270,19 +266,19 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, &layered_table->truncate_list,
                 layered_table->collator, &key, nullptr, nullptr) == WT_NOTFOUND);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_list.lock);
+        CHECK(__wt_spin_trylock(session, &layered_table->truncate_list.lock) == 0);
+        __wt_spin_unlock(session, &layered_table->truncate_list.lock);
     }
 
-    SECTION("read lock is released when the truncate list is empty")
+    SECTION("truncate lock is released when the truncate list is empty")
     {
         WT_ITEM key = make_key("key150");
 
         CHECK(__wt_truncate_delete_visible_check(session, &layered_table->truncate_list,
                 layered_table->collator, &key, nullptr, nullptr) == WT_NOTFOUND);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_list.lock);
+        CHECK(__wt_spin_trylock(session, &layered_table->truncate_list.lock) == 0);
+        __wt_spin_unlock(session, &layered_table->truncate_list.lock);
     }
 }
 

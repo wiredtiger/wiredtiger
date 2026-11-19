@@ -1160,10 +1160,9 @@ struct __wt_connection_stats {
     int64_t lock_table_wait_internal;
     int64_t lock_table_read_count;
     int64_t lock_table_write_count;
+    int64_t lock_truncate_list_count;
     int64_t lock_truncate_list_wait_application;
     int64_t lock_truncate_list_wait_internal;
-    int64_t lock_truncate_list_read_count;
-    int64_t lock_truncate_list_write_count;
     int64_t lock_txn_global_wait_application;
     int64_t lock_txn_global_wait_internal;
     int64_t lock_txn_global_read_count;

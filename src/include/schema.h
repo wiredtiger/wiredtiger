@@ -100,8 +100,7 @@ struct __wt_truncate_list {
      */
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) qh;
 
-    /* Read/write lock. Any modification to the list must be done under a write lock. */
-    WT_RWLOCK lock;
+    WT_SPINLOCK lock; /* Mutex for truncate queue access */
 };
 
 /*
