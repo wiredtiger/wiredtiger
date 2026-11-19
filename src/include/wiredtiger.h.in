@@ -5617,7 +5617,7 @@ struct __wt_page_log {
     /*!
      * Abandon an incomplete checkpoint.
      *
-     * FIXME-WT-19115: this interface is deprecated in favour of
+     * FIXME-WT-19115: this interface is deprecated in favor of
      * WT_PAGE_LOG::pl_abandon_checkpoint_ext and will be removed.
      *
      * @errors
