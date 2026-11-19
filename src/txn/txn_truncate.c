@@ -16,6 +16,29 @@
 typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_TRUNCATE_SEARCH_MODE;
 
 /*
+ * __wt_truncate_list_lock --
+ *     Lock the truncate queue and record acquisition statistics.
+ */
+void
+__wt_truncate_list_lock(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list)
+{
+    const bool track = WT_STAT_ENABLED(session);
+    uint64_t time_start = track ? __wt_clock(session) : 0;
+
+    __wt_spin_lock(session, &truncate_list->lock);
+    if (track) {
+        uint64_t wait_us = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
+
+        /* Different table locks share statistics buckets. */
+        WT_STAT_CONN_INCR(session, lock_truncate_list_count);
+        if (F_ISSET(session, WT_SESSION_INTERNAL))
+            WT_STAT_CONN_INCRV(session, lock_truncate_list_wait_internal, wait_us);
+        else
+            WT_STAT_CONN_INCRV(session, lock_truncate_list_wait_application, wait_us);
+    }
+}
+
+/*
  * __disagg_truncate_free --
  *     Free an entry in the layered dhandle truncate list.
  */
@@ -175,7 +198,7 @@ __txn_insert_truncate_entry_helper(
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_TRUNCATE_ENTRY_INSERT, &tsp);
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
 
     WT_ASSERT_ALWAYS(session,
       !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP) &&
@@ -187,7 +210,7 @@ __txn_insert_truncate_entry_helper(
 
     TAILQ_INSERT_TAIL(&truncate_list->qh, entry, q);
 
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
 
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
@@ -268,7 +291,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *truncate_list, WT_
   const WT_ITEM *key, const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
     WT_ASSERT(session, is_foundp != NULL);
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &truncate_list->lock));
+    WT_ASSERT(session, __wt_spin_locked(session, &truncate_list->lock));
     *is_foundp = false;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_calls);
@@ -326,7 +349,7 @@ __wt_layered_table_truncate_detect_write_conflict(WT_SESSION_IMPL *session,
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (0);
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
 
     /*
      * The truncate entry has already been committed if it is visible to this transaction. We can
@@ -335,7 +358,7 @@ __wt_layered_table_truncate_detect_write_conflict(WT_SESSION_IMPL *session,
     ret = __truncate_search(
       session, truncate_list, collator, key, WT_TRUNCATE_SEARCH_NOT_VISIBLE, NULL, &is_found);
 
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
     WT_RET(ret);
 
     if (is_found) {
@@ -367,7 +390,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
 
     WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_calls);
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
 
     TAILQ_FOREACH (entry, &truncate_list->qh, q) {
         ++walked;
@@ -400,7 +423,7 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
     }
 
 err:
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
     /* Batch statistics updates to reduce atomic operations and exclude failed searches. */
     if (is_found)
         WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_search_hits);
@@ -459,7 +482,7 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *t
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (WT_NOTFOUND);
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
 
     /*
      * Ignore all truncate entries that haven't been committed. They won't be visible to this
@@ -472,7 +495,7 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *t
         WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
 
 err:
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
     WT_RET(ret);
     return (is_found ? 0 : WT_NOTFOUND);
 }
@@ -552,9 +575,9 @@ __wti_layered_table_truncate_rollback_apply(
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
     __truncate_entry_remove(session, layered_table, entry);
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_truncate_list_rollback_entries_removed);
     op->u.follower_truncate.t = NULL;
@@ -582,9 +605,9 @@ __wt_layered_table_truncate_prune(
 {
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
     __layered_table_truncate_gc(session, layered_table, prune_timestamp);
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
 }
 
 /*
@@ -599,7 +622,7 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
     WT_TRUNCATE *entry = NULL;
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
     uint64_t removed = 0;
 
     while ((entry = TAILQ_FIRST(&truncate_list->qh)) != NULL) {
@@ -607,8 +630,8 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
         __disagg_truncate_free(session, &entry);
         ++removed;
     }
-    __wt_writeunlock(session, &truncate_list->lock);
-    /* Batch statistics updates to reduce atomic operations and shorten the write-locked region. */
+    __wt_spin_unlock(session, &truncate_list->lock);
+    /* Batch statistics updates to reduce atomic operations and shorten the locked region. */
     if (removed != 0)
         WT_STAT_CONN_DSRC_INCRV(session, layered_truncate_list_clear_entries_removed, removed);
 }

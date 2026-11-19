@@ -45,7 +45,7 @@ struct TruncVisibleCheckFixture {
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_LAYERED_TABLE), &layered_table) == 0);
         layered_table->iface.name = "layered:unit_test_table";
         TAILQ_INIT(&layered_table->truncate_list.qh);
-        REQUIRE(__wt_rwlock_init(session, &layered_table->truncate_list.lock) == 0);
+        REQUIRE(__wt_spin_init(session, &layered_table->truncate_list.lock, "truncate list") == 0);
         layered_table->collator = nullptr;
     }
 
@@ -58,7 +58,7 @@ struct TruncVisibleCheckFixture {
             __wt_free(session, t);
         }
 
-        __wt_rwlock_destroy(session, &layered_table->truncate_list.lock);
+        __wt_spin_destroy(session, &layered_table->truncate_list.lock);
         __wt_free(session, layered_table);
 
         __wt_free(session, session->txn);
@@ -254,8 +254,8 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, &layered_table->truncate_list,
                 layered_table->collator, &key, nullptr, nullptr) == 0);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_list.lock);
+        CHECK(__wt_spin_trylock(session, &layered_table->truncate_list.lock) == 0);
+        __wt_spin_unlock(session, &layered_table->truncate_list.lock);
     }
 
     SECTION("truncate lock is released after a miss")
@@ -266,8 +266,8 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, &layered_table->truncate_list,
                 layered_table->collator, &key, nullptr, nullptr) == WT_NOTFOUND);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_list.lock);
+        CHECK(__wt_spin_trylock(session, &layered_table->truncate_list.lock) == 0);
+        __wt_spin_unlock(session, &layered_table->truncate_list.lock);
     }
 
     SECTION("truncate lock is released when the truncate list is empty")
@@ -277,8 +277,8 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, &layered_table->truncate_list,
                 layered_table->collator, &key, nullptr, nullptr) == WT_NOTFOUND);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_list.lock);
+        CHECK(__wt_spin_trylock(session, &layered_table->truncate_list.lock) == 0);
+        __wt_spin_unlock(session, &layered_table->truncate_list.lock);
     }
 }
 

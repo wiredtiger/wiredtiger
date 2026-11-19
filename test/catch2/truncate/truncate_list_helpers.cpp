@@ -53,10 +53,10 @@ truncate_list_size(const WT_LAYERED_TABLE &table)
 bool
 lock_is_released(WT_SESSION_IMPL &session, WT_LAYERED_TABLE &table)
 {
-    if (__wt_try_writelock(&session, &table.truncate_list.lock) != 0)
+    if (__wt_spin_trylock(&session, &table.truncate_list.lock) != 0)
         return false;
 
-    __wt_writeunlock(&session, &table.truncate_list.lock);
+    __wt_spin_unlock(&session, &table.truncate_list.lock);
     return true;
 }
 
@@ -72,7 +72,7 @@ truncate_list_fixture::truncate_list_fixture()
 {
     _table.iface.name = "layered:truncate_list_fixture";
     TAILQ_INIT(&_table.truncate_list.qh);
-    CHECK(__wt_rwlock_init(_session, &_table.truncate_list.lock) == 0);
+    CHECK(__wt_spin_init(_session, &_table.truncate_list.lock, "truncate list") == 0);
     CHECK(truncate_list_size(_table) == 0);
 }
 
@@ -90,7 +90,7 @@ truncate_list_fixture::~truncate_list_fixture()
     if (had_data)
         WT_DHANDLE_RELEASE(&_table.iface);
 
-    __wt_rwlock_destroy(_session, &_table.truncate_list.lock);
+    __wt_spin_destroy(_session, &_table.truncate_list.lock);
 }
 
 WT_TRUNCATE *

@@ -973,7 +973,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
     *sortedp = NULL;
     *ntruncatesp = 0;
 
-    __wt_writelock(session, &truncate_list->lock);
+    __wt_truncate_list_lock(session, truncate_list);
     TAILQ_FOREACH (t, &truncate_list->qh, q) {
         if (t->txn_id == WT_TXN_NONE)
             continue;
@@ -1000,7 +1000,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
     *ntruncatesp = ntruncates;
 
 err:
-    __wt_writeunlock(session, &truncate_list->lock);
+    __wt_spin_unlock(session, &truncate_list->lock);
     if (ret != 0)
         __wt_free(session, sorted);
     return (ret);
