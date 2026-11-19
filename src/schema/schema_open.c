@@ -692,7 +692,13 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
      */
     WT_SAVE_DHANDLE(
       session, ret = __schema_open_layered_ingest(session, layered, layered->ingest_uri));
-    WT_RET(ret);
+    if (ret != 0) {
+        __wt_free(session, layered->key_format);
+        __wt_free(session, layered->value_format);
+        __wt_free(session, layered->ingest_uri);
+        __wt_free(session, layered->stable_uri);
+        return (ret);
+    }
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 

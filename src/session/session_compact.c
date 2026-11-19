@@ -161,7 +161,7 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_UNUSED(cfg);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
 
     WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
 

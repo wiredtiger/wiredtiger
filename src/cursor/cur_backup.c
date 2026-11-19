@@ -563,7 +563,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
 
     if (!is_dup) {
         WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-        WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+        WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
     }
 
     /*
@@ -766,7 +766,7 @@ __backup_start(
 
     if (!is_dup) {
         WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-        WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+        WT_ASSERT_SCHEMA_LOCK_WRITE_OWNED(session);
     }
 
     cb->next = 0;

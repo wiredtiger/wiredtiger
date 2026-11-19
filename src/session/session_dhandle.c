@@ -1102,9 +1102,26 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                 WT_WITH_CHECKPOINT_LOCK(session,
                   WT_WITH_SCHEMA_LOCK(
                     session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
-            } else
+                return (ret);
+            }
+
+            if (LF_ISSET(WT_BTREE_SPECIAL_FLAGS))
                 WT_WITH_SCHEMA_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+            else {
+                /*
+                 * Drop, verify and other operations that need exclusive access to a tree take the
+                 * schema lock for write, so the read lock keeps them out. Threads can open
+                 * different handles at the same time. Two opens of the same handle wait on the
+                 * handle's own lock.
+                 */
+                WT_WITH_SCHEMA_READ_LOCK(
+                  session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+                /* Creating a missing ingest table requires releasing the read lock first. */
+                if (ret == WT_RESTART)
+                    WT_WITH_SCHEMA_LOCK(session,
+                      ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+            }
 
             return (ret);
         }

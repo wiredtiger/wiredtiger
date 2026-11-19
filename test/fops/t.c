@@ -44,7 +44,7 @@ static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void shutdown(void);
 static int usage(void);
-static void wt_startup(char *);
+static void wt_startup(char *, bool);
 static void wt_shutdown(void);
 
 extern int __wt_optind;
@@ -65,6 +65,7 @@ main(int argc, char *argv[])
     u_int nthreads;
     int ch, cnt, runs;
     char *config_open, *working_dir;
+    bool sweep;
 
     (void)testutil_set_progname(argv);
 
@@ -73,9 +74,9 @@ main(int argc, char *argv[])
     nops = WT_THOUSAND;
     nthreads = 10;
     runs = 1;
-    use_txn = false;
+    use_txn = sweep = false;
     config_open = working_dir = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "C:h:l:n:r:t:x")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:h:l:n:r:St:x")) != EOF)
         switch (ch) {
         case 'C': /* wiredtiger_open config */
             config_open = __wt_optarg;
@@ -94,6 +95,9 @@ main(int argc, char *argv[])
             break;
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
+            break;
+        case 'S':
+            sweep = true;
             break;
         case 't':
             nthreads = (u_int)atoi(__wt_optarg);
@@ -124,7 +128,7 @@ main(int argc, char *argv[])
             printf(
               "%5d: %u threads on %s%s\n", cnt, nthreads, uri, cp->desc == NULL ? "" : cp->desc);
 
-            wt_startup(config_open);
+            wt_startup(config_open, sweep);
 
             fop_start(nthreads);
 
@@ -140,17 +144,21 @@ main(int argc, char *argv[])
  *     Configure the WiredTiger connection.
  */
 static void
-wt_startup(char *config_open)
+wt_startup(char *config_open, bool sweep)
 {
     static WT_EVENT_HANDLER event_handler = {handle_error, handle_message, NULL, NULL, NULL};
-    char config_buf[512];
+    char config_buf[1024];
 
     testutil_recreate_dir(home);
 
     testutil_snprintf(config_buf, sizeof(config_buf),
-      "create,error_prefix=\"%s\",cache_size=5MB%s%s,operation_tracking=(enabled=false),statistics="
-      "(all),statistics_log=(json,on_close,wait=1)",
-      progname, config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open);
+      "create,error_prefix=\"%s\",cache_size=5MB%s%s%s,operation_tracking=(enabled=false),"
+      "statistics=(all),statistics_log=(json,on_close,wait=1)",
+      progname,
+      sweep ? ",cache_cursors=false,file_manager=(close_handle_minimum=0,close_idle_time=1,"
+              "close_scan_interval=1)" :
+              "",
+      config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open);
     testutil_check(wiredtiger_open(home, &event_handler, config_buf, &conn));
 }
 
@@ -239,7 +247,7 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-C wiredtiger-config] [-l log] [-n ops] [-r runs] [-t threads] [-x] \n",
+      "usage: %s [-C wiredtiger-config] [-l log] [-n ops] [-r runs] [-S] [-t threads] [-x] \n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
@@ -247,6 +255,7 @@ usage(void)
       "\t-l specify a log file\n"
       "\t-n set number of operations each thread does\n"
       "\t-r set number of runs\n"
+      "\t-S sweep idle handles aggressively and disable cursor caching\n"
       "\t-t set number of threads\n"
       "\t-x operations within user transaction \n");
     return (EXIT_FAILURE);
