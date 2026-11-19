@@ -103,13 +103,14 @@ class test_cache_census01(wttest.WiredTigerTestCase):
         values = self.wait_for(lambda v: v[stat.conn.cache_trees_no_leaf] >= ntables,
             'trees with evicted leaf pages not counted')
 
-        # Reading a row back brings a leaf page into the cache.
+        # Reading a row back brings a leaf page into the cache. Keep the cursor positioned so the
+        # page stays resident: some configurations evict it as soon as the cursor lets it go.
         no_leaf = values[stat.conn.cache_trees_no_leaf]
         cursor = self.session.open_cursor(uris[0])
         self.assertEqual(cursor['k%08d' % 0], self.value)
-        cursor.close()
         self.wait_for(lambda v: v[stat.conn.cache_trees_no_leaf] < no_leaf,
             'tree with a leaf page read back still counted as having none')
+        cursor.close()
 
     def test_dirty_leaf(self):
         ntables = 5
