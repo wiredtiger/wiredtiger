@@ -328,8 +328,11 @@ __sync_obsolete_cleanup_one(
         new_state = previous_state;
         if (previous_state == WT_REF_DELETED) {
             /*
-             * Skip a ref an earlier reconciliation of the parent already discarded: with no
-             * fast-delete information and no address there is nothing left to remove.
+             * Process the ref while it still has fast-delete information or an address: the
+             * parent's last written image may still reference the page. The fast-delete information
+             * alone is not enough, a cursor walk frees it once the delete is globally visible
+             * without marking the parent dirty. A reconciliation of the parent that discards the
+             * page clears both, leaving nothing to remove.
              */
             if (ref->page_del != NULL || __wt_ref_addr_copy(session, ref, &addr)) {
                 *deletedp = true;

@@ -191,6 +191,37 @@ class test_cc12(checkpoint_cleanup_resolved_base):
     def test_resolved_deleted_refs_not_reprocessed(self):
         self.check_resolved_refs_not_reprocessed()
 
+    def test_cursor_freed_page_del_still_reclaimed(self):
+        """
+        A cursor walk frees the fast-delete information of a globally visible deleted ref
+        without marking its parent dirty, and the page is still referenced by the parent's
+        last written image. Checkpoint cleanup must still process such a ref.
+        """
+        self.populate()
+        self.fast_truncate()
+        fast_deleted = self.read_stat(stat.dsrc.cursor_truncate_fast_delete_pages)
+        self.assertGreater(fast_deleted, 0, "fast truncate did not delete any pages")
+
+        # Write the parents with the fast-delete information while the truncate is not yet
+        # globally visible, leaving them clean and in memory.
+        self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
+        self.session.checkpoint()
+
+        # Make the truncate globally visible, then walk the table: the walk frees the
+        # fast-delete information of the deleted refs.
+        self.conn.set_timestamp("oldest_timestamp=" + self.timestamp_str(self.truncate_ts))
+        with (
+            wttest.open_cursor(self.session, self.uri) as cursor,
+            self.transaction(rollback=True),
+        ):
+            while cursor.next() == 0:
+                pass
+
+        rounds = self.run_rounds(1)
+        self.pr(f"rounds: {rounds}")
+        self.assertGreaterEqual(rounds[0]["removed"], fast_deleted,
+            f"cleanup did not process the deleted refs: {rounds}")
+
 
 @disagg_test_class
 class test_cc12_four_levels(checkpoint_cleanup_resolved_base):
