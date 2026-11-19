@@ -359,6 +359,7 @@ Mutexes
 MySecret
 NN
 NNN
+NNNNNN
 NOLINT
 NOLINTNEXTLINE
 NONINFRINGEMENT
@@ -937,6 +938,7 @@ cx
 cxa
 cygwin
 dKB
+dMB
 dT
 da
 darwin
@@ -1319,6 +1321,7 @@ isspace
 iswritelocked
 iter
 iterable
+ivcsw
 ized
 janky
 jjj
@@ -1347,6 +1350,7 @@ kvs
 lN
 lang
 las
+latencies
 latin
 layercparse
 lazyfs
@@ -1777,6 +1781,7 @@ sXXXXXX
 salvageUntilSuccess
 sanitizer
 sanitizers
+scache
 scalable
 scen
 scheckpoint
@@ -2088,6 +2093,7 @@ valuep
 valuesize
 valuev
 variadic
+vcsw
 vcvars
 vd
 vdata

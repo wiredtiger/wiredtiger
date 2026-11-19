@@ -1119,8 +1119,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
                 /* Creating a missing ingest table requires releasing the read lock first. */
                 if (ret == WT_RESTART)
-                    WT_WITH_SCHEMA_LOCK(
-                      session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+                    WT_WITH_SCHEMA_LOCK(session,
+                      ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
             }
 
             return (ret);
