@@ -337,9 +337,7 @@ __sync_obsolete_cleanup_one(
             if (ref->page_del != NULL || __wt_ref_addr_copy(session, ref, &addr)) {
                 *deletedp = true;
                 ret = __sync_obsolete_deleted_cleanup(session, ref, visible_allp);
-            } else
-                __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
-                  "%p: skipping deleted page already removed by reconciliation", (void *)ref);
+            }
         } else if (previous_state == WT_REF_DISK) {
             ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
             if (ref_deleted) {
