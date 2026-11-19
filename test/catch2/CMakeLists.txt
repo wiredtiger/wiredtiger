@@ -30,11 +30,13 @@ else()
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
+        misc_tests/test_evict_bool_options_reconfigure.cpp
         misc_tests/test_evict_bounded_wait.cpp
         misc_tests/test_evict_clear_walks.cpp
         misc_tests/test_evict_disagg_cache_eligible.cpp
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
+        misc_tests/test_evict_walk_budget.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_file_id.cpp
         misc_tests/test_futex.cpp
@@ -89,6 +91,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        cursors/unit/test_cursor_next_raw_key_value_batch.cpp
         cursors/unit/test_curstat_size.cpp
         cursors/unit/test_layered_op.cpp
         ext/test_key_provider.cpp

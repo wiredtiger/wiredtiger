@@ -552,7 +552,8 @@ layered_meta = format_meta + layered_config + log_runtime_config + connection_di
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
     Config('block_cache', '', r'''
-        block cache configuration options''',
+        deprecated: the block cache is no longer supported, all settings are ignored and
+        enablement is rejected''',
         type='category', subconfig=[
         Config('cache_on_checkpoint', 'true', r'''
             cache blocks written by a checkpoint''',
@@ -561,7 +562,7 @@ connection_runtime_config = [
             cache blocks as they are written (other than checkpoint blocks)''',
             type='boolean'),
         Config('enabled', 'false', r'''
-            enable block cache''',
+            no longer supported; block cache enablement is rejected''',
             type='boolean'),
         Config('blkcache_eviction_aggression', '1800', r'''
             seconds an unused block remains in the cache before it is evicted''',
@@ -814,6 +815,10 @@ connection_runtime_config = [
                 images it retains for that replacement. Checkpoint stops retaining new images
                 once the limit is reached; a value of \c 0 disables retention entirely''',
                 min=0, max=100),
+            Config('cache_share_walk_budget', 'false', r'''
+                increase the minimum clean eviction walk based on a tree's share of
+                cache usage. This may improve or degrade performance depending on the workload''',
+                type='boolean', undoc=True),
             Config('evict_sample_inmem', 'true', r'''
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
@@ -902,15 +907,13 @@ connection_runtime_config = [
         eviction_dirty_target. The value is not allowed to exceed the \c cache_size and has to be
         lower than its counterpart \c eviction_updates_trigger''',
         min=0, max='10TB'),
-    Config('eviction_updates_trigger', '95', r'''
+    Config('eviction_updates_trigger', '0', r'''
         trigger application threads to perform eviction when the cache contains at least this
         many bytes of updates. It is a percentage of the cache size if the value is within
-        the range of 1 to 100 or an absolute size when greater than 100\. If set to 0, the
-        trigger is half of \c eviction_dirty_trigger. With precise checkpoints, if that would be
-        less than \c eviction_updates_target, the trigger is set to \c eviction_dirty_trigger
-        instead. The value is not allowed to exceed the \c cache_size and has to be greater than
-        its counterpart \c eviction_updates_target. This setting only alters behavior if it is
-        lower than \c eviction_trigger''',
+        the range of 1 to 100 or an absolute size when greater than 100\. Calculated as half
+        of \c eviction_dirty_trigger by default. The value is not allowed to exceed the \c
+        cache_size and has to be greater than its counterpart \c eviction_updates_target. This
+        setting only alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
     Config('extra_diagnostics', '[]', r'''
         enable additional diagnostics in WiredTiger. These additional diagnostics include
@@ -1105,7 +1108,6 @@ connection_runtime_config = [
             'api',
             'backup',
             'block',
-            'block_cache',
             'cache_top',
             'checkpoint',
             'checkpoint_cleanup',
@@ -1962,6 +1964,12 @@ methods = {
         when verifying all tables (no URI given), stop at the first table that fails
         verification; by default all tables are verified, with every failure logged as it is
         found, and the return value reports the first failure''',
+        type='boolean'),
+    Config('verify_internals', 'false', r'''
+        when no URI is given, run only the internal database-wide checks (currently the unique
+        btree ID check, which scans the metadata for duplicates) without verifying any table.
+        When false (the default), a NULL URI verifies all tables without running the checks.
+        This configuration has no effect when a specific URI is given''',
         type='boolean'),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes

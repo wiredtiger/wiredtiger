@@ -425,7 +425,8 @@ __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 
 /*
  * __checkpoint_update_evict_triggers_start --
- *     During checkpoint, adjust eviction triggers to reduce application eviction.
+ *     During checkpoint, update the eviction triggers to avoid pulling applications threads into
+ *     eviction work as the cache gets progressively more full.
  */
 static void
 __checkpoint_update_evict_triggers_start(
@@ -451,17 +452,14 @@ __checkpoint_update_evict_triggers_start(
      */
 
     /*
-     * Update the dirty trigger first. Cap trigger increases at 40%, without lowering an already
-     * higher trigger.
+     * Be careful of ordering, update the dirty trigger first. Only update the trigger (upper bound)
+     * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
+     * though these values can be absolute).
      */
     saved_triggers->new_dirty_trigger =
       WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) * 1.3);
-    saved_triggers->new_dirty_trigger =
-      WT_MAX(saved_triggers->original_dirty_trigger, saved_triggers->new_dirty_trigger);
     saved_triggers->new_updates_trigger =
       WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) * 2.0);
-    saved_triggers->new_updates_trigger =
-      WT_MAX(saved_triggers->original_updates_trigger, saved_triggers->new_updates_trigger);
     __wt_atomic_store_double_relaxed(
       &evict->eviction_dirty_trigger, saved_triggers->new_dirty_trigger);
     __wt_atomic_store_double_relaxed(
@@ -540,7 +538,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     __wt_epoch(session, &conn->ckpt.scrub.timer_start);
 
     /* Give up if scrubbing is disabled. */
-    if (evict->eviction_checkpoint_target < DBL_EPSILON)
+    if (__wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target) < DBL_EPSILON)
         return;
 
     bytes_written_start = __wt_atomic_load_uint64_relaxed(&cache->bytes_written);
@@ -554,14 +552,15 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
         return;
 
     current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-    if (current_dirty <= evict->eviction_checkpoint_target)
+    if (current_dirty <= __wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target))
         return;
 
     /* Stop if we write as much dirty data as is currently in cache. */
     max_write = __wt_cache_dirty_leaf_inuse(cache);
 
     /* Set the dirty trigger to the target value. */
-    __checkpoint_set_scrub_target(session, evict->eviction_checkpoint_target);
+    __checkpoint_set_scrub_target(
+      session, __wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target));
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -570,7 +569,8 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
         prev_dirty = current_dirty;
         current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-        if (current_dirty <= evict->eviction_checkpoint_target || current_dirty >= prev_dirty)
+        if (current_dirty <= __wt_atomic_load_double_relaxed(&evict->eviction_checkpoint_target) ||
+          current_dirty >= prev_dirty)
             break;
 
         /*
@@ -686,7 +686,8 @@ __checkpoint_scrub_progress(
           "Checkpoint scrub %s for %" PRIu64
           " seconds, cache dirty %.1f%% (target %.1f%%), wrote %" PRIu64 " MB while waiting",
           closing ? "ran" : "has been running", time_diff, current_dirty,
-          conn->evict->eviction_checkpoint_target, bytes_written / WT_MEGABYTE);
+          __wt_atomic_load_double_relaxed(&conn->evict->eviction_checkpoint_target),
+          bytes_written / WT_MEGABYTE);
         conn->ckpt.progress.msg_count++;
     }
 }
@@ -1776,8 +1777,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.scrub.timer_end);
 
     /*
-     * When operating in precise checkpoint mode, adjust eviction triggers to reduce the likelihood
-     * that workloads will stall.
+     * When operating in precise checkpoint mode, allow higher updates and eviction triggers. This
+     * allows work to accumulate while checkpoint is running, making it less likely that workloads
+     * will stall.
      */
     __checkpoint_update_evict_triggers_start(session, &precise_ckpt_saved_triggers);
 
@@ -2046,7 +2048,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
-    /* Now that checkpoint is finished, restore the eviction triggers. */
+    /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
     __checkpoint_update_evict_triggers_end(session, &precise_ckpt_saved_triggers);
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
@@ -3627,6 +3629,10 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * are wasted effort. Discard the objects to validate exit accounting.
      */
     if (final && !metadata)
+        return (__wt_evict_file(session, WT_SYNC_DISCARD));
+
+    /* An outdated disaggregated btree is never written, whether or not it was dirtied. */
+    if (__wt_btree_is_outdated_disagg(session))
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /* Closing an unmodified file. */

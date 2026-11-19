@@ -43,7 +43,6 @@ BBBBBBBBBBBBBBBBBB
 BCcLlsvz
 BFGs
 BIGENDIAN
-BLKCACHE
 BLmpqRrSVv
 BOOL
 BSON
@@ -177,9 +176,11 @@ ENOSPC
 ENOTSUP
 ENUM
 EOF
+EPERM
 EPIPE
 EQ
 ERANGE
+EROFS
 ETIME
 ETIMEDOUT
 EWMA
@@ -535,7 +536,6 @@ TMP
 TODO
 TRET
 TRYLOCK
-TS
 TSAN
 TSC
 TSO
@@ -789,7 +789,6 @@ bufsz
 bugfix
 builddir
 buildvariant
-builtin
 builtins
 bulkload
 bursty
@@ -829,7 +828,6 @@ checkfail
 checkfmt
 checkkey
 checklog
-checkpoint's
 checkpointed
 checkpointer
 checkpointing
@@ -881,7 +879,6 @@ conf
 confchk
 config
 configs
-configuration's
 conn
 connectionp
 connreopen
@@ -923,7 +920,6 @@ curhs
 curindex
 curlog
 curmetadata
-cursor's
 cursoring
 cursorp
 curstat
@@ -1058,6 +1054,7 @@ ejnprx
 el
 elif
 emp
+enablement
 encodings
 encryptor
 encryptor's
@@ -1091,7 +1088,6 @@ ev
 evd
 eventv
 evictable
-eviction's
 evq
 ewma
 exactp
@@ -1369,7 +1365,6 @@ lexicographically
 lf
 libdatasource
 libmagic
-libmemkind
 libpthread
 libpython
 libs
@@ -1446,7 +1441,6 @@ memcmp
 memcpy
 memdup
 meminfo
-memkind
 memmove
 memset
 memsize
@@ -1473,7 +1467,6 @@ mongodbtoolchain
 moreinit
 mpP
 mrs
-ms
 msecs
 msg
 msvc
@@ -1984,7 +1977,6 @@ truncations
 trylock
 tryrdlock
 trywrlock
-ts
 tsan
 tsc
 tty
@@ -2163,7 +2155,6 @@ xxxxx
 xxxxxx
 yml
 zalloc
-zeroes
 zf
 zfree
 zihintpause
