@@ -2228,11 +2228,6 @@ __disagg_mark_btrees_outdated_then_step_down(WT_SESSION_IMPL *session)
     __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, false);
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 
-    /*
-     * Keep the recorded LSN across a role change: it names the last checkpoint this node completed,
-     * which remains the boundary the log head sits at until this node installs a checkpoint.
-     * Installing one records the LSN the application supplies.
-     */
     return (0);
 }
 
@@ -2760,6 +2755,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               session, cfg, &last_checkpoint_lsn, NULL, &complete_checkpoint_meta);
             WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == 0) {
+                /* Pick up the checkpoint we just found. */
                 ret = __wti_disagg_pick_up_checkpoint_meta(session, complete_checkpoint_meta.data,
                   complete_checkpoint_meta.size, true, last_checkpoint_lsn);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");

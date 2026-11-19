@@ -2196,7 +2196,7 @@ public:
 
         /* Note: global LSN counter is not decremented. */
 
-        /* Delete the records above the checkpoint the caller named. */
+        /* Proceed to delete records up to the checkpoint LSN. */
         delete_records(last_checkpoint_lsn);
     }
 };

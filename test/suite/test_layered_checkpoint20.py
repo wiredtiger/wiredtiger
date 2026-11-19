@@ -84,9 +84,9 @@ class test_layered_checkpoint20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Page 12 lands above the second checkpoint.
         page12_lsn = self.put_page(handle, session, 12, 'page-12')
 
-        # Abandoning up to the first checkpoint discards the second checkpoint and both later
-        # pages: the boundary comes from the argument, not from the newest checkpoint the page log
-        # knows about.
+        # Naming the first checkpoint's LSN discards the second checkpoint and both later pages:
+        # the boundary comes from the argument, not from the newest checkpoint the page log knows
+        # about.
         self.abandon(page_log, session, ckpt1_lsn)
         self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt1_lsn)
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page12_lsn)), [10])
