@@ -44,17 +44,17 @@
 #define MAX_TABLE_TYPE 2
 typedef enum { MIX = 0, ROW, COL } table_type; /* File type */
 
-/* A prepared transaction's durable timestamp is at most this far after its commit timestamp. */
-#define PREPARE_DURABLE_MAX_GAP 10
+/* Prepare and durable timestamps are drawn independently from a window of this size. */
+#define PREPARE_TIMESTAMP_WINDOW 10
 
 /*
  * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
  * the i-th key that a thread writes is given by the macro below. The first timestamp of each
- * iteration is the commit and optionally the prepare timestamp. Prepared runs reserve enough
- * timestamps to hold the durable timestamp, and the third timestamp is the rollback timestamp of a
- * prepared transaction. Runs without prepare keep the original three timestamps per iteration.
+ * iteration starts the timestamp window. Prepared transactions commit at the lower of two draws
+ * from that window and become durable at the higher draw. Reserve two additional timestamps for a
+ * rollback after prepare. Runs without prepare keep the original three timestamps per iteration.
  */
-#define TIMESTAMPS_PER_ITERATION (g.prepare ? PREPARE_DURABLE_MAX_GAP + 1 : 3)
+#define TIMESTAMPS_PER_ITERATION (g.prepare ? PREPARE_TIMESTAMP_WINDOW + 2 : 3)
 #define RESERVED_TIMESTAMPS_FOR_ITERATION(threadcount, td, iter) \
     (((iter) * (uint64_t)(threadcount) + (uint64_t)((td)->info)) * TIMESTAMPS_PER_ITERATION + 1)
 
