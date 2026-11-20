@@ -675,9 +675,6 @@ restart:
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
-    WT_RET(__clayered_update_ingest(clayered, flags));
-
     /*
      * Manage the stable: open it, advance to a newer checkpoint, or reopen on role change.
      *
@@ -693,6 +690,9 @@ restart:
         goto restart;
     }
     WT_RET(ret);
+
+    /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
+    WT_RET(__clayered_update_ingest(clayered, flags));
 
     /*
      * Establish the read snapshot before sampling its generation, otherwise an autocommit operation
