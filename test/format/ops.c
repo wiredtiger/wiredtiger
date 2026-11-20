@@ -624,7 +624,7 @@ begin_transaction_ts(TINFO *tinfo)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
-    const char *config;
+    char config[64], ts_buf[WT_TS_HEX_STRING_SIZE];
 
     session = tinfo->session;
 
@@ -642,13 +642,14 @@ begin_transaction_ts(TINFO *tinfo)
         ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
-        if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
-            config = "ignore_prepare=true";
-            tinfo->ignore_prepare = true;
-        } else {
-            config = NULL;
-            tinfo->ignore_prepare = false;
-        }
+        tinfo->ignore_prepare = GV(OPS_PREPARE) && mmrand(&tinfo->data_rnd, 1, 10) == 1;
+
+        /*
+         * Predictable replay needs every run to choose the same operation. The fallback below would
+         * change that choice, so round an aged out read timestamp up to the oldest timestamp.
+         */
+        testutil_snprintf(config, sizeof(config), "ignore_prepare=%s,roundup_timestamps=(read=%s)",
+          tinfo->ignore_prepare ? "true" : "false", GV(RUNS_PREDICTABLE_REPLAY) ? "true" : "false");
 
         wt_wrap_begin_transaction(session, config);
 
@@ -658,11 +659,18 @@ begin_transaction_ts(TINFO *tinfo)
          */
         ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts);
         if (ret == 0) {
+            /* Record the read timestamp in use as it may have been rounded up. */
+            if (GV(RUNS_PREDICTABLE_REPLAY)) {
+                testutil_check(session->query_timestamp(session, ts_buf, "get=read"));
+                ts = testutil_timestamp_parse(ts_buf);
+            }
             snap_op_init(tinfo, ts, true);
             trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
             return;
         }
-        testutil_assert(ret == EINVAL);
+
+        /* Predictable replay should never reach the fallback state. */
+        testutil_assert(ret == EINVAL && !GV(RUNS_PREDICTABLE_REPLAY));
         testutil_check(session->rollback_transaction(session, NULL));
     }
 
