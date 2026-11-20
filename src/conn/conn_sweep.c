@@ -315,26 +315,26 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 }
 
 /*
- * Per-tree cache census. Trees with leaf pages are bucketed by resident leaf bytes at 1MB, 16MB and
- * 256MB; trees with no leaf pages are counted separately, as the eviction handle scan finds nothing
- * in them.
+ * Per-tree cache statistics. Trees with leaf pages are bucketed by resident leaf bytes at 1MB, 16MB
+ * and 256MB; trees with no leaf pages are counted separately, as the eviction handle scan finds
+ * nothing in them.
  */
-#define WT_SWEEP_CENSUS_BUCKETS 4
-struct __wt_sweep_cache_census {
-    uint64_t dirty_leaf;                     /* Trees with dirty leaf pages */
-    uint64_t no_leaf;                        /* Trees with no leaf pages */
-    uint64_t trees[WT_SWEEP_CENSUS_BUCKETS]; /* Trees per bucket */
+#define WT_SWEEP_CACHE_TREES_BUCKETS 4
+struct __wt_sweep_cache_trees {
+    uint64_t dirty_leaf;                            /* Trees with dirty leaf pages */
+    uint64_t no_leaf;                               /* Trees with no leaf pages */
+    uint64_t buckets[WT_SWEEP_CACHE_TREES_BUCKETS]; /* Trees per bucket */
 };
-typedef struct __wt_sweep_cache_census WT_SWEEP_CACHE_CENSUS;
+typedef struct __wt_sweep_cache_trees WT_SWEEP_CACHE_TREES;
 
 /*
- * __sweep_census_add --
- *     Add a handle's tree to the cache census. Only byte counters are read: unlike
+ * __sweep_cache_trees_add --
+ *     Add a handle's tree to the cache tree statistics. Only byte counters are read: unlike
  *     __wt_btree_bytes_evictable, this never touches the root page, so it needs no eviction walk
  *     lock.
  */
 static WT_INLINE void
-__sweep_census_add(WT_DATA_HANDLE *dhandle, WT_SWEEP_CACHE_CENSUS *census)
+__sweep_cache_trees_add(WT_DATA_HANDLE *dhandle, WT_SWEEP_CACHE_TREES *cache_trees)
 {
     WT_BTREE *btree;
     uint64_t inmem, internal, leaf;
@@ -347,13 +347,13 @@ __sweep_census_add(WT_DATA_HANDLE *dhandle, WT_SWEEP_CACHE_CENSUS *census)
 
     btree = dhandle->handle;
     if (__wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf) != 0)
-        ++census->dirty_leaf;
+        ++cache_trees->dirty_leaf;
 
     /* The counters are read separately, so internal bytes can briefly exceed resident bytes. */
     inmem = __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem);
     internal = __wt_atomic_load_uint64_relaxed(&btree->bytes_internal);
     if (inmem <= internal) {
-        ++census->no_leaf;
+        ++cache_trees->no_leaf;
         return;
     }
 
@@ -366,28 +366,28 @@ __sweep_census_add(WT_DATA_HANDLE *dhandle, WT_SWEEP_CACHE_CENSUS *census)
         bucket = 2;
     else
         bucket = 3;
-    ++census->trees[bucket];
+    ++cache_trees->buckets[bucket];
 }
 
 /*
- * __sweep_census_publish --
- *     Publish a completed cache census.
+ * __sweep_cache_trees_publish --
+ *     Publish the completed cache tree statistics.
  */
 static void
-__sweep_census_publish(WT_SESSION_IMPL *session, const WT_SWEEP_CACHE_CENSUS *census)
+__sweep_cache_trees_publish(WT_SESSION_IMPL *session, const WT_SWEEP_CACHE_TREES *cache_trees)
 {
-    WT_STAT_CONN_SET(session, cache_trees_dirty_leaf, census->dirty_leaf);
-    WT_STAT_CONN_SET(session, cache_trees_no_leaf, census->no_leaf);
+    WT_STAT_CONN_SET(session, cache_trees_dirty_leaf, cache_trees->dirty_leaf);
+    WT_STAT_CONN_SET(session, cache_trees_no_leaf, cache_trees->no_leaf);
 
-    WT_STAT_CONN_SET(session, cache_trees_lt_1mb, census->trees[0]);
-    WT_STAT_CONN_SET(session, cache_trees_1mb_16mb, census->trees[1]);
-    WT_STAT_CONN_SET(session, cache_trees_16mb_256mb, census->trees[2]);
-    WT_STAT_CONN_SET(session, cache_trees_ge_256mb, census->trees[3]);
+    WT_STAT_CONN_SET(session, cache_trees_lt_1mb, cache_trees->buckets[0]);
+    WT_STAT_CONN_SET(session, cache_trees_1mb_16mb, cache_trees->buckets[1]);
+    WT_STAT_CONN_SET(session, cache_trees_16mb_256mb, cache_trees->buckets[2]);
+    WT_STAT_CONN_SET(session, cache_trees_ge_256mb, cache_trees->buckets[3]);
 }
 
 /*
  * __sweep_discard_trees --
- *     Discard pages from dead trees, taking the cache census in the same walk.
+ *     Discard pages from dead trees, gathering the cache tree statistics in the same walk.
  */
 static int
 __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
@@ -395,14 +395,14 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    WT_SWEEP_CACHE_CENSUS census;
-    bool census_on;
+    WT_SWEEP_CACHE_TREES cache_trees;
+    bool cache_trees_on;
 
     *dead_handlesp = 0;
 
     conn = S2C(session);
-    WT_CLEAR(census);
-    census_on = WT_STAT_ENABLED(session);
+    WT_CLEAR(cache_trees);
+    cache_trees_on = WT_STAT_ENABLED(session);
 
     /*
      * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
@@ -416,8 +416,8 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
      * routinely follow one of those into a handle that has already been freed.
      */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (census_on)
-            __sweep_census_add(dhandle, &census);
+        if (cache_trees_on)
+            __sweep_cache_trees_add(dhandle, &cache_trees);
 
         if (WT_DHANDLE_CAN_DISCARD(dhandle))
             ++*dead_handlesp;
@@ -438,8 +438,8 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
         WT_RET_BUSY_OK(ret);
     }
 
-    if (census_on)
-        __sweep_census_publish(session, &census);
+    if (cache_trees_on)
+        __sweep_cache_trees_publish(session, &cache_trees);
 
     return (0);
 }

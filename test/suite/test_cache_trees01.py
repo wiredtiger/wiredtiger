@@ -32,7 +32,7 @@ from wiredtiger import stat
 
 # Check the statistics describing how the cache is spread across trees. They refresh every
 # close_scan_interval, so each check polls with a deadline; close_idle_time=0 keeps the trees open.
-class test_cache_census01(wttest.WiredTigerTestCase):
+class test_cache_trees01(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=100MB,statistics=(all),'
         'file_manager=(close_scan_interval=1,close_idle_time=0),'
         'eviction_dirty_target=75,eviction_dirty_trigger=90,'
@@ -43,7 +43,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
     value = 'v' * 4096
     timeout = 60
 
-    def census(self):
+    def cache_trees(self):
         cursor = self.session.open_cursor('statistics:', None, None)
         values = {}
         self.descriptions = {}
@@ -56,7 +56,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
     def wait_for(self, cond, msg):
         deadline = time.time() + self.timeout
         while True:
-            values = self.census()
+            values = self.cache_trees()
             if cond(values):
                 return values
             self.assertLess(time.time(), deadline, '%s: %s' % (msg,
@@ -83,7 +83,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_internal_trees_excluded(self):
-        self.populate('table:census_small', 1)
+        self.populate('table:trees_small', 1)
         values = self.wait_for(lambda v: self.trees_counted(v) >= 1, 'user tree not counted')
 
         # The metadata and history store trees are open but must not be counted. A hook can back
@@ -93,7 +93,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
 
     def test_no_leaf(self):
         ntables = 3
-        uris = ['table:census_no_leaf%d' % i for i in range(ntables)]
+        uris = ['table:trees_no_leaf%d' % i for i in range(ntables)]
         for uri in uris:
             self.populate(uri, 1)
         self.session.checkpoint()
@@ -115,7 +115,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
     def test_dirty_leaf(self):
         ntables = 5
         for i in range(ntables):
-            self.populate('table:census_dirty%d' % i, 1)
+            self.populate('table:trees_dirty%d' % i, 1)
         self.wait_for(lambda v: v[stat.conn.cache_trees_dirty_leaf] >= ntables,
             'dirty trees not counted')
 
@@ -125,10 +125,10 @@ class test_cache_census01(wttest.WiredTigerTestCase):
 
     def test_size_buckets(self):
         # About 4MB of leaf pages, well inside the 1MB to 16MB bucket.
-        self.populate('table:census_large', 1000)
+        self.populate('table:trees_large', 1000)
         nsmall = 5
         for i in range(nsmall):
-            self.populate('table:census_small%d' % i, 1)
+            self.populate('table:trees_small%d' % i, 1)
         # Checkpoint so the pages are clean and stay resident without cache pressure.
         self.session.checkpoint()
 
