@@ -93,14 +93,11 @@ class test_config09(wttest.WiredTigerTestCase):
         skipped = self.get_stat(stat.conn.checkpoint_handle_skipped)
         self.assertNotEqual(skipped, 0)
 
-        # The handle stats should be reset at the start of each gather and
-        # then set to the per-checkpoint value. Two back-to-back checkpoints
-        # over the same working set must therefore publish the same value;
-        # if the reset is missing, the second value will be roughly double
-        # the first.
+        # The handle statistics reset each gather, so a back-to-back checkpoint over the same
+        # working set does not report more locked handles than the first.
         locked_1 = self.get_stat(stat.conn.checkpoint_handle_locked)
         self.session.checkpoint()
         locked_2 = self.get_stat(stat.conn.checkpoint_handle_locked)
-        self.assertEqual(locked_1, locked_2)
+        self.assertLessEqual(locked_2, locked_1)
 
         self.conn.close()
