@@ -466,13 +466,17 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
         else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_stable, 1);
     }
+}
 
-    /*
-     * Track if eviction makes progress. This is used in various places to determine whether
-     * eviction is stuck.
-     */
-    if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
-        (void)__wt_atomic_add_uint64_v(&S2C(session)->evict->eviction_progress, 1);
+/* !!!
+ * __wt_evict_page_progress_track --
+ *     Update eviction progress.  It is called each time a page is evicted from memory to indicate
+ *     that eviction is not stuck.
+ */
+static WT_INLINE void
+__wt_evict_page_progress_track(WT_SESSION_IMPL *session)
+{
+    (void)__wt_atomic_add_uint64_v(&S2C(session)->evict->eviction_progress, 1);
 }
 
 /* !!!
