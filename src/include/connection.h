@@ -222,6 +222,29 @@ struct __wt_disagg_metadata_op {
 };
 
 /*
+ * WT_DISAGG_QUEUE_VIEW_ENTRY --
+ *     A queued CREATE or REMOVE, ordered by its table name and then by queue position, so a name's
+ *     operations are adjacent and the last of them is its latest. The entry is borrowed, so the
+ *     view is valid only while the schema lock, which queue mutations also require, is held.
+ */
+typedef struct {
+    WT_DISAGG_METADATA_OP *entry; /* The queued operation. */
+    size_t seq;                   /* Queue position, ordering duplicates of a name. */
+} WT_DISAGG_QUEUE_VIEW_ENTRY;
+
+/*
+ * WT_DISAGG_QUEUE_VIEW --
+ *     The queue's CREATE and REMOVE operations, sorted by table name and queue position, for
+ *     callers that resolve many tables against it. A short queue is left as a plain list:
+ *     resolving one table scans it instead.
+ */
+typedef struct {
+    WT_DISAGG_QUEUE_VIEW_ENTRY *entries;
+    size_t entries_count; /* Queued operations in the sorted list. */
+    bool built;           /* The queue was long enough to index; otherwise callers scan it. */
+} WT_DISAGG_QUEUE_VIEW;
+
+/*
  * WT_DISAGG_PENDING_CRYPT_KEY --
  *      A pushed key waiting to be persisted at the next checkpoint.
  */

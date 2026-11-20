@@ -6,6 +6,9 @@ extern WT_DATA_SOURCE *__wt_schema_get_source(WT_SESSION_IMPL *session, const ch
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_DISAGG_METADATA_OP *__wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session,
   const char *table_name) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_DISAGG_METADATA_OP *__wti_disagg_queue_view_latest(
+  WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_EXT *__wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_HAZARD *__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref,
@@ -1570,6 +1573,8 @@ extern int __wti_disagg_parse_crypt_meta(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
   size_t meta_data_size, bool force) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *view)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session,
   const WT_CRYPT_KEYS *crypt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
@@ -1992,6 +1997,7 @@ extern void __wti_debug_crash_if_flag_set(
   WT_SESSION_IMPL *session, uint32_t flag, const char *msg, const char *uri);
 extern void __wti_disagg_clear_deferred_checkpoint_all(WT_SESSION_IMPL *session);
 extern void __wti_disagg_pending_crypt_key_clear(WT_SESSION_IMPL *session);
+extern void __wti_disagg_queue_view_free(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *view);
 extern void __wti_disagg_schema_ops_stats(WT_SESSION_IMPL *session);
 extern void __wti_disagg_shared_metadata_queue_prune(
   WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch);

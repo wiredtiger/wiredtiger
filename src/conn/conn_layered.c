@@ -836,6 +836,140 @@ __wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *tab
 }
 
 /*
+ * For small queues, building a sorted view is not worth the cost.
+ */
+#define WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES 50
+
+/*
+ * __disagg_queue_view_cmp --
+ *     Order by table name, then by queue position, so a repeated name sorts with its latest
+ *     operation last.
+ */
+static int WT_CDECL
+__disagg_queue_view_cmp(const void *a, const void *b)
+{
+    const WT_DISAGG_QUEUE_VIEW_ENTRY *ae, *be;
+    int cmp;
+
+    ae = (const WT_DISAGG_QUEUE_VIEW_ENTRY *)a;
+    be = (const WT_DISAGG_QUEUE_VIEW_ENTRY *)b;
+
+    if ((cmp = strcmp(ae->entry->table_name, be->entry->table_name)) != 0)
+        return (cmp);
+    return (ae->seq > be->seq ? 1 : (ae->seq < be->seq ? -1 : 0));
+}
+
+/*
+ * __disagg_queue_view_name_cmp --
+ *     Compare a table name key against an entry, to search a view ordered by table name.
+ */
+static int WT_CDECL
+__disagg_queue_view_name_cmp(const void *a, const void *b)
+{
+    const WT_DISAGG_QUEUE_VIEW_ENTRY *be;
+
+    be = (const WT_DISAGG_QUEUE_VIEW_ENTRY *)b;
+
+    return (strcmp((const char *)a, be->entry->table_name));
+}
+
+/*
+ * __wti_disagg_queue_view_free --
+ *     Release a queue view.
+ */
+void
+__wti_disagg_queue_view_free(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *view)
+{
+    __wt_free(session, view->entries);
+    WT_CLEAR(*view);
+}
+
+/*
+ * __wti_disagg_queue_view_init --
+ *     Sort the queue's CREATE/REMOVE operations by table name, then by queue position. A short or
+ *     empty queue is left as a plain list and its callers scan it.
+ */
+int
+__wti_disagg_queue_view_init(WT_SESSION_IMPL *session, WT_DISAGG_QUEUE_VIEW *view)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
+    size_t alloc_bytes, count;
+
+    conn = S2C(session);
+    WT_CLEAR(*view);
+
+    /* The view holds queue entry names, so the schema lock keeps them alive for its lifetime. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    /*
+     * Stop counting at the bar: a short queue is not worth a sorted copy, and its callers scan it.
+     * Every entry counts, UPDATE included, because a scan walks the whole queue either way.
+     */
+    count = 0;
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (++count > WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES)
+            break;
+    if (count <= WT_DISAGG_QUEUE_VIEW_MIN_ENTRIES)
+        goto err;
+
+    alloc_bytes = 0;
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE) {
+            WT_ERR(
+              __wt_realloc_def(session, &alloc_bytes, view->entries_count + 1, &view->entries));
+            view->entries[view->entries_count].entry = entry;
+            view->entries[view->entries_count].seq = view->entries_count;
+            ++view->entries_count;
+        }
+    view->built = true;
+
+    __wt_qsort(view->entries, view->entries_count, sizeof(WT_DISAGG_QUEUE_VIEW_ENTRY),
+      __disagg_queue_view_cmp);
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    if (ret != 0)
+        __wti_disagg_queue_view_free(session, view);
+    return (ret);
+}
+
+/*
+ * __wti_disagg_queue_view_latest --
+ *     Return the latest CREATE or REMOVE queued for a table, or NULL if it has none. The callers
+ *     use it only for a built view.
+ */
+WT_DISAGG_METADATA_OP *
+__wti_disagg_queue_view_latest(
+  WT_SESSION_IMPL *session, const WT_DISAGG_QUEUE_VIEW *view, const char *table_name)
+{
+    WT_DISAGG_QUEUE_VIEW_ENTRY *end, *result;
+
+    WT_ASSERT(session, view != NULL && view->built);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    if (view->entries_count == 0)
+        return (NULL);
+
+    result = bsearch(table_name, view->entries, view->entries_count,
+      sizeof(WT_DISAGG_QUEUE_VIEW_ENTRY), __disagg_queue_view_name_cmp);
+    if (result == NULL)
+        return (NULL);
+
+    /* A name's entries sort together: the last of them is its latest queued operation. */
+    end = view->entries + view->entries_count;
+    for (result = result + 1; result < end; ++result)
+        if (strcmp(result->entry->table_name, table_name) != 0)
+            break;
+    --result;
+    return (result->entry);
+}
+
+/*
  * __wt_disagg_table_last_unpublished_op --
  *     Return the op type of the table's newest queued schema operation if it is unpublished, or
  *     WT_SHARED_METADATA_NONE if the newest operation is published or the queue is empty.
@@ -1908,11 +2042,15 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metadata_cursor;
-    WT_DISAGG_METADATA_OP *entry;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry, *latest;
+    WT_DISAGG_QUEUE_VIEW view;
     wt_timestamp_t step_down_epoch;
     bool legacy;
 
     conn = S2C(session);
+    metadata_cursor = NULL;
+    WT_CLEAR(view);
 
     /*
      * In legacy mode the step-down checkpoint consumed every create that built a constituent, so
@@ -1923,7 +2061,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
 
-    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
+    WT_ERR(__wti_disagg_queue_view_init(session, &view));
+    WT_ERR(__wt_metadata_cursor(session, &metadata_cursor));
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
@@ -1951,8 +2090,11 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
          * A window create is the table's newest create, unpublished and missing its stable table.
          * Older creates belong to dropped tables of the same name.
          */
-        if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL ||
-          __wt_disagg_table_latest_create_remove(session, entry->table_name) != entry)
+        if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL)
+            continue;
+        latest = view.built ? __wti_disagg_queue_view_latest(session, &view, entry->table_name) :
+                              __wt_disagg_table_latest_create_remove(session, entry->table_name);
+        if (latest != entry)
             continue;
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
@@ -1961,7 +2103,11 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    return (__wt_metadata_cursor_release(session, &metadata_cursor));
+err:
+    __wti_disagg_queue_view_free(session, &view);
+    if (metadata_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &metadata_cursor));
+    return (ret);
 }
 
 /*
