@@ -40,9 +40,9 @@ class test_error_info02(error_info_util):
         Try to insert a key value pair with an unreasonably low cache max wait time and
         application worker threads are attempting to do eviction.
         """
-        # Configure the connection with an unrealistically small cache_max_wait_ms value and
-        # a very low eviction trigger threshold.
-        self.conn.reconfigure('cache_max_wait_ms=2,eviction_dirty_target=1,eviction_dirty_trigger=2')
+        # Use a small cache wait time and low dirty and update eviction thresholds.
+        self.conn.reconfigure('cache_max_wait_ms=2,eviction_dirty_target=1,'
+                              'eviction_dirty_trigger=2,eviction_updates_trigger=0')
 
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')

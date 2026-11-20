@@ -2547,6 +2547,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
+          # FIXME-WT-19104: Remove this override when the stress test no longer depends on it.
+          test_config: eviction_updates_trigger=0
           test_config_filename: configs/operations_test_stress.txt
           test_name: operations_test
   # This is a perf test and as such doesn't run under the stress test tag. This name seems excessive

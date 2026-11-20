@@ -536,6 +536,7 @@ TMP
 TODO
 TRET
 TRYLOCK
+TS
 TSAN
 TSC
 TSO
@@ -789,6 +790,7 @@ bufsz
 bugfix
 builddir
 buildvariant
+builtin
 builtins
 bulkload
 bursty
@@ -828,6 +830,7 @@ checkfail
 checkfmt
 checkkey
 checklog
+checkpoint's
 checkpointed
 checkpointer
 checkpointing
@@ -879,6 +882,7 @@ conf
 confchk
 config
 configs
+configuration's
 conn
 connectionp
 connreopen
@@ -920,6 +924,7 @@ curhs
 curindex
 curlog
 curmetadata
+cursor's
 cursoring
 cursorp
 curstat
@@ -1088,6 +1093,7 @@ ev
 evd
 eventv
 evictable
+eviction's
 evq
 ewma
 exactp
@@ -1288,6 +1294,7 @@ inorder
 insertable
 insertedp
 inserters
+installer's
 instantiation
 instantiations
 interruptible
@@ -1381,6 +1388,7 @@ llll
 llu
 llvm
 ln
+load's
 loadshed
 loadtext
 loc
@@ -1408,6 +1416,7 @@ lookups
 lossy
 lr
 lru
+ls
 lseek
 lsm
 lsn
@@ -1468,6 +1477,7 @@ mongodbtoolchain
 moreinit
 mpP
 mrs
+ms
 msecs
 msg
 msvc
@@ -1978,6 +1988,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+ts
 tsan
 tsc
 tty
@@ -2156,6 +2167,7 @@ xxxxx
 xxxxxx
 yml
 zalloc
+zeroes
 zf
 zfree
 zihintpause
