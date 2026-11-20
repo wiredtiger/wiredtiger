@@ -275,7 +275,7 @@ class test_layered_schema13(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # Only the setup checkpoint (stable timestamp 1) completed; the panicked checkpoint
         # (stable timestamp 50) produced no durable metadata for the unpublished table.
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext(conn_inspect)
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext(conn_inspect)
         self.assertEqual(checkpoint_timestamp, 1)
         self.assertFalse(self.uri_in_shared_metadata(conn_inspect, self.uri))
         self.assertFalse(self.uri_stable_exists(conn_inspect, self.uri))

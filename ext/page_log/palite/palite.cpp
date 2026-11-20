@@ -2241,7 +2241,7 @@ public:
 
     /* Instance methods that implement the actual functionality */
     int
-    put(uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
+    put(uint64_t page_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
     {
         storage.simulate_unstable_network();
 
@@ -2261,8 +2261,8 @@ public:
     }
 
     int
-    get(uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
-      WT_ITEM *results_array, uint32_t *results_count)
+    get(
+      uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args, WT_ITEM *results_array, uint32_t *results_count)
     {
         if (!(args->flags & WT_PAGE_LOG_CACHE_BYPASS)) {
             /* A hit writes one slot. Callers pass the array capacity. */
@@ -2271,8 +2271,6 @@ public:
                 fill_item(&results_array[0], entry->data.data(), entry->data.size());
                 args->backlink_lsn = entry->backlink_lsn;
                 args->base_lsn = entry->base_lsn;
-                args->backlink_checkpoint_id = entry->backlink_checkpoint_id;
-                args->base_checkpoint_id = entry->base_checkpoint_id;
                 args->delta_count = entry->delta_count;
                 *results_count = 1;
                 LOG_DEBUG("Victim cache hit page_id={} lsn={}", page_id, args->lsn);
@@ -2294,15 +2292,14 @@ public:
     }
 
     int
-    cache_put(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
+    cache_put(uint64_t page_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
     {
         if (!cache.available() || (args->flags & WT_PAGE_LOG_DELTA))
             return 0;
 
         const auto *p = static_cast<const uint8_t *>(buf->data);
         const size_t n = (p != nullptr) ? buf->size : 0;
-        victim_cache_entry entry{args->lsn, args->backlink_lsn, args->base_lsn,
-          args->backlink_checkpoint_id, args->base_checkpoint_id, args->delta_count,
+        victim_cache_entry entry{args->lsn, args->backlink_lsn, args->base_lsn, args->delta_count,
           std::vector<uint8_t>(p, p + n)};
         cache.put(page_id, std::move(entry));
         LOG_DEBUG("Victim cache put page_id={} lsn={} size={}", page_id, args->lsn, buf->size);
@@ -2310,13 +2307,13 @@ public:
     }
 
     int
-    cache_has(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args)
+    cache_has(uint64_t page_id, WT_PAGE_LOG_PUT_ARGS *args)
     {
         return cache.contains(page_id, args->lsn) ? 0 : WT_NOTFOUND;
     }
 
     int
-    cache_del(uint64_t page_id, uint64_t, WT_PAGE_LOG_PUT_ARGS *args)
+    cache_del(uint64_t page_id, WT_PAGE_LOG_PUT_ARGS *args)
     {
         return cache.erase(page_id, args->lsn) ? 0 : WT_NOTFOUND;
     }
@@ -2341,7 +2338,7 @@ public:
     }
 
     int
-    discard(uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *args)
+    discard(uint64_t page_id, WT_PAGE_LOG_DISCARD_ARGS *args)
     {
         storage.simulate_unstable_network();
 
@@ -2369,19 +2366,17 @@ public:
 extern "C" {
 static int
 palite_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id,
-  uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
+  WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
 {
-    return safe_call<PaliteHandle>(
-      sess, plh, &PaliteHandle::put, page_id, checkpoint_id, args, buf);
+    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::put, page_id, args, buf);
 }
 
 static int
 palite_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id,
-  uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args, WT_ITEM *results_array,
-  uint32_t *results_count)
+  WT_PAGE_LOG_GET_ARGS *args, WT_ITEM *results_array, uint32_t *results_count)
 {
     return safe_call<PaliteHandle>(
-      sess, plh, &PaliteHandle::get, page_id, checkpoint_id, args, results_array, results_count);
+      sess, plh, &PaliteHandle::get, page_id, args, results_array, results_count);
 }
 
 static int
@@ -2393,10 +2388,10 @@ palite_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t c
 }
 
 static int
-palite_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id,
-  uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *args)
+palite_handle_discard(
+  WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id, WT_PAGE_LOG_DISCARD_ARGS *args)
 {
-    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::discard, page_id, checkpoint_id, args);
+    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::discard, page_id, args);
 }
 
 static int
@@ -2407,26 +2402,23 @@ palite_handle_close(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess)
 
 static int
 palite_handle_cache_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id,
-  uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
+  WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
 {
-    return safe_call<PaliteHandle>(
-      sess, plh, &PaliteHandle::cache_put, page_id, checkpoint_id, args, buf);
+    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::cache_put, page_id, args, buf);
 }
 
 static int
-palite_handle_cache_has(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id,
-  uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args)
+palite_handle_cache_has(
+  WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id, WT_PAGE_LOG_PUT_ARGS *args)
 {
-    return safe_call<PaliteHandle>(
-      sess, plh, &PaliteHandle::cache_has, page_id, checkpoint_id, args);
+    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::cache_has, page_id, args);
 }
 
 static int
-palite_handle_cache_del(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id,
-  uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args)
+palite_handle_cache_del(
+  WT_PAGE_LOG_HANDLE *plh, WT_SESSION *sess, uint64_t page_id, WT_PAGE_LOG_PUT_ARGS *args)
 {
-    return safe_call<PaliteHandle>(
-      sess, plh, &PaliteHandle::cache_del, page_id, checkpoint_id, args);
+    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::cache_del, page_id, args);
 }
 
 static bool
@@ -2513,14 +2505,13 @@ public:
     }
 
     int
-    complete_checkpoint(uint64_t checkpoint_id, uint64_t checkpoint_timestamp,
-      const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
+    complete_checkpoint(
+      uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
     {
         const uint64_t lsn = storage.make_next_lsn();
         storage.put_checkpoint(lsn, checkpoint_timestamp, checkpoint_metadata);
 
-        LOG_DEBUG(
-          "checkpoint_id={}, timestamp={}, lsn={}", checkpoint_id, checkpoint_timestamp, lsn);
+        LOG_DEBUG("timestamp={}, lsn={}", checkpoint_timestamp, lsn);
         LOG_TRACE("checkpoint_metadata (size={}) =====\n{}",
           checkpoint_metadata ? checkpoint_metadata->size : 0,
           checkpoint_metadata ? verbose_item(checkpoint_metadata) : "<none>");
@@ -2533,13 +2524,11 @@ public:
     }
 
     int
-    get_complete_checkpoint(uint64_t lsn, uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
-      uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata)
+    get_complete_checkpoint(uint64_t lsn, uint64_t *checkpoint_lsn, uint64_t *checkpoint_timestamp,
+      WT_ITEM *checkpoint_metadata)
     {
         if (checkpoint_lsn)
             *checkpoint_lsn = 0;
-        if (checkpoint_id)
-            *checkpoint_id = 0;
         if (checkpoint_timestamp)
             *checkpoint_timestamp = 0;
 
@@ -2644,7 +2633,7 @@ static int
 palite_complete_checkpoint(
   WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::complete_checkpoint, args->checkpoint_id,
+    return safe_call<Palite>(sess, page_log, &Palite::complete_checkpoint,
       args->checkpoint_timestamp, args->checkpoint_metadata, &args->lsn);
 }
 
@@ -2653,8 +2642,7 @@ palite_get_complete_checkpoint(
   WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args)
 {
     return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint, args->lsn,
-      &args->checkpoint_lsn, &args->checkpoint_id, &args->checkpoint_timestamp,
-      &args->checkpoint_metadata);
+      &args->checkpoint_lsn, &args->checkpoint_timestamp, &args->checkpoint_metadata);
 }
 
 static int
