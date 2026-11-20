@@ -341,12 +341,8 @@ done:
 void
 prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 {
-    /*
-     * Recovery doesn't run rollback to stable with precise checkpoint, so pending prepared
-     * transactions must be claimed through the prepare discover cursor. Check the connection rather
-     * than the command line, as precise checkpoint can also be enabled through other configuration.
-     */
-    if (!F_ISSET((WT_CONNECTION_IMPL *)conn, WT_CONN_PRECISE_CHECKPOINT))
+    /* Precise checkpoint skips rollback to stable on recovery, leaving prepares to resolve. */
+    if (!g.precise_checkpoint)
         return;
 
     WT_CURSOR *cursor;
@@ -391,7 +387,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 
         if (should_commit) {
             /* Recovery can commit before stable, but durability must follow it. */
-            durable_ts = base_ts + PREPARE_TIMESTAMP_WINDOW;
+            durable_ts = base_ts + __wt_random(&td->data_rnd) % (PREPARE_TIMESTAMP_WINDOW + 1);
             commit_ts = prepare_ts + __wt_random(&td->data_rnd) % (durable_ts - prepare_ts + 1);
 
             testutil_snprintf(buf, sizeof(buf),
@@ -400,8 +396,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
             max_ts = WT_MAX(max_ts, durable_ts);
 
         } else {
-
-            rollback_ts = base_ts + 1;
+            rollback_ts = base_ts + __wt_random(&td->data_rnd) % (PREPARE_TIMESTAMP_WINDOW + 1);
             testutil_snprintf(buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
             testutil_check(session->rollback_transaction(session, buf));
             max_ts = WT_MAX(max_ts, rollback_ts);
