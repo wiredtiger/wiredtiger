@@ -32,6 +32,7 @@ from wiredtiger import stat
 
 # Check the statistics describing how the cache is spread across trees. They refresh every
 # close_scan_interval, so each check polls with a deadline; close_idle_time=0 keeps the trees open.
+# The raised eviction targets keep the eviction server from evicting the pages the tests write.
 class test_cache_trees01(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=100MB,statistics=(all),'
         'file_manager=(close_scan_interval=1,close_idle_time=0),'
