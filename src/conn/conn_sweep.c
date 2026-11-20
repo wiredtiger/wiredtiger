@@ -315,11 +315,11 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 }
 
 /*
- * Per-tree cache census. Trees with leaf pages are bucketed by resident leaf bytes at 1MB and 16MB;
- * trees with no leaf pages are counted separately, as the eviction handle scan finds nothing in
- * them.
+ * Per-tree cache census. Trees with leaf pages are bucketed by resident leaf bytes at 1MB, 16MB and
+ * 256MB; trees with no leaf pages are counted separately, as the eviction handle scan finds nothing
+ * in them.
  */
-#define WT_SWEEP_CENSUS_BUCKETS 3
+#define WT_SWEEP_CENSUS_BUCKETS 4
 struct __wt_sweep_cache_census {
     uint64_t dirty_leaf;                     /* Trees with dirty leaf pages */
     uint64_t no_leaf;                        /* Trees with no leaf pages */
@@ -362,8 +362,10 @@ __sweep_census_add(WT_DATA_HANDLE *dhandle, WT_SWEEP_CACHE_CENSUS *census)
         bucket = 0;
     else if (leaf < 16 * WT_MEGABYTE)
         bucket = 1;
-    else
+    else if (leaf < 256 * WT_MEGABYTE)
         bucket = 2;
+    else
+        bucket = 3;
     ++census->trees[bucket];
 }
 
@@ -379,7 +381,8 @@ __sweep_census_publish(WT_SESSION_IMPL *session, const WT_SWEEP_CACHE_CENSUS *ce
 
     WT_STAT_CONN_SET(session, cache_trees_lt_1mb, census->trees[0]);
     WT_STAT_CONN_SET(session, cache_trees_1mb_16mb, census->trees[1]);
-    WT_STAT_CONN_SET(session, cache_trees_ge_16mb, census->trees[2]);
+    WT_STAT_CONN_SET(session, cache_trees_16mb_256mb, census->trees[2]);
+    WT_STAT_CONN_SET(session, cache_trees_ge_256mb, census->trees[3]);
 }
 
 /*

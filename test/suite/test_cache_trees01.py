@@ -39,7 +39,7 @@ class test_cache_census01(wttest.WiredTigerTestCase):
         'eviction_updates_target=70,eviction_updates_trigger=85')
 
     buckets = [stat.conn.cache_trees_lt_1mb, stat.conn.cache_trees_1mb_16mb,
-        stat.conn.cache_trees_ge_16mb]
+        stat.conn.cache_trees_16mb_256mb, stat.conn.cache_trees_ge_256mb]
     value = 'v' * 4096
     timeout = 60
 
