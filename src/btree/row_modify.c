@@ -397,6 +397,28 @@ err:
 }
 
 /*
+ * __wt_row_leaf_attach_upd --
+ *     Attach an update chain to an on-page slot of a pinned row-store leaf page, without searching.
+ */
+int
+__wt_row_leaf_attach_upd(
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ROW *rip, WT_UPDATE **updp, bool restore)
+{
+    WT_ASSERT(CUR2S(cbt), ref->page->type == WT_PAGE_ROW_LEAF);
+
+    /*
+     * An exact match with no insert list makes the modify target the slot's update array entry, a
+     * path that never reads the key.
+     */
+    __cursor_pos_clear(cbt);
+    cbt->ref = ref;
+    cbt->slot = WT_ROW_SLOT(ref->page, rip);
+    cbt->compare = 0;
+
+    return (__wt_row_modify(cbt, NULL, NULL, updp, WT_UPDATE_INVALID, true, restore));
+}
+
+/*
  * __wt_update_obsolete_check --
  *     Check for obsolete updates and force evict the page if the update list is too long.
  */
