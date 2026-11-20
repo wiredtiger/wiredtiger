@@ -374,18 +374,6 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
         __wt_atomic_store_uint64_relaxed(&new_page->read_gen, orig_read_gen);
 }
 
-/*
- * __wt_evict_shared_dsk_cache_bytes_decr --
- *     Account for a shared disk image leaving the cache on its last release.
- */
-static WT_INLINE void
-__wt_evict_shared_dsk_cache_bytes_decr(
-  WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size)
-{
-    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_evict, dsk_size);
-    __wt_cache_shared_dsk_inmem_decr(session, dsk_type, dsk_size);
-}
-
 /* !!!
  * __wt_evict_page_progress_track --
  *     Update eviction progress.  It is called each time a page is evicted from memory to indicate

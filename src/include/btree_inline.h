@@ -3560,6 +3560,17 @@ __wt_cache_shared_dsk_inmem_decr(WT_SESSION_IMPL *session, uint8_t image_type, s
 }
 
 /*
+ * __wt_cache_shared_dsk_bytes_decr --
+ *     Account for a shared disk image leaving the cache on its last release.
+ */
+static WT_INLINE void
+__wt_cache_shared_dsk_bytes_decr(WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size)
+{
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_evict, dsk_size);
+    __wt_cache_shared_dsk_inmem_decr(session, dsk_type, dsk_size);
+}
+
+/*
  * __wt_btree_row_leaf_entries_update --
  *     Update the per-btree EWMA of row-store leaf page K/V pair count with a new sample. Uses
  *     alpha=1/16: new_ewma = (15 * old + sample) / 16. Races between threads are tolerated since
