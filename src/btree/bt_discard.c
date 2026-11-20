@@ -148,7 +148,7 @@ __page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool exclusive)
     WT_IGNORE_RET(__wt_conn_page_history_track_evict(session, page));
 
     /* Update the cache's information. */
-    __wt_evict_page_cache_bytes_decr(session, page);
+    __wt_cache_page_bytes_decr(session, page);
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
     /*

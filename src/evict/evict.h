@@ -232,7 +232,6 @@ static WT_INLINE int __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session
 static WT_INLINE void __wt_evict_clear_npos(WT_BTREE *btree);
 static WT_INLINE void __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
-static WT_INLINE void __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_progress_track(WT_SESSION_IMPL *session);
