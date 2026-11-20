@@ -74,8 +74,8 @@ wts_prepare_discover(WT_CONNECTION *conn)
     /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
     /*
-     * Commit/rollback with a timestamp greater than the prepare timestamp. We use the current
-     * timestamp + 10 to ensure it's newer
+     * Commit/rollback with a timestamp newer than stable. We use the current timestamp + 10 to
+     * ensure it's newer.
      */
     ts = __wt_atomic_add_uint64_v(&g.timestamp, 10);
     while ((ret = cursor->next(cursor)) == 0) {

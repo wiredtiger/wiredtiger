@@ -337,6 +337,9 @@ main(int argc, char *argv[])
 
         wt_connect(config_open);
 
+        /* Resolve prepared transactions recovered from an earlier run or a crash. */
+        prepare_discover(g.conn, &g.td[g.nworkers]);
+
         if (verify_only) {
             WT_SESSION *session;
 
@@ -344,7 +347,6 @@ main(int argc, char *argv[])
                 (void)log_print_err("conn.open_session", ret, 1);
                 break;
             }
-            prepare_discover(g.conn, NULL);
 
             verify_consistency(session, WT_TS_NONE, false);
             goto run_complete;
