@@ -135,7 +135,7 @@ def get_make_check_dirs():
     # Search keyword in CMakeLists.txt to identify directories that involve test configuration.
     # Need to use subprocess 'shell=True' to get the expected shell command output.
     # `{{}}`` is used here to print `{}` when using python f-strings.
-    cmd = f"find . -not -path './releases/*' {ignore_build_folders} -name CMakeLists.txt -exec grep -H -e '\\(add_test\\|define_c_test|define_test_variants\\)' {{}} \\; | cut -d: -f1 | cut -c3- | uniq"
+    cmd = f"find . -not -path './releases/*' -not -path './.claude/*' {ignore_build_folders} -name CMakeLists.txt -exec grep -H -e '\\(add_test\\|define_c_test|define_test_variants\\)' {{}} \\; | cut -d: -f1 | cut -c3- | uniq"
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     mkfiles_with_tests = p.stdout.readlines()
 
