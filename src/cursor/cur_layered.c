@@ -2356,7 +2356,7 @@ __clayered_next_raw_kv_batch(
 
     *returned_countp = 1;
 
-    /* FIXME-WT-19064: We will need to increment by the returned count. */
+    /* FIXME-WT-19177: We will need to increment by the returned count. */
     WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_next);
     WT_STAT_CONN_DSRC_INCRV(session, cursor_next_raw_kv_batch_result, *returned_countp);
 

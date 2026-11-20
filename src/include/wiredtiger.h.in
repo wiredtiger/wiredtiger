@@ -394,6 +394,8 @@ struct __wt_cursor {
      * called <code>*returned_countp</code> times, or is unpositioned if an error was returned. All
      * normal isolation/snapshot visibility rules and bounds checking apply to batch reads.
      *
+     * This method is not supported on column-store btrees.
+     *
      * @snippet ex_all.c Return multiple records
      *
      * @param cursor the cursor handle
