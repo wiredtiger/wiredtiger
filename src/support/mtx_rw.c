@@ -180,8 +180,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_RWLOCK new, old;
     uint64_t time_diff, time_start, time_stop;
     int64_t *session_stats, **stats;
-    int16_t writers_active;
-    uint8_t ticket;
+    uint8_t ticket, writers_active;
     int pause_cnt;
 
     WT_STAT_CONN_INCR(session, rwlock_read);
@@ -218,7 +217,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * If the maximum allowed number of readers are already queued or there is a
          * potential overflow, wait until we can get a valid ticket.
          */
-        writers_active = old.u.s.next - old.u.s.current;
+        writers_active = (uint8_t)(old.u.s.next - old.u.s.current);
         if (old.u.s.readers_queued == UINT8_MAX || old.u.s.readers_queued > writers_active) {
 stall:
             __wt_cond_wait(session, l->cond_readers, 10 * WT_THOUSAND, NULL);
