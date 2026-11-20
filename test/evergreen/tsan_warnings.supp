@@ -122,7 +122,6 @@ race:__wt_btcur_modify
 race:__wt_cursor_dhandle_decr_use
 
 # FIXME-WT-19155: Remove these temporary truncate-list suppressions after the issue is resolved.
-# Suspected RW-lock instrumentation false positives are failing CI, including PR testing.
 race:__txn_insert_truncate_entry_helper
 race:__truncate_search
 race:__truncate_entry_copy_keys
