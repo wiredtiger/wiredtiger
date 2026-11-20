@@ -86,13 +86,14 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
     # Helpers
     # -----------------------------------------------------------------
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
         """Open a follower connection and apply the given checkpoint metadata."""
         conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn_follow.reconfigure(
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn})')
         return conn_follow
 
     def _checkpoint(self, conn):
@@ -183,6 +184,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
             self._checkpoint(self.conn)
             checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         for c in leader_cursors:
             c.close()
         # Close without a final checkpoint so the follower loads exactly the state above.
@@ -193,7 +195,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
         # discovered and claimed; otherwise begin a prepared transaction using the same
         # prepare_timestamp and prepared_id as the leader.  Leave it active so there is a
         # live prepared INSERT present when step-up fires in Phase 3.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_lsn)
         session_f = conn_follow.open_session()
         if self.in_checkpoint:
             follower_cursors = []
@@ -302,6 +304,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
             self._checkpoint(self.conn)
             checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         for c in leader_cursors:
             c.close()
         # Close without a final checkpoint so the follower loads exactly the state above.
@@ -312,7 +315,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
         # discovered and claimed; otherwise begin a prepared transaction using the same
         # prepare_timestamp and prepared_id as the leader.  Leave it active so there is a
         # live prepared UPDATE present when step-up fires in Phase 3.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_lsn)
         session_f = conn_follow.open_session()
         if self.in_checkpoint:
             follower_cursors = []
@@ -419,6 +422,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
             self._checkpoint(self.conn)
             checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         for c in leader_cursors:
             c.close()
         # Close without a final checkpoint so the follower loads exactly the state above.
@@ -429,7 +433,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
         # discovered and claimed; otherwise begin a prepared transaction using the same
         # prepare_timestamp and prepared_id as the leader.  Leave it active so there is a
         # live prepared DELETE present when step-up fires in Phase 3.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_lsn)
         session_f = conn_follow.open_session()
         if self.in_checkpoint:
             follower_cursors = []

@@ -79,7 +79,7 @@ class test_verify_disagg03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         cursor.close()
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
 
         # Step down before closing so WiredTiger skips the shutdown checkpoint.
         self.conn.reconfigure('disaggregated=(role="follower")')
@@ -88,7 +88,8 @@ class test_verify_disagg03(wttest.WiredTigerTestCase):
         # Reopen as a follower with verify_metadata=true. A follower may only read
         # the checkpointed state  it must not modify data. The verify must succeed.
         follower_config = (
-            f'disaggregated=(role="follower",checkpoint_meta="{checkpoint_meta}"),'
+            f'disaggregated=(role="follower",checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn}),'
             f'verify_metadata=true'
         )
         self.open_conn(config=follower_config)

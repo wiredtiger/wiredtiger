@@ -434,7 +434,8 @@ wt_disagg_pick_up_latest_checkpoint()
     wt_timestamp_t timestamp = args.checkpoint_timestamp;
 
     std::ostringstream config;
-    config << "disaggregated=(checkpoint_meta=\"" << checkpoint_meta << "\")";
+    config << "disaggregated=(checkpoint_meta=\"" << checkpoint_meta
+           << "\",checkpoint_lsn=" << args.checkpoint_lsn << ")";
     free(checkpoint_meta);
 
     std::string config_str = config.str();

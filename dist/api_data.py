@@ -145,6 +145,9 @@ connection_page_delta_config_common = [
         as well.''', min='1', max='32', type='int', undoc=True),
 ]
 connection_disaggregated_config_common = [
+    Config('checkpoint_lsn', '', r'''
+        the page log LSN at which the checkpoint in \c checkpoint_meta completed''',
+        type='int', undoc=True),
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),

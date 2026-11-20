@@ -81,6 +81,8 @@ struct __wt_item;       typedef struct __wt_item WT_ITEM;
 struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
 #if !defined(DOXYGEN)
 struct __wt_page_log; typedef struct __wt_page_log WT_PAGE_LOG;
+struct __wt_page_log_abandon_checkpoint_args;
+typedef struct __wt_page_log_abandon_checkpoint_args WT_PAGE_LOG_ABANDON_CHECKPOINT_ARGS;
 struct __wt_page_log_discard_args;
 typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
 struct __wt_page_log_complete_checkpoint_args;
@@ -5615,12 +5617,31 @@ struct __wt_page_log {
     /*!
      * Abandon an incomplete checkpoint.
      *
+     * FIXME-WT-19115: this interface is deprecated in favor of
+     * WT_PAGE_LOG::pl_abandon_checkpoint_ext and will be removed.
+     *
      * @errors
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
      */
     int (*pl_abandon_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session);
+
+    /*!
+     * Abandon an incomplete checkpoint: drop the pages and checkpoint records written after the
+     * given checkpoint.
+     *
+     * When the last completed checkpoint's LSN is unknown, WiredTiger leaves the page log
+     * unchanged.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param args the last completed checkpoint's LSN
+     */
+    int (*pl_abandon_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        WT_PAGE_LOG_ABANDON_CHECKPOINT_ARGS *args);
 
     /*!
      * Complete checkpointing using the given checkpoint_id. This implies that other
@@ -5863,6 +5884,16 @@ typedef enum {
 #define WT_PAGE_LOG_COLD 0x8u
 /*! bypass the block cache when serving the read */
 #define WT_PAGE_LOG_CACHE_BYPASS 0x40u
+
+/*!
+ * WT_PAGE_LOG::pl_abandon_checkpoint_ext interface.
+ */
+struct __wt_page_log_abandon_checkpoint_args {
+        /*
+         * Input arguments
+         */
+        uint64_t last_checkpoint_lsn; /* The last completed checkpoint's LSN. */
+};
 
 /*!
  * WT_PAGE_LOG::pl_complete_checkpoint interface.
