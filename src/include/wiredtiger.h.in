@@ -6516,8 +6516,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-manager: number of times the region was remapped via write */
 #define	WT_STAT_CONN_BLOCK_REMAP_FILE_WRITE		1074
 /*!
- * block-manager: time spent(usecs) on the most recent linear walk of
- * extents during first-fit allocation
+ * block-manager: time spent(usecs) on the most recent search of
+ * available extents during first-fit allocation
  */
 #define	WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME		1075
 /*!
