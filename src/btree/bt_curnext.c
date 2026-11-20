@@ -988,6 +988,11 @@ __wt_btcur_next_batch(
         ++i;
     }
 
+    /*
+     * We're guaranteed to have at least one result at this point. Return zero and give the caller
+     * back whatever we found before the conflict. The next call will retry on the same record and
+     * report the conflict if it's still there.
+     */
     if (ret == WT_PREPARE_CONFLICT)
         /* The cursor was left on the conflicting key, so make the next call re-read it. */
         F_SET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
