@@ -950,7 +950,7 @@ __wt_btcur_next_batch(
     if (count == 0 || (keys == NULL && values == NULL))
         WT_RET(EINVAL);
     if (CUR2BT(cbt)->type != BTREE_ROW)
-        WT_RET(EINVAL);
+        WT_RET(ENOTSUP);
 
     /* Reuse all of the cursor setup logic provided here. */
     WT_RET(__wt_btcur_next(cbt, false));
@@ -964,6 +964,15 @@ __wt_btcur_next_batch(
     while (i < count && cbt->ref != NULL && F_ISSET(cbt, WT_CBT_ITERATE_NEXT)) {
         size_t skipped;
         bool key_out_of_bounds;
+
+        /*
+         * This won't move across pages -- it just stays on the current ref and returns WT_NOTFOUND
+         * at the end of the page. That's important, because the item pointers we hand back to the
+         * caller need to outlive this call. Moving on to a new page would unpin the current page
+         * and potentially invalidate anything in the key and value arrays. We also need to pass the
+         * "new page" argument as false to have it resume from the saved slot/insert list state,
+         * rather than resetting for a new page.
+         */
         ret = __cursor_row_next(cbt, false, false, &skipped, &key_out_of_bounds);
         if (ret != 0)
             break;
