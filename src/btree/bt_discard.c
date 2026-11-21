@@ -148,7 +148,7 @@ __page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool exclusive)
     WT_IGNORE_RET(__wt_conn_page_history_track_evict(session, page));
 
     /* Update the cache's information. */
-    __wt_evict_page_cache_bytes_decr(session, page);
+    __wt_cache_page_bytes_decr(session, page);
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
     /*
@@ -203,6 +203,10 @@ __page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool exclusive)
         } else if (!WT_PAGE_IS_SHARED_DSK(page))
             __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
     }
+
+    /* Successfully paging out a page is how we know eviction is making progress */
+    if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
+        __wt_evict_page_progress_track(session);
 
     __wt_overwrite_and_free(session, page);
 }
