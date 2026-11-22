@@ -1681,10 +1681,7 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 
 /*
  * __txn_stepdown_clone_update --
- *     Clone a prepared update and insert it into the ingest page the caller's cursor is positioned
- *     on, the same way prepared-transaction discovery does. The clone carries the same value (in
- *     the on-disk form ingest expects) and prepare identity as orig, so a later resolution call
- *     against the clone finds and resolves it the same way it would resolve the original.
+ *     Insert a copy of a prepared update into ingest with the original prepare identity.
  */
 static int
 __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cbt,
@@ -1694,7 +1691,10 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     WT_DECL_RET;
     WT_ITEM ingest_value, value;
     WT_UPDATE *clone;
-    size_t size;
+    uint64_t sleep_usecs, yield_count;
+
+    clone = NULL;
+    sleep_usecs = yield_count = 0;
 
     /*
      * Ingest has no real tombstone type: a delete is recorded there as a standard update carrying
@@ -1702,7 +1702,7 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
      * restores an on-disk stop-prepared cell onto ingest.
      */
     if (orig->type == WT_UPDATE_TOMBSTONE)
-        WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &clone, &size));
+        ingest_value = __wt_tombstone;
     else {
         if (orig->type == WT_UPDATE_MODIFY) {
             /*
@@ -1719,26 +1719,10 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
             value.size = orig->size;
         }
         WT_ERR(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, &tmp));
-        WT_ERR(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &clone, &size));
     }
 
-    clone->txnid = orig->txnid;
-    clone->prepared_id = orig->prepared_id;
-    clone->prepare_ts = orig->prepare_ts;
-    clone->upd_durable_ts = orig->upd_durable_ts;
-    clone->upd_start_ts = orig->upd_start_ts;
-    clone->prepare_state = orig->prepare_state;
-
-    /*
-     * The low-level row search below does not release a page the cursor already holds -- that is
-     * the caller's job, normally done for us by the ordinary cursor API before it searches. This
-     * cursor is cached and reused across ops on the same btree, and a prior op's resolve call can
-     * leave it positioned, so release the page explicitly before searching directly.
-     */
-    if (ingest_cbt->ref != NULL) {
-        WT_ERR(__wt_page_release(session, ingest_cbt->ref, 0));
-        ingest_cbt->ref = NULL;
-    }
+retry:
+    WT_ERR(__wt_btcur_reset(ingest_cbt));
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ingest_cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
@@ -1772,10 +1756,28 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     }
 #endif
 
+    WT_ERR(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &clone, NULL));
+    clone->txnid = orig->txnid;
+    clone->prepared_id = orig->prepared_id;
+    clone->prepare_ts = orig->prepare_ts;
+    clone->upd_durable_ts = orig->upd_durable_ts;
+    clone->upd_start_ts = orig->upd_start_ts;
+    clone->prepare_state = orig->prepare_state;
+
     /* An existing ingest tombstone need not have been restored from disk. */
-    ret = __wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, true, false);
+    ret = __wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, false, false);
+    if (ret == WT_RESTART) {
+        /* As with a cursor insert, retry from a fresh position before resolving the prepare. */
+        __wt_free(session, clone);
+        __wt_spin_backoff(&yield_count, &sleep_usecs);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_restart);
+        goto retry;
+    }
+    WT_ERR(ret);
+    clone = NULL;
 
 err:
+    __wt_free(session, clone);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
