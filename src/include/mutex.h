@@ -45,7 +45,7 @@ struct __wt_semaphore {
  * A writer waiting for its ticket sleeps on the futex word of its ticket modulo this count. Writers
  * whose tickets share a word wake together.
  */
-#define WT_RWLOCK_WRITER_SLOTS 8
+#define WT_RWLOCK_WRITER_SLOTS 32
 
 /*
  * Read/write locks:
