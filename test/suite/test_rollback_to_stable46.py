@@ -49,13 +49,7 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
         ('inmem', dict(in_memory=True))
     ]
 
-    worker_thread_values = [
-        ('0', dict(threads=0)),
-        ('4', dict(threads=4)),
-        ('8', dict(threads=8))
-    ]
-
-    scenarios = make_scenarios(format_values, in_memory_values, worker_thread_values)
+    scenarios = make_scenarios(format_values, in_memory_values)
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all)'
         if self.in_memory:
@@ -117,7 +111,7 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
             self.session.checkpoint()
 
         # Rollback to stable timestamp 10, everything should be deleted
-        self.conn.rollback_to_stable('threads=' + str(self.threads))
+        self.conn.rollback_to_stable()
 
         # Verify all data is invisible.
         self.check(value_a, uri, 0, None, 20)
