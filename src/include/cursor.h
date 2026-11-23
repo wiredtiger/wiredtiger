@@ -170,7 +170,8 @@ struct __wt_cursor_btree {
     WT_ITEM *row_key, _row_key;
 
     /*
-     * A set of keys returned by a batch read that can't reference on-page memory, e.g. keys that are prefix compressed. The count is measured in bytes rather than item count.
+     * A set of keys returned by a batch read that can't reference on-page memory, e.g. keys that
+     * are prefix compressed. The count is measured in bytes rather than item count.
      */
     WT_ITEM *batch_keys;
     size_t batch_keys_allocated;

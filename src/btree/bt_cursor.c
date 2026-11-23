@@ -2133,7 +2133,8 @@ __wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt)
     __wt_buf_free(session, &cbt->_upd_value.buf);
 
     if (cbt->batch_keys != NULL) {
-        for (size_t i = 0; i < cbt->batch_keys_allocated; i++)
+        size_t nkeys = cbt->batch_keys_allocated / sizeof(WT_ITEM);
+        for (size_t i = 0; i < nkeys; i++)
             __wt_buf_free(session, &cbt->batch_keys[i]);
         __wt_free(session, cbt->batch_keys);
         cbt->batch_keys_allocated = 0;
