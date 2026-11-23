@@ -331,7 +331,7 @@ struct __wt_disagg_deferred_ckpt {
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
-/* 16384 buckets (128 KB) keep chains short for queues of hundreds of thousands of entries. */
+/* 16384 buckets keep the average chain near 15 entries for 250K active tables. */
 #define WT_DISAGG_QUEUE_HASH_BUCKETS 16384
 
 /*
