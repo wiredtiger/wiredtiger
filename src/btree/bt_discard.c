@@ -204,7 +204,7 @@ __page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool exclusive)
             __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
     }
 
-    /* Successfully paging out a page is how we know eviction is making progress */
+    /* Successfully paging out a page is how we know eviction is making progress. */
     if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
         __wt_evict_page_progress_track(session);
 
