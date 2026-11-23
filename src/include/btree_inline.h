@@ -665,6 +665,88 @@ __wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v,
 #endif
 }
 
+/* !!!
+ * __wt_cache_page_bytes_decr --
+ *     Decrement the in-memory byte count for the cache, B-tree, and page to reflect the eviction
+ *     of a page.
+ *
+ *     It is called once each time a page is evicted from memory.
+ *
+ *     Input parameter:
+ *       `page`: The page being evicted, for which byte counts are decremented.
+ */
+static WT_INLINE void
+__wt_cache_page_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+    WT_PAGE_MODIFY *modify;
+    uint64_t btree_footprint, memory_footprint;
+    bool is_disagg;
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+    modify = page->modify;
+    btree_footprint = memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    is_disagg = __wt_conn_is_disagg(session);
+
+    /*
+     * For shared disk pages, page memory footprint includes disk size that is tracked by the shared
+     * disk cache layer. Subtract the disk size from the drain amount, let the shared disk cache
+     * layer drain the disk size on the matching last release.
+     */
+    if (WT_PAGE_HAS_SHARED_DSK_REF(page)) {
+        WT_ASSERT(session, page->dsk != NULL);
+        WT_ASSERT(session, memory_footprint >= page->dsk->mem_size);
+        memory_footprint -= page->dsk->mem_size;
+    }
+
+    /* Update the bytes in-memory to reflect the eviction. */
+    __wt_cache_decr_check_uint64(
+      session, &btree->bytes_inmem, btree_footprint, "WT_BTREE.bytes_inmem");
+    WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, memory_footprint);
+
+    /* Update the bytes_internal value to reflect the eviction */
+    if (WT_PAGE_IS_INTERNAL(page)) {
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_internal, btree_footprint, "WT_BTREE.bytes_internal");
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, memory_footprint);
+    }
+
+    /* Update the cache's dirty-byte count. */
+    if (modify != NULL && modify->bytes_dirty != 0) {
+        if (WT_PAGE_IS_INTERNAL(page)) {
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_intl, modify->bytes_dirty);
+        } else {
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_leaf, modify->bytes_dirty);
+        }
+    }
+
+    /* Update the cache's updates-byte count. */
+    if (modify != NULL) {
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_updates, modify->bytes_updates);
+    }
+
+    /* Update bytes and pages evicted. */
+    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
+    __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_EVICT, memory_footprint);
+    (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
+    if (!WT_PAGE_IS_INTERNAL(page))
+        (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_leaf, 1);
+    if (is_disagg) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_ingest, 1);
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_stable, 1);
+    }
+}
+
 /*
  * __wt_cache_scrub_image_incr --
  *     Account for a clean re-instantiation image retained in cache by checkpoint scrub.
@@ -3475,6 +3557,17 @@ __wt_cache_shared_dsk_inmem_decr(WT_SESSION_IMPL *session, uint8_t image_type, s
     WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, size);
     if (WT_PAGE_TYPE_IS_INTERNAL(image_type))
         WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, size);
+}
+
+/*
+ * __wt_cache_shared_dsk_bytes_decr --
+ *     Account for a shared disk image leaving the cache on its last release.
+ */
+static WT_INLINE void
+__wt_cache_shared_dsk_bytes_decr(WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size)
+{
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_evict, dsk_size);
+    __wt_cache_shared_dsk_inmem_decr(session, dsk_type, dsk_size);
 }
 
 /*
