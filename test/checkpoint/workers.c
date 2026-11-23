@@ -315,7 +315,7 @@ real_worker(THREAD_DATA *td)
     uint64_t prepared_id;
     u_int i, keyno, next_rnd, offset_a, offset_b;
     int j, ret, t_ret;
-    char buf[128], ts_buf[64];
+    char buf[128];
     const char *begin_cfg, *rollback_cfg;
     bool prepared, reopen_cursors, new_txn, start_txn;
 
@@ -433,7 +433,8 @@ real_worker(THREAD_DATA *td)
                             offset_b = __wt_random(&td->data_rnd) % PREPARE_TIMESTAMP_WINDOW;
                             prepare_ts = base_ts + WT_MIN(offset_a, offset_b);
                             durable_ts = base_ts + WT_MAX(offset_a, offset_b);
-                            commit_ts = prepare_ts;
+                            commit_ts = prepare_ts +
+                              __wt_random(&td->data_rnd) % (durable_ts - prepare_ts + 1);
                             prepared_id = __wt_atomic_add_uint64_v(&g.prepared_id, 1);
                             testutil_snprintf(buf, sizeof(buf),
                               "prepare_timestamp=%" PRIx64 ",prepared_id=%" PRIx64, prepare_ts,
@@ -464,18 +465,9 @@ real_worker(THREAD_DATA *td)
                                 WT_RELEASE_WRITE_WITH_BARRIER(td->ts, commit_ts);
                         } else {
                             if (prepared) {
-                                rollback_ts = prepare_ts + 2;
-                                /*
-                                 * Occasionally roll back at the prepare timestamp. Stable stays
-                                 * below it, held by the clock lock or, in predictable replay, by
-                                 * this thread's last commit; the last checkpoint must be too.
-                                 */
-                                if (__wt_random(&td->data_rnd) % 10 == 0) {
-                                    testutil_check(g.conn->query_timestamp(
-                                      g.conn, ts_buf, "get=last_checkpoint"));
-                                    if (testutil_timestamp_parse(ts_buf) < prepare_ts)
-                                        rollback_ts = prepare_ts;
-                                }
+                                rollback_ts = prepare_ts +
+                                  __wt_random(&td->data_rnd) %
+                                    (base_ts + PREPARE_TIMESTAMP_WINDOW - prepare_ts);
                                 testutil_snprintf(
                                   buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
                                 rollback_cfg = buf;

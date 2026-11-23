@@ -716,7 +716,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t ts;
+    wt_timestamp_t durable_ts, ts;
 
     session = tinfo->session;
 
@@ -728,21 +728,20 @@ commit_transaction(TINFO *tinfo, bool prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
         if (GV(RUNS_PREDICTABLE_REPLAY))
-            ts = replay_commit_ts(tinfo);
-        else if (prepared && mmrand(&tinfo->data_rnd, 0, 1) == 0)
-            /*
-             * Half the time, commit a prepared transaction at its prepare timestamp. Stable can't
-             * pass the prepare timestamp while this thread is in flight, because stable stays below
-             * this thread's previous commit timestamp.
-             */
-            ts = tinfo->prepare_ts;
-        else
-            ts = next_timestamp(session);
+            durable_ts = ts = replay_commit_ts(tinfo);
+        else if (prepared && rng(&tinfo->data_rnd) % 10 == 0)
+            /* Stable stays below the worker's previous commit while this transaction is active. */
+            durable_ts = ts = tinfo->prepare_ts;
+        else if (prepared) {
+            durable_ts = next_timestamp(session);
+            ts = tinfo->prepare_ts + rng(&tinfo->data_rnd) % (durable_ts - tinfo->prepare_ts + 1);
+        } else
+            durable_ts = ts = next_timestamp(session);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
             testutil_check(
-              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
+              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, durable_ts));
 
         ret = session->commit_transaction(session, NULL);
         if (prepared)
@@ -790,6 +789,8 @@ rollback_transaction(TINFO *tinfo, bool prepared)
     if (prepared) {
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_rollback_ts(tinfo);
+        else if (rng(&tinfo->data_rnd) % 10 == 0)
+            ts = tinfo->prepare_ts;
         else
             ts = next_timestamp(session);
 
