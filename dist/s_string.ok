@@ -176,9 +176,11 @@ ENOSPC
 ENOTSUP
 ENUM
 EOF
+EPERM
 EPIPE
 EQ
 ERANGE
+EROFS
 ETIME
 ETIMEDOUT
 EWMA
@@ -1186,6 +1188,7 @@ gcovr's
 gcp
 gdb
 gdb's
+ge
 getattr
 getenv
 gethome

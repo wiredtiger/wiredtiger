@@ -149,7 +149,7 @@ cursor_ops(WT_SESSION *session)
 
     /* Switch to a composite table. */
     error_check(session->create(session, "table:composite", "key_format=SiH,value_format=S"));
-    error_check(session->open_cursor(session, "table:recno", NULL, NULL, &cursor));
+    error_check(session->open_cursor(session, "table:composite", NULL, NULL, &cursor));
 
     {
         /*! [Set the cursor's composite key] */
@@ -217,15 +217,27 @@ cursor_ops(WT_SESSION *session)
     error_check(cursor->reset(cursor));
     /*! [Reset the cursor] */
 
+    {
+        /*! [Return multiple records] */
+        WT_ITEM key;
+        WT_ITEM value;
+        size_t returned_count;
+        error_check(cursor->next_raw_key_value_batch(cursor, &key, &value, 1, &returned_count));
+        /*! [Return multiple records] */
+        error_check(cursor->reset(cursor));
+    }
+
     /*! [Return the previous record] */
     error_check(cursor->prev(cursor));
     /*! [Return the previous record] */
 
     {
         /*! [Get the table's largest key] */
-        const char *largest_key;
+        const char *first;
+        int32_t second;
+        uint16_t third;
         error_check(cursor->largest_key(cursor));
-        error_check(cursor->get_key(cursor, &largest_key));
+        error_check(cursor->get_key(cursor, &first, &second, &third));
         /*! [Get the table's largest key] */
     }
 

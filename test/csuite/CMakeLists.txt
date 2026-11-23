@@ -428,6 +428,14 @@ define_c_test(
     LABEL "disagg"
 )
 
+define_c_test(
+    TARGET test_wt17911_prepared_deep_chain
+    SOURCES wt17911_prepared_deep_chain/main.c
+    DIR_NAME wt17911_prepared_deep_chain
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt17911_prepared_deep_chain>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.
@@ -460,5 +468,16 @@ define_c_test(
     DIR_NAME wt18969_log_backup_seal
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt18969_log_backup_seal/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt18969_log_backup_seal>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt19101_readonly_lock_open
+    SOURCES wt19101_readonly_lock_open/main.c
+    DIR_NAME wt19101_readonly_lock_open
+    # We need to manually specify the location of the fail fs library
+    # and build directory as the build path is more dynamic.
+    FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt19101_readonly_lock_open>/WT_HOME>
     DEPENDS "WT_POSIX"
 )

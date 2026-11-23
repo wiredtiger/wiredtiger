@@ -157,7 +157,7 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_RECOVERING_METADATA) ||
       F_ISSET(session, WT_SESSION_NO_RECONCILE) ||
-      (session->dhandle != NULL && WT_IS_ANY_METADATA(S2BT(session)->dhandle)) ||
+      (session->dhandle != NULL && WT_IS_ANY_METADATA(session->dhandle)) ||
       session == conn->default_session)
         return (0);
 
@@ -1478,6 +1478,7 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
       __curhs_compare,                                /* compare */
       __wti_cursor_equals_notsup,                     /* equals */
       __curhs_next,                                   /* next */
+      __wt_cursor_next_raw_kv_batch_notsup,           /* next-raw-kv-batch */
       __curhs_prev,                                   /* prev */
       __curhs_reset,                                  /* reset */
       __wt_cursor_notsup,                             /* search */
