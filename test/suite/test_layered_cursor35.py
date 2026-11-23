@@ -131,8 +131,7 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
 
     def assert_no_consecutive_deletes(self, versions):
         for uri, entries in versions.items():
-            deletes = [entry[2] == self.update_tombstone for entry in entries]
-            self.assertFalse(any(a and b for a, b in zip(deletes, deletes[1:])),
+            self.assertFalse(any(entry[2] == self.update_tombstone for entry in entries),
                 f'Consecutive deletion versions in {uri}: {entries}')
 
     def test_unpositioned_missing_remove(self):
