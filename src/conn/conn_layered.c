@@ -456,12 +456,12 @@ __disagg_queue_bucket(WT_DISAGGREGATED_STORAGE *disagg, const char *table_name)
 }
 
 /*
- * __disagg_queue_index_insert --
+ * __disagg_queue_index_insert_newest --
  *     Link an entry at the head of its bucket: enqueue appends to the queue, so this makes it the
  *     newest entry for its table name.
  */
 static void
-__disagg_queue_index_insert(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
+__disagg_queue_index_insert_newest(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
 {
     struct __wt_disagg_metadata_bucket *bucket;
 
@@ -471,12 +471,12 @@ __disagg_queue_index_insert(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA
 }
 
 /*
- * __disagg_queue_index_append --
+ * __disagg_queue_index_insert_oldest --
  *     Link an entry at the tail of its bucket. Entries restored to the head of the queue are older
  *     than everything already indexed and must not displace newer entries.
  */
 static void
-__disagg_queue_index_append(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
+__disagg_queue_index_insert_oldest(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
 {
     WT_DISAGG_METADATA_OP **p;
 
@@ -520,7 +520,7 @@ __disagg_shared_metadata_queue_append(WT_SESSION_IMPL *session, WT_DISAGG_METADA
     WT_ASSERT_SPINLOCK_OWNED(session, &disagg->shared_metadata_queue_lock);
 
     TAILQ_INSERT_TAIL(&disagg->shared_metadata_qh, entry, q);
-    __disagg_queue_index_insert(disagg, entry);
+    __disagg_queue_index_insert_newest(disagg, entry);
 }
 
 /*
@@ -536,7 +536,7 @@ __disagg_shared_metadata_queue_insert_head(WT_SESSION_IMPL *session, WT_DISAGG_M
     WT_ASSERT_SPINLOCK_OWNED(session, &disagg->shared_metadata_queue_lock);
 
     TAILQ_INSERT_HEAD(&disagg->shared_metadata_qh, entry, q);
-    __disagg_queue_index_append(disagg, entry);
+    __disagg_queue_index_insert_oldest(disagg, entry);
 }
 
 /*
