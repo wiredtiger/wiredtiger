@@ -89,7 +89,11 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     skip = false;
     WT_NOT_READ(is_tiered, false);
 
-    if (name_func != NULL)
+    /*
+     * LSM trees report their metadata entry from the LSM tree walk, which holds the tree lock: the
+     * entry has to be read at the same time as the chunk array it describes.
+     */
+    if (name_func != NULL && !WT_PREFIX_MATCH(uri, "lsm:"))
         WT_ERR(name_func(session, uri, &skip));
 
     /* If the callback said to skip this object, we're done. */
