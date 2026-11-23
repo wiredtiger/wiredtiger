@@ -176,13 +176,11 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
                 ',prepared_id='      + self.prepared_id_str(123))
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
             self._checkpoint(self.conn)
-            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
             # Roll back the leader's prepare so it does not conflict on connection close.
             self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         else:
             # Checkpoint before any prepare  keys 4-6 are absent from the checkpoint.
             self._checkpoint(self.conn)
-            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         for c in leader_cursors:
@@ -297,12 +295,10 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
                 ',prepared_id='      + self.prepared_id_str(456))
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
             self._checkpoint(self.conn)
-            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
             self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         else:
             # Checkpoint before any prepare  the prepare is absent from the checkpoint.
             self._checkpoint(self.conn)
-            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         for c in leader_cursors:
@@ -415,12 +411,10 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
                 ',prepared_id='      + self.prepared_id_str(789))
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
             self._checkpoint(self.conn)
-            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
             self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         else:
             # Checkpoint before any prepare  the prepare is absent from the checkpoint.
             self._checkpoint(self.conn)
-            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         for c in leader_cursors:

@@ -1751,9 +1751,7 @@ __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
 
 /*
  * __disagg_config_get_checkpoint_lsn --
- *     Get the LSN of the checkpoint installed with checkpoint metadata; 0 if unknown. An unset
- *     integer configuration has a zero length but a non-zero value, so the length decides whether
- *     the application named the LSN.
+ *     Get the LSN of the checkpoint installed with checkpoint metadata; 0 if unknown.
  */
 static int
 __disagg_config_get_checkpoint_lsn(WT_SESSION_IMPL *session, const char **cfg, uint64_t *lsnp)
@@ -1763,9 +1761,12 @@ __disagg_config_get_checkpoint_lsn(WT_SESSION_IMPL *session, const char **cfg, u
     *lsnp = WT_DISAGG_LSN_NONE;
     WT_CLEAR(cval);
 
-    /* FIXME-WT-19115: The absent of LSN config can be not allowed. */
+    /* FIXME-WT-19115: The absence of LSN config can be not allowed. */
     WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "disaggregated.checkpoint_lsn", &cval));
 
+    /*
+     * A key with no value (len = 0) decodes as boolean true (1), so the length check avoids it.
+     */
     if (cval.len > 0 && cval.val > 0)
         *lsnp = (uint64_t)cval.val;
     return (0);
@@ -1787,6 +1788,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_PAGE_LOG_ABANDON_CHECKPOINT_ARGS abandon_args;
+    bool skipped;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
@@ -1803,14 +1805,16 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * Call the PALI function to abandon the checkpoint. If there are no more updates after the last
      * complete checkpoint, the function would have no effect.
      */
+    skipped = false;
     if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL) {
         /* A connection with no installed or written checkpoint has nothing to abandon. */
-        if (disagg->last_checkpoint_lsn == WT_DISAGG_LSN_NONE)
+        if (disagg->last_checkpoint_lsn == WT_DISAGG_LSN_NONE) {
             WT_ASSERT_ALWAYS(session,
               __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) ==
                 WT_DISAGG_LSN_NONE,
               "The last checkpoint LSN must be known before abandoning a checkpoint");
-        else {
+            skipped = true;
+        } else {
             abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
             ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
               disagg->npage_log->page_log, &session->iface, &abandon_args);
@@ -1819,10 +1823,12 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
         ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
           disagg->npage_log->page_log, &session->iface);
 
-    if (ret == 0)
-        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
-    else
-        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_failed);
+    if (!skipped) {
+        if (ret == 0)
+            WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
+        else
+            WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_failed);
+    }
 
     return (ret);
 }
