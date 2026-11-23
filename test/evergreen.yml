@@ -423,7 +423,7 @@ functions:
         else
           # Compiling with CMake generated Ninja file.
           cd cmake_build
-          if [[ "${build_variant|}" =~ "macos-14-arm64" ]]; then
+          if [[ "${build_variant|}" =~ "macos-15-arm64" ]]; then
             source ../venv/bin/activate
           fi
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
