@@ -7,6 +7,10 @@ reads, writes, and schema operations. Once reconfigured, the node must ensure th
 available to the new follower. This document describes the synchronization mechanisms that maintain
 this guarantee without requiring all operations to stop.
 
+The document first describes the ordering of the step-down reconfiguration, its eviction
+synchronization, and schema operations. The rest is organized by goal: each goal section describes
+the problems that stand in its way, and each problem is followed by its solution.
+
 # Terminology and scope
 
 This model explains synchronization during asynchronous step-down; see @ref disagg-roles-step-down
@@ -20,6 +24,11 @@ before the step-up reconfiguration. The following terms are used throughout the 
 - The **step-down timestamp**, N, defines the data boundary of the concluding checkpoint.
 - The **begin-time step-down timestamp state** records whether a transaction observed the
   step-down timestamp as set at transaction begin.
+- A **straddling** write transaction observes the step-down timestamp as not set at transaction
+  begin and reaches its commit-time check after it is set.
+- **Write mirroring**, enabled by default, makes leader write transactions that observe the
+  step-down timestamp as set at transaction begin write to the stable table, when it exists, as
+  well as the ingest table.
 - A **step-down-created table** is created while the step-down timestamp is set and initially has
   only an ingest table.
 - The **step-down-created flag** records that a layered table has no stable table because it was
@@ -95,6 +104,24 @@ The step-down reconfiguration {
 }
 ```
 
+@anchor disagg-step-down-eviction
+# Eviction synchronization
+
+Marking a data handle outdated does not by itself stop eviction already in progress from writing
+shared pages. The step-down reconfiguration therefore obtains exclusive eviction access for each
+open writable disaggregated B-tree whose data handle is not already outdated, marks the data handle
+outdated, then re-enables eviction. The ingest table is not marked. The shared history store is
+processed last so eviction can still use it while draining the other trees.
+
+Exclusive eviction access prevents new normal eviction for the tree, interrupts and clears its
+walk, removes queued candidates, and waits for normal page eviction already in progress to finish.
+Eviction remains disabled until the data handle is marked outdated.
+
+Readers may still be using the old stable B-tree after its data handle is marked outdated. Eviction
+must retain any page whose content cannot be read back from shared storage while the old data
+handle is still in use. Once the last reader releases that handle, eviction can discard the
+remaining pages without reconciling them to shared storage.
+
 @anchor disagg-step-down-schema-operations
 # Schema operations
 
@@ -110,10 +137,12 @@ role as follower.
 
 The step-down schema epoch is also cleared during the step-down reconfiguration.
 
-# Transaction access to the stable and ingest tables
-
 @anchor disagg-step-down-goal-writes
 # Goal: uninterrupted write availability during the concluding checkpoint
+
+Writes must remain available after the step-down timestamp is set, while the concluding checkpoint
+is prepared. Unlike readers, writers do not span the step-down reconfiguration: the application
+must stop serving writes before it and may resume them afterwards.
 
 @anchor disagg-step-down-problem-straddlers
 ## Problem: the concluding checkpoint cannot wait for every ongoing transaction to finish normally
@@ -127,7 +156,7 @@ step-down.
 @anchor disagg-step-down-write-rollback
 ### Solution: roll back straddling writers at the locked commit-time check
 
-The check that guarantees rollback of a write transaction that spans the setting of the step-down
+The check that guarantees rollback of a write transaction that spans setting the step-down
 timestamp occurs at transaction commit. Transaction begin and the commit-time check observe whether
 the step-down timestamp is set under the same read lock, while setting it takes the write lock.
 A write transaction is rolled back if the step-down timestamp was not set
@@ -156,7 +185,7 @@ be accessible through the stable tables.
 ### Solution: retain post-N writes in the ingest table
 
 Transactions that begin after the step-down timestamp is set replicate all their writes in the
-ingest table, so both constituents have those changes.
+ingest table; with write mirroring, both constituents have those changes.
 
 A cursor write operation must decide which table or tables will receive its update. That decision
 uses the following state:
@@ -308,7 +337,7 @@ table's read-only checkpoint view.
 
 To keep the acquired snapshot consistent with the begin-time step-down timestamp state,
 transaction begin first acquires a snapshot and then, under the step-down read lock, observes
-whether the step-down timestamp is set. In this case, a cursor cannot observe the global role as
+whether the step-down timestamp is set. As a result, a cursor cannot observe the global role as
 leader and use a begin-time step-down timestamp state of not set while its snapshot is new enough
 to read ingest table writes made after setting the step-down timestamp.
 
@@ -399,7 +428,7 @@ the global role as follower. The missing stable table is tolerated in this case.
 operations are also guaranteed to observe the global role as follower.
 
 @anchor disagg-step-down-problem-cursor-open
-## Problem: a live stable-table open can straddle reconfiguration
+## Problem: a live stable-table open can race with reconfiguration
 
 During the step-down reconfiguration, stable-table data handles are marked outdated before the
 global role is published as follower. A cursor operation can therefore observe the stable table's
@@ -418,25 +447,9 @@ then observes the updated global role as follower. In this case, the cursor oper
 internally. Since it has acquired the schema lock after the reconfiguration acquired it, it is
 guaranteed to observe the follower role and open the checkpointed stable view.
 
-If the stable table's live B-tree view opens before the step-down reconfiguration, its B-tree is
-included in the outdated-marking walk so the cursors can continue accessing it for the time being.
-
-@anchor disagg-step-down-eviction
-## Eviction synchronization
-
-Marking a data handle outdated does not by itself stop eviction already in progress from writing
-shared pages. The step-down reconfiguration therefore obtains exclusive eviction access for each
-open writable disaggregated B-tree whose data handle is not already outdated, marks the data handle
-outdated, then re-enables eviction. The ingest table is not marked. The shared history store is
-processed last so eviction can still use it while draining the other trees.
-
-Exclusive eviction access prevents new normal eviction for the tree, interrupts and clears its
-walk, removes queued candidates, and waits for normal page eviction already in progress to finish.
-Eviction remains disabled until the data handle is marked outdated.
-
-Readers may still be using the old stable B-tree after its data handle is marked outdated. Eviction
-must retain any page whose content cannot be read back from shared storage while the old data
-handle is still in use. Once the last reader releases that handle, eviction can discard the
-remaining pages without reconciling them to shared storage.
+If the stable table's live B-tree view opens before the step-down reconfiguration, the walk marks
+its data handle outdated like that of any other open stable table. Its existing cursors can keep
+using the old B-tree, which the @ref disagg-step-down-eviction "eviction synchronization" protects
+while it is in use, until they reopen the stable table in the checkpointed view.
 
 */
