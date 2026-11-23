@@ -85,11 +85,10 @@ class CapturedFd(object):
         self.desc = desc
         self.expectpos = 0
         self.file = None
-        self.ignore_regexes = []
+        self.ignore_regexes = set()
 
     def addIgnorePattern(self, regex):
-        if regex not in self.ignore_regexes:
-            self.ignore_regexes.append(regex)
+        self.ignore_regexes.add(regex)
 
     def readFileFrom(self, filename, pos, maxchars):
         """
@@ -268,7 +267,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         if hasattr(self, 'scenarios'):
             assert(self.scenarios is None or len(self.scenarios) == len(dict(self.scenarios)))
         super().__init__(*args, **kwargs)
-        self.ignore_regexes = []
+        self.ignore_regexes = set()
 
     def failed(self):
         '''

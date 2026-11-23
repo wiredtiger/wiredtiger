@@ -560,8 +560,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     # Patterns accumulate for the life of the test; a line matching any of them is ignored.
     def ignoreStdoutPattern(self, pattern, re_flags = 0):
         regex = re.compile(pattern, re_flags)
-        if regex not in self.ignore_regexes:
-            self.ignore_regexes.append(regex)
+        self.ignore_regexes.add(regex)
         if hasattr(self, 'captureout'):
             self.captureout.addIgnorePattern(regex)
 
