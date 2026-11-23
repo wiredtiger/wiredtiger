@@ -1335,27 +1335,37 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt, u_int modify_type)
  *     Remove a record from the tree, optionally succeeding when it is absent.
  */
 int
-__wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned, bool blind_remove, bool *removedp)
+__wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned, bool blind_remove)
 {
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t sleep_usecs, yield_count;
-    bool removed, searched, valid;
+    bool searched, valid;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
-    removed = searched = false;
-    if (removedp != NULL)
-        *removedp = false;
+    searched = false;
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_remove);
     WT_STAT_CONN_DSRC_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
+
+    if (blind_remove && positioned) {
+        WT_ERR(__wt_txn_autocommit_check(session));
+        cbt->compare = 0;
+        /* Detect a no-op before page release or row-modify cleanup can discard the position. */
+        ret = __curfile_update_check(cbt, WT_UPDATE_TOMBSTONE);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            goto done;
+        }
+        WT_ERR(ret);
+    }
 
     /*
      * If remove is positioned to an on-page key, the remove doesn't require another search. There's
@@ -1376,22 +1386,12 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned, bool blind_remove, bool
          * Correct to an exact match so we can remove whatever we're pointing at.
          */
         cbt->compare = 0;
-        if (blind_remove) {
-            /* Row-modify error cleanup clears the insert-list position, even on a no-op. */
-            ret = __curfile_update_check(cbt, WT_UPDATE_TOMBSTONE);
-            if (ret == WT_NOTFOUND) {
-                ret = 0;
-                goto done;
-            }
-            WT_ERR(ret);
-        }
         ret = __cursor_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
-        if (ret == 0) {
-            removed = true;
+        if (ret == 0)
             goto done;
-        }
-        if (blind_remove && ret == WT_NOTFOUND)
-            goto retry;
+        /* Modify cleanup may have discarded the position. */
+        if (blind_remove && positioned && ret == WT_NOTFOUND)
+            ret = WT_ROLLBACK;
         goto err;
     }
 
@@ -1421,9 +1421,8 @@ retry:
             WT_ERR(WT_NOTFOUND);
 
         ret = __cursor_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
-        removed = ret == 0;
-        if (blind_remove && ret == WT_NOTFOUND)
-            goto retry;
+        if (blind_remove && positioned && ret == WT_NOTFOUND)
+            ret = WT_ROLLBACK;
     } else
         WT_ERR(WT_NOTFOUND);
 
@@ -1434,15 +1433,8 @@ err:
     }
 
     if (blind_remove && ret == WT_NOTFOUND) {
-        ret = 0;
-        /* A vanished key has no physical position to retain. */
-        if (positioned && cbt->compare != 0) {
-            F_CLR(cursor, WT_CURSTD_KEY_SET);
-            WT_TRET(__cursor_reset(cbt));
-            if (ret != 0)
-                __cursor_state_restore(cursor, &state);
-            goto done;
-        }
+        /* A positioned remove must not succeed on a different key. */
+        ret = positioned && cbt->compare != 0 ? WT_ROLLBACK : 0;
     }
 
     if (ret == 0) {
@@ -1487,8 +1479,6 @@ done:
     if (ret == 0)
         F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
-    if (removedp != NULL && ret == 0)
-        *removedp = removed;
     return (ret);
 }
 

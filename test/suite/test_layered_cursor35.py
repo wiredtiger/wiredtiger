@@ -232,6 +232,11 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
             evict_cursor.reset()
             self.session.begin_transaction()
             self.assertEqual(cursor.remove(), 0)
+            self.assertEqual(cursor.get_key(), 'k1_rolled_back')
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: cursor.get_value(), '/requires value be set/')
+            self.assertEqual(cursor.next(), 0)
+            self.assertEqual(cursor.get_key(), 'k2')
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         finally:
             cursor.close()
@@ -305,6 +310,10 @@ class test_layered_cursor35(LayeredStepdownMixin, wttest.WiredTigerTestCase):
                     finally:
                         self.session.rollback_transaction()
                         other.rollback_transaction()
+            cursor.reconfigure('blind_remove=false')
+            with self.transaction(rollback=True):
+                cursor.set_key('missing')
+                self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
         finally:
             cursor.close()
             other_cursor.close()
