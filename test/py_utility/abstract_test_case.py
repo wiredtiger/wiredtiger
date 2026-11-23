@@ -145,9 +145,9 @@ class CapturedFd(object):
             self.file.flush()
         new_size = os.path.getsize(self.filename)
 
-        ignore = list(self.ignore_regexes)
+        ignore = set(self.ignore_regexes)
         if ignore_pat is not None:
-            ignore.append(re.compile(ignore_pat))
+            ignore.add(re.compile(ignore_pat))
         if len(ignore) == 0:
             return self.expectpos < new_size
 
