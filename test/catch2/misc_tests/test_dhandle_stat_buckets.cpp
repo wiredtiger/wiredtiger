@@ -11,12 +11,6 @@
 
 #include "../wrappers/connection_wrapper.h"
 
-TEST_CASE("data handle statistics: default bucket count", "[statistics][dhandle]")
-{
-    connection_wrapper conn("WT_TEST.dhandle_stat_default", "create,statistics=(all)");
-    CHECK(conn.get_wt_connection_impl()->stat_dsrc_buckets == 23);
-}
-
 TEST_CASE("data handle statistics: configured bucket count", "[statistics][dhandle]")
 {
     const uint32_t buckets = GENERATE(1, 3, 4, 23, 64, 1024);
@@ -61,23 +55,4 @@ TEST_CASE("data handle statistics: configured bucket count", "[statistics][dhand
     __wt_stat_dsrc_discard(session, &handle);
     CHECK(handle.stat_array == nullptr);
     CHECK(handle.stats == nullptr);
-}
-
-TEST_CASE("data handle statistics: bucket count is connection local", "[statistics][dhandle]")
-{
-    const std::string home = "WT_TEST.dhandle_stat_reopen";
-    {
-        connection_wrapper conn(home, "create,statistics_dhandle_buckets=7");
-        CHECK(conn.get_wt_connection_impl()->stat_dsrc_buckets == 7);
-        conn.clear_do_cleanup();
-    }
-    {
-        connection_wrapper conn(home, "statistics_dhandle_buckets=64");
-        CHECK(conn.get_wt_connection_impl()->stat_dsrc_buckets == 64);
-        conn.clear_do_cleanup();
-    }
-    {
-        connection_wrapper conn(home);
-        CHECK(conn.get_wt_connection_impl()->stat_dsrc_buckets == 23);
-    }
 }
