@@ -132,6 +132,58 @@ TEST_CASE("next_raw_key_value_batch_file", "[cursor]")
     REQUIRE(session->close(session, nullptr) == 0);
 }
 
+TEST_CASE("next_raw_key_value_batch_file_multiple_results", "[cursor]")
+{
+    connection_wrapper conn(DB_HOME);
+    WT_SESSION *session = &conn.create_session()->iface;
+    const char *uri = "file:f.wt";
+    REQUIRE(session->create(session, uri, "key_format=S,value_format=S") == 0);
+    WT_CURSOR *cursor = nullptr;
+    REQUIRE(session->open_cursor(session, uri, nullptr, nullptr, &cursor) == 0);
+
+    char k[32];
+    char v[32];
+    int total_written = 100 * 100; /* Must be divisible by 100, just for the txn division. */
+    for (int i = 0; i < total_written / 100; i++) {
+        REQUIRE(session->begin_transaction(session, nullptr) == 0);
+        for (int j = 0; j < 100; j++) {
+            std::snprintf(k, sizeof(k), "k%016d", i * 100 + j);
+            std::snprintf(v, sizeof(v), "v%016d", i * 100 + j);
+            REQUIRE(insert_key_value(cursor, k, v) == 0);
+        }
+        REQUIRE(session->commit_transaction(session, "commit_timestamp=10") == 0);
+    }
+    REQUIRE(cursor->reset(cursor) == 0);
+
+    int total_read = 0;
+    int ret = 0;
+    int high_water_mark = 0;
+    for (;;) {
+        size_t n;
+        WT_ITEM keys[150];
+        WT_ITEM values[150];
+        ret = cursor->next_raw_key_value_batch(cursor, keys, values, 150, &n);
+
+        if (ret != 0)
+            break;
+
+        for (int i = 0; i < n; i++) {
+            std::snprintf(k, sizeof(k), "k%016d", total_read + i);
+            std::snprintf(v, sizeof(v), "v%016d", total_read + i);
+            REQUIRE(strcmp(static_cast<const char *>(keys[i].data), k) == 0);
+            REQUIRE(strcmp(static_cast<const char *>(values[i].data), v) == 0);
+        }
+        total_read += n;
+        if (n > high_water_mark)
+            high_water_mark = n;
+    }
+    REQUIRE(ret == WT_NOTFOUND);
+    REQUIRE(total_read == total_written);
+    REQUIRE(high_water_mark > 1);
+
+    REQUIRE(session->close(session, nullptr) == 0);
+}
+
 #ifndef _WIN32
 #include "../../misc_tests/layered_disagg_utils.h"
 

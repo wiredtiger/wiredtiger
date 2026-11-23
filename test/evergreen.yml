@@ -4623,6 +4623,30 @@ tasks:
       - func: "code coverage publish main page"
       - func: "code coverage publish report"
 
+  - name: atomic-review-notification
+    allowed_requesters: ["github_pr"]
+    tags: ["pull_request"]
+    commands:
+      - command: shell.exec
+        params:
+          shell: bash
+          script: '[[ "${github_pr_number|}" =~ ^[1-9][0-9]*$ ]]'
+      - func: "get project"
+      - command: github.generate_token
+        params:
+          owner: wiredtiger
+          repo: wiredtiger
+          expansion_name: github_token
+          permissions:
+            pull_requests: write
+            members: read
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          silent: true
+          script: 'GITHUB_TOKEN="${github_token}" python3 test/evergreen/atomic_review.py "${github_pr_number}"'
+
   - name: code-change-report
     tags: ["pull_request_code_statistics"]
     depends_on:
@@ -7354,7 +7378,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tags: ["pull_request"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan !atomic-review-notification"
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
@@ -7424,7 +7448,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
+    - name: ".pull_request !.pull_request_compilers !.python !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test !atomic-review-notification"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7938,7 +7962,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan !atomic-review-notification"
     - name: compile
     - name: make-check-test
     - name: unit-test-extra-long
@@ -8235,7 +8259,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !atomic-review-notification"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long

@@ -61,6 +61,7 @@ else()
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
+        misc_tests/test_sweep_outdated_in_use.cpp
         misc_tests/test_tailq.cpp
         misc_tests/test_timestamp_validation.cpp
         misc_tests/test_txn_config.cpp
