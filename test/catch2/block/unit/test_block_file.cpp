@@ -101,7 +101,6 @@ validate_free_block(std::shared_ptr<mock_session> session, WT_BLOCK *block, conf
     } else {
         REQUIRE(block != nullptr);
         validate_block(session, block, cp, expected_ref, name, readonly);
-        F_CLR(block, WT_BLOCK_SYNC_ON_CHECKPOINT);
     }
 
     // Connection block lock should not be locked after the function completes.
@@ -265,17 +264,5 @@ TEST_CASE("Block manager: __wt_block_open and __wti_bm_close_block", "[block_fil
      * }
      */
 
-    SECTION("Test block close with block sync")
-    {
-        WT_BLOCK *block = nullptr;
-        REQUIRE((__wt_block_open(session->get_wt_session_impl(), file_path.c_str(),
-                  WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0, nullptr,
-                  &block)) == 0);
-        validate_block(session, block, cp, 1, file_path, false);
-        F_SET(block, WT_BLOCK_SYNC_ON_CHECKPOINT);
-
-        REQUIRE(__wti_bm_close_block(session->get_wt_session_impl(), block) == 0);
-        validate_free_block(session, block, cp, 0, file_path);
-    }
     REQUIRE(__wt_block_manager_drop(session->get_wt_session_impl(), file_path.c_str(), false) == 0);
 }
