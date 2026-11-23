@@ -166,6 +166,15 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
         return (0);
 
     /*
+     * Sweep never closes a tree that is in use. The in-use check made before taking the write lock
+     * can be stale, so repeat it under the lock. For example, a session can write to an outdated
+     * disaggregated btree or an ingest btree and close its cursor while its transaction is still
+     * open.
+     */
+    if (btree != NULL && __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0)
+        return (0);
+
+    /*
      * Sweep only closes clean trees, with two exceptions: an outdated disaggregated btree, whose
      * dirty pages are discarded rather than written, and an ingest btree whose entire contents are
      * known to be durable in the stable table.
@@ -173,12 +182,10 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
     if (btree != NULL && __wt_atomic_load_bool_relaxed(&btree->modified) &&
       !__wt_btree_dhandle_is_outdated_disagg(dhandle, btree)) {
         /*
-         * We check that there are no cursors open that can be adding new content, and we hold the
-         * dhandle write lock, which blocks new opens. Open transaction modifications also bump the
-         * in use counter, so we won't close trees in that state.
+         * Only an ingest btree can be closed while dirty, and the in-use check above ensures no
+         * cursors are open that can be adding new content and no open transaction has modified it.
          */
-        if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) ||
-          __wt_atomic_load_int32_acquire(&dhandle->session_inuse) != 0)
+        if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             return (0);
 
         /* Be certain that we're dealing with an ingest table. */
@@ -209,6 +216,14 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
         WT_STAT_CONN_INCR(session, dh_sweep_ingest_close);
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
+{
+    return (__sweep_close_dhandle_locked(session));
+}
+#endif
 
 /*
  * __sweep_expire_one --

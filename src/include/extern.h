@@ -2810,6 +2810,8 @@ extern int __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_ite
   WT_CRYPT_HEADER **header) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri,
   WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids,
   size_t num_btree, const uint64_t *pali_ids, size_t num_pali)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
