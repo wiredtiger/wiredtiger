@@ -1053,22 +1053,29 @@ __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats)
 int
 __wt_stat_dsrc_init(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
-    int i;
+    WT_DECL_RET;
+    u_int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(session, (size_t)S2C(session)->stat_dsrc_buckets,
+      sizeof(*handle->stat_array), &handle->stat_array));
+    WT_ERR(__wt_calloc_def(session, S2C(session)->stat_dsrc_buckets, &handle->stats));
 
-    for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i) {
+    for (i = 0; i < S2C(session)->stat_dsrc_buckets; ++i) {
         handle->stats[i] = &handle->stat_array[i];
         __wt_stat_dsrc_init_single(handle->stats[i]);
     }
     return (0);
+
+err:
+    __wt_free(session, handle->stat_array);
+    return (ret);
 }
 
 void
 __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
     __wt_free(session, handle->stat_array);
+    __wt_free(session, handle->stats);
 }
 
 static void
@@ -1594,11 +1601,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag)
 }
 
 void
-__wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag)
+__wt_stat_dsrc_clear_all(WT_SESSION_IMPL *session, WT_DSRC_STATS **stats, uint32_t otel_flag)
 {
     u_int i;
 
-    for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i)
+    for (i = 0; i < S2C(session)->stat_dsrc_buckets; ++i)
         __wt_stat_dsrc_clear_single(stats[i], otel_flag);
 }
 
@@ -2147,640 +2154,728 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
 }
 
 void
-__wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
+__wt_stat_dsrc_aggregate(WT_SESSION_IMPL *session, WT_DSRC_STATS **from, WT_DSRC_STATS *to)
 {
     int64_t v;
 
-    to->autocommit_readonly_retry += WT_STAT_DSRC_READ(from, autocommit_readonly_retry);
-    to->autocommit_update_retry += WT_STAT_DSRC_READ(from, autocommit_update_retry);
-    to->backup_blocks_compressed += WT_STAT_DSRC_READ(from, backup_blocks_compressed);
-    to->backup_blocks_uncompressed += WT_STAT_DSRC_READ(from, backup_blocks_uncompressed);
-    to->disagg_block_hs_byte_read += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_read);
-    to->disagg_block_hs_byte_write += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_write);
-    to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
-    to->disagg_block_get_cold += WT_STAT_DSRC_READ(from, disagg_block_get_cold);
-    to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
-    to->disagg_block_plh_put_failed += WT_STAT_DSRC_READ(from, disagg_block_plh_put_failed);
-    to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
-    to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
-    to->disagg_block_put_cold += WT_STAT_DSRC_READ(from, disagg_block_put_cold);
-    to->disagg_block_hs_put += WT_STAT_DSRC_READ(from, disagg_block_hs_put);
+    to->autocommit_readonly_retry += WT_STAT_DSRC_READ(session, from, autocommit_readonly_retry);
+    to->autocommit_update_retry += WT_STAT_DSRC_READ(session, from, autocommit_update_retry);
+    to->backup_blocks_compressed += WT_STAT_DSRC_READ(session, from, backup_blocks_compressed);
+    to->backup_blocks_uncompressed += WT_STAT_DSRC_READ(session, from, backup_blocks_uncompressed);
+    to->disagg_block_hs_byte_read += WT_STAT_DSRC_READ(session, from, disagg_block_hs_byte_read);
+    to->disagg_block_hs_byte_write += WT_STAT_DSRC_READ(session, from, disagg_block_hs_byte_write);
+    to->disagg_block_get += WT_STAT_DSRC_READ(session, from, disagg_block_get);
+    to->disagg_block_get_cold += WT_STAT_DSRC_READ(session, from, disagg_block_get_cold);
+    to->disagg_block_hs_get += WT_STAT_DSRC_READ(session, from, disagg_block_hs_get);
+    to->disagg_block_plh_put_failed +=
+      WT_STAT_DSRC_READ(session, from, disagg_block_plh_put_failed);
+    to->disagg_block_page_discard += WT_STAT_DSRC_READ(session, from, disagg_block_page_discard);
+    to->disagg_block_put += WT_STAT_DSRC_READ(session, from, disagg_block_put);
+    to->disagg_block_put_cold += WT_STAT_DSRC_READ(session, from, disagg_block_put_cold);
+    to->disagg_block_hs_put += WT_STAT_DSRC_READ(session, from, disagg_block_hs_put);
     to->disagg_block_read_ahead_frontier +=
-      WT_STAT_DSRC_READ(from, disagg_block_read_ahead_frontier);
-    to->block_extension += WT_STAT_DSRC_READ(from, block_extension);
-    to->block_alloc += WT_STAT_DSRC_READ(from, block_alloc);
-    to->block_free += WT_STAT_DSRC_READ(from, block_free);
-    to->block_checkpoint_size += WT_STAT_DSRC_READ(from, block_checkpoint_size);
-    if ((v = WT_STAT_DSRC_READ(from, allocation_size)) > to->allocation_size)
+      WT_STAT_DSRC_READ(session, from, disagg_block_read_ahead_frontier);
+    to->block_extension += WT_STAT_DSRC_READ(session, from, block_extension);
+    to->block_alloc += WT_STAT_DSRC_READ(session, from, block_alloc);
+    to->block_free += WT_STAT_DSRC_READ(session, from, block_free);
+    to->block_checkpoint_size += WT_STAT_DSRC_READ(session, from, block_checkpoint_size);
+    if ((v = WT_STAT_DSRC_READ(session, from, allocation_size)) > to->allocation_size)
         to->allocation_size = v;
-    to->block_reuse_bytes += WT_STAT_DSRC_READ(from, block_reuse_bytes);
-    if ((v = WT_STAT_DSRC_READ(from, block_magic)) > to->block_magic)
+    to->block_reuse_bytes += WT_STAT_DSRC_READ(session, from, block_reuse_bytes);
+    if ((v = WT_STAT_DSRC_READ(session, from, block_magic)) > to->block_magic)
         to->block_magic = v;
-    if ((v = WT_STAT_DSRC_READ(from, block_major)) > to->block_major)
+    if ((v = WT_STAT_DSRC_READ(session, from, block_major)) > to->block_major)
         to->block_major = v;
-    to->block_size += WT_STAT_DSRC_READ(from, block_size);
-    if ((v = WT_STAT_DSRC_READ(from, block_minor)) > to->block_minor)
+    to->block_size += WT_STAT_DSRC_READ(session, from, block_size);
+    if ((v = WT_STAT_DSRC_READ(session, from, block_minor)) > to->block_minor)
         to->block_minor = v;
-    to->btree_size_deleted_key_bytes += WT_STAT_DSRC_READ(from, btree_size_deleted_key_bytes);
-    to->btree_size_deleted_key_count += WT_STAT_DSRC_READ(from, btree_size_deleted_key_count);
-    to->btree_size_deleted_value_bytes += WT_STAT_DSRC_READ(from, btree_size_deleted_value_bytes);
-    to->btree_size_deleted_value_count += WT_STAT_DSRC_READ(from, btree_size_deleted_value_count);
-    to->btree_size_internal_bytes += WT_STAT_DSRC_READ(from, btree_size_internal_bytes);
-    to->btree_size_internal_pages += WT_STAT_DSRC_READ(from, btree_size_internal_pages);
-    to->btree_size_key_bytes += WT_STAT_DSRC_READ(from, btree_size_key_bytes);
-    to->btree_size_key_count += WT_STAT_DSRC_READ(from, btree_size_key_count);
-    to->btree_size_leaf_bytes += WT_STAT_DSRC_READ(from, btree_size_leaf_bytes);
-    to->btree_size_leaf_hist_0 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_0);
-    to->btree_size_leaf_hist_1 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_1);
-    to->btree_size_leaf_hist_2 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_2);
-    to->btree_size_leaf_hist_3 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_3);
-    to->btree_size_leaf_hist_4 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_4);
-    to->btree_size_leaf_hist_5 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_5);
-    to->btree_size_leaf_hist_6 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_6);
-    to->btree_size_leaf_hist_7 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_7);
-    to->btree_size_leaf_hist_8 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_8);
-    if ((v = WT_STAT_DSRC_READ(from, btree_size_leaf_hist_buckets)) >
+    to->btree_size_deleted_key_bytes +=
+      WT_STAT_DSRC_READ(session, from, btree_size_deleted_key_bytes);
+    to->btree_size_deleted_key_count +=
+      WT_STAT_DSRC_READ(session, from, btree_size_deleted_key_count);
+    to->btree_size_deleted_value_bytes +=
+      WT_STAT_DSRC_READ(session, from, btree_size_deleted_value_bytes);
+    to->btree_size_deleted_value_count +=
+      WT_STAT_DSRC_READ(session, from, btree_size_deleted_value_count);
+    to->btree_size_internal_bytes += WT_STAT_DSRC_READ(session, from, btree_size_internal_bytes);
+    to->btree_size_internal_pages += WT_STAT_DSRC_READ(session, from, btree_size_internal_pages);
+    to->btree_size_key_bytes += WT_STAT_DSRC_READ(session, from, btree_size_key_bytes);
+    to->btree_size_key_count += WT_STAT_DSRC_READ(session, from, btree_size_key_count);
+    to->btree_size_leaf_bytes += WT_STAT_DSRC_READ(session, from, btree_size_leaf_bytes);
+    to->btree_size_leaf_hist_0 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_0);
+    to->btree_size_leaf_hist_1 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_1);
+    to->btree_size_leaf_hist_2 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_2);
+    to->btree_size_leaf_hist_3 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_3);
+    to->btree_size_leaf_hist_4 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_4);
+    to->btree_size_leaf_hist_5 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_5);
+    to->btree_size_leaf_hist_6 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_6);
+    to->btree_size_leaf_hist_7 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_7);
+    to->btree_size_leaf_hist_8 += WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_8);
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_buckets)) >
       to->btree_size_leaf_hist_buckets)
         to->btree_size_leaf_hist_buckets = v;
-    if ((v = WT_STAT_DSRC_READ(from, btree_size_leaf_hist_ceiling)) >
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_size_leaf_hist_ceiling)) >
       to->btree_size_leaf_hist_ceiling)
         to->btree_size_leaf_hist_ceiling = v;
-    to->btree_size_leaf_pages += WT_STAT_DSRC_READ(from, btree_size_leaf_pages);
-    to->btree_size_overflow_bytes += WT_STAT_DSRC_READ(from, btree_size_overflow_bytes);
-    to->btree_size_overflow_pages += WT_STAT_DSRC_READ(from, btree_size_overflow_pages);
-    to->btree_size_no_image_pages += WT_STAT_DSRC_READ(from, btree_size_no_image_pages);
-    to->btree_size_value_bytes += WT_STAT_DSRC_READ(from, btree_size_value_bytes);
-    to->btree_size_value_count += WT_STAT_DSRC_READ(from, btree_size_value_count);
-    to->btree_checkpoint_generation += WT_STAT_DSRC_READ(from, btree_checkpoint_generation);
-    to->btree_clean_checkpoint_timer += WT_STAT_DSRC_READ(from, btree_clean_checkpoint_timer);
+    to->btree_size_leaf_pages += WT_STAT_DSRC_READ(session, from, btree_size_leaf_pages);
+    to->btree_size_overflow_bytes += WT_STAT_DSRC_READ(session, from, btree_size_overflow_bytes);
+    to->btree_size_overflow_pages += WT_STAT_DSRC_READ(session, from, btree_size_overflow_pages);
+    to->btree_size_no_image_pages += WT_STAT_DSRC_READ(session, from, btree_size_no_image_pages);
+    to->btree_size_value_bytes += WT_STAT_DSRC_READ(session, from, btree_size_value_bytes);
+    to->btree_size_value_count += WT_STAT_DSRC_READ(session, from, btree_size_value_count);
+    to->btree_checkpoint_generation +=
+      WT_STAT_DSRC_READ(session, from, btree_checkpoint_generation);
+    to->btree_clean_checkpoint_timer +=
+      WT_STAT_DSRC_READ(session, from, btree_clean_checkpoint_timer);
     to->btree_compact_pages_selected_inmem +=
-      WT_STAT_DSRC_READ(from, btree_compact_pages_selected_inmem);
-    to->btree_compact_pages_reviewed += WT_STAT_DSRC_READ(from, btree_compact_pages_reviewed);
-    to->btree_compact_pages_rewritten += WT_STAT_DSRC_READ(from, btree_compact_pages_rewritten);
-    to->btree_compact_pages_skipped += WT_STAT_DSRC_READ(from, btree_compact_pages_skipped);
+      WT_STAT_DSRC_READ(session, from, btree_compact_pages_selected_inmem);
+    to->btree_compact_pages_reviewed +=
+      WT_STAT_DSRC_READ(session, from, btree_compact_pages_reviewed);
+    to->btree_compact_pages_rewritten +=
+      WT_STAT_DSRC_READ(session, from, btree_compact_pages_rewritten);
+    to->btree_compact_pages_skipped +=
+      WT_STAT_DSRC_READ(session, from, btree_compact_pages_skipped);
     to->btree_compact_bytes_rewritten_expected +=
-      WT_STAT_DSRC_READ(from, btree_compact_bytes_rewritten_expected);
+      WT_STAT_DSRC_READ(session, from, btree_compact_bytes_rewritten_expected);
     to->btree_compact_pages_rewritten_expected +=
-      WT_STAT_DSRC_READ(from, btree_compact_pages_rewritten_expected);
+      WT_STAT_DSRC_READ(session, from, btree_compact_pages_rewritten_expected);
     to->btree_checkpoint_pages_reconciled +=
-      WT_STAT_DSRC_READ(from, btree_checkpoint_pages_reconciled);
-    to->btree_compact_skipped += WT_STAT_DSRC_READ(from, btree_compact_skipped);
-    to->btree_column_internal += WT_STAT_DSRC_READ(from, btree_column_internal);
-    to->btree_column_rle += WT_STAT_DSRC_READ(from, btree_column_rle);
-    to->btree_column_deleted += WT_STAT_DSRC_READ(from, btree_column_deleted);
-    to->btree_column_variable += WT_STAT_DSRC_READ(from, btree_column_variable);
-    if ((v = WT_STAT_DSRC_READ(from, btree_fixed_len)) > to->btree_fixed_len)
+      WT_STAT_DSRC_READ(session, from, btree_checkpoint_pages_reconciled);
+    to->btree_compact_skipped += WT_STAT_DSRC_READ(session, from, btree_compact_skipped);
+    to->btree_column_internal += WT_STAT_DSRC_READ(session, from, btree_column_internal);
+    to->btree_column_rle += WT_STAT_DSRC_READ(session, from, btree_column_rle);
+    to->btree_column_deleted += WT_STAT_DSRC_READ(session, from, btree_column_deleted);
+    to->btree_column_variable += WT_STAT_DSRC_READ(session, from, btree_column_variable);
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_fixed_len)) > to->btree_fixed_len)
         to->btree_fixed_len = v;
-    if ((v = WT_STAT_DSRC_READ(from, btree_maxintlpage)) > to->btree_maxintlpage)
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_maxintlpage)) > to->btree_maxintlpage)
         to->btree_maxintlpage = v;
-    if ((v = WT_STAT_DSRC_READ(from, btree_maxleafkey)) > to->btree_maxleafkey)
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_maxleafkey)) > to->btree_maxleafkey)
         to->btree_maxleafkey = v;
-    if ((v = WT_STAT_DSRC_READ(from, btree_maxleafpage)) > to->btree_maxleafpage)
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_maxleafpage)) > to->btree_maxleafpage)
         to->btree_maxleafpage = v;
-    if ((v = WT_STAT_DSRC_READ(from, btree_maxleafvalue)) > to->btree_maxleafvalue)
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_maxleafvalue)) > to->btree_maxleafvalue)
         to->btree_maxleafvalue = v;
-    if ((v = WT_STAT_DSRC_READ(from, btree_maximum_depth)) > to->btree_maximum_depth)
+    if ((v = WT_STAT_DSRC_READ(session, from, btree_maximum_depth)) > to->btree_maximum_depth)
         to->btree_maximum_depth = v;
-    to->btree_entries += WT_STAT_DSRC_READ(from, btree_entries);
-    to->btree_obsolete_ondisk_kv_bytes += WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_bytes);
+    to->btree_entries += WT_STAT_DSRC_READ(session, from, btree_entries);
+    to->btree_obsolete_ondisk_kv_bytes +=
+      WT_STAT_DSRC_READ(session, from, btree_obsolete_ondisk_kv_bytes);
     to->btree_obsolete_ondisk_kv_bytes_mixed +=
-      WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_bytes_mixed);
-    to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
+      WT_STAT_DSRC_READ(session, from, btree_obsolete_ondisk_kv_bytes_mixed);
+    to->btree_overflow += WT_STAT_DSRC_READ(session, from, btree_overflow);
     to->btree_obsolete_ondisk_kv_analyzed +=
-      WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_analyzed);
-    to->btree_obsolete_ondisk_kv_pages += WT_STAT_DSRC_READ(from, btree_obsolete_ondisk_kv_pages);
-    to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
-    to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
-    to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
-    to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
-    to->btree_row_leaf_pages += WT_STAT_DSRC_READ(from, btree_row_leaf_pages);
+      WT_STAT_DSRC_READ(session, from, btree_obsolete_ondisk_kv_analyzed);
+    to->btree_obsolete_ondisk_kv_pages +=
+      WT_STAT_DSRC_READ(session, from, btree_obsolete_ondisk_kv_pages);
+    to->btree_row_empty_values += WT_STAT_DSRC_READ(session, from, btree_row_empty_values);
+    to->btree_row_internal += WT_STAT_DSRC_READ(session, from, btree_row_internal);
+    to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(session, from, btree_row_leaf_avg_entries);
+    to->btree_row_leaf += WT_STAT_DSRC_READ(session, from, btree_row_leaf);
+    to->btree_row_leaf_pages += WT_STAT_DSRC_READ(session, from, btree_row_leaf_pages);
     to->btree_checkpoint_reconcile_duration +=
-      WT_STAT_DSRC_READ(from, btree_checkpoint_reconcile_duration);
+      WT_STAT_DSRC_READ(session, from, btree_checkpoint_reconcile_duration);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_app_threads_fill_ratio_lt_25);
     to->cache_eviction_app_threads_fill_ratio_25_50 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_25_50);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_app_threads_fill_ratio_25_50);
     to->cache_eviction_app_threads_fill_ratio_50_75 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_50_75);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_app_threads_fill_ratio_50_75);
     to->cache_eviction_app_threads_fill_ratio_gt_75 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_gt_75);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_app_threads_fill_ratio_gt_75);
     to->cache_eviction_app_threads_skip_updates_dirty_page +=
-      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_skip_updates_dirty_page);
-    to->cache_bytes_inuse += WT_STAT_DSRC_READ(from, cache_bytes_inuse);
-    to->cache_bytes_dirty_total += WT_STAT_DSRC_READ(from, cache_bytes_dirty_total);
-    to->cache_bytes_read += WT_STAT_DSRC_READ(from, cache_bytes_read);
-    to->cache_bytes_write += WT_STAT_DSRC_READ(from, cache_bytes_write);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_app_threads_skip_updates_dirty_page);
+    to->cache_bytes_inuse += WT_STAT_DSRC_READ(session, from, cache_bytes_inuse);
+    to->cache_bytes_dirty_total += WT_STAT_DSRC_READ(session, from, cache_bytes_dirty_total);
+    to->cache_bytes_read += WT_STAT_DSRC_READ(session, from, cache_bytes_read);
+    to->cache_bytes_write += WT_STAT_DSRC_READ(session, from, cache_bytes_write);
     to->cache_eviction_blocked_checkpoint +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_checkpoint_hs);
     to->cache_write_restore_scrub_skipped_dirty +=
-      WT_STAT_DSRC_READ(from, cache_write_restore_scrub_skipped_dirty);
-    to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
+      WT_STAT_DSRC_READ(session, from, cache_write_restore_scrub_skipped_dirty);
+    to->eviction_fail += WT_STAT_DSRC_READ(session, from, eviction_fail);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_disagg_dirty_internal_page);
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_1);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_no_ts_checkpoint_race_1);
     to->cache_eviction_blocked_no_ts_checkpoint_race_2 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_2);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_no_ts_checkpoint_race_2);
     to->cache_eviction_blocked_no_ts_checkpoint_race_3 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_3);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_no_ts_checkpoint_race_3);
     to->cache_eviction_blocked_no_ts_checkpoint_race_4 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_no_ts_checkpoint_race_4);
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
     to->cache_eviction_blocked_no_progress +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_progress);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_no_progress);
     to->cache_eviction_blocked_prefetched +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_prefetched);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_prefetched);
     to->cache_eviction_pages_queued_updates +=
-      WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_updates);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_pages_queued_updates);
     to->cache_eviction_pages_queued_clean +=
-      WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_clean);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_pages_queued_clean);
     to->cache_eviction_pages_queued_dirty +=
-      WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_dirty);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_pages_queued_dirty);
     to->cache_eviction_pages_seen_updates +=
-      WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_updates);
-    to->cache_eviction_pages_seen_clean += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_clean);
-    to->cache_eviction_pages_seen_dirty += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_dirty);
-    to->eviction_walk_passes += WT_STAT_DSRC_READ(from, eviction_walk_passes);
-    to->cache_eviction_target_page_lt10 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt10);
-    to->cache_eviction_target_page_lt32 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt32);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_pages_seen_updates);
+    to->cache_eviction_pages_seen_clean +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_pages_seen_clean);
+    to->cache_eviction_pages_seen_dirty +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_pages_seen_dirty);
+    to->eviction_walk_passes += WT_STAT_DSRC_READ(session, from, eviction_walk_passes);
+    to->cache_eviction_target_page_lt10 +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_target_page_lt10);
+    to->cache_eviction_target_page_lt32 +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_target_page_ge128);
-    to->cache_eviction_target_page_lt64 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt64);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_target_page_ge128);
+    to->cache_eviction_target_page_lt64 +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_target_page_lt64);
     to->cache_eviction_target_page_lt128 +=
-      WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt128);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_target_page_lt128);
     to->cache_eviction_target_page_reduced +=
-      WT_STAT_DSRC_READ(from, cache_eviction_target_page_reduced);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_target_page_reduced);
     to->cache_eviction_blocked_prune_timestamp +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_prune_timestamp);
-    to->cache_eviction_blocked_hazard += WT_STAT_DSRC_READ(from, cache_eviction_blocked_hazard);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_prune_timestamp);
+    to->cache_eviction_blocked_hazard +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_hazard);
     to->cache_eviction_hs_cursor_not_cached +=
-      WT_STAT_DSRC_READ(from, cache_eviction_hs_cursor_not_cached);
-    to->cache_hs_insert += WT_STAT_DSRC_READ(from, cache_hs_insert);
-    to->cache_hs_insert_restart += WT_STAT_DSRC_READ(from, cache_hs_insert_restart);
-    to->cache_hs_key_processed += WT_STAT_DSRC_READ(from, cache_hs_key_processed);
-    to->cache_hs_read += WT_STAT_DSRC_READ(from, cache_hs_read);
-    to->cache_hs_read_miss += WT_STAT_DSRC_READ(from, cache_hs_read_miss);
-    to->cache_hs_read_squash += WT_STAT_DSRC_READ(from, cache_hs_read_squash);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_hs_cursor_not_cached);
+    to->cache_hs_insert += WT_STAT_DSRC_READ(session, from, cache_hs_insert);
+    to->cache_hs_insert_restart += WT_STAT_DSRC_READ(session, from, cache_hs_insert_restart);
+    to->cache_hs_key_processed += WT_STAT_DSRC_READ(session, from, cache_hs_key_processed);
+    to->cache_hs_read += WT_STAT_DSRC_READ(session, from, cache_hs_read);
+    to->cache_hs_read_miss += WT_STAT_DSRC_READ(session, from, cache_hs_read_miss);
+    to->cache_hs_read_squash += WT_STAT_DSRC_READ(session, from, cache_hs_read_squash);
     to->cache_hs_order_lose_durable_timestamp +=
-      WT_STAT_DSRC_READ(from, cache_hs_order_lose_durable_timestamp);
+      WT_STAT_DSRC_READ(session, from, cache_hs_order_lose_durable_timestamp);
     to->cache_hs_key_truncate_rts_unstable +=
-      WT_STAT_DSRC_READ(from, cache_hs_key_truncate_rts_unstable);
-    to->cache_hs_key_truncate_rts += WT_STAT_DSRC_READ(from, cache_hs_key_truncate_rts);
-    to->cache_hs_btree_truncate += WT_STAT_DSRC_READ(from, cache_hs_btree_truncate);
-    to->cache_hs_key_truncate += WT_STAT_DSRC_READ(from, cache_hs_key_truncate);
-    to->cache_hs_order_remove += WT_STAT_DSRC_READ(from, cache_hs_order_remove);
+      WT_STAT_DSRC_READ(session, from, cache_hs_key_truncate_rts_unstable);
+    to->cache_hs_key_truncate_rts += WT_STAT_DSRC_READ(session, from, cache_hs_key_truncate_rts);
+    to->cache_hs_btree_truncate += WT_STAT_DSRC_READ(session, from, cache_hs_btree_truncate);
+    to->cache_hs_key_truncate += WT_STAT_DSRC_READ(session, from, cache_hs_key_truncate);
+    to->cache_hs_order_remove += WT_STAT_DSRC_READ(session, from, cache_hs_order_remove);
     to->cache_hs_key_truncate_onpage_removal +=
-      WT_STAT_DSRC_READ(from, cache_hs_key_truncate_onpage_removal);
-    to->cache_hs_btree_truncate_dryrun += WT_STAT_DSRC_READ(from, cache_hs_btree_truncate_dryrun);
+      WT_STAT_DSRC_READ(session, from, cache_hs_key_truncate_onpage_removal);
+    to->cache_hs_btree_truncate_dryrun +=
+      WT_STAT_DSRC_READ(session, from, cache_hs_btree_truncate_dryrun);
     to->cache_hs_key_truncate_rts_unstable_dryrun +=
-      WT_STAT_DSRC_READ(from, cache_hs_key_truncate_rts_unstable_dryrun);
+      WT_STAT_DSRC_READ(session, from, cache_hs_key_truncate_rts_unstable_dryrun);
     to->cache_hs_key_truncate_rts_dryrun +=
-      WT_STAT_DSRC_READ(from, cache_hs_key_truncate_rts_dryrun);
-    to->cache_hs_update_processed += WT_STAT_DSRC_READ(from, cache_hs_update_processed);
-    to->cache_hs_order_reinsert += WT_STAT_DSRC_READ(from, cache_hs_order_reinsert);
-    to->cache_hs_write_squash += WT_STAT_DSRC_READ(from, cache_hs_write_squash);
-    to->cache_inmem_splittable += WT_STAT_DSRC_READ(from, cache_inmem_splittable);
-    to->cache_inmem_split += WT_STAT_DSRC_READ(from, cache_inmem_split);
-    to->cache_inmem_split_ingest += WT_STAT_DSRC_READ(from, cache_inmem_split_ingest);
+      WT_STAT_DSRC_READ(session, from, cache_hs_key_truncate_rts_dryrun);
+    to->cache_hs_update_processed += WT_STAT_DSRC_READ(session, from, cache_hs_update_processed);
+    to->cache_hs_order_reinsert += WT_STAT_DSRC_READ(session, from, cache_hs_order_reinsert);
+    to->cache_hs_write_squash += WT_STAT_DSRC_READ(session, from, cache_hs_write_squash);
+    to->cache_inmem_splittable += WT_STAT_DSRC_READ(session, from, cache_inmem_splittable);
+    to->cache_inmem_split += WT_STAT_DSRC_READ(session, from, cache_inmem_split);
+    to->cache_inmem_split_ingest += WT_STAT_DSRC_READ(session, from, cache_inmem_split_ingest);
     to->cache_eviction_blocked_internal_page_split +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_internal_page_split);
-    to->cache_eviction_internal += WT_STAT_DSRC_READ(from, cache_eviction_internal);
-    to->cache_read_internal += WT_STAT_DSRC_READ(from, cache_read_internal);
-    to->cache_eviction_split_internal += WT_STAT_DSRC_READ(from, cache_eviction_split_internal);
-    to->cache_read_leaf += WT_STAT_DSRC_READ(from, cache_read_leaf);
-    to->cache_eviction_split_leaf += WT_STAT_DSRC_READ(from, cache_eviction_split_leaf);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_internal_page_split);
+    to->cache_eviction_internal += WT_STAT_DSRC_READ(session, from, cache_eviction_internal);
+    to->cache_read_internal += WT_STAT_DSRC_READ(session, from, cache_read_internal);
+    to->cache_eviction_split_internal +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_split_internal);
+    to->cache_read_leaf += WT_STAT_DSRC_READ(session, from, cache_read_leaf);
+    to->cache_eviction_split_leaf += WT_STAT_DSRC_READ(session, from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
-      WT_STAT_DSRC_READ(from, cache_eviction_random_sample_inmem_root);
-    to->cache_eviction_dirty += WT_STAT_DSRC_READ(from, cache_eviction_dirty);
-    to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
-    to->cache_read_internal_delta += WT_STAT_DSRC_READ(from, cache_read_internal_delta);
-    to->cache_read_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_leaf_delta);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_random_sample_inmem_root);
+    to->cache_eviction_dirty += WT_STAT_DSRC_READ(session, from, cache_eviction_dirty);
+    to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint += WT_STAT_DSRC_READ(
+      session, from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
+    to->cache_read_internal_delta += WT_STAT_DSRC_READ(session, from, cache_read_internal_delta);
+    to->cache_read_leaf_delta += WT_STAT_DSRC_READ(session, from, cache_read_leaf_delta);
     to->cache_eviction_trigger_dirty_reached +=
-      WT_STAT_DSRC_READ(from, cache_eviction_trigger_dirty_reached);
-    to->cache_eviction_trigger_reached += WT_STAT_DSRC_READ(from, cache_eviction_trigger_reached);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_reached +=
+      WT_STAT_DSRC_READ(session, from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
-      WT_STAT_DSRC_READ(from, cache_eviction_trigger_updates_reached);
-    to->cache_cas_btree_max_lsn_race += WT_STAT_DSRC_READ(from, cache_cas_btree_max_lsn_race);
-    to->cache_obsolete_updates_removed += WT_STAT_DSRC_READ(from, cache_obsolete_updates_removed);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_trigger_updates_reached);
+    to->cache_cas_btree_max_lsn_race +=
+      WT_STAT_DSRC_READ(session, from, cache_cas_btree_max_lsn_race);
+    to->cache_obsolete_updates_removed +=
+      WT_STAT_DSRC_READ(session, from, cache_obsolete_updates_removed);
     to->cache_eviction_blocked_overflow_keys +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
-    to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_overflow_keys);
+    to->cache_read_overflow += WT_STAT_DSRC_READ(session, from, cache_read_overflow);
     to->cache_eviction_blocked_materialization +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_materialization);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_materialization);
     to->cache_eviction_blocked_disagg_next_checkpoint +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_next_checkpoint);
-    to->cache_eviction_deepen += WT_STAT_DSRC_READ(from, cache_eviction_deepen);
-    to->cache_write_hs += WT_STAT_DSRC_READ(from, cache_write_hs);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_disagg_next_checkpoint);
+    to->cache_eviction_deepen += WT_STAT_DSRC_READ(session, from, cache_eviction_deepen);
+    to->cache_write_hs += WT_STAT_DSRC_READ(session, from, cache_write_hs);
     to->cache_eviction_dirty_obsolete_tw +=
-      WT_STAT_DSRC_READ(from, cache_eviction_dirty_obsolete_tw);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_dirty_obsolete_tw);
     to->cache_eviction_ahead_of_last_materialized_lsn +=
-      WT_STAT_DSRC_READ(from, cache_eviction_ahead_of_last_materialized_lsn);
-    to->cache_read += WT_STAT_DSRC_READ(from, cache_read);
-    to->cache_read_deleted += WT_STAT_DSRC_READ(from, cache_read_deleted);
-    to->cache_read_deleted_prepared += WT_STAT_DSRC_READ(from, cache_read_deleted_prepared);
-    to->cache_read_checkpoint += WT_STAT_DSRC_READ(from, cache_read_checkpoint);
-    to->cache_pages_requested += WT_STAT_DSRC_READ(from, cache_pages_requested);
-    to->cache_pages_prefetch += WT_STAT_DSRC_READ(from, cache_pages_prefetch);
-    to->cache_pages_requested_internal += WT_STAT_DSRC_READ(from, cache_pages_requested_internal);
-    to->cache_pages_requested_leaf += WT_STAT_DSRC_READ(from, cache_pages_requested_leaf);
-    to->cache_pages_requested_hs += WT_STAT_DSRC_READ(from, cache_pages_requested_hs);
-    to->cache_eviction_pages_seen += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_ahead_of_last_materialized_lsn);
+    to->cache_read += WT_STAT_DSRC_READ(session, from, cache_read);
+    to->cache_read_deleted += WT_STAT_DSRC_READ(session, from, cache_read_deleted);
+    to->cache_read_deleted_prepared +=
+      WT_STAT_DSRC_READ(session, from, cache_read_deleted_prepared);
+    to->cache_read_checkpoint += WT_STAT_DSRC_READ(session, from, cache_read_checkpoint);
+    to->cache_pages_requested += WT_STAT_DSRC_READ(session, from, cache_pages_requested);
+    to->cache_pages_prefetch += WT_STAT_DSRC_READ(session, from, cache_pages_prefetch);
+    to->cache_pages_requested_internal +=
+      WT_STAT_DSRC_READ(session, from, cache_pages_requested_internal);
+    to->cache_pages_requested_leaf += WT_STAT_DSRC_READ(session, from, cache_pages_requested_leaf);
+    to->cache_pages_requested_hs += WT_STAT_DSRC_READ(session, from, cache_pages_requested_hs);
+    to->cache_eviction_pages_seen += WT_STAT_DSRC_READ(session, from, cache_eviction_pages_seen);
     to->cache_eviction_multiblock_checkpoint_flagged +=
-      WT_STAT_DSRC_READ(from, cache_eviction_multiblock_checkpoint_flagged);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_multiblock_checkpoint_flagged);
     to->cache_eviction_multiblock_split_re_reconciled +=
-      WT_STAT_DSRC_READ(from, cache_eviction_multiblock_split_re_reconciled);
-    to->cache_write += WT_STAT_DSRC_READ(from, cache_write);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_multiblock_split_re_reconciled);
+    to->cache_write += WT_STAT_DSRC_READ(session, from, cache_write);
     to->cache_write_restore_scrub_checkpoint +=
-      WT_STAT_DSRC_READ(from, cache_write_restore_scrub_checkpoint);
-    to->cache_write_restore_invisible += WT_STAT_DSRC_READ(from, cache_write_restore_invisible);
-    to->cache_write_restore_scrub += WT_STAT_DSRC_READ(from, cache_write_restore_scrub);
+      WT_STAT_DSRC_READ(session, from, cache_write_restore_scrub_checkpoint);
+    to->cache_write_restore_invisible +=
+      WT_STAT_DSRC_READ(session, from, cache_write_restore_invisible);
+    to->cache_write_restore_scrub += WT_STAT_DSRC_READ(session, from, cache_write_restore_scrub);
     to->cache_eviction_blocked_precise_checkpoint +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_precise_checkpoint);
-    to->cache_evict_split_failed_lock += WT_STAT_DSRC_READ(from, cache_evict_split_failed_lock);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_precise_checkpoint);
+    to->cache_evict_split_failed_lock +=
+      WT_STAT_DSRC_READ(session, from, cache_evict_split_failed_lock);
     to->cache_eviction_blocked_recently_modified +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
-    to->cache_scrub_restore += WT_STAT_DSRC_READ(from, cache_scrub_restore);
-    to->cache_reverse_splits += WT_STAT_DSRC_READ(from, cache_reverse_splits);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_recently_modified);
+    to->cache_scrub_restore += WT_STAT_DSRC_READ(session, from, cache_scrub_restore);
+    to->cache_reverse_splits += WT_STAT_DSRC_READ(session, from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
-      WT_STAT_DSRC_READ(from, cache_reverse_splits_skipped_vlcs);
+      WT_STAT_DSRC_READ(session, from, cache_reverse_splits_skipped_vlcs);
     to->cache_eviction_hs_shared_cursor_not_cached +=
-      WT_STAT_DSRC_READ(from, cache_eviction_hs_shared_cursor_not_cached);
-    to->cache_read_delta_updates += WT_STAT_DSRC_READ(from, cache_read_delta_updates);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_hs_shared_cursor_not_cached);
+    to->cache_read_delta_updates += WT_STAT_DSRC_READ(session, from, cache_read_delta_updates);
     to->cache_read_restored_tombstone_bytes +=
-      WT_STAT_DSRC_READ(from, cache_read_restored_tombstone_bytes);
-    to->cache_hs_insert_full_update += WT_STAT_DSRC_READ(from, cache_hs_insert_full_update);
-    to->cache_hs_insert_reverse_modify += WT_STAT_DSRC_READ(from, cache_hs_insert_reverse_modify);
-    to->cache_bytes_dirty += WT_STAT_DSRC_READ(from, cache_bytes_dirty);
-    to->cache_bytes_dirty_internal += WT_STAT_DSRC_READ(from, cache_bytes_dirty_internal);
-    to->cache_bytes_dirty_leaf += WT_STAT_DSRC_READ(from, cache_bytes_dirty_leaf);
+      WT_STAT_DSRC_READ(session, from, cache_read_restored_tombstone_bytes);
+    to->cache_hs_insert_full_update +=
+      WT_STAT_DSRC_READ(session, from, cache_hs_insert_full_update);
+    to->cache_hs_insert_reverse_modify +=
+      WT_STAT_DSRC_READ(session, from, cache_hs_insert_reverse_modify);
+    to->cache_bytes_dirty += WT_STAT_DSRC_READ(session, from, cache_bytes_dirty);
+    to->cache_bytes_dirty_internal += WT_STAT_DSRC_READ(session, from, cache_bytes_dirty_internal);
+    to->cache_bytes_dirty_leaf += WT_STAT_DSRC_READ(session, from, cache_bytes_dirty_leaf);
     to->cache_eviction_blocked_uncommitted_truncate +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_uncommitted_truncate);
-    to->cache_eviction_clean += WT_STAT_DSRC_READ(from, cache_eviction_clean);
-    to->cache_state_gen_avg_gap += WT_STAT_DSRC_READ(from, cache_state_gen_avg_gap);
-    to->cache_state_avg_written_size += WT_STAT_DSRC_READ(from, cache_state_avg_written_size);
-    to->cache_state_avg_visited_age += WT_STAT_DSRC_READ(from, cache_state_avg_visited_age);
-    to->cache_state_avg_unvisited_age += WT_STAT_DSRC_READ(from, cache_state_avg_unvisited_age);
-    to->cache_state_pages_clean += WT_STAT_DSRC_READ(from, cache_state_pages_clean);
-    to->cache_state_gen_current += WT_STAT_DSRC_READ(from, cache_state_gen_current);
-    to->cache_state_pages_dirty += WT_STAT_DSRC_READ(from, cache_state_pages_dirty);
-    to->cache_state_root_entries += WT_STAT_DSRC_READ(from, cache_state_root_entries);
-    to->cache_state_pages_internal += WT_STAT_DSRC_READ(from, cache_state_pages_internal);
-    to->cache_state_pages_leaf += WT_STAT_DSRC_READ(from, cache_state_pages_leaf);
-    to->cache_state_gen_max_gap += WT_STAT_DSRC_READ(from, cache_state_gen_max_gap);
-    to->cache_state_max_pagesize += WT_STAT_DSRC_READ(from, cache_state_max_pagesize);
-    to->cache_state_min_written_size += WT_STAT_DSRC_READ(from, cache_state_min_written_size);
-    to->cache_state_unvisited_count += WT_STAT_DSRC_READ(from, cache_state_unvisited_count);
-    to->cache_state_smaller_alloc_size += WT_STAT_DSRC_READ(from, cache_state_smaller_alloc_size);
-    to->cache_state_memory += WT_STAT_DSRC_READ(from, cache_state_memory);
-    to->cache_state_queued += WT_STAT_DSRC_READ(from, cache_state_queued);
-    to->cache_state_not_queueable += WT_STAT_DSRC_READ(from, cache_state_not_queueable);
-    to->cache_state_refs_skipped += WT_STAT_DSRC_READ(from, cache_state_refs_skipped);
-    to->cache_state_root_size += WT_STAT_DSRC_READ(from, cache_state_root_size);
-    to->cache_state_pages += WT_STAT_DSRC_READ(from, cache_state_pages);
+      WT_STAT_DSRC_READ(session, from, cache_eviction_blocked_uncommitted_truncate);
+    to->cache_eviction_clean += WT_STAT_DSRC_READ(session, from, cache_eviction_clean);
+    to->cache_state_gen_avg_gap += WT_STAT_DSRC_READ(session, from, cache_state_gen_avg_gap);
+    to->cache_state_avg_written_size +=
+      WT_STAT_DSRC_READ(session, from, cache_state_avg_written_size);
+    to->cache_state_avg_visited_age +=
+      WT_STAT_DSRC_READ(session, from, cache_state_avg_visited_age);
+    to->cache_state_avg_unvisited_age +=
+      WT_STAT_DSRC_READ(session, from, cache_state_avg_unvisited_age);
+    to->cache_state_pages_clean += WT_STAT_DSRC_READ(session, from, cache_state_pages_clean);
+    to->cache_state_gen_current += WT_STAT_DSRC_READ(session, from, cache_state_gen_current);
+    to->cache_state_pages_dirty += WT_STAT_DSRC_READ(session, from, cache_state_pages_dirty);
+    to->cache_state_root_entries += WT_STAT_DSRC_READ(session, from, cache_state_root_entries);
+    to->cache_state_pages_internal += WT_STAT_DSRC_READ(session, from, cache_state_pages_internal);
+    to->cache_state_pages_leaf += WT_STAT_DSRC_READ(session, from, cache_state_pages_leaf);
+    to->cache_state_gen_max_gap += WT_STAT_DSRC_READ(session, from, cache_state_gen_max_gap);
+    to->cache_state_max_pagesize += WT_STAT_DSRC_READ(session, from, cache_state_max_pagesize);
+    to->cache_state_min_written_size +=
+      WT_STAT_DSRC_READ(session, from, cache_state_min_written_size);
+    to->cache_state_unvisited_count +=
+      WT_STAT_DSRC_READ(session, from, cache_state_unvisited_count);
+    to->cache_state_smaller_alloc_size +=
+      WT_STAT_DSRC_READ(session, from, cache_state_smaller_alloc_size);
+    to->cache_state_memory += WT_STAT_DSRC_READ(session, from, cache_state_memory);
+    to->cache_state_queued += WT_STAT_DSRC_READ(session, from, cache_state_queued);
+    to->cache_state_not_queueable += WT_STAT_DSRC_READ(session, from, cache_state_not_queueable);
+    to->cache_state_refs_skipped += WT_STAT_DSRC_READ(session, from, cache_state_refs_skipped);
+    to->cache_state_root_size += WT_STAT_DSRC_READ(session, from, cache_state_root_size);
+    to->cache_state_pages += WT_STAT_DSRC_READ(session, from, cache_state_pages);
     to->checkpoint_cleanup_pages_deleted_not_visible_all +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_deleted_not_visible_all);
-    to->checkpoint_cleanup_pages_evict += WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_evict);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_deleted_not_visible_all);
+    to->checkpoint_cleanup_pages_evict +=
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_evict);
     to->checkpoint_cleanup_pages_obsolete_tw +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_obsolete_tw);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_obsolete_tw);
     to->checkpoint_cleanup_pages_read_reclaim_space +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_read_reclaim_space);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_read_reclaim_space);
     to->checkpoint_cleanup_pages_read_obsolete_tw +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_read_obsolete_tw);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_read_obsolete_tw);
     to->checkpoint_cleanup_pages_removed +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_removed);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_removed);
     to->checkpoint_cleanup_pages_walk_skipped +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_walk_skipped);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_walk_skipped);
     to->checkpoint_cleanup_pages_visited +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_visited);
-    to->checkpoint_snapshot_acquired += WT_STAT_DSRC_READ(from, checkpoint_snapshot_acquired);
+      WT_STAT_DSRC_READ(session, from, checkpoint_cleanup_pages_visited);
+    to->checkpoint_snapshot_acquired +=
+      WT_STAT_DSRC_READ(session, from, checkpoint_snapshot_acquired);
     to->compress_precomp_intl_max_page_size +=
-      WT_STAT_DSRC_READ(from, compress_precomp_intl_max_page_size);
+      WT_STAT_DSRC_READ(session, from, compress_precomp_intl_max_page_size);
     to->compress_precomp_leaf_max_page_size +=
-      WT_STAT_DSRC_READ(from, compress_precomp_leaf_max_page_size);
-    to->compress_write_fail += WT_STAT_DSRC_READ(from, compress_write_fail);
-    to->compress_write_too_small += WT_STAT_DSRC_READ(from, compress_write_too_small);
-    to->compress_read += WT_STAT_DSRC_READ(from, compress_read);
-    to->compress_read_ratio_hist_max += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_max);
-    to->compress_read_ratio_hist_2 += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_2);
-    to->compress_read_ratio_hist_4 += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_4);
-    to->compress_read_ratio_hist_8 += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_8);
-    to->compress_read_ratio_hist_16 += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_16);
-    to->compress_read_ratio_hist_32 += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_32);
-    to->compress_read_ratio_hist_64 += WT_STAT_DSRC_READ(from, compress_read_ratio_hist_64);
-    to->compress_write += WT_STAT_DSRC_READ(from, compress_write);
-    to->compress_write_ratio_hist_max += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_max);
-    to->compress_write_ratio_hist_2 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_2);
-    to->compress_write_ratio_hist_4 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_4);
-    to->compress_write_ratio_hist_8 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_8);
-    to->compress_write_ratio_hist_16 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_16);
-    to->compress_write_ratio_hist_32 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_32);
-    to->compress_write_ratio_hist_64 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_64);
+      WT_STAT_DSRC_READ(session, from, compress_precomp_leaf_max_page_size);
+    to->compress_write_fail += WT_STAT_DSRC_READ(session, from, compress_write_fail);
+    to->compress_write_too_small += WT_STAT_DSRC_READ(session, from, compress_write_too_small);
+    to->compress_read += WT_STAT_DSRC_READ(session, from, compress_read);
+    to->compress_read_ratio_hist_max +=
+      WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_max);
+    to->compress_read_ratio_hist_2 += WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_2);
+    to->compress_read_ratio_hist_4 += WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_4);
+    to->compress_read_ratio_hist_8 += WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_8);
+    to->compress_read_ratio_hist_16 +=
+      WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_16);
+    to->compress_read_ratio_hist_32 +=
+      WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_32);
+    to->compress_read_ratio_hist_64 +=
+      WT_STAT_DSRC_READ(session, from, compress_read_ratio_hist_64);
+    to->compress_write += WT_STAT_DSRC_READ(session, from, compress_write);
+    to->compress_write_ratio_hist_max +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_max);
+    to->compress_write_ratio_hist_2 +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_2);
+    to->compress_write_ratio_hist_4 +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_4);
+    to->compress_write_ratio_hist_8 +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_8);
+    to->compress_write_ratio_hist_16 +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_16);
+    to->compress_write_ratio_hist_32 +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_32);
+    to->compress_write_ratio_hist_64 +=
+      WT_STAT_DSRC_READ(session, from, compress_write_ratio_hist_64);
     to->cursor_tree_walk_del_leaf_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_del_leaf_page_skip);
-    to->cursor_next_skip_total += WT_STAT_DSRC_READ(from, cursor_next_skip_total);
-    to->cursor_prev_skip_total += WT_STAT_DSRC_READ(from, cursor_prev_skip_total);
-    to->cursor_skip_hs_cur_position += WT_STAT_DSRC_READ(from, cursor_skip_hs_cur_position);
+      WT_STAT_DSRC_READ(session, from, cursor_tree_walk_del_leaf_page_skip);
+    to->cursor_next_skip_total += WT_STAT_DSRC_READ(session, from, cursor_next_skip_total);
+    to->cursor_prev_skip_total += WT_STAT_DSRC_READ(session, from, cursor_prev_skip_total);
+    to->cursor_skip_hs_cur_position +=
+      WT_STAT_DSRC_READ(session, from, cursor_skip_hs_cur_position);
     to->cursor_tree_walk_read_only_del_internal_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_read_only_del_internal_page_skip);
+      WT_STAT_DSRC_READ(session, from, cursor_tree_walk_read_only_del_internal_page_skip);
     to->cursor_tree_walk_inmem_del_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_inmem_del_page_skip);
+      WT_STAT_DSRC_READ(session, from, cursor_tree_walk_inmem_del_page_skip);
     to->cursor_tree_walk_ondisk_del_internal_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_internal_page_skip);
+      WT_STAT_DSRC_READ(session, from, cursor_tree_walk_ondisk_del_internal_page_skip);
     to->cursor_tree_walk_ondisk_del_page_skip +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_page_skip);
+      WT_STAT_DSRC_READ(session, from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
-      WT_STAT_DSRC_READ(from, cursor_search_near_prefix_fast_paths);
+      WT_STAT_DSRC_READ(session, from, cursor_search_near_prefix_fast_paths);
     to->cursor_tree_walk_skip_lock_contended +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_skip_lock_contended);
-    to->cursor_reposition_failed += WT_STAT_DSRC_READ(from, cursor_reposition_failed);
-    to->cursor_reposition += WT_STAT_DSRC_READ(from, cursor_reposition);
-    to->cursor_insert_bulk += WT_STAT_DSRC_READ(from, cursor_insert_bulk);
-    to->cursor_reopen += WT_STAT_DSRC_READ(from, cursor_reopen);
-    to->cursor_cache += WT_STAT_DSRC_READ(from, cursor_cache);
-    to->cursor_create += WT_STAT_DSRC_READ(from, cursor_create);
-    to->cursor_bound_error += WT_STAT_DSRC_READ(from, cursor_bound_error);
-    to->cursor_bounds_reset += WT_STAT_DSRC_READ(from, cursor_bounds_reset);
-    to->cursor_bounds_comparisons += WT_STAT_DSRC_READ(from, cursor_bounds_comparisons);
-    to->cursor_bounds_next_unpositioned += WT_STAT_DSRC_READ(from, cursor_bounds_next_unpositioned);
-    to->cursor_bounds_next_early_exit += WT_STAT_DSRC_READ(from, cursor_bounds_next_early_exit);
-    to->cursor_bounds_prev_unpositioned += WT_STAT_DSRC_READ(from, cursor_bounds_prev_unpositioned);
-    to->cursor_bounds_prev_early_exit += WT_STAT_DSRC_READ(from, cursor_bounds_prev_early_exit);
-    to->cursor_bounds_search_early_exit += WT_STAT_DSRC_READ(from, cursor_bounds_search_early_exit);
+      WT_STAT_DSRC_READ(session, from, cursor_tree_walk_skip_lock_contended);
+    to->cursor_reposition_failed += WT_STAT_DSRC_READ(session, from, cursor_reposition_failed);
+    to->cursor_reposition += WT_STAT_DSRC_READ(session, from, cursor_reposition);
+    to->cursor_insert_bulk += WT_STAT_DSRC_READ(session, from, cursor_insert_bulk);
+    to->cursor_reopen += WT_STAT_DSRC_READ(session, from, cursor_reopen);
+    to->cursor_cache += WT_STAT_DSRC_READ(session, from, cursor_cache);
+    to->cursor_create += WT_STAT_DSRC_READ(session, from, cursor_create);
+    to->cursor_bound_error += WT_STAT_DSRC_READ(session, from, cursor_bound_error);
+    to->cursor_bounds_reset += WT_STAT_DSRC_READ(session, from, cursor_bounds_reset);
+    to->cursor_bounds_comparisons += WT_STAT_DSRC_READ(session, from, cursor_bounds_comparisons);
+    to->cursor_bounds_next_unpositioned +=
+      WT_STAT_DSRC_READ(session, from, cursor_bounds_next_unpositioned);
+    to->cursor_bounds_next_early_exit +=
+      WT_STAT_DSRC_READ(session, from, cursor_bounds_next_early_exit);
+    to->cursor_bounds_prev_unpositioned +=
+      WT_STAT_DSRC_READ(session, from, cursor_bounds_prev_unpositioned);
+    to->cursor_bounds_prev_early_exit +=
+      WT_STAT_DSRC_READ(session, from, cursor_bounds_prev_early_exit);
+    to->cursor_bounds_search_early_exit +=
+      WT_STAT_DSRC_READ(session, from, cursor_bounds_search_early_exit);
     to->cursor_bounds_search_near_repositioned_cursor +=
-      WT_STAT_DSRC_READ(from, cursor_bounds_search_near_repositioned_cursor);
-    to->cursor_cache_error += WT_STAT_DSRC_READ(from, cursor_cache_error);
-    to->cursor_close_error += WT_STAT_DSRC_READ(from, cursor_close_error);
-    to->cursor_compare_error += WT_STAT_DSRC_READ(from, cursor_compare_error);
-    to->cursor_equals_error += WT_STAT_DSRC_READ(from, cursor_equals_error);
-    to->cursor_get_key_error += WT_STAT_DSRC_READ(from, cursor_get_key_error);
-    to->cursor_get_value_error += WT_STAT_DSRC_READ(from, cursor_get_value_error);
-    to->cursor_insert_error += WT_STAT_DSRC_READ(from, cursor_insert_error);
-    to->cursor_largest_key_error += WT_STAT_DSRC_READ(from, cursor_largest_key_error);
-    to->cursor_modify_error += WT_STAT_DSRC_READ(from, cursor_modify_error);
-    to->cursor_next_error += WT_STAT_DSRC_READ(from, cursor_next_error);
-    to->cursor_next_hs_tombstone += WT_STAT_DSRC_READ(from, cursor_next_hs_tombstone);
-    to->cursor_next_skip_lt_100 += WT_STAT_DSRC_READ(from, cursor_next_skip_lt_100);
-    to->cursor_next_skip_ge_100 += WT_STAT_DSRC_READ(from, cursor_next_skip_ge_100);
-    to->cursor_next_random_error += WT_STAT_DSRC_READ(from, cursor_next_random_error);
-    to->cursor_next_raw_kv_batch += WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch);
-    to->cursor_next_raw_kv_batch_error += WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch_error);
-    to->cursor_prev_error += WT_STAT_DSRC_READ(from, cursor_prev_error);
-    to->cursor_prev_hs_tombstone += WT_STAT_DSRC_READ(from, cursor_prev_hs_tombstone);
-    to->cursor_prev_skip_ge_100 += WT_STAT_DSRC_READ(from, cursor_prev_skip_ge_100);
-    to->cursor_prev_skip_lt_100 += WT_STAT_DSRC_READ(from, cursor_prev_skip_lt_100);
-    to->cursor_reconfigure_error += WT_STAT_DSRC_READ(from, cursor_reconfigure_error);
-    to->cursor_remove_error += WT_STAT_DSRC_READ(from, cursor_remove_error);
-    to->cursor_reopen_error += WT_STAT_DSRC_READ(from, cursor_reopen_error);
-    to->cursor_reserve_error += WT_STAT_DSRC_READ(from, cursor_reserve_error);
-    to->cursor_reset_error += WT_STAT_DSRC_READ(from, cursor_reset_error);
-    to->cursor_search_error += WT_STAT_DSRC_READ(from, cursor_search_error);
-    to->cursor_search_near_error += WT_STAT_DSRC_READ(from, cursor_search_near_error);
-    to->cursor_update_error += WT_STAT_DSRC_READ(from, cursor_update_error);
-    to->cursor_insert += WT_STAT_DSRC_READ(from, cursor_insert);
-    to->cursor_insert_bytes += WT_STAT_DSRC_READ(from, cursor_insert_bytes);
-    to->cursor_modify += WT_STAT_DSRC_READ(from, cursor_modify);
-    to->cursor_modify_bytes += WT_STAT_DSRC_READ(from, cursor_modify_bytes);
-    to->cursor_modify_bytes_touch += WT_STAT_DSRC_READ(from, cursor_modify_bytes_touch);
-    to->cursor_next += WT_STAT_DSRC_READ(from, cursor_next);
-    to->cursor_next_raw_kv_batch_result += WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch_result);
-    to->cursor_open_count += WT_STAT_DSRC_READ(from, cursor_open_count);
-    to->cursor_open_time_user_usecs += WT_STAT_DSRC_READ(from, cursor_open_time_user_usecs);
-    to->cursor_open_time_internal_usecs += WT_STAT_DSRC_READ(from, cursor_open_time_internal_usecs);
-    to->cursor_restart += WT_STAT_DSRC_READ(from, cursor_restart);
-    to->cursor_prev += WT_STAT_DSRC_READ(from, cursor_prev);
+      WT_STAT_DSRC_READ(session, from, cursor_bounds_search_near_repositioned_cursor);
+    to->cursor_cache_error += WT_STAT_DSRC_READ(session, from, cursor_cache_error);
+    to->cursor_close_error += WT_STAT_DSRC_READ(session, from, cursor_close_error);
+    to->cursor_compare_error += WT_STAT_DSRC_READ(session, from, cursor_compare_error);
+    to->cursor_equals_error += WT_STAT_DSRC_READ(session, from, cursor_equals_error);
+    to->cursor_get_key_error += WT_STAT_DSRC_READ(session, from, cursor_get_key_error);
+    to->cursor_get_value_error += WT_STAT_DSRC_READ(session, from, cursor_get_value_error);
+    to->cursor_insert_error += WT_STAT_DSRC_READ(session, from, cursor_insert_error);
+    to->cursor_largest_key_error += WT_STAT_DSRC_READ(session, from, cursor_largest_key_error);
+    to->cursor_modify_error += WT_STAT_DSRC_READ(session, from, cursor_modify_error);
+    to->cursor_next_error += WT_STAT_DSRC_READ(session, from, cursor_next_error);
+    to->cursor_next_hs_tombstone += WT_STAT_DSRC_READ(session, from, cursor_next_hs_tombstone);
+    to->cursor_next_skip_lt_100 += WT_STAT_DSRC_READ(session, from, cursor_next_skip_lt_100);
+    to->cursor_next_skip_ge_100 += WT_STAT_DSRC_READ(session, from, cursor_next_skip_ge_100);
+    to->cursor_next_random_error += WT_STAT_DSRC_READ(session, from, cursor_next_random_error);
+    to->cursor_next_raw_kv_batch += WT_STAT_DSRC_READ(session, from, cursor_next_raw_kv_batch);
+    to->cursor_next_raw_kv_batch_error +=
+      WT_STAT_DSRC_READ(session, from, cursor_next_raw_kv_batch_error);
+    to->cursor_prev_error += WT_STAT_DSRC_READ(session, from, cursor_prev_error);
+    to->cursor_prev_hs_tombstone += WT_STAT_DSRC_READ(session, from, cursor_prev_hs_tombstone);
+    to->cursor_prev_skip_ge_100 += WT_STAT_DSRC_READ(session, from, cursor_prev_skip_ge_100);
+    to->cursor_prev_skip_lt_100 += WT_STAT_DSRC_READ(session, from, cursor_prev_skip_lt_100);
+    to->cursor_reconfigure_error += WT_STAT_DSRC_READ(session, from, cursor_reconfigure_error);
+    to->cursor_remove_error += WT_STAT_DSRC_READ(session, from, cursor_remove_error);
+    to->cursor_reopen_error += WT_STAT_DSRC_READ(session, from, cursor_reopen_error);
+    to->cursor_reserve_error += WT_STAT_DSRC_READ(session, from, cursor_reserve_error);
+    to->cursor_reset_error += WT_STAT_DSRC_READ(session, from, cursor_reset_error);
+    to->cursor_search_error += WT_STAT_DSRC_READ(session, from, cursor_search_error);
+    to->cursor_search_near_error += WT_STAT_DSRC_READ(session, from, cursor_search_near_error);
+    to->cursor_update_error += WT_STAT_DSRC_READ(session, from, cursor_update_error);
+    to->cursor_insert += WT_STAT_DSRC_READ(session, from, cursor_insert);
+    to->cursor_insert_bytes += WT_STAT_DSRC_READ(session, from, cursor_insert_bytes);
+    to->cursor_modify += WT_STAT_DSRC_READ(session, from, cursor_modify);
+    to->cursor_modify_bytes += WT_STAT_DSRC_READ(session, from, cursor_modify_bytes);
+    to->cursor_modify_bytes_touch += WT_STAT_DSRC_READ(session, from, cursor_modify_bytes_touch);
+    to->cursor_next += WT_STAT_DSRC_READ(session, from, cursor_next);
+    to->cursor_next_raw_kv_batch_result +=
+      WT_STAT_DSRC_READ(session, from, cursor_next_raw_kv_batch_result);
+    to->cursor_open_count += WT_STAT_DSRC_READ(session, from, cursor_open_count);
+    to->cursor_open_time_user_usecs +=
+      WT_STAT_DSRC_READ(session, from, cursor_open_time_user_usecs);
+    to->cursor_open_time_internal_usecs +=
+      WT_STAT_DSRC_READ(session, from, cursor_open_time_internal_usecs);
+    to->cursor_restart += WT_STAT_DSRC_READ(session, from, cursor_restart);
+    to->cursor_prev += WT_STAT_DSRC_READ(session, from, cursor_prev);
     to->cursor_truncate_fast_delete_fallback_in_memory +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_in_memory);
+      WT_STAT_DSRC_READ(session, from, cursor_truncate_fast_delete_fallback_in_memory);
     to->cursor_truncate_fast_delete_fallback_pages +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_fallback_pages);
+      WT_STAT_DSRC_READ(session, from, cursor_truncate_fast_delete_fallback_pages);
     to->cursor_truncate_fast_delete_pages +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages);
+      WT_STAT_DSRC_READ(session, from, cursor_truncate_fast_delete_pages);
     to->cursor_truncate_fast_delete_pages_skipped_already_deleted +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
+      WT_STAT_DSRC_READ(session, from, cursor_truncate_fast_delete_pages_skipped_already_deleted);
     to->cursor_truncate_internal_bytes_dirtied +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_internal_bytes_dirtied);
+      WT_STAT_DSRC_READ(session, from, cursor_truncate_internal_bytes_dirtied);
     to->cursor_truncate_internal_pages_dirtied +=
-      WT_STAT_DSRC_READ(from, cursor_truncate_internal_pages_dirtied);
-    to->cursor_remove += WT_STAT_DSRC_READ(from, cursor_remove);
-    to->cursor_remove_bytes += WT_STAT_DSRC_READ(from, cursor_remove_bytes);
-    to->cursor_reserve += WT_STAT_DSRC_READ(from, cursor_reserve);
-    to->cursor_reset += WT_STAT_DSRC_READ(from, cursor_reset);
-    to->cursor_search += WT_STAT_DSRC_READ(from, cursor_search);
-    to->cursor_search_hs += WT_STAT_DSRC_READ(from, cursor_search_hs);
-    to->cursor_search_near += WT_STAT_DSRC_READ(from, cursor_search_near);
-    to->cursor_truncate += WT_STAT_DSRC_READ(from, cursor_truncate);
-    to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
-    to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
-    to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+      WT_STAT_DSRC_READ(session, from, cursor_truncate_internal_pages_dirtied);
+    to->cursor_remove += WT_STAT_DSRC_READ(session, from, cursor_remove);
+    to->cursor_remove_bytes += WT_STAT_DSRC_READ(session, from, cursor_remove_bytes);
+    to->cursor_reserve += WT_STAT_DSRC_READ(session, from, cursor_reserve);
+    to->cursor_reset += WT_STAT_DSRC_READ(session, from, cursor_reset);
+    to->cursor_search += WT_STAT_DSRC_READ(session, from, cursor_search);
+    to->cursor_search_hs += WT_STAT_DSRC_READ(session, from, cursor_search_hs);
+    to->cursor_search_near += WT_STAT_DSRC_READ(session, from, cursor_search_near);
+    to->cursor_truncate += WT_STAT_DSRC_READ(session, from, cursor_truncate);
+    to->cursor_update += WT_STAT_DSRC_READ(session, from, cursor_update);
+    to->cursor_update_bytes += WT_STAT_DSRC_READ(session, from, cursor_update_bytes);
+    to->cursor_update_bytes_changed +=
+      WT_STAT_DSRC_READ(session, from, cursor_update_bytes_changed);
     to->layered_curs_blind_remove_follower +=
-      WT_STAT_DSRC_READ(from, layered_curs_blind_remove_follower);
+      WT_STAT_DSRC_READ(session, from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=
-      WT_STAT_DSRC_READ(from, layered_curs_blind_remove_ingest_deleted);
-    to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
-    to->layered_curs_modify += WT_STAT_DSRC_READ(from, layered_curs_modify);
-    to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
-    to->layered_curs_next_ingest += WT_STAT_DSRC_READ(from, layered_curs_next_ingest);
-    to->layered_curs_next_stable += WT_STAT_DSRC_READ(from, layered_curs_next_stable);
-    to->layered_curs_open_stable += WT_STAT_DSRC_READ(from, layered_curs_open_stable);
-    to->layered_curs_prev += WT_STAT_DSRC_READ(from, layered_curs_prev);
-    to->layered_curs_prev_ingest += WT_STAT_DSRC_READ(from, layered_curs_prev_ingest);
-    to->layered_curs_prev_stable += WT_STAT_DSRC_READ(from, layered_curs_prev_stable);
-    to->layered_curs_remove += WT_STAT_DSRC_READ(from, layered_curs_remove);
-    to->layered_curs_reopen_stable += WT_STAT_DSRC_READ(from, layered_curs_reopen_stable);
-    to->layered_curs_search_near += WT_STAT_DSRC_READ(from, layered_curs_search_near);
-    to->layered_curs_search_near_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_near_ingest);
-    to->layered_curs_search_near_stable += WT_STAT_DSRC_READ(from, layered_curs_search_near_stable);
-    to->layered_curs_search += WT_STAT_DSRC_READ(from, layered_curs_search);
-    to->layered_curs_search_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_ingest);
-    to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
+      WT_STAT_DSRC_READ(session, from, layered_curs_blind_remove_ingest_deleted);
+    to->layered_curs_insert += WT_STAT_DSRC_READ(session, from, layered_curs_insert);
+    to->layered_curs_modify += WT_STAT_DSRC_READ(session, from, layered_curs_modify);
+    to->layered_curs_next += WT_STAT_DSRC_READ(session, from, layered_curs_next);
+    to->layered_curs_next_ingest += WT_STAT_DSRC_READ(session, from, layered_curs_next_ingest);
+    to->layered_curs_next_stable += WT_STAT_DSRC_READ(session, from, layered_curs_next_stable);
+    to->layered_curs_open_stable += WT_STAT_DSRC_READ(session, from, layered_curs_open_stable);
+    to->layered_curs_prev += WT_STAT_DSRC_READ(session, from, layered_curs_prev);
+    to->layered_curs_prev_ingest += WT_STAT_DSRC_READ(session, from, layered_curs_prev_ingest);
+    to->layered_curs_prev_stable += WT_STAT_DSRC_READ(session, from, layered_curs_prev_stable);
+    to->layered_curs_remove += WT_STAT_DSRC_READ(session, from, layered_curs_remove);
+    to->layered_curs_reopen_stable += WT_STAT_DSRC_READ(session, from, layered_curs_reopen_stable);
+    to->layered_curs_search_near += WT_STAT_DSRC_READ(session, from, layered_curs_search_near);
+    to->layered_curs_search_near_ingest +=
+      WT_STAT_DSRC_READ(session, from, layered_curs_search_near_ingest);
+    to->layered_curs_search_near_stable +=
+      WT_STAT_DSRC_READ(session, from, layered_curs_search_near_stable);
+    to->layered_curs_search += WT_STAT_DSRC_READ(session, from, layered_curs_search);
+    to->layered_curs_search_ingest += WT_STAT_DSRC_READ(session, from, layered_curs_search_ingest);
+    to->layered_curs_search_stable += WT_STAT_DSRC_READ(session, from, layered_curs_search_stable);
     to->layered_curs_open_stable_ckpt_pickup_race +=
-      WT_STAT_DSRC_READ(from, layered_curs_open_stable_ckpt_pickup_race);
+      WT_STAT_DSRC_READ(session, from, layered_curs_open_stable_ckpt_pickup_race);
     to->layered_curs_open_stable_refused +=
-      WT_STAT_DSRC_READ(from, layered_curs_open_stable_refused);
+      WT_STAT_DSRC_READ(session, from, layered_curs_open_stable_refused);
     to->layered_curs_open_stable_stepdown_race +=
-      WT_STAT_DSRC_READ(from, layered_curs_open_stable_stepdown_race);
-    to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
-    to->layered_curs_restore_walk += WT_STAT_DSRC_READ(from, layered_curs_restore_walk);
+      WT_STAT_DSRC_READ(session, from, layered_curs_open_stable_stepdown_race);
+    to->layered_curs_update += WT_STAT_DSRC_READ(session, from, layered_curs_update);
+    to->layered_curs_restore_walk += WT_STAT_DSRC_READ(session, from, layered_curs_restore_walk);
     to->layered_stable_live_open_refused +=
-      WT_STAT_DSRC_READ(from, layered_stable_live_open_refused);
+      WT_STAT_DSRC_READ(session, from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
-      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_prefix);
+      WT_STAT_DSRC_READ(session, from, layered_curs_stable_value_tombstone_prefix);
     to->layered_curs_stable_value_tombstone_suffix +=
-      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_suffix);
+      WT_STAT_DSRC_READ(session, from, layered_curs_stable_value_tombstone_suffix);
     to->layered_curs_stable_value_tombstone +=
-      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone);
+      WT_STAT_DSRC_READ(session, from, layered_curs_stable_value_tombstone);
     to->layered_curs_stable_value_tombstone_x3 +=
-      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_x3);
+      WT_STAT_DSRC_READ(session, from, layered_curs_stable_value_tombstone_x3);
     to->layered_table_manager_checkpoints +=
-      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints);
+      WT_STAT_DSRC_READ(session, from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
-      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
+      WT_STAT_DSRC_READ(session, from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
-      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
+      WT_STAT_DSRC_READ(session, from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
     to->layered_truncate_ingest_tombstones_written +=
-      WT_STAT_DSRC_READ(from, layered_truncate_ingest_tombstones_written);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_ingest_tombstones_written);
     to->layered_table_manager_logops_applied +=
-      WT_STAT_DSRC_READ(from, layered_table_manager_logops_applied);
+      WT_STAT_DSRC_READ(session, from, layered_table_manager_logops_applied);
     to->layered_table_manager_logops_skipped +=
-      WT_STAT_DSRC_READ(from, layered_table_manager_logops_skipped);
-    to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
+      WT_STAT_DSRC_READ(session, from, layered_table_manager_logops_skipped);
+    to->layered_table_manager_skip_lsn +=
+      WT_STAT_DSRC_READ(session, from, layered_table_manager_skip_lsn);
     to->layered_truncate_list_search_calls +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_search_calls);
-    to->layered_truncate_list_gc_runs += WT_STAT_DSRC_READ(from, layered_truncate_list_gc_runs);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_search_calls);
+    to->layered_truncate_list_gc_runs +=
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_gc_runs);
     to->layered_truncate_list_gc_entries_removed +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_removed);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_gc_entries_removed);
     to->layered_truncate_list_search_entries_walked +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_search_entries_walked);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_search_entries_walked);
     to->layered_truncate_list_gc_entries_examined +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_gc_entries_examined);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_gc_entries_examined);
     to->layered_truncate_list_entries_inserted +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_entries_inserted);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_entries_inserted);
     to->layered_truncate_list_clear_entries_removed +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_clear_entries_removed);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_clear_entries_removed);
     to->layered_truncate_list_rollback_entries_removed +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_rollback_entries_removed);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_rollback_entries_removed);
     to->layered_truncate_list_search_hits +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_search_hits);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_search_hits);
     to->layered_truncate_list_search_misses +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_search_misses);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_search_misses);
     to->layered_truncate_list_write_conflicts +=
-      WT_STAT_DSRC_READ(from, layered_truncate_list_write_conflicts);
-    to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
-    to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
-    to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
+      WT_STAT_DSRC_READ(session, from, layered_truncate_list_write_conflicts);
+    to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(session, from, rec_vlcs_emptied_pages);
+    to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(session, from, rec_time_window_bytes_ts);
+    to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(session, from, rec_time_window_bytes_txn);
     to->rec_average_internal_page_delta_chain_length +=
-      WT_STAT_DSRC_READ(from, rec_average_internal_page_delta_chain_length);
+      WT_STAT_DSRC_READ(session, from, rec_average_internal_page_delta_chain_length);
     to->rec_average_leaf_page_delta_chain_length +=
-      WT_STAT_DSRC_READ(from, rec_average_leaf_page_delta_chain_length);
-    to->rec_page_mods_le5 += WT_STAT_DSRC_READ(from, rec_page_mods_le5);
-    to->rec_page_mods_le10 += WT_STAT_DSRC_READ(from, rec_page_mods_le10);
-    to->rec_page_mods_le20 += WT_STAT_DSRC_READ(from, rec_page_mods_le20);
-    to->rec_page_mods_le50 += WT_STAT_DSRC_READ(from, rec_page_mods_le50);
-    to->rec_page_mods_le100 += WT_STAT_DSRC_READ(from, rec_page_mods_le100);
-    to->rec_page_mods_le200 += WT_STAT_DSRC_READ(from, rec_page_mods_le200);
-    to->rec_page_mods_le500 += WT_STAT_DSRC_READ(from, rec_page_mods_le500);
-    to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
-    to->rec_hs_wrapup_next_prev_calls += WT_STAT_DSRC_READ(from, rec_hs_wrapup_next_prev_calls);
-    to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
+      WT_STAT_DSRC_READ(session, from, rec_average_leaf_page_delta_chain_length);
+    to->rec_page_mods_le5 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le5);
+    to->rec_page_mods_le10 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le10);
+    to->rec_page_mods_le20 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le20);
+    to->rec_page_mods_le50 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le50);
+    to->rec_page_mods_le100 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le100);
+    to->rec_page_mods_le200 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le200);
+    to->rec_page_mods_le500 += WT_STAT_DSRC_READ(session, from, rec_page_mods_le500);
+    to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(session, from, rec_page_mods_gt500);
+    to->rec_hs_wrapup_next_prev_calls +=
+      WT_STAT_DSRC_READ(session, from, rec_hs_wrapup_next_prev_calls);
+    to->rec_dictionary += WT_STAT_DSRC_READ(session, from, rec_dictionary);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
-      WT_STAT_DSRC_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
-    to->rec_page_full_image_internal += WT_STAT_DSRC_READ(from, rec_page_full_image_internal);
+      WT_STAT_DSRC_READ(session, from, rec_free_page_id_due_to_failed_replacement_reconciliation);
+    to->rec_page_full_image_internal +=
+      WT_STAT_DSRC_READ(session, from, rec_page_full_image_internal);
     to->rec_page_full_image_shared_hs_internal +=
-      WT_STAT_DSRC_READ(from, rec_page_full_image_shared_hs_internal);
-    to->rec_page_full_image_leaf += WT_STAT_DSRC_READ(from, rec_page_full_image_leaf);
+      WT_STAT_DSRC_READ(session, from, rec_page_full_image_shared_hs_internal);
+    to->rec_page_full_image_leaf += WT_STAT_DSRC_READ(session, from, rec_page_full_image_leaf);
     to->rec_page_full_image_shared_hs_leaf +=
-      WT_STAT_DSRC_READ(from, rec_page_full_image_shared_hs_leaf);
+      WT_STAT_DSRC_READ(session, from, rec_page_full_image_shared_hs_leaf);
     to->rec_ingest_keep_prepare_rollback +=
-      WT_STAT_DSRC_READ(from, rec_ingest_keep_prepare_rollback);
+      WT_STAT_DSRC_READ(session, from, rec_ingest_keep_prepare_rollback);
     to->rec_page_delta_internal_key_deleted +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_internal_key_deleted);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_internal_key_deleted);
     to->rec_page_delta_internal_key_updated +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_internal_key_updated);
-    to->rec_page_delta_internal += WT_STAT_DSRC_READ(from, rec_page_delta_internal);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_internal_key_updated);
+    to->rec_page_delta_internal += WT_STAT_DSRC_READ(session, from, rec_page_delta_internal);
     to->rec_page_delta_shared_hs_internal +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_shared_hs_internal);
-    to->rec_suffix_compression += WT_STAT_DSRC_READ(from, rec_suffix_compression);
-    to->rec_multiblock_internal += WT_STAT_DSRC_READ(from, rec_multiblock_internal);
-    to->rec_prefix_compression_delta += WT_STAT_DSRC_READ(from, rec_prefix_compression_delta);
-    to->rec_prefix_compression_full += WT_STAT_DSRC_READ(from, rec_prefix_compression_full);
-    to->rec_page_delta_leaf += WT_STAT_DSRC_READ(from, rec_page_delta_leaf);
-    to->rec_page_delta_shared_hs_leaf += WT_STAT_DSRC_READ(from, rec_page_delta_shared_hs_leaf);
-    to->rec_multiblock_leaf += WT_STAT_DSRC_READ(from, rec_multiblock_leaf);
-    to->rec_overflow_key_leaf += WT_STAT_DSRC_READ(from, rec_overflow_key_leaf);
-    to->rec_max_internal_page_deltas += WT_STAT_DSRC_READ(from, rec_max_internal_page_deltas);
-    to->rec_max_leaf_page_deltas += WT_STAT_DSRC_READ(from, rec_max_leaf_page_deltas);
-    if ((v = WT_STAT_DSRC_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_shared_hs_internal);
+    to->rec_suffix_compression += WT_STAT_DSRC_READ(session, from, rec_suffix_compression);
+    to->rec_multiblock_internal += WT_STAT_DSRC_READ(session, from, rec_multiblock_internal);
+    to->rec_prefix_compression_delta +=
+      WT_STAT_DSRC_READ(session, from, rec_prefix_compression_delta);
+    to->rec_prefix_compression_full +=
+      WT_STAT_DSRC_READ(session, from, rec_prefix_compression_full);
+    to->rec_page_delta_leaf += WT_STAT_DSRC_READ(session, from, rec_page_delta_leaf);
+    to->rec_page_delta_shared_hs_leaf +=
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_shared_hs_leaf);
+    to->rec_multiblock_leaf += WT_STAT_DSRC_READ(session, from, rec_multiblock_leaf);
+    to->rec_overflow_key_leaf += WT_STAT_DSRC_READ(session, from, rec_overflow_key_leaf);
+    to->rec_max_internal_page_deltas +=
+      WT_STAT_DSRC_READ(session, from, rec_max_internal_page_deltas);
+    to->rec_max_leaf_page_deltas += WT_STAT_DSRC_READ(session, from, rec_max_leaf_page_deltas);
+    if ((v = WT_STAT_DSRC_READ(session, from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
     to->rec_ingest_garbage_collection_keys_disk_image +=
-      WT_STAT_DSRC_READ(from, rec_ingest_garbage_collection_keys_disk_image);
+      WT_STAT_DSRC_READ(session, from, rec_ingest_garbage_collection_keys_disk_image);
     to->rec_ingest_garbage_collection_keys_update_chain +=
-      WT_STAT_DSRC_READ(from, rec_ingest_garbage_collection_keys_update_chain);
-    to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
+      WT_STAT_DSRC_READ(session, from, rec_ingest_garbage_collection_keys_update_chain);
+    to->rec_overflow_value += WT_STAT_DSRC_READ(session, from, rec_overflow_value);
     to->rec_page_delta_rejected_invalid_page_id +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_invalid_page_id);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_invalid_page_id);
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_max_consecutive_exceeded);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_max_consecutive_exceeded);
     to->rec_page_delta_rejected_multiblock +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_multiblock);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_multiblock);
     to->rec_page_delta_rejected_non_single_page +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_non_single_page);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_non_single_page);
     to->rec_page_delta_rejected_size_threshold +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_size_threshold);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_size_threshold);
     to->rec_page_delta_rejected_delete_threshold +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_delete_threshold);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_delete_threshold);
     to->rec_page_delta_rejected_zero_entries +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_zero_entries);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_zero_entries);
     to->rec_page_delta_rejected_build_failed +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_build_failed);
-    to->rec_pages += WT_STAT_DSRC_READ(from, rec_pages);
-    to->rec_pages_eviction += WT_STAT_DSRC_READ(from, rec_pages_eviction);
-    to->rec_pages_size_1MB_to_10MB += WT_STAT_DSRC_READ(from, rec_pages_size_1MB_to_10MB);
-    to->rec_pages_size_10MB_to_100MB += WT_STAT_DSRC_READ(from, rec_pages_size_10MB_to_100MB);
-    to->rec_pages_size_100MB_to_1GB += WT_STAT_DSRC_READ(from, rec_pages_size_100MB_to_1GB);
-    to->rec_pages_size_1GB_plus += WT_STAT_DSRC_READ(from, rec_pages_size_1GB_plus);
-    to->rec_page_delete += WT_STAT_DSRC_READ(from, rec_page_delete);
-    to->rec_page_delta_eligible += WT_STAT_DSRC_READ(from, rec_page_delta_eligible);
+      WT_STAT_DSRC_READ(session, from, rec_page_delta_rejected_build_failed);
+    to->rec_pages += WT_STAT_DSRC_READ(session, from, rec_pages);
+    to->rec_pages_eviction += WT_STAT_DSRC_READ(session, from, rec_pages_eviction);
+    to->rec_pages_size_1MB_to_10MB += WT_STAT_DSRC_READ(session, from, rec_pages_size_1MB_to_10MB);
+    to->rec_pages_size_10MB_to_100MB +=
+      WT_STAT_DSRC_READ(session, from, rec_pages_size_10MB_to_100MB);
+    to->rec_pages_size_100MB_to_1GB +=
+      WT_STAT_DSRC_READ(session, from, rec_pages_size_100MB_to_1GB);
+    to->rec_pages_size_1GB_plus += WT_STAT_DSRC_READ(session, from, rec_pages_size_1GB_plus);
+    to->rec_page_delete += WT_STAT_DSRC_READ(session, from, rec_page_delete);
+    to->rec_page_delta_eligible += WT_STAT_DSRC_READ(session, from, rec_page_delta_eligible);
     to->rec_time_aggr_newest_start_durable_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_aggr_newest_start_durable_ts);
+      WT_STAT_DSRC_READ(session, from, rec_time_aggr_newest_start_durable_ts);
     to->rec_time_aggr_newest_stop_durable_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_durable_ts);
-    to->rec_time_aggr_newest_stop_ts += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_ts);
-    to->rec_time_aggr_newest_stop_txn += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_txn);
-    to->rec_time_aggr_newest_txn += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_txn);
-    to->rec_time_aggr_oldest_start_ts += WT_STAT_DSRC_READ(from, rec_time_aggr_oldest_start_ts);
-    to->rec_time_aggr_prepared += WT_STAT_DSRC_READ(from, rec_time_aggr_prepared);
-    to->rec_time_window_pages_prepared += WT_STAT_DSRC_READ(from, rec_time_window_pages_prepared);
+      WT_STAT_DSRC_READ(session, from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_stop_ts +=
+      WT_STAT_DSRC_READ(session, from, rec_time_aggr_newest_stop_ts);
+    to->rec_time_aggr_newest_stop_txn +=
+      WT_STAT_DSRC_READ(session, from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_newest_txn += WT_STAT_DSRC_READ(session, from, rec_time_aggr_newest_txn);
+    to->rec_time_aggr_oldest_start_ts +=
+      WT_STAT_DSRC_READ(session, from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_prepared += WT_STAT_DSRC_READ(session, from, rec_time_aggr_prepared);
+    to->rec_time_window_pages_prepared +=
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_prepared);
     to->rec_time_window_pages_durable_start_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_window_pages_durable_start_ts);
-    to->rec_time_window_pages_start_ts += WT_STAT_DSRC_READ(from, rec_time_window_pages_start_ts);
-    to->rec_time_window_pages_start_txn += WT_STAT_DSRC_READ(from, rec_time_window_pages_start_txn);
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_durable_start_ts);
+    to->rec_time_window_pages_start_ts +=
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_start_ts);
+    to->rec_time_window_pages_start_txn +=
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_start_txn);
     to->rec_time_window_pages_durable_stop_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_window_pages_durable_stop_ts);
-    to->rec_time_window_pages_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_ts);
-    to->rec_time_window_pages_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_txn);
-    to->rec_pages_with_internal_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_internal_deltas);
-    to->rec_pages_with_leaf_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_leaf_deltas);
-    to->rec_time_window_prepared += WT_STAT_DSRC_READ(from, rec_time_window_prepared);
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_durable_stop_ts);
+    to->rec_time_window_pages_stop_ts +=
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_stop_ts);
+    to->rec_time_window_pages_stop_txn +=
+      WT_STAT_DSRC_READ(session, from, rec_time_window_pages_stop_txn);
+    to->rec_pages_with_internal_deltas +=
+      WT_STAT_DSRC_READ(session, from, rec_pages_with_internal_deltas);
+    to->rec_pages_with_leaf_deltas += WT_STAT_DSRC_READ(session, from, rec_pages_with_leaf_deltas);
+    to->rec_time_window_prepared += WT_STAT_DSRC_READ(session, from, rec_time_window_prepared);
     to->rec_time_window_durable_start_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_window_durable_start_ts);
-    to->rec_time_window_start_ts += WT_STAT_DSRC_READ(from, rec_time_window_start_ts);
-    to->rec_time_window_start_txn += WT_STAT_DSRC_READ(from, rec_time_window_start_txn);
-    to->rec_time_window_durable_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_durable_stop_ts);
-    to->rec_time_window_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_stop_ts);
-    to->rec_time_window_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_stop_txn);
-    to->rec_skip_write += WT_STAT_DSRC_READ(from, rec_skip_write);
-    to->session_compact += WT_STAT_DSRC_READ(from, session_compact);
-    to->txn_read_race_prepare_commit += WT_STAT_DSRC_READ(from, txn_read_race_prepare_commit);
-    to->txn_read_overflow_remove += WT_STAT_DSRC_READ(from, txn_read_overflow_remove);
-    to->txn_read_race_prepare_update += WT_STAT_DSRC_READ(from, txn_read_race_prepare_update);
-    to->txn_rts_btrees_applied += WT_STAT_DSRC_READ(from, txn_rts_btrees_applied);
-    to->txn_rts_sweep_hs_keys_dryrun += WT_STAT_DSRC_READ(from, txn_rts_sweep_hs_keys_dryrun);
+      WT_STAT_DSRC_READ(session, from, rec_time_window_durable_start_ts);
+    to->rec_time_window_start_ts += WT_STAT_DSRC_READ(session, from, rec_time_window_start_ts);
+    to->rec_time_window_start_txn += WT_STAT_DSRC_READ(session, from, rec_time_window_start_txn);
+    to->rec_time_window_durable_stop_ts +=
+      WT_STAT_DSRC_READ(session, from, rec_time_window_durable_stop_ts);
+    to->rec_time_window_stop_ts += WT_STAT_DSRC_READ(session, from, rec_time_window_stop_ts);
+    to->rec_time_window_stop_txn += WT_STAT_DSRC_READ(session, from, rec_time_window_stop_txn);
+    to->rec_skip_write += WT_STAT_DSRC_READ(session, from, rec_skip_write);
+    to->session_compact += WT_STAT_DSRC_READ(session, from, session_compact);
+    to->txn_read_race_prepare_commit +=
+      WT_STAT_DSRC_READ(session, from, txn_read_race_prepare_commit);
+    to->txn_read_overflow_remove += WT_STAT_DSRC_READ(session, from, txn_read_overflow_remove);
+    to->txn_read_race_prepare_update +=
+      WT_STAT_DSRC_READ(session, from, txn_read_race_prepare_update);
+    to->txn_rts_btrees_applied += WT_STAT_DSRC_READ(session, from, txn_rts_btrees_applied);
+    to->txn_rts_sweep_hs_keys_dryrun +=
+      WT_STAT_DSRC_READ(session, from, txn_rts_sweep_hs_keys_dryrun);
     to->txn_rts_hs_stop_older_than_newer_start +=
-      WT_STAT_DSRC_READ(from, txn_rts_hs_stop_older_than_newer_start);
-    to->txn_rts_inconsistent_ckpt += WT_STAT_DSRC_READ(from, txn_rts_inconsistent_ckpt);
-    to->txn_rts_keys_removed += WT_STAT_DSRC_READ(from, txn_rts_keys_removed);
-    to->txn_rts_keys_restored += WT_STAT_DSRC_READ(from, txn_rts_keys_restored);
-    to->txn_rts_keys_removed_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_removed_dryrun);
-    to->txn_rts_keys_restored_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_restored_dryrun);
+      WT_STAT_DSRC_READ(session, from, txn_rts_hs_stop_older_than_newer_start);
+    to->txn_rts_inconsistent_ckpt += WT_STAT_DSRC_READ(session, from, txn_rts_inconsistent_ckpt);
+    to->txn_rts_keys_removed += WT_STAT_DSRC_READ(session, from, txn_rts_keys_removed);
+    to->txn_rts_keys_restored += WT_STAT_DSRC_READ(session, from, txn_rts_keys_restored);
+    to->txn_rts_keys_removed_dryrun +=
+      WT_STAT_DSRC_READ(session, from, txn_rts_keys_removed_dryrun);
+    to->txn_rts_keys_restored_dryrun +=
+      WT_STAT_DSRC_READ(session, from, txn_rts_keys_restored_dryrun);
     to->txn_rts_prepared_fast_truncate_dryrun +=
-      WT_STAT_DSRC_READ(from, txn_rts_prepared_fast_truncate_dryrun);
-    to->txn_rts_hs_restore_tombstones += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_tombstones);
-    to->txn_rts_hs_restore_updates += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_updates);
-    to->txn_rts_prepared_fast_truncate += WT_STAT_DSRC_READ(from, txn_rts_prepared_fast_truncate);
-    to->txn_rts_btrees_skipped += WT_STAT_DSRC_READ(from, txn_rts_btrees_skipped);
-    to->txn_rts_delete_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_delete_rle_skipped);
-    to->txn_rts_stable_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_stable_rle_skipped);
-    to->txn_rts_sweep_hs_keys += WT_STAT_DSRC_READ(from, txn_rts_sweep_hs_keys);
+      WT_STAT_DSRC_READ(session, from, txn_rts_prepared_fast_truncate_dryrun);
+    to->txn_rts_hs_restore_tombstones +=
+      WT_STAT_DSRC_READ(session, from, txn_rts_hs_restore_tombstones);
+    to->txn_rts_hs_restore_updates += WT_STAT_DSRC_READ(session, from, txn_rts_hs_restore_updates);
+    to->txn_rts_prepared_fast_truncate +=
+      WT_STAT_DSRC_READ(session, from, txn_rts_prepared_fast_truncate);
+    to->txn_rts_btrees_skipped += WT_STAT_DSRC_READ(session, from, txn_rts_btrees_skipped);
+    to->txn_rts_delete_rle_skipped += WT_STAT_DSRC_READ(session, from, txn_rts_delete_rle_skipped);
+    to->txn_rts_stable_rle_skipped += WT_STAT_DSRC_READ(session, from, txn_rts_stable_rle_skipped);
+    to->txn_rts_sweep_hs_keys += WT_STAT_DSRC_READ(session, from, txn_rts_sweep_hs_keys);
     to->txn_rts_hs_restore_tombstones_dryrun +=
-      WT_STAT_DSRC_READ(from, txn_rts_hs_restore_tombstones_dryrun);
+      WT_STAT_DSRC_READ(session, from, txn_rts_hs_restore_tombstones_dryrun);
     to->txn_rts_hs_restore_updates_dryrun +=
-      WT_STAT_DSRC_READ(from, txn_rts_hs_restore_updates_dryrun);
-    to->txn_rts_hs_removed += WT_STAT_DSRC_READ(from, txn_rts_hs_removed);
-    to->txn_rts_hs_removed_dryrun += WT_STAT_DSRC_READ(from, txn_rts_hs_removed_dryrun);
-    to->txn_update_conflict += WT_STAT_DSRC_READ(from, txn_update_conflict);
+      WT_STAT_DSRC_READ(session, from, txn_rts_hs_restore_updates_dryrun);
+    to->txn_rts_hs_removed += WT_STAT_DSRC_READ(session, from, txn_rts_hs_removed);
+    to->txn_rts_hs_removed_dryrun += WT_STAT_DSRC_READ(session, from, txn_rts_hs_removed_dryrun);
+    to->txn_update_conflict += WT_STAT_DSRC_READ(session, from, txn_update_conflict);
 }
 
 static const char *const __stats_connection_desc[] = {

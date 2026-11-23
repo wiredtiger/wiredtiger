@@ -1149,6 +1149,7 @@ struct __wt_connection_impl {
     uint64_t rec_maximum_milliseconds;      /* Maximum milliseconds reconciliation took. */
     WT_CONNECTION_STATS *stats[WT_STAT_CONN_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
+    uint32_t stat_dsrc_buckets; /* Statistics buckets per data handle */
 
     WT_CONN_CAPACITY capacity; /* I/O capacity subsystem */
 

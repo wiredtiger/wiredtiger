@@ -3622,6 +3622,11 @@ struct __wt_connection {
  * statistics are logged using the \c statistics_log configuration.  See @ref statistics for more
  * information., a list\, with values chosen from the following options: \c "all"\, \c
  * "cache_walk"\, \c "fast"\, \c "none"\, \c "clear"\, \c "tree_walk"; default \c none.}
+ * @config{statistics_dhandle_buckets, number of statistics buckets allocated per data handle.
+ * Smaller values reduce memory usage for workloads with many data handles\, while larger values
+ * reduce contention when updating statistics.  This setting does not affect connection statistics
+ * and cannot be reconfigured.  It is not saved in the base configuration file., an integer between
+ * \c 1 and \c 1024; default \c 23.}
  * @config{statistics_log = (, log any statistics the database is configured to maintain\, to a
  * file.  See @ref statistics for more information.  Enabling the statistics log server uses a
  * session from the configured session_max., a set of related configuration options defined as

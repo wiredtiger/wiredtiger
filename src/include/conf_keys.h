@@ -49,7 +49,7 @@
 #define WT_CONF_ID_Shared_cache 317ULL
 #define WT_CONF_ID_Statistics_log 321ULL
 #define WT_CONF_ID_Tiered_storage 113ULL
-#define WT_CONF_ID_Transaction_sync 381ULL
+#define WT_CONF_ID_Transaction_sync 382ULL
 #define WT_CONF_ID_abort_on_error 157ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 80ULL
@@ -236,7 +236,7 @@
 #define WT_CONF_ID_internal_key_truncate 33ULL
 #define WT_CONF_ID_internal_page_delta 311ULL
 #define WT_CONF_ID_internal_page_max 34ULL
-#define WT_CONF_ID_interval 380ULL
+#define WT_CONF_ID_interval 381ULL
 #define WT_CONF_ID_isolation 176ULL
 #define WT_CONF_ID_json 322ULL
 #define WT_CONF_ID_json_output 296ULL
@@ -360,6 +360,7 @@
 #define WT_CONF_ID_start_generation 109ULL
 #define WT_CONF_ID_start_timestamp 132ULL
 #define WT_CONF_ID_statistics 153ULL
+#define WT_CONF_ID_statistics_dhandle_buckets 380ULL
 #define WT_CONF_ID_step_down_disaggregated_schema_epoch 337ULL
 #define WT_CONF_ID_step_down_timestamp 338ULL
 #define WT_CONF_ID_stepdown_write_mirroring 71ULL
@@ -387,22 +388,22 @@
 #define WT_CONF_ID_txn 202ULL
 #define WT_CONF_ID_type 9ULL
 #define WT_CONF_ID_update_restore_evict 256ULL
-#define WT_CONF_ID_use_environment 382ULL
-#define WT_CONF_ID_use_environment_priv 383ULL
+#define WT_CONF_ID_use_environment 383ULL
+#define WT_CONF_ID_use_environment_priv 384ULL
 #define WT_CONF_ID_use_timestamp 191ULL
 #define WT_CONF_ID_value_format 52ULL
 #define WT_CONF_ID_verbose 10ULL
 #define WT_CONF_ID_verify_internals 172ULL
-#define WT_CONF_ID_verify_metadata 384ULL
+#define WT_CONF_ID_verify_metadata 385ULL
 #define WT_CONF_ID_version 61ULL
 #define WT_CONF_ID_visible_only 131ULL
 #define WT_CONF_ID_wait 220ULL
-#define WT_CONF_ID_write_through 385ULL
+#define WT_CONF_ID_write_through 386ULL
 #define WT_CONF_ID_write_timestamp 5ULL
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 305ULL
 
-#define WT_CONF_ID_COUNT 386
+#define WT_CONF_ID_COUNT 387
 /*
  * API configuration keys: END
  */
@@ -822,6 +823,7 @@ static const struct {
     uint64_t stable_disaggregated_schema_epoch;
     uint64_t stable_timestamp;
     uint64_t statistics;
+    uint64_t statistics_dhandle_buckets;
     uint64_t step_down_disaggregated_schema_epoch;
     uint64_t step_down_timestamp;
     uint64_t strict;
@@ -1255,6 +1257,7 @@ static const struct {
   WT_CONF_ID_stable_disaggregated_schema_epoch,
   WT_CONF_ID_stable_timestamp,
   WT_CONF_ID_statistics,
+  WT_CONF_ID_statistics_dhandle_buckets,
   WT_CONF_ID_step_down_disaggregated_schema_epoch,
   WT_CONF_ID_step_down_timestamp,
   WT_CONF_ID_strict,

@@ -2952,6 +2952,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
       "in_memory=,"
       "log=(recover=),"
       "readonly=,"
+      "statistics_dhandle_buckets=,"
       "timing_stress_for_test=,"
       "use_environment_priv=,"
       "verbose=,"
@@ -3580,6 +3581,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_session_size(session, cfg, &conn->session_array.size));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
     conn->session_scratch_max = (size_t)cval.val;
+
+    WT_ERR(__wt_config_gets(session, cfg, "statistics_dhandle_buckets", &cval));
+    conn->stat_dsrc_buckets = (uint32_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
     for (ft = file_types; ft->name != NULL; ft++) {

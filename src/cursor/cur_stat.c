@@ -480,9 +480,10 @@ __init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     dhandle = session->dhandle;
 
     if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
-        __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
+        __wt_stat_dsrc_aggregate(session, dhandle->stats, &cst->u.dsrc_stats);
         if (F_ISSET(cst, WT_STAT_CLEAR))
-            __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
+            __wt_stat_dsrc_clear_all(
+              session, dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
     }
 
     return (ret);
@@ -788,9 +789,10 @@ __curstat_file_init(
      */
     if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
+        __wt_stat_dsrc_aggregate(session, dhandle->stats, &cst->u.dsrc_stats);
         if (F_ISSET(cst, WT_STAT_CLEAR))
-            __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
+            __wt_stat_dsrc_clear_all(
+              session, dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
         __wt_curstat_dsrc_final(cst);
     }
 

@@ -1917,9 +1917,11 @@ extern void __wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats, uint32_t
 extern void __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats, uint32_t otel_flag);
 extern void __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle);
 extern void __wt_stat_connection_init_single(WT_CONNECTION_STATS *stats);
-extern void __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to);
+extern void __wt_stat_dsrc_aggregate(
+  WT_SESSION_IMPL *session, WT_DSRC_STATS **from, WT_DSRC_STATS *to);
 extern void __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to);
-extern void __wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats, uint32_t otel_flag);
+extern void __wt_stat_dsrc_clear_all(
+  WT_SESSION_IMPL *session, WT_DSRC_STATS **stats, uint32_t otel_flag);
 extern void __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats, uint32_t otel_flag);
 extern void __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle);
 extern void __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats);
