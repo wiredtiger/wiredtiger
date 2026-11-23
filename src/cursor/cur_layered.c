@@ -430,9 +430,9 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_FOLLOWER_BLIND_REMOVE 0x01u /* Blind remove that never reads stable. */
 #define CLAYERED_ENTER_ITERATION 0x02u             /* Cursor is performing iteration. */
 #define CLAYERED_ENTER_OPEN_INGEST 0x04u           /* Open and route to the ingest constituent. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x10u /* Follower operation not reading stable up front. */
-#define CLAYERED_ENTER_STEP_DOWN 0x20u   /* Role changed leader -> follower since last access. */
-#define CLAYERED_ENTER_STEP_UP 0x40u     /* Role changed follower -> leader since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x08u /* Follower operation not reading stable up front. */
+#define CLAYERED_ENTER_STEP_DOWN 0x10u   /* Role changed leader -> follower since last access. */
+#define CLAYERED_ENTER_STEP_UP 0x20u     /* Role changed follower -> leader since last access. */
 /* A role change in either direction since the cursor's last access. */
 #define CLAYERED_ENTER_ROLE_CHANGE (CLAYERED_ENTER_STEP_DOWN | CLAYERED_ENTER_STEP_UP)
 
