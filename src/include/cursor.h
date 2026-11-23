@@ -54,6 +54,9 @@
 /* Maximum number of incremental backups. */
 #define WT_BLKINCR_MAX 2
 
+/* Maximum number of keys or values returned per batch call. */
+#define WT_CURSOR_BATCH_MAX 1000
+
 struct __wt_cursor_backup {
     WT_CURSOR iface;
 
@@ -165,6 +168,12 @@ struct __wt_cursor_btree {
      * is used to build keys when moving a cursor through a row-store leaf page.
      */
     WT_ITEM *row_key, _row_key;
+
+    /*
+     * A set of keys returned by a batch read that can't reference on-page memory, e.g. keys that are prefix compressed. The count is measured in bytes rather than item count.
+     */
+    WT_ITEM *batch_keys;
+    size_t batch_keys_allocated;
 
     /*
      * It's relatively expensive to calculate the last record on a variable- length column-store

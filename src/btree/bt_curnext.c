@@ -934,6 +934,42 @@ err:
 }
 
 /*
+ * __cursor_batch_keys_alloc --
+ *     Ensure a buffer is available for each key in a batched read.
+ */
+static int
+__cursor_batch_keys_alloc(WT_CURSOR_BTREE *cbt, size_t count)
+{
+    size_t required = count * sizeof(WT_ITEM);
+    if (required <= cbt->batch_keys_allocated)
+        return (0);
+
+    return __wt_realloc(CUR2S(cbt), &cbt->batch_keys_allocated, required, &cbt->batch_keys);
+}
+
+/*
+ * __cursor_batch_key_set --
+ *     TODO description
+ */
+static int
+__cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot)
+{
+    WT_CURSOR *cursor = &cbt->iface;
+    WT_SESSION_IMPL *session = CUR2S(cbt);
+
+    WT_ASSERT(slot < cbt->batch_keys_allocated / sizeof(WT_ITEM));
+
+    /* A key built while walking the page lives in the cursor's temporary key buffer. The next movement would overwrite this, so take a copy. */
+    if (cursor->key.data == cbt->row_key->data && WT_DATA_IN_ITEM(cbt->row_key)) {
+        WT_RET(__wt_buf_set(session, &cbt->batch_keys[slot], cursor->key.data, cursor->key.size));
+        WT_ITEM_SET(*key, cbt->batch_keys[slot]);
+    } else
+        WT_ITEM_SET(*key, cursor->key);
+
+    return (0);
+}
+
+/*
  * __wt_btcur_next_batch --
  *     Read up to count keys and values, moving the cursor forward accordingly.
  */
@@ -952,11 +988,17 @@ __wt_btcur_next_batch(
     if (CUR2BT(cbt)->type != BTREE_ROW)
         WT_RET(ENOTSUP);
 
+    count = WT_MIN(count, WT_CURSOR_MAX_BATCH);
+    if (keys != NULL)
+        WT_RET(__cursor_batch_keys_alloc(cbt, count));
+
     /* Reuse all of the cursor setup logic provided here. */
     WT_RET(__wt_btcur_next(cbt, false));
 
-    if (keys != NULL)
-        WT_ITEM_SET(keys[0], cursor->key);
+    if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[0], 0)) != 0) {
+        WT_TRET(__cursor_reset(cbt));
+        WT_RET(ret);
+    }
     if (values != NULL)
         WT_ITEM_SET(values[0], cursor->value);
 
@@ -981,8 +1023,8 @@ __wt_btcur_next_batch(
         WT_RET(__wti_cursor_return_check(session, cbt, true, false, false));
 #endif
 
-        if (keys != NULL)
-            WT_ITEM_SET(keys[i], cursor->key);
+        if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &cbt->batch_keys[i], i)) != 0)
+            break;
         if (values != NULL)
             WT_ITEM_SET(values[i], cursor->value);
         ++i;
