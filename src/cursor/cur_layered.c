@@ -3678,8 +3678,15 @@ __clayered_remove_from_stable(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     else
         WT_ASSERT(session, F_ISSET(c_stable, WT_CURSTD_KEY_INT));
 
-    WT_RET(c_stable->remove(c_stable));
-    clayered->current_cursor = c_stable;
+    /* FIXME-WT-18976: Enable blind removes for mirrored writes. */
+    if (op->write_target == WTI_CLAYERED_WRITE_STABLE &&
+      F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE)) {
+        WT_RET(__wti_curfile_remove(c_stable, true));
+        clayered->current_cursor = F_ISSET(c_stable, WT_CURSTD_KEY_INT) ? c_stable : NULL;
+    } else {
+        WT_RET(c_stable->remove(c_stable));
+        clayered->current_cursor = c_stable;
+    }
 
     return (0);
 }
@@ -3972,6 +3979,9 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
     if (op.follower_blind_remove)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_follower);
+    else if (F_ISSET(cursor, WT_CURSTD_BLIND_REMOVE) &&
+      clayered->last_role == WTI_CLAYERED_ROLE_LEADER)
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_leader);
 
 err:
     if (ret != 0) {

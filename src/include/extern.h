@@ -263,8 +263,8 @@ extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned, bool blind_remove,
+  bool *removedp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt, bool overwrite)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1498,6 +1498,8 @@ extern int __wti_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, b
 extern int __wti_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_curfile_next_random(WT_CURSOR *cursor)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_curfile_remove(WT_CURSOR *cursor, bool blind_remove)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_cursor_bound(WT_CURSOR *cursor, WT_CONF *conf, WT_COLLATOR *collator)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

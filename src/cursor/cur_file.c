@@ -539,11 +539,23 @@ err:
 static int
 __curfile_remove(WT_CURSOR *cursor)
 {
+    return (__wti_curfile_remove(cursor, false));
+}
+
+/*
+ * __wti_curfile_remove --
+ *     Remove a record, optionally succeeding without writing when it is absent.
+ */
+int
+__wti_curfile_remove(WT_CURSOR *cursor, bool blind_remove)
+{
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
-    bool positioned;
+    bool positioned, removed;
+
+    removed = false;
 
     /*
      * WT_CURSOR.remove has a unique semantic, the cursor stays positioned if it starts positioned,
@@ -563,12 +575,12 @@ __curfile_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
-    WT_ERR(__wt_btcur_remove(cbt, positioned));
+    WT_ERR(__wt_btcur_remove(cbt, positioned, blind_remove, &removed));
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
-    /* If we've lost an initial position, we must fail. */
-    if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+    /* A real remove must preserve its initial position. */
+    if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT) && (!blind_remove || removed)) {
         __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
           "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
         WT_ERR(WT_ROLLBACK);
@@ -582,7 +594,7 @@ __curfile_remove(WT_CURSOR *cursor)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    /* If we've lost an initial position, we must fail. */
+    /* Do not retry an operation that lost its initial position. */
     CURSOR_UPDATE_API_END_RETRY_STAT(
       session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT), cursor_remove);
     return (ret);
