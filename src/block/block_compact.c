@@ -35,6 +35,11 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
           is_bg_compact ? "Background" : "Foreground", block->name, compact_session_id);
     }
 
+    /*
+     * Start the background compaction bookkeeping first: it is the only call here that can fail,
+     * and the block is left marked as compacting and in first-fit allocation if it does, making the
+     * file permanently unavailable for compaction.
+     */
     if (session == S2C(session)->background_compact.session)
         WT_RET(__wt_background_compact_start(session));
 
