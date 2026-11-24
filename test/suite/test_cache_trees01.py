@@ -54,19 +54,22 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         cursor.close()
         return values
 
-    # The sweep server publishes these statistics on each pass, so wait for a pass that started
-    # after the caller's changes before checking them once. dh_sweeps counts a pass as it starts, so
-    # once it has advanced by two, the first of those passes has finished. A timeout means sweep
-    # didn't run; a wrong value fails the check.
-    def check_after_sweep(self, cond, msg):
+    # The sweep server publishes these statistics once per close_scan_interval, so a change isn't
+    # visible until its next pass. On timeout, report whether sweep ran: dh_sweeps counts a pass as
+    # it starts, so an advance of two means a pass that started after the caller's changes finished.
+    def wait_for(self, cond, msg):
         sweeps = self.get_stat(stat.conn.dh_sweeps)
         deadline = time.time() + self.timeout
-        while self.get_stat(stat.conn.dh_sweeps) < sweeps + 2:
-            self.assertLess(time.time(), deadline, 'sweep did not run')
+        while True:
+            values = self.cache_trees()
+            if cond(values):
+                return values
+            if time.time() > deadline:
+                self.assertGreaterEqual(self.get_stat(stat.conn.dh_sweeps), sweeps + 2,
+                    '%s: sweep did not run' % msg)
+                self.fail('%s: %s' % (msg,
+                    {self.descriptions[k]: v for k, v in values.items()}))
             time.sleep(0.1)
-        values = self.cache_trees()
-        self.assertTrue(cond(values), '%s: %s' % (msg,
-            {self.descriptions[k]: v for k, v in values.items()}))
 
     def leaf_trees(self, values):
         return sum(values[t] for t in self.buckets)
@@ -83,8 +86,14 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
 
     def test_internal_trees_excluded(self):
         # Without any tables, the only open trees are the metadata and history store, which must
-        # not be counted.
-        self.check_after_sweep(lambda v: self.trees_counted(v) == 0, 'internal trees counted')
+        # not be counted. Wait for a full sweep after this point, since the statistics also read
+        # zero before the first one.
+        sweeps = self.get_stat(stat.conn.dh_sweeps)
+        deadline = time.time() + self.timeout
+        while self.get_stat(stat.conn.dh_sweeps) < sweeps + 2:
+            self.assertLess(time.time(), deadline, 'sweep did not run')
+            time.sleep(0.1)
+        self.assertEqual(self.trees_counted(self.cache_trees()), 0)
 
     def test_no_leaf(self):
         # An empty table has no leaf page until its first insert creates one.
@@ -93,7 +102,7 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         for uri in uris:
             self.session.create(uri, 'key_format=S,value_format=S')
             self.session.open_cursor(uri).close()
-        self.check_after_sweep(
+        self.wait_for(
             lambda v: v[stat.conn.cache_trees_no_leaf] >= ntables and self.leaf_trees(v) == 0,
             'empty trees not counted as having no leaf pages')
 
@@ -101,7 +110,7 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uris[0])
         cursor['k%08d' % 0] = self.value
         self.assertEqual(cursor['k%08d' % 0], self.value)
-        self.check_after_sweep(lambda v: self.leaf_trees(v) >= 1,
+        self.wait_for(lambda v: self.leaf_trees(v) >= 1,
             'tree with an inserted row still counted as having no leaf pages')
         cursor.close()
 
@@ -109,11 +118,11 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         ntables = 5
         for i in range(ntables):
             self.populate('table:trees_dirty%d' % i, 1)
-        self.check_after_sweep(lambda v: v[stat.conn.cache_trees_dirty_leaf] >= ntables,
+        self.wait_for(lambda v: v[stat.conn.cache_trees_dirty_leaf] >= ntables,
             'dirty trees not counted')
 
         self.session.checkpoint()
-        self.check_after_sweep(lambda v: v[stat.conn.cache_trees_dirty_leaf] < ntables,
+        self.wait_for(lambda v: v[stat.conn.cache_trees_dirty_leaf] < ntables,
             'trees still counted as dirty after a checkpoint')
 
     def test_size_buckets(self):
@@ -125,7 +134,7 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         # Checkpoint so the pages are clean and stay resident without cache pressure.
         self.session.checkpoint()
 
-        self.check_after_sweep(lambda v:
+        self.wait_for(lambda v:
             v[stat.conn.cache_trees_1mb_16mb] >= 1 and
             v[stat.conn.cache_trees_lt_1mb] >= nsmall,
             'trees not counted in their size buckets')
