@@ -953,19 +953,20 @@ __cursor_batch_keys_alloc(WT_CURSOR_BTREE *cbt, size_t count)
  *     Arrange for a key's WT_ITEM to point to data that will outlive the cursor API call.
  */
 static int
-__cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot)
+__cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot, size_t count)
 {
     WT_CURSOR *cursor = &cbt->iface;
     WT_SESSION_IMPL *session = CUR2S(cbt);
-
-    WT_ASSERT(session, slot < cbt->batch_keys_allocated / sizeof(WT_ITEM));
 
     /*
      * A key built while walking the page lives in the cursor's temporary key buffer. The next
      * movement would overwrite this, so take a copy.
      */
     if (cursor->key.data == cbt->row_key->data && WT_DATA_IN_ITEM(cbt->row_key)) {
+        WT_RET(__cursor_batch_keys_alloc(cbt, count));
+        WT_ASSERT(session, slot < cbt->batch_keys_allocated / sizeof(WT_ITEM));
         WT_RET(__wt_buf_set(session, &cbt->batch_keys[slot], cursor->key.data, cursor->key.size));
+        WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch_allocations);
         WT_ITEM_SET(*key, cbt->batch_keys[slot]);
     } else
         WT_ITEM_SET(*key, cursor->key);
@@ -994,13 +995,11 @@ __wt_btcur_next_batch(
         WT_RET(ENOTSUP);
 
     count = WT_MIN(count, WT_CURSOR_BATCH_MAX);
-    if (keys != NULL)
-        WT_RET(__cursor_batch_keys_alloc(cbt, count));
 
     /* Reuse all of the cursor setup logic provided here. */
     WT_RET(__wt_btcur_next(cbt, false));
 
-    if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[0], 0)) != 0) {
+    if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[0], 0, count)) != 0) {
         WT_TRET(__cursor_reset(cbt));
         WT_RET(ret);
     }
@@ -1028,7 +1027,7 @@ __wt_btcur_next_batch(
         WT_RET(__wti_cursor_return_check(session, cbt, true, false, false));
 #endif
 
-        if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[i], i)) != 0)
+        if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[i], i, count)) != 0)
             break;
         if (values != NULL)
             WT_ITEM_SET(values[i], cursor->value);
