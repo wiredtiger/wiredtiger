@@ -109,16 +109,22 @@ class test_prepare53(wttest.WiredTigerTestCase):
         prepared.close()
 
     def test_rejected_bound_preserves_existing_range(self):
+        # Set up committed data and a prepared update.
         reader, prepared = self.open_reader([1, 3])
         self.prepare(prepared, 3)
+
         cursor = reader.open_cursor(self.uri)
         self.assertEqual(self.bound(cursor, 2), 0)
         self.assertEqual(self.bound(cursor, 3, start=False), 0)
+
+        # Reject overlapping bounds after a prepare conflict.
         reader.begin_transaction('read_timestamp=4')
         self.assert_conflict(cursor)
         with self.expectedStderrPattern('provided cursor bounds are overlapping'):
             self.assertRaises(wiredtiger.WiredTigerError, lambda: self.bound(cursor, 4))
         self.assertEqual(reader.get_last_error()[0], errno.EINVAL)
+
+        # Verify a new transaction still reads only the original range.
         reader.commit_transaction()
         reader.begin_transaction('read_timestamp=5')
         prepared.rollback_transaction()
@@ -126,28 +132,37 @@ class test_prepare53(wttest.WiredTigerTestCase):
         self.assertEqual((cursor.get_key(), cursor.get_value()), (self.key(3), 'v'))
         self.assertEqual(self.step(cursor), wiredtiger.WT_NOTFOUND)
         reader.rollback_transaction()
+
         cursor.close()
         reader.close()
         prepared.close()
 
     def test_clear_bounds_on_retained_position(self):
+        # Set up committed data and a prepared update.
         reader, prepared = self.open_reader([1])
         self.write(reader, [1, 3], 3)
         self.prepare(prepared, 4)
+
         cursor = reader.open_cursor(self.uri)
         self.assertEqual(self.bound(cursor, 1), 0)
         self.assertEqual(self.bound(cursor, 2, start=False), 0)
+
         reader.begin_transaction('read_timestamp=5')
         self.assertEqual(self.step(cursor), 0)
         self.assertEqual((cursor.get_key(), cursor.get_value()), (self.key(1), 'v'))
+
+        # Clearing bounds is allowed but does not resolve the prepare conflict.
         self.assert_conflict(cursor)
         self.assertEqual(cursor.bound('action=clear'), 0)
         self.assert_conflict(cursor)
+
+        # After rollback, the scan can return the key beyond the old bounds.
         prepared.rollback_transaction()
         self.assertEqual(self.step(cursor), 0)
         self.assertEqual((cursor.get_key(), cursor.get_value()), (self.key(3), 'v'))
         self.assertEqual(self.step(cursor), wiredtiger.WT_NOTFOUND)
         reader.rollback_transaction()
+
         cursor.close()
         reader.close()
         prepared.close()
