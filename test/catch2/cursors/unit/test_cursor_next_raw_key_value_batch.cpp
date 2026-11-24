@@ -5,6 +5,7 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <thread>
 
 #include <catch2/catch.hpp>
 
@@ -197,3 +198,123 @@ TEST_CASE("next_raw_key_value_batch_layered", "[cursor]")
     REQUIRE(session->close(session, nullptr) == 0);
 }
 #endif
+
+static int64_t
+get_dsrc_stat(WT_SESSION *session, const char *uri, int stat_key)
+{
+    WT_CURSOR *stat_cursor = nullptr;
+    const std::string stat_uri = std::string("statistics:") + uri;
+    REQUIRE(session->open_cursor(session, stat_uri.c_str(), nullptr, nullptr, &stat_cursor) == 0);
+
+    const char *desc = nullptr, *pvalue = nullptr;
+    int64_t value = 0;
+    stat_cursor->set_key(stat_cursor, stat_key);
+    REQUIRE(stat_cursor->search(stat_cursor) == 0);
+    REQUIRE(stat_cursor->get_value(stat_cursor, &desc, &pvalue, &value) == 0);
+    REQUIRE(stat_cursor->close(stat_cursor) == 0);
+    return value;
+}
+
+static void
+prefix_key_value_fmt(int i, char *key, size_t key_len, char *value, size_t value_len)
+{
+    std::snprintf(key, key_len, "shared_key_prefix_%08d", i);
+    std::snprintf(value, value_len, "v%08d", i);
+}
+
+static void
+write_prefix_compressed_table(const char *uri, size_t nkeys)
+{
+    connection_wrapper conn(DB_HOME, "create,statistics=(all)");
+    conn.clear_do_cleanup();
+    WT_SESSION *session = &conn.create_session()->iface;
+    REQUIRE(session->create(session, uri, "key_format=S,value_format=S,prefix_compression=true,prefix_compression_min=1") == 0);
+
+    WT_CURSOR *cursor = nullptr;
+    REQUIRE(session->open_cursor(session, uri, nullptr, nullptr, &cursor) == 0);
+    char k[64], v[32];
+    for (int i = 0; i < nkeys; i++) {
+        prefix_key_value_fmt(i, k, sizeof(k), v, sizeof(v));
+        REQUIRE(insert_key_value(cursor, k, v) == 0);
+    }
+    REQUIRE(cursor->close(cursor) == 0);
+
+    /* Check the keys really were prefix compressed. */
+    REQUIRE(session->checkpoint(session, nullptr) == 0);
+    int64_t compressed = 0;
+    for (int attempt = 0; attempt < 100 && compressed == 0; attempt++) {
+        compressed = get_dsrc_stat(session, uri, WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL);
+        if (compressed == 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    REQUIRE(compressed > 0);
+}
+
+TEST_CASE("next_raw_key_value_batch_prefix_compression", "[cursor]")
+{
+    const char *uri = "file:f.wt";
+    size_t nkeys = 1000;
+    write_prefix_compressed_table(uri, nkeys);
+
+    connection_wrapper conn(DB_HOME);
+    WT_SESSION *session = &conn.create_session()->iface;
+    WT_CURSOR *cursor = nullptr;
+    REQUIRE(session->open_cursor(session, uri, nullptr, nullptr, &cursor) == 0);
+
+    char k[64], v[32];
+    int total_read = 0;
+    int ret = 0;
+    size_t high_water_mark = 0;
+    for (;;) {
+        size_t n = 0;
+        WT_ITEM keys[50] = {};
+        WT_ITEM values[50] = {};
+        ret = cursor->next_raw_key_value_batch(cursor, keys, values, 50, &n);
+        if (ret != 0)
+            break;
+
+        for (auto i = 0; i < n; i++) {
+            prefix_key_value_fmt(total_read + static_cast<int>(i), k, sizeof(k), v, sizeof(v));
+            REQUIRE(keys[i].size == strlen(k) + 1);
+            REQUIRE(memcmp(keys[i].data, k, keys[i].size) == 0);
+            REQUIRE(values[i].size == strlen(v) + 1);
+            REQUIRE(memcmp(values[i].data, v, values[i].size) == 0);
+        }
+        total_read += n;
+        if (n > high_water_mark)
+            high_water_mark = n;
+    }
+    REQUIRE(ret == WT_NOTFOUND);
+    REQUIRE(total_read == nkeys);
+    REQUIRE(high_water_mark > 1);
+
+    REQUIRE(cursor->close(cursor) == 0);
+}
+
+TEST_CASE("next_raw_key_value_batch_prefix_compression_then_next", "[cursor]")
+{
+    const char *uri = "file:f.wt";
+    size_t nkeys = 1000;
+    write_prefix_compressed_table(uri, nkeys);
+
+    connection_wrapper conn(DB_HOME);
+    WT_SESSION *session = &conn.create_session()->iface;
+    WT_CURSOR *cursor = nullptr;
+    REQUIRE(session->open_cursor(session, uri, nullptr, nullptr, &cursor) == 0);
+
+    size_t n = 0;
+    WT_ITEM keys[10] = {};
+    REQUIRE(cursor->next_raw_key_value_batch(cursor, keys, nullptr, 10, &n) == 0);
+    REQUIRE(n >= 1);
+
+    /* The cursor must carry on from where the batch stopped. */
+    char k[64], v[32];
+    for (int i = static_cast<int>(n); i < nkeys; i++) {
+        prefix_key_value_fmt(i, k, sizeof(k), v, sizeof(v));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_key_value(cursor, k, v));
+    }
+    REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+
+    REQUIRE(cursor->close(cursor) == 0);
+}
