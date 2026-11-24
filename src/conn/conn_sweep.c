@@ -330,79 +330,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 }
 
 /*
- * Per-tree cache statistics. Trees with leaf pages are bucketed by resident leaf bytes at 1MB, 16MB
- * and 256MB; trees with no leaf pages are counted separately, as the eviction handle scan finds
- * nothing in them.
- */
-#define WT_SWEEP_CACHE_TREES_BUCKETS 4
-struct __wt_sweep_cache_trees {
-    uint64_t dirty_leaf;                            /* Trees with dirty leaf pages */
-    uint64_t no_leaf;                               /* Trees with no leaf pages */
-    uint64_t buckets[WT_SWEEP_CACHE_TREES_BUCKETS]; /* Trees per bucket */
-};
-typedef struct __wt_sweep_cache_trees WT_SWEEP_CACHE_TREES;
-
-/*
- * __sweep_cache_trees_add --
- *     Add a handle's tree to the cache tree statistics. Only byte counters are read: unlike
- *     __wt_btree_bytes_evictable, this never touches the root page, so it needs no eviction walk
- *     lock.
- */
-static WT_INLINE void
-__sweep_cache_trees_add(WT_DATA_HANDLE *dhandle, WT_SWEEP_CACHE_TREES *cache_trees)
-{
-    WT_BTREE *btree;
-    uint64_t inmem, internal, leaf;
-    u_int bucket;
-
-    if (!WT_DHANDLE_BTREE(dhandle) ||
-      F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OPEN) != WT_DHANDLE_OPEN ||
-      WT_IS_ANY_METADATA(dhandle) || WT_IS_HS(dhandle))
-        return;
-
-    btree = dhandle->handle;
-    if (__wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf) != 0)
-        ++cache_trees->dirty_leaf;
-
-    /* The counters are read separately, so internal bytes can briefly exceed resident bytes. */
-    inmem = __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem);
-    internal = __wt_atomic_load_uint64_relaxed(&btree->bytes_internal);
-    if (inmem <= internal) {
-        ++cache_trees->no_leaf;
-        return;
-    }
-
-    leaf = inmem - internal;
-    if (leaf < WT_MEGABYTE)
-        bucket = 0;
-    else if (leaf < 16 * WT_MEGABYTE)
-        bucket = 1;
-    else if (leaf < 256 * WT_MEGABYTE)
-        bucket = 2;
-    else
-        bucket = 3;
-    ++cache_trees->buckets[bucket];
-}
-
-/*
- * __sweep_cache_trees_publish --
- *     Publish the completed cache tree statistics.
- */
-static void
-__sweep_cache_trees_publish(WT_SESSION_IMPL *session, const WT_SWEEP_CACHE_TREES *cache_trees)
-{
-    WT_STAT_CONN_SET(session, cache_trees_dirty_leaf, cache_trees->dirty_leaf);
-    WT_STAT_CONN_SET(session, cache_trees_no_leaf, cache_trees->no_leaf);
-
-    WT_STAT_CONN_SET(session, cache_trees_lt_1mb, cache_trees->buckets[0]);
-    WT_STAT_CONN_SET(session, cache_trees_1mb_16mb, cache_trees->buckets[1]);
-    WT_STAT_CONN_SET(session, cache_trees_16mb_256mb, cache_trees->buckets[2]);
-    WT_STAT_CONN_SET(session, cache_trees_ge_256mb, cache_trees->buckets[3]);
-}
-
-/*
  * __sweep_discard_trees --
- *     Discard pages from dead trees, gathering the cache tree statistics in the same walk.
+ *     Discard pages from dead trees.
  */
 static int
 __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
@@ -410,14 +339,10 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    WT_SWEEP_CACHE_TREES cache_trees;
-    bool cache_trees_on;
 
     *dead_handlesp = 0;
 
     conn = S2C(session);
-    WT_CLEAR(cache_trees);
-    cache_trees_on = WT_STAT_ENABLED(session);
 
     /*
      * This walk doesn't take the handle list lock. During normal operation, the sweep server is the
@@ -431,9 +356,6 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
      * routinely follow one of those into a handle that has already been freed.
      */
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (cache_trees_on)
-            __sweep_cache_trees_add(dhandle, &cache_trees);
-
         if (WT_DHANDLE_CAN_DISCARD(dhandle))
             ++*dead_handlesp;
 
@@ -452,9 +374,6 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
         WT_RET_BUSY_OK(ret);
     }
-
-    if (cache_trees_on)
-        __sweep_cache_trees_publish(session, &cache_trees);
 
     return (0);
 }
