@@ -3432,8 +3432,13 @@ __clayered_cell_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_TIME_WINDOW tw;
 
-    /* Ignore prepared updates, matching the leader. */
-    if (__wt_read_cell_time_window(cbt, &tw) && WT_TIME_WINDOW_HAS_PREPARE(&tw))
+    /*
+     * Ignore a prepared cell, except in the live stable table: a checkpoint can still show a
+     * prepare that ingest has since resolved, but the live table restores the cell to its update
+     * chain, where it conflicts until resolved.
+     */
+    if (__wt_dhandle_shared_btree_kind(cbt->dhandle) != WT_SHARED_BTREE_LIVE &&
+      __wt_read_cell_time_window(cbt, &tw) && WT_TIME_WINDOW_HAS_PREPARE(&tw))
         return (0);
 
     /* Ensure the pinned page is valid. */

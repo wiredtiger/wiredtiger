@@ -29,7 +29,8 @@
 # After reopening the connection, "prepared_discover:" must discover and
 # allow claims of the persisted prepared transaction even when no cursor
 # has yet been opened on the layered table on the new connection. Exercised
-# for both roles the connection can come back as.
+# for both roles the connection can come back as. Until the transaction is
+# resolved, its keys cannot be written by anyone else.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -42,10 +43,15 @@ class test_prepare_discover08(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     tablename = test_name
     uri = 'layered:' + tablename
 
+    # A leader's writes after a step-down is announced are either mirrored to
+    # the stable table or go to the ingest table alone.
     role_scenarios = [
-        ('standby', dict(reopen_role='follower', step_down_ts=None)),
-        ('primary', dict(reopen_role='leader', step_down_ts=None)),
-        ('primary_claim_during_stepdown', dict(reopen_role='leader', step_down_ts=175)),
+        ('standby', dict(reopen_role='follower', step_down_ts=None, write_mirroring=True)),
+        ('primary', dict(reopen_role='leader', step_down_ts=None, write_mirroring=True)),
+        ('primary_claim_during_stepdown',
+            dict(reopen_role='leader', step_down_ts=175, write_mirroring=True)),
+        ('primary_claim_during_unmirrored_stepdown',
+            dict(reopen_role='leader', step_down_ts=175, write_mirroring=False)),
     ]
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, role_scenarios)
@@ -53,8 +59,12 @@ class test_prepare_discover08(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = ('cache_size=10MB,statistics=(all),'
                         'precise_checkpoint=true,preserve_prepared=true,')
 
+    def leader_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader",' + \
+            f'stepdown_write_mirroring={str(self.write_mirroring).lower()})'
+
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader")'
+        return self.leader_config()
 
     def test_prepare_discover_first_cursor_on_connection(self):
         prepared_id = 123
@@ -97,7 +107,7 @@ class test_prepare_discover08(LayeredStepdownMixin, wttest.WiredTigerTestCase):
                              'disaggregated=(role="follower",'
                              f'checkpoint_meta="{checkpoint_meta}")')
         else:
-            reopen_config = self.conn_base_config + 'disaggregated=(role="leader")'
+            reopen_config = self.leader_config()
         self.reopen_conn(config=reopen_config)
 
         # Opening "prepared_discover:" must work as the first cursor on the
@@ -112,6 +122,15 @@ class test_prepare_discover08(LayeredStepdownMixin, wttest.WiredTigerTestCase):
 
         claim_session = self.conn.open_session()
         claim_session.begin_transaction('claim_prepared_id=' + self.prepared_id_str(prepared_id))
+
+        # Another transaction cannot write a key the prepared transaction holds.
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(4)
+        cursor.set_value('competing_value')
+        self.expect_conflict_rollback(cursor.update)
+        self.session.rollback_transaction()
+
         claim_session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(200) +
             ',durable_timestamp=' + self.timestamp_str(210))
@@ -124,3 +143,14 @@ class test_prepare_discover08(LayeredStepdownMixin, wttest.WiredTigerTestCase):
             self.complete_step_down(self.step_down_ts)
             self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 250),
                 {i: f'prepared_value_{i}' for i in range(4, 7)})
+
+        # Once the transaction is resolved, a transaction reading its commit can write the key.
+        expected = {i: f'committed_value_{i}' for i in range(1, 4)}
+        expected.update({i: f'prepared_value_{i}' for i in range(4, 7)})
+        self.assertEqual(self.read_kvs_at(self.uri, 250), expected)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(250))
+        cursor[4] = 'later_value'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(260))
+        cursor.close()
+        expected[4] = 'later_value'
+        self.assertEqual(self.read_kvs_at(self.uri, 270), expected)
