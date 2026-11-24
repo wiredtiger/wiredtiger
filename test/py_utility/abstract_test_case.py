@@ -85,10 +85,10 @@ class CapturedFd(object):
         self.desc = desc
         self.expectpos = 0
         self.file = None
-        self.ignore_regexes = set()
+        self.ignore_regex = None
 
-    def addIgnorePattern(self, regex):
-        self.ignore_regexes.add(regex)
+    def setIgnorePattern(self, regex):
+        self.ignore_regex = regex
 
     def readFileFrom(self, filename, pos, maxchars):
         """
@@ -145,9 +145,11 @@ class CapturedFd(object):
             self.file.flush()
         new_size = os.path.getsize(self.filename)
 
-        ignore = set(self.ignore_regexes)
+        ignore = []
+        if self.ignore_regex is not None:
+            ignore.append(self.ignore_regex)
         if ignore_pat is not None:
-            ignore.add(re.compile(ignore_pat))
+            ignore.append(re.compile(ignore_pat))
         if len(ignore) == 0:
             return self.expectpos < new_size
 
@@ -267,7 +269,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         if hasattr(self, 'scenarios'):
             assert(self.scenarios is None or len(self.scenarios) == len(dict(self.scenarios)))
         super().__init__(*args, **kwargs)
-        self.ignore_regexes = set()
+        self.ignore_regex = None
 
     def failed(self):
         '''
@@ -379,8 +381,8 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         sys.stdout = self.tee_stdout
         sys.stderr = self.tee_stderr
 
-        for regex in self.ignore_regexes:
-            self.captureout.addIgnorePattern(regex)
+        if self.ignore_regex is not None:
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def fdTearDown(self):
         '''

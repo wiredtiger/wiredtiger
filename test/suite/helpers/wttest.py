@@ -557,12 +557,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def checkStdout(self):
         self.captureout.check(self)
 
-    # Patterns accumulate for the life of the test; a line matching any of them is ignored.
     def ignoreStdoutPattern(self, pattern, re_flags = 0):
-        regex = re.compile(pattern, re_flags)
-        self.ignore_regexes.add(regex)
+        self.ignore_regex = re.compile(pattern, re_flags)
         if hasattr(self, 'captureout'):
-            self.captureout.addIgnorePattern(regex)
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def readyDirectoryForRemoval(self, directory):
         # Make sure any read-only files or directories left behind

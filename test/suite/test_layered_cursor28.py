@@ -144,7 +144,7 @@ class test_layered_cursor28(wttest.WiredTigerTestCase):
 
     def run_op(self, op, follow='next', unpositioned=False):
         # get_value() and update() legitimately log to stderr off a deleted slot.
-        self.captureerr.addIgnorePattern(re.compile('requires key be set|requires value be set'))
+        self.captureerr.setIgnorePattern(re.compile('requires key be set|requires value be set'))
 
         c = self.deleted_cursor()
         if unpositioned:
