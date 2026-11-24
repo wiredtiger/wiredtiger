@@ -228,7 +228,8 @@ write_prefix_compressed_table(const char *uri, size_t nkeys)
     connection_wrapper conn(DB_HOME, "create,statistics=(all)");
     conn.clear_do_cleanup();
     WT_SESSION *session = &conn.create_session()->iface;
-    REQUIRE(session->create(session, uri, "key_format=S,value_format=S,prefix_compression=true,prefix_compression_min=1") == 0);
+    REQUIRE(session->create(session, uri,
+              "key_format=S,value_format=S,prefix_compression=true,prefix_compression_min=1") == 0);
 
     WT_CURSOR *cursor = nullptr;
     REQUIRE(session->open_cursor(session, uri, nullptr, nullptr, &cursor) == 0);

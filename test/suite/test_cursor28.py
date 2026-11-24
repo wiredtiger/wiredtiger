@@ -52,7 +52,7 @@ class test_cursor28(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(tables, sizes)
 
-    # Alternates between keys of the form `a_common_prefix_0123` and `a_{sha256_digest}`
+    # Alternates between keys of the form `a_common_prefix_0123` and `a_{digest}`
     def make_keys(self):
         keys = []
         for run in range(self.nruns):

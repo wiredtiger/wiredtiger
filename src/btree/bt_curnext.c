@@ -964,6 +964,7 @@ __cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot)
      * movement would overwrite this, so take a copy.
      */
     if (cursor->key.data == cbt->row_key->data && WT_DATA_IN_ITEM(cbt->row_key)) {
+        WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch_allocations);
         WT_RET(__wt_buf_set(session, &cbt->batch_keys[slot], cursor->key.data, cursor->key.size));
         WT_ITEM_SET(*key, cbt->batch_keys[slot]);
     } else
@@ -984,6 +985,7 @@ __wt_btcur_next_batch(
     WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(cbt);
     WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_next_raw_kv_batch_requested, count);
     *returned_countp = 0;
 
     if (count == 0 || (keys == NULL && values == NULL))
