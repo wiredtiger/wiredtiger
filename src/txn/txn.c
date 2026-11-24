@@ -1717,7 +1717,8 @@ retry:
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The write went to stable only, so ingest should have no value for the key: at most a
-     * tombstone visible to this transaction, in memory or on disk.
+     * tombstone visible to this transaction, in memory or on disk. Earlier rolled back writes can
+     * remain on the update chain.
      */
     if (ingest_cbt->compare == 0) {
         WT_UPDATE *existing;
@@ -1729,6 +1730,9 @@ retry:
             existing = ingest_cbt->ref->page->modify->mod_row_update[ingest_cbt->slot];
         else
             existing = NULL;
+
+        while (existing != NULL && existing->txnid == WT_TXN_ABORTED)
+            existing = existing->next;
 
         if (existing != NULL)
             WT_ASSERT(session,
