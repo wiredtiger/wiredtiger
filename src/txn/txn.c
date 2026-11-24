@@ -1752,7 +1752,7 @@ retry:
     clone->upd_start_ts = orig->upd_start_ts;
     clone->prepare_state = orig->prepare_state;
 
-    /* Insert as a normal update, not a restore: an existing ingest tombstone may not be on disk. */
+    /* A restore would reject an ingest tombstone created in memory. */
     ret = __wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, false, false);
     if (ret == WT_RESTART) {
         /* Retry from a fresh position, as a cursor insert does. */
@@ -1772,9 +1772,9 @@ err:
 
 /*
  * __txn_stepdown_resolve_straddler --
- *     A transaction prepared before the step-down timestamp was set is resolving after it, so its
- *     update is only on stable. Copy the still-prepared update to ingest, then resolve both. The
- *     ingest cursor stays open across operations on the same table; the caller closes it.
+ *     Copy the prepared update from stable to ingest, then resolve both copies.
+ *
+ * This is an interim solution until dedicated support for prepared straddlers is available.
  */
 static int
 __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
@@ -1791,7 +1791,7 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
 
     stable_uri = op->btree->dhandle->name;
 
-    /* Copying to ingest only supports row-store tables. */
+    /* Prepared straddler relocation supports only row-store tables. */
     WT_ASSERT_ALWAYS(session, op->type == WT_TXN_OP_BASIC_ROW,
       "a prepared straddler on a column-store layered table has no relocation support");
 
@@ -1813,10 +1813,7 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
         *ingest_cursor_stable_idp = op->btree->id;
     }
 
-    /*
-     * Copy rather than move: the original stays prepared on stable until it is resolved below. Make
-     * ingest the active tree so the insert is charged to it.
-     */
+    /* Make ingest the active tree so the insert is charged to it. */
     cbt = (WT_CURSOR_BTREE *)ingest_cursor;
     ingest_btree = CUR2BT(cbt);
     WT_WITH_BTREE(session, ingest_btree,
@@ -1827,7 +1824,6 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     /* Release the page pinned by the insert: resolution searches again and needs none pinned. */
     WT_ERR(ingest_cursor->reset(ingest_cursor));
 
-    /* Make each table the active tree while resolving it, so the change is charged correctly. */
     WT_WITH_BTREE(session, op->btree,
       ret = __wt_txn_resolve_prepared_op(
         session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
@@ -2569,10 +2565,8 @@ __wt_txn_rollback(
     __wt_txn_release_snapshot(session);
 
     /*
-     * A transaction that began before the step-down timestamp was set wrote only to stable. If the
-     * step-down checkpoint captured its update while still prepared, step-up would discover it
-     * again, so record the rollback on ingest. This applies only when prepared transactions are
-     * preserved, the only case with a rollback timestamp.
+     * Record a rollback after the step-down timestamp so step-up does not rediscover a preserved
+     * prepare.
      */
     is_straddling_rollback = step_down_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
       F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&

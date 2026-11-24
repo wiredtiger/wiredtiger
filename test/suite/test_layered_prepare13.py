@@ -38,12 +38,24 @@ class test_layered_prepare13(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    resolution_times = [
+        ('before_checkpoint', dict(resolve_after_checkpoint=False)),
+        ('after_checkpoint', dict(resolve_after_checkpoint=True)),
+    ]
+    scenarios = make_scenarios(disagg_storages, resolution_times)
 
     test_name = __qualname__
     uri = f'layered:{test_name}'
 
+    def checkpoint_at_step_down_timestamp(self):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(11))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+
     def test_prepared_commit_straddler_survives_step_down(self):
+        expected = {'straddler': 'straddler-value'}
+        ingest_uri = self.ingest_uri(self.uri)
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -54,21 +66,25 @@ class test_layered_prepare13(LayeredStepdownMixin, wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(10) + ',prepared_id=' + self.prepared_id_str(1))
 
         self.set_step_down_ts(11)
+        if self.resolve_after_checkpoint:
+            self.checkpoint_at_step_down_timestamp()
 
         self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(12) + ',durable_timestamp=' + self.timestamp_str(12))
         cursor.close()
 
-        self.assertEqual(self.read_kvs_at(self.uri, 20), {'straddler': 'straddler-value'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 20), {'straddler'})
+        self.assertEqual(self.read_kvs_at(self.uri, 20), expected)
+        self.assertEqual(self.read_kvs_at(ingest_uri, 20), expected)
 
-        self.complete_step_down(11)
+        if not self.resolve_after_checkpoint:
+            self.checkpoint_at_step_down_timestamp()
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
-        self.assertEqual(self.read_kvs_at(self.uri, 20), {'straddler': 'straddler-value'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 20), {'straddler'})
+        self.assertEqual(self.read_kvs_at(self.uri, 20), expected)
+        self.assertEqual(self.read_kvs_at(ingest_uri, 20), expected)
 
-        # The step-down checkpoint excludes the commit above its boundary.
-        if self.stable_is_checkpointed(self.conn, self.uri):
+        # A checkpoint taken after commit still excludes a write durable beyond its boundary.
+        if not self.resolve_after_checkpoint:
             self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 20), set())
 
     def test_prepared_rollback_straddler_does_not_resurface_on_step_up(self):
@@ -82,13 +98,17 @@ class test_layered_prepare13(LayeredStepdownMixin, wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(10) + ',prepared_id=' + self.prepared_id_str(1))
 
         self.set_step_down_ts(11)
+        if self.resolve_after_checkpoint:
+            self.checkpoint_at_step_down_timestamp()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(12))
         cursor.close()
 
         self.assertEqual(self.read_kvs_at(self.uri, 20), {})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 20), set())
 
-        self.complete_step_down(11)
+        if not self.resolve_after_checkpoint:
+            self.checkpoint_at_step_down_timestamp()
+        self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertEqual(self.read_kvs_at(self.uri, 20), {})
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)

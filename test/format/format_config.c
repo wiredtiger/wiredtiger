@@ -1492,11 +1492,7 @@ config_disagg_storage(void)
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");
 
-            /*
-             * A prepared transaction that straddles the step-down timestamp is copied to ingest,
-             * which only supports row-store tables. Keep prepare enabled when all tables are
-             * row-store.
-             */
+            /* Prepared straddler relocation supports only row-store tables. */
             if (GV(OPS_PREPARE)) {
                 bool has_column_store = false;
                 for (u_int ti = 1; ti <= ntables; ++ti)

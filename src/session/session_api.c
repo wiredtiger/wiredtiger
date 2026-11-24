@@ -2054,14 +2054,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
     /*
-     * The straddler checks at cursor operations are only an optimization to roll back early: they
-     * read the step-down timestamp without taking the step-down lock and may miss it even when it
-     * is set. This check is the guarantee: under the step-down lock it always observes a set
-     * timestamp, so no straddler commits after the timestamp is in place.
-     *
-     * A prepared transaction can no longer be rolled back, so it skips this check and is copied to
-     * ingest during commit instead. Commit needs the step-down timestamp for that, so read it under
-     * the same lock.
+     * Cursor checks can reject an unprepared straddler early. Check again under the step-down lock,
+     * and pass the timestamp to commit so it can copy a prepared straddler's writes to ingest.
      */
     if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
@@ -2137,8 +2131,9 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     WT_ERR(__wt_txn_context_check(session, true));
 
     /*
-     * Reject a transaction that began before the step-down timestamp was set while it can still be
-     * rolled back: once prepared, it cannot be.
+     * Reject straddlers before prepare, while the application can still retry them.
+     *
+     * FIXME-WT-18723: Remove the test bypass once the remaining fixtures no longer need it.
      */
     if (txn->mod_count != 0 && __wt_conn_is_disagg(session) &&
       !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE)) {
@@ -2204,10 +2199,7 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
-    /*
-     * Of the rollbacks that reach here, only a prepared one can straddle the step-down timestamp,
-     * so only a prepared rollback needs to read it.
-     */
+    /* Only a prepared rollback can require recording the outcome in ingest. */
     if (F_ISSET(txn, WT_TXN_PREPARE) && __wt_conn_is_disagg(session))
         step_down_ts = __wt_txn_stepdown_ts_read(session);
 
