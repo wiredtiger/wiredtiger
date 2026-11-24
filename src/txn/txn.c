@@ -1832,6 +1832,14 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
         session, ingest_btree, &session->txn->time_point, key, recno, commit, ingest_cursorp));
     WT_ERR(ret);
 
+    /*
+     * Sweep discards an ingest table once a checkpoint covers its newest write. The copy is not a
+     * transaction operation, so record its resolution timestamp here.
+     */
+    __wt_btree_advance_ingest_max(ingest_btree,
+      commit ? session->txn->time_point.durable_timestamp :
+               session->txn->time_point.rollback_timestamp);
+
 err:
     __wt_scr_free(session, &ingest_uri);
     return (ret);
