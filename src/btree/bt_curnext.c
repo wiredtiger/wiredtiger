@@ -999,9 +999,11 @@ __wt_btcur_next_batch(
     /* Reuse all of the cursor setup logic provided here. */
     WT_RET(__wt_btcur_next(cbt, false));
 
-    if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[0], 0, count)) != 0) {
-        WT_TRET(__cursor_reset(cbt));
-        WT_RET(ret);
+    if (keys != NULL) {
+        if ((ret = __cursor_batch_key_set(cbt, &keys[0], 0, count)) != 0) {
+            WT_TRET(__cursor_reset(cbt));
+            WT_RET(ret);
+        }
     }
     if (values != NULL)
         WT_ITEM_SET(values[0], cursor->value);
@@ -1027,8 +1029,9 @@ __wt_btcur_next_batch(
         WT_RET(__wti_cursor_return_check(session, cbt, true, false, false));
 #endif
 
-        if (keys != NULL && (ret = __cursor_batch_key_set(cbt, &keys[i], i, count)) != 0)
-            break;
+        if (keys != NULL)
+            if ((ret = __cursor_batch_key_set(cbt, &keys[i], i, count)) != 0)
+                break;
         if (values != NULL)
             WT_ITEM_SET(values[i], cursor->value);
         ++i;
