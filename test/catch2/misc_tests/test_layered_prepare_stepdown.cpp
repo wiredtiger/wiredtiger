@@ -60,6 +60,8 @@ setup_leader(connection_wrapper **conn_wrap, WT_SESSION **sessionp, bool preserv
 TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in ingest",
   "[layered_prepare_stepdown]")
 {
+    const bool reserve = GENERATE(false, true);
+    CAPTURE(reserve);
     connection_wrapper *conn_wrap;
     WT_SESSION *session;
     setup_leader(&conn_wrap, &session);
@@ -73,6 +75,10 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
     cursor->set_key(cursor, "straddler");
     cursor->set_value(cursor, "straddler-value");
     REQUIRE(cursor->insert(cursor) == 0);
+    if (reserve) {
+        cursor->set_key(cursor, "straddler");
+        REQUIRE(cursor->reserve(cursor) == 0);
+    }
     REQUIRE(session->prepare_transaction(session, "prepare_timestamp=10") == 0);
 
     REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
@@ -112,6 +118,8 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
 TEST_CASE("Layered step-down: an ordinary post-boundary prepared transaction is unaffected",
   "[layered_prepare_stepdown]")
 {
+    const bool commit_below_boundary = GENERATE(false, true);
+    CAPTURE(commit_below_boundary);
     connection_wrapper *conn_wrap;
     WT_SESSION *session;
     setup_leader(&conn_wrap, &session);
@@ -126,8 +134,12 @@ TEST_CASE("Layered step-down: an ordinary post-boundary prepared transaction is 
     cursor->set_key(cursor, "post-boundary");
     cursor->set_value(cursor, "post-boundary-value");
     REQUIRE(cursor->insert(cursor) == 0);
-    REQUIRE(session->prepare_transaction(session, "prepare_timestamp=15") == 0);
-    REQUIRE(session->commit_transaction(session, "commit_timestamp=16,durable_timestamp=16") == 0);
+    REQUIRE(session->prepare_transaction(session,
+              commit_below_boundary ? "prepare_timestamp=5" : "prepare_timestamp=15") == 0);
+    REQUIRE(session->timestamp_transaction(session,
+              commit_below_boundary ? "commit_timestamp=10,durable_timestamp=12" :
+                                      "commit_timestamp=16,durable_timestamp=16") == 0);
+    REQUIRE(session->commit_transaction(session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
     WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();

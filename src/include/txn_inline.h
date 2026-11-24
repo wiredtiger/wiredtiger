@@ -2198,15 +2198,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (conf != NULL) {
         WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
+            /* Claiming a prepare does not route its writes. */
             WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
             WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
-
-            /*
-             * A claimed transaction returns before the step-down timestamp is checked below. Check
-             * it here so the step-down timestamp rules apply when the transaction resolves.
-             */
-            if (__wt_conn_is_disagg(session) && __wt_txn_stepdown_ts_read(session) != WT_TS_NONE)
-                F_SET(txn, WT_TXN_STEPDOWN_TS_SET);
             return (0);
         }
     }

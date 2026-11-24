@@ -1134,7 +1134,7 @@ done:
 
 /*
  * __txn_search_prepared_op --
- *     Search for an operation's prepared update.
+ *     Find the first non-aborted update for a prepared operation.
  */
 static int
 __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key, uint64_t recno,
@@ -1188,6 +1188,10 @@ __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key
     /* We resolve each prepared key exactly once. We should always find an update. */
     WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
+
+    /* Prepare may leave an aborted reservation at the head of the chain. */
+    while (*updp != NULL && (*updp)->txnid == WT_TXN_ABORTED)
+        *updp = (*updp)->next;
 
     return (0);
 }
@@ -1363,12 +1367,6 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
           __wt_timestamp_to_string(txn_time_point->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn_time_point->rollback_timestamp, ts_string[1]));
 
-    /*
-     * Aborted updates can exist in the update chain of our transaction due to reserved update. Skip
-     * aborted update until we see the first valid update.
-     */
-    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
     head_upd = upd;
 
     /*
@@ -1797,6 +1795,7 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
 
     /* Look up the update rather than use the saved pointer: eviction may have replaced it. */
     WT_RET(__txn_search_prepared_op(session, op->btree, key, recno, stable_cursorp, &orig));
+    WT_ASSERT(session, orig != NULL && orig->prepare_state == WT_PREPARE_INPROGRESS);
 
     if (*ingest_cursorp != NULL && *ingest_cursor_stable_idp == op->btree->id)
         ingest_cursor = *ingest_cursorp;
@@ -2063,7 +2062,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
           !(prepare && is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name))) {
             if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
                 wrote_ingest = true;
-                WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
+                WT_ASSERT(session,
+                  (prepare ? txn->time_point.durable_timestamp : txn->first_commit_timestamp) >
+                    step_down_ts);
             } else if (__wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE) {
                 if (!mirroring) {
                     wrote_stable = true;

@@ -31,19 +31,21 @@
 # has yet been opened on the layered table on the new connection. Exercised
 # for both roles the connection can come back as.
 
-import wttest
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_prepare_discover08(wttest.WiredTigerTestCase):
+class test_prepare_discover08(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
     tablename = test_name
     uri = 'layered:' + tablename
 
     role_scenarios = [
-        ('standby', dict(reopen_role='follower')),
-        ('primary', dict(reopen_role='leader')),
+        ('standby', dict(reopen_role='follower', step_down_ts=None)),
+        ('primary', dict(reopen_role='leader', step_down_ts=None)),
+        ('primary_claim_during_stepdown', dict(reopen_role='leader', step_down_ts=175)),
     ]
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, role_scenarios)
@@ -103,19 +105,22 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
         # prior cursor having been opened on the layered table.
         prepared_discover_cursor = self.session.open_cursor('prepared_discover:')
 
-        claim_session = self.conn.open_session()
-        discovered = []
-        while prepared_discover_cursor.next() == 0:
-            discovered_id = prepared_discover_cursor.get_key()
-            discovered.append(discovered_id)
-            # Every prepared transaction found by the cursor must be claimed
-            # before the cursor is closed; claim it and commit here.
-            claim_session.begin_transaction(
-                'claim_prepared_id=' + self.prepared_id_str(discovered_id))
-            claim_session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(200) +
-                ',durable_timestamp=' + self.timestamp_str(210))
+        self.assertEqual(prepared_discover_cursor.next(), 0)
+        self.assertEqual(prepared_discover_cursor.get_key(), prepared_id)
+        if self.step_down_ts is not None:
+            self.set_step_down_ts(self.step_down_ts)
 
-        self.assertEqual(discovered, [prepared_id])
+        claim_session = self.conn.open_session()
+        claim_session.begin_transaction('claim_prepared_id=' + self.prepared_id_str(prepared_id))
+        claim_session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(200) +
+            ',durable_timestamp=' + self.timestamp_str(210))
+
+        self.assertEqual(prepared_discover_cursor.next(), wiredtiger.WT_NOTFOUND)
         prepared_discover_cursor.close()
         claim_session.close()
+
+        if self.step_down_ts is not None:
+            self.complete_step_down(self.step_down_ts)
+            self.assertEqual(self.read_kvs_at(self.ingest_uri(self.uri), 250),
+                {i: f'prepared_value_{i}' for i in range(4, 7)})
