@@ -326,41 +326,29 @@ __wt_background_compact_start(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     uint32_t id;
     const char *uri;
-    bool new_stat;
 
     bm = S2BT(session)->bm;
     id = S2BT(session)->id;
     uri = session->dhandle->name;
 
     compact_stat = __background_compact_get_stat(session, uri, id);
-    new_stat = compact_stat == NULL;
 
-    /* If the table is not in the list, allocate a new entry. */
-    if (new_stat) {
+    /* If the table is not in the list, allocate a new entry and insert it. */
+    if (compact_stat == NULL) {
         WT_ERR(__wt_calloc_one(session, &compact_stat));
         WT_ERR(__wt_strdup(session, uri, &compact_stat->uri));
         compact_stat->id = id;
+        __background_compact_list_insert(session, compact_stat);
     }
 
     /* Fill starting information prior to running compaction. */
     WT_ERR(bm->size(bm, session, &compact_stat->start_size));
     compact_stat->prev_compact_time = __wt_clock(session);
 
-    /*
-     * Insert a new entry only once this function can no longer fail, otherwise the error path would
-     * leave a freed entry linked into the connection's tracking list.
-     */
-    if (new_stat)
-        __background_compact_list_insert(session, compact_stat);
-
     return (0);
 
 err:
-    if (new_stat) {
-        if (compact_stat != NULL)
-            __wt_free(session, compact_stat->uri);
-        __wt_free(session, compact_stat);
-    }
+    __wt_free(session, compact_stat);
 
     return (ret);
 }
