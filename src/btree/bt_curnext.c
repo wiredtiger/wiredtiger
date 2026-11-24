@@ -944,12 +944,13 @@ __cursor_batch_keys_alloc(WT_CURSOR_BTREE *cbt, size_t count)
     if (required <= cbt->batch_keys_allocated)
         return (0);
 
+    WT_STAT_CONN_DSRC_INCR(CUR2S(cbt), cursor_next_raw_kv_batch_allocations);
     return (__wt_realloc(CUR2S(cbt), &cbt->batch_keys_allocated, required, &cbt->batch_keys));
 }
 
 /*
  * __cursor_batch_key_set --
- *     TODO description
+ *     Arrange for a key's WT_ITEM to point to data that will outlive the cursor API call.
  */
 static int
 __cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot)
@@ -964,7 +965,6 @@ __cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot)
      * movement would overwrite this, so take a copy.
      */
     if (cursor->key.data == cbt->row_key->data && WT_DATA_IN_ITEM(cbt->row_key)) {
-        WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch_allocations);
         WT_RET(__wt_buf_set(session, &cbt->batch_keys[slot], cursor->key.data, cursor->key.size));
         WT_ITEM_SET(*key, cbt->batch_keys[slot]);
     } else
