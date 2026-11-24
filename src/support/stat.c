@@ -3213,6 +3213,14 @@ static const char *const __stats_connection_desc[] = {
   "cache: tracked dirty pages in the cache",
   "cache: tracked dirty pages in the cache from the ingest btrees",
   "cache: tracked dirty pages in the cache from the stable btrees",
+  "cache: trees with at least 16MB and less than 256MB of leaf pages in the cache, as of the last "
+  "sweep",
+  "cache: trees with at least 1MB and less than 16MB of leaf pages in the cache, as of the last "
+  "sweep",
+  "cache: trees with at least 256MB of leaf pages in the cache, as of the last sweep",
+  "cache: trees with dirty leaf pages in the cache, as of the last sweep",
+  "cache: trees with less than 1MB of leaf pages in the cache, as of the last sweep",
+  "cache: trees with no leaf pages in the cache, as of the last sweep",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
   "cache: update bytes belonging to the history store table in the cache",
@@ -4400,6 +4408,12 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CACHE_PAGES_DIRTY,
   WT_STAT_CONN_CACHE_PAGES_DIRTY_INGEST,
   WT_STAT_CONN_CACHE_PAGES_DIRTY_STABLE,
+  WT_STAT_CONN_CACHE_TREES_16MB_256MB,
+  WT_STAT_CONN_CACHE_TREES_1MB_16MB,
+  WT_STAT_CONN_CACHE_TREES_GE_256MB,
+  WT_STAT_CONN_CACHE_TREES_DIRTY_LEAF,
+  WT_STAT_CONN_CACHE_TREES_LT_1MB,
+  WT_STAT_CONN_CACHE_TREES_NO_LEAF,
   WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE,
   WT_STAT_CONN_CACHE_EVICTION_CLEAN,
   WT_STAT_CONN_CACHE_BYTES_HS_UPDATES,
@@ -5599,6 +5613,12 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_dirty */
     /* not clearing cache_pages_dirty_ingest */
     /* not clearing cache_pages_dirty_stable */
+    /* not clearing cache_trees_16mb_256mb */
+    /* not clearing cache_trees_1mb_16mb */
+    /* not clearing cache_trees_ge_256mb */
+    /* not clearing cache_trees_dirty_leaf */
+    /* not clearing cache_trees_lt_1mb */
+    /* not clearing cache_trees_no_leaf */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
     /* not clearing cache_bytes_hs_updates */
@@ -6890,6 +6910,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_pages_dirty += WT_STAT_CONN_READ(from, cache_pages_dirty);
     to->cache_pages_dirty_ingest += WT_STAT_CONN_READ(from, cache_pages_dirty_ingest);
     to->cache_pages_dirty_stable += WT_STAT_CONN_READ(from, cache_pages_dirty_stable);
+    to->cache_trees_16mb_256mb += WT_STAT_CONN_READ(from, cache_trees_16mb_256mb);
+    to->cache_trees_1mb_16mb += WT_STAT_CONN_READ(from, cache_trees_1mb_16mb);
+    to->cache_trees_ge_256mb += WT_STAT_CONN_READ(from, cache_trees_ge_256mb);
+    to->cache_trees_dirty_leaf += WT_STAT_CONN_READ(from, cache_trees_dirty_leaf);
+    to->cache_trees_lt_1mb += WT_STAT_CONN_READ(from, cache_trees_lt_1mb);
+    to->cache_trees_no_leaf += WT_STAT_CONN_READ(from, cache_trees_no_leaf);
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
