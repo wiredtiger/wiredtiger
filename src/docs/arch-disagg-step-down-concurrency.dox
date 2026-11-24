@@ -291,7 +291,8 @@ A write transaction that spans setting the step-down timestamp observes it as no
 transaction begin and reaches its commit-time check after it is set. Its cursor write checks can
 fail to observe the step-down timestamp as set because they do not acquire the step-down lock,
 so it may still write to the stable table while another transaction writes to the ingest table.
-No lock ordering guarantees that either transaction observes the other's writes.
+Since these operations are not ordered by acquiring the lock, either post-N or straddler
+transactions might not observe the others' writes.
 
 Both transactions may temporarily write the same logical key into different tables, but the locked
 commit-time check must roll back the transaction that spans setting the step-down timestamp, so
@@ -340,11 +341,10 @@ their reads, because ingest table writes made after setting the step-down timest
 to that earlier snapshot.
 
 Once read transactions span the step-down reconfiguration, their stable table reads must switch
-to the read-only checkpoint view. Cursor operations do not take a lock that prevents the global
-role from changing while they observe it, so not every operation is guaranteed to observe the
-follower role immediately. An operation may already be in progress or have passed the point where
-it observes the role. However, this is safe because the step-down reconfiguration marks the stable
-tables' data handles outdated, and the
+to the read-only checkpoint view. Not every cursor operation is guaranteed to observe the
+follower role change as they do not take the global lock. An operation may already be in progress
+or have passed the point where it observes the role. However, this is safe because the step-down
+reconfiguration marks the stable tables' data handles outdated, and the
 @ref disagg-step-down-eviction "eviction synchronization" protects the old stable table while
 readers still use it. This allows a cursor to reopen the checkpoint view later.
 
