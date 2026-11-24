@@ -30,9 +30,9 @@ import time
 import wttest
 from wiredtiger import stat
 
-# Check the statistics describing how the cache is spread across trees. They refresh every
-# close_scan_interval, so each check polls with a deadline; close_idle_time=0 keeps the trees open.
-# The raised eviction targets keep the eviction server from evicting the pages the tests write.
+# Check the statistics describing how the cache is spread across trees. close_idle_time=0 keeps the
+# trees open, and the raised eviction targets keep the eviction server from evicting the pages the
+# tests write.
 class test_cache_trees01(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=100MB,statistics=(all),'
         'file_manager=(close_scan_interval=1,close_idle_time=0),'
@@ -54,18 +54,25 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         cursor.close()
         return values
 
-    def wait_for(self, cond, msg):
+    # The sweep server publishes these statistics on each pass, so wait for a pass that started
+    # after the caller's changes before checking them once. dh_sweeps counts a pass as it starts, so
+    # once it has advanced by two, the first of those passes has finished. A timeout means sweep
+    # didn't run; a wrong value fails the check.
+    def check_after_sweep(self, cond, msg):
+        sweeps = self.get_stat(stat.conn.dh_sweeps)
         deadline = time.time() + self.timeout
-        while True:
-            values = self.cache_trees()
-            if cond(values):
-                return values
-            self.assertLess(time.time(), deadline, '%s: %s' % (msg,
-                {self.descriptions[k]: v for k, v in values.items()}))
+        while self.get_stat(stat.conn.dh_sweeps) < sweeps + 2:
+            self.assertLess(time.time(), deadline, 'sweep did not run')
             time.sleep(0.1)
+        values = self.cache_trees()
+        self.assertTrue(cond(values), '%s: %s' % (msg,
+            {self.descriptions[k]: v for k, v in values.items()}))
+
+    def leaf_trees(self, values):
+        return sum(values[t] for t in self.buckets)
 
     def trees_counted(self, values):
-        return values[stat.conn.cache_trees_no_leaf] + sum(values[t] for t in self.buckets)
+        return values[stat.conn.cache_trees_no_leaf] + self.leaf_trees(values)
 
     def populate(self, uri, rows):
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -74,54 +81,39 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
             cursor['k%08d' % i] = self.value
         cursor.close()
 
-    def evict(self, uri, key):
-        cursor = self.session.open_cursor(uri, None, 'debug=(release_evict)')
-        self.session.begin_transaction()
-        cursor.set_key(key)
-        cursor.search()
-        cursor.reset()
-        cursor.close()
-        self.session.rollback_transaction()
-
     def test_internal_trees_excluded(self):
-        self.populate('table:trees_small', 1)
-        values = self.wait_for(lambda v: self.trees_counted(v) >= 1, 'user tree not counted')
-
-        # The metadata and history store trees are open but must not be counted. A hook can back
-        # one table with several trees, so only a plain table has an exact count.
-        if not self.runningHook('tiered') and not self.runningHook('disagg'):
-            self.assertEqual(self.trees_counted(values), 1)
+        # Without any tables, the only open trees are the metadata and history store, which must
+        # not be counted.
+        self.check_after_sweep(lambda v: self.trees_counted(v) == 0, 'internal trees counted')
 
     def test_no_leaf(self):
+        # An empty table has no leaf page until its first insert creates one.
         ntables = 3
         uris = ['table:trees_no_leaf%d' % i for i in range(ntables)]
         for uri in uris:
-            self.populate(uri, 1)
-        self.session.checkpoint()
-        for uri in uris:
-            self.evict(uri, 'k%08d' % 0)
+            self.session.create(uri, 'key_format=S,value_format=S')
+            self.session.open_cursor(uri).close()
+        self.check_after_sweep(
+            lambda v: v[stat.conn.cache_trees_no_leaf] >= ntables and self.leaf_trees(v) == 0,
+            'empty trees not counted as having no leaf pages')
 
-        values = self.wait_for(lambda v: v[stat.conn.cache_trees_no_leaf] >= ntables,
-            'trees with evicted leaf pages not counted')
-
-        # Reading a row back brings a leaf page into the cache. Keep the cursor positioned so the
-        # page stays resident: some configurations evict it as soon as the cursor lets it go.
-        no_leaf = values[stat.conn.cache_trees_no_leaf]
+        # Keep the cursor positioned on the inserted row so the new leaf page stays resident.
         cursor = self.session.open_cursor(uris[0])
+        cursor['k%08d' % 0] = self.value
         self.assertEqual(cursor['k%08d' % 0], self.value)
-        self.wait_for(lambda v: v[stat.conn.cache_trees_no_leaf] < no_leaf,
-            'tree with a leaf page read back still counted as having none')
+        self.check_after_sweep(lambda v: self.leaf_trees(v) >= 1,
+            'tree with an inserted row still counted as having no leaf pages')
         cursor.close()
 
     def test_dirty_leaf(self):
         ntables = 5
         for i in range(ntables):
             self.populate('table:trees_dirty%d' % i, 1)
-        self.wait_for(lambda v: v[stat.conn.cache_trees_dirty_leaf] >= ntables,
+        self.check_after_sweep(lambda v: v[stat.conn.cache_trees_dirty_leaf] >= ntables,
             'dirty trees not counted')
 
         self.session.checkpoint()
-        self.wait_for(lambda v: v[stat.conn.cache_trees_dirty_leaf] < ntables,
+        self.check_after_sweep(lambda v: v[stat.conn.cache_trees_dirty_leaf] < ntables,
             'trees still counted as dirty after a checkpoint')
 
     def test_size_buckets(self):
@@ -133,7 +125,7 @@ class test_cache_trees01(wttest.WiredTigerTestCase):
         # Checkpoint so the pages are clean and stay resident without cache pressure.
         self.session.checkpoint()
 
-        self.wait_for(lambda v:
+        self.check_after_sweep(lambda v:
             v[stat.conn.cache_trees_1mb_16mb] >= 1 and
             v[stat.conn.cache_trees_lt_1mb] >= nsmall,
             'trees not counted in their size buckets')
