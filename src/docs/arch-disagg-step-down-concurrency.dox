@@ -41,6 +41,12 @@ before the step-up reconfiguration. The following terms are used throughout the 
 Setting the step-down timestamp can happen concurrently with transactions, cursor operations,
 and schema operations, so these interactions require synchronization.
 
+The diagrams in this document draw each thread as a lane, with time running left to right.
+Outlined groups name the WT_CONNECTION, WT_SESSION, or WT_CURSOR method that runs the steps inside
+them.
+
+@image html step-down-legend.svg width=1000
+
 @anchor disagg-step-down-reconfiguration-locks
 # Ordering during the step-down reconfiguration
 
@@ -66,6 +72,8 @@ The step-down write lock covers clearing the step-down timestamp.
 It makes observing the cleared step-down timestamp at transaction begin happen after publishing
 the global role as follower. Later cursor operations of a transaction that observes the step-down
 timestamp as cleared are therefore guaranteed to observe the global role as follower.
+
+@image html step-down-clear-after-publish.svg width=1000
 
 The step-down schema epoch is cleared after releasing the step-down write lock, while the schema
 lock is still held.
@@ -122,6 +130,8 @@ must retain any page whose content cannot be read back from shared storage while
 handle is still in use. Once the last reader releases that handle, eviction can discard the
 remaining pages without reconciling them to shared storage.
 
+@image html step-down-eviction-drain.svg width=1000
+
 @anchor disagg-step-down-schema-operations
 # Schema operations
 
@@ -129,6 +139,10 @@ Creating a layered table while the step-down timestamp is set creates only its l
 Schema creation, where this choice is made, and schema opening, verification, and
 deletion all hold the global schema lock. Setting the step-down timestamp takes the same lock, so
 these operations are ordered relative to one another.
+
+@image html step-down-schema-create-first.svg width=1000
+
+@image html step-down-schema-set-first.svg width=1000
 
 Opening a layered table while observing the step-down timestamp as set and finding no stable table
 sets the step-down-created flag on its data handle. Cursors use the flag to avoid opening the
@@ -174,6 +188,8 @@ The application waits for those allowed commits at or below N to complete before
 concluding checkpoint. These checks do not actively cancel an idle transaction when the step-down
 timestamp is set. When retried, a straddling transaction is guaranteed to observe the step-down
 timestamp as set at transaction begin.
+
+@image html step-down-straddler-commit-check.svg width=1000
 
 @anchor disagg-step-down-problem-write-routing
 ## Problem: stable-table content above N is not accessible in the checkpointed view
@@ -257,6 +273,8 @@ and therefore forms a happens-before relation between them. Because of that, the
 writing to the ingest table must observe the stable table's published updates when checking the
 update chains.
 
+@image html step-down-conflict-lock-chain.svg width=1000
+
 However, passing the check for the transaction writing to the stable table does not mean its
 commit has completed. The transaction writing to the ingest table acquires its snapshot before
 observing the step-down timestamp under the lock, so that snapshot may still exclude the transaction
@@ -264,6 +282,8 @@ writing to the stable table, even if it has committed by the time the locked obs
 The ingest table write must therefore check the stable table for a conflict: an ordinary lookup
 can miss an update excluded by the snapshot, and the ingest table's own conflict check cannot
 inspect that update in the stable table.
+
+@image html step-down-conflict-snapshot.svg width=1000
 
 <b>Conflicts with write transactions spanning setting the step-down timestamp</b>
 
@@ -279,6 +299,8 @@ they cannot both commit. Other snapshot readers cannot read its uncommitted writ
 marks them aborted. If the transaction writing to the ingest table observes one of these updates,
 its conflict check may roll it back too; this is safe even though the other transaction must also
 roll back. Transactions writing to the same table continue to use its single-tree conflict check.
+
+@image html step-down-straddler-vs-ingest.svg width=1000
 
 Mirrored writes (the default mode) don't have this problem, as both pre- and post-N transactions
 write to the stable table and the default single-B-tree conflict detection works in all cases.
@@ -341,6 +363,8 @@ whether the step-down timestamp is set. As a result, a cursor cannot observe the
 leader and use a begin-time step-down timestamp state of not set while its snapshot is new enough
 to read ingest table writes made after setting the step-down timestamp.
 
+@image html step-down-begin-snapshot-first.svg width=1000
+
 ### Read transactions beginning in the follower role
 
 Read transactions whose snapshots are established while observing the global role as follower
@@ -393,6 +417,8 @@ not yet read under that snapshot. Snapshot acquisition checks the recorded globa
 generation after the scan and rebuilds the snapshot if either changed, rather than rolling back
 the transaction.
 
+@image html step-down-role-generation.svg width=1000
+
 @anchor disagg-step-down-problem-missing-stable
 ## Problem: a table created during step-down has no stable constituent
 
@@ -427,6 +453,8 @@ the open must wait for the step-down reconfiguration to finish and is then guara
 the global role as follower. The missing stable table is tolerated in this case. Later cursor
 operations are also guaranteed to observe the global role as follower.
 
+@image html step-down-created-flag.svg width=1000
+
 @anchor disagg-step-down-problem-cursor-open
 ## Problem: a live stable-table open can race with reconfiguration
 
@@ -447,9 +475,13 @@ then observes the updated global role as follower. In this case, the cursor oper
 internally. Since it has acquired the schema lock after the reconfiguration acquired it, it is
 guaranteed to observe the follower role and open the checkpointed stable view.
 
+@image html step-down-cursor-open-reconfig-first.svg width=1000
+
 If the stable table's live B-tree view opens before the step-down reconfiguration, the walk marks
 its data handle outdated like that of any other open stable table. Its existing cursors can keep
 using the old B-tree, which the @ref disagg-step-down-eviction "eviction synchronization" protects
 while it is in use, until they reopen the stable table in the checkpointed view.
+
+@image html step-down-cursor-open-cursor-first.svg width=1000
 
 */
