@@ -602,6 +602,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
     /*
+     * Checkpoint waits for evictions only if the tree has one in progress. The full barrier makes
+     * sure checkpoint sees this eviction or this eviction sees the sync state. Entering the
+     * eviction generation already does this for a first-level eviction.
+     */
+    if (timeline.reentry_hs_eviction)
+        WT_FULL_BARRIER();
+
+    /*
      * Immediately increment the forcible eviction counter, we might do an in-memory split and not
      * an eviction, which skips the other statistics.
      */
@@ -652,14 +660,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     }
 
     /*
-     * A page on an outdated disaggregated read-only btree that is not clean-evictable carries
-     * content that can never be written to shared storage nor read back from it. While the previous
-     * generation's readers still hold the handle, keep such a page resident so a reader positioned
-     * elsewhere on the tree can navigate back to it; the stepdown is only elegant if reads survive
-     * it. Once the last reader releases the handle, discard the page cleanly rather than routing it
-     * to a dirty split that would fail against shared storage. A clean-evictable page is exempt
-     * from the gate: its disk image is fully described by the page's address, so it can be re-read
-     * from storage and eviction may discard it normally even with readers present.
+     * A page on an outdated disaggregated btree that is not clean-evictable carries content that
+     * can never be written to shared storage nor read back from it. While the previous generation's
+     * readers still hold the handle, keep such a page resident so a reader positioned elsewhere on
+     * the tree can navigate back to it; the stepdown is only elegant if reads survive it. Once the
+     * last reader releases the handle, discard the page cleanly rather than routing it to a dirty
+     * split that would fail against shared storage. A clean-evictable page is exempt from the gate:
+     * its disk image is fully described by the page's address, so it can be re-read from storage
+     * and eviction may discard it normally even with readers present.
      */
     if (__wt_btree_is_outdated_disagg(session) && !__wt_page_evict_clean(page)) {
         if (__wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 0) {
@@ -1197,8 +1205,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_btree_syncing_by_other_sessions(session))
         return (0);
 
-    /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */
-    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+    /* The checkpoint cursor dhandle is read-only and outdated pages are discarded. Do not dirty. */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) || __wt_btree_is_outdated_disagg(session))
         return (0);
 
     /*

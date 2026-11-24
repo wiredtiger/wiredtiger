@@ -145,4 +145,4 @@ A single green run is not evidence. Before submitting:
 
 ## CI
 
-Runs on MongoDB Evergreen. Config: `test/evergreen.yml` (and `test/evergreen_disagg.yml` for disaggregated storage).
+Runs on MongoDB Evergreen. Config: `test/evergreen.yml`.

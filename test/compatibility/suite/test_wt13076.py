@@ -29,6 +29,7 @@
 import compatibility_test
 import os
 import subprocess
+import time
 import wiredtiger
 from wtscenario import make_scenarios
 
@@ -161,6 +162,38 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate(0)')
         self.run_method_on_branch(self.newer_branch, 'on_newer_branch_verify_and_mutate(1)')
         self.run_method_on_branch(self.older_branch, 'on_older_branch_final_verify')
+
+    def test_cleanup_after_upgrade(self):
+        if not self.mixed_children:
+            self.skipTest('requires fully deleted leaves and newer live records')
+        self.run_method_on_branch(self.older_branch, 'on_older_branch_create')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_branch_cleanup')
+
+    def on_newer_branch_cleanup(self):
+        conn = wiredtiger.wiredtiger_open(
+            '.', 'statistics=(fast),checkpoint_cleanup=(wait=1),'
+            'heuristic_controls=(checkpoint_cleanup_obsolete_tw_pages_dirty_max=0)')
+        session = conn.open_session()
+        cursor = session.open_cursor(self.uri)
+        conn.set_timestamp('oldest_timestamp=20,stable_timestamp=30')
+
+        # Wait for cleanup without taking a checkpoint, which could replace the legacy metadata.
+        completed = wiredtiger.stat.conn.checkpoint_cleanup_success
+        stats = session.open_cursor('statistics:')
+        target = stats[completed][2] + 2
+        deadline = time.monotonic() + 30
+        while stats[completed][2] < target:
+            self.assertLess(time.monotonic(), deadline, 'checkpoint cleanup did not complete')
+            time.sleep(0.1)
+            stats.reset()
+        stats.close()
+
+        stats = session.open_cursor('statistics:' + self.uri)
+        self.assertGreater(stats[wiredtiger.stat.dsrc.checkpoint_cleanup_pages_removed][2], 0)
+        stats.close()
+        cursor.close()
+        session.close()
+        conn.close()
 
     def on_older_branch_create(self):
         self._create_deleted_pages(self.older)

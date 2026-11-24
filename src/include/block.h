@@ -303,15 +303,11 @@ struct __wt_block {
  * backing file. It stays clear when only the connection is opened as in-memory: connection-level
  * in-memory replaces the file system with an in-memory variant and the backing file is synthetic,
  * but a file descriptor still exists.
- *
- * FIXME-WT-19094 Nothing outside unit tests sets the sync-on-checkpoint flag, so it may be
- * removable.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_BLOCK_IN_MEMORY 0x1u          /* File has no backing file */
-#define WT_BLOCK_READONLY 0x2u           /* Underlying file was opened only for reading */
-#define WT_BLOCK_SYNC_ON_CHECKPOINT 0x4u /* fsync the handle after the next checkpoint */
-                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_BLOCK_IN_MEMORY 0x1u /* File has no backing file */
+#define WT_BLOCK_READONLY 0x2u  /* Underlying file was opened only for reading */
+                                /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

@@ -289,6 +289,7 @@ static int
 __sync_obsolete_cleanup_one(
   WT_SESSION_IMPL *session, WT_REF *ref, bool *deletedp, bool *visible_allp)
 {
+    WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
     bool ref_deleted;
@@ -327,8 +328,19 @@ __sync_obsolete_cleanup_one(
          */
         new_state = previous_state;
         if (previous_state == WT_REF_DELETED) {
-            *deletedp = true;
-            ret = __sync_obsolete_deleted_cleanup(session, ref, visible_allp);
+            /*
+             * Process the ref while it still has fast-delete information or an address: the
+             * parent's last written image may still reference the page. The fast-delete information
+             * alone is not enough, a cursor walk frees it once the delete is globally visible
+             * without marking the parent dirty. A reconciliation of the parent that discards the
+             * page clears both, leaving nothing to remove.
+             */
+            if (ref->page_del != NULL || __wt_ref_addr_copy(session, ref, &addr)) {
+                *deletedp = true;
+                ret = __sync_obsolete_deleted_cleanup(session, ref, visible_allp);
+            } else
+                __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+                  "%p: skipping deleted page already removed by reconciliation", (void *)ref);
         } else if (previous_state == WT_REF_DISK) {
             ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
             if (ref_deleted) {
@@ -588,10 +600,12 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     wt_timestamp_t newest_durable_ts, newest_page_stop_durable_ts;
     size_t addr_size;
     uint64_t newest_txn, write_gen;
+    bool legacy_checkpoint, legacy_stop;
 
     newest_durable_ts = newest_page_stop_durable_ts = WT_TS_NONE;
     newest_txn = WT_TXN_NONE;
     addr_size = write_gen = 0;
+    legacy_stop = false;
 
     /*
      * History store table. This table contains the historical versions that are needed to be
@@ -627,6 +641,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
             newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_page_stop_durable_ts", &value);
+        legacy_checkpoint = ret == WT_NOTFOUND;
         if (ret == 0)
             newest_page_stop_durable_ts =
               WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)value.val);
@@ -636,19 +651,20 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
             addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
         /*
-         * Backward compatibility: legacy metadata uses newest_start_durable_ts and
-         * newest_stop_durable_ts. New metadata also writes these fields, both set to the new
-         * newest_durable_ts as a safe over-estimate. We merge them into newest_durable_ts (not
-         * newest_page_stop_durable_ts) because the old newest_stop_durable_ts tracked the max
-         * durable timestamp of any delete, not full-page deletes only.
+         * A legacy stop may represent a fully deleted page even when the table's newest durable
+         * timestamp is not yet visible. Keep such tables eligible, but ignore compatibility stop
+         * fields for this purpose when an explicit page stop field is present.
          */
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
         if (ret == 0)
             newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
-        if (ret == 0)
+        if (ret == 0) {
             newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
+            if (legacy_checkpoint && (wt_timestamp_t)value.val != WT_TS_NONE)
+                legacy_stop = true;
+        }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
         if (ret == 0)
@@ -665,8 +681,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     if (addr_size == 0)
         return (false);
 
-    /* The table has a durable stop timestamp. */
-    if (newest_page_stop_durable_ts != WT_TS_NONE)
+    if (newest_page_stop_durable_ts != WT_TS_NONE || legacy_stop)
         return (true);
 
     /*

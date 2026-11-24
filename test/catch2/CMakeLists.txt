@@ -61,6 +61,7 @@ else()
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
+        misc_tests/test_sweep_outdated_in_use.cpp
         misc_tests/test_tailq.cpp
         misc_tests/test_timestamp_validation.cpp
         misc_tests/test_txn_config.cpp
@@ -91,6 +92,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        cursors/unit/test_cursor_next_raw_key_value_batch.cpp
         cursors/unit/test_curstat_size.cpp
         cursors/unit/test_layered_op.cpp
         ext/test_key_provider.cpp
