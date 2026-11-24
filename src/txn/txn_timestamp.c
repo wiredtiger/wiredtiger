@@ -1017,12 +1017,9 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
           __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
 
     /*
-     * A prepared transaction that began after the step-down timestamp was set commits to the ingest
-     * constituent, so its durable timestamp -- not its commit timestamp, which a prepared
-     * transaction can set independently of durability -- must sit above that boundary too. One that
-     * began before the boundary is exempt: landing above it while it wrote to stable under
-     * pre-boundary routing is the straddling case resolved by duplicating the update onto ingest,
-     * not a contradiction to reject.
+     * A prepared transaction that began after the step-down timestamp was set writes to ingest, so
+     * it must become durable after that timestamp. One that began earlier may become durable after
+     * it too; commit copies its writes to ingest.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE) && F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET)) {
         wt_timestamp_t step_down_ts = __wt_txn_stepdown_ts_read(session);
@@ -1197,11 +1194,9 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
     WT_RET(__txn_check_follower_checkpoint_ts(session, "prepare", prepare_ts));
 
     /*
-     * A transaction that began after the step-down timestamp was set is already ingest-routed, so
-     * its prepare timestamp should sit above that boundary too, the same as its eventual durable or
-     * rollback timestamp. Checked only under preserve_prepared, where the prepare timestamp is
-     * itself load-bearing for restart-replay ordering; otherwise it does not affect placement and
-     * is not worth enforcing here.
+     * A transaction that began after the step-down timestamp was set writes to ingest, so it must
+     * prepare after that timestamp. Only enforced when prepared transactions are preserved, where
+     * the prepare timestamp orders replay after restart.
      */
     if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET)) {
         wt_timestamp_t step_down_ts = __wt_txn_stepdown_ts_read(session);
@@ -1358,7 +1353,10 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     }
     WT_RET(__txn_check_follower_checkpoint_ts(session, "rollback", rollback_ts));
 
-    /* Same boundary rule as a prepared commit's durable timestamp, for the same reason. */
+    /*
+     * A transaction that began after the step-down timestamp was set writes to ingest, so it must
+     * roll back after that timestamp.
+     */
     if (F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET)) {
         wt_timestamp_t step_down_ts = __wt_txn_stepdown_ts_read(session);
 

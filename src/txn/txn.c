@@ -1374,12 +1374,9 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     /*
      * The head of the update chain is not a prepared update, which means all the prepared updates
      * of the key are resolved. The head of the update chain can also be null in the scenario that
-     * we rolled back all associated updates in the previous iteration of this function. A rolled-
-     * back update also counts as already resolved even though its prepare state still reads
-     * in-progress: the state and the transaction id cannot be updated atomically together, so only
-     * the id moves to aborted.
+     * we rolled back all associated updates in the previous iteration of this function.
      */
-    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS || upd->txnid == WT_TXN_ABORTED)
+    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
@@ -1696,19 +1693,12 @@ __txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cb
     clone = NULL;
     sleep_usecs = yield_count = 0;
 
-    /*
-     * Ingest has no real tombstone type: a delete is recorded there as a standard update carrying
-     * the special tombstone marker value, the same as prepared-transaction discovery does when it
-     * restores an on-disk stop-prepared cell onto ingest.
-     */
+    /* Ingest records a delete as a standard update holding the tombstone marker value. */
     if (orig->type == WT_UPDATE_TOMBSTONE)
         ingest_value = __wt_tombstone;
     else {
         if (orig->type == WT_UPDATE_MODIFY) {
-            /*
-             * A modify update is only a delta against whatever is below it on the same page; ingest
-             * has no such base to apply it against, so reconstruct the full value first.
-             */
+            /* Ingest has no base value to apply a modify to, so copy the full value. */
             WT_RET(__wt_modify_reconstruct_from_upd_list(
               session, stable_cbt, orig, stable_cbt->upd_value, WT_OPCTX_TRANSACTION));
             __wt_value_return(stable_cbt, stable_cbt->upd_value);
@@ -1728,10 +1718,8 @@ retry:
 
 #ifdef HAVE_DIAGNOSTIC
     /*
-     * A straddler's write never reached ingest under pre-boundary routing, so the key should be
-     * absent there, or, if a previous op for the same key already cloned a tombstone here, carry
-     * nothing but a tombstone visible to this transaction, whether that tombstone is still in
-     * memory or has already been written to the disk image.
+     * The write went to stable only, so ingest should have no value for the key: at most a
+     * tombstone visible to this transaction, in memory or on disk.
      */
     if (ingest_cbt->compare == 0) {
         WT_UPDATE *existing;
@@ -1764,10 +1752,10 @@ retry:
     clone->upd_start_ts = orig->upd_start_ts;
     clone->prepare_state = orig->prepare_state;
 
-    /* An existing ingest tombstone need not have been restored from disk. */
+    /* Insert as a normal update, not a restore: an existing ingest tombstone may not be on disk. */
     ret = __wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, false, false);
     if (ret == WT_RESTART) {
-        /* As with a cursor insert, retry from a fresh position before resolving the prepare. */
+        /* Retry from a fresh position, as a cursor insert does. */
         __wt_free(session, clone);
         __wt_spin_backoff(&yield_count, &sleep_usecs);
         WT_STAT_CONN_DSRC_INCR(session, cursor_restart);
@@ -1784,14 +1772,9 @@ err:
 
 /*
  * __txn_stepdown_resolve_straddler --
- *     A prepared op wrote to stable under pre-boundary routing, but the transaction is resolving
- *     (commit or rollback) after the step-down boundary was set. Clone the still-prepared update
- *     onto the sibling ingest table before resolution runs, then resolve both the original and the
- *     clone with the same resolution call, once each.
- *
- * The ingest cursor is cached in *ingest_cursorp, keyed by btree ID, and reopened only when that
- *     changes: ops are already sorted by btree ID before commit/rollback walk them, so this is one
- *     cursor per table rather than open/close per key. The caller closes it once done.
+ *     A transaction prepared before the step-down timestamp was set is resolving after it, so its
+ *     update is only on stable. Copy the still-prepared update to ingest, then resolve both. The
+ *     ingest cursor stays open across operations on the same table; the caller closes it.
  */
 static int
 __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
@@ -1808,20 +1791,11 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
 
     stable_uri = op->btree->dhandle->name;
 
-    /*
-     * The stable constituent of a layered table is always on-disk row-store; column-store layered
-     * tables have no relocation path yet (format disables prepare for them under stepdown_async).
-     * Fail hard rather than run row-store search/modify against a column-store btree.
-     */
+    /* Copying to ingest only supports row-store tables. */
     WT_ASSERT_ALWAYS(session, op->type == WT_TXN_OP_BASIC_ROW,
       "a prepared straddler on a column-store layered table has no relocation support");
 
-    /*
-     * Fetch the update through the same prepared-op search resolution itself uses, so it's current
-     * whether it's still in memory or was reconciled to disk and reread; op->u.op_upd would risk a
-     * stale pointer in the latter case. Reusing the caller's cursor slot also means the resolution
-     * call below, against the same stable btree, finds a cursor already open.
-     */
+    /* Look up the update rather than use the saved pointer: eviction may have replaced it. */
     WT_RET(__txn_search_prepared_op(session, op->btree, key, recno, stable_cursorp, &orig));
 
     if (*ingest_cursorp != NULL && *ingest_cursor_stable_idp == op->btree->id)
@@ -1840,10 +1814,8 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     }
 
     /*
-     * Clone rather than move the update: the original stays linked into the stable page, still
-     * prepared, until it is resolved in place below. The low-level insert this does attributes
-     * cache accounting to the session's current dhandle, which a bare call here would leave
-     * pointing at whatever btree the caller last touched instead of ingest.
+     * Copy rather than move: the original stays prepared on stable until it is resolved below. Make
+     * ingest the active tree so the insert is charged to it.
      */
     cbt = (WT_CURSOR_BTREE *)ingest_cursor;
     ingest_btree = CUR2BT(cbt);
@@ -1852,28 +1824,10 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
         __txn_stepdown_clone_update(session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
     WT_ERR(ret);
 
-    /*
-     * The low-level insert above leaves the cursor positioned and the page pinned; the resolve call
-     * below searches the same key again through the ordinary cursor API, which asserts no page is
-     * already pinned. Reset releases both, the same way returning to the application between
-     * operations normally would.
-     */
+    /* Release the page pinned by the insert: resolution searches again and needs none pinned. */
     WT_ERR(ingest_cursor->reset(ingest_cursor));
 
-    /*
-     * Both calls below re-search for the key they already have in hand (orig was just found on
-     * stable above; clone was just inserted on ingest), since resolution always starts from a
-     * search. Skipping that search would mean splitting the resolve logic out of the shared
-     * resolution helper, which two unrelated call sites also rely on -- not worth it to save one
-     * extra search on a path this rare (a prepared transaction actively straddling a step-down
-     * boundary).
-     *
-     * Resolution also attributes cache accounting to the session's current dhandle rather than to
-     * the btree argument, which the ordinary single-op caller never notices because opening a
-     * cursor on a new btree id sets the dhandle as a side effect and it then stays put. Calling
-     * this twice in a row for two different btrees relies on that same dhandle being right both
-     * times, which it isn't without pinning it explicitly here.
-     */
+    /* Make each table the active tree while resolving it, so the change is charged correctly. */
     WT_WITH_BTREE(session, op->btree,
       ret = __wt_txn_resolve_prepared_op(
         session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
@@ -1884,19 +1838,14 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
     WT_ERR(ret);
 
 err:
-    /*
-     * The ingest cursor, whether reused from cache or freshly opened above, is owned by
-     * *ingest_cursorp for reuse across later ops -- this function never closes it itself.
-     */
     __wt_scr_free(session, &ingest_uri);
     return (ret);
 }
 
 /*
  * __wt_txn_commit --
- *     Commit the current transaction. step_down_ts is the step-down timestamp, read by the caller
- *     under the step-down lock (or WT_TS_NONE on a connection where step-down is not relevant):
- *     reading it here instead would race a concurrent set or clear with no lock protecting it.
+ *     Commit the current transaction. The caller passes the step-down timestamp, read under the
+ *     step-down lock, or none if step-down does not apply.
  */
 int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step_down_ts)
@@ -1991,16 +1940,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
     __wt_txn_release_snapshot(session);
 
     /*
-     * Whether this transaction is a straddler needing relocation is decided once for the whole
-     * commit, not per op: step_down_ts and the transaction's own durable timestamp don't change
-     * across the loop below. Only whether a given op's own dhandle is the stable constituent is
-     * genuinely per-op.
-     *
-     * A transaction that began after the boundary was already set routes to ingest -- or mirrors to
-     * both constituents -- on its own, so a durable timestamp above the boundary is the ordinary
-     * case for it, not a straddle: excluding it here is what tells a genuine straddler (prepared
-     * before the boundary, landing above it only because it could not be rolled back) apart from
-     * the stable-side half of a mirrored write, which needs no relocation.
+     * A transaction that began before the step-down timestamp was set wrote only to stable. If it
+     * becomes durable after that timestamp, the step-down checkpoint excludes its writes, so copy
+     * them to ingest. A transaction that began later already wrote to ingest.
      */
     is_straddling_commit = step_down_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
       F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE) &&
@@ -2046,14 +1988,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
                     else
                         recno = op->u.op_col.recno;
 
-                    /*
-                     * A prepared straddler: it wrote to stable under pre-boundary routing, but this
-                     * transaction's durable timestamp -- what actually governs its placement
-                     * relative to the step-down checkpoint, not its commit timestamp, which it can
-                     * set independently -- landed above the step-down timestamp. Resolving it also
-                     * duplicates it onto ingest first, so the value survives the checkpoint that
-                     * will exclude it from stable.
-                     */
                     if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
                         WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));
@@ -2126,10 +2060,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step
          *
          * Otherwise, after the loop we verify that stable writes were mirrored to ingest.
          *
-         * A prepared straddler's stable op is exempt from both rules by design: its durable
-         * timestamp is required to be above the boundary (that is what makes it a straddler), and
-         * its ingest-side counterpart is a clone __txn_stepdown_resolve_straddler just inserted
-         * directly, not a transaction op this loop will ever see.
+         * A stable write copied to ingest during commit is exempt from both rules: it is durable
+         * after the step-down timestamp, and its ingest copy is not a transaction operation.
          */
         if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL &&
           !(prepare && is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name))) {
@@ -2587,10 +2519,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_txn_rollback --
- *     Roll back the current transaction. step_down_ts is the step-down timestamp, read by the
- *     caller under the step-down lock (or WT_TS_NONE on a connection where step-down is not
- *     relevant): reading it here instead would race a concurrent set or clear with no lock
- *     protecting it.
+ *     Roll back the current transaction. The caller passes the step-down timestamp, read under the
+ *     step-down lock, or none if step-down does not apply.
  */
 int
 __wt_txn_rollback(
@@ -2639,16 +2569,10 @@ __wt_txn_rollback(
     __wt_txn_release_snapshot(session);
 
     /*
-     * Whether this transaction is a straddler needing relocation is decided once for the whole
-     * rollback, not per op: step_down_ts and the transaction's own rollback timestamp don't change
-     * across the loop below. Only whether a given op's own dhandle is the stable constituent is
-     * genuinely per-op. rollback_timestamp is only ever set under preserve_prepared, which is also
-     * the only configuration where a future step-up's prepared-discovery pass can resurrect a stale
-     * on-disk prepared cell, so this is scoped to it.
-     *
-     * A transaction that began after the boundary was already set routes to ingest -- or mirrors to
-     * both constituents -- on its own, so a rollback timestamp above the boundary is the ordinary
-     * case for it, not a straddle needing relocation.
+     * A transaction that began before the step-down timestamp was set wrote only to stable. If the
+     * step-down checkpoint captured its update while still prepared, step-up would discover it
+     * again, so record the rollback on ingest. This applies only when prepared transactions are
+     * preserved, the only case with a rollback timestamp.
      */
     is_straddling_rollback = step_down_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
       F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
@@ -2697,15 +2621,6 @@ __wt_txn_rollback(
                     else
                         recno = op->u.op_col.recno;
 
-                    /*
-                     * A prepared rollback straddling the boundary needs the same duplication as a
-                     * committing straddler: marking the update aborted in place (below) is only
-                     * visible on this node's own resident page, but if this stable content was
-                     * captured in a step-down checkpoint while still prepared, a future step-up's
-                     * prepared-transaction discovery pass walks that checkpoint and would otherwise
-                     * resurrect this key as still-pending. Duplicating it now records the
-                     * resolution (here, an abort) on ingest before that can happen.
-                     */
                     if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
                         WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
                           &cursor, &ingest_cursor, &ingest_cursor_stable_id));

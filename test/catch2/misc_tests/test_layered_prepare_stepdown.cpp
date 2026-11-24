@@ -21,18 +21,9 @@
 #include "../../utility/test_util.h"
 
 /*
- * A transaction prepared before the step-down timestamp is set, but resolving (commit or rollback)
- * after it, straddles the boundary. Its write already sits in the stable constituent under the
- * pre-boundary routing rules, yet by the time it resolves its final timestamp can land above the
- * step-down timestamp -- and unlike an ordinary in-flight writer, a prepared transaction cannot be
- * rolled back to force a retry into ingest. These tests exercise the relocation mechanism that
- * resolves the straddle by duplicating the still-prepared update onto ingest before the transaction
- * resolves, so the caller's own resolution call (commit or rollback) can apply to the clone the
- * same way it applies to the original.
- *
- * Only a single (leader) connection is needed for these tests: the mechanism runs entirely inside
- * transaction commit and rollback based on the step-down timestamp and the transaction's own
- * timestamps, with no dependency on an actual role change or checkpoint having happened.
+ * A transaction prepared before the step-down timestamp is set, and resolved after it, can no
+ * longer be rolled back and retried. These tests check that its commit or rollback is copied to the
+ * ingest table. A single leader connection is enough: no role change or checkpoint is needed.
  */
 
 static const std::string TABLE_NAME = "test_layered_prepare_stepdown";
@@ -77,10 +68,7 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
     WT_CURSOR *cursor;
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
-    /*
-     * A straddler: prepare while there is no step-down boundary yet, then the boundary is set, then
-     * commit lands above it.
-     */
+    /* Prepare, then set the step-down timestamp, then commit after it. */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "straddler");
     cursor->set_value(cursor, "straddler-value");
@@ -89,11 +77,11 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
 
     REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
 
-    /* This must not be rejected: the coordinator already committed to this outcome at prepare. */
+    /* A prepared transaction must be allowed to commit. */
     REQUIRE(session->commit_transaction(session, "commit_timestamp=12,durable_timestamp=12") == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
-    /* The value is visible through the layered table above the boundary. */
+    /* The value is visible through the layered table. */
     WT_SESSION *check_session = (WT_SESSION *)conn_wrap->create_session();
     REQUIRE(
       check_session->open_cursor(check_session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
@@ -106,7 +94,7 @@ TEST_CASE("Layered step-down: a prepared commit straddling the boundary lands in
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
-    /* It physically lives on ingest: that is what the step-down checkpoint at ts=11 will omit. */
+    /* The value is in the ingest table, so it survives the step-down. */
     WT_CURSOR *ingest_cursor;
     REQUIRE(check_session->open_cursor(
               check_session, INGEST_URI.c_str(), nullptr, nullptr, &ingest_cursor) == 0);
@@ -131,10 +119,7 @@ TEST_CASE("Layered step-down: an ordinary post-boundary prepared transaction is 
 
     REQUIRE(conn->set_timestamp(conn, "step_down_timestamp=11") == 0);
 
-    /*
-     * A transaction that begins after the boundary is already ingest-routed and was never a
-     * candidate for duplication: this is a regression guard that the new code leaves it alone.
-     */
+    /* A transaction that begins after the step-down timestamp is set writes to ingest directly. */
     WT_CURSOR *cursor;
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
@@ -173,9 +158,8 @@ TEST_CASE(
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
     /*
-     * The transaction begins with no boundary set, so it routes its write to stable; the boundary
-     * only appears afterward. Preparing it now would freeze it as an unresolvable straddler, so it
-     * must be rejected here, while rollback is still legal, rather than at commit.
+     * A transaction that wrote before the step-down timestamp was set cannot prepare after it: the
+     * prepare is rejected while the transaction can still be rolled back.
      */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "too-late");
@@ -212,16 +196,8 @@ TEST_CASE(
     REQUIRE(session->prepare_transaction(session, "prepare_timestamp=5") == 0);
 
     /*
-     * Only the durable timestamp determines what a prepared transaction's commit actually makes
-     * durable; a prepared commit's own commit timestamp can be set independently and is no longer
-     * checked against the boundary (a low commit timestamp here, on its own, is not an error). The
-     * durable timestamp landing at or below the boundary is what must be rejected.
-     *
-     * Set it through a separate timestamp_transaction call rather than passing it directly to
-     * commit_transaction: once a transaction is prepared, any error returned from inside
-     * commit_transaction itself is treated as fatal (there is no safe way to reject a commit the
-     * coordinator already expects to succeed), so this check has to be caught here instead, while
-     * it is still just a configuration error and not an attempted commit.
+     * A low commit timestamp is allowed; a durable timestamp at or before the step-down timestamp
+     * is not. Set it before commit, because a prepared commit that fails is fatal.
      */
     REQUIRE(session->timestamp_transaction(session, "commit_timestamp=10") == 0);
     CHECK(session->timestamp_transaction(session, "durable_timestamp=11") == EINVAL);
@@ -251,8 +227,7 @@ TEST_CASE(
     REQUIRE(cursor->insert(cursor) == 0);
     REQUIRE(session->prepare_transaction(session, "prepare_timestamp=5") == 0);
 
-    /* Same reasoning as the durable-timestamp case: catch this before rollback_transaction itself
-     * is called, since a prepared transaction cannot tolerate an error from that call either. */
+    /* Set it before rollback, because a prepared rollback that fails is fatal. */
     CHECK(session->timestamp_transaction(session, "rollback_timestamp=11") == EINVAL);
     REQUIRE(cursor->close(cursor) == 0);
     REQUIRE(session->rollback_transaction(session, nullptr) == 0);
@@ -273,12 +248,7 @@ TEST_CASE(
     WT_CURSOR *cursor;
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
-    /*
-     * Two writes to the same key before prepare: WiredTiger chains them on one page and marks only
-     * the first as the op to resolve (WT_TXN_OP_KEY_REPEATED on the second), so duplication must
-     * fire once, on the primary op, and clone whatever the chain currently resolves to -- the
-     * second (latest) value -- not the first.
-     */
+    /* Two writes to the same key: ingest gets the latest value. */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "repeated-key");
     cursor->set_value(cursor, "first-value");
@@ -320,7 +290,7 @@ TEST_CASE(
     WT_CURSOR *cursor;
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
-    /* The chain's head is a tombstone here, not a standard update; the clone must preserve that. */
+    /* The last write to the key is a remove, so ingest gets a remove. */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "inserted-then-removed");
     cursor->set_value(cursor, "value");
@@ -339,18 +309,13 @@ TEST_CASE(
     REQUIRE(check_session->begin_transaction(check_session, "read_timestamp=20") == 0);
     cursor->set_key(cursor, "inserted-then-removed");
     /*
-     * A plain file cursor has no concept of the tombstone marker ingest uses in place of a real
-     * tombstone, so it finds the key rather than reporting it deleted; a layered-aware reader is
-     * the one that turns this value back into WT_NOTFOUND.
+     * Ingest stores a remove as a marker value, which a cursor opened directly on ingest returns as
+     * an ordinary value.
      */
     REQUIRE(cursor->search(cursor) == 0);
     const char *value;
     REQUIRE(cursor->get_value(cursor, &value) == 0);
-    /*
-     * The marker is raw bytes, not a null-terminated string; compare exactly its own length rather
-     * than constructing a std::string from value directly, which would read past it looking for a
-     * terminator that isn't there.
-     */
+    /* The marker is not null-terminated, so compare by its length. */
     CHECK(memcmp(value, __wt_tombstone.data, __wt_tombstone.size) == 0);
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
@@ -371,10 +336,7 @@ TEST_CASE(
     WT_CURSOR *cursor;
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
-    /*
-     * A modify against the transaction's own prior insert makes the chain's head a delta, not a
-     * full value; the clone must reconstruct the full value rather than copy the delta bytes.
-     */
+    /* The last write to the key is a modify, so ingest gets the full modified value. */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "insert-then-modify");
     cursor->set_value(cursor, "initial");
@@ -420,10 +382,8 @@ TEST_CASE("Layered step-down: a prepared rollback straddling the boundary is cor
     REQUIRE(session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) == 0);
 
     /*
-     * A prepared transaction that begins before the step-down boundary, with a rollback timestamp
-     * landing after it, straddles the boundary on the rollback path. The relocation mechanism
-     * clones the update onto ingest before rollback applies, then rollback deletes both the
-     * original and the clone, leaving the key correctly absent.
+     * Prepare, then set the step-down timestamp, then roll back after it. The key must be absent
+     * from both the layered table and ingest.
      */
     REQUIRE(session->begin_transaction(session, nullptr) == 0);
     cursor->set_key(cursor, "straddler-rollback");
@@ -446,7 +406,7 @@ TEST_CASE("Layered step-down: a prepared rollback straddling the boundary is cor
     REQUIRE(check_session->rollback_transaction(check_session, nullptr) == 0);
     REQUIRE(cursor->close(cursor) == 0);
 
-    /* It is also correctly absent from the ingest constituent. */
+    /* It is also absent from ingest. */
     WT_CURSOR *ingest_cursor;
     REQUIRE(check_session->open_cursor(
               check_session, INGEST_URI.c_str(), nullptr, nullptr, &ingest_cursor) == 0);

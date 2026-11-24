@@ -1485,19 +1485,17 @@ config_disagg_storage(void)
                 config_single(NULL, "ops.throttle.sleep_us=1000", false);
 
             /*
-             * Truncate operations aren't accounted for by the async step-down drain, so they could
-             * straddle step_down_ts and break the checkpoint's boundary guarantee.
+             * The async step-down drain doesn't account for truncate operations, so one could
+             * straddle the step-down timestamp and land on the wrong side of the checkpoint.
              */
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");
 
             /*
-             * A prepared transaction that straddles step_down_ts is resolved by duplicating its
-             * still-prepared update onto the ingest constituent, which only handles row-store ops.
-             * Column-store tables have no such path, so restrict to row-store when both are
-             * configured together rather than losing prepare coverage under stepdown_async
-             * entirely.
+             * A prepared transaction that straddles the step-down timestamp is copied to ingest,
+             * which only supports row-store tables. Keep prepare enabled when all tables are
+             * row-store.
              */
             if (GV(OPS_PREPARE)) {
                 bool has_column_store = false;

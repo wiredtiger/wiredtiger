@@ -2081,11 +2081,9 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 
 /*
  * __wt_txn_stepdown_ts_read --
- *     Read the current step-down timestamp under the step-down lock. Callers deciding a
- *     boundary-dependent behavior (as opposed to the relaxed reads used for an early-exit
- *     optimization elsewhere) need the lock: step_down_timestamp is set, cleared, and set again to
- *     an unrelated value across step-down cycles, so a read with no lock protecting it risks
- *     comparing against the wrong cycle's boundary.
+ *     Read the step-down timestamp under the step-down lock. Use this when the result decides
+ *     behavior, not just an early exit: the timestamp is set and cleared on every step-down, and
+ *     the lock keeps the read consistent with those changes.
  */
 static WT_INLINE wt_timestamp_t
 __wt_txn_stepdown_ts_read(WT_SESSION_IMPL *session)
@@ -2204,11 +2202,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
             WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
 
             /*
-             * A claimed transaction is already prepared and skips the snapshot path below, but it
-             * can still resolve (commit or roll back) after this call, so it needs the same
-             * boundary-check sampling an ordinary transaction gets: without it, the durable-,
-             * prepare-, and rollback-timestamp step-down validation in txn_timestamp.c silently
-             * does not apply to it.
+             * A claimed transaction returns before the step-down timestamp is checked below. Check
+             * it here so the step-down timestamp rules apply when the transaction resolves.
              */
             if (__wt_conn_is_disagg(session) && __wt_txn_stepdown_ts_read(session) != WT_TS_NONE)
                 F_SET(txn, WT_TXN_STEPDOWN_TS_SET);

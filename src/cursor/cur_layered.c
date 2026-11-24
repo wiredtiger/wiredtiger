@@ -258,8 +258,7 @@ __wt_clayered_stable_to_ingest_value(
 
 /*
  * __wt_clayered_stable_to_ingest_uri --
- *     Derive a layered table's ingest URI from its stable constituent's URI by swapping the
- *     ".wt_stable" suffix for ".wt_ingest". The result is written into ingest_uri, a scratch buffer
+ *     Build a layered table's ingest constituent URI from its stable constituent URI, into a buffer
  *     owned by the caller.
  */
 int
