@@ -90,7 +90,7 @@ class test_cursor27(wttest.WiredTigerTestCase):
 
         batch = cursor.next_raw_key_value_batch(2)
         last = len(batch)
-        key_raw, val_raw = batch[0]
+        key_raw, val_raw = batch[-1]
         key = key_raw.rstrip(b'\x00').decode()
         val = val_raw.rstrip(b'\x00').decode()
         self.assertEqual(key, f'k{last - 1}')

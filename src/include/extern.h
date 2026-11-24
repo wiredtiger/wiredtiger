@@ -2630,6 +2630,7 @@ static WT_INLINE void __wt_cache_page_byte_dirty_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_byte_updates_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
+static WT_INLINE void __wt_cache_page_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_cache_page_footprint_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_footprint_incr(
@@ -2642,6 +2643,8 @@ static WT_INLINE void __wt_cache_page_inmem_incr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update);
 static WT_INLINE void __wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size);
 static WT_INLINE void __wt_cache_scrub_image_incr(WT_SESSION_IMPL *session, uint32_t image_size);
+static WT_INLINE void __wt_cache_shared_dsk_bytes_decr(
+  WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size);
 static WT_INLINE void __wt_cache_shared_dsk_inmem_decr(
   WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
 static WT_INLINE void __wt_cache_shared_dsk_inmem_incr(
@@ -2814,6 +2817,8 @@ extern int __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_ite
   WT_CRYPT_HEADER **header) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri,
   WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids,
   size_t num_btree, const uint64_t *pali_ids, size_t num_pali)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

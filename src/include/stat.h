@@ -806,6 +806,12 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_pages_dirty_ingest;
     int64_t cache_pages_dirty_stable;
+    int64_t cache_trees_16mb_256mb;
+    int64_t cache_trees_1mb_16mb;
+    int64_t cache_trees_ge_256mb;
+    int64_t cache_trees_dirty_leaf;
+    int64_t cache_trees_lt_1mb;
+    int64_t cache_trees_no_leaf;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_bytes_hs_updates;
@@ -889,6 +895,8 @@ struct __wt_connection_stats {
     int64_t checkpoint_stop_stress_active;
     int64_t checkpoint_sync_rec_pct;
     int64_t checkpoint_tree_duration;
+    int64_t checkpoint_parallel_wait_time;
+    int64_t checkpoint_walk_time;
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
