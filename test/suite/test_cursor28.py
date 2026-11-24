@@ -94,7 +94,8 @@ class test_cursor28(wttest.WiredTigerTestCase):
         expected = self.populate()
         cursor = self.session.open_cursor(self.uri)
         batches = self.read_batches(cursor)
-        if self.batch_size > 1:
+        if self.batch_size > 1 and not self.runningHook('disagg'):
+            # FIXME-WT-19177 layered tables not batching yet
             self.assertGreater(max(len(b) for b in batches), 1)
         rows = [(self.decode(k), self.decode(v)) for batch in batches for k, v in batch]
         self.assertEqual(rows, expected)
