@@ -564,7 +564,7 @@ conn_stats = [
     CheckpointStat('checkpoint_sync_rec_pct', 'the percentage of checkpoint sync time spent in reconciliation across all threads', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_max', 'max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_scale', otel_type='otel_counter'),
+    CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale', otel_type='otel_gauge'),
     CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_tree_duration', 'time spent on per-tree checkpoint work (usecs)'),
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),

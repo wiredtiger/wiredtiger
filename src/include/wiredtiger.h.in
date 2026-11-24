@@ -7583,7 +7583,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_HANDLE_SKIPPED		1431
 /*! checkpoint: most recent handles walked */
 #define	WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED		1432
-/*! checkpoint: most recent time (msecs), OTel type: otel_counter */
+/*! checkpoint: most recent time (msecs), OTel type: otel_gauge */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1433
 /*! checkpoint: number of bytes reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES	1434
