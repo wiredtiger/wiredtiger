@@ -33,9 +33,9 @@ from wtscenario import make_scenarios
 def encode_bytes(str):
     return bytes(str, 'utf-8')
 
-# The extended abandon call takes its boundary from the argument: every record above the given LSN
-# is discarded, including a newer checkpoint, and a call without a boundary is refused. These are
-# internal APIs, tested independently of WiredTiger's own use of them.
+# The extended abandon call drops the records written after the given checkpoint, which must be the
+# last completed one, and refuses a call without a boundary. These are internal APIs, tested
+# independently of WiredTiger's own use of them.
 class test_layered_checkpoint20(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
@@ -59,7 +59,7 @@ class test_layered_checkpoint20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         args.flags = 0
         args.base_lsn = 0
         args.backlink_lsn = 0
-        handle.plh_put(session, page_id, 2, args, encode_bytes(payload))
+        handle.plh_put(session, page_id, 0, args, encode_bytes(payload))
         return args.lsn
 
     def abandon(self, page_log, session, last_checkpoint_lsn):
@@ -67,37 +67,37 @@ class test_layered_checkpoint20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         args.last_checkpoint_lsn = last_checkpoint_lsn
         page_log.pl_abandon_checkpoint_ext(session, args)
 
-    def test_abandon_boundary_from_argument(self):
+    def test_abandon_discards_records_after_checkpoint(self):
         session = self.session
         page_log = self.conn.get_page_log('palite')
         handle = page_log.pl_open_handle(session, 1)
 
-        # Page 10 exists before the first checkpoint, which the abandon below names.
+        # Page 10 exists before the checkpoint whose completion LSN is the abandon boundary.
         self.put_page(handle, session, 10, 'page-10')
         ckpt1_lsn = self.checkpoint(page_log, session, 1)
 
-        # Page 11 and a second checkpoint land above it.
+        # Pages 11 and 12 belong to an incomplete checkpoint: they are written after the completed
+        # one, with no completion of their own.
         self.put_page(handle, session, 11, 'page-11')
-        ckpt2_lsn = self.checkpoint(page_log, session, 2)
-        self.assertGreater(ckpt2_lsn, ckpt1_lsn)
-
-        # Page 12 lands above the second checkpoint.
         page12_lsn = self.put_page(handle, session, 12, 'page-12')
+        self.assertGreater(page12_lsn, ckpt1_lsn)
+        self.assertEqual(sorted(handle.plh_get_page_ids(session, page12_lsn)), [10, 11, 12])
 
-        # Naming the first checkpoint's LSN discards the second checkpoint and both later pages:
-        # the boundary comes from the argument, not from the newest checkpoint the page log knows
-        # about.
+        # Abandoning at the completed checkpoint discards the records written after it and keeps
+        # the checkpoint itself.
         self.abandon(page_log, session, ckpt1_lsn)
         self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt1_lsn)
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page12_lsn)), [10])
 
-        # A checkpoint above the abandon boundary survives when it is the one named, and only the
-        # pages written after it go.
+        # Page 13 belongs to the next checkpoint, page 14 to the incomplete one after it.
         page13_lsn = self.put_page(handle, session, 13, 'page-13')
-        ckpt3_lsn = self.checkpoint(page_log, session, 3)
+        ckpt2_lsn = self.checkpoint(page_log, session, 2)
         page14_lsn = self.put_page(handle, session, 14, 'page-14')
-        self.abandon(page_log, session, ckpt3_lsn)
-        self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt3_lsn)
+        self.assertGreater(ckpt2_lsn, page13_lsn)
+        self.assertGreater(page14_lsn, ckpt2_lsn)
+        self.assertEqual(sorted(handle.plh_get_page_ids(session, page14_lsn)), [10, 13, 14])
+        self.abandon(page_log, session, ckpt2_lsn)
+        self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt2_lsn)
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page14_lsn)), [10, 13])
 
     def test_abandon_requires_a_boundary(self):

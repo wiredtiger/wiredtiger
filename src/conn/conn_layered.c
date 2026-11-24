@@ -1808,13 +1808,16 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     skipped = false;
     if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL) {
         /* A connection with no installed or written checkpoint has nothing to abandon. */
+        uint64_t last_checkpoint_meta_lsn =
+          __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn);
         if (disagg->last_checkpoint_lsn == WT_DISAGG_LSN_NONE) {
-            WT_ASSERT_ALWAYS(session,
-              __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) ==
-                WT_DISAGG_LSN_NONE,
+            WT_ASSERT_ALWAYS(session, last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE,
               "The last checkpoint LSN must be known before abandoning a checkpoint");
             skipped = true;
         } else {
+            WT_ASSERT_ALWAYS(session, disagg->last_checkpoint_lsn > last_checkpoint_meta_lsn,
+              "Meta lsn %" PRIx64 " must be less than complete lsn %" PRIx64 " for same checkpoint",
+              last_checkpoint_meta_lsn, disagg->last_checkpoint_lsn);
             abandon_args.last_checkpoint_lsn = disagg->last_checkpoint_lsn;
             ret = disagg->npage_log->page_log->pl_abandon_checkpoint_ext(
               disagg->npage_log->page_log, &session->iface, &abandon_args);
@@ -2233,7 +2236,6 @@ __disagg_mark_btrees_outdated_then_step_down(WT_SESSION_IMPL *session)
     __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, false);
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
-
     return (0);
 }
 
@@ -2621,7 +2623,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                 WT_ERR_MSG_CHK(session,
                   __wti_disagg_pick_up_checkpoint_meta(
                     session, cval.str, cval.len, false, last_checkpoint_lsn),
-                  "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
+                  "Failed to pick up a new checkpoint (LSN %" PRIu64 ") with config: %.*s",
+                  last_checkpoint_lsn, (int)cval.len, cval.str);
             }
         }
     }

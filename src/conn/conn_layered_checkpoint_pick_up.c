@@ -2282,6 +2282,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data
     WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
     ckpt_meta.metadata_lsn = (uint64_t)cval.val;
 
+    /* FIXME-WT-19115: The metadata lsn should be less than complete lsn */
+
     /*
      * Extract the checksum of the metadata page, if it exists. We added the checksum later, so
      * treat it as optional, in order to support clusters with an earlier data format.
