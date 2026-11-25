@@ -178,6 +178,13 @@ kv_workload_runner_wt::run(const kv_workload &workload)
                     _state->return_codes[p] = run_operation(op.operation);
                 }
 
+                /*
+                 * A follower never publishes a checkpoint, so its writes would not survive the
+                 * reopen performed by verification. Step up before the final close: closing a
+                 * leader publishes a final checkpoint.
+                 */
+                step_up_if_follower();
+
                 wiredtiger_close();
             } catch (std::exception &e) {
                 _state->exception = true;
@@ -764,6 +771,26 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
                 throw wiredtiger_exception("Cannot set the stable timestamp", ret);
         }
     }
+}
+
+/*
+ * kv_workload_runner_wt::step_up_if_follower --
+ *     If the database is a disaggregated follower, step it up to leader.
+ */
+void
+kv_workload_runner_wt::step_up_if_follower()
+{
+    std::unique_lock lock(_connection_lock);
+    if (_connection == nullptr)
+        return;
+
+    kv_database_config database_config = kv_database_config::from_string(_state->database_config);
+    if (!database_config.disaggregated || database_config.leader)
+        return;
+
+    int ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
 }
 
 /*

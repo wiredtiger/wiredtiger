@@ -64,6 +64,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 {
     /* Disagg may be enabled by adding -G disaggregated=1 as a command line argument. */
     disaggregated = 0;
+    follower = 0.25;
 
     min_tables = 3;
     max_tables = 10;
@@ -534,6 +535,24 @@ kv_workload_generator::run()
 
         /* FIXME-WT-15040 Prepared transactions are not yet supported. */
         _spec.prepared_transaction = 0;
+
+        /*
+         * A follower cannot checkpoint, and without leader checkpoints a crash or restart would
+         * lose every write in the workload, so run followers with transactional operations only.
+         * The runner makes the data durable for verification by stepping up before the final close.
+         */
+        if (_random.next_float() < _spec.follower) {
+            _database_config.leader = false;
+            database_config = join(database_config, "leader=false");
+
+            _spec.checkpoint = 0;
+            _spec.checkpoint_crash = 0;
+            _spec.crash = 0;
+            _spec.restart = 0;
+
+            /* FIXME-WT-19240 A follower truncate can lose a later insert across step-up. */
+            _spec.truncate = 0;
+        }
     }
     if (_random.next_float() < _spec.conn_logging) {
         _database_config.logging = true;

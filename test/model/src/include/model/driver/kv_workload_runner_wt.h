@@ -391,6 +391,12 @@ protected:
     void wiredtiger_open_nolock();
 
     /*
+     * kv_workload_runner_wt::step_up_if_follower --
+     *     If the database is a disaggregated follower, step it up to leader.
+     */
+    void step_up_if_follower();
+
+    /*
      * kv_workload_runner_wt::wiredtiger_close_nolock --
      *     Close WiredTiger, assume the right locks are held.
      */

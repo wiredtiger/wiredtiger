@@ -82,6 +82,9 @@ struct kv_workload_generator_spec {
     /* Probability of running with disagg mode enabled*/
     float disaggregated;
 
+    /* Probability of running as a follower, if disagg mode is enabled. */
+    float follower;
+
     /* The minimum and maximum number of tables. */
     size_t min_tables;
     size_t max_tables;
