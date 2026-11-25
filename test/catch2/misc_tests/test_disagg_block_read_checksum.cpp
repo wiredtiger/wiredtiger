@@ -674,11 +674,7 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: byte-read statistics
     }
 }
 
-/*
- * The read compression ratio divides the stored bytes read by the in-memory bytes read into cache,
- * so the in-memory count must cover the same blocks: the base image and every delta. Each block
- * carries an in-memory size larger than its stored size, as a compressed block does.
- */
+/* Reading a page with deltas counts every block's in-memory size in cache_bytes_read. */
 TEST_CASE_METHOD(read_checksum_fixture,
   "disagg block read: cache byte-read statistics include deltas", "[block_disagg]")
 {
