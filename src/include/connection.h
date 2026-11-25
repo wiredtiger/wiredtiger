@@ -223,14 +223,6 @@ struct __wt_disagg_metadata_op {
 };
 
 /*
- * WT_DISAGG_METADATA_BUCKET --
- *      A shared metadata queue hash bucket. Entries chain through their down field, newest first.
- */
-struct __wt_disagg_metadata_bucket {
-    WT_DISAGG_METADATA_OP *top; /* Newest entry hashing to this bucket */
-};
-
-/*
  * WT_DISAGG_PENDING_CRYPT_KEY --
  *      A pushed key waiting to be persisted at the next checkpoint.
  */
@@ -463,8 +455,8 @@ struct __wt_disaggregated_storage {
      */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
     WT_SPINLOCK shared_metadata_queue_lock;
-    WT_DISAGG_METADATA_BUCKET *shared_metadata_hash; /* Bucket heads, indexed by name */
-    uint32_t shared_metadata_hash_slots;             /* Bucket count */
+    WT_DISAGG_METADATA_OP **shared_metadata_hash; /* Bucket heads, indexed by name */
+    uint32_t shared_metadata_hash_slots;          /* Bucket count */
 
     /* Shared metadata queue statistics. */
     wt_shared uint64_t schema_awaiting_publish;

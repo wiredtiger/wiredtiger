@@ -445,13 +445,12 @@ __disagg_shared_metadata_queue_free(WT_SESSION_IMPL *session, WT_DISAGG_METADATA
 
 /*
  * __disagg_queue_bucket --
- *     Return the bucket for a table name.
+ *     Return the bucket index for a table name.
  */
-static WT_INLINE WT_DISAGG_METADATA_BUCKET *
+static WT_INLINE uint64_t
 __disagg_queue_bucket(WT_DISAGGREGATED_STORAGE *disagg, const char *table_name)
 {
-    return (&disagg->shared_metadata_hash[__wt_hash_city64(table_name, strlen(table_name)) %
-      disagg->shared_metadata_hash_slots]);
+    return (__wt_hash_city64(table_name, strlen(table_name)) % disagg->shared_metadata_hash_slots);
 }
 
 /*
@@ -462,11 +461,11 @@ __disagg_queue_bucket(WT_DISAGGREGATED_STORAGE *disagg, const char *table_name)
 static void
 __disagg_queue_index_insert_newest(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
 {
-    WT_DISAGG_METADATA_BUCKET *bucket;
+    uint64_t bucket;
 
     bucket = __disagg_queue_bucket(disagg, entry->table_name);
-    entry->down = bucket->top;
-    bucket->top = entry;
+    entry->down = disagg->shared_metadata_hash[bucket];
+    disagg->shared_metadata_hash[bucket] = entry;
 }
 
 /*
@@ -478,8 +477,10 @@ static void
 __disagg_queue_index_insert_oldest(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
 {
     WT_DISAGG_METADATA_OP **p;
+    uint64_t bucket;
 
-    p = &__disagg_queue_bucket(disagg, entry->table_name)->top;
+    bucket = __disagg_queue_bucket(disagg, entry->table_name);
+    p = &disagg->shared_metadata_hash[bucket];
     while (*p != NULL)
         p = &(*p)->down;
     entry->down = NULL;
@@ -495,8 +496,10 @@ __disagg_queue_index_remove(
   WT_SESSION_IMPL *session, WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
 {
     WT_DISAGG_METADATA_OP **p;
+    uint64_t bucket;
 
-    p = &__disagg_queue_bucket(disagg, entry->table_name)->top;
+    bucket = __disagg_queue_bucket(disagg, entry->table_name);
+    p = &disagg->shared_metadata_hash[bucket];
     while (*p != NULL && *p != entry)
         p = &(*p)->down;
     WT_ASSERT(session, *p == entry);
@@ -949,14 +952,16 @@ __wt_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *tab
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry;
+    uint64_t bucket;
 
     conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /* Buckets are newest first, so the first non-UPDATE match is the latest operation. */
-    for (entry = __disagg_queue_bucket(&conn->disaggregated_storage, table_name)->top;
-      entry != NULL; entry = entry->down)
+    bucket = __disagg_queue_bucket(&conn->disaggregated_storage, table_name);
+    for (entry = conn->disaggregated_storage.shared_metadata_hash[bucket]; entry != NULL;
+      entry = entry->down)
         if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
           strcmp(entry->table_name, table_name) == 0)
             return (entry);
