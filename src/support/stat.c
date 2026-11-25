@@ -4025,6 +4025,7 @@ static const int __stats_connection_otel_counters[] = {
   WT_STAT_CONN_CACHE_READ,
   WT_STAT_CONN_CACHE_PAGES_REQUESTED,
   WT_STAT_CONN_CURSOR_INSERT,
+  WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_ORPHAN_REMOVE,
 };
 
 static const int __stats_connection_otel_gauges[] = {
@@ -4680,7 +4681,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_STEP_UP_IN_PROGRESS,
   WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY,
   WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES,
-  WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_ORPHAN_REMOVE,
   WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME,
   WT_STAT_CONN_DISAGG_STEP_UP_INGEST_TABLES_DRAINED,
   WT_STAT_CONN_DISAGG_STEP_UP_MISSING_STABLE_CREATE_TIME,
@@ -5224,6 +5224,7 @@ __stat_connection_clear_counters(WT_CONNECTION_STATS *stats)
     stats->cache_read = 0;
     stats->cache_pages_requested = 0;
     stats->cursor_insert = 0;
+    stats->disagg_step_up_ingest_drain_orphan_remove = 0;
 }
 
 static void
@@ -5887,7 +5888,6 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_clear_ingest_retry = 0;
     stats->disagg_step_up_ingest_drain_bytes = 0;
-    stats->disagg_step_up_ingest_drain_orphan_remove = 0;
     stats->disagg_step_up_ingest_drain_time = 0;
     stats->disagg_step_up_ingest_tables_drained = 0;
     stats->disagg_step_up_missing_stable_create_time = 0;

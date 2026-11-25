@@ -8169,7 +8169,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY	1644
 /*! disagg: step up ingest table drain bytes moved to stable tables */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES	1645
-/*! disagg: step up ingest table drain keys with orphan removes skipped */
+/*!
+ * disagg: step up ingest table drain keys with orphan removes skipped,
+ * OTel type: otel_counter
+ */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_ORPHAN_REMOVE	1646
 /*! disagg: step up ingest table drain most recent time (msecs) */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME	1647
