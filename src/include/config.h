@@ -286,6 +286,7 @@ extern const char __WT_CONFIG_CHOICE_live_restore[];
 extern const char __WT_CONFIG_CHOICE_live_restore_clean_up[];
 extern const char __WT_CONFIG_CHOICE_live_restore_progress[];
 extern const char __WT_CONFIG_CHOICE_log[];
+extern const char __WT_CONFIG_CHOICE_log_newfile_slow[];
 extern const char __WT_CONFIG_CHOICE_log_validate[];
 extern const char __WT_CONFIG_CHOICE_lower[];
 extern const char __WT_CONFIG_CHOICE_message[];
