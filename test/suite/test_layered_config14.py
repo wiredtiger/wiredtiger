@@ -109,7 +109,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(1))
         self.session.checkpoint()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
 
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)
@@ -128,7 +128,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.check_metadata_cursor([], self.with_ingest_uris)
 
         # Pick up the checkpoint
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.conn.reconfigure(
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn})')
 
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)
@@ -186,7 +187,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(2))
         self.session.checkpoint()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
 
         # Ensure that the shared metadata table has all the expected URIs after the checkpoint
         self.check_shared_metadata(self.all_uris)
@@ -223,7 +224,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         self.restart_without_local_files(pickup_checkpoint=False)
 
         # Pick up the checkpoint
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.conn.reconfigure(
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn})')
 
         # Become the leader
         self.conn.reconfigure(f'disaggregated=(role="leader")')

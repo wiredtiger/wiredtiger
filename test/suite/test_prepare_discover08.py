@@ -89,11 +89,12 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
 
         # Capture checkpoint metadata while the original leader connection is
         # still open, then reopen in the role this scenario targets.
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         if self.reopen_role == 'follower':
             reopen_config = (self.conn_base_config +
                              'disaggregated=(role="follower",'
-                             f'checkpoint_meta="{checkpoint_meta}")')
+                             f'checkpoint_meta="{checkpoint_meta}",'
+                             f'checkpoint_lsn={checkpoint_lsn})')
         else:
             reopen_config = self.conn_base_config + 'disaggregated=(role="leader")'
         self.reopen_conn(config=reopen_config)

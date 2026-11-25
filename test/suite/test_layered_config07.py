@@ -159,7 +159,9 @@ class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         page22_lsn = put_args_main.lsn
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page22_lsn)), [21, 22])
 
-        page_log.pl_abandon_checkpoint(session)
+        abandon_args = wiredtiger.PageLogAbandonCheckpointArgs()
+        abandon_args.last_checkpoint_lsn = ckpt2_lsn
+        page_log.pl_abandon_checkpoint_ext(session, abandon_args)
         self.assertEqual(sorted(handle.plh_get_page_ids(session, page22_lsn)), [21])
         self.assertEqual(page_log.pl_get_complete_checkpoint(session)[0], ckpt2_lsn)
 

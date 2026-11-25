@@ -64,11 +64,12 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
         """Open a follower and apply the given checkpoint metadata."""
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         return conn_follow
 
     def _checkpoint(self, conn):
@@ -123,13 +124,13 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
 
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2: Follower discovers and claims the checkpointed prepare.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         session_f = conn_follow.open_session()
         self._claim_prepared(conn_follow, session_f, 123)
@@ -200,14 +201,14 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
 
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2: Follower claims the checkpointed prepare, then commits
         # a newer update at ts=220 to verify it remains visible regardless of how the prepare resolves.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         session_f = conn_follow.open_session()
         self._claim_prepared(conn_follow, session_f, 123)
@@ -296,13 +297,13 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
 
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2: Follower discovers and claims the checkpointed prepare.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         session_f = conn_follow.open_session()
         self._claim_prepared(conn_follow, session_f, 123)
@@ -369,7 +370,7 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
 
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
 
         # Roll back the leader's prepared transaction. The checkpoint already captured the
         # prepare, so the follower sees it as unresolved.
@@ -379,7 +380,7 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
 
         # Phase 2: Follower claims the checkpointed prepare, then commits
         # value_220 at ts=220 to create the "sandwiched" scenario.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         session_f = conn_follow.open_session()
         self._claim_prepared(conn_follow, session_f, 500)
@@ -457,13 +458,13 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): Discover, claim and resolve the checkpointed transaction.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         session_f = conn_follow.open_session()
         self._claim_prepared(conn_follow, session_f, 123)
@@ -525,13 +526,13 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         # Checkpoint at stable=50 (below prepare_ts=100).
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         # Phase 3: Step up and verify.
         self._step_up(conn_follow)
@@ -582,13 +583,13 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         # Checkpoint at stable=50 (below prepare_ts=100).
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         # Phase 3: Step up and verify.
         self._step_up(conn_follow)
@@ -639,13 +640,13 @@ class test_layered_prepare09(wttest.WiredTigerTestCase):
         # Checkpoint at stable=50 (below prepare_ts=100).
         self._checkpoint(self.conn)
 
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         # Phase 3: Step up and verify.
         self._step_up(conn_follow)

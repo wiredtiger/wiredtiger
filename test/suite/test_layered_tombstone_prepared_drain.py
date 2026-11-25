@@ -97,14 +97,15 @@ class test_layered_tombstone_prepared_drain(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=i,value_format=u')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(70))
         self.session.checkpoint()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         self.conn.close('debug=(skip_checkpoint=true)')
 
         # Phase 2 (follower): load the checkpoint and prepare the colliding value. It lands in the
         # ingest table, escaped, as an in-flight prepared update.
         conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + ',create,' + self.conn_base_config + self.role_config('follower'))
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         # A committed control key on the same table confirms the prepared drain leaves unrelated data
         # intact.
         ctrl_session = conn_follow.open_session()
