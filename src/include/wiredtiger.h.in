@@ -2401,6 +2401,16 @@ struct __wt_connection {
      * is within the range of 0 to 100 or an absolute size when greater than 100. The value is not
      * allowed to exceed the \c cache_size.  Ignored if set to zero., an integer between \c 0 and \c
      * 10TB; default \c 1.}
+     * @config{eviction_dirty_index, if true\, use a per-btree dirty-page index that captures page
+     * references at modify-time and supplies them to the eviction queue alongside the tree walker.
+     * Rings are allocated when a btree handle opens and retained until it closes\, so enabling this
+     * setting requires existing handles to be reopened before they use the index.  Disabling
+     * immediately stops producers and drains\, but does not free existing rings.  The walker
+     * remains active as the fallback., a boolean flag; default \c true.}
+     * @config{eviction_dirty_index_disagg, if true\, also use the per-btree dirty-page index for
+     * disaggregated storage btrees.  Disabled by default because ring churn competes with
+     * checkpoint materialization lag.  Requires \c eviction_dirty_index., a boolean flag; default
+     * \c false.}
      * @config{eviction_dirty_target, perform eviction in worker threads when the cache contains at
      * least this much dirty content.  It is a percentage of the cache size if the value is within
      * the range of 1 to 100 or an absolute size when greater than 100. The value is not allowed to
@@ -3354,6 +3364,15 @@ struct __wt_connection {
  * within the range of 0 to 100 or an absolute size when greater than 100. The value is not allowed
  * to exceed the \c cache_size.  Ignored if set to zero., an integer between \c 0 and \c 10TB;
  * default \c 1.}
+ * @config{eviction_dirty_index, if true\, use a per-btree dirty-page index that captures page
+ * references at modify-time and supplies them to the eviction queue alongside the tree walker.
+ * Rings are allocated when a btree handle opens and retained until it closes\, so enabling this
+ * setting requires existing handles to be reopened before they use the index.  Disabling
+ * immediately stops producers and drains\, but does not free existing rings.  The walker remains
+ * active as the fallback., a boolean flag; default \c true.}
+ * @config{eviction_dirty_index_disagg, if true\, also use the per-btree dirty-page index for
+ * disaggregated storage btrees.  Disabled by default because ring churn competes with checkpoint
+ * materialization lag.  Requires \c eviction_dirty_index., a boolean flag; default \c false.}
  * @config{eviction_dirty_target, perform eviction in worker threads when the cache contains at
  * least this much dirty content.  It is a percentage of the cache size if the value is within the
  * range of 1 to 100 or an absolute size when greater than 100. The value is not allowed to exceed
