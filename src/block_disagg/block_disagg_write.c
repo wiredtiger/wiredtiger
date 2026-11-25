@@ -271,7 +271,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         WT_STAT_CONN_DSRC_INCR(session, disagg_block_plh_put_failed);
         return (EBUSY);
     }
-    ret = plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf);
+    ret = plhandle->plh_put(plhandle, &session->iface, page_id, &put_args, buf);
     blk->combined_header_size = combined_header_size;
     WT_RET(ret);
 
@@ -425,5 +425,5 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
 
     WT_STAT_CONN_INCR(session, disagg_block_page_discard);
 
-    return (plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, 0, &discard_args));
+    return (plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, &discard_args));
 }

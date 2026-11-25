@@ -78,7 +78,7 @@ class test_layered_checkpoint15(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check the timestamps
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(timestamp1, checkpoint_timestamp)
 
         # Create the follower
@@ -115,7 +115,7 @@ class test_layered_checkpoint15(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check the timestamps
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(timestamp2, checkpoint_timestamp)
 
         # Pick up the new checkpoint
@@ -154,7 +154,7 @@ class test_layered_checkpoint15(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check the timestamps
-        _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
+        _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(stable_timestamp3, checkpoint_timestamp)
 
         # Pick up the new checkpoint

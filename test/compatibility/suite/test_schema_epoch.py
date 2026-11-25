@@ -86,7 +86,7 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
     def pick_up_last_checkpoint(self, session):
         """Pick up the last checkpoint in the shared page log and return its timestamp."""
         page_log = session.connection.get_page_log("palite")
-        _, _, timestamp, metadata = page_log.pl_get_complete_checkpoint(session)
+        _, timestamp, metadata = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session)
         session.connection.reconfigure(f'disaggregated=(checkpoint_meta="{metadata}")')
         return timestamp

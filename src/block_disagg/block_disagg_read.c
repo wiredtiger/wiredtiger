@@ -211,8 +211,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     /*
      * Output buffers do not need to be pre-allocated, the PALI interface does that.
      */
-    WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
-      &get_args, results_array, results_count));
+    WT_ERR(block_disagg->plhandle->plh_get(
+      block_disagg->plhandle, &session->iface, page_id, &get_args, results_array, results_count));
     WT_ASSERT(session, *results_count > 0);
     WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT + 1);
 
@@ -340,8 +340,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                         if (block_meta->delta_count > 0)
                             WT_ASSERT(session, get_args.base_lsn > 0);
                         else
-                            WT_ASSERT(
-                              session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+                            WT_ASSERT(session, get_args.base_lsn == 0);
                     }
                 }
 
@@ -499,7 +498,7 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
 
     tmp_count = (uint32_t)*results_count;
     WT_RET(block_disagg->plhandle->plh_get(
-      block_disagg->plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+      block_disagg->plhandle, &session->iface, page_id, get_args, results_array, &tmp_count));
     WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
     *results_count = tmp_count;
 
@@ -540,8 +539,8 @@ __wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t tabl
       npage_log->page_log, &session->iface, table_id, &plhandle));
 
     tmp_count = (uint32_t)*results_count;
-    WT_ERR(plhandle->plh_get(
-      plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+    WT_ERR(
+      plhandle->plh_get(plhandle, &session->iface, page_id, get_args, results_array, &tmp_count));
     WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
     *results_count = tmp_count;
     if (tmp_count == 0)
