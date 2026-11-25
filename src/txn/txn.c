@@ -1810,7 +1810,7 @@ __txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITE
         }
 
         WT_RET(__wt_scr_alloc(session, 0, &ingest_uri));
-        WT_ERR(__wt_clayered_stable_to_ingest_uri(session, stable_uri, ingest_uri));
+        WT_ERR(__wt_layered_derive_ingest_uri(session, stable_uri, ingest_uri));
         WT_ERR(__wt_open_cursor(session, ingest_uri->data, NULL, NULL, &ingest_cursor));
         *ingest_cursorp = ingest_cursor;
         *ingest_cursor_stable_idp = op->btree->id;

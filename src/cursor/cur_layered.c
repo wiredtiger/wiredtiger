@@ -257,25 +257,6 @@ __wt_clayered_stable_to_ingest_value(
 }
 
 /*
- * __wt_clayered_stable_to_ingest_uri --
- *     Build a layered table's ingest constituent URI from its stable constituent URI, into a buffer
- *     owned by the caller.
- */
-int
-__wt_clayered_stable_to_ingest_uri(
-  WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *ingest_uri)
-{
-    size_t prefix_len;
-    const char *stable_suffix;
-
-    stable_suffix = strstr(stable_uri, ".wt_stable");
-    WT_ASSERT_ALWAYS(
-      session, stable_suffix != NULL, "expected a stable constituent URI, got %s", stable_uri);
-    prefix_len = (size_t)(stable_suffix - stable_uri);
-    return (__wt_buf_fmt(session, ingest_uri, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
-}
-
-/*
  * __wt_clayered_stable_value_stat --
  *     Count and warn about a stable-table value that shares the tombstone's encoded namespace,
  *     classified by its length and trailing byte. Values beginning with the marker are expected to
@@ -3479,11 +3460,11 @@ __clayered_cell_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_TIME_WINDOW tw;
 
     /*
-     * Ignore a prepared cell, except in the live stable table: a checkpoint can still show a
-     * prepare that ingest has since resolved, but the live table restores the cell to its update
-     * chain, where it conflicts until resolved.
+     * A stable checkpoint can still show a prepare that ingest has resolved. With mirroring off,
+     * check the live stable update chain even if the on-disk cell is prepared.
      */
-    if (__wt_dhandle_shared_btree_kind(cbt->dhandle) != WT_SHARED_BTREE_LIVE &&
+    if ((F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ||
+          __wt_dhandle_shared_btree_kind(cbt->dhandle) != WT_SHARED_BTREE_LIVE) &&
       __wt_read_cell_time_window(cbt, &tw) && WT_TIME_WINDOW_HAS_PREPARE(&tw))
         return (0);
 
